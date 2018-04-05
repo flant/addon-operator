@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/flant/antiopa/kube_config_manager"
 	"github.com/flant/antiopa/merge_values"
 )
 

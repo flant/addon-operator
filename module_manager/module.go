@@ -16,7 +16,6 @@ import (
 
 	"github.com/flant/antiopa/helm"
 	"github.com/flant/antiopa/kube"
-	"github.com/flant/antiopa/kube_values_manager"
 	"github.com/flant/antiopa/merge_values"
 	"github.com/flant/antiopa/utils"
 )
