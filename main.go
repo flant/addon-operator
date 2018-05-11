@@ -6,7 +6,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/romana/rlog"
+
 	"github.com/flant/antiopa/docker_registry_manager"
+	"github.com/flant/antiopa/executor"
 	"github.com/flant/antiopa/helm"
 	"github.com/flant/antiopa/kube"
 	"github.com/flant/antiopa/kube_events_manager"
@@ -15,8 +18,6 @@ import (
 	"github.com/flant/antiopa/schedule_manager"
 	"github.com/flant/antiopa/task"
 	"github.com/flant/antiopa/utils"
-
-	"github.com/romana/rlog"
 )
 
 var (
@@ -659,7 +660,7 @@ func main() {
 
 	// Be a good parent - clean up behind the children processes.
 	// Antiopa is PID1, no special config required
-	// go utils.Reap()
+	go executor.Reap()
 
 	// настроить всё необходимое
 	Init()

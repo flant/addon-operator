@@ -21,6 +21,7 @@ import (
 	storageV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/flant/antiopa/executor"
 	"github.com/flant/antiopa/kube"
 	"github.com/flant/antiopa/utils"
 )
@@ -631,7 +632,7 @@ func execJq(jqFilter string, jsonData []byte) (stdout string, stderr string, err
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 
-	err = cmd.Run()
+	err = executor.Run(cmd)
 	stdout = strings.TrimSpace(stdoutBuf.String())
 	stderr = strings.TrimSpace(stderrBuf.String())
 
