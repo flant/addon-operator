@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
 	"os"
 	"time"
@@ -8,13 +9,13 @@ import (
 	"github.com/flant/antiopa/docker_registry_manager"
 	"github.com/flant/antiopa/helm"
 	"github.com/flant/antiopa/kube"
+	"github.com/flant/antiopa/kube_events_manager"
 	"github.com/flant/antiopa/kube_node_manager"
 	"github.com/flant/antiopa/module_manager"
 	"github.com/flant/antiopa/schedule_manager"
 	"github.com/flant/antiopa/task"
 	"github.com/flant/antiopa/utils"
 
-	"github.com/flant/antiopa/kube_events_manager"
 	"github.com/romana/rlog"
 )
 
@@ -653,9 +654,12 @@ func CreateReloadAllTasks() {
 }
 
 func main() {
+	// set flag.Parsed() for glog
+	flag.CommandLine.Parse([]string{})
+
 	// Be a good parent - clean up behind the children processes.
 	// Antiopa is PID1, no special config required
-  // go utils.Reap()
+	// go utils.Reap()
 
 	// настроить всё необходимое
 	Init()
