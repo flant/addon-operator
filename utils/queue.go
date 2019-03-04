@@ -13,12 +13,12 @@ type QueueWatcher interface {
 type Queue struct {
 	m              sync.Mutex
 	items          []interface{}
-	changesEnabled bool           // turn on and off callbacks execution
-	changesCount   int            // count changes when callbacks turned off
+	changesEnabled bool           // turns on and off callbacks execution
+	changesCount   int            // counts changes when callbacks turned off
 	queueWatchers  []QueueWatcher // callbacks to be executed on items change
 }
 
-// Create new queue
+// NewQueue creates a new queue.
 func NewQueue() *Queue {
 	return &Queue{
 		m:              sync.Mutex{},
@@ -29,7 +29,7 @@ func NewQueue() *Queue {
 	}
 }
 
-// Add last element
+// Add adds the last element.
 func (q *Queue) Add(task interface{}) {
 	q.m.Lock()
 	q.items = append(q.items, task)
@@ -37,7 +37,7 @@ func (q *Queue) Add(task interface{}) {
 	q.queueChanged()
 }
 
-// Examine first element (get without delete)
+// Peek examines the first element (get without delete).
 func (q *Queue) Peek() (task interface{}, err error) {
 	if q.IsEmpty() {
 		return nil, err
@@ -45,7 +45,7 @@ func (q *Queue) Peek() (task interface{}, err error) {
 	return q.items[0], err
 }
 
-// Pop first element (delete)
+// Pop pops the first element (delete).
 func (q *Queue) Pop() (task interface{}) {
 	q.m.Lock()
 	if q.isEmpty() {
@@ -59,7 +59,7 @@ func (q *Queue) Pop() (task interface{}) {
 	return task
 }
 
-// Add first element
+// Push pushes the element as the first element.
 func (q *Queue) Push(task interface{}) {
 	q.m.Lock()
 	q.items = append([]interface{}{task}, q.items...)
@@ -83,12 +83,12 @@ func (q *Queue) Length() int {
 
 // Watcher functions
 
-// Add queue watcher
+// AddWatcher adds queue watcher.
 func (q *Queue) AddWatcher(queueWatcher QueueWatcher) {
 	q.queueWatchers = append(q.queueWatchers, queueWatcher)
 }
 
-// Вызвать при каждом изменении состава очереди
+// queueChanged must be called every time the queue changes.
 func (q *Queue) queueChanged() {
 	if len(q.queueWatchers) == 0 {
 		return
@@ -124,7 +124,7 @@ func (q *Queue) ChangesDisable() {
 type TaskOperation func(topTask interface{}) string
 type IterateOperation func(task interface{}, index int) string
 
-// Вызов операции над первым элементом очереди с блокировкой
+// WithLock executes operation on the first element of the queue with a queue lock.
 func (q *Queue) WithLock(operation TaskOperation) string {
 	q.m.Lock()
 	defer q.m.Unlock()
@@ -134,7 +134,7 @@ func (q *Queue) WithLock(operation TaskOperation) string {
 	return ""
 }
 
-// Вызов операции над всеми элементами очереди с её блокировкой
+// IterateWithLock executes operation on all elements of the queue with a queue lock.
 func (q *Queue) IterateWithLock(operation IterateOperation) io.Reader {
 	q.m.Lock()
 	defer q.m.Unlock()

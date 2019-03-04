@@ -15,26 +15,25 @@ import (
 )
 
 type DockerImageInfo struct {
-	Registry   string // url для registry
-	Repository string // репозиторий в registry (antiopa)
-	Tag        string // tag репозитория (master, stable, ea, etc.)
-	FullName   string // полное имя образа для лога
+	Registry   string // Docker registry URL
+	Repository string // Antiopa repository in the Registry
+	Tag        string // Repository TAG (master, stable, ea, etc.)
+	FullName   string // The image full name for the logging
 }
 
-// regex для определения валидного docker image digest (image id)
+// Regex to determine a valid Docker image ID (image digest).
 var DockerImageDigestRe = regexp.MustCompile("(sha256:?)?[a-fA-F0-9]{64}")
 var KubeDigestRe = regexp.MustCompile("docker-pullable://.*@sha256:[a-fA-F0-9]{64}")
 
 //var KubeImageIdRe = regexp.MustCompile("docker://sha256:[a-fA-F0-9]{64}")
 
-// Отправить запрос в registry, из заголовка ответа достать digest.
-// Если произошла какая-то ошибка, то сообщить в лог и вернуть пустую
-// строку — метод нужно вызывать в цикле, пока registry не ответит успешно.
+// Sends the request to the Docker registry and gets the image digest from the response.
+// Report to the log and returns an empty string, if an errors occurs.
+// Must be called in a loop until a registry responds successfully.
 //
-// Запрос к registry может паниковать — проблема где-то в docker-registry-client,
-// но случается очень редко, предположительно когда registry становится
-// недоступен из куба — трудно диагностируемо.
-// Поэтому проще тут поймать panic и вывести в Debug лог.
+// Request to a registry may panic. The problem is somewhere in the
+// 'docker-registry-client', but it happens very rarely (perhaps, the reason is
+// the unavailability of a registry from K8S). Simply catches panic and writes debug message.
 func DockerRegistryGetImageDigest(imageInfo DockerImageInfo, dockerRegistry *registryclient.Registry) (digest string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -42,7 +41,7 @@ func DockerRegistryGetImageDigest(imageInfo DockerImageInfo, dockerRegistry *reg
 		}
 	}()
 
-	// Получить digest образа
+	// Gets the image ID (image digest).
 	imageDigest, err := dockerRegistry.ManifestDigestV2(imageInfo.Repository, imageInfo.Tag)
 	if err != nil {
 		rlog.Debugf("REGISTRY: manifest digest request error for %s/%s:%s: %v", imageInfo.Registry, imageInfo.Repository, imageInfo.Tag, err)
@@ -61,7 +60,7 @@ func DockerParseImageName(imageName string) (imageInfo DockerImageInfo, err erro
 	case err != nil:
 		return
 	case reference.IsNameOnly(namedRef):
-		// Если имя без тэга, то docker добавляет latest
+		// If the image name is not tagged, Docker adds the 'latest' tag.
 		namedRef = reference.TagNameOnly(namedRef)
 	}
 
@@ -82,11 +81,10 @@ func DockerParseImageName(imageName string) (imageInfo DockerImageInfo, err erro
 	return
 }
 
-// Поиск digest в строке.
-// Учитывается специфика kubernetes — если есть префикс docker-pullable://, то в строке digest.
-// Если префикс docker:// или нет префикса, то скорее всего там imageId, который нельзя
-// применить для обновления, поэтому возвращается ошибка
-// Пример строки с digest из kubernetes: docker-pullable://registry/repo:tag@sha256:DIGEST-HASH
+// FindImageDigest searches the digest in the string.
+// Tooks into account the specificity of the K8S — if there is a 'docker-pullable://' prefix, then it is the image digest.
+// If there is a 'docker://' prefix of a prefix is absent, then it is an image ID which cannott be used.
+// Example of the string with the images digest from K8S: docker-pullable://registry/repo:tag@sha256:DIGEST-HASH
 func FindImageDigest(imageId string) (image string, err error) {
 	if !KubeDigestRe.MatchString(imageId) {
 		err = fmt.Errorf("Pod status contains image_id and not digest. Antiopa update process not working in clusters with Docker 1.11 or earlier.")
@@ -95,7 +93,7 @@ func FindImageDigest(imageId string) (image string, err error) {
 	return
 }
 
-// Проверка, что строка это docker digest
+// IsValidImageDigest checks that string is an Docker image digest.
 func IsValidImageDigest(imageId string) bool {
 	return DockerImageDigestRe.MatchString(imageId)
 }
@@ -104,9 +102,8 @@ func RegistryClientLogCallback(format string, args ...interface{}) {
 	rlog.Debugf(format, args...)
 }
 
-// NewDockerRegistry - ручной конструктор клиента, как рекомендовано в комментариях
-// к registryclient.New.
-// Этот конструктор не запускает registry.Ping и логирует события через rlog.
+// NewDockerRegistry - manual client constructor (as recommended in review to the registryclient.New).
+// It doesn't start registry.Ping and logs events through the rlog.
 func NewDockerRegistry(registryUrl, username, password string) *registryclient.Registry {
 	url := strings.TrimSuffix(registryUrl, "/")
 

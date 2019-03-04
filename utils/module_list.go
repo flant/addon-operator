@@ -4,7 +4,8 @@ import (
 	"sort"
 )
 
-// SortReverseByReference returns new array reverse sorted by the order of reference array
+// SortReverseByReference returns a new array with items, reverse sorted
+// by the order of 'ref' array.
 func SortReverseByReference(in []string, ref []string) []string {
 	res := make([]string, 0)
 
@@ -22,7 +23,7 @@ func SortReverseByReference(in []string, ref []string) []string {
 	return res
 }
 
-// SortReverse create a copy of in array and sort it in reverse order
+// SortReverse creates a copy of 'in' array and sort it in a reverse order.
 func SortReverse(in []string) []string {
 	res := make([]string, 0)
 	for _, v := range in {
@@ -33,7 +34,7 @@ func SortReverse(in []string) []string {
 	return res
 }
 
-// SortByReference returns new array sorted by the order of reference array
+// SortByReference returns a new array with items sorted by the order of 'ref' array.
 func SortByReference(in []string, ref []string) []string {
 	res := make([]string, 0)
 
@@ -50,7 +51,8 @@ func SortByReference(in []string, ref []string) []string {
 	return res
 }
 
-// ListSubtract creates a new array from src without items in ignored arrays
+// ListSubtract creates a new array from 'src' array with items that are
+// not present in 'ignored' arrays.
 func ListSubtract(src []string, ignored ...[]string) (result []string) {
 	ignoredMap := make(map[string]bool, 0)
 	for _, arr := range ignored {
@@ -67,13 +69,13 @@ func ListSubtract(src []string, ignored ...[]string) (result []string) {
 	return
 }
 
-// ListIntersection returns an intersection between arrays with unique values
+// ListIntersection returns an array with items that are present in all 'arrs' arrays.
 func ListIntersection(arrs ...[]string) (result []string) {
 	if len(arrs) == 0 {
 		return
 	}
 
-	// count each item in arrays
+	// Counts each item in arrays.
 	m := make(map[string]int)
 	for _, a := range arrs {
 		for _, v := range a {
@@ -94,7 +96,7 @@ func ListIntersection(arrs ...[]string) (result []string) {
 	return
 }
 
-// ListFullyIn returns whether all arr items contains in ref array
+// ListFullyIn returns whether all 'arr' items contains in `ref` array.
 func ListFullyIn(arr []string, ref []string) bool {
 	res := true
 

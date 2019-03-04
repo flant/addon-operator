@@ -16,8 +16,7 @@ type DockerRegistryManager interface {
 }
 
 var (
-	// новый id образа с тем же именем
-	// (смена самого имени образа будет обрабатываться самим Deployment'ом автоматом)
+	// ImageUpdated contains the new image ID (image digest) with the same name.
 	ImageUpdated chan string
 )
 
@@ -26,11 +25,11 @@ type MainRegistryManager struct {
 	AntiopaImageName   string
 	AntiopaImageInfo   DockerImageInfo
 	PodHostname        string
-	// клиент для обращений к
+	// DockerRegistry is the object to access to a Docker registry.
 	DockerRegistry *registryclient.Registry
-	// счётчик ошибок обращений к registry
+	// ErrorCounter contains the number of Docker registry access errors.
 	ErrorCounter int
-	// callback вызывается в случае ошибки
+	// ErrorCallback function called if an error occurs.
 	ErrorCallback func()
 }
 
@@ -49,7 +48,7 @@ var DockerRegistryInfo = map[string]map[string]string{
 	},
 }
 
-// InitRegistryManager получает имя образа по имени пода и запрашивает id этого образа.
+// InitRegistryManager gets the image name from the POD name and requests the if of this image.
 // TODO вытащить token и host в секрет
 func Init(hostname string) (DockerRegistryManager, error) {
 	if kube.IsRunningOutOfKubeCluster() {
@@ -73,7 +72,7 @@ func Init(hostname string) (DockerRegistryManager, error) {
 	}, nil
 }
 
-// Запускает проверку каждые 10 секунд, не изменился ли id образа.
+// Run runs a check every 10 seconds to detect if the image ID has changed.
 func (rm *MainRegistryManager) Run() {
 	if kube.IsRunningOutOfKubeCluster() {
 		return
@@ -96,14 +95,15 @@ func (rm *MainRegistryManager) SetErrorCallback(errorCb func()) {
 	rm.ErrorCallback = errorCb
 }
 
-// Основной метод проверки обновления образа.
-// Метод запускается периодически. Вначале пытается достучаться до kube-api
-// и по имени Pod-а получить имя и digest его образа. Когда digest получен, то
-// обращается в registry и по имени образа смотрит, изменился ли digest. Если да,
-// то отправляет новый digest в канал.
+// CheckIsImageUpdated is the main method to check for image updates.
+// It starts periodically. First, it tries to connect to the the K8S API server,
+// and get the name and digest of the image by the name of the Pod.
+// When it receives the image digest, it queries Docker registry by the POD name
+// to get the image digest in the registry. If image digest in the registry has changed,
+// it sends the new digest to the channel.
 func (rm *MainRegistryManager) CheckIsImageUpdated() {
-	// Первый шаг - получить имя и id образа из куба.
-	// kube-api может быть недоступно, поэтому нужно периодически подключаться к нему.
+	// First step. Gets image name and digest from the K8S.
+	// K8S API server may be unavailable, therefore you need to connect to it periodically.
 	if rm.AntiopaImageName == "" {
 		rlog.Debugf("Registry manager: retrieve image name and id from kube-api")
 		podImageName, podImageId := kube.KubeGetPodImageInfo(rm.PodHostname)
@@ -115,7 +115,7 @@ func (rm *MainRegistryManager) CheckIsImageUpdated() {
 		var err error
 		rm.AntiopaImageInfo, err = DockerParseImageName(podImageName)
 		if err != nil {
-			// Очень маловероятная ситуация, потому что Pod запустился, а имя образа из его спеки не парсится.
+			// A very unlikely situation because the Pod has started but its image name isn't parsed.
 			rlog.Errorf("Registry manager: pod image name '%s' is invalid. Will try again. Error was: %v", podImageName, err)
 			return
 		}
@@ -129,8 +129,8 @@ func (rm *MainRegistryManager) CheckIsImageUpdated() {
 		}
 	}
 
-	// Второй шаг — после получения id начать мониторить его изменение в registry.
-	// registry тоже может быть недоступен
+	// Second step. Starts to monitor image ID changes is the Docker registry.
+	// The Docker registry also may be unavailable.
 	if rm.DockerRegistry == nil {
 		rlog.Debugf("Registry manager: create docker registry client")
 		var url, user, password string
@@ -139,8 +139,7 @@ func (rm *MainRegistryManager) CheckIsImageUpdated() {
 			user = info["user"]
 			password = info["password"]
 		}
-		// Создать клиента для подключения к docker-registry
-		// в единственном экземляре
+		// Creates one instance of a Docker registry client.
 		rm.DockerRegistry = NewDockerRegistry(url, user, password)
 	}
 
@@ -149,14 +148,12 @@ func (rm *MainRegistryManager) CheckIsImageUpdated() {
 	rm.SetOrCheckAntiopaImageDigest(digest, err)
 }
 
-// Сравнить запомненный digest образа с полученным из registry.
-// Если отличаются — отправить полученный digest в канал.
-// Если digest не был запомнен, то запомнить.
-// Если была ошибка при опросе registry, то увеличить счётчик ошибок.
-// Когда накопится 3 ошибки подряд, вывести ошибку и сбросить счётчик
+// SetOrCheckAntiopaImageDigest compares the image digest with the image digest obtained from the registry.
+// If they are different — sends image digest from registry to the channel.
+// If digest wasn't stored - stores it.
+// If there was an error in the request from the registry, then increases the error count.
+// Displays an error and resets the counter if there are 3 consecutive errors.
 func (rm *MainRegistryManager) SetOrCheckAntiopaImageDigest(digest string, err error) {
-	// Если пришёл не валидный id или была ошибка — увеличить счётчик ошибок.
-	// Сообщить в лог, когда накопится 3 ошибки подряд
 	if err != nil || !IsValidImageDigest(digest) {
 		rm.ErrorCallback()
 		rm.ErrorCounter++

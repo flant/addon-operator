@@ -38,15 +38,15 @@ type Task interface {
 }
 
 type BaseTask struct {
-	FailureCount   int    // failed executions count
-	Name           string // name of module or hook
+	FailureCount   int    // Failed executions count
+	Name           string // Module or hook name
 	Type           TaskType
 	Binding        module_manager.BindingType
 	BindingContext []module_manager.BindingContext
 	Delay          time.Duration
-	AllowFailure   bool // task considered ok if hook failed. false by default. can be true for some schedule hooks
+	AllowFailure   bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
-	OnStartupHooks bool // run module onStartup hooks on antiopa startup or on module enabled
+	OnStartupHooks bool // Run module onStartup hooks on Antiopa startup or on module enabled.
 }
 
 func NewTask(taskType TaskType, name string) *BaseTask {

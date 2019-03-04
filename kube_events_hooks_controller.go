@@ -90,7 +90,7 @@ func (obj *MainKubeEventsHooksController) EnableGlobalHooks(moduleManager module
 			}
 			obj.GlobalHooks[configId] = desc
 
-			rlog.Debugf("main: run informer %s for global hook %s", configId, globalHook.Name)
+			rlog.Debugf("MAIN: run informer %s for global hook %s", configId, globalHook.Name)
 		}
 	}
 
@@ -120,7 +120,7 @@ func (obj *MainKubeEventsHooksController) EnableModuleHooks(moduleName string, m
 			}
 			obj.ModuleHooks[configId] = desc
 
-			rlog.Debugf("main: run informer %s for module hook %s", configId, moduleHook.Name)
+			rlog.Debugf("MAIN: run informer %s for module hook %s", configId, moduleHook.Name)
 		}
 	}
 
@@ -202,7 +202,7 @@ func (obj *MainKubeEventsHooksController) HandleEvent(kubeEvent kube_events_mana
 
 		res.Tasks = append(res.Tasks, newTask)
 	} else {
-		return nil, fmt.Errorf("unknown kube event: no such config id '%s' registered", kubeEvent.ConfigId)
+		return nil, fmt.Errorf("Unknown kube event: no such config id '%s' registered", kubeEvent.ConfigId)
 	}
 
 	return res, nil
