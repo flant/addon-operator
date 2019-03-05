@@ -28,8 +28,8 @@ type ModuleHook struct {
 }
 
 type Hook struct {
-	Name           string // Unique name like 'global-hooks/startup_hook or 002-module/hooks/cleanup'
-	Path           string // Absolute path to executable file
+	Name           string // The unique name like 'global-hooks/startup_hook or 002-module/hooks/cleanup'.
+	Path           string // The absolute path to the executable file.
 	Bindings       []BindingType
 	OrderByBinding map[BindingType]float64
 
@@ -215,13 +215,13 @@ func (mm *MainModuleManager) addModulesHooksOrderByName(moduleName string, bindi
 }
 
 type globalValuesMergeResult struct {
-	// global values with root "global" key
+	// Global values with the root "global" key.
 	Values utils.Values
-	// global values under root "global" key
+	// Global values under the root "global" key.
 	GlobalValues map[string]interface{}
-	// original values patch argument
+	// Original values patch argument.
 	ValuesPatch utils.ValuesPatch
-	// whether values changed after applying patch
+	// Whether values changed after applying patch.
 	ValuesChanged bool
 }
 

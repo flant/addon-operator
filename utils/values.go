@@ -18,7 +18,7 @@ const (
 	GlobalValuesKey = "global"
 )
 
-// Values stores values for modules or hooks by name
+// Values stores values for modules or hooks by name.
 type Values map[string]interface{}
 
 type ValuesPatch struct {
@@ -67,14 +67,14 @@ func ModuleNameFromValuesKey(moduleValuesKey string) string {
 
 		if c >= 'A' && c <= 'Z' {
 			if i > 0 {
-				// append dash module name parts delimiter
+				// Appends dash module name parts delimiter.
 				b = append(b, '-')
 			}
-			// append lowercased symbol
+			// Appends lowercased symbol.
 			b = append(b, c+('a'-'A'))
 		} else if c >= '0' && c <= '9' {
 			if i > 0 {
-				// append dash module name parts delimiter
+				// Appends dash module name parts delimiter.
 				b = append(b, '-')
 			}
 			b = append(b, c)
@@ -102,7 +102,7 @@ func NewValuesFromBytes(data []byte) (Values, error) {
 func NewValues(data map[interface{}]interface{}) (Values, error) {
 	values, err := FormatValues(data)
 	if err != nil {
-		return nil, fmt.Errorf("cannot cast data to json compatible format: %s:\n%s", err, YamlToString(data))
+		return nil, fmt.Errorf("cannot cast data to JSON compatible format: %s:\n%s", err, YamlToString(data))
 	}
 
 	return values, nil

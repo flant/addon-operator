@@ -5,16 +5,16 @@ import (
 	"github.com/romana/rlog"
 )
 
-// Методы для сбора метрик
-// Antiopa генерирует такие метрики:
-// ошибки хуков и модулей
-// - antiopa_global_errors{namespace="" hook="hook_name"} counter increase when global hook  error
+// Metrics collection methods
+// Antiopa generates the following metrics:
+// hooks and modules errors
+// - antiopa_global_errors{namespace="" hook="hook_name"} counter increases when global hook fails
 // - antiopa_modules_errors{namespace="" module="xxx"}
 // - antiopa_beareable_modules_errors{namespace="" module="xxx"}
-// ошибки обращения к registry
+// registry access errors
 // - antiopa_registry_errors{namespace="" }
-// счётчик работы antiopa
-// - antiopa_live_ticks{namespace=""} counter increase every 5 sec while antiopa runs
+// Antiopa work counter
+// - antiopa_live_ticks{namespace=""} counter increases every 5 sec. while Antiopa runs.
 
 type Metric interface {
 	store(*MetricStorage)

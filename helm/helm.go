@@ -38,7 +38,7 @@ type CliHelm struct {
 	tillerNamespace string
 }
 
-// InitHelm запускает установку tiller-a.
+// Init starts Tiller installation.
 func Init(tillerNamespace string) (HelmClient, error) {
 	rlog.Info("Helm: run helm init")
 
@@ -115,9 +115,8 @@ func (helm *CliHelm) CommandEnv() []string {
 	return res
 }
 
-// Запускает helm с переданными аргументами.
-// Перед запуском устанавливает переменную среды TILLER_NAMESPACE,
-// чтобы antiopa работала со своим tiller-ом.
+// Cmd starts Helm with specified arguments.
+// Sets the TILLER_NAMESPACE environment variable before starting, to Antiopa worked with its own Tiller.
 func (helm *CliHelm) Cmd(args ...string) (stdout string, stderr string, err error) {
 	binPath := "/usr/local/bin/helm"
 	cmd := exec.Command(binPath, args...)
@@ -139,7 +138,7 @@ func (helm *CliHelm) DeleteSingleFailedRevision(releaseName string) (err error) 
 	revision, status, err := helm.LastReleaseStatus(releaseName)
 	if err != nil {
 		if revision == "0" {
-			// revision 0 is not an error. just skip deletion.
+			// Revision 0 is not an error. Just skips deletion.
 			rlog.Debugf("helm release '%s': Release not found, no cleanup required.", releaseName)
 			return nil
 		}
@@ -148,7 +147,7 @@ func (helm *CliHelm) DeleteSingleFailedRevision(releaseName string) (err error) 
 	}
 
 	if revision == "1" && status == "FAILED" {
-		// delete and purge!
+		// Deletes and purges!
 		err = helm.DeleteRelease(releaseName)
 		if err != nil {
 			rlog.Errorf("helm release '%s': cleanup of failed revision got error: %v", releaseName, err)
@@ -156,7 +155,7 @@ func (helm *CliHelm) DeleteSingleFailedRevision(releaseName string) (err error) 
 		}
 		rlog.Infof("helm release '%s': cleanup of failed revision succeeded", releaseName)
 	} else {
-		// No interest of revisions older than 1
+		// No interest of revisions older than 1.
 		rlog.Debugf("helm release '%s': has revision '%s' with status %s", releaseName, revision, status)
 	}
 
@@ -186,7 +185,7 @@ func (helm *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 	}
 	sort.Ints(revisions)
 
-	// Do not remove last FAILED revision
+	// Do not removes last FAILED revision.
 	if len(revisions) > 0 {
 		revisions = revisions[:len(revisions)-1]
 	}
@@ -303,8 +302,8 @@ func (helm *CliHelm) IsReleaseExists(releaseName string) (bool, error) {
 	return true, nil
 }
 
-// Возвращает все известные релизы в виде строк "<имя_релиза>.v<номер_версии>"
-// helm ищет ConfigMap-ы по лейблу OWNER=TILLER и получает данные о релизе из ключа "release"
+// Returns all known releases as strings — "<release_name>.v<release_number>"
+// Helm looks for ConfigMaps by label 'OWNER=TILLER' and gets release info from the 'release' key.
 // https://github.com/kubernetes/helm/blob/8981575082ea6fc2a670f81fb6ca5b560c4f36a7/pkg/storage/driver/cfgmaps.go#L88
 func (helm *CliHelm) ListReleases(labelSelector map[string]string) ([]string, error) {
 	labelsSet := make(kblabels.Set)
@@ -333,7 +332,7 @@ func (helm *CliHelm) ListReleases(labelSelector map[string]string) ([]string, er
 	return releases, nil
 }
 
-// Список имён релизов без суффикса ".v<номер релиза>"
+// ListReleasesNames returns list of release names without suffixes ".v<release_number>"
 func (helm *CliHelm) ListReleasesNames(labelSelector map[string]string) ([]string, error) {
 	releases, err := helm.ListReleases(labelSelector)
 	if err != nil {

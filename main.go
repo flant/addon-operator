@@ -28,22 +28,22 @@ var (
 	WorkingDir string
 	TempDir    string
 
-	// Имя хоста совпадает с именем пода. Можно использовать для запросов API
+	// The hostname is the same as the pod name. Can be used for API requests.
 	Hostname string
 
-	// Имя файла, в который будет сбрасываться очередь
+	// TasksQueueDumpFilePath is the name of the file to which the queue will be dumped.
 	TasksQueueDumpFilePath string
 
-	// Очередь задач
 	TasksQueue *task.TasksQueue
 
-	// module manager object
+	// ModuleManager is the module manager object, which monitors configuration
+	// and variable changes.
 	ModuleManager module_manager.ModuleManager
 
-	// registry manager — watch for antiopa image updates
+	// RegistryManager is the object for the registry manager, which watches
+	// for Antiopa image updates.
 	RegistryManager docker_registry_manager.DockerRegistryManager
 
-	// schedule manager
 	ScheduleManager schedule_manager.ScheduleManager
 	ScheduledHooks  ScheduledHooksStorage
 
@@ -52,26 +52,26 @@ var (
 
 	MetricsStorage *metrics_storage.MetricStorage
 
-	// chan for stopping ManagersEventsHandler infinite loop
+	// ManagersEventsHandlerStopCh is the channel object for stopping infinite loop of the ManagersEventsHandler.
 	ManagersEventsHandlerStopCh chan struct{}
 
-	// helm client object
+	// HelmClient is the object for Helm client.
 	HelmClient helm.HelmClient
 )
 
 const DefaultTasksQueueDumpFilePath = "/tmp/antiopa-tasks-queue"
 
-// Задержки при обработке тасков из очереди
+// Defining delays in processing tasks from queue.
 var (
 	QueueIsEmptyDelay = 3 * time.Second
 	FailedHookDelay   = 5 * time.Second
 	FailedModuleDelay = 5 * time.Second
 )
 
-// Собрать настройки - директории, имя хоста, файл с дампом, namespace для tiller
-// Проинициализировать все нужные объекты: helm, registry manager, module manager,
-// kube events manager
-// Создать пустую очередь с заданиями.
+// Collecting the settings: directory, host name, dump file, tiller namespace.
+// Initializing all necessary objects: helm, registry manager, module manager,
+// kube events manager.
+// Creating an empty queue with jobs.
 func Init() {
 	rlog.Debug("Init")
 
@@ -79,7 +79,7 @@ func Init() {
 
 	WorkingDir, err = os.Getwd()
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot determine antiopa working dir: %s", err)
+		rlog.Errorf("MAIN Fatal: Cannot determine Antiopa working dir: %s", err)
 		os.Exit(1)
 	}
 	rlog.Infof("Antiopa working dir: %s", WorkingDir)
@@ -87,7 +87,7 @@ func Init() {
 	TempDir := "/tmp/antiopa"
 	err = os.Mkdir(TempDir, os.FileMode(0777))
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot create antiopa temporary dir: %s", err)
+		rlog.Errorf("MAIN Fatal: Cannot create Antiopa temporary dir: %s", err)
 		os.Exit(1)
 	}
 	rlog.Infof("Antiopa temporary dir: %s", TempDir)
@@ -99,10 +99,10 @@ func Init() {
 	}
 	rlog.Infof("Antiopa hostname: %s", Hostname)
 
-	// Инициализация подключения к kube
+	// Initializing the connection to the k8s.
 	kube.InitKube()
 
-	// Инициализация слежения за образом
+ // Инициализация слежения за образом
 	// TODO Antiopa может и не следить, если кластер заморожен?
 	RegistryManager, err = docker_registry_manager.Init(Hostname)
 	if err != nil {
@@ -110,34 +110,32 @@ func Init() {
 		os.Exit(1)
 	}
 
-	// Инициализация helm — установка tiller, если его нет
-	// TODO KubernetesAntiopaNamespace — имя поменяется, это старая переменная
+	// Initializing helm. Installing Tiller, if it is missing.
 	tillerNamespace := kube.KubernetesAntiopaNamespace
-	rlog.Debugf("Antiopa tiller namespace: %s", tillerNamespace)
+	rlog.Debugf("Antiopa namespace for Tiller: %s", tillerNamespace)
 	HelmClient, err = helm.Init(tillerNamespace)
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: cannot initialize helm: %s", err)
+		rlog.Errorf("MAIN Fatal: cannot initialize Helm: %s", err)
 		os.Exit(1)
 	}
 
-	// Инициализация слежения за конфигом и за values
+	// Initializing module manager.
 	ModuleManager, err = module_manager.Init(WorkingDir, TempDir, HelmClient)
 	if err != nil {
 		rlog.Errorf("MAIN Fatal: Cannot initialize module manager: %s", err)
 		os.Exit(1)
 	}
 
-	// Пустая очередь задач.
+	// Initializing the empty task queue.
 	TasksQueue = task.NewTasksQueue()
 
-	// Дампер для сброса изменений в очереди во временный файл
-	// TODO определить файл через переменную окружения?
+	// Initializing the queue dumper, which writes queue changes to the dump file.
 	TasksQueueDumpFilePath = DefaultTasksQueueDumpFilePath
-	rlog.Debugf("Antiopa tasks queue dump file '%s'", TasksQueueDumpFilePath)
+	rlog.Debugf("Antiopa tasks queue dump file: '%s'", TasksQueueDumpFilePath)
 	queueWatcher := task.NewTasksQueueDumper(TasksQueueDumpFilePath, TasksQueue)
 	TasksQueue.AddWatcher(queueWatcher)
 
-	// Инициализация хуков по расписанию - карта scheduleId → []ScheduleHook
+	// Initializing the hooks schedule.
 	ScheduleManager, err = schedule_manager.Init()
 	if err != nil {
 		rlog.Errorf("MAIN Fatal: Cannot initialize schedule manager: %s", err)
@@ -154,13 +152,13 @@ func Init() {
 	MetricsStorage = metrics_storage.Init()
 }
 
-// Run запускает все менеджеры, обработчик событий от менеджеров и обработчик очереди.
-// Основной процесс блокируется for-select-ом в обработчике очереди.
+// Run runs all managers, event and queue handlers.
+// The main process is blocked by the 'for-select' in the queue handler.
 func Run() {
 	rlog.Info("MAIN: run main loop")
 
-	// Загрузить в очередь onStartup хуки и запуск всех модулей.
-	// слежение за измененияи включить только после всей загрузки
+	// Loading the onStartup hooks into the queue and running all modules.
+	// Turning tracking changes on only after startup ends.
 	rlog.Info("MAIN: add onStartup, beforeAll, module and afterAll tasks")
 	TasksQueue.ChangesDisable()
 
@@ -172,7 +170,7 @@ func Run() {
 	TasksQueue.ChangesEnable(true)
 
 	if RegistryManager != nil {
-		// менеджеры - отдельные go-рутины, посылающие события в свои каналы
+		// Managers are go routines, that send events to their channels
 		RegistryManager.SetErrorCallback(func() {
 			MetricsStorage.SendCounterMetric("antiopa_registry_errors", 1.0, map[string]string{})
 		})
@@ -181,14 +179,13 @@ func Run() {
 	go ModuleManager.Run()
 	go ScheduleManager.Run()
 
-	// обработчик добавления метрик
+	// Metric add handler
 	go MetricsStorage.Run()
 
-	// обработчик событий от менеджеров — события превращаются в таски и
-	// добавляются в очередь
+	// Managers events handler adds task to the queue on every received event/
 	go ManagersEventsHandler()
 
-	// TasksRunner запускает задания из очереди
+	// TasksRunner runs tasks from the queue.
 	go TasksRunner()
 
 	RunAntiopaMetrics()
@@ -197,7 +194,7 @@ func Run() {
 func ManagersEventsHandler() {
 	for {
 		select {
-		// Образ antiopa изменился, нужен рестарт деплоймента (можно и не выходить)
+		// Antiopa image has changed, deployment must be restarted.
 		case newImageId := <-docker_registry_manager.ImageUpdated:
 			rlog.Infof("EVENT ImageUpdated")
 			err := kube.KubeUpdateDeployment(newImageId)
@@ -207,14 +204,14 @@ func ManagersEventsHandler() {
 			} else {
 				rlog.Errorf("KUBE deployment update error: %s", err)
 			}
-		// пришло событие от module_manager → перезапуск модулей или всего
+		// Event from module manager (module restart or full restart).
 		case moduleEvent := <-module_manager.EventCh:
-			// событие от module_manager может прийти, если изменился состав модулей
-			// поэтому нужно заново зарегистрировать событийные хуки
+			// Event from module manager can come if modules list have changed,
+			// so event hooks need to be re-register with:
 			// RegisterScheduledHooks()
 			// RegisterKubeEventHooks()
 			switch moduleEvent.Type {
-			// Изменились отдельные модули
+			// Some modules have changed.
 			case module_manager.ModulesChanged:
 				for _, moduleChange := range moduleEvent.ModulesChanges {
 					switch moduleChange.ChangeType {
@@ -260,25 +257,25 @@ func ManagersEventsHandler() {
 						}
 					}
 				}
-				// Поменялись модули, нужно пересоздать индекс хуков по расписанию
+				// As module list may have changed, hook schedule index must be re-created.
 				ScheduledHooks = UpdateScheduleHooks(ScheduledHooks)
-			// Изменились глобальные values, нужен рестарт всех модулей
+			// As global values may have changed, all modules must be restarted.
 			case module_manager.GlobalChanged:
 				rlog.Infof("EVENT GlobalChanged")
 				TasksQueue.ChangesDisable()
 				CreateReloadAllTasks(false)
 				TasksQueue.ChangesEnable(true)
-				// Пересоздать индекс хуков по расписанию
+				// Re-creating schedule hook index
 				ScheduledHooks = UpdateScheduleHooks(ScheduledHooks)
 			case module_manager.AmbigousState:
 				rlog.Infof("EVENT AmbigousState")
 				TasksQueue.ChangesDisable()
-				// Это ошибка в module_manager. Нужно добавить задачу в начало очереди,
-				// чтобы module_manager имел возможность восстановить своё состояние
-				// перед запуском других задач в очереди.
+				// It is the error in the module manager. The task must be added to
+				// the beginning of the queue so the module manager can restore its
+				// state before running other queue tasks
 				newTask := task.NewTask(task.ModuleManagerRetry, "")
 				TasksQueue.Push(newTask)
-				// Задержка перед выполнением retry
+				// It is the delay before retry.
 				TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
 				TasksQueue.ChangesEnable(true)
 				rlog.Infof("QUEUE push ModuleManagerRetry, push FailedModuleDelay")
@@ -404,8 +401,8 @@ func runDiscoverModulesState(t task.Task) error {
 	return nil
 }
 
-// Обработчик один на очередь.
-// Обработчик может отложить обработку следующего таска с помощью пуша в начало очереди таска задержки
+// There is a one task handler per queue.
+// Task handler may delay task processing by pushing delay to the queue.
 // TODO пока только один обработчик, всё ок. Но лучше, чтобы очередь позволяла удалять только то, чему ранее был сделан peek.
 // Т.е. кто взял в обработку задание, тот его и удалил из очереди. Сейчас Peek-нуть может одна го-рутина, другая добавит,
 // первая Pop-нет задание — новое задание пропало, второй раз будет обработано одно и тоже.
@@ -501,10 +498,10 @@ func TasksRunner() {
 				}
 			case task.ModulePurge:
 				rlog.Infof("TASK_RUN ModulePurge %s", t.GetName())
-				// Module for purge is unknown so log deletion error is enough
+				// Module for purge is unknown so log deletion error is enough.
 				err := HelmClient.DeleteRelease(t.GetName())
 				if err != nil {
-					rlog.Errorf("TASK_RUN %s helm delete '%s' failed. Error: %s", t.GetType(), t.GetName(), err)
+					rlog.Errorf("TASK_RUN %s Helm delete '%s' failed. Error: %s", t.GetType(), t.GetName(), err)
 				}
 				TasksQueue.Pop()
 			case task.ModuleManagerRetry:
@@ -513,7 +510,7 @@ func TasksRunner() {
 				MetricsStorage.SendCounterMetric("antiopa_modules_discover_errors", 1.0, map[string]string{})
 				ModuleManager.Retry()
 				TasksQueue.Pop()
-				// Add delay before retry module/hook task again
+				// Adding a delay before retrying module/hook task.
 				TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
 				rlog.Infof("QUEUE push FailedModuleDelay")
 			case task.Delay:
@@ -526,7 +523,7 @@ func TasksRunner() {
 				return
 			}
 
-			// break if empty to prevent infinity loop
+			// Breaking, if the task queue is empty to prevent the infinite loop.
 			if TasksQueue.IsEmpty() {
 				rlog.Debug("Task queue is empty. Will sleep now.")
 				break
@@ -535,7 +532,6 @@ func TasksRunner() {
 	}
 }
 
-// Работа с событийными хуками
 type ScheduleHook struct {
 	Name     string
 	Schedule []module_manager.ScheduleConfig
@@ -543,7 +539,7 @@ type ScheduleHook struct {
 
 type ScheduledHooksStorage []*ScheduleHook
 
-// Возврат всех расписаний из хранилища хуков
+// GetCrontabs returns all schedules from the hook store.
 func (s ScheduledHooksStorage) GetCrontabs() []string {
 	resMap := map[string]bool{}
 	for _, hook := range s {
@@ -559,7 +555,7 @@ func (s ScheduledHooksStorage) GetCrontabs() []string {
 	return res
 }
 
-// Возврат хуков, у которых есть переданное расписание
+// GetHooksForSchedule returns hooks for specific schedule.
 func (s ScheduledHooksStorage) GetHooksForSchedule(crontab string) []*ScheduleHook {
 	res := []*ScheduleHook{}
 
@@ -582,11 +578,11 @@ func (s ScheduledHooksStorage) GetHooksForSchedule(crontab string) []*ScheduleHo
 	return res
 }
 
-// Добавить хук в список хуков, выполняемых по расписанию
+// AddHook adds hook to the hook schedule.
 func (s *ScheduledHooksStorage) AddHook(hookName string, config []module_manager.ScheduleConfig) {
 	for i, hook := range *s {
 		if hook.Name == hookName {
-			// Если хук уже есть, то изменить ему конфиг и выйти
+			// Changes hook config and exit if the hook already exists.
 			(*s)[i].Schedule = []module_manager.ScheduleConfig{}
 			for _, item := range config {
 				(*s)[i].Schedule = append((*s)[i].Schedule, item)
@@ -606,7 +602,7 @@ func (s *ScheduledHooksStorage) AddHook(hookName string, config []module_manager
 
 }
 
-// Удалить сведения о хуке из хранилища
+// RemoveHook removes hook from the hook storage.
 func (s *ScheduledHooksStorage) RemoveHook(hookName string) {
 	tmp := ScheduledHooksStorage{}
 	for _, hook := range *s {
@@ -619,10 +615,9 @@ func (s *ScheduledHooksStorage) RemoveHook(hookName string) {
 	*s = tmp
 }
 
-// Создать новый набор ScheduledHooks
-// вычислить разницу в ScheduledId между старым набором и новым.
-// то, что было в старом наборе, но отсутстует в новом — удалить из ScheduleManager
-//
+// UpdateScheduleHooks creates the new ScheduledHooks.
+// Calculates the difference between the old and the new schedule,
+// removes what was in the old but is missing in the new schedule.
 func UpdateScheduleHooks(storage ScheduledHooksStorage) ScheduledHooksStorage {
 	if ScheduleManager == nil {
 		return nil
@@ -671,7 +666,7 @@ LOOP_GLOBAL_HOOKS:
 	}
 
 	if len(oldCrontabs) > 0 {
-		// Собрать новый набор расписаний. Если расписание есть в oldCrontabs, то поставить ему true.
+		// Creates a new set of schedules. If the schedule is in oldCrontabs, then sets it to true.
 		newCrontabs := newScheduledTasks.GetCrontabs()
 		for _, crontab := range newCrontabs {
 			if _, has_crontab := oldCrontabs[crontab]; has_crontab {
@@ -679,7 +674,7 @@ LOOP_GLOBAL_HOOKS:
 			}
 		}
 
-		// пройти по старому набору расписаний, если есть расписание с false, то удалить его из обработки.
+		// Goes through the old set of schedules and removes from processing schedules with false.
 		for crontab, _ := range oldCrontabs {
 			if !oldCrontabs[crontab] {
 				ScheduleManager.Remove(crontab)
@@ -709,7 +704,7 @@ func CreateOnStartupTasks() {
 func CreateReloadAllTasks(onStartup bool) {
 	rlog.Infof("QUEUE add all GlobalHookRun@BeforeAll, add DiscoverModulesState")
 
-	// Queue beforeAll global hooks
+	// Queue beforeAll global hooks.
 	beforeAllHooks := ModuleManager.GetGlobalHooksInOrder(module_manager.BeforeAll)
 
 	for _, hookName := range beforeAllHooks {
@@ -725,7 +720,7 @@ func CreateReloadAllTasks(onStartup bool) {
 }
 
 func RunAntiopaMetrics() {
-	// antiopa live ticks
+	// Antiopa live ticks.
 	go func() {
 		for {
 			MetricsStorage.SendCounterMetric("antiopa_live_ticks", 1.0, map[string]string{})
@@ -733,7 +728,6 @@ func RunAntiopaMetrics() {
 		}
 	}()
 
-	// TasksQueue length
 	go func() {
 		for {
 			queueLen := float64(TasksQueue.Length())
@@ -768,22 +762,21 @@ func InitHttpServer() {
 }
 
 func main() {
-	// set flag.Parsed() for glog
+	// Setting flag.Parsed() for glog.
 	flag.CommandLine.Parse([]string{})
 
 	// Be a good parent - clean up behind the children processes.
-	// Antiopa is PID1, no special config required
+	// Antiopa is PID1, no special config required.
 	go executor.Reap()
 
-	// Включить Http сервер для pprof и prometheus client
+	// Enables HTTP server for pprof and prometheus clients
 	InitHttpServer()
 
-	// настроить всё необходимое
-	Init()
+ Init()
 
-	// запустить менеджеры и обработчики
+	// Runs managers and handlers.
 	Run()
 
-	// Блокировка main на сигналах от os.
+	// Blocks main() by waiting signals from OS.
 	utils.WaitForProcessInterruption()
 }

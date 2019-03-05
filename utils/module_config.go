@@ -35,12 +35,12 @@ func (mc *ModuleConfig) WithUpdated(v bool) *ModuleConfig {
 	return mc
 }
 
-// WithValues load module config from a map.
+// WithValues loads module config from a map.
 //
 // Values for module in `values` map are addressed by a key.
 // This key should be produced with ModuleNameToValuesKey.
 //
-// Module is enabled if key not exists in values.
+// A module is enabled if a key doesn't exist in values.
 func (mc *ModuleConfig) WithValues(values map[interface{}]interface{}) (*ModuleConfig, error) {
 	moduleValuesKey := ModuleNameToValuesKey(mc.ModuleName)
 
@@ -59,7 +59,7 @@ func (mc *ModuleConfig) WithValues(values map[interface{}]interface{}) (*ModuleC
 			mc.Values = values
 
 		default:
-			return nil, fmt.Errorf("module config should be bool, array or map, got: %#v", moduleValuesData)
+			return nil, fmt.Errorf("Module config should be bool, array or map. Got: %#v", moduleValuesData)
 		}
 	} else {
 		mc.IsEnabled = true
@@ -68,13 +68,13 @@ func (mc *ModuleConfig) WithValues(values map[interface{}]interface{}) (*ModuleC
 	return mc, nil
 }
 
-// FromYaml load module config from a yaml string.
+// FromYaml loads module config from a yaml string.
 func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
 	var values map[interface{}]interface{}
 
 	err := yaml.Unmarshal(yamlString, &values)
 	if err != nil {
-		return nil, fmt.Errorf("module %s has errors in yaml: %s\n%s", mc.ModuleName, err, string(yamlString))
+		return nil, fmt.Errorf("Module %s has errors in yaml: %s\n%s", mc.ModuleName, err, string(yamlString))
 	}
 
 	return mc.WithValues(values)

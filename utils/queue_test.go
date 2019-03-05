@@ -31,7 +31,7 @@ func FillQueue(q *Queue) {
 	fmt.Println("Queue filled")
 }
 
-// Кривая обработка очереди, специально, чтобы в одной go-рутине
+// TODO Кривая обработка очереди, специально, чтобы в одной go-рутине
 // делался Peek, а во второй Pop того же элемента
 func HandleQueue(q *Queue, ch chan int, name string) {
 	for !q.IsEmpty() {

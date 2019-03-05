@@ -23,7 +23,7 @@ func NewTasksQueueDumper(dumpFilePath string, queue *TasksQueue) *TasksQueueDump
 	return result
 }
 
-// При изменении очереди сдампить её в файл
+// QueueChangeCallback dumps a queue to a dump file when queue changes.
 func (t *TasksQueueDumper) QueueChangeCallback() {
 	t.eventCh <- struct{}{}
 }
