@@ -12,16 +12,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/romana/rlog"
 
-	"github.com/flant/antiopa/docker_registry_manager"
-	"github.com/flant/antiopa/executor"
-	"github.com/flant/antiopa/helm"
-	"github.com/flant/antiopa/kube"
-	"github.com/flant/antiopa/kube_events_manager"
-	"github.com/flant/antiopa/metrics_storage"
-	"github.com/flant/antiopa/module_manager"
-	"github.com/flant/antiopa/schedule_manager"
-	"github.com/flant/antiopa/task"
-	"github.com/flant/antiopa/utils"
+	"github.com/flant/antiopa/pkg/antiopa"
+	"github.com/flant/antiopa/pkg/docker_registry_manager"
+	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/antiopa/pkg/helm"
+	"github.com/flant/antiopa/pkg/kube"
+	"github.com/flant/antiopa/pkg/kube_events_manager"
+	"github.com/flant/antiopa/pkg/metrics_storage"
+	"github.com/flant/antiopa/pkg/module_manager"
+	"github.com/flant/antiopa/pkg/schedule_manager"
+	"github.com/flant/antiopa/pkg/task"
+	"github.com/flant/antiopa/pkg/utils"
 )
 
 var (
@@ -48,7 +49,7 @@ var (
 	ScheduledHooks  ScheduledHooksStorage
 
 	KubeEventsManager kube_events_manager.KubeEventsManager
-	KubeEventsHooks   KubeEventsHooksController
+	KubeEventsHooks   antiopa.KubeEventsHooksController
 
 	MetricsStorage *metrics_storage.MetricStorage
 
@@ -147,7 +148,7 @@ func Init() {
 		rlog.Errorf("MAIN Fatal: Cannot initialize kube events manager: %s", err)
 		os.Exit(1)
 	}
-	KubeEventsHooks = NewMainKubeEventsHooksController()
+	KubeEventsHooks = antiopa.NewMainKubeEventsHooksController()
 
 	MetricsStorage = metrics_storage.Init()
 }

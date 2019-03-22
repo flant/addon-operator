@@ -15,8 +15,8 @@ import (
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
 
-	"github.com/flant/antiopa/executor"
-	"github.com/flant/antiopa/utils"
+	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/antiopa/pkg/utils"
 )
 
 type Module struct {

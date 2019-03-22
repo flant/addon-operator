@@ -1,11 +1,11 @@
-package main
+package antiopa
 
 import (
 	"fmt"
 
-	"github.com/flant/antiopa/kube_events_manager"
-	"github.com/flant/antiopa/module_manager"
-	"github.com/flant/antiopa/task"
+	"github.com/flant/antiopa/pkg/kube_events_manager"
+	"github.com/flant/antiopa/pkg/module_manager"
+	"github.com/flant/antiopa/pkg/task"
 
 	"github.com/romana/rlog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -81,7 +81,7 @@ func (obj *MainKubeEventsHooksController) EnableGlobalHooks(moduleManager module
 	globalHooks := moduleManager.GetGlobalHooksInOrder(module_manager.KubeEvents)
 
 	for _, globalHookName := range globalHooks {
-		globalHook, _ := ModuleManager.GetGlobalHook(globalHookName)
+		globalHook, _ := moduleManager.GetGlobalHook(globalHookName)
 
 		for _, desc := range MakeKubeEventHookDescriptors(globalHook.Hook, &globalHook.Config.HookConfig) {
 			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.JqFilter, desc.Debug)
@@ -105,13 +105,13 @@ func (obj *MainKubeEventsHooksController) EnableModuleHooks(moduleName string, m
 		}
 	}
 
-	moduleHooks, err := ModuleManager.GetModuleHooksInOrder(moduleName, module_manager.KubeEvents)
+	moduleHooks, err := moduleManager.GetModuleHooksInOrder(moduleName, module_manager.KubeEvents)
 	if err != nil {
 		return err
 	}
 
 	for _, moduleHookName := range moduleHooks {
-		moduleHook, _ := ModuleManager.GetModuleHook(moduleHookName)
+		moduleHook, _ := moduleManager.GetModuleHook(moduleHookName)
 
 		for _, desc := range MakeKubeEventHookDescriptors(moduleHook.Hook, &moduleHook.Config.HookConfig) {
 			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.JqFilter, desc.Debug)
