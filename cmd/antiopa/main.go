@@ -1,4 +1,4 @@
-package main
+package antiopa
 
 import (
 	"flag"
@@ -22,6 +22,7 @@ import (
 	"github.com/flant/antiopa/schedule_manager"
 	"github.com/flant/antiopa/task"
 	"github.com/flant/antiopa/utils"
+	"github.com/flant/antiopa/pkg/antiopa"
 )
 
 var (
@@ -48,7 +49,7 @@ var (
 	ScheduledHooks  ScheduledHooksStorage
 
 	KubeEventsManager kube_events_manager.KubeEventsManager
-	KubeEventsHooks   KubeEventsHooksController
+	KubeEventsHooks   antiopa.KubeEventsHooksController
 
 	MetricsStorage *metrics_storage.MetricStorage
 
@@ -147,7 +148,7 @@ func Init() {
 		rlog.Errorf("MAIN Fatal: Cannot initialize kube events manager: %s", err)
 		os.Exit(1)
 	}
-	KubeEventsHooks = NewMainKubeEventsHooksController()
+	KubeEventsHooks = antiopa.NewMainKubeEventsHooksController()
 
 	MetricsStorage = metrics_storage.Init()
 }
