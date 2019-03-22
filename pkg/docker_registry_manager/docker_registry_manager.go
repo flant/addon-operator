@@ -7,7 +7,7 @@ import (
 	registryclient "github.com/flant/docker-registry-client/registry"
 	"github.com/romana/rlog"
 
-	"github.com/flant/antiopa/kube"
+	"github.com/flant/antiopa/pkg/kube"
 )
 
 type DockerRegistryManager interface {

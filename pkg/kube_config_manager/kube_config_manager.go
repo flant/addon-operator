@@ -9,8 +9,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"encoding/json"
-	"github.com/flant/antiopa/kube"
-	"github.com/flant/antiopa/utils"
+	"github.com/flant/antiopa/pkg/kube"
+	"github.com/flant/antiopa/pkg/utils"
 	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"

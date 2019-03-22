@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/flant/antiopa/utils"
+	"github.com/flant/antiopa/pkg/utils"
 )
 
 /*

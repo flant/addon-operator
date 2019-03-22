@@ -1,4 +1,4 @@
-package antiopa
+package main
 
 import (
 	"flag"
@@ -17,12 +17,12 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/flant/antiopa/helm"
-	"github.com/flant/antiopa/kube_events_manager"
-	"github.com/flant/antiopa/metrics_storage"
-	"github.com/flant/antiopa/module_manager"
-	"github.com/flant/antiopa/schedule_manager"
-	"github.com/flant/antiopa/task"
+	"github.com/flant/antiopa/pkg/helm"
+	"github.com/flant/antiopa/pkg/kube_events_manager"
+	"github.com/flant/antiopa/pkg/metrics_storage"
+	"github.com/flant/antiopa/pkg/module_manager"
+	"github.com/flant/antiopa/pkg/schedule_manager"
+	"github.com/flant/antiopa/pkg/task"
 )
 
 type KubeEventsHooksControllerMock struct{}

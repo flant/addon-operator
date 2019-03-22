@@ -9,9 +9,9 @@ import (
 
 	"github.com/romana/rlog"
 
-	"github.com/flant/antiopa/helm"
-	"github.com/flant/antiopa/kube_config_manager"
-	"github.com/flant/antiopa/utils"
+	"github.com/flant/antiopa/pkg/helm"
+	"github.com/flant/antiopa/pkg/kube_config_manager"
+	"github.com/flant/antiopa/pkg/utils"
 )
 
 type ModuleManager interface {

@@ -3,9 +3,9 @@ package antiopa
 import (
 	"fmt"
 
-	"github.com/flant/antiopa/kube_events_manager"
-	"github.com/flant/antiopa/module_manager"
-	"github.com/flant/antiopa/task"
+	"github.com/flant/antiopa/pkg/kube_events_manager"
+	"github.com/flant/antiopa/pkg/module_manager"
+	"github.com/flant/antiopa/pkg/task"
 
 	"github.com/romana/rlog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

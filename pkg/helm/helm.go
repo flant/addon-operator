@@ -14,9 +14,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
 
-	"github.com/flant/antiopa/executor"
-	"github.com/flant/antiopa/kube"
-	"github.com/flant/antiopa/utils"
+	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/antiopa/pkg/kube"
+	"github.com/flant/antiopa/pkg/utils"
 )
 
 type HelmClient interface {
