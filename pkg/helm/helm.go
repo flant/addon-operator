@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
 
-	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/antiopa/pkg/kube"
 	"github.com/flant/antiopa/pkg/utils"
 )

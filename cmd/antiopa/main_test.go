@@ -19,9 +19,9 @@ import (
 
 	"github.com/flant/antiopa/pkg/helm"
 	"github.com/flant/antiopa/pkg/kube_events_manager"
-	"github.com/flant/antiopa/pkg/metrics_storage"
+	"github.com/flant/shell-operator/pkg/metrics_storage"
 	"github.com/flant/antiopa/pkg/module_manager"
-	"github.com/flant/antiopa/pkg/schedule_manager"
+	"github.com/flant/shell-operator/pkg/schedule_manager"
 	"github.com/flant/antiopa/pkg/task"
 )
 

@@ -12,7 +12,7 @@ import (
 	"github.com/romana/rlog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/antiopa/pkg/utils"
 )
 

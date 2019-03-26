@@ -22,7 +22,7 @@ import (
 	storageV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/antiopa/pkg/kube"
 	"github.com/flant/antiopa/pkg/module_manager"
 	"github.com/flant/antiopa/pkg/utils"

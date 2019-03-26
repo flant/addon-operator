@@ -14,13 +14,13 @@ import (
 
 	"github.com/flant/antiopa/pkg/antiopa"
 	"github.com/flant/antiopa/pkg/docker_registry_manager"
-	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/antiopa/pkg/helm"
 	"github.com/flant/antiopa/pkg/kube"
 	"github.com/flant/antiopa/pkg/kube_events_manager"
-	"github.com/flant/antiopa/pkg/metrics_storage"
+	"github.com/flant/shell-operator/pkg/metrics_storage"
 	"github.com/flant/antiopa/pkg/module_manager"
-	"github.com/flant/antiopa/pkg/schedule_manager"
+	"github.com/flant/shell-operator/pkg/schedule_manager"
 	"github.com/flant/antiopa/pkg/task"
 	"github.com/flant/antiopa/pkg/utils"
 )

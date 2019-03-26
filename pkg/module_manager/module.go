@@ -15,7 +15,7 @@ import (
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
 
-	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/antiopa/pkg/utils"
 )
 
