@@ -17,6 +17,7 @@ import (
 
 	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/antiopa/pkg/utils"
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
 type Module struct {
@@ -106,7 +107,7 @@ func (m *Module) execRun() error {
 			return err
 		}
 
-		checksum, err := utils.CalculateChecksumOfPaths(runChartPath, valuesPath)
+		checksum, err := utils_checksum.CalculateChecksumOfPaths(runChartPath, valuesPath)
 		if err != nil {
 			return err
 		}

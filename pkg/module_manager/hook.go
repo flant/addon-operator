@@ -10,9 +10,10 @@ import (
 
 	"github.com/kennygrant/sanitize"
 	"github.com/romana/rlog"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/flant/shell-operator/pkg/executor"
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
+
 	"github.com/flant/antiopa/pkg/utils"
 )
 
@@ -52,7 +53,7 @@ type ModuleHookConfig struct {
 type HookConfig struct {
 	OnStartup         interface{}               `json:"onStartup"`
 	Schedule          []ScheduleConfig          `json:"schedule"`
-	OnKubernetesEvent []OnKubernetesEventConfig `json:"onKubernetesEvent"`
+	OnKubernetesEvent []kube_events_manager.OnKubernetesEventConfig `json:"onKubernetesEvent"`
 }
 
 type ScheduleConfig struct {
@@ -61,29 +62,6 @@ type ScheduleConfig struct {
 	AllowFailure bool   `json:"allowFailure"`
 }
 
-type OnKubernetesEventType string
-
-const (
-	KubernetesEventOnAdd    OnKubernetesEventType = "add"
-	KubernetesEventOnUpdate OnKubernetesEventType = "update"
-	KubernetesEventOnDelete OnKubernetesEventType = "delete"
-)
-
-type OnKubernetesEventConfig struct {
-	Name              string                  `json:"name"`
-	EventTypes        []OnKubernetesEventType `json:"event"`
-	Kind              string                  `json:"kind"`
-	Selector          *metav1.LabelSelector   `json:"selector"`
-	NamespaceSelector *KubeNamespaceSelector  `json:"namespaceSelector"`
-	JqFilter          string                  `json:"jqFilter"`
-	AllowFailure      bool                    `json:"allowFailure"`
-	DisableDebug      bool                    `json:"disableDebug"`
-}
-
-type KubeNamespaceSelector struct {
-	MatchNames []string `json:"matchNames"`
-	Any        bool     `json:"any"`
-}
 
 func (mm *MainModuleManager) newGlobalHook(name, path string, config *GlobalHookConfig) *GlobalHook {
 	globalHook := &GlobalHook{}
@@ -606,11 +584,15 @@ func prepareHookConfig(hookConfig *HookConfig) {
 		config := &hookConfig.OnKubernetesEvent[i]
 
 		if config.EventTypes == nil {
-			config.EventTypes = []OnKubernetesEventType{KubernetesEventOnAdd, KubernetesEventOnUpdate, KubernetesEventOnDelete}
+			config.EventTypes = []kube_events_manager.OnKubernetesEventType{
+				kube_events_manager.KubernetesEventOnAdd,
+				kube_events_manager.KubernetesEventOnUpdate,
+				kube_events_manager.KubernetesEventOnDelete,
+			}
 		}
 
 		if config.NamespaceSelector == nil {
-			config.NamespaceSelector = &KubeNamespaceSelector{Any: true}
+			config.NamespaceSelector = &kube_events_manager.KubeNamespaceSelector{Any: true}
 		}
 	}
 }

@@ -17,7 +17,7 @@ import (
 	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/antiopa/pkg/helm"
 	"github.com/flant/antiopa/pkg/kube"
-	"github.com/flant/antiopa/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/metrics_storage"
 	"github.com/flant/antiopa/pkg/module_manager"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
@@ -757,7 +757,7 @@ func InitHttpServer() {
 	go func() {
 		rlog.Info("Listening on :9115")
 		if err := http.ListenAndServe(":9115", nil); err != nil {
-			rlog.Error("Error starting HTTP server: %s", err)
+			rlog.Errorf("Error starting HTTP server: %s", err)
 		}
 	}()
 }

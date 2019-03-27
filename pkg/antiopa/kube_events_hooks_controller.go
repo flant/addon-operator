@@ -3,7 +3,7 @@ package antiopa
 import (
 	"fmt"
 
-	"github.com/flant/antiopa/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/antiopa/pkg/module_manager"
 	"github.com/flant/antiopa/pkg/task"
 
@@ -15,7 +15,7 @@ type KubeEventHook struct {
 	HookName string
 	Name     string
 
-	EventTypes   []module_manager.OnKubernetesEventType
+	EventTypes   []kube_events_manager.OnKubernetesEventType
 	Kind         string
 	Namespace    string
 	Selector     *metav1.LabelSelector
@@ -23,7 +23,7 @@ type KubeEventHook struct {
 	AllowFailure bool
 	Debug        bool
 
-	Config module_manager.OnKubernetesEventConfig
+	Config kube_events_manager.OnKubernetesEventConfig
 }
 
 func MakeKubeEventHookDescriptors(hook *module_manager.Hook, hookConfig *module_manager.HookConfig) []*KubeEventHook {
@@ -42,7 +42,7 @@ func MakeKubeEventHookDescriptors(hook *module_manager.Hook, hookConfig *module_
 	return res
 }
 
-func ConvertOnKubernetesEventToKubeEventHook(hook *module_manager.Hook, config module_manager.OnKubernetesEventConfig, namespace string) *KubeEventHook {
+func ConvertOnKubernetesEventToKubeEventHook(hook *module_manager.Hook, config kube_events_manager.OnKubernetesEventConfig, namespace string) *KubeEventHook {
 	return &KubeEventHook{
 		HookName:     hook.Name,
 		Name:         config.Name,
