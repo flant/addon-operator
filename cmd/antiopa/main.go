@@ -773,7 +773,7 @@ func main() {
 	// Enables HTTP server for pprof and prometheus clients
 	InitHttpServer()
 
- Init()
+    Init()
 
 	// Runs managers and handlers.
 	Run()

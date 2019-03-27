@@ -51,8 +51,8 @@ var DockerRegistryInfo = map[string]map[string]string{
 // InitRegistryManager gets the image name from the POD name and requests the if of this image.
 // TODO вытащить token и host в секрет
 func Init(hostname string) (DockerRegistryManager, error) {
-	if kube.IsRunningOutOfKubeCluster() {
-		rlog.Infof("Antiopa is running out of cluster. No registry manager required.")
+	if os.Getenv("ANTIOPA_REGISTRY_MANAGER") == "no" {
+		rlog.Infof("ANTIOPA_REGISTRY_MANAGER=no is detected. No registry manager required.")
 		return nil, nil
 	}
 
@@ -74,7 +74,8 @@ func Init(hostname string) (DockerRegistryManager, error) {
 
 // Run runs a check every 10 seconds to detect if the image ID has changed.
 func (rm *MainRegistryManager) Run() {
-	if kube.IsRunningOutOfKubeCluster() {
+	if os.Getenv("ANTIOPA_REGISTRY_MANAGER") == "no" {
+		rlog.Infof("ANTIOPA_REGISTRY_MANAGER=no is detected. No registry manager required.")
 		return
 	}
 

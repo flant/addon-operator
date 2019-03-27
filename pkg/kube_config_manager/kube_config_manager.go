@@ -2,19 +2,20 @@ package kube_config_manager
 
 import (
 	"fmt"
-	"github.com/romana/rlog"
 	"time"
+	"os"
+	"encoding/json"
+
+	"github.com/romana/rlog"
+	"gopkg.in/yaml.v2"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"encoding/json"
-	"github.com/flant/antiopa/pkg/kube"
-	"github.com/flant/antiopa/pkg/utils"
-	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
-	"os"
+
+	"github.com/flant/antiopa/pkg/kube"
+	"github.com/flant/antiopa/pkg/utils"
 )
 
 const (
@@ -117,7 +118,7 @@ func (kcm *MainKubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func
 			return err
 		}
 
-		_, err := kube.KubernetesClient.CoreV1().ConfigMaps(kube.KubernetesAntiopaNamespace).Update(obj)
+		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kube.KubernetesAntiopaNamespace).Update(obj)
 		if err != nil {
 			return err
 		}
@@ -133,7 +134,7 @@ func (kcm *MainKubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func
 			return err
 		}
 
-		_, err := kube.KubernetesClient.CoreV1().ConfigMaps(kube.KubernetesAntiopaNamespace).Create(obj)
+		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kube.KubernetesAntiopaNamespace).Create(obj)
 		if err != nil {
 			return err
 		}
@@ -173,7 +174,7 @@ func (kcm *MainKubeConfigManager) SetKubeModuleValues(moduleName string, values 
 }
 
 func (kcm *MainKubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
-	list, err := kube.KubernetesClient.CoreV1().
+	list, err := kube.Kubernetes.CoreV1().
 		ConfigMaps(kube.KubernetesAntiopaNamespace).
 		List(metav1.ListOptions{})
 	if err != nil {
@@ -188,7 +189,7 @@ func (kcm *MainKubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 	}
 
 	if objExists {
-		obj, err := kube.KubernetesClient.CoreV1().
+		obj, err := kube.Kubernetes.CoreV1().
 			ConfigMaps(kube.KubernetesAntiopaNamespace).
 			Get(ConfigMapName, metav1.GetOptions{})
 		if err != nil {
@@ -475,7 +476,7 @@ func (kcm *MainKubeConfigManager) Run() {
 	rlog.Debugf("Run kube config manager")
 
 	lw := cache.NewListWatchFromClient(
-		kube.KubernetesClient.CoreV1().RESTClient(),
+		kube.Kubernetes.CoreV1().RESTClient(),
 		"configmaps",
 		kube.KubernetesAntiopaNamespace,
 		fields.OneTermEqualSelector("metadata.name", ConfigMapName))

@@ -27,7 +27,7 @@ type MockConfigMap struct {
 }
 
 type MockKubernetesClientset struct {
-	kubernetes.Clientset
+	kubernetes.Interface
 }
 
 func (client *MockKubernetesClientset) CoreV1() corev1.CoreV1Interface {
@@ -109,7 +109,7 @@ userPassword: qwerty`,
 		},
 	}
 
-	kube.KubernetesClient = &MockKubernetesClientset{}
+	kube.Kubernetes = &MockKubernetesClientset{}
 
 	kcm, err := Init()
 	if err != nil {
@@ -238,7 +238,7 @@ func configDataShouldEqual(expectedValues utils.Values) error {
 
 func TestSetConfig(t *testing.T) {
 	mockConfigMapList = &v1.ConfigMapList{}
-	kube.KubernetesClient = &MockKubernetesClientset{}
+	kube.Kubernetes = &MockKubernetesClientset{}
 	kcm := &MainKubeConfigManager{}
 
 	var err error

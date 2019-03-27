@@ -61,7 +61,7 @@ func Init(tillerNamespace string) (HelmClient, error) {
 }
 
 func (helm *CliHelm) InitTiller() error {
-	antiopaDeploy, err := kube.KubernetesClient.AppsV1beta1().Deployments(kube.KubernetesAntiopaNamespace).Get(kube.AntiopaDeploymentName, metav1.GetOptions{})
+	antiopaDeploy, err := kube.Kubernetes.AppsV1beta1().Deployments(kube.KubernetesAntiopaNamespace).Get(kube.AntiopaDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("cannot fetch antiopa deployment to gather settings for tiller deployment: %s", err)
 	}
@@ -194,7 +194,7 @@ func (helm *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 		cmName := fmt.Sprintf("%s.v%d", releaseName, revision)
 		rlog.Infof("helm release '%s': delete old FAILED revision cm/%s", releaseName, cmName)
 
-		err := kube.KubernetesClient.CoreV1().
+		err := kube.Kubernetes.CoreV1().
 			ConfigMaps(kube.KubernetesAntiopaNamespace).
 			Delete(cmName, &metav1.DeleteOptions{})
 
@@ -312,7 +312,7 @@ func (helm *CliHelm) ListReleases(labelSelector map[string]string) ([]string, er
 	}
 	labelsSet["OWNER"] = "TILLER"
 
-	cmList, err := kube.KubernetesClient.CoreV1().
+	cmList, err := kube.Kubernetes.CoreV1().
 		ConfigMaps(kube.KubernetesAntiopaNamespace).
 		List(metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
