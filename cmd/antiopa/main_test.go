@@ -73,7 +73,7 @@ var mainTestGlobalHooksMap = map[module_manager.BindingType][]string{
 	},
 }
 
-var scheduledHooks = map[string]module_manager.ScheduleConfig{
+var scheduledHooks = map[string]schedule_manager.ScheduleConfig{
 	"scheduled_global_1": {
 		Crontab:      "*/1 * * * *",
 		AllowFailure: true,
@@ -127,7 +127,7 @@ func (m *ModuleManagerMock) GetGlobalHook(name string) (*module_manager.GlobalHo
 			},
 			Config: &module_manager.GlobalHookConfig{
 				HookConfig: module_manager.HookConfig{
-					Schedule: []module_manager.ScheduleConfig{
+					Schedule: []schedule_manager.ScheduleConfig{
 						scheduledHooks[name],
 					},
 				},
@@ -166,7 +166,7 @@ func (m *ModuleManagerMock) GetModuleHook(name string) (*module_manager.ModuleHo
 			},
 			Config: &module_manager.ModuleHookConfig{
 				HookConfig: module_manager.HookConfig{
-					Schedule: []module_manager.ScheduleConfig{
+					Schedule: []schedule_manager.ScheduleConfig{
 						scheduledHooks[name],
 					},
 				},

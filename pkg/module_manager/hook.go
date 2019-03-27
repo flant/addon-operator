@@ -13,6 +13,7 @@ import (
 
 	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/schedule_manager"
 
 	"github.com/flant/antiopa/pkg/utils"
 )
@@ -52,14 +53,8 @@ type ModuleHookConfig struct {
 
 type HookConfig struct {
 	OnStartup         interface{}               `json:"onStartup"`
-	Schedule          []ScheduleConfig          `json:"schedule"`
+	Schedule          []schedule_manager.ScheduleConfig          `json:"schedule"`
 	OnKubernetesEvent []kube_events_manager.OnKubernetesEventConfig `json:"onKubernetesEvent"`
-}
-
-type ScheduleConfig struct {
-	Name         string `json:"name"`
-	Crontab      string `json:"crontab"`
-	AllowFailure bool   `json:"allowFailure"`
 }
 
 

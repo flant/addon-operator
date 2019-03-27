@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/schedule_manager"
 
 	"github.com/flant/antiopa/pkg/helm"
 	"github.com/flant/antiopa/pkg/kube_config_manager"
@@ -173,7 +174,7 @@ func TestMainModuleManager_GetModuleHook2(t *testing.T) {
 
 	runInitModulesIndex(t, mm, "test_get_module_hook")
 
-	createModuleHook := func(moduleName, name string, bindings []BindingType, orderByBindings map[BindingType]interface{}, schedule []ScheduleConfig, onKubernetesEvent []kube_events_manager.OnKubernetesEventConfig) *ModuleHook {
+	createModuleHook := func(moduleName, name string, bindings []BindingType, orderByBindings map[BindingType]interface{}, schedule []schedule_manager.ScheduleConfig, onKubernetesEvent []kube_events_manager.OnKubernetesEventConfig) *ModuleHook {
 		config := &ModuleHookConfig{
 			HookConfig{
 				orderByBindings[OnStartup],
@@ -205,7 +206,7 @@ func TestMainModuleManager_GetModuleHook2(t *testing.T) {
 		name              string
 		bindings          []BindingType
 		orderByBinding    map[BindingType]interface{}
-		schedule          []ScheduleConfig
+		schedule          []schedule_manager.ScheduleConfig
 		onKubernetesEvent []kube_events_manager.OnKubernetesEventConfig
 	}{
 		{
@@ -218,7 +219,7 @@ func TestMainModuleManager_GetModuleHook2(t *testing.T) {
 				AfterDeleteHelm: 1.0,
 				OnStartup:       1.0,
 			},
-			[]ScheduleConfig{
+			[]schedule_manager.ScheduleConfig{
 				{
 					Crontab:      "* * * * *",
 					AllowFailure: true,
@@ -659,7 +660,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 
 	runInitGlobalHooks(t, mm, "test_get_global_hook")
 
-	createGlobalHook := func(name string, bindings []BindingType, orderByBindings map[BindingType]interface{}, schedule []ScheduleConfig, onKubernetesEvent []kube_events_manager.OnKubernetesEventConfig) *GlobalHook {
+	createGlobalHook := func(name string, bindings []BindingType, orderByBindings map[BindingType]interface{}, schedule []schedule_manager.ScheduleConfig, onKubernetesEvent []kube_events_manager.OnKubernetesEventConfig) *GlobalHook {
 		config := &GlobalHookConfig{
 			HookConfig{
 				orderByBindings[OnStartup],
@@ -684,7 +685,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 		name              string
 		bindings          []BindingType
 		orderByBinding    map[BindingType]interface{}
-		schedule          []ScheduleConfig
+		schedule          []schedule_manager.ScheduleConfig
 		onKubernetesEvent []kube_events_manager.OnKubernetesEventConfig
 	}{
 		{
@@ -695,7 +696,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 				AfterAll:  1.0,
 				OnStartup: 1.0,
 			},
-			[]ScheduleConfig{
+			[]schedule_manager.ScheduleConfig{
 				{
 					Crontab:      "* * * * *",
 					AllowFailure: true,
