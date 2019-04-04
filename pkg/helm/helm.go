@@ -15,8 +15,8 @@ import (
 	kblabels "k8s.io/apimachinery/pkg/labels"
 
 	"github.com/flant/shell-operator/pkg/executor"
-	"github.com/flant/antiopa/pkg/kube"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type HelmClient interface {

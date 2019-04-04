@@ -11,8 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/flant/antiopa/pkg/kube"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 var (

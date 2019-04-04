@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flant/antiopa/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/module_manager"
 )
 
 type TaskType string

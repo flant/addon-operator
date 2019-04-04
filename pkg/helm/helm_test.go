@@ -13,7 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	v1beta1 "k8s.io/api/rbac/v1beta1"
 
-	"github.com/flant/antiopa/pkg/kube"
+	"github.com/flant/addon-operator/pkg/kube"
 )
 
 func getTestDirectoryPath(testName string) string {

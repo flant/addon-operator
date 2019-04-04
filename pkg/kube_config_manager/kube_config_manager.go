@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/flant/antiopa/pkg/kube"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 const (

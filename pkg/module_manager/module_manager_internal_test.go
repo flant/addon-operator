@@ -16,9 +16,9 @@ import (
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 
-	"github.com/flant/antiopa/pkg/helm"
-	"github.com/flant/antiopa/pkg/kube_config_manager"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/kube_config_manager"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 func runInitModulesIndex(t *testing.T, mm *MainModuleManager, subPath string) {

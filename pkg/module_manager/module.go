@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/flant/shell-operator/pkg/executor"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/utils"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )

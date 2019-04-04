@@ -2,7 +2,7 @@ package kube_config_manager
 
 import (
 	"fmt"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/utils"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	"gopkg.in/yaml.v2"
 )

@@ -21,9 +21,9 @@ import (
 	"github.com/flant/shell-operator/pkg/metrics_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 
-	"github.com/flant/antiopa/pkg/helm"
-	"github.com/flant/antiopa/pkg/module_manager"
-	"github.com/flant/antiopa/pkg/task"
+	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/task"
 )
 
 type KubeEventsHooksControllerMock struct{}

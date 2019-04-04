@@ -5,8 +5,8 @@ import (
 
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/hook/kube_event"
-	"github.com/flant/antiopa/pkg/module_manager"
-	"github.com/flant/antiopa/pkg/task"
+	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/task"
 
 	"github.com/romana/rlog"
 )

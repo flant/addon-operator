@@ -19,11 +19,11 @@ import (
 	schedule_hook "github.com/flant/shell-operator/pkg/hook/schedule"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
-	"github.com/flant/antiopa/pkg/helm"
-	"github.com/flant/antiopa/pkg/kube"
-	"github.com/flant/antiopa/pkg/module_manager"
-	kube_event_hook "github.com/flant/antiopa/pkg/module_manager/hook/kube_event"
-	"github.com/flant/antiopa/pkg/task"
+	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/addon-operator/pkg/module_manager"
+	kube_event_hook "github.com/flant/addon-operator/pkg/module_manager/hook/kube_event"
+	"github.com/flant/addon-operator/pkg/task"
 )
 
 var (
