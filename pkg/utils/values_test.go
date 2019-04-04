@@ -14,7 +14,7 @@ func TestModuleConfig(t *testing.T) {
 	config, err = NewModuleConfig("test-module").WithValues(map[interface{}]interface{}{"testModule": 1234})
 	if err == nil {
 		t.Errorf("Expected error, got ModuleConfig: %v", config)
-	} else if !strings.HasPrefix(err.Error(), "required map or bool data") {
+	} else if !strings.HasPrefix(err.Error(), "Module config should be bool, array or map") {
 		t.Errorf("Got unexpected error: %s", err)
 	}
 
@@ -91,7 +91,7 @@ testModule:
 	}
 
 	_, err = NewModuleConfig("test-module").FromYaml([]byte("testModule: falsee\n"))
-	if !strings.HasPrefix(err.Error(), "module config should be bool, array or map") {
+	if !strings.HasPrefix(err.Error(), "Module config should be bool, array or map") {
 		t.Errorf("Got unexpected error: %s", err.Error())
 	}
 

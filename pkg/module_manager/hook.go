@@ -10,9 +10,12 @@ import (
 
 	"github.com/kennygrant/sanitize"
 	"github.com/romana/rlog"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/shell-operator/pkg/executor"
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/schedule_manager"
+	utils_data "github.com/flant/shell-operator/pkg/utils/data"
+
 	"github.com/flant/antiopa/pkg/utils"
 )
 
@@ -51,39 +54,10 @@ type ModuleHookConfig struct {
 
 type HookConfig struct {
 	OnStartup         interface{}               `json:"onStartup"`
-	Schedule          []ScheduleConfig          `json:"schedule"`
-	OnKubernetesEvent []OnKubernetesEventConfig `json:"onKubernetesEvent"`
+	Schedule          []schedule_manager.ScheduleConfig          `json:"schedule"`
+	OnKubernetesEvent []kube_events_manager.OnKubernetesEventConfig `json:"onKubernetesEvent"`
 }
 
-type ScheduleConfig struct {
-	Name         string `json:"name"`
-	Crontab      string `json:"crontab"`
-	AllowFailure bool   `json:"allowFailure"`
-}
-
-type OnKubernetesEventType string
-
-const (
-	KubernetesEventOnAdd    OnKubernetesEventType = "add"
-	KubernetesEventOnUpdate OnKubernetesEventType = "update"
-	KubernetesEventOnDelete OnKubernetesEventType = "delete"
-)
-
-type OnKubernetesEventConfig struct {
-	Name              string                  `json:"name"`
-	EventTypes        []OnKubernetesEventType `json:"event"`
-	Kind              string                  `json:"kind"`
-	Selector          *metav1.LabelSelector   `json:"selector"`
-	NamespaceSelector *KubeNamespaceSelector  `json:"namespaceSelector"`
-	JqFilter          string                  `json:"jqFilter"`
-	AllowFailure      bool                    `json:"allowFailure"`
-	DisableDebug      bool                    `json:"disableDebug"`
-}
-
-type KubeNamespaceSelector struct {
-	MatchNames []string `json:"matchNames"`
-	Any        bool     `json:"any"`
-}
 
 func (mm *MainModuleManager) newGlobalHook(name, path string, config *GlobalHookConfig) *GlobalHook {
 	globalHook := &GlobalHook{}
@@ -246,7 +220,7 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 	if globalValuesRaw, hasKey := newValuesRaw[acceptableKey]; hasKey {
 		globalValues, ok := globalValuesRaw.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", acceptableKey, utils.YamlToString(globalValuesRaw))
+			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", acceptableKey, utils_data.YamlToString(globalValuesRaw))
 		}
 
 		result.Values[acceptableKey] = globalValues
@@ -423,7 +397,7 @@ func (h *GlobalHook) prepareBindingContextJsonFile(context []BindingContext) (st
 		return "", err
 	}
 
-	rlog.Debugf("Prepared global hook %s binding context:\n%s", h.Name, utils.YamlToString(context))
+	rlog.Debugf("Prepared global hook %s binding context:\n%s", h.Name, utils_data.YamlToString(context))
 
 	return path, nil
 }
@@ -464,7 +438,7 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 	if moduleValuesRaw, hasKey := newValuesRaw[result.ModuleValuesKey]; hasKey {
 		moduleValues, ok := moduleValuesRaw.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", result.ModuleValuesKey, utils.YamlToString(moduleValuesRaw))
+			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", result.ModuleValuesKey, utils_data.YamlToString(moduleValuesRaw))
 		}
 		result.Values[result.ModuleValuesKey] = moduleValues
 		result.ModuleValues = moduleValues
@@ -596,7 +570,7 @@ func (h *ModuleHook) prepareBindingContextJsonFile(context []BindingContext) (st
 		return "", err
 	}
 
-	rlog.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, utils.YamlToString(context))
+	rlog.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, utils_data.YamlToString(context))
 
 	return path, nil
 }
@@ -606,11 +580,15 @@ func prepareHookConfig(hookConfig *HookConfig) {
 		config := &hookConfig.OnKubernetesEvent[i]
 
 		if config.EventTypes == nil {
-			config.EventTypes = []OnKubernetesEventType{KubernetesEventOnAdd, KubernetesEventOnUpdate, KubernetesEventOnDelete}
+			config.EventTypes = []kube_events_manager.OnKubernetesEventType{
+				kube_events_manager.KubernetesEventOnAdd,
+				kube_events_manager.KubernetesEventOnUpdate,
+				kube_events_manager.KubernetesEventOnDelete,
+			}
 		}
 
 		if config.NamespaceSelector == nil {
-			config.NamespaceSelector = &KubeNamespaceSelector{Any: true}
+			config.NamespaceSelector = &kube_events_manager.KubeNamespaceSelector{Any: true}
 		}
 	}
 }
@@ -785,7 +763,7 @@ func createHookResultValuesFile(filePath string) error {
 
 func makeCommand(dir string, entrypoint string, envs []string, args []string) *exec.Cmd {
 	envs = append(os.Environ(), envs...)
-	return utils.MakeCommand(dir, entrypoint, args, envs)
+	return executor.MakeCommand(dir, entrypoint, args, envs)
 }
 
 func execCommandOutput(cmd *exec.Cmd) ([]byte, error) {

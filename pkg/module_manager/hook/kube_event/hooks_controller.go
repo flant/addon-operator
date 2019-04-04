@@ -1,33 +1,19 @@
-package antiopa
+package kube_event
 
 import (
 	"fmt"
 
-	"github.com/flant/antiopa/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/hook/kube_event"
 	"github.com/flant/antiopa/pkg/module_manager"
 	"github.com/flant/antiopa/pkg/task"
 
 	"github.com/romana/rlog"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type KubeEventHook struct {
-	HookName string
-	Name     string
 
-	EventTypes   []module_manager.OnKubernetesEventType
-	Kind         string
-	Namespace    string
-	Selector     *metav1.LabelSelector
-	JqFilter     string
-	AllowFailure bool
-	Debug        bool
-
-	Config module_manager.OnKubernetesEventConfig
-}
-
-func MakeKubeEventHookDescriptors(hook *module_manager.Hook, hookConfig *module_manager.HookConfig) []*KubeEventHook {
-	res := make([]*KubeEventHook, 0)
+func MakeKubeEventHookDescriptors(hook *module_manager.Hook, hookConfig *module_manager.HookConfig) []*kube_event.KubeEventHook {
+	res := make([]*kube_event.KubeEventHook, 0)
 
 	for _, config := range hookConfig.OnKubernetesEvent {
 		if config.NamespaceSelector.Any {
@@ -42,8 +28,8 @@ func MakeKubeEventHookDescriptors(hook *module_manager.Hook, hookConfig *module_
 	return res
 }
 
-func ConvertOnKubernetesEventToKubeEventHook(hook *module_manager.Hook, config module_manager.OnKubernetesEventConfig, namespace string) *KubeEventHook {
-	return &KubeEventHook{
+func ConvertOnKubernetesEventToKubeEventHook(hook *module_manager.Hook, config kube_events_manager.OnKubernetesEventConfig, namespace string) *kube_event.KubeEventHook {
+	return &kube_event.KubeEventHook{
 		HookName:     hook.Name,
 		Name:         config.Name,
 		EventTypes:   config.EventTypes,
@@ -64,15 +50,15 @@ type KubeEventsHooksController interface {
 }
 
 type MainKubeEventsHooksController struct {
-	GlobalHooks    map[string]*KubeEventHook
-	ModuleHooks    map[string]*KubeEventHook
+	GlobalHooks    map[string]*kube_event.KubeEventHook
+	ModuleHooks    map[string]*kube_event.KubeEventHook
 	EnabledModules []string
 }
 
 func NewMainKubeEventsHooksController() *MainKubeEventsHooksController {
 	obj := &MainKubeEventsHooksController{}
-	obj.GlobalHooks = make(map[string]*KubeEventHook)
-	obj.ModuleHooks = make(map[string]*KubeEventHook)
+	obj.GlobalHooks = make(map[string]*kube_event.KubeEventHook)
+	obj.ModuleHooks = make(map[string]*kube_event.KubeEventHook)
 	obj.EnabledModules = make([]string, 0)
 	return obj
 }
@@ -167,7 +153,7 @@ func (obj *MainKubeEventsHooksController) DisableModuleHooks(moduleName string, 
 
 func (obj *MainKubeEventsHooksController) HandleEvent(kubeEvent kube_events_manager.KubeEvent) (*struct{ Tasks []task.Task }, error) {
 	res := &struct{ Tasks []task.Task }{Tasks: make([]task.Task, 0)}
-	var desc *KubeEventHook
+	var desc *kube_event.KubeEventHook
 	var taskType task.TaskType
 
 	if moduleDesc, hasKey := obj.ModuleHooks[kubeEvent.ConfigId]; hasKey {

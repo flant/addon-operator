@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/shell-operator/pkg/queue"
 )
 
 /*
@@ -54,7 +54,7 @@ type FailureCountIncrementable interface {
 }
 
 type TasksQueue struct {
-	*utils.Queue
+	*queue.Queue
 }
 
 func (tq *TasksQueue) Add(task Task) {
@@ -81,7 +81,7 @@ func (tq *TasksQueue) Peek() (task Task, err error) {
 
 func NewTasksQueue() *TasksQueue {
 	return &TasksQueue{
-		Queue: utils.NewQueue(),
+		Queue: queue.NewQueue(),
 	}
 }
 

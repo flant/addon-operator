@@ -3,6 +3,7 @@ package kube_config_manager
 import (
 	"fmt"
 	"github.com/flant/antiopa/pkg/utils"
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	"gopkg.in/yaml.v2"
 )
 
@@ -25,7 +26,7 @@ func GetGlobalKubeConfigFromValues(values utils.Values) *GlobalKubeConfig {
 
 	return &GlobalKubeConfig{
 		Values:     utils.Values{utils.GlobalValuesKey: globalValues},
-		Checksum:   utils.CalculateChecksum(string(yamlData)),
+		Checksum:   utils_checksum.CalculateChecksum(string(yamlData)),
 		ConfigData: map[string]string{utils.GlobalValuesKey: string(yamlData)},
 	}
 }
@@ -44,7 +45,7 @@ func GetGlobalKubeConfigFromConfigData(configData map[string]string) (*GlobalKub
 	return &GlobalKubeConfig{
 		ConfigData: map[string]string{utils.GlobalValuesKey: yamlData},
 		Values:     values,
-		Checksum:   utils.CalculateChecksum(yamlData),
+		Checksum:   utils_checksum.CalculateChecksum(yamlData),
 	}, nil
 }
 

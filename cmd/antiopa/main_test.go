@@ -17,11 +17,12 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/metrics_storage"
+	"github.com/flant/shell-operator/pkg/schedule_manager"
+
 	"github.com/flant/antiopa/pkg/helm"
-	"github.com/flant/antiopa/pkg/kube_events_manager"
-	"github.com/flant/antiopa/pkg/metrics_storage"
 	"github.com/flant/antiopa/pkg/module_manager"
-	"github.com/flant/antiopa/pkg/schedule_manager"
 	"github.com/flant/antiopa/pkg/task"
 )
 
@@ -39,13 +40,13 @@ func (obj *KubeEventsHooksControllerMock) DisableModuleHooks(moduleName string, 
 	return nil
 }
 
-func (obj *KubeEventsHooksControllerMock) HandleEvent(configId string) (*struct{ Tasks []task.Task }, error) {
+func (obj *KubeEventsHooksControllerMock) HandleEvent(kubeEvent kube_events_manager.KubeEvent) (*struct{ Tasks []task.Task }, error) {
 	return nil, nil
 }
 
 type KubeEventsManagerMock struct{}
 
-func (kem *KubeEventsManagerMock) Run(eventTypes []module_manager.OnKubernetesEventType, kind, namespace string, labelSelector *metav1.LabelSelector, jqFilter string, debug bool) (string, error) {
+func (kem *KubeEventsManagerMock) Run(eventTypes []kube_events_manager.OnKubernetesEventType, kind, namespace string, labelSelector *metav1.LabelSelector, jqFilter string, debug bool) (string, error) {
 	return uuid.NewV4().String(), nil
 }
 
@@ -72,7 +73,7 @@ var mainTestGlobalHooksMap = map[module_manager.BindingType][]string{
 	},
 }
 
-var scheduledHooks = map[string]module_manager.ScheduleConfig{
+var scheduledHooks = map[string]schedule_manager.ScheduleConfig{
 	"scheduled_global_1": {
 		Crontab:      "*/1 * * * *",
 		AllowFailure: true,
@@ -126,7 +127,7 @@ func (m *ModuleManagerMock) GetGlobalHook(name string) (*module_manager.GlobalHo
 			},
 			Config: &module_manager.GlobalHookConfig{
 				HookConfig: module_manager.HookConfig{
-					Schedule: []module_manager.ScheduleConfig{
+					Schedule: []schedule_manager.ScheduleConfig{
 						scheduledHooks[name],
 					},
 				},
@@ -165,7 +166,7 @@ func (m *ModuleManagerMock) GetModuleHook(name string) (*module_manager.ModuleHo
 			},
 			Config: &module_manager.ModuleHookConfig{
 				HookConfig: module_manager.HookConfig{
-					Schedule: []module_manager.ScheduleConfig{
+					Schedule: []schedule_manager.ScheduleConfig{
 						scheduledHooks[name],
 					},
 				},
@@ -211,7 +212,7 @@ func (m *ModuleManagerMock) DeleteModule(moduleName string) error {
 	return nil
 }
 
-func (m *ModuleManagerMock) RunModule(moduleName string) error {
+func (m *ModuleManagerMock) RunModule(moduleName string, onStartup bool) error {
 	addRunOrder(moduleName)
 	fmt.Printf("ModuleManagerMock RunModule '%s'\n", moduleName)
 	if strings.Contains(moduleName, "test_module_2") && m.TestModuleErrorsCount > 0 {
@@ -221,7 +222,7 @@ func (m *ModuleManagerMock) RunModule(moduleName string) error {
 	return nil
 }
 
-func (m *ModuleManagerMock) RunGlobalHook(hookName string, binding module_manager.BindingType) error {
+func (m *ModuleManagerMock) RunGlobalHook(hookName string, binding module_manager.BindingType, bindingContext []module_manager.BindingContext) error {
 	addRunOrder(hookName)
 	fmt.Printf("Run global hook name '%s' binding '%s'\n", hookName, binding)
 	if strings.Contains(hookName, "before_hook_1") && m.BeforeHookErrorsCount > 0 {
@@ -231,7 +232,7 @@ func (m *ModuleManagerMock) RunGlobalHook(hookName string, binding module_manage
 	return nil
 }
 
-func (m *ModuleManagerMock) RunModuleHook(hookName string, binding module_manager.BindingType) error {
+func (m *ModuleManagerMock) RunModuleHook(hookName string, binding module_manager.BindingType, bindingContext []module_manager.BindingContext) error {
 	addRunOrder(hookName)
 	fmt.Printf("Run module hook name '%s' binding '%s'\n", hookName, binding)
 	if strings.Contains(hookName, "scheduled_module_1") && m.ScheduledHookErrorsCount > 0 {

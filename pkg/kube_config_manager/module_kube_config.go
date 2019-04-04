@@ -3,6 +3,7 @@ package kube_config_manager
 import (
 	"fmt"
 	"github.com/flant/antiopa/pkg/utils"
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
 )
@@ -48,7 +49,7 @@ func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) *Modu
 			Values:     utils.Values{utils.ModuleNameToValuesKey(moduleName): moduleValues},
 		},
 		ConfigData: map[string]string{utils.ModuleNameToValuesKey(moduleName): string(yamlData)},
-		Checksum:   utils.CalculateChecksum(string(yamlData)),
+		Checksum:   utils_checksum.CalculateChecksum(string(yamlData)),
 	}
 }
 
@@ -75,7 +76,7 @@ func GetModuleKubeConfigFromConfigData(moduleName string, configData map[string]
 
 	return &ModuleKubeConfig{
 		ModuleConfig: *moduleConfig,
-		Checksum:     utils.CalculateChecksum(yamlData),
+		Checksum:     utils_checksum.CalculateChecksum(yamlData),
 	}, nil
 }
 

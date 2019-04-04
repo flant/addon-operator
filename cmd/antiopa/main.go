@@ -12,25 +12,23 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/romana/rlog"
 
-	"github.com/flant/antiopa/pkg/antiopa"
-	"github.com/flant/antiopa/pkg/docker_registry_manager"
-	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/shell-operator/pkg/executor"
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/metrics_storage"
+	"github.com/flant/shell-operator/pkg/schedule_manager"
+	schedule_hook "github.com/flant/shell-operator/pkg/hook/schedule"
+	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
+
 	"github.com/flant/antiopa/pkg/helm"
 	"github.com/flant/antiopa/pkg/kube"
-	"github.com/flant/antiopa/pkg/kube_events_manager"
-	"github.com/flant/antiopa/pkg/metrics_storage"
 	"github.com/flant/antiopa/pkg/module_manager"
-	"github.com/flant/antiopa/pkg/schedule_manager"
+	kube_event_hook "github.com/flant/antiopa/pkg/module_manager/hook/kube_event"
 	"github.com/flant/antiopa/pkg/task"
-	"github.com/flant/antiopa/pkg/utils"
 )
 
 var (
 	WorkingDir string
 	TempDir    string
-
-	// The hostname is the same as the pod name. Can be used for API requests.
-	Hostname string
 
 	// TasksQueueDumpFilePath is the name of the file to which the queue will be dumped.
 	TasksQueueDumpFilePath string
@@ -41,15 +39,11 @@ var (
 	// and variable changes.
 	ModuleManager module_manager.ModuleManager
 
-	// RegistryManager is the object for the registry manager, which watches
-	// for Antiopa image updates.
-	RegistryManager docker_registry_manager.DockerRegistryManager
-
 	ScheduleManager schedule_manager.ScheduleManager
-	ScheduledHooks  ScheduledHooksStorage
+	ScheduledHooks  schedule_hook.ScheduledHooksStorage
 
 	KubeEventsManager kube_events_manager.KubeEventsManager
-	KubeEventsHooks   antiopa.KubeEventsHooksController
+	KubeEventsHooks   kube_event_hook.KubeEventsHooksController
 
 	MetricsStorage *metrics_storage.MetricStorage
 
@@ -93,23 +87,8 @@ func Init() {
 	}
 	rlog.Infof("Antiopa temporary dir: %s", TempDir)
 
-	Hostname, err = os.Hostname()
-	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot get pod name from hostname: %s", err)
-		os.Exit(1)
-	}
-	rlog.Infof("Antiopa hostname: %s", Hostname)
-
 	// Initializing the connection to the k8s.
 	kube.InitKube()
-
- // Инициализация слежения за образом
-	// TODO Antiopa может и не следить, если кластер заморожен?
-	RegistryManager, err = docker_registry_manager.Init(Hostname)
-	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot initialize registry manager: %s", err)
-		os.Exit(1)
-	}
 
 	// Initializing helm. Installing Tiller, if it is missing.
 	tillerNamespace := kube.KubernetesAntiopaNamespace
@@ -148,7 +127,7 @@ func Init() {
 		rlog.Errorf("MAIN Fatal: Cannot initialize kube events manager: %s", err)
 		os.Exit(1)
 	}
-	KubeEventsHooks = antiopa.NewMainKubeEventsHooksController()
+	KubeEventsHooks = kube_event_hook.NewMainKubeEventsHooksController()
 
 	MetricsStorage = metrics_storage.Init()
 }
@@ -170,13 +149,7 @@ func Run() {
 
 	TasksQueue.ChangesEnable(true)
 
-	if RegistryManager != nil {
-		// Managers are go routines, that send events to their channels
-		RegistryManager.SetErrorCallback(func() {
-			MetricsStorage.SendCounterMetric("antiopa_registry_errors", 1.0, map[string]string{})
-		})
-		go RegistryManager.Run()
-	}
+
 	go ModuleManager.Run()
 	go ScheduleManager.Run()
 
@@ -195,16 +168,6 @@ func Run() {
 func ManagersEventsHandler() {
 	for {
 		select {
-		// Antiopa image has changed, deployment must be restarted.
-		case newImageId := <-docker_registry_manager.ImageUpdated:
-			rlog.Infof("EVENT ImageUpdated")
-			err := kube.KubeUpdateDeployment(newImageId)
-			if err == nil {
-				rlog.Infof("KUBE deployment update successful, exiting ...")
-				os.Exit(1)
-			} else {
-				rlog.Errorf("KUBE deployment update error: %s", err)
-			}
 		// Event from module manager (module restart or full restart).
 		case moduleEvent := <-module_manager.EventCh:
 			// Event from module manager can come if modules list have changed,
@@ -533,93 +496,11 @@ func TasksRunner() {
 	}
 }
 
-type ScheduleHook struct {
-	Name     string
-	Schedule []module_manager.ScheduleConfig
-}
-
-type ScheduledHooksStorage []*ScheduleHook
-
-// GetCrontabs returns all schedules from the hook store.
-func (s ScheduledHooksStorage) GetCrontabs() []string {
-	resMap := map[string]bool{}
-	for _, hook := range s {
-		for _, schedule := range hook.Schedule {
-			resMap[schedule.Crontab] = true
-		}
-	}
-
-	res := make([]string, len(resMap))
-	for k := range resMap {
-		res = append(res, k)
-	}
-	return res
-}
-
-// GetHooksForSchedule returns hooks for specific schedule.
-func (s ScheduledHooksStorage) GetHooksForSchedule(crontab string) []*ScheduleHook {
-	res := []*ScheduleHook{}
-
-	for _, hook := range s {
-		newHook := &ScheduleHook{
-			Name:     hook.Name,
-			Schedule: []module_manager.ScheduleConfig{},
-		}
-		for _, schedule := range hook.Schedule {
-			if schedule.Crontab == crontab {
-				newHook.Schedule = append(newHook.Schedule, schedule)
-			}
-		}
-
-		if len(newHook.Schedule) > 0 {
-			res = append(res, newHook)
-		}
-	}
-
-	return res
-}
-
-// AddHook adds hook to the hook schedule.
-func (s *ScheduledHooksStorage) AddHook(hookName string, config []module_manager.ScheduleConfig) {
-	for i, hook := range *s {
-		if hook.Name == hookName {
-			// Changes hook config and exit if the hook already exists.
-			(*s)[i].Schedule = []module_manager.ScheduleConfig{}
-			for _, item := range config {
-				(*s)[i].Schedule = append((*s)[i].Schedule, item)
-			}
-			return
-		}
-	}
-
-	newHook := &ScheduleHook{
-		Name:     hookName,
-		Schedule: []module_manager.ScheduleConfig{},
-	}
-	for _, item := range config {
-		newHook.Schedule = append(newHook.Schedule, item)
-	}
-	*s = append(*s, newHook)
-
-}
-
-// RemoveHook removes hook from the hook storage.
-func (s *ScheduledHooksStorage) RemoveHook(hookName string) {
-	tmp := ScheduledHooksStorage{}
-	for _, hook := range *s {
-		if hook.Name == hookName {
-			continue
-		}
-		tmp = append(tmp, hook)
-	}
-
-	*s = tmp
-}
 
 // UpdateScheduleHooks creates the new ScheduledHooks.
 // Calculates the difference between the old and the new schedule,
 // removes what was in the old but is missing in the new schedule.
-func UpdateScheduleHooks(storage ScheduledHooksStorage) ScheduledHooksStorage {
+func UpdateScheduleHooks(storage schedule_hook.ScheduledHooksStorage) schedule_hook.ScheduledHooksStorage {
 	if ScheduleManager == nil {
 		return nil
 	}
@@ -631,7 +512,7 @@ func UpdateScheduleHooks(storage ScheduledHooksStorage) ScheduledHooksStorage {
 		}
 	}
 
-	newScheduledTasks := ScheduledHooksStorage{}
+	newScheduledTasks := schedule_hook.ScheduledHooksStorage{}
 
 	globalHooks := ModuleManager.GetGlobalHooksInOrder(module_manager.Schedule)
 LOOP_GLOBAL_HOOKS:
@@ -757,7 +638,7 @@ func InitHttpServer() {
 	go func() {
 		rlog.Info("Listening on :9115")
 		if err := http.ListenAndServe(":9115", nil); err != nil {
-			rlog.Error("Error starting HTTP server: %s", err)
+			rlog.Errorf("Error starting HTTP server: %s", err)
 		}
 	}()
 }
@@ -773,11 +654,11 @@ func main() {
 	// Enables HTTP server for pprof and prometheus clients
 	InitHttpServer()
 
- Init()
+    Init()
 
 	// Runs managers and handlers.
 	Run()
 
 	// Blocks main() by waiting signals from OS.
-	utils.WaitForProcessInterruption()
+	utils_signal.WaitForProcessInterruption()
 }

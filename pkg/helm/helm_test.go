@@ -86,14 +86,14 @@ func TestHelm(t *testing.T) {
 
 	testNs := &v1.Namespace{}
 	testNs.Name = helm.TillerNamespace()
-	_, err = kube.KubernetesClient.CoreV1().Namespaces().Create(testNs)
+	_, err = kube.Kubernetes.CoreV1().Namespaces().Create(testNs)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	sa := &v1.ServiceAccount{}
 	sa.Name = "tiller"
-	_, err = kube.KubernetesClient.CoreV1().ServiceAccounts(helm.TillerNamespace()).Create(sa)
+	_, err = kube.Kubernetes.CoreV1().ServiceAccounts(helm.TillerNamespace()).Create(sa)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestHelm(t *testing.T) {
 			Verbs:     []string{"*"},
 		},
 	}
-	_, err = kube.KubernetesClient.RbacV1beta1().Roles(helm.TillerNamespace()).Create(role)
+	_, err = kube.Kubernetes.RbacV1beta1().Roles(helm.TillerNamespace()).Create(role)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestHelm(t *testing.T) {
 	rb.Subjects = []v1beta1.Subject{
 		v1beta1.Subject{Kind: "ServiceAccount", Name: "tiller", Namespace: helm.TillerNamespace()},
 	}
-	_, err = kube.KubernetesClient.RbacV1beta1().RoleBindings(helm.TillerNamespace()).Create(rb)
+	_, err = kube.Kubernetes.RbacV1beta1().RoleBindings(helm.TillerNamespace()).Create(rb)
 	if err != nil {
 		t.Fatal(err)
 	}

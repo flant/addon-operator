@@ -12,6 +12,8 @@ import (
 	"github.com/go-yaml/yaml"
 	"github.com/peterbourgon/mergemap"
 	"github.com/segmentio/go-camelcase"
+
+	utils_data "github.com/flant/shell-operator/pkg/utils/data"
 )
 
 const (
@@ -102,7 +104,7 @@ func NewValuesFromBytes(data []byte) (Values, error) {
 func NewValues(data map[interface{}]interface{}) (Values, error) {
 	values, err := FormatValues(data)
 	if err != nil {
-		return nil, fmt.Errorf("cannot cast data to JSON compatible format: %s:\n%s", err, YamlToString(data))
+		return nil, fmt.Errorf("cannot cast data to JSON compatible format: %s:\n%s", err, utils_data.YamlToString(data))
 	}
 
 	return values, nil
@@ -243,7 +245,7 @@ func MergeValues(values ...Values) Values {
 }
 
 func ValuesToString(values Values) string {
-	return YamlToString(values)
+	return utils_data.YamlToString(values)
 }
 
 func MustDump(data []byte, err error) []byte {

@@ -15,8 +15,10 @@ import (
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
 
-	"github.com/flant/antiopa/pkg/executor"
+	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/antiopa/pkg/utils"
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
 type Module struct {
@@ -106,7 +108,7 @@ func (m *Module) execRun() error {
 			return err
 		}
 
-		checksum, err := utils.CalculateChecksumOfPaths(runChartPath, valuesPath)
+		checksum, err := utils_checksum.CalculateChecksumOfPaths(runChartPath, valuesPath)
 		if err != nil {
 			return err
 		}
@@ -438,7 +440,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 		return false, err
 	}
 
-	if !utils.IsFileExecutable(f) {
+	if !utils_file.IsFileExecutable(f) {
 		return false, fmt.Errorf("cannot execute non-executable enable script '%s'", enabledScriptPath)
 	}
 
@@ -610,7 +612,7 @@ func getExecutableHooksFilesPaths(dir string) ([]string, error) {
 			return nil
 		}
 
-		if utils.IsFileExecutable(f) {
+		if utils_file.IsFileExecutable(f) {
 			paths = append(paths, path)
 		} else {
 			return fmt.Errorf("found non-executable hook file '%s'", path)
@@ -665,5 +667,5 @@ func dumpData(filePath string, data []byte) error {
 func (mm *MainModuleManager) makeCommand(dir string, entrypoint string, args []string, envs []string) *exec.Cmd {
 	envs = append(envs, os.Environ()...)
 	envs = append(envs, mm.helm.CommandEnv()...)
-	return utils.MakeCommand(dir, entrypoint, args, envs)
+	return executor.MakeCommand(dir, entrypoint, args, envs)
 }

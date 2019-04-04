@@ -12,6 +12,7 @@ import (
 	"github.com/flant/antiopa/pkg/helm"
 	"github.com/flant/antiopa/pkg/kube_config_manager"
 	"github.com/flant/antiopa/pkg/utils"
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
 type ModuleManager interface {
@@ -677,7 +678,7 @@ func valuesChecksum(valuesArr ...utils.Values) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return utils.CalculateChecksum(string(valuesJson)), nil
+	return utils_checksum.CalculateChecksum(string(valuesJson)), nil
 }
 
 func (mm *MainModuleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext) error {
