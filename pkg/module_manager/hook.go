@@ -14,6 +14,7 @@ import (
 	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
+	utils_data "github.com/flant/shell-operator/pkg/utils/data"
 
 	"github.com/flant/antiopa/pkg/utils"
 )
@@ -219,7 +220,7 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 	if globalValuesRaw, hasKey := newValuesRaw[acceptableKey]; hasKey {
 		globalValues, ok := globalValuesRaw.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", acceptableKey, utils.YamlToString(globalValuesRaw))
+			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", acceptableKey, utils_data.YamlToString(globalValuesRaw))
 		}
 
 		result.Values[acceptableKey] = globalValues
@@ -396,7 +397,7 @@ func (h *GlobalHook) prepareBindingContextJsonFile(context []BindingContext) (st
 		return "", err
 	}
 
-	rlog.Debugf("Prepared global hook %s binding context:\n%s", h.Name, utils.YamlToString(context))
+	rlog.Debugf("Prepared global hook %s binding context:\n%s", h.Name, utils_data.YamlToString(context))
 
 	return path, nil
 }
@@ -437,7 +438,7 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 	if moduleValuesRaw, hasKey := newValuesRaw[result.ModuleValuesKey]; hasKey {
 		moduleValues, ok := moduleValuesRaw.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", result.ModuleValuesKey, utils.YamlToString(moduleValuesRaw))
+			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", result.ModuleValuesKey, utils_data.YamlToString(moduleValuesRaw))
 		}
 		result.Values[result.ModuleValuesKey] = moduleValues
 		result.ModuleValues = moduleValues
@@ -569,7 +570,7 @@ func (h *ModuleHook) prepareBindingContextJsonFile(context []BindingContext) (st
 		return "", err
 	}
 
-	rlog.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, utils.YamlToString(context))
+	rlog.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, utils_data.YamlToString(context))
 
 	return path, nil
 }
@@ -762,7 +763,7 @@ func createHookResultValuesFile(filePath string) error {
 
 func makeCommand(dir string, entrypoint string, envs []string, args []string) *exec.Cmd {
 	envs = append(os.Environ(), envs...)
-	return utils.MakeCommand(dir, entrypoint, args, envs)
+	return executor.MakeCommand(dir, entrypoint, args, envs)
 }
 
 func execCommandOutput(cmd *exec.Cmd) ([]byte, error) {
