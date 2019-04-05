@@ -54,7 +54,7 @@ var (
 	HelmClient helm.HelmClient
 )
 
-const DefaultTasksQueueDumpFilePath = "/tmp/antiopa-tasks-queue"
+const DefaultTasksQueueDumpFilePath = "/tmp/addon-operator-tasks-queue"
 
 // Defining delays in processing tasks from queue.
 var (
@@ -74,25 +74,25 @@ func Init() {
 
 	WorkingDir, err = os.Getwd()
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot determine Antiopa working dir: %s", err)
+		rlog.Errorf("MAIN Fatal: Cannot determine Addon-operator working dir: %s", err)
 		os.Exit(1)
 	}
-	rlog.Infof("Antiopa working dir: %s", WorkingDir)
+	rlog.Infof("Addon-operator working dir: %s", WorkingDir)
 
-	TempDir := "/tmp/antiopa"
+	TempDir := "/tmp/addon-operator"
 	err = os.Mkdir(TempDir, os.FileMode(0777))
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot create Antiopa temporary dir: %s", err)
+		rlog.Errorf("MAIN Fatal: Cannot create Addon-operator temporary dir: %s", err)
 		os.Exit(1)
 	}
-	rlog.Infof("Antiopa temporary dir: %s", TempDir)
+	rlog.Infof("Addon-operator temporary dir: %s", TempDir)
 
 	// Initializing the connection to the k8s.
 	kube.InitKube()
 
 	// Initializing helm. Installing Tiller, if it is missing.
-	tillerNamespace := kube.KubernetesAntiopaNamespace
-	rlog.Debugf("Antiopa namespace for Tiller: %s", tillerNamespace)
+	tillerNamespace := kube.AddonOperatorNamespace
+	rlog.Debugf("Addon-operator namespace for Tiller: %s", tillerNamespace)
 	HelmClient, err = helm.Init(tillerNamespace)
 	if err != nil {
 		rlog.Errorf("MAIN Fatal: cannot initialize Helm: %s", err)
@@ -111,7 +111,7 @@ func Init() {
 
 	// Initializing the queue dumper, which writes queue changes to the dump file.
 	TasksQueueDumpFilePath = DefaultTasksQueueDumpFilePath
-	rlog.Debugf("Antiopa tasks queue dump file: '%s'", TasksQueueDumpFilePath)
+	rlog.Debugf("Addon-operator tasks queue dump file: '%s'", TasksQueueDumpFilePath)
 	queueWatcher := task.NewTasksQueueDumper(TasksQueueDumpFilePath, TasksQueue)
 	TasksQueue.AddWatcher(queueWatcher)
 
@@ -162,7 +162,7 @@ func Run() {
 	// TasksRunner runs tasks from the queue.
 	go TasksRunner()
 
-	RunAntiopaMetrics()
+	RunAddonOperatorMetrics()
 }
 
 func ManagersEventsHandler() {
@@ -386,7 +386,7 @@ func TasksRunner() {
 				rlog.Infof("TASK_RUN DiscoverModulesState")
 				err := runDiscoverModulesState(t)
 				if err != nil {
-					MetricsStorage.SendCounterMetric("antiopa_modules_discover_errors", 1.0, map[string]string{})
+					MetricsStorage.SendCounterMetric("addon_operator_modules_discover_errors", 1.0, map[string]string{})
 					t.IncrementFailureCount()
 					rlog.Errorf("TASK_RUN %s failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
@@ -400,7 +400,7 @@ func TasksRunner() {
 				rlog.Infof("TASK_RUN ModuleRun %s", t.GetName())
 				err := ModuleManager.RunModule(t.GetName(), t.GetOnStartupHooks())
 				if err != nil {
-					MetricsStorage.SendCounterMetric("antiopa_module_run_errors", 1.0, map[string]string{"module": t.GetName()})
+					MetricsStorage.SendCounterMetric("addon_operator_module_run_errors", 1.0, map[string]string{"module": t.GetName()})
 					t.IncrementFailureCount()
 					rlog.Errorf("TASK_RUN %s '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
@@ -412,7 +412,7 @@ func TasksRunner() {
 				rlog.Infof("TASK_RUN ModuleDelete %s", t.GetName())
 				err := ModuleManager.DeleteModule(t.GetName())
 				if err != nil {
-					MetricsStorage.SendCounterMetric("antiopa_module_delete_errors", 1.0, map[string]string{"module": t.GetName()})
+					MetricsStorage.SendCounterMetric("addon_operator_module_delete_errors", 1.0, map[string]string{"module": t.GetName()})
 					t.IncrementFailureCount()
 					rlog.Errorf("%s '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
@@ -429,10 +429,10 @@ func TasksRunner() {
 					moduleLabel := moduleHook.Module.Name
 
 					if t.GetAllowFailure() {
-						MetricsStorage.SendCounterMetric("antiopa_module_hook_allowed_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+						MetricsStorage.SendCounterMetric("addon_operator_module_hook_allowed_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 						TasksQueue.Pop()
 					} else {
-						MetricsStorage.SendCounterMetric("antiopa_module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+						MetricsStorage.SendCounterMetric("addon_operator_module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 						t.IncrementFailureCount()
 						rlog.Errorf("%s '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetFailureCount(), err)
 						TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
@@ -449,10 +449,10 @@ func TasksRunner() {
 					hookLabel := path.Base(globalHook.Path)
 
 					if t.GetAllowFailure() {
-						MetricsStorage.SendCounterMetric("antiopa_global_hook_allowed_errors", 1.0, map[string]string{"hook": hookLabel})
+						MetricsStorage.SendCounterMetric("addon_operator_global_hook_allowed_errors", 1.0, map[string]string{"hook": hookLabel})
 						TasksQueue.Pop()
 					} else {
-						MetricsStorage.SendCounterMetric("antiopa_global_hook_errors", 1.0, map[string]string{"hook": hookLabel})
+						MetricsStorage.SendCounterMetric("addon_operator_global_hook_errors", 1.0, map[string]string{"hook": hookLabel})
 						t.IncrementFailureCount()
 						rlog.Errorf("TASK_RUN %s '%s' on '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetBinding(), t.GetFailureCount(), err)
 						TasksQueue.Push(task.NewTaskDelay(FailedHookDelay))
@@ -471,7 +471,7 @@ func TasksRunner() {
 			case task.ModuleManagerRetry:
 				rlog.Infof("TASK_RUN ModuleManagerRetry")
 				// TODO метрику нужно отсылать из module_manager. Cделать metric_storage глобальным!
-				MetricsStorage.SendCounterMetric("antiopa_modules_discover_errors", 1.0, map[string]string{})
+				MetricsStorage.SendCounterMetric("addon_operator_modules_discover_errors", 1.0, map[string]string{})
 				ModuleManager.Retry()
 				TasksQueue.Pop()
 				// Adding a delay before retrying module/hook task.
@@ -601,11 +601,11 @@ func CreateReloadAllTasks(onStartup bool) {
 	TasksQueue.Add(task.NewTask(task.DiscoverModulesState, "").WithOnStartupHooks(onStartup))
 }
 
-func RunAntiopaMetrics() {
-	// Antiopa live ticks.
+func RunAddonOperatorMetrics() {
+	// Addon-operator live ticks.
 	go func() {
 		for {
-			MetricsStorage.SendCounterMetric("antiopa_live_ticks", 1.0, map[string]string{})
+			MetricsStorage.SendCounterMetric("addon_operator_live_ticks", 1.0, map[string]string{})
 			time.Sleep(10 * time.Second)
 		}
 	}()
@@ -613,7 +613,7 @@ func RunAntiopaMetrics() {
 	go func() {
 		for {
 			queueLen := float64(TasksQueue.Length())
-			MetricsStorage.SendGaugeMetric("antiopa_tasks_queue_length", queueLen, map[string]string{})
+			MetricsStorage.SendGaugeMetric("addon_operator_tasks_queue_length", queueLen, map[string]string{})
 			time.Sleep(5 * time.Second)
 		}
 	}()
@@ -622,10 +622,10 @@ func RunAntiopaMetrics() {
 func InitHttpServer() {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte(`<html>
-    <head><title>Antiopa</title></head>
+    <head><title>Addon-operator</title></head>
     <body>
-    <h1>Antiopa</h1>
-    <pre>go tool pprof goprofex http://ANTIOPA_IP:9115/debug/pprof/profile</pre>
+    <h1>Addon-operator</h1>
+    <pre>go tool pprof goprofex http://ADDON_OPERATOR_IP:9115/debug/pprof/profile</pre>
     </body>
     </html>`))
 	})
@@ -648,7 +648,7 @@ func main() {
 	flag.CommandLine.Parse([]string{})
 
 	// Be a good parent - clean up behind the children processes.
-	// Antiopa is PID1, no special config required.
+	// Addon-operator is PID1, no special config required.
 	go executor.Reap()
 
 	// Enables HTTP server for pprof and prometheus clients

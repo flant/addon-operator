@@ -12,4 +12,4 @@
 *.out
 
 # binary produced by go build
-antiopa
+addon-operator

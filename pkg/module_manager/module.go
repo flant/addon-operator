@@ -133,7 +133,7 @@ func (m *Module) execRun() error {
 					return err
 				}
 
-				if recordedChecksum, hasKey := releaseValues["_antiopaModuleChecksum"]; hasKey {
+				if recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]; hasKey {
 					if recordedChecksumStr, ok := recordedChecksum.(string); ok {
 						if recordedChecksumStr == checksum {
 							doRelease = false
@@ -152,7 +152,7 @@ func (m *Module) execRun() error {
 			return m.moduleManager.helm.UpgradeRelease(
 				helmReleaseName, runChartPath,
 				[]string{valuesPath},
-				[]string{fmt.Sprintf("_antiopaModuleChecksum=%s", checksum)},
+				[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
 				m.moduleManager.helm.TillerNamespace(),
 			)
 		} else {

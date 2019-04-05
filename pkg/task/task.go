@@ -46,7 +46,7 @@ type BaseTask struct {
 	Delay          time.Duration
 	AllowFailure   bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
-	OnStartupHooks bool // Run module onStartup hooks on Antiopa startup or on module enabled.
+	OnStartupHooks bool // Run module onStartup hooks on Addon-operator startup or on module enabled.
 }
 
 func NewTask(taskType TaskType, name string) *BaseTask {

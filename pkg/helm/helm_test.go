@@ -78,11 +78,11 @@ func TestHelm(t *testing.T) {
 	var isExists bool
 	var releases []string
 
-	helm := &CliHelm{tillerNamespace: fmt.Sprintf("antiopa-test-%s", uuid.NewV4())}
+	helm := &CliHelm{tillerNamespace: fmt.Sprintf("addon-operator-test-%s", uuid.NewV4())}
 	rlog.Infof("Testing tiller in '%s' namespace", helm.TillerNamespace())
 
 	kube.InitKube()
-	kube.KubernetesAntiopaNamespace = helm.TillerNamespace()
+	kube.AddonOperatorNamespace = helm.TillerNamespace()
 
 	testNs := &v1.Namespace{}
 	testNs.Name = helm.TillerNamespace()

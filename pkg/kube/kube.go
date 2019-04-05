@@ -18,16 +18,14 @@ import (
 )
 
 const (
-	DefaultNamespace      = "antiopa"
-	AntiopaDeploymentName = "antiopa"
-	AntiopaContainerName  = "antiopa"
-	AntiopaConfigMap      = "antiopa"
+	DefaultNamespace       = "addon-operator"
+	AntiopaDeploymentName  = "addon-operator"
 )
 
 var (
 	//KubernetesClient           Client
-	Kubernetes                 kubernetes.Interface
-	KubernetesAntiopaNamespace string
+	Kubernetes             kubernetes.Interface
+	AddonOperatorNamespace string
 )
 //
 //type Client interface {
@@ -90,16 +88,16 @@ func InitKube() {
 	//		os.Exit(1)
 	//	}
 	//
-	//	KubernetesAntiopaNamespace = string(res)
+	//	AddonOperatorNamespace = string(res)
 	//}
-	KubernetesAntiopaNamespace = client.DefaultNamespace
-	if KubernetesAntiopaNamespace == "" {
-		KubernetesAntiopaNamespace = os.Getenv("ANTIOPA_NAMESPACE")
+	AddonOperatorNamespace = client.DefaultNamespace
+	if AddonOperatorNamespace == "" {
+		AddonOperatorNamespace = os.Getenv("ADDON_OPERATOR_NAMESPACE")
 	}
-	if KubernetesAntiopaNamespace == "" {
-		KubernetesAntiopaNamespace = DefaultNamespace
+	if AddonOperatorNamespace == "" {
+		AddonOperatorNamespace = DefaultNamespace
 	}
-	rlog.Infof("KUBE-INIT Antiopa namespace: %s", KubernetesAntiopaNamespace)
+	rlog.Infof("KUBE-INIT Addon-operator namespace: %s", AddonOperatorNamespace)
 
 	//clientset, err := kubernetes.NewForConfig(config)
 	//if err != nil {
@@ -110,34 +108,4 @@ func InitKube() {
 	//KubernetesClient = clientset
 
 	//rlog.Info("KUBE-INIT Successfully connected to kubernetes")
-}
-
-func KubeGetDeploymentImageName() string {
-	res, err := Kubernetes.AppsV1beta1().Deployments(KubernetesAntiopaNamespace).Get(AntiopaDeploymentName, metav1.GetOptions{})
-
-	if err != nil {
-		rlog.Errorf("KUBE Cannot get antiopa deployment! %v", err)
-		return ""
-	}
-
-	containersSpecs := res.Spec.Template.Spec.Containers
-
-	for _, spec := range containersSpecs {
-		if spec.Name == AntiopaContainerName {
-			return spec.Image
-		}
-	}
-
-	return ""
-}
-
-
-
-func GetConfigMap() (*v1.ConfigMap, error) {
-	configMap, err := Kubernetes.CoreV1().ConfigMaps(KubernetesAntiopaNamespace).Get(AntiopaConfigMap, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("Cannot get ConfigMap %s from namespace %s: %s", AntiopaConfigMap, KubernetesAntiopaNamespace, err)
-	}
-
-	return configMap, nil
 }

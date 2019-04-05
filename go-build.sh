@@ -2,4 +2,4 @@
 
 set -e
 
-go install github.com/flant/antiopa
+go install github.com/flant/addon-operator

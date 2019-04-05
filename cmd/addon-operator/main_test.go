@@ -121,7 +121,7 @@ func (m *ModuleManagerMock) GetGlobalHook(name string) (*module_manager.GlobalHo
 		return &module_manager.GlobalHook{
 			Hook: &module_manager.Hook{
 				Name:           name,
-				Path:           "/antiopa/hooks/global_1",
+				Path:           "/addon-operator/hooks/global_1",
 				Bindings:       []module_manager.BindingType{module_manager.Schedule},
 				OrderByBinding: map[module_manager.BindingType]float64{},
 			},
@@ -138,7 +138,7 @@ func (m *ModuleManagerMock) GetGlobalHook(name string) (*module_manager.GlobalHo
 		return &module_manager.GlobalHook{
 			Hook: &module_manager.Hook{
 				Name:           name,
-				Path:           "/antiopa/hooks/global_hook_1_1",
+				Path:           "/addon-operator/hooks/global_hook_1_1",
 				Bindings:       []module_manager.BindingType{module_manager.BeforeAll},
 				OrderByBinding: map[module_manager.BindingType]float64{},
 			},
@@ -155,14 +155,14 @@ func (m *ModuleManagerMock) GetModuleHook(name string) (*module_manager.ModuleHo
 		return &module_manager.ModuleHook{
 			Hook: &module_manager.Hook{
 				Name:           name,
-				Path:           "/antiopa/modules/000_test_modu",
+				Path:           "/addon-operator/modules/000_test_modu",
 				Bindings:       []module_manager.BindingType{module_manager.Schedule},
 				OrderByBinding: map[module_manager.BindingType]float64{},
 			},
 			Module: &module_manager.Module{
 				Name:          "test_module",
-				DirectoryName: "/antiopa/modules/000_test_modue",
-				Path:          "/antiopa/modules/000_test_modu",
+				DirectoryName: "/addon-operator/modules/000_test_modue",
+				Path:          "/addon-operator/modules/000_test_modu",
 			},
 			Config: &module_manager.ModuleHookConfig{
 				HookConfig: module_manager.HookConfig{

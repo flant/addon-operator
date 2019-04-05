@@ -61,15 +61,16 @@ func Init(tillerNamespace string) (HelmClient, error) {
 }
 
 func (helm *CliHelm) InitTiller() error {
-	antiopaDeploy, err := kube.Kubernetes.AppsV1beta1().Deployments(kube.KubernetesAntiopaNamespace).Get(kube.AntiopaDeploymentName, metav1.GetOptions{})
+	// TODO get Template by navigating to Controller!
+	antiopaDeploy, err := kube.Kubernetes.AppsV1beta1().Deployments(kube.AddonOperatorNamespace).Get(kube.AntiopaDeploymentName, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("cannot fetch antiopa deployment to gather settings for tiller deployment: %s", err)
+		return fmt.Errorf("cannot fetch Deployment of Addon-operator to gather settings for a Tiller deployment: %s", err)
 	}
 
 	cmd := make([]string, 0)
 	cmd = append(cmd,
 		"init",
-		"--service-account", "antiopa",
+		"--service-account", "addon-operator", // TODO ADDON_OPERATOR_SERVICE_ACCOUNT or get it from the Spec!!!
 		"--upgrade", "--wait", "--skip-refresh",
 	)
 
@@ -116,7 +117,7 @@ func (helm *CliHelm) CommandEnv() []string {
 }
 
 // Cmd starts Helm with specified arguments.
-// Sets the TILLER_NAMESPACE environment variable before starting, to Antiopa worked with its own Tiller.
+// Sets the TILLER_NAMESPACE environment variable before starting, because Addon-operator works with its own Tiller.
 func (helm *CliHelm) Cmd(args ...string) (stdout string, stderr string, err error) {
 	binPath := "/usr/local/bin/helm"
 	cmd := exec.Command(binPath, args...)
@@ -195,7 +196,7 @@ func (helm *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 		rlog.Infof("helm release '%s': delete old FAILED revision cm/%s", releaseName, cmName)
 
 		err := kube.Kubernetes.CoreV1().
-			ConfigMaps(kube.KubernetesAntiopaNamespace).
+			ConfigMaps(kube.AddonOperatorNamespace).
 			Delete(cmName, &metav1.DeleteOptions{})
 
 		if err != nil {
@@ -313,7 +314,7 @@ func (helm *CliHelm) ListReleases(labelSelector map[string]string) ([]string, er
 	labelsSet["OWNER"] = "TILLER"
 
 	cmList, err := kube.Kubernetes.CoreV1().
-		ConfigMaps(kube.KubernetesAntiopaNamespace).
+		ConfigMaps(kube.AddonOperatorNamespace).
 		List(metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
 		rlog.Debugf("helm: list of releases ConfigMaps failed: %s", err)

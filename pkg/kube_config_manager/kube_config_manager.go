@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	ConfigMapName             = "antiopa"
-	ValuesChecksumsAnnotation = "antiopa/values-checksums"
+	ConfigMapName             = "addon-operator"
+	ValuesChecksumsAnnotation = "addon-operator/values-checksums"
 )
 
 type KubeConfigManager interface {
@@ -118,7 +118,7 @@ func (kcm *MainKubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func
 			return err
 		}
 
-		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kube.KubernetesAntiopaNamespace).Update(obj)
+		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kube.AddonOperatorNamespace).Update(obj)
 		if err != nil {
 			return err
 		}
@@ -134,7 +134,7 @@ func (kcm *MainKubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func
 			return err
 		}
 
-		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kube.KubernetesAntiopaNamespace).Create(obj)
+		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kube.AddonOperatorNamespace).Create(obj)
 		if err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (kcm *MainKubeConfigManager) SetKubeModuleValues(moduleName string, values 
 
 func (kcm *MainKubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 	list, err := kube.Kubernetes.CoreV1().
-		ConfigMaps(kube.KubernetesAntiopaNamespace).
+		ConfigMaps(kube.AddonOperatorNamespace).
 		List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -190,7 +190,7 @@ func (kcm *MainKubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 
 	if objExists {
 		obj, err := kube.Kubernetes.CoreV1().
-			ConfigMaps(kube.KubernetesAntiopaNamespace).
+			ConfigMaps(kube.AddonOperatorNamespace).
 			Get(ConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
@@ -283,7 +283,7 @@ func (kcm *MainKubeConfigManager) getValuesChecksums(cm *v1.ConfigMap) (map[stri
 	var res map[string]string
 	err := json.Unmarshal([]byte(data), &res)
 	if err != nil {
-		return nil, fmt.Errorf("cannot unmarshal json annotation 'antiopa/values-checksums' in ConfigMap '%s': %s\n%s", cm.Name, err, data)
+		return nil, fmt.Errorf("cannot unmarshal json annotation '%s' in ConfigMap '%s': %s\n%s", ValuesChecksumsAnnotation, cm.Name, err, data)
 	}
 
 	return res, nil
@@ -478,7 +478,7 @@ func (kcm *MainKubeConfigManager) Run() {
 	lw := cache.NewListWatchFromClient(
 		kube.Kubernetes.CoreV1().RESTClient(),
 		"configmaps",
-		kube.KubernetesAntiopaNamespace,
+		kube.AddonOperatorNamespace,
 		fields.OneTermEqualSelector("metadata.name", ConfigMapName))
 
 	cmInformer := cache.NewSharedInformer(lw,
