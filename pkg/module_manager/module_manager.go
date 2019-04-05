@@ -9,9 +9,9 @@ import (
 
 	"github.com/romana/rlog"
 
-	"github.com/flant/antiopa/pkg/helm"
-	"github.com/flant/antiopa/pkg/kube_config_manager"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/kube_config_manager"
+	"github.com/flant/addon-operator/pkg/utils"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
@@ -51,7 +51,7 @@ type MainModuleManager struct {
 
 	// Результирующий список имен включенных модулей в порядке вызова.
 	// С учетом скрипта enabled, kube-config и yaml-файла для модуля.
-	// Список меняется во время работы antiopa по мере возникновения событий
+	// Список меняется во время работы Addon-operator по мере возникновения событий
 	// включения/выключения модулей от kube-config.
 	enabledModulesInOrder []string
 
@@ -72,9 +72,9 @@ type MainModuleManager struct {
 	// Invariant: do not store patches that does not apply
 	// Give user error for patches early, after patch receive
 
-	// values для всех модулей, для конкретного инстанса antiopa-pod
+	// values для всех модулей, для конкретного инстанса Addon-operator-pod
 	globalDynamicValuesPatches []utils.ValuesPatch
-	// values для конкретного модуля, для конкретного инстанса antiopa-pod
+	// values для конкретного модуля, для конкретного инстанса Addon-operator-pod
 	modulesDynamicValuesPatches map[string][]utils.ValuesPatch
 
 	// Внутреннее событие: изменились values модуля.

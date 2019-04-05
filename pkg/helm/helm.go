@@ -15,8 +15,8 @@ import (
 	kblabels "k8s.io/apimachinery/pkg/labels"
 
 	"github.com/flant/shell-operator/pkg/executor"
-	"github.com/flant/antiopa/pkg/kube"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type HelmClient interface {
@@ -60,21 +60,23 @@ func Init(tillerNamespace string) (HelmClient, error) {
 	return helm, nil
 }
 
+// InitTiller runs helm init with the same ServiceAccountName, NodeSelector and Tolerations
+// as a Pod of addon-operator
 func (helm *CliHelm) InitTiller() error {
-	antiopaDeploy, err := kube.Kubernetes.AppsV1beta1().Deployments(kube.KubernetesAntiopaNamespace).Get(kube.AntiopaDeploymentName, metav1.GetOptions{})
+	podSpec, err := kube.GetCurrentPodSpec()
 	if err != nil {
-		return fmt.Errorf("cannot fetch antiopa deployment to gather settings for tiller deployment: %s", err)
+		return fmt.Errorf("cannot get PodSpec of Addon-operator to gather settings for a Tiller deployment: %s", err)
 	}
 
 	cmd := make([]string, 0)
 	cmd = append(cmd,
 		"init",
-		"--service-account", "antiopa",
+		"--service-account", podSpec.ServiceAccountName,
 		"--upgrade", "--wait", "--skip-refresh",
 	)
 
 	nodeSelectors := make([]string, 0)
-	for k, v := range antiopaDeploy.Spec.Template.Spec.NodeSelector {
+	for k, v := range podSpec.NodeSelector {
 		nodeSelectors = append(nodeSelectors, fmt.Sprintf("%s=%s", k, v))
 	}
 	if len(nodeSelectors) > 0 {
@@ -82,7 +84,7 @@ func (helm *CliHelm) InitTiller() error {
 	}
 
 	override := make([]string, 0)
-	for i, spec := range antiopaDeploy.Spec.Template.Spec.Tolerations {
+	for i, spec := range podSpec.Tolerations {
 		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].key=%s", i, spec.Key))
 		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].operator=%s", i, spec.Operator))
 		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].value=%s", i, spec.Value))
@@ -116,7 +118,7 @@ func (helm *CliHelm) CommandEnv() []string {
 }
 
 // Cmd starts Helm with specified arguments.
-// Sets the TILLER_NAMESPACE environment variable before starting, to Antiopa worked with its own Tiller.
+// Sets the TILLER_NAMESPACE environment variable before starting, because Addon-operator works with its own Tiller.
 func (helm *CliHelm) Cmd(args ...string) (stdout string, stderr string, err error) {
 	binPath := "/usr/local/bin/helm"
 	cmd := exec.Command(binPath, args...)
@@ -195,7 +197,7 @@ func (helm *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 		rlog.Infof("helm release '%s': delete old FAILED revision cm/%s", releaseName, cmName)
 
 		err := kube.Kubernetes.CoreV1().
-			ConfigMaps(kube.KubernetesAntiopaNamespace).
+			ConfigMaps(kube.AddonOperatorNamespace).
 			Delete(cmName, &metav1.DeleteOptions{})
 
 		if err != nil {
@@ -313,7 +315,7 @@ func (helm *CliHelm) ListReleases(labelSelector map[string]string) ([]string, er
 	labelsSet["OWNER"] = "TILLER"
 
 	cmList, err := kube.Kubernetes.CoreV1().
-		ConfigMaps(kube.KubernetesAntiopaNamespace).
+		ConfigMaps(kube.AddonOperatorNamespace).
 		List(metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
 		rlog.Debugf("helm: list of releases ConfigMaps failed: %s", err)

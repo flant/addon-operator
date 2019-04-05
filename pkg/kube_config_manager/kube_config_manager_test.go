@@ -11,8 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/flant/antiopa/pkg/kube"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 var (
@@ -80,7 +80,7 @@ func TestInit(t *testing.T) {
 	mockConfigMapList = &v1.ConfigMapList{
 		Items: []v1.ConfigMap{
 			v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{Name: kube.AntiopaConfigMap},
+				ObjectMeta: metav1.ObjectMeta{Name: ConfigMapName},
 				Data: map[string]string{
 					utils.GlobalValuesKey: `
 project: tfprod
@@ -194,7 +194,7 @@ userPassword: qwerty`,
 
 func findCurrentConfigMap() *v1.ConfigMap {
 	for _, cm := range mockConfigMapList.Items {
-		if cm.Name == "antiopa" {
+		if cm.Name == "addon-operator" {
 			return &cm
 		}
 	}
@@ -205,7 +205,7 @@ func findCurrentConfigMap() *v1.ConfigMap {
 func configRawDataShouldEqual(expectedData map[string]string) error {
 	obj := findCurrentConfigMap()
 	if obj == nil {
-		return fmt.Errorf("expected ConfigMap 'antiopa' to be existing")
+		return fmt.Errorf("expected ConfigMap 'addon-operator' to be existing")
 	}
 
 	if !reflect.DeepEqual(obj.Data, expectedData) {

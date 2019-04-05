@@ -16,7 +16,7 @@ import (
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 	utils_data "github.com/flant/shell-operator/pkg/utils/data"
 
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type GlobalHook struct {

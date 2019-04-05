@@ -13,7 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	v1beta1 "k8s.io/api/rbac/v1beta1"
 
-	"github.com/flant/antiopa/pkg/kube"
+	"github.com/flant/addon-operator/pkg/kube"
 )
 
 func getTestDirectoryPath(testName string) string {
@@ -78,11 +78,11 @@ func TestHelm(t *testing.T) {
 	var isExists bool
 	var releases []string
 
-	helm := &CliHelm{tillerNamespace: fmt.Sprintf("antiopa-test-%s", uuid.NewV4())}
+	helm := &CliHelm{tillerNamespace: fmt.Sprintf("addon-operator-test-%s", uuid.NewV4())}
 	rlog.Infof("Testing tiller in '%s' namespace", helm.TillerNamespace())
 
 	kube.InitKube()
-	kube.KubernetesAntiopaNamespace = helm.TillerNamespace()
+	kube.AddonOperatorNamespace = helm.TillerNamespace()
 
 	testNs := &v1.Namespace{}
 	testNs.Name = helm.TillerNamespace()

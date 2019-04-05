@@ -16,9 +16,9 @@ import (
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 
-	"github.com/flant/antiopa/pkg/helm"
-	"github.com/flant/antiopa/pkg/kube_config_manager"
-	"github.com/flant/antiopa/pkg/utils"
+	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/kube_config_manager"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 func runInitModulesIndex(t *testing.T, mm *MainModuleManager, subPath string) {
@@ -46,7 +46,7 @@ func initTempAndWorkingDirectories(t *testing.T, subPath string) {
 	WorkingDir = filepath.Join(testDirectory, "testdata", subPath)
 
 	var err error
-	TempDir, err = ioutil.TempDir("", "antiopa-")
+	TempDir, err = ioutil.TempDir("", "addon-operator-")
 	rlog.Infof("TEMP DIR %s", TempDir)
 	if err != nil {
 		t.Fatal(err)
@@ -390,7 +390,7 @@ func (h *MockHelmClient) CommandEnv() []string {
 }
 
 func (h *MockHelmClient) TillerNamespace() string {
-	return "antiopa"
+	return "addon-operator"
 }
 
 func (h *MockHelmClient) DeleteSingleFailedRevision(_ string) error {
