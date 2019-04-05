@@ -60,22 +60,23 @@ func Init(tillerNamespace string) (HelmClient, error) {
 	return helm, nil
 }
 
+// InitTiller runs helm init with the same ServiceAccountName, NodeSelector and Tolerations
+// as a Pod of addon-operator
 func (helm *CliHelm) InitTiller() error {
-	// TODO get Template by navigating to Controller!
-	antiopaDeploy, err := kube.Kubernetes.AppsV1beta1().Deployments(kube.AddonOperatorNamespace).Get(kube.AntiopaDeploymentName, metav1.GetOptions{})
+	podSpec, err := kube.GetCurrentPodSpec()
 	if err != nil {
-		return fmt.Errorf("cannot fetch Deployment of Addon-operator to gather settings for a Tiller deployment: %s", err)
+		return fmt.Errorf("cannot get PodSpec of Addon-operator to gather settings for a Tiller deployment: %s", err)
 	}
 
 	cmd := make([]string, 0)
 	cmd = append(cmd,
 		"init",
-		"--service-account", "addon-operator", // TODO ADDON_OPERATOR_SERVICE_ACCOUNT or get it from the Spec!!!
+		"--service-account", podSpec.ServiceAccountName,
 		"--upgrade", "--wait", "--skip-refresh",
 	)
 
 	nodeSelectors := make([]string, 0)
-	for k, v := range antiopaDeploy.Spec.Template.Spec.NodeSelector {
+	for k, v := range podSpec.NodeSelector {
 		nodeSelectors = append(nodeSelectors, fmt.Sprintf("%s=%s", k, v))
 	}
 	if len(nodeSelectors) > 0 {
@@ -83,7 +84,7 @@ func (helm *CliHelm) InitTiller() error {
 	}
 
 	override := make([]string, 0)
-	for i, spec := range antiopaDeploy.Spec.Template.Spec.Tolerations {
+	for i, spec := range podSpec.Tolerations {
 		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].key=%s", i, spec.Key))
 		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].operator=%s", i, spec.Operator))
 		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].value=%s", i, spec.Value))
