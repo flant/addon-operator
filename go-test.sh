@@ -1,6 +1,0 @@
-#!/bin/sh
-
-set -e
-
-go get -v -d -t github.com/flant/addon-operator/...
-go test github.com/flant/addon-operator/...
