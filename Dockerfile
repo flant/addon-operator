@@ -11,6 +11,10 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists && \
     wget https://storage.googleapis.com/kubernetes-release/release/v1.13.5/bin/linux/amd64/kubectl -O /bin/kubectl && \
     chmod +x /bin/kubectl && \
+    wget https://storage.googleapis.com/kubernetes-helm/helm-v2.12.1-linux-amd64.tar.gz -O /helm.tgz && \
+    tar -z -x -C /bin -f /helm.tgz --strip-components=1 linux-amd64/helm && \
+    rm -f /helm.tgz && \
+    helm init --client-only && \
     mkdir /hooks
 COPY --from=0 /go/src/github.com/flant/addon-operator/addon-operator /
 WORKDIR /
