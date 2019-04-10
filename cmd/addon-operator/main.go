@@ -72,10 +72,13 @@ func Init() {
 
 	var err error
 
-	WorkingDir, err = os.Getwd()
-	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot determine Addon-operator working dir: %s", err)
-		os.Exit(1)
+	WorkingDir = os.Getenv("ADDON_OPERATOR_WORKING_DIR")
+	if WorkingDir == "" {
+		WorkingDir, err = os.Getwd()
+		if err != nil {
+			rlog.Errorf("MAIN Fatal: Cannot determine Addon-operator working dir: %s", err)
+			os.Exit(1)
+		}
 	}
 	rlog.Infof("Addon-operator working dir: %s", WorkingDir)
 
