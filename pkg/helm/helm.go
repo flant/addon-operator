@@ -19,6 +19,8 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
+const HelmPath = "helm"
+
 type HelmClient interface {
 	TillerNamespace() string
 	CommandEnv() []string
@@ -120,8 +122,7 @@ func (helm *CliHelm) CommandEnv() []string {
 // Cmd starts Helm with specified arguments.
 // Sets the TILLER_NAMESPACE environment variable before starting, because Addon-operator works with its own Tiller.
 func (helm *CliHelm) Cmd(args ...string) (stdout string, stderr string, err error) {
-	binPath := "/usr/local/bin/helm"
-	cmd := exec.Command(binPath, args...)
+	cmd := exec.Command(HelmPath, args...)
 	cmd.Env = append(os.Environ(), helm.CommandEnv()...)
 
 	var stdoutBuf bytes.Buffer
@@ -208,6 +209,7 @@ func (helm *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 	return nil
 }
 
+// TODO get this info from cm
 // Get last known revision and status
 // helm history output:
 // REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
