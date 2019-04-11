@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: addon-operator
+spec:
+  containers:
+  - name: addon-operator
+    image: registry.mycompany.com/addon-operator:startup-global
+    imagePullPolicy: Always
+  serviceAccountName: addon-operator-acc
