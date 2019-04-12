@@ -1,0 +1,40 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  labels:
+    module: {{ $.Chart.Name }}
+  name: sysctl-tuner
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      module: {{ $.Chart.Name }}
+  template:
+    metadata:
+      labels:
+        module: {{ $.Chart.Name }}
+    spec:
+      containers:
+      - command:
+        - sh
+        - -c
+        - |
+          while true; do
+            sysctl -w vm.swappiness=0 ;
+            sysctl -w kernel.numa_balancing=0 ; # NUMA affinity should be tuned in another way
+            sysctl -w net.core.somaxconn=1000 ;
+            # More options are in http://www.brendangregg.com/blog/2017-12-31/reinvent-netflix-ec2-tuning.html
+            sleep 600 ;
+          done
+        image: busybox
+        imagePullPolicy: Always
+        name: busybox
+        resources: {}
+        securityContext:
+          privileged: true
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+
+      tolerations:
+      - operator: Exists
