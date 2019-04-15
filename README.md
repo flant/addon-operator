@@ -1,4 +1,7 @@
-# Addon-operator
+# Addon-operator [![docker pull flant/addon-operator](https://img.shields.io/badge/docker-latest-2496ed.svg?logo=docker)](https://hub.docker.com/r/flant/addon-operator) [![Slack chat EN](https://img.shields.io/badge/slack-EN%20chat-611f69.svg?logo=slack)](https://cloud-native.slack.com/messages/CJ13K3HFG) [![Telegram chat RU](https://img.shields.io/badge/telegram-RU%20chat-179cde.svg?logo=telegram)](https://t.me/shelloperator)
+
+<img width="70" height="70" src="logo-addon.png" alt="Addon-operator logo" />
+
 
 Addon-operator is an addon operator for Kubernetes.
 
