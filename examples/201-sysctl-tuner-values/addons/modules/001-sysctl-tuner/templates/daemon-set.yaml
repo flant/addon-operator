@@ -1,0 +1,42 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  labels:
+    module: {{ $.Chart.Name }}
+  name: sysctl-tuner
+  namespace: kube-system
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      module: {{ $.Chart.Name }}
+  template:
+    metadata:
+      labels:
+        module: {{ $.Chart.Name }}
+    spec:
+      containers:
+      - command:
+        - sh
+        - -c
+        - |
+          while true; do
+            {{ range $k, $v := .Values.sysctlTuner.params }}
+            sysctl -w {{ $k }}={{ $v }}
+            {{ end }}
+            # More options are in http://www.brendangregg.com/blog/2017-12-31/reinvent-netflix-ec2-tuning.html
+            sleep {{ .Values.sysctlTuner.sleep | default 600 }} ;
+          done
+        image: busybox
+        imagePullPolicy: Always
+        name: busybox
+        resources: {}
+        securityContext:
+          privileged: true
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+
+      tolerations:
+      - operator: Exists

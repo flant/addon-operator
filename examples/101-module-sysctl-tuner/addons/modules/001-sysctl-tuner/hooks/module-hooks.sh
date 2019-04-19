@@ -12,6 +12,6 @@ EOF
 exit 0
 fi
 
-binging=$(jq '.[0].binding' "${BINDING_CONTEXT_PATH}")
+binding=$(jq -r '.[0].binding' "${BINDING_CONTEXT_PATH}")
 
-echo "Run ${binding} hook of sysctl-tuner"
+echo "Run '${binding}' hook for sysctl-tuner"
