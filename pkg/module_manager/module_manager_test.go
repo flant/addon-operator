@@ -8,7 +8,7 @@ import (
 )
 
 func TestMainModuleManager_GetModule(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	expectedModule := &Module{Name: "module"}
 	mm.allModulesByName["module"] = expectedModule
@@ -30,7 +30,7 @@ func TestMainModuleManager_GetModule(t *testing.T) {
 }
 
 func TestMainModuleManager_GetModuleHook(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	expectedModuleHook := &ModuleHook{Hook: &Hook{Name: "hook"}}
 	mm.modulesHooksByName["hook"] = expectedModuleHook
@@ -52,7 +52,7 @@ func TestMainModuleManager_GetModuleHook(t *testing.T) {
 }
 
 func TestMainModuleManager_GetModuleHooksInOrder(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	mm.allModulesByName = map[string]*Module{"module": {Name: "module"}}
 	mm.modulesHooksOrderByName = map[string]map[BindingType][]*ModuleHook{
@@ -135,7 +135,7 @@ func TestMainModuleManager_GetModuleHooksInOrder(t *testing.T) {
 }
 
 func TestMainModuleManager_GetGlobalHook(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	expectedGlobalHook := &GlobalHook{Hook: &Hook{Name: "hook"}}
 	mm.globalHooksByName["hook"] = expectedGlobalHook
@@ -157,7 +157,7 @@ func TestMainModuleManager_GetGlobalHook(t *testing.T) {
 }
 
 func TestMainModuleManager_GetGlobalHooksInOrder(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	mm.globalHooksOrder = map[BindingType][]*GlobalHook{
 		BeforeAll: {
@@ -215,7 +215,8 @@ func (helm *mockDiscoverModulesHelmClient) ListReleasesNames(_ map[string]string
 }
 
 func TestMainModuleManager_DiscoverModulesState(t *testing.T) {
-	mm := NewMainModuleManager(&mockDiscoverModulesHelmClient{}, nil)
+	mm := NewMainModuleManager().
+		WithHelmClient(&mockDiscoverModulesHelmClient{})
 
 	mm.allModulesByName = make(map[string]*Module)
 	mm.allModulesByName["module-1"] = &Module{Name: "module-1", DirectoryName: "001-module-1", Path: "some/path/001-module-1"}
@@ -257,9 +258,9 @@ func TestMainModuleManager_DiscoverModulesState(t *testing.T) {
 //}
 //
 //func TestEnabledModules(t *testing.T) {
-//	initTempAndWorkingDirectories(t, "test_enabled_modules")
-//
 //	mm := NewMainModuleManager(&MockHelmClient{}, nil)
+//
+//	initModuleManagerDirectories(t, mm, "test_enabled_modules")
 //
 //	if err := mm.initModulesIndex(); err != nil {
 //		t.Fatal(err)

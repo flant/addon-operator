@@ -32,12 +32,12 @@ It is a brief manifest just to give a clue what is a sysctl tuner. Full chart is
 
 ### Build an image with module
 
-Use a prebuilt image [flant/addon-operator:latest](https://hub.docker.com/r/flant/addon-operator) and ADD module directory under the `/addons/` directory.
+Use a prebuilt image [flant/addon-operator:latest](https://hub.docker.com/r/flant/addon-operator) and ADD modules directory under the `/modules` directory and global hooks directory under `/global-hooks`.
 
 ```dockerfile
 FROM flant/addon-operator:latest
-ADD global-hooks /addons/global-hooks
-ADD modules /addons/modules
+ADD global-hooks /global-hooks
+ADD modules /modules
 ```
 
 Build and push image to the Docker registry accessible by Kubernetes cluster.

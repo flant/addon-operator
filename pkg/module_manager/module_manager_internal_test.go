@@ -22,7 +22,7 @@ import (
 )
 
 func runInitModulesIndex(t *testing.T, mm *MainModuleManager, subPath string) {
-	initTempAndWorkingDirectories(t, filepath.Join("init_modules_index", subPath))
+	initModuleManagerDirectories(t, mm, filepath.Join("init_modules_index", subPath))
 
 	if err := mm.initModulesIndex(); err != nil {
 		t.Fatal(err)
@@ -33,28 +33,31 @@ func runInitModulesIndex(t *testing.T, mm *MainModuleManager, subPath string) {
 }
 
 func runInitGlobalHooks(t *testing.T, mm *MainModuleManager, subPath string) {
-	initTempAndWorkingDirectories(t, filepath.Join("init_global_hooks", subPath))
+	initModuleManagerDirectories(t, mm, filepath.Join("init_global_hooks", subPath))
 
 	if err := mm.initGlobalHooks(); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func initTempAndWorkingDirectories(t *testing.T, subPath string) {
+func initModuleManagerDirectories(t *testing.T, mm *MainModuleManager, subPath string) {
 	_, testFile, _, _ := runtime.Caller(0)
 	testDirectory := filepath.Dir(testFile)
-	WorkingDir = filepath.Join(testDirectory, "testdata", subPath)
+	rootDir := filepath.Join(testDirectory, "testdata", subPath)
+
 
 	var err error
-	TempDir, err = ioutil.TempDir("", "addon-operator-")
-	rlog.Infof("TEMP DIR %s", TempDir)
+	tempDir, err := ioutil.TempDir("", "addon-operator-")
+	rlog.Infof("TEMP DIR %s", tempDir)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	mm.WithDirectories(filepath.Join(rootDir, "modules"), filepath.Join(rootDir, "global-hooks"), tempDir)
 }
 
 func TestMainModuleManager_globalStaticValues(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	runInitModulesIndex(t, mm, "test_global_static_values")
 
@@ -73,7 +76,7 @@ func TestMainModuleManager_globalStaticValues(t *testing.T) {
 }
 
 func TestMainModuleManager_modulesStaticValues(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	runInitModulesIndex(t, mm, "test_modules_static_values")
 
@@ -112,14 +115,14 @@ func TestMainModuleManager_modulesStaticValues(t *testing.T) {
 }
 
 func TestMainModuleManager_GetModule2(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	runInitModulesIndex(t, mm, "test_get_module")
 
 	var expectations = []*Module{
 		{
 			Name:          "module",
-			Path:          filepath.Join(WorkingDir, "modules/000-module"),
+			Path:          filepath.Join(mm.ModulesDir, "000-module"),
 			DirectoryName: "000-module",
 			StaticConfig: &utils.ModuleConfig{
 				ModuleName: "module",
@@ -146,7 +149,8 @@ func TestMainModuleManager_GetModule2(t *testing.T) {
 }
 
 func TestMainModuleManager_EnabledModules(t *testing.T) {
-	mm := NewMainModuleManager(&MockHelmClient{}, nil)
+	mm := NewMainModuleManager().
+		WithHelmClient(&MockHelmClient{})
 
 	runInitModulesIndex(t, mm, "test_get_module_names_in_order")
 
@@ -170,7 +174,7 @@ func TestMainModuleManager_EnabledModules(t *testing.T) {
 
 func TestMainModuleManager_GetModuleHook2(t *testing.T) {
 	t.SkipNow()
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	runInitModulesIndex(t, mm, "test_get_module_hook")
 
@@ -186,7 +190,7 @@ func TestMainModuleManager_GetModuleHook2(t *testing.T) {
 			orderByBindings[AfterDeleteHelm],
 		}
 
-		moduleHook := mm.newModuleHook(name, filepath.Join(WorkingDir, "modules", name), config)
+		moduleHook := mm.newModuleHook(name, filepath.Join(mm.ModulesDir, name), config)
 
 		var err error
 		if moduleHook.Module, err = mm.GetModule(moduleName); err != nil {
@@ -331,7 +335,7 @@ func TestMainModuleManager_GetModuleHook2(t *testing.T) {
 
 func TestMainModuleManager_GetModuleHooksInOrder2(t *testing.T) {
 	t.SkipNow()
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	runInitModulesIndex(t, mm, "test_get_module_hooks_in_order")
 
@@ -437,7 +441,9 @@ func TestMainModuleManager_RunModule(t *testing.T) {
 	t.SkipNow()
 	hc := &MockHelmClient{}
 
-	mm := NewMainModuleManager(hc, MockKubeConfigManager{})
+	mm := NewMainModuleManager().
+		WithHelmClient(hc).
+		WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitModulesIndex(t, mm, "test_run_module")
 
@@ -481,7 +487,9 @@ func TestMainModuleManager_DeleteModule(t *testing.T) {
 	t.SkipNow()
 	hc := &MockHelmClient{}
 
-	mm := NewMainModuleManager(hc, MockKubeConfigManager{})
+	mm := NewMainModuleManager().
+		WithHelmClient(hc).
+		WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitModulesIndex(t, mm, "test_delete_module")
 
@@ -521,7 +529,9 @@ func TestMainModuleManager_DeleteModule(t *testing.T) {
 func TestMainModuleManager_RunModuleHook(t *testing.T) {
 	// TODO hooks not found
 	t.SkipNow()
-	mm := NewMainModuleManager(&MockHelmClient{}, MockKubeConfigManager{})
+	mm := NewMainModuleManager().
+		WithHelmClient(&MockHelmClient{}).
+		WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitModulesIndex(t, mm, "test_run_module_hook")
 
@@ -656,7 +666,7 @@ func TestMainModuleManager_RunModuleHook(t *testing.T) {
 }
 
 func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	runInitGlobalHooks(t, mm, "test_get_global_hook")
 
@@ -671,7 +681,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 			orderByBindings[AfterAll],
 		}
 
-		globalHook := mm.newGlobalHook(name, filepath.Join(WorkingDir, name), config)
+		globalHook := mm.newGlobalHook(name, filepath.Join(mm.GlobalHooksDir, name), config)
 		globalHook.Bindings = bindings
 
 		for k, v := range orderByBindings {
@@ -689,7 +699,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 		onKubernetesEvent []kube_events_manager.OnKubernetesEventConfig
 	}{
 		{
-			"global-hooks/000-all-bindings/all",
+			"000-all-bindings/all",
 			[]BindingType{BeforeAll, AfterAll, OnStartup, Schedule, KubeEvents},
 			map[BindingType]interface{}{
 				BeforeAll: 1.0,
@@ -780,7 +790,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 			},
 		},
 		{
-			"global-hooks/100-nested-hook/sub/sub/nested-before-all",
+			"100-nested-hook/sub/sub/nested-before-all",
 			[]BindingType{BeforeAll},
 			map[BindingType]interface{}{
 				BeforeAll: 1.0,
@@ -807,7 +817,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 }
 
 func TestMainModuleManager_GetGlobalHooksInOrder2(t *testing.T) {
-	mm := NewMainModuleManager(nil, nil)
+	mm := NewMainModuleManager()
 
 	runInitGlobalHooks(t, mm, "test_get_global_hooks_in_order")
 
@@ -820,9 +830,9 @@ func TestMainModuleManager_GetGlobalHooksInOrder2(t *testing.T) {
 			testName:    "hooks",
 			bindingType: AfterAll,
 			hooksOrder: []string{
-				"global-hooks/000-before-all-binding-hooks/b",
-				"global-hooks/000-before-all-binding-hooks/c",
-				"global-hooks/000-before-all-binding-hooks/a",
+				"000-before-all-binding-hooks/b",
+				"000-before-all-binding-hooks/c",
+				"000-before-all-binding-hooks/a",
 			},
 		},
 		{
@@ -844,7 +854,9 @@ func TestMainModuleManager_GetGlobalHooksInOrder2(t *testing.T) {
 }
 
 func TestMainModuleManager_RunGlobalHook(t *testing.T) {
-	mm := NewMainModuleManager(&MockHelmClient{}, MockKubeConfigManager{})
+	mm := NewMainModuleManager().
+		WithHelmClient(&MockHelmClient{}).
+		WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitGlobalHooks(t, mm, "test_run_global_hook")
 
@@ -858,7 +870,7 @@ func TestMainModuleManager_RunGlobalHook(t *testing.T) {
 	}{
 		{
 			"merge_and_patch_kube_config_values",
-			"global-hooks/000-update-kube-config/merge_and_patch_values",
+			"000-update-kube-config/merge_and_patch_values",
 			utils.Values{
 				"global": map[string]interface{}{
 					"b": "should-be-deleted",
@@ -878,7 +890,7 @@ func TestMainModuleManager_RunGlobalHook(t *testing.T) {
 		},
 		{
 			"merge_and_patch_dynamic_values",
-			"global-hooks/100-update-dynamic/merge_and_patch_values",
+			"100-update-dynamic/merge_and_patch_values",
 			utils.Values{},
 			[]utils.ValuesPatch{},
 			utils.Values{
@@ -892,7 +904,7 @@ func TestMainModuleManager_RunGlobalHook(t *testing.T) {
 		},
 		{
 			"merge_and_patch_over_existing_kube_config_values",
-			"global-hooks/000-update-kube-config/merge_and_patch_values",
+			"000-update-kube-config/merge_and_patch_values",
 			utils.Values{
 				"global": map[string]interface{}{
 					"a": 1.0, "b": 2.0, "x": "123",
@@ -912,7 +924,7 @@ func TestMainModuleManager_RunGlobalHook(t *testing.T) {
 		},
 		{
 			"merge_and_patch_over_existing_dynamic_values",
-			"global-hooks/100-update-dynamic/merge_and_patch_values",
+			"100-update-dynamic/merge_and_patch_values",
 			utils.Values{},
 			[]utils.ValuesPatch{
 				*utils.MustValuesPatch(utils.ValuesPatchFromBytes([]byte(`[

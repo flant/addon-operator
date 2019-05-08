@@ -1,7 +1,6 @@
 package module_manager
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -15,8 +14,8 @@ import (
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
 
-	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/shell-operator/pkg/executor"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
@@ -91,7 +90,7 @@ func (m *Module) execRun() error {
 	err := m.execHelm(func(valuesPath, helmReleaseName string) error {
 		var err error
 
-		runChartPath := filepath.Join(TempDir, fmt.Sprintf("%s.chart", m.SafeName()))
+		runChartPath := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.chart", m.SafeName()))
 
 		err = os.RemoveAll(runChartPath)
 		if err != nil {
@@ -169,6 +168,8 @@ func (m *Module) execRun() error {
 	return nil
 }
 
+// delete removes helm release if it exists.
+//
 func (m *Module) delete() error {
 	// Если есть chart, но нет релиза — warning
 	// если нет чарта — молча перейти к хукам
@@ -198,6 +199,9 @@ func (m *Module) delete() error {
 	return nil
 }
 
+// execDelete
+//
+// Deprecated: no usages found
 func (m *Module) execDelete() error {
 	err := m.execHelm(func(_, helmReleaseName string) error {
 		return m.moduleManager.helm.DeleteRelease(helmReleaseName)
@@ -256,7 +260,7 @@ func (m *Module) prepareConfigValuesYamlFile() (string, error) {
 	values := m.configValues()
 
 	data := utils.MustDump(utils.DumpValuesYaml(values))
-	path := filepath.Join(TempDir, fmt.Sprintf("%s.module-config-values.yaml", m.SafeName()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-config-values.yaml", m.SafeName()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -271,7 +275,7 @@ func (m *Module) prepareConfigValuesJsonFile() (string, error) {
 	values := m.configValues()
 
 	data := utils.MustDump(utils.DumpValuesJson(values))
-	path := filepath.Join(TempDir, fmt.Sprintf("%s.module-config-values.json", m.SafeName()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-config-values.json", m.SafeName()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -286,7 +290,7 @@ func (m *Module) prepareValuesYamlFile() (string, error) {
 	values := m.values()
 
 	data := utils.MustDump(utils.DumpValuesYaml(values))
-	path := filepath.Join(TempDir, fmt.Sprintf("%s.module-values.yaml", m.SafeName()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.yaml", m.SafeName()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -299,7 +303,7 @@ func (m *Module) prepareValuesYamlFile() (string, error) {
 
 func (m *Module) prepareValuesJsonFileWith(values utils.Values) (string, error) {
 	data := utils.MustDump(utils.DumpValuesJson(values))
-	path := filepath.Join(TempDir, fmt.Sprintf("%s.module-values.json", m.SafeName()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.json", m.SafeName()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -405,7 +409,7 @@ func (m *Module) moduleValuesKey() string {
 }
 
 func (m *Module) prepareModuleEnabledResultFile() (string, error) {
-	path := filepath.Join(TempDir, fmt.Sprintf("%s.module-enabled-result", m.Name))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-enabled-result", m.Name))
 	if err := createHookResultValuesFile(path); err != nil {
 		return "", err
 	}
@@ -461,8 +465,10 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 
 	rlog.Infof("MODULE '%s': run enabled script '%s'...", m.Name, enabledScriptPath)
 
+	// dir is empty to run hook in process's current directory
+	// FIXME: set to hook's directory?
 	cmd := m.moduleManager.makeHookCommand(
-		WorkingDir, configValuesPath, valuesPath, "", enabledScriptPath, []string{},
+		"", configValuesPath, valuesPath, "", enabledScriptPath, []string{},
 		[]string{
 			fmt.Sprintf("MODULE_ENABLED_RESULT=%s", enabledResultFilePath),
 		},
@@ -489,19 +495,17 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 // initModulesIndex load all available modules from modules directory
 //
 func (mm *MainModuleManager) initModulesIndex() error {
-	rlog.Info("Initializing modules ...")
+	rlog.Debug("INIT: Search modules ...")
 
-	modulesDir := filepath.Join(WorkingDir, "modules")
-
-	files, err := ioutil.ReadDir(modulesDir) // returns a list of modules sorted by filename
+	files, err := ioutil.ReadDir(mm.ModulesDir) // returns a list of modules sorted by filename
 	if err != nil {
-		return fmt.Errorf("cannot list modules directory '%s': %s", modulesDir, err)
+		return fmt.Errorf("INIT: cannot list modules directory '%s': %s", mm.ModulesDir, err)
 	}
 
 	if err := mm.initGlobalConfigValues(); err != nil {
 		return err
 	}
-	rlog.Debugf("Set mm.configValues:\n%s", utils.ValuesToString(mm.globalStaticValues))
+	rlog.Debugf("INIT: MODULE_MANAGER: set configValues:\n%s", utils.ValuesToString(mm.globalStaticValues))
 
 	var validModuleName = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
 
@@ -512,9 +516,9 @@ func (mm *MainModuleManager) initModulesIndex() error {
 			matchRes := validModuleName.FindStringSubmatch(file.Name())
 			if matchRes != nil {
 				moduleName := matchRes[1]
-				rlog.Infof("Load and register module '%s' ...", moduleName)
+				rlog.Infof("INIT: Register module '%s'", moduleName)
 
-				modulePath := filepath.Join(modulesDir, file.Name())
+				modulePath := filepath.Join(mm.ModulesDir, file.Name())
 
 				module := mm.NewModule()
 				module.Name = moduleName
@@ -530,22 +534,22 @@ func (mm *MainModuleManager) initModulesIndex() error {
 				mm.allModulesByName[module.Name] = module
 				mm.allModulesNamesInOrder = append(mm.allModulesNamesInOrder, module.Name)
 			} else {
-				badModulesDirs = append(badModulesDirs, filepath.Join(modulesDir, file.Name()))
+				badModulesDirs = append(badModulesDirs, filepath.Join(mm.ModulesDir, file.Name()))
 			}
 		}
 	}
 
-	rlog.Debugf("initModulesIndex: %v", mm.allModulesByName)
+	rlog.Debugf("INIT: initModulesIndex registered modules: %v", mm.allModulesByName)
 
 	if len(badModulesDirs) > 0 {
-		return fmt.Errorf("bad module directory names, must match regex '%s': %s", validModuleName, strings.Join(badModulesDirs, ", "))
+		return fmt.Errorf("found directories not matched regex '%s': %s", validModuleName, strings.Join(badModulesDirs, ", "))
 	}
 
 	return nil
 }
 
 func (mm *MainModuleManager) initGlobalConfigValues() (err error) {
-	values, err := loadGlobalModulesValues()
+	values, err := mm.loadGlobalModulesValues()
 	if err != nil {
 		return
 	}
@@ -580,22 +584,22 @@ func (m *Module) loadStaticValues() error {
 	return nil
 }
 
-func loadGlobalModulesValues() (utils.Values, error) {
-	filePath := filepath.Join(WorkingDir, "modules", "values.yaml")
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+func (mm *MainModuleManager) loadGlobalModulesValues() (utils.Values, error) {
+	valuesPath := filepath.Join(mm.ModulesDir, "values.yaml")
+	if _, err := os.Stat(valuesPath); os.IsNotExist(err) {
 		return make(utils.Values), nil
 	}
 
-	valuesYaml, err := ioutil.ReadFile(filePath)
+	valuesYaml, err := ioutil.ReadFile(valuesPath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read '%s': %s", filePath, err)
+		return nil, fmt.Errorf("cannot read '%s': %s", valuesPath, err)
 	}
 
 	var res map[interface{}]interface{}
 
 	err = yaml.Unmarshal(valuesYaml, &res)
 	if err != nil {
-		return nil, fmt.Errorf("bad '%s': %s\n%s", filePath, err, string(valuesYaml))
+		return nil, fmt.Errorf("bad '%s': %s\n%s", valuesPath, err, string(valuesYaml))
 	}
 
 	return utils.FormatValues(res)
@@ -626,34 +630,6 @@ func getExecutableHooksFilesPaths(dir string) ([]string, error) {
 	}
 
 	return paths, nil
-}
-
-func dumpValuesYaml(fileName string, values utils.Values) (string, error) {
-	valuesYaml, err := yaml.Marshal(&values)
-	if err != nil {
-		return "", err
-	}
-
-	filePath := filepath.Join(TempDir, fileName)
-	if err = dumpData(filePath, valuesYaml); err != nil {
-		return "", err
-	}
-
-	return filePath, nil
-}
-
-func dumpValuesJson(fileName string, values interface{}) (string, error) {
-	valuesJson, err := json.Marshal(&values)
-	if err != nil {
-		return "", err
-	}
-
-	filePath := filepath.Join(TempDir, fileName)
-	if err = dumpData(filePath, valuesJson); err != nil {
-		return "", err
-	}
-
-	return filePath, nil
 }
 
 func dumpData(filePath string, data []byte) error {

@@ -18,6 +18,7 @@ RUN apt-get update && \
     mkdir /hooks
 COPY --from=0 /go/src/github.com/flant/addon-operator/addon-operator /
 WORKDIR /
-ENV ADDON_OPERATOR_WORKING_DIR /addons
+ENV MODULES_DIR /modules
+ENV GLOBAL_HOOKS_DIR /global-hooks
 ENTRYPOINT ["/addon-operator"]
 #CMD ["start"]
