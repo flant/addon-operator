@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/romana/rlog"
 	"github.com/magiconair/properties/assert"
+	"github.com/romana/rlog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -44,7 +44,6 @@ func initModuleManagerDirectories(t *testing.T, mm *MainModuleManager, subPath s
 	_, testFile, _, _ := runtime.Caller(0)
 	testDirectory := filepath.Dir(testFile)
 	rootDir := filepath.Join(testDirectory, "testdata", subPath)
-
 
 	var err error
 	tempDir, err := ioutil.TempDir("", "addon-operator-")
@@ -126,9 +125,9 @@ func TestMainModuleManager_GetModule2(t *testing.T) {
 			DirectoryName: "000-module",
 			StaticConfig: &utils.ModuleConfig{
 				ModuleName: "module",
-				Values: utils.Values{},
-				IsEnabled: true,
-				IsUpdated: false,
+				Values:     utils.Values{},
+				IsEnabled:  true,
+				IsUpdated:  false,
 			},
 			moduleManager: mm,
 		},
@@ -159,8 +158,6 @@ func TestMainModuleManager_EnabledModules(t *testing.T) {
 		"module-a",
 		"module-b",
 	}
-
-
 
 	modulesState, err := mm.DiscoverModulesState()
 	if err != nil {
@@ -258,7 +255,7 @@ func TestMainModuleManager_GetModuleHook2(t *testing.T) {
 						kube_events_manager.KubernetesEventOnUpdate,
 						kube_events_manager.KubernetesEventOnDelete,
 					},
-					Kind:       "namespace",
+					Kind: "namespace",
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"component": "component2",
@@ -284,7 +281,7 @@ func TestMainModuleManager_GetModuleHook2(t *testing.T) {
 						kube_events_manager.KubernetesEventOnUpdate,
 						kube_events_manager.KubernetesEventOnDelete,
 					},
-					Kind:       "pod",
+					Kind: "pod",
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"component": "component3",
@@ -741,7 +738,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 						kube_events_manager.KubernetesEventOnUpdate,
 						kube_events_manager.KubernetesEventOnDelete,
 					},
-					Kind:       "namespace",
+					Kind: "namespace",
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"component": "component2",
@@ -767,7 +764,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 						kube_events_manager.KubernetesEventOnUpdate,
 						kube_events_manager.KubernetesEventOnDelete,
 					},
-					Kind:       "pod",
+					Kind: "pod",
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"component": "component3",

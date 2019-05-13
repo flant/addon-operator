@@ -3,14 +3,13 @@ package kube_event
 import (
 	"fmt"
 
-	"github.com/flant/shell-operator/pkg/kube_events_manager"
-	"github.com/flant/shell-operator/pkg/hook/kube_event"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/hook/kube_event"
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
 
 	"github.com/romana/rlog"
 )
-
 
 // MakeKubeEventHookDescriptors converts hook config into KubeEventHook structures
 func MakeKubeEventHookDescriptors(hook *module_manager.Hook, hookConfig *module_manager.HookConfig) []*kube_event.KubeEventHook {

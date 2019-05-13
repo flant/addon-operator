@@ -1,10 +1,10 @@
 package kube_config_manager
 
 import (
-	"fmt"
-	"time"
-	"os"
 	"encoding/json"
+	"fmt"
+	"os"
+	"time"
 
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"

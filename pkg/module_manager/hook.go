@@ -53,11 +53,10 @@ type ModuleHookConfig struct {
 }
 
 type HookConfig struct {
-	OnStartup         interface{}               `json:"onStartup"`
-	Schedule          []schedule_manager.ScheduleConfig          `json:"schedule"`
+	OnStartup         interface{}                                   `json:"onStartup"`
+	Schedule          []schedule_manager.ScheduleConfig             `json:"schedule"`
 	OnKubernetesEvent []kube_events_manager.OnKubernetesEventConfig `json:"onKubernetesEvent"`
 }
-
 
 func (mm *MainModuleManager) newGlobalHook(name, path string, config *GlobalHookConfig) *GlobalHook {
 	globalHook := &GlobalHook{}

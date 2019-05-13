@@ -46,9 +46,9 @@ type ModulesState struct {
 
 type MainModuleManager struct {
 	// Directories
-	ModulesDir string
+	ModulesDir     string
 	GlobalHooksDir string
-	TempDir string
+	TempDir        string
 
 	// Index of all modules in modules directory. Key is module name.
 	allModulesByName map[string]*Module
@@ -67,10 +67,10 @@ type MainModuleManager struct {
 	// Index of all global hooks. Key is global hook name
 	globalHooksByName map[string]*GlobalHook
 	// Index for searching global hooks by their bindings.
-	globalHooksOrder  map[BindingType][]*GlobalHook
+	globalHooksOrder map[BindingType][]*GlobalHook
 
 	// Index of all module hooks. Key is module hook name.
-	modulesHooksByName      map[string]*ModuleHook
+	modulesHooksByName map[string]*ModuleHook
 	// Index for searching module hooks by module name and by bindings.
 	modulesHooksOrderByName map[string]map[BindingType][]*ModuleHook
 
@@ -103,12 +103,11 @@ type MainModuleManager struct {
 	// Saved values from ConfigMap to handle Ambigous state.
 	moduleConfigsUpdateBeforeAmbiguos kube_config_manager.ModuleConfigs
 	// Internal event: module manager needs to be restarted.
-	retryOnAmbigous                   chan bool
+	retryOnAmbigous chan bool
 }
 
-
 var (
-	EventCh   chan Event
+	EventCh chan Event
 )
 
 // BindingType is types of events that can trigger hooks.
@@ -153,9 +152,9 @@ const (
 	// There are modules with changed values.
 	ModulesChanged EventType = "MODULES_CHANGED"
 	// Global section is changed.
-	GlobalChanged  EventType = "GLOBAL_CHANGED"
+	GlobalChanged EventType = "GLOBAL_CHANGED"
 	// Something wrong with module manager.
-	AmbigousState  EventType = "AMBIGOUS_STATE"
+	AmbigousState EventType = "AMBIGOUS_STATE"
 )
 
 // ChangeType are types of module changes.
@@ -163,13 +162,13 @@ type ChangeType string
 
 const (
 	// Deprecated: Module becomes enabled is handled by module discovery.
-	Enabled  ChangeType = "MODULE_ENABLED"
+	Enabled ChangeType = "MODULE_ENABLED"
 	// Deprecated: Module become disabled is handled by module discovery.
 	Disabled ChangeType = "MODULE_DISABLED"
 	// Module values are changed
-	Changed  ChangeType = "MODULE_CHANGED"
+	Changed ChangeType = "MODULE_CHANGED"
 	// Deprecated: Module files are no longer available is handled by module discovery.
-	Purged   ChangeType = "MODULE_PURGED"
+	Purged ChangeType = "MODULE_PURGED"
 )
 
 // ModuleChange contains module name and type of module changes.
@@ -443,7 +442,6 @@ func (mm *MainModuleManager) Init() error {
 
 	return nil
 }
-
 
 // Module manager loop
 func (mm *MainModuleManager) Run() {

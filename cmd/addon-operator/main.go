@@ -13,10 +13,10 @@ import (
 	"github.com/romana/rlog"
 
 	"github.com/flant/shell-operator/pkg/executor"
+	schedule_hook "github.com/flant/shell-operator/pkg/hook/schedule"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/metrics_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
-	schedule_hook "github.com/flant/shell-operator/pkg/hook/schedule"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
 	"github.com/flant/addon-operator/pkg/helm"
@@ -27,9 +27,9 @@ import (
 )
 
 var (
-	ModulesDir string
+	ModulesDir     string
 	GlobalHooksDir string
-	TempDir   string
+	TempDir        string
 
 	// TasksQueueDumpFilePath is the name of the file to which the queue will be dumped.
 	TasksQueueDumpFilePath string
@@ -174,7 +174,6 @@ func Run() {
 	_ = KubeEventsHooks.EnableGlobalHooks(ModuleManager, KubeEventsManager)
 
 	TasksQueue.ChangesEnable(true)
-
 
 	go ModuleManager.Run()
 	go ScheduleManager.Run()
@@ -523,7 +522,6 @@ func TasksRunner() {
 	}
 }
 
-
 // UpdateScheduleHooks creates the new ScheduledHooks.
 // Calculates the difference between the old and the new schedule,
 // removes what was in the old but is missing in the new schedule.
@@ -681,7 +679,7 @@ func main() {
 	// Enables HTTP server for pprof and prometheus clients
 	InitHttpServer()
 
-    Init()
+	Init()
 
 	// Runs managers and handlers.
 	Run()

@@ -5,15 +5,15 @@ import (
 
 	"github.com/romana/rlog"
 
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	client "github.com/flant/shell-operator/pkg/kube"
 )
 
 const (
-	DefaultNamespace       = "addon-operator"
+	DefaultNamespace = "addon-operator"
 )
 
 var (
@@ -43,7 +43,7 @@ func InitKube() error {
 	return nil
 }
 
-func GetCurrentPod() (pod *v1.Pod, err error){
+func GetCurrentPod() (pod *v1.Pod, err error) {
 	currentName, err := os.Hostname()
 	if err != nil {
 		return nil, err
