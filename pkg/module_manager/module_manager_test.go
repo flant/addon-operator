@@ -215,8 +215,8 @@ func (helm *mockDiscoverModulesHelmClient) ListReleasesNames(_ map[string]string
 }
 
 func TestMainModuleManager_DiscoverModulesState(t *testing.T) {
-	mm := NewMainModuleManager().
-		WithHelmClient(&mockDiscoverModulesHelmClient{})
+	mm := NewMainModuleManager()
+	mm.WithHelmClient(&mockDiscoverModulesHelmClient{})
 
 	mm.allModulesByName = make(map[string]*Module)
 	mm.allModulesByName["module-1"] = &Module{Name: "module-1", DirectoryName: "001-module-1", Path: "some/path/001-module-1"}

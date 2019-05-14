@@ -148,8 +148,9 @@ func TestMainModuleManager_GetModule2(t *testing.T) {
 }
 
 func TestMainModuleManager_EnabledModules(t *testing.T) {
-	mm := NewMainModuleManager().
-		WithHelmClient(&MockHelmClient{})
+	mm := NewMainModuleManager()
+
+	mm.WithHelmClient(&MockHelmClient{})
 
 	runInitModulesIndex(t, mm, "test_get_module_names_in_order")
 
@@ -438,9 +439,10 @@ func TestMainModuleManager_RunModule(t *testing.T) {
 	t.SkipNow()
 	hc := &MockHelmClient{}
 
-	mm := NewMainModuleManager().
-		WithHelmClient(hc).
-		WithKubeConfigManager(MockKubeConfigManager{})
+	mm := NewMainModuleManager()
+
+	mm.WithHelmClient(hc)
+	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitModulesIndex(t, mm, "test_run_module")
 
@@ -484,9 +486,9 @@ func TestMainModuleManager_DeleteModule(t *testing.T) {
 	t.SkipNow()
 	hc := &MockHelmClient{}
 
-	mm := NewMainModuleManager().
-		WithHelmClient(hc).
-		WithKubeConfigManager(MockKubeConfigManager{})
+	mm := NewMainModuleManager()
+	mm.WithHelmClient(hc)
+	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitModulesIndex(t, mm, "test_delete_module")
 
@@ -526,9 +528,9 @@ func TestMainModuleManager_DeleteModule(t *testing.T) {
 func TestMainModuleManager_RunModuleHook(t *testing.T) {
 	// TODO hooks not found
 	t.SkipNow()
-	mm := NewMainModuleManager().
-		WithHelmClient(&MockHelmClient{}).
-		WithKubeConfigManager(MockKubeConfigManager{})
+	mm := NewMainModuleManager()
+	mm.WithHelmClient(&MockHelmClient{})
+	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitModulesIndex(t, mm, "test_run_module_hook")
 
@@ -851,9 +853,9 @@ func TestMainModuleManager_GetGlobalHooksInOrder2(t *testing.T) {
 }
 
 func TestMainModuleManager_RunGlobalHook(t *testing.T) {
-	mm := NewMainModuleManager().
-		WithHelmClient(&MockHelmClient{}).
-		WithKubeConfigManager(MockKubeConfigManager{})
+	mm := NewMainModuleManager()
+	mm.WithHelmClient(&MockHelmClient{})
+	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitGlobalHooks(t, mm, "test_run_global_hook")
 
