@@ -15,7 +15,10 @@ import (
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
+// TODO separate modules and hooks storage, values storage and actions
+
 type ModuleManager interface {
+	Init() error
 	Run()
 	DiscoverModulesState() (*ModulesState, error)
 	GetModule(name string) (*Module, error)
@@ -29,6 +32,9 @@ type ModuleManager interface {
 	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext) error
 	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext) error
 	Retry()
+	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
+	WithHelmClient(helm helm.HelmClient) ModuleManager
+	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
 }
 
 // All modules are in the right order to run/disable/purge
@@ -39,26 +45,33 @@ type ModulesState struct {
 }
 
 type MainModuleManager struct {
-	// Index of all modules in modules directory
+	// Directories
+	ModulesDir     string
+	GlobalHooksDir string
+	TempDir        string
+
+	// Index of all modules in modules directory. Key is module name.
 	allModulesByName map[string]*Module
 
-	// Ordered list of all modules names for ordered iterations of allModulesByName
+	// Ordered list of all modules names for ordered iterations of allModulesByName.
 	allModulesNamesInOrder []string
 
-	// List of modules enabled by values.yaml or by kube config
-	// This list can be changed on ConfigMap changes
+	// List of modules enabled by values.yaml or by kube config.
+	// This list is changed on ConfigMap changes.
 	enabledModulesByConfig []string
 
-	// Результирующий список имен включенных модулей в порядке вызова.
-	// С учетом скрипта enabled, kube-config и yaml-файла для модуля.
-	// Список меняется во время работы Addon-operator по мере возникновения событий
-	// включения/выключения модулей от kube-config.
+	// Effective list of enabled modules in sorted order.
+	// This list is changed on ConfigMap changes.
 	enabledModulesInOrder []string
 
-	globalHooksByName map[string]*GlobalHook        // name -> Hook
-	globalHooksOrder  map[BindingType][]*GlobalHook // это что-то внутреннее для быстрого поиска binding -> hooks names in order, можно и по-другому сделать
+	// Index of all global hooks. Key is global hook name
+	globalHooksByName map[string]*GlobalHook
+	// Index for searching global hooks by their bindings.
+	globalHooksOrder map[BindingType][]*GlobalHook
 
-	modulesHooksByName      map[string]*ModuleHook
+	// Index of all module hooks. Key is module hook name.
+	modulesHooksByName map[string]*ModuleHook
+	// Index for searching module hooks by module name and by bindings.
 	modulesHooksOrderByName map[string]map[BindingType][]*ModuleHook
 
 	// global static values from modules/values.yaml file
@@ -69,36 +82,35 @@ type MainModuleManager struct {
 	// values для конкретного модуля, для конкретного кластера
 	kubeModulesConfigValues map[string]utils.Values
 
-	// Invariant: do not store patches that does not apply
-	// Give user error for patches early, after patch receive
+	// Invariant: do not store patches that cannot be applied.
+	// Give user error for patches early, after patch receive.
 
-	// values для всех модулей, для конкретного инстанса Addon-operator-pod
+	// Patches for dynamic global values
 	globalDynamicValuesPatches []utils.ValuesPatch
-	// values для конкретного модуля, для конкретного инстанса Addon-operator-pod
+	// Pathces for dynamic module values
 	modulesDynamicValuesPatches map[string][]utils.ValuesPatch
 
-	// Внутреннее событие: изменились values модуля.
-	// Обработка -- генерация внешнего Event со всеми связанными модулями для рестарта.
+	// Internal event: module values are changed.
+	// This event leads to module run action.
 	moduleValuesChanged chan string
-	// Внутреннее событие: изменились глобальные values.
-	// Обработка -- генерация внешнего Event для глобального рестарта всех модулей.
+	// Internal event: global values are changed.
+	// This event leads to module discovery action.
 	globalValuesChanged chan bool
 
 	helm              helm.HelmClient
 	kubeConfigManager kube_config_manager.KubeConfigManager
 
-	// Сохранение новых конфигов из kube, на случай ошибки обработки
+	// Saved values from ConfigMap to handle Ambigous state.
 	moduleConfigsUpdateBeforeAmbiguos kube_config_manager.ModuleConfigs
-	retryOnAmbigous                   chan bool
+	// Internal event: module manager needs to be restarted.
+	retryOnAmbigous chan bool
 }
 
 var (
-	EventCh    chan Event
-	WorkingDir string
-	TempDir    string
+	EventCh chan Event
 )
 
-// Типы привязок для хуков — то, от чего могут сработать хуки
+// BindingType is types of events that can trigger hooks.
 type BindingType string
 
 const (
@@ -112,6 +124,7 @@ const (
 	KubeEvents      BindingType = "KUBE_EVENTS"
 )
 
+// ContextBindingType is a reverse index for BindingType constants to use in BINDING_CONTEXT_PATH file.
 var ContextBindingType = map[BindingType]string{
 	BeforeHelm:      "beforeHelm",
 	AfterHelm:       "afterHelm",
@@ -123,7 +136,7 @@ var ContextBindingType = map[BindingType]string{
 	KubeEvents:      "onKubernetesEvent",
 }
 
-// Additional info from schedule and kube events
+// BindingContext is a json with additional info for schedule and onKubeEvent hooks
 type BindingContext struct {
 	Binding           string `json:"binding"`
 	ResourceEvent     string `json:"resourceEvent,omitempty"`
@@ -132,77 +145,54 @@ type BindingContext struct {
 	ResourceName      string `json:"resourceName,omitempty"`
 }
 
-// Типы событий, отправляемые в Main — либо изменились какие-то модули и нужно
-// пройти по списку и запустить/удалить/проапгрейдить модуль,
-// либо поменялись глобальные values и нужно перезапустить все модули.
+// EventType are events for the main loop.
 type EventType string
 
 const (
+	// There are modules with changed values.
 	ModulesChanged EventType = "MODULES_CHANGED"
-	GlobalChanged  EventType = "GLOBAL_CHANGED"
-	AmbigousState  EventType = "AMBIGOUS_STATE"
+	// Global section is changed.
+	GlobalChanged EventType = "GLOBAL_CHANGED"
+	// Something wrong with module manager.
+	AmbigousState EventType = "AMBIGOUS_STATE"
 )
 
+// ChangeType are types of module changes.
 type ChangeType string
 
 const (
-	Enabled  ChangeType = "MODULE_ENABLED"  // модуль включился
-	Disabled ChangeType = "MODULE_DISABLED" // модуль выключился, возможно нужно запустить helm delete
-	Changed  ChangeType = "MODULE_CHANGED"  // поменялись values, нужен helm upgrade
-	Purged   ChangeType = "MODULE_PURGED"   // удалились файлы о модуле, нужно просто удалить helm релиз
+	// Deprecated: Module becomes enabled is handled by module discovery.
+	Enabled ChangeType = "MODULE_ENABLED"
+	// Deprecated: Module become disabled is handled by module discovery.
+	Disabled ChangeType = "MODULE_DISABLED"
+	// Module values are changed
+	Changed ChangeType = "MODULE_CHANGED"
+	// Deprecated: Module files are no longer available is handled by module discovery.
+	Purged ChangeType = "MODULE_PURGED"
 )
 
-// Имя модуля и вариант изменения
+// ModuleChange contains module name and type of module changes.
 type ModuleChange struct {
 	Name       string
 	ChangeType ChangeType
 }
 
-// Событие для Main
+// Event is used to send module events to the main loop.
 type Event struct {
 	ModulesChanges []ModuleChange
 	Type           EventType
 }
 
-func Init(workingDir string, tempDir string, helmClient helm.HelmClient) (ModuleManager, error) {
-	rlog.Info("Initializing module manager ...")
+// Init loads global hooks configs, searches for modules, loads values and calculates enabled modules
+func Init() {
+	rlog.Debug("INIT: module_manager")
 
-	TempDir = tempDir
-	WorkingDir = workingDir
 	EventCh = make(chan Event, 1)
-
-	mm := NewMainModuleManager(helmClient, nil)
-
-	if err := mm.initGlobalHooks(); err != nil {
-		return nil, err
-	}
-
-	if err := mm.initModulesIndex(); err != nil {
-		return nil, err
-	}
-
-	kcm, err := kube_config_manager.Init()
-	if err != nil {
-		return nil, err
-	}
-	mm.kubeConfigManager = kcm
-	kubeConfig := mm.kubeConfigManager.InitialConfig()
-
-	mm.kubeGlobalConfigValues = kubeConfig.Values
-
-	var unknown []utils.ModuleConfig
-	mm.enabledModulesByConfig, mm.kubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(kubeConfig.ModuleConfigs)
-
-	for _, config := range unknown {
-		rlog.Warnf("MODULE_MANAGER Init: ignore kube config for absent module: \n%s",
-			config.String(),
-		)
-	}
-
-	return mm, nil
+	return
 }
 
-func NewMainModuleManager(helmClient helm.HelmClient, kubeConfigManager kube_config_manager.KubeConfigManager) *MainModuleManager {
+// NewMainModuleManager returns new MainModuleManager
+func NewMainModuleManager() *MainModuleManager {
 	return &MainModuleManager{
 		allModulesByName:            make(map[string]*Module),
 		allModulesNamesInOrder:      make([]string, 0),
@@ -221,8 +211,8 @@ func NewMainModuleManager(helmClient helm.HelmClient, kubeConfigManager kube_con
 		moduleValuesChanged: make(chan string, 1),
 		globalValuesChanged: make(chan bool, 1),
 
-		helm:              helmClient,
-		kubeConfigManager: kubeConfigManager,
+		helm:              nil,
+		kubeConfigManager: nil,
 
 		moduleConfigsUpdateBeforeAmbiguos: make(kube_config_manager.ModuleConfigs),
 		retryOnAmbigous:                   make(chan bool, 1),
@@ -251,6 +241,7 @@ func (mm *MainModuleManager) determineEnableStateWithScript(enabledByConfig []st
 	return enabledModules, nil
 }
 
+// kubeUpdate
 type kubeUpdate struct {
 	EnabledModulesByConfig  []string
 	KubeGlobalConfigValues  utils.Values
@@ -272,7 +263,7 @@ func (mm *MainModuleManager) applyKubeUpdate(kubeUpdate *kubeUpdate) error {
 }
 
 func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.Config) (*kubeUpdate, error) {
-	rlog.Debugf("MODULE_MANAGER handle new kube config")
+	rlog.Debugf("MODULE_MANAGER: handle new kube config")
 
 	res := &kubeUpdate{
 		KubeGlobalConfigValues: newConfig.Values,
@@ -283,7 +274,7 @@ func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.C
 	res.EnabledModulesByConfig, res.KubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(newConfig.ModuleConfigs)
 
 	for _, moduleConfig := range unknown {
-		rlog.Warnf("MODULE_MANAGER new kube config: Ignore kube config for absent module: \n%s",
+		rlog.Warnf("MODULE_MANAGER: new kube config: Ignore kube config for absent module: \n%s",
 			moduleConfig.String(),
 		)
 	}
@@ -379,7 +370,7 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 	return res, nil
 }
 
-// calculateEnabledModulesByConfig determine enable state for all modules by values.yaml and configmap configuration.
+// calculateEnabledModulesByConfig determine enable state for all modules by values.yaml and ConfigMap configuration.
 // Method returns list of enabled modules and their values. Also the map of disabled modules and a list of unknown
 // keys in a ConfigMap.
 //
@@ -417,6 +408,39 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 	enabled = utils.SortByReference(enabled, mm.allModulesNamesInOrder)
 
 	return
+}
+
+// Init — initialize module manager
+func (mm *MainModuleManager) Init() error {
+	rlog.Debug("INIT: MODULE_MANAGER")
+
+	if err := mm.initGlobalHooks(); err != nil {
+		return err
+	}
+
+	if err := mm.initModulesIndex(); err != nil {
+		return err
+	}
+
+	kcm, err := kube_config_manager.Init()
+	if err != nil {
+		return err
+	}
+	mm.WithKubeConfigManager(kcm)
+
+	kubeConfig := kcm.InitialConfig()
+	mm.kubeGlobalConfigValues = kubeConfig.Values
+
+	var unknown []utils.ModuleConfig
+	mm.enabledModulesByConfig, mm.kubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(kubeConfig.ModuleConfigs)
+
+	for _, config := range unknown {
+		rlog.Warnf("INIT: MODULE_MANAGER: ignore kube config for absent module: \n%s",
+			config.String(),
+		)
+	}
+
+	return nil
 }
 
 // Module manager loop
@@ -544,7 +568,7 @@ func (mm *MainModuleManager) discoverModulesState() (*ModulesState, error) {
 	return state, nil
 }
 
-// DiscoverModulesState handles DiscoverModulesState event
+// DiscoverModulesState handles DiscoverModulesState event.
 // This method needs updated mm.enabledModulesByConfig and mm.kubeModulesConfigValues
 func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err error) {
 	rlog.Debugf("DISCOVER state:\n"+
@@ -571,6 +595,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	return
 }
 
+// TODO replace with Module and ModuleShouldExists
 func (mm *MainModuleManager) GetModule(name string) (*Module, error) {
 	module, exist := mm.allModulesByName[name]
 	if exist {
@@ -647,6 +672,7 @@ func (mm *MainModuleManager) GetModuleHooksInOrder(moduleName string, bindingTyp
 	return moduleHooksNames, nil
 }
 
+// TODO: moduleManager.Module(modName).Delete()
 func (mm *MainModuleManager) DeleteModule(moduleName string) error {
 	module, err := mm.GetModule(moduleName)
 	if err != nil {
@@ -739,4 +765,21 @@ func (mm *MainModuleManager) RunModuleHook(hookName string, binding BindingType,
 	}
 
 	return nil
+}
+
+func (mm *MainModuleManager) WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager {
+	mm.ModulesDir = modulesDir
+	mm.GlobalHooksDir = globalHooksDir
+	mm.TempDir = tempDir
+	return mm
+}
+
+func (mm *MainModuleManager) WithHelmClient(helm helm.HelmClient) ModuleManager {
+	mm.helm = helm
+	return mm
+}
+
+func (mm *MainModuleManager) WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager {
+	mm.kubeConfigManager = kubeConfigManager
+	return mm
 }

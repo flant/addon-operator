@@ -3,15 +3,15 @@ package kube_event
 import (
 	"fmt"
 
-	"github.com/flant/shell-operator/pkg/kube_events_manager"
-	"github.com/flant/shell-operator/pkg/hook/kube_event"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/hook/kube_event"
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
 
 	"github.com/romana/rlog"
 )
 
-
+// MakeKubeEventHookDescriptors converts hook config into KubeEventHook structures
 func MakeKubeEventHookDescriptors(hook *module_manager.Hook, hookConfig *module_manager.HookConfig) []*kube_event.KubeEventHook {
 	res := make([]*kube_event.KubeEventHook, 0)
 
@@ -55,6 +55,7 @@ type MainKubeEventsHooksController struct {
 	EnabledModules []string
 }
 
+// NewMainKubeEventsHooksController returns new instance of MainKubeEventsHooksController
 func NewMainKubeEventsHooksController() *MainKubeEventsHooksController {
 	obj := &MainKubeEventsHooksController{}
 	obj.GlobalHooks = make(map[string]*kube_event.KubeEventHook)
@@ -63,6 +64,7 @@ func NewMainKubeEventsHooksController() *MainKubeEventsHooksController {
 	return obj
 }
 
+// EnableGlobalHooks starts kube events informers for all global hooks
 func (obj *MainKubeEventsHooksController) EnableGlobalHooks(moduleManager module_manager.ModuleManager, eventsManager kube_events_manager.KubeEventsManager) error {
 	globalHooks := moduleManager.GetGlobalHooksInOrder(module_manager.KubeEvents)
 
@@ -83,6 +85,7 @@ func (obj *MainKubeEventsHooksController) EnableGlobalHooks(moduleManager module
 	return nil
 }
 
+// EnableModuleHooks starts kube events informers for all module hooks
 func (obj *MainKubeEventsHooksController) EnableModuleHooks(moduleName string, moduleManager module_manager.ModuleManager, eventsManager kube_events_manager.KubeEventsManager) error {
 	for _, enabledModuleName := range obj.EnabledModules {
 		if enabledModuleName == moduleName {
@@ -115,6 +118,7 @@ func (obj *MainKubeEventsHooksController) EnableModuleHooks(moduleName string, m
 	return nil
 }
 
+// DisableModuleHooks stops informers for module hooks
 func (obj *MainKubeEventsHooksController) DisableModuleHooks(moduleName string, moduleManager module_manager.ModuleManager, eventsManager kube_events_manager.KubeEventsManager) error {
 	moduleEnabledInd := -1
 	for i, enabledModuleName := range obj.EnabledModules {
@@ -151,6 +155,7 @@ func (obj *MainKubeEventsHooksController) DisableModuleHooks(moduleName string, 
 	return nil
 }
 
+// HandleEvent creates a task from kube event
 func (obj *MainKubeEventsHooksController) HandleEvent(kubeEvent kube_events_manager.KubeEvent) (*struct{ Tasks []task.Task }, error) {
 	res := &struct{ Tasks []task.Task }{Tasks: make([]task.Task, 0)}
 	var desc *kube_event.KubeEventHook

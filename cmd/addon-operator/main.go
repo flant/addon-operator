@@ -13,10 +13,10 @@ import (
 	"github.com/romana/rlog"
 
 	"github.com/flant/shell-operator/pkg/executor"
+	schedule_hook "github.com/flant/shell-operator/pkg/hook/schedule"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/metrics_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
-	schedule_hook "github.com/flant/shell-operator/pkg/hook/schedule"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
 	"github.com/flant/addon-operator/pkg/helm"
@@ -27,8 +27,9 @@ import (
 )
 
 var (
-	WorkingDir string
-	TempDir    string
+	ModulesDir     string
+	GlobalHooksDir string
+	TempDir        string
 
 	// TasksQueueDumpFilePath is the name of the file to which the queue will be dumped.
 	TasksQueueDumpFilePath string
@@ -54,7 +55,11 @@ var (
 	HelmClient helm.HelmClient
 )
 
+const DefaultModulesDir = "modules"
+const DefaultGlobalHooksDir = "global-hooks"
+
 const DefaultTasksQueueDumpFilePath = "/tmp/addon-operator-tasks-queue"
+const DefaultTmpDir = "/tmp/addon-operator"
 
 // Defining delays in processing tasks from queue.
 var (
@@ -63,49 +68,68 @@ var (
 	FailedModuleDelay = 5 * time.Second
 )
 
-// Collecting the settings: directory, host name, dump file, tiller namespace.
-// Initializing all necessary objects: helm, registry manager, module manager,
+// Init gets all settings, initialize managers and create a working queue.
+//
+// Settings: directories for modules, global hooks, host name, dump file, tiller namespace.
+//
+// Initializing necessary objects: helm/tiller, registry manager, module manager,
 // kube events manager.
+//
 // Creating an empty queue with jobs.
 func Init() {
-	rlog.Debug("Init")
+	rlog.Debug("INIT: started")
 
 	var err error
 
-	WorkingDir = os.Getenv("ADDON_OPERATOR_WORKING_DIR")
-	if WorkingDir == "" {
-		WorkingDir, err = os.Getwd()
-		if err != nil {
-			rlog.Errorf("MAIN Fatal: Cannot determine Addon-operator working dir: %s", err)
-			os.Exit(1)
-		}
-	}
-	rlog.Infof("Addon-operator working dir: %s", WorkingDir)
-
-	TempDir := "/tmp/addon-operator"
-	err = os.Mkdir(TempDir, os.FileMode(0777))
+	cwd, err := os.Getwd()
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot create Addon-operator temporary dir: %s", err)
+		rlog.Errorf("INIT: Cannot get current working directory of process: %s", err)
 		os.Exit(1)
 	}
-	rlog.Infof("Addon-operator temporary dir: %s", TempDir)
+
+	// TODO: check if directories are existed
+	ModulesDir = os.Getenv("MODULES_DIR")
+	if ModulesDir == "" {
+		ModulesDir = path.Join(cwd, DefaultModulesDir)
+	}
+	GlobalHooksDir = os.Getenv("GLOBAL_HOOKS_DIR")
+	if GlobalHooksDir == "" {
+		GlobalHooksDir = path.Join(cwd, DefaultGlobalHooksDir)
+	}
+	rlog.Infof("INIT: Modules: '%s', Global hooks: '%s'", ModulesDir, GlobalHooksDir)
+
+	TempDir := DefaultTmpDir
+	err = os.Mkdir(TempDir, os.FileMode(0777))
+	if err != nil {
+		rlog.Errorf("INIT: Cannot create temporary dir '%s': %s", TempDir, err)
+		os.Exit(1)
+	}
+	rlog.Infof("INIT: Temporary dir: %s", TempDir)
 
 	// Initializing the connection to the k8s.
-	kube.InitKube()
+	err = kube.InitKube()
+	if err != nil {
+		rlog.Errorf("INIT: Cannot initialize Kubernetes client: %s", err)
+		os.Exit(1)
+	}
 
 	// Initializing helm. Installing Tiller, if it is missing.
 	tillerNamespace := kube.AddonOperatorNamespace
-	rlog.Debugf("Addon-operator namespace for Tiller: %s", tillerNamespace)
+	rlog.Infof("INIT: Namespace for Tiller: %s", tillerNamespace)
 	HelmClient, err = helm.Init(tillerNamespace)
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: cannot initialize Helm: %s", err)
+		rlog.Errorf("INIT: cannot initialize Tiller in ns/%s: %s", tillerNamespace, err)
 		os.Exit(1)
 	}
 
 	// Initializing module manager.
-	ModuleManager, err = module_manager.Init(WorkingDir, TempDir, HelmClient)
+	module_manager.Init()
+	ModuleManager = module_manager.NewMainModuleManager().
+		WithDirectories(ModulesDir, GlobalHooksDir, TempDir).
+		WithHelmClient(HelmClient)
+	err = ModuleManager.Init()
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot initialize module manager: %s", err)
+		rlog.Errorf("INIT: Cannot initialize module manager: %s", err)
 		os.Exit(1)
 	}
 
@@ -114,20 +138,20 @@ func Init() {
 
 	// Initializing the queue dumper, which writes queue changes to the dump file.
 	TasksQueueDumpFilePath = DefaultTasksQueueDumpFilePath
-	rlog.Debugf("Addon-operator tasks queue dump file: '%s'", TasksQueueDumpFilePath)
+	rlog.Debugf("INIT: Tasks queue dump file: '%s'", TasksQueueDumpFilePath)
 	queueWatcher := task.NewTasksQueueDumper(TasksQueueDumpFilePath, TasksQueue)
 	TasksQueue.AddWatcher(queueWatcher)
 
 	// Initializing the hooks schedule.
 	ScheduleManager, err = schedule_manager.Init()
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot initialize schedule manager: %s", err)
+		rlog.Errorf("INIT: Cannot initialize schedule manager: %s", err)
 		os.Exit(1)
 	}
 
 	KubeEventsManager, err = kube_events_manager.Init()
 	if err != nil {
-		rlog.Errorf("MAIN Fatal: Cannot initialize kube events manager: %s", err)
+		rlog.Errorf("INIT: Cannot initialize kube events manager: %s", err)
 		os.Exit(1)
 	}
 	KubeEventsHooks = kube_event_hook.NewMainKubeEventsHooksController()
@@ -136,22 +160,20 @@ func Init() {
 }
 
 // Run runs all managers, event and queue handlers.
+//
 // The main process is blocked by the 'for-select' in the queue handler.
 func Run() {
-	rlog.Info("MAIN: run main loop")
-
 	// Loading the onStartup hooks into the queue and running all modules.
 	// Turning tracking changes on only after startup ends.
-	rlog.Info("MAIN: add onStartup, beforeAll, module and afterAll tasks")
+	rlog.Info("MAIN: Start. Trigger onStartup event.")
 	TasksQueue.ChangesDisable()
 
 	CreateOnStartupTasks()
 	CreateReloadAllTasks(true)
 
-	KubeEventsHooks.EnableGlobalHooks(ModuleManager, KubeEventsManager)
+	_ = KubeEventsHooks.EnableGlobalHooks(ModuleManager, KubeEventsManager)
 
 	TasksQueue.ChangesEnable(true)
-
 
 	go ModuleManager.Run()
 	go ScheduleManager.Run()
@@ -368,7 +390,8 @@ func runDiscoverModulesState(t task.Task) error {
 	return nil
 }
 
-// There is a one task handler per queue.
+// TasksRunner handle tasks in queue.
+//
 // Task handler may delay task processing by pushing delay to the queue.
 // TODO пока только один обработчик, всё ок. Но лучше, чтобы очередь позволяла удалять только то, чему ранее был сделан peek.
 // Т.е. кто взял в обработку задание, тот его и удалил из очереди. Сейчас Peek-нуть может одна го-рутина, другая добавит,
@@ -498,7 +521,6 @@ func TasksRunner() {
 		}
 	}
 }
-
 
 // UpdateScheduleHooks creates the new ScheduledHooks.
 // Calculates the difference between the old and the new schedule,
@@ -648,7 +670,7 @@ func InitHttpServer() {
 
 func main() {
 	// Setting flag.Parsed() for glog.
-	flag.CommandLine.Parse([]string{})
+	_ = flag.CommandLine.Parse([]string{})
 
 	// Be a good parent - clean up behind the children processes.
 	// Addon-operator is PID1, no special config required.
@@ -657,7 +679,7 @@ func main() {
 	// Enables HTTP server for pprof and prometheus clients
 	InitHttpServer()
 
-    Init()
+	Init()
 
 	// Runs managers and handlers.
 	Run()

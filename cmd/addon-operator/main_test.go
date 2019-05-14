@@ -22,6 +22,7 @@ import (
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 
 	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 )
@@ -95,6 +96,11 @@ var scheduledHooks = map[string]schedule_manager.ScheduleConfig{
 var runOrder = []int{}
 
 var globalT *testing.T
+
+func (m *ModuleManagerMock) Init() error {
+	fmt.Println("Init ModuleManagerMock")
+	return nil
+}
 
 func (m *ModuleManagerMock) Run() {
 	fmt.Println("ModuleManagerMock Run")
@@ -245,6 +251,22 @@ func (m *ModuleManagerMock) RunModuleHook(hookName string, binding module_manage
 func (m *ModuleManagerMock) Retry() {
 	fmt.Println("ModuleManagerMock Retry")
 }
+
+func (m *ModuleManagerMock) WithDirectories(modulesDir string, globalHooksDir string, tempDir string) module_manager.ModuleManager {
+	fmt.Println("WithDirectories")
+	return m
+}
+
+func (m *ModuleManagerMock) WithHelmClient(helm helm.HelmClient) module_manager.ModuleManager {
+	fmt.Println("WithHelm")
+	return m
+}
+
+func (m *ModuleManagerMock) WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) module_manager.ModuleManager {
+	fmt.Println("WithKubeConfigManager")
+	return m
+}
+
 
 type MockHelmClient struct {
 	helm.HelmClient

@@ -1,10 +1,10 @@
 package kube_config_manager
 
 import (
-	"fmt"
-	"time"
-	"os"
 	"encoding/json"
+	"fmt"
+	"os"
+	"time"
 
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
@@ -254,7 +254,7 @@ func (kcm *MainKubeConfigManager) initConfig() error {
 }
 
 func Init() (KubeConfigManager, error) {
-	rlog.Debug("Init kube config manager")
+	rlog.Debug("INIT: KUBE_CONFIG")
 
 	VerboseDebug = false
 	if os.Getenv("KUBE_CONFIG_MANAGER_DEBUG") != "" {
@@ -283,7 +283,7 @@ func (kcm *MainKubeConfigManager) getValuesChecksums(cm *v1.ConfigMap) (map[stri
 	var res map[string]string
 	err := json.Unmarshal([]byte(data), &res)
 	if err != nil {
-		return nil, fmt.Errorf("cannot unmarshal json annotation '%s' in ConfigMap '%s': %s\n%s", ValuesChecksumsAnnotation, cm.Name, err, data)
+		return nil, fmt.Errorf("KUBE_CONFIG: cannot unmarshal json annotation '%s' in ConfigMap '%s': %s\n%s", ValuesChecksumsAnnotation, cm.Name, err, data)
 	}
 
 	return res, nil

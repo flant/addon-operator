@@ -1,2 +1,3 @@
 FROM flant/addon-operator:latest
-ADD addons /addons
+ADD modules /modules
+ADD global-hooks /global-hooks

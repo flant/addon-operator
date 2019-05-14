@@ -5,15 +5,15 @@ import (
 
 	"github.com/romana/rlog"
 
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	client "github.com/flant/shell-operator/pkg/kube"
 )
 
 const (
-	DefaultNamespace       = "addon-operator"
+	DefaultNamespace = "addon-operator"
 )
 
 var (
@@ -24,10 +24,10 @@ var (
 // InitKube initialize a Kubernetes client config.
 // This method calls shell-operator kube client method that can work
 // in-cluster, out-of-cluster or in-cluster with out-of-cluster kube config
-func InitKube() {
+func InitKube() error {
 	err := client.Init(client.InitOptions{})
 	if err != nil {
-		os.Exit(1)
+		return err
 	}
 
 	Kubernetes = client.Kubernetes
@@ -39,10 +39,11 @@ func InitKube() {
 	if AddonOperatorNamespace == "" {
 		AddonOperatorNamespace = DefaultNamespace
 	}
-	rlog.Infof("KUBE-INIT Addon-operator namespace: %s", AddonOperatorNamespace)
+	rlog.Infof("KUBE-INIT: Addon-operator namespace: %s", AddonOperatorNamespace)
+	return nil
 }
 
-func GetCurrentPod() (pod *v1.Pod, err error){
+func GetCurrentPod() (pod *v1.Pod, err error) {
 	currentName, err := os.Hostname()
 	if err != nil {
 		return nil, err
