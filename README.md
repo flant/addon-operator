@@ -1,132 +1,78 @@
-# Addon-operator [![docker pull flant/addon-operator](https://img.shields.io/badge/docker-latest-2496ed.svg?logo=docker)](https://hub.docker.com/r/flant/addon-operator) [![Slack chat EN](https://img.shields.io/badge/slack-EN%20chat-611f69.svg?logo=slack)](https://cloud-native.slack.com/messages/CJ13K3HFG) [![Telegram chat RU](https://img.shields.io/badge/telegram-RU%20chat-179cde.svg?logo=telegram)](https://t.me/shelloperator)
+<p align=""center">
+<img width="407" height="109" src="docs/logo-addon.png" alt="Addon-operator logo" />
+</p>
 
-<img width="70" height="70" src="logo-addon.png" alt="Addon-operator logo" />
-
-
-Addon-operator helps to manage additional components for Kubernetes cluster. It provides:
-- __Adding cluster components with helm__: wrapper layer called *module* can be used to solve some helm issues, dynamically define chart values and maintain runtime dependencies between charts.
-- __Dynamic values and continuous discovery__: install and remove components dynamically according to the changes of cluster objects.
-- __Ease the maintenance of a Kubernetes clusters__: use the tools that Ops are familiar with to build your modules and hooks. It can be bash, python, ruby, kubectl, helm, etc.
-- __Shell-operator capabilities__: onStartup, schedule, onKubernetesEvent types of hooks are available.
-
-## Quickstart
-
-Let's create a simple addon. For example, we need to set sysctl parameters for all nodes in a cluster. This can be done with DaemonsSet with privileged Pods:
-
-```yaml
-kind: DaemonSet
-spec:
-      - command: |
-          while true; do
-            sysctl -w vm.swappiness=0 ;
-            sysctl -w kernel.numa_balancing=0 ;
-            sysctl -w net.core.somaxconn=1000 ;
-            sleep 600;
-          done
-        securityContext:
-          privileged: true
-```
-
-It is a brief manifest just to give a clue what is a sysctl tuner. Full chart is available at [/example/101-module-sysctl-tuner](example/101-module-sysctl-tuner).
+<p align=""center">
+<a href="https://hub.docker.com/r/flant/addon-operator"><img src="https://img.shields.io/badge/docker-latest-2496ed.svg?logo=docker" alt="docker pull flant/addon-operator"/></a>
+<a href="https://cloud-native.slack.com/messages/CJ13K3HFG"><img src="https://img.shields.io/badge/slack-EN%20chat-611f69.svg?logo=slack" alt="Slack chat EN"/></a>
+<a href="https://t.me/shelloperator"><img src="https://img.shields.io/badge/telegram-RU%20chat-179cde.svg?logo=telegram" alt="Telegram chat RU"/></a>
+</p>
 
 
-### Build an image with module
+The addon-operator adds hooks and values to helm charts in order to enhance the capabilities of helm and transform charts into smart modules that configure themselves and respond to changes in the cluster.
 
-Use a prebuilt image [flant/addon-operator:latest](https://hub.docker.com/r/flant/addon-operator) and ADD modules directory under the `/modules` directory and global hooks directory under `/global-hooks`.
+# Features
 
-```dockerfile
-FROM flant/addon-operator:latest
-ADD global-hooks /global-hooks
-ADD modules /modules
-```
+- **Discovery of values** for helm charts — parameters can be generated, calculated or got from cluster;
+- **Continuous discovery** — parameters can be changed in response to cluster events;
+- **Controlled helm execution** — Addon-operator monitors the helm operation to ensure helm chart’s successful installation. Coming soon: embed helm and tiller for tighter integration, use kubedog to track deploy status and [more](https://github.com/flant/addon-operator/issues/17);
+- **Custom extra actions before and after running helm** as well as on other events via hooks paradigm. See related [shell-operator capabilities](https://github.com/flant/shell-operator/blob/master/HOOKS.md).
 
-Build and push image to the Docker registry accessible by Kubernetes cluster.
-```
-docker build -t "registry.mycompany.com/addon-operator:example1" .
-docker push registry.mycompany.com/addon-operator:example1
-```
+Also, Addon-operator provides:
 
-### Install Addon-operator in a cluster
+- ease the maintenance of a Kubernetes clusters: use the tools that Ops are familiar with to build your modules and hooks such as bash, kubectl, python, etc;
+- the execution queue of modules and hooks that ensures the launch sequence and repeated execution in case of an error, which *simplifies programming of modules* and ensures the *predictable outcome* of their operation;
+- the possibility of *dynamic enabling/disabling* of a module (depending on detected parameters);
+- the ability to tie *conditions of module activation* to the activation of other modules;
+- *the unified ConfigMap* for the configuration of all settings;
+- the ability to run helm only if the parameters have changed. In this case, the release list would contain the time of build of the modified release;
+- *global hooks* for figuring out parameters and performing actions that affect several dependent modules;
+- off-the-shelf *metrics* for monitoring via Prometheus.
 
-In order to Addon-operator work, you have to setup [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/):
-```bash
-$ kubectl create namespace addon-operator
-$ kubectl create serviceaccount addon-operator \
-  --namespace addon-operator
-$ kubectl create clusterrolebinding addon-operator-ns-admin \
-  --clusterrole=admin \
-  --serviceaccount=addon-operator:addon-operator \
-  --namespace=addon-operator
-```
 
-Put this manifest into the `addon-operator.yaml` file to describe a deployment based on the image you built:
+# Overview
 
-```yaml
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: addon-operator
-spec:
-  selector:
-    matchLabels:
-      app: addon-operator
-  template:
-    metadata:
-      labels:
-        app: addon-operator
-    spec:
-      containers:
-      - name: addon-operator
-        image: registry.mycompany.com/addon-operator:example1
-      serviceAccountName: addon-operator
-```
+## Hooks and Helm Values
 
-Instantiate the `addon-operator` Deployment to start the Addon-operator:
-```bash
-kubectl create -n addon-operator -f addon-operator.yaml
-```
+Hooks are triggered by Kubernetes events and in response to other stimuli.
 
-Run `kubectl -n addon-operator logs -f deployment/addon-operator` to get the Addon-operator deployment log. It can contains following records:
-```
-... initialization phase log was skipped ...
-... timestamps are removed ...
-INFO     : QUEUE add ModuleRun sysctl-tuner
-INFO     : TASK_RUN ModuleRun sysctl-tuner
-INFO     : Running module hook '001-sysctl-tuner/hooks/module-hooks.sh' binding 'BEFORE_HELM' ...
-Run 'beforeHelm' hook for sysctl-tuner
-INFO     : Running helm upgrade for release 'sysctl-tuner' with chart '/tmp/addon-operator/sysctl-tuner.chart' in namespace 'example-module-sysctl-tuner' ...
-INFO     : Helm upgrade for release 'sysctl-tuner' with chart '/tmp/addon-operator/sysctl-tuner.chart' in namespace 'example-module-sysctl-tuner' successful:
-Release "sysctl-tuner" does not exist. Installing it now.
-NAME:   sysctl-tuner
-LAST DEPLOYED: Mon Apr 22 13:53:04 2019
-NAMESPACE: example-module-sysctl-tuner
-STATUS: DEPLOYED
+![Hooks are triggered by Kubernetes events](docs/readme-1.gif)
 
-RESOURCES:
-==> v1beta1/DaemonSet
-NAME          DESIRED  CURRENT  READY  UP-TO-DATE  AVAILABLE  NODE SELECTOR  AGE
-sysctl-tuner  0        0        0      0           0          <none>         0s
+A hook is an executable file that can make changes to Kubernetes and set values of helm (they are stored in the memory of Addon-operator) during execution
 
-==> v1/Pod(related)
-NAME                READY  STATUS   RESTARTS  AGE
-sysctl-tuner-l5pl5  0/1    Pending  0         0s
-sysctl-tuner-tsftg  0/1    Pending  0         0s
-sysctl-tuner-wpz99  0/1    Pending  0         0s
-INFO     : Running module hook '001-sysctl-tuner/hooks/module-hooks.sh' binding 'AFTER_HELM' ...
-Run 'afterHelm' hook for sysctl-tuner
-...
-```
+![A hook is an executable file](docs/readme-2.gif)
 
-As a result, sysctl parameters are applied to all nodes in cluster:
+Hooks are a part of the module. Also, there is a helm chart in the module. If the hook makes changes to values, then Addon-operator would start the reinstallation of the helm chart.
 
-```
-$ sysctl vm.swappiness   
-vm.swappiness = 0
-```
+![Hook is a part of the module](docs/readme-3.gif)
 
-## What's next?
+## Modules
 
-- Find out more on [modules and values](MODULES.md) in documentation.
+There can be many modules.
+
+![Many modules](docs/readme-4.gif)
+
+In addition to modules, the Addon-operator supports global hooks and global values. They have their own storage of values. Global hooks are triggered by events and when active they can:
+
+- Make changes to Kubernetes
+- Make changes to global values storage
+
+![Global hooks and global values](docs/readme-5.gif)
+
+If the global hook changes values in the global storage, then the Addon-operator starts the reinstallation of all helm charts.
+
+![Changes in global values cause reinstallation](docs/readme-6.gif)
+
+
+# Installation
+
+You may use the prepared image [flant/addon-operator](https://hub.docker.com/r/flant/addon-operator) to install Addon-operator in a cluster. The image comprises a binary addon-operator file as well as several required tools: helm, kubectl, jq, bash.
+
+The installation incorporates the image building process with *files of modules and hooks*, adding the necessary RBAC rights and launching image in the cluster. You may find a preshaped files and commands in the /examples directory.
+
+
+# What's next?
+- Find out more on [lifecycle](LIFECYCLE.md) of Addon-operator and how to use [modules](MODULES.md) and [values](VALUES.md) in documentation.
 - `/metrics` endpoint is implemented. See [METRICS](METRICS.md) for details.
 - More examples can be found in [examples](/examples/) directory.
 
