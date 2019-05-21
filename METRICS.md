@@ -2,39 +2,43 @@
 
 Addon-operator implements Prometheus target at `/metrics` endpoint. Default port is 9115.
 
-__addon_operator_live_ticks__
+__addon_operator_module_hook_errors{module=”module-name”, hook="hook-name"}__
 
-A counter that increments every 10 seconds. Can be used for alerting about shell-operator malfunctioning.
+The counter of hooks’ execution errors. It only tracks errors of hooks with the disabled allowFailure (allowFailure: false).
+
+
+__addon_operator_module_hook_allowed_errors{module=”module-name”, hook="hook-name"}__
+
+The counter of execution errors of module hooks for which execution errors are allowed (allowFailure: true).
+
+
+__addon_operator_global_hook_errors{hook="hook-name"}__
+
+The counter of execution errors of global hooks for which execution errors are not allowed (allowFailure: false).
+
+
+__addon_operator_global_hook_allowed_errors{hook="hook-name"}__
+
+The counter of execution errors of global hooks for which execution errors are allowed (allowFailure: true).
+
 
 __addon_operator_tasks_queue_length__
 
-A gauge with a length of a working queue. Can be used for alerting about long running hooks.
+An indicator of a working queue length. This metric can be used to warn about stuck hooks. It has no labels.
+
+
+__addon_operator_live_ticks__
+
+A counter that increases every 10 seconds.
 
 
 __addon_operator_module_discover_errors__
- 
-A counter of errors in dynamic modules discovery. Counter increases on errors of `enabled` script execution, errors of module hooks configuration, errors of listing helm releases or in case of Kubernetes API errors.
+A counter of errors during the [modules discover](LIFECYCLE.md#modules-discover) process. It increases every time when there are errors in the enabled-scripts running, configuration of module hooks, errors when viewing the helm releases or accessing the K8s API.
+
 
 __addon_operator_module_run_errors{module=x}__
- 
-A counter of module run errors.
+Counter of error on module [start-up](LIFECYCLE.md#modules-lifecycle).
 
 __addon_operator_module_delete_errors{module=x}__
- 
-A counter of module deletion errors.
+Counter of errors on module [deletion](LIFECYCLE.md#modules-lifecycle).
 
-__addon_operator_module_hook_errors{module=x, hook=y}__
-
-A counter of module hook execution errors. It counts errors for hooks with disabled `allowFailure` (no key in configuration or explicit `allowFailure: false`).
-
-__addon_operator_module_hook_allowed_errors{module=x, hook=y}__
- 
-A counter of module hook execution errors. It counts errors for hooks that allowed to fail — `allowFailure: true`.
-
-__addon_operator_global_hook_errors{hook=y}__
-
-A counter of global hook execution errors. It counts errors for hooks with disabled `allowFailure` (no key in configuration or explicit `allowFailure: false`).
-
-__addon_operator_global_hook_allowed_errors{hook=y}__
-
-A counter of global hook execution errors. It counts errors for hooks that allowed to fail — `allowFailure: true`.
