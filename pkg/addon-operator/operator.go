@@ -99,7 +99,7 @@ func Init() error {
 	rlog.Infof("INIT: Modules: '%s', Global hooks: '%s'", ModulesDir, GlobalHooksDir)
 
 	TempDir := DefaultTmpDir
-	err = os.Mkdir(TempDir, os.FileMode(0777))
+	err = os.MkdirAll(TempDir, os.FileMode(0777))
 	if err != nil {
 		rlog.Errorf("INIT: Cannot create temporary dir '%s': %s", TempDir, err)
 		return err
