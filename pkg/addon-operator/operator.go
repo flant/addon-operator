@@ -1,6 +1,7 @@
 package addon_operator
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	_ "net/http/pprof"
@@ -42,6 +43,7 @@ var (
 	KubeEventsManager kube_events_manager.KubeEventsManager
 	KubeEventsHooks   kube_event_hook.KubeEventsHooksController
 
+	MetricsPrefix string
 	MetricsStorage *metrics_storage.MetricStorage
 
 	// ManagersEventsHandlerStopCh is the channel object for stopping infinite loop of the ManagersEventsHandler.
@@ -56,6 +58,8 @@ const DefaultGlobalHooksDir = "global-hooks"
 
 const DefaultTasksQueueDumpFilePath = "/tmp/addon-operator-tasks-queue"
 const DefaultTmpDir = "/tmp/addon-operator"
+
+const DefaultMetricsPrefix = "addon_operator_"
 
 // Defining delays in processing tasks from queue.
 var (
@@ -152,6 +156,10 @@ func Init() error {
 	}
 	KubeEventsHooks = kube_event_hook.NewMainKubeEventsHooksController()
 
+	MetricsPrefix = os.Getenv("METRICS_PREFIX")
+	if MetricsPrefix == "" {
+		MetricsPrefix = DefaultMetricsPrefix
+	}
 	MetricsStorage = metrics_storage.Init()
 
 	return nil
@@ -410,7 +418,7 @@ func TasksRunner() {
 				rlog.Infof("TASK_RUN DiscoverModulesState")
 				err := runDiscoverModulesState(t)
 				if err != nil {
-					MetricsStorage.SendCounterMetric("addon_operator_modules_discover_errors", 1.0, map[string]string{})
+					MetricsStorage.SendCounterMetric(PrefixMetric("modules_discover_errors"), 1.0, map[string]string{})
 					t.IncrementFailureCount()
 					rlog.Errorf("TASK_RUN %s failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
@@ -424,7 +432,7 @@ func TasksRunner() {
 				rlog.Infof("TASK_RUN ModuleRun %s", t.GetName())
 				err := ModuleManager.RunModule(t.GetName(), t.GetOnStartupHooks())
 				if err != nil {
-					MetricsStorage.SendCounterMetric("addon_operator_module_run_errors", 1.0, map[string]string{"module": t.GetName()})
+					MetricsStorage.SendCounterMetric(PrefixMetric("module_run_errors"), 1.0, map[string]string{"module": t.GetName()})
 					t.IncrementFailureCount()
 					rlog.Errorf("TASK_RUN %s '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
@@ -436,7 +444,7 @@ func TasksRunner() {
 				rlog.Infof("TASK_RUN ModuleDelete %s", t.GetName())
 				err := ModuleManager.DeleteModule(t.GetName())
 				if err != nil {
-					MetricsStorage.SendCounterMetric("addon_operator_module_delete_errors", 1.0, map[string]string{"module": t.GetName()})
+					MetricsStorage.SendCounterMetric(PrefixMetric("module_delete_errors"), 1.0, map[string]string{"module": t.GetName()})
 					t.IncrementFailureCount()
 					rlog.Errorf("%s '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
@@ -453,10 +461,10 @@ func TasksRunner() {
 					moduleLabel := moduleHook.Module.Name
 
 					if t.GetAllowFailure() {
-						MetricsStorage.SendCounterMetric("addon_operator_module_hook_allowed_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+						MetricsStorage.SendCounterMetric(PrefixMetric("module_hook_allowed_errors"), 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 						TasksQueue.Pop()
 					} else {
-						MetricsStorage.SendCounterMetric("addon_operator_module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+						MetricsStorage.SendCounterMetric(PrefixMetric("module_hook_errors"), 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 						t.IncrementFailureCount()
 						rlog.Errorf("%s '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetFailureCount(), err)
 						TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
@@ -473,10 +481,10 @@ func TasksRunner() {
 					hookLabel := path.Base(globalHook.Path)
 
 					if t.GetAllowFailure() {
-						MetricsStorage.SendCounterMetric("addon_operator_global_hook_allowed_errors", 1.0, map[string]string{"hook": hookLabel})
+						MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_allowed_errors"), 1.0, map[string]string{"hook": hookLabel})
 						TasksQueue.Pop()
 					} else {
-						MetricsStorage.SendCounterMetric("addon_operator_global_hook_errors", 1.0, map[string]string{"hook": hookLabel})
+						MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_errors"), 1.0, map[string]string{"hook": hookLabel})
 						t.IncrementFailureCount()
 						rlog.Errorf("TASK_RUN %s '%s' on '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetBinding(), t.GetFailureCount(), err)
 						TasksQueue.Push(task.NewTaskDelay(FailedHookDelay))
@@ -495,7 +503,7 @@ func TasksRunner() {
 			case task.ModuleManagerRetry:
 				rlog.Infof("TASK_RUN ModuleManagerRetry")
 				// TODO метрику нужно отсылать из module_manager. Cделать metric_storage глобальным!
-				MetricsStorage.SendCounterMetric("addon_operator_modules_discover_errors", 1.0, map[string]string{})
+				MetricsStorage.SendCounterMetric(PrefixMetric("modules_discover_errors"), 1.0, map[string]string{})
 				ModuleManager.Retry()
 				TasksQueue.Pop()
 				// Adding a delay before retrying module/hook task.
@@ -628,7 +636,7 @@ func RunAddonOperatorMetrics() {
 	// Addon-operator live ticks.
 	go func() {
 		for {
-			MetricsStorage.SendCounterMetric("addon_operator_live_ticks", 1.0, map[string]string{})
+			MetricsStorage.SendCounterMetric(PrefixMetric("live_ticks"), 1.0, map[string]string{})
 			time.Sleep(10 * time.Second)
 		}
 	}()
@@ -636,7 +644,7 @@ func RunAddonOperatorMetrics() {
 	go func() {
 		for {
 			queueLen := float64(TasksQueue.Length())
-			MetricsStorage.SendGaugeMetric("addon_operator_tasks_queue_length", queueLen, map[string]string{})
+			MetricsStorage.SendGaugeMetric(PrefixMetric("tasks_queue_length"), queueLen, map[string]string{})
 			time.Sleep(5 * time.Second)
 		}
 	}()
@@ -664,4 +672,8 @@ func InitHttpServer() {
 			rlog.Errorf("Error starting HTTP server: %s", err)
 		}
 	}()
+}
+
+func PrefixMetric(metric string) string {
+	return fmt.Sprintf("%s%s", MetricsPrefix, metric)
 }
