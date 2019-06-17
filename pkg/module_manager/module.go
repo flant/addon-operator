@@ -69,7 +69,7 @@ func (m *Module) cleanup() error {
 	chartExists, err := m.checkHelmChart()
 	if !chartExists {
 		if err != nil {
-			rlog.Debugf("MODULE '%s': cleanup not needed: %s", m.Name, err)
+			rlog.Debugf("MODULE '%s': cleanup is not needed: %s", m.Name, err)
 			return nil
 		}
 	}
@@ -136,9 +136,9 @@ func (m *Module) execRun() error {
 					if recordedChecksumStr, ok := recordedChecksum.(string); ok {
 						if recordedChecksumStr == checksum {
 							doRelease = false
-							rlog.Infof("MODULE_RUN '%s': helm release '%s' checksum '%s' does not changed: skip helm upgrade", m.Name, helmReleaseName, checksum)
+							rlog.Infof("MODULE_RUN '%s': helm release '%s' checksum '%s' is not changed: skip helm upgrade", m.Name, helmReleaseName, checksum)
 						} else {
-							rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum changed '%s' -> '%s': upgrade helm release", m.Name, helmReleaseName, recordedChecksumStr, checksum)
+							rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s' is changed to '%s': upgrade helm release", m.Name, helmReleaseName, recordedChecksumStr, checksum)
 						}
 					}
 				}
@@ -218,7 +218,7 @@ func (m *Module) execHelm(executeHelm func(valuesPath, helmReleaseName string) e
 	chartExists, err := m.checkHelmChart()
 	if !chartExists {
 		if err != nil {
-			rlog.Debugf("Module '%s': helm not needed: %s", m.Name, err)
+			rlog.Debugf("Module '%s': no Chart.yaml, helm is not needed: %s", m.Name, err)
 			return nil
 		}
 	}
@@ -326,7 +326,7 @@ func (m *Module) checkHelmChart() (bool, error) {
 	chartPath := filepath.Join(m.Path, "Chart.yaml")
 
 	if _, err := os.Stat(chartPath); os.IsNotExist(err) {
-		return false, fmt.Errorf("module '%s' chart file not found '%s'", m.Name, chartPath)
+		return false, fmt.Errorf("path '%s' is not found", chartPath)
 	}
 	return true, nil
 }
