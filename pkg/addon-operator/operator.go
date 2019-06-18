@@ -35,6 +35,8 @@ var (
 
 	// ModuleManager is the module manager object, which monitors configuration
 	// and variable changes.
+	ConfigMapName string
+	ValuesChecksumsAnnotation string
 	ModuleManager module_manager.ModuleManager
 
 	ScheduleManager schedule_manager.ScheduleManager
@@ -60,6 +62,9 @@ const DefaultTasksQueueDumpFilePath = "/tmp/addon-operator-tasks-queue"
 const DefaultTmpDir = "/tmp/addon-operator"
 
 const DefaultMetricsPrefix = "addon_operator_"
+
+const DefaultConfigMapName = "addon-operator"
+const DefaultValuesChecksumsAnnotation = "addon-operator/values-checksums"
 
 // Defining delays in processing tasks from queue.
 var (
@@ -123,6 +128,18 @@ func Init() error {
 	}
 
 	// Initializing module manager.
+	if ConfigMapName == "" {
+		ConfigMapName = os.Getenv("CONFIG_MAP_NAME")
+		if ConfigMapName == "" {
+			ConfigMapName = DefaultConfigMapName
+		}
+	}
+	if ValuesChecksumsAnnotation == "" {
+		ValuesChecksumsAnnotation = os.Getenv("VALUES_CHECKSUMS_ANNOTATION")
+		if ValuesChecksumsAnnotation == "" {
+			ValuesChecksumsAnnotation = DefaultValuesChecksumsAnnotation
+		}
+	}
 	module_manager.Init()
 	ModuleManager = module_manager.NewMainModuleManager().
 		WithDirectories(ModulesDir, GlobalHooksDir, TempDir).
@@ -156,9 +173,11 @@ func Init() error {
 	}
 	KubeEventsHooks = kube_event_hook.NewMainKubeEventsHooksController()
 
-	MetricsPrefix = os.Getenv("METRICS_PREFIX")
 	if MetricsPrefix == "" {
-		MetricsPrefix = DefaultMetricsPrefix
+		MetricsPrefix = os.Getenv("METRICS_PREFIX")
+		if MetricsPrefix == "" {
+			MetricsPrefix = DefaultMetricsPrefix
+		}
 	}
 	MetricsStorage = metrics_storage.Init()
 

@@ -18,11 +18,6 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-const (
-	ConfigMapName             = "addon-operator"
-	ValuesChecksumsAnnotation = "addon-operator/values-checksums"
-)
-
 type KubeConfigManager interface {
 	SetKubeGlobalValues(values utils.Values) error
 	SetKubeModuleValues(moduleName string, values utils.Values) error
@@ -52,6 +47,8 @@ func NewConfig() *Config {
 }
 
 var (
+	ConfigMapName string
+	ValuesChecksumsAnnotation string
 	VerboseDebug bool
 	// ConfigUpdated chan receives a new Config when global values are changed
 	ConfigUpdated chan Config
