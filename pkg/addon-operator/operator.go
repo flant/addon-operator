@@ -12,15 +12,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/romana/rlog"
 
-	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/kube"
-	"github.com/flant/addon-operator/pkg/module_manager"
-	kube_event_hook "github.com/flant/addon-operator/pkg/module_manager/hook/kube_event"
-	"github.com/flant/addon-operator/pkg/task"
 	schedule_hook "github.com/flant/shell-operator/pkg/hook/schedule"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/metrics_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
+
+	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/addon-operator/pkg/kube_config_manager"
+	"github.com/flant/addon-operator/pkg/module_manager"
+	kube_event_hook "github.com/flant/addon-operator/pkg/module_manager/hook/kube_event"
+	"github.com/flant/addon-operator/pkg/task"
 )
 
 var (
@@ -140,6 +142,8 @@ func Init() error {
 			ValuesChecksumsAnnotation = DefaultValuesChecksumsAnnotation
 		}
 	}
+	kube_config_manager.ConfigMapName = ConfigMapName
+	kube_config_manager.ValuesChecksumsAnnotation = ValuesChecksumsAnnotation
 	module_manager.Init()
 	ModuleManager = module_manager.NewMainModuleManager().
 		WithDirectories(ModulesDir, GlobalHooksDir, TempDir).
