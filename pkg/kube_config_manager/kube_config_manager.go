@@ -192,9 +192,10 @@ func (kcm *MainKubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 		if err != nil {
 			return nil, err
 		}
-
+		rlog.Infof("KUBE_CONFIG_MANAGER: Will use ConfigMap/%s for persistent values", ConfigMapName)
 		return obj, nil
 	} else {
+		rlog.Errorf("KUBE_CONFIG_MANAGER: Cannot find ConfigMap/%s", ConfigMapName)
 		return nil, nil
 	}
 }
