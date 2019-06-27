@@ -3,7 +3,7 @@ ARG appVersion=latest
 RUN apk --no-cache add git ca-certificates
 ADD . /addon-operator
 WORKDIR /addon-operator
-RUN go-build.sh $appVersion
+RUN ./go-build.sh $appVersion
 
 FROM alpine:3.9
 RUN apk --no-cache add ca-certificates jq bash && \

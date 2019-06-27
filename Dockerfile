@@ -3,7 +3,7 @@ ARG appVersion=latest
 RUN apk --no-cache add git ca-certificates
 ADD . /addon-operator
 WORKDIR /addon-operator
-RUN go-build.sh $appVersion
+RUN ./go-build.sh $appVersion
 
 FROM ubuntu:18.04
 RUN apt-get update && \
