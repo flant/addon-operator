@@ -4,10 +4,15 @@ import (
 	"flag"
 	"os"
 
-	operator "github.com/flant/addon-operator/pkg/addon-operator"
+	"github.com/romana/rlog"
 
+	shell_operator_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
+
+	operator "github.com/flant/addon-operator/pkg/addon-operator"
+	"github.com/flant/addon-operator/pkg/app"
+
 )
 
 func main() {
@@ -19,6 +24,8 @@ func main() {
 	go executor.Reap()
 
 	operator.InitHttpServer()
+
+	rlog.Infof("addon-operator %s, shell-operator %s", app.Version, shell_operator_app.Version)
 
 	err := operator.Init()
 	if err != nil {
