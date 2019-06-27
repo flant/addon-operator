@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/magiconair/properties/assert"
+	"github.com/stretchr/testify/assert"
 	"github.com/romana/rlog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -1,9 +1,9 @@
-FROM golang:1.11-alpine3.9
+FROM golang:1.12-alpine3.9
+ARG appVersion=latest
 RUN apk --no-cache add git ca-certificates
-ADD . /go/src/github.com/flant/addon-operator
-RUN go get -d github.com/flant/addon-operator/...
-WORKDIR /go/src/github.com/flant/addon-operator
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o addon-operator ./cmd/addon-operator
+ADD . /addon-operator
+WORKDIR /addon-operator
+RUN ./go-build.sh $appVersion
 
 FROM ubuntu:18.04
 RUN apt-get update && \
@@ -16,9 +16,8 @@ RUN apt-get update && \
     rm -f /helm.tgz && \
     helm init --client-only && \
     mkdir /hooks
-COPY --from=0 /go/src/github.com/flant/addon-operator/addon-operator /
+COPY --from=0 /addon-operator/addon-operator /
 WORKDIR /
 ENV MODULES_DIR /modules
 ENV GLOBAL_HOOKS_DIR /global-hooks
 ENTRYPOINT ["/addon-operator"]
-#CMD ["start"]
