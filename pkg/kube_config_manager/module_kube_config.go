@@ -2,24 +2,36 @@ package kube_config_manager
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/flant/addon-operator/pkg/utils"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
 )
 
+// TODO make a method of KubeConfig
 // GetModulesNamesFromConfigData returns all keys in kube config except global
+// modNameEnabled keys are also handled
 func GetModulesNamesFromConfigData(configData map[string]string) map[string]bool {
 	res := make(map[string]bool, 0)
 
 	for key := range configData {
-		if key != utils.GlobalValuesKey {
-			if utils.ModuleNameToValuesKey(utils.ModuleNameFromValuesKey(key)) != key {
-				rlog.Warnf("Bad module name '%s': should be camelCased module name: ignoring data", key)
-				continue
-			}
-			res[utils.ModuleNameFromValuesKey(key)] = true
+		if key == utils.GlobalValuesKey {
+			continue
 		}
+
+		if strings.HasSuffix(key, "Enabled") {
+			key = strings.TrimSuffix(key, "Enabled")
+		}
+
+		modName := utils.ModuleNameFromValuesKey(key)
+
+		if utils.ModuleNameToValuesKey(modName) != key {
+			rlog.Errorf("Bad module name '%s': should be camelCased module name: ignoring data", key)
+			continue
+		}
+		res[modName] = true
 	}
 
 	return res
@@ -31,6 +43,7 @@ type ModuleKubeConfig struct {
 	ConfigData map[string]string
 }
 
+// TODO make a method of KubeConfig
 func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) *ModuleKubeConfig {
 	moduleValues, hasKey := values[utils.ModuleNameToValuesKey(moduleName)]
 	if !hasKey {
@@ -53,42 +66,20 @@ func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) *Modu
 	}
 }
 
-func ModuleKubeConfigMustExist(res *ModuleKubeConfig, err error) (*ModuleKubeConfig, error) {
-	if err != nil {
-		return res, err
-	}
-	if res == nil {
-		panic("module kube config must exist!")
-	}
-	return res, err
-}
-
-func GetModuleKubeConfigFromConfigData(moduleName string, configData map[string]string) (*ModuleKubeConfig, error) {
-	yamlData, hasKey := configData[utils.ModuleNameToValuesKey(moduleName)]
-	if !hasKey {
-		return nil, nil
-	}
-
-	moduleConfig, err := NewModuleConfig(moduleName, yamlData)
+// TODO make a method of KubeConfig
+// ExtractModuleKubeConfig returns ModuleKubeConfig with values loaded from ConfigMap
+func ExtractModuleKubeConfig(moduleName string, configData map[string]string) (*ModuleKubeConfig, error) {
+	moduleConfig, err := utils.NewModuleConfig(moduleName).FromKeyYamls(configData)
 	if err != nil {
 		return nil, fmt.Errorf("'%s' ConfigMap bad yaml at key '%s': %s", ConfigMapName, utils.ModuleNameToValuesKey(moduleName), err)
+	}
+	// NOTE this should never happen because of GetModulesNamesFromConfigData
+	if moduleConfig == nil {
+		panic("module kube config must exist!")
 	}
 
 	return &ModuleKubeConfig{
 		ModuleConfig: *moduleConfig,
-		Checksum:     utils_checksum.CalculateChecksum(yamlData),
+		Checksum:     moduleConfig.Checksum(),
 	}, nil
-}
-
-func NewModuleConfig(moduleName string, moduleYamlData string) (*utils.ModuleConfig, error) {
-	var valuesAtModuleKey interface{}
-
-	err := yaml.Unmarshal([]byte(moduleYamlData), &valuesAtModuleKey)
-	if err != nil {
-		return nil, err
-	}
-
-	data := map[interface{}]interface{}{utils.ModuleNameToValuesKey(moduleName): valuesAtModuleKey}
-
-	return utils.NewModuleConfig(moduleName).WithValues(data)
 }
