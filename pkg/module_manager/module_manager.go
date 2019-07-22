@@ -683,6 +683,9 @@ func (mm *MainModuleManager) DeleteModule(moduleName string) error {
 		return err
 	}
 
+	// remove hooks structures
+	mm.removeModuleHooks(moduleName)
+
 	return nil
 }
 

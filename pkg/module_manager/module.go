@@ -493,6 +493,42 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 	return false, nil
 }
 
+func (m *Module) RunBeforeConfigScript() error {
+	scriptPath := filepath.Join(m.Path, "before_config")
+
+	f, err := os.Stat(scriptPath)
+	if os.IsNotExist(err) {
+		rlog.Debugf("MODULE '%s':  before_config script is not exist!", m.Name)
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	if !utils_file.IsFileExecutable(f) {
+		return fmt.Errorf("cannot execute non-executable before_config script '%s'", scriptPath)
+	}
+
+	configValuesPath, err := m.prepareConfigValuesJsonFile()
+	if err != nil {
+		return err
+	}
+
+	valuesPath, err := m.prepareValuesJsonFile()
+	if err != nil {
+		return err
+	}
+
+	rlog.Infof("MODULE '%s': run before_config script '%s'...", m.Name, scriptPath)
+
+	// dir is empty to run hook in process's current directory
+	// FIXME: set to hook's directory?
+	cmd := m.moduleManager.makeHookCommand(
+		"", configValuesPath, valuesPath, "", scriptPath, []string{}, []string{},
+	)
+
+	return executor.Run(cmd, true)
+}
+
 // initModulesIndex load all available modules from modules directory
 // FIXME: Only 000-name modules are loaded, allow non-prefixed modules.
 func (mm *MainModuleManager) initModulesIndex() error {

@@ -190,6 +190,16 @@ func (mm *MainModuleManager) addModulesHooksOrderByName(moduleName string, bindi
 	mm.modulesHooksOrderByName[moduleName][bindingType] = append(mm.modulesHooksOrderByName[moduleName][bindingType], moduleHook)
 }
 
+func (mm *MainModuleManager) removeModuleHooks(moduleName string) {
+	for _, hooks := range mm.modulesHooksOrderByName[moduleName] {
+		for _, hook := range hooks {
+			delete(mm.modulesHooksByName, hook.Name)
+		}
+	}
+	delete(mm.modulesHooksOrderByName, moduleName)
+}
+
+
 type globalValuesMergeResult struct {
 	// Global values with the root "global" key.
 	Values utils.Values
@@ -642,7 +652,14 @@ func (mm *MainModuleManager) initModuleHooks(module *Module) error {
 
 	hooksDir := filepath.Join(module.Path, "hooks")
 
-	err := mm.initHooks(hooksDir, func(hookPath string, output []byte) error {
+	// run before_config script before running module hooks with --config flag
+	rlog.Infof("INIT:   before_config script ...")
+	err := module.RunBeforeConfigScript()
+	if err != nil {
+		return err
+	}
+
+	err = mm.initHooks(hooksDir, func(hookPath string, output []byte) error {
 		hookName, err := filepath.Rel(filepath.Dir(module.Path), hookPath)
 		if err != nil {
 			return err
