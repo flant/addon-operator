@@ -31,8 +31,11 @@ type ModuleHook struct {
 }
 
 type Hook struct {
-	Name           string // The unique name like 'global-hooks/startup_hook or 002-module/hooks/cleanup'.
-	Path           string // The absolute path to the executable file.
+	// The unique name like 'global-hooks/startup_hook' or '002-module/hooks/cleanup'.
+	Name           string
+	// The absolute path of the executable file.
+	Path           string
+
 	Bindings       []BindingType
 	OrderByBinding map[BindingType]float64
 

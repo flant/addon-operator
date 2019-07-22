@@ -401,6 +401,7 @@ func runDiscoverModulesState(t task.Task) error {
 	ScheduledHooks = UpdateScheduleHooks(nil)
 
 	// Enable kube events hooks for newly enabled modules
+	// FIXME convert to a task that run after AfterHelm if there is a flag in binding config.
 	for _, moduleName := range modulesState.EnabledModules {
 		err = KubeEventsHooks.EnableModuleHooks(moduleName, ModuleManager, KubeEventsManager)
 		if err != nil {
