@@ -720,7 +720,7 @@ func (mm *MainModuleManager) initHooks(hooksDir string, addHookFn func(hookPath 
 	}
 
 	// retrieve a list of executable files in hooksDir sorted by filename
-    hooksRelativePaths, _, err := utils.FindExecutableFilesInPath(hooksDir)
+	hooksRelativePaths, _, err := utils.FindExecutableFilesInPath(hooksDir)
 	if err != nil {
 		return err
 	}

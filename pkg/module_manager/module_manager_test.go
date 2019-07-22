@@ -34,7 +34,7 @@ func TestMainModuleManager_GetModule(t *testing.T) {
 func TestMainModuleManager_GetModuleHook(t *testing.T) {
 	mm := NewMainModuleManager()
 
-	expectedModuleHook := &ModuleHook{Hook: &Hook{Name: "hook"}}
+	expectedModuleHook := &ModuleHook{CommonHook: &CommonHook{Name: "hook"}}
 
 	mm.modulesHooksOrderByName["module"] = map[BindingType][]*ModuleHook{
 		OnStartup: {
@@ -53,7 +53,7 @@ func TestMainModuleManager_GetModuleHook(t *testing.T) {
 	_, err = mm.GetModuleHook("non-exist")
 	if err == nil {
 		t.Error("Expected error!")
-	} else if !strings.HasPrefix(err.Error(), "module hook 'non-exist' not found") {
+	} else if !strings.HasPrefix(err.Error(), "module hook 'non-exist' is not found") {
 		t.Errorf("Got unexpected error: %s", err)
 	}
 }
@@ -66,19 +66,19 @@ func TestMainModuleManager_GetModuleHooksInOrder(t *testing.T) {
 		"module": {
 			BeforeHelm: []*ModuleHook{
 				{
-					Hook: &Hook{
+					CommonHook: &CommonHook{
 						Name:           "hook-1",
 						OrderByBinding: map[BindingType]float64{BeforeHelm: 3},
 					},
 				},
 				{
-					Hook: &Hook{
+					CommonHook: &CommonHook{
 						Name:           "hook-2",
 						OrderByBinding: map[BindingType]float64{BeforeHelm: 1},
 					},
 				},
 				{
-					Hook: &Hook{
+					CommonHook: &CommonHook{
 						Name:           "hook-3",
 						OrderByBinding: map[BindingType]float64{BeforeHelm: 2},
 					},
@@ -144,7 +144,7 @@ func TestMainModuleManager_GetModuleHooksInOrder(t *testing.T) {
 func TestMainModuleManager_GetGlobalHook(t *testing.T) {
 	mm := NewMainModuleManager()
 
-	expectedGlobalHook := &GlobalHook{Hook: &Hook{Name: "hook"}}
+	expectedGlobalHook := &GlobalHook{CommonHook: &CommonHook{Name: "hook"}}
 	mm.globalHooksByName["hook"] = expectedGlobalHook
 
 	moduleHook, err := mm.GetGlobalHook("hook")
@@ -169,19 +169,19 @@ func TestMainModuleManager_GetGlobalHooksInOrder(t *testing.T) {
 	mm.globalHooksOrder = map[BindingType][]*GlobalHook{
 		BeforeAll: {
 			{
-				Hook: &Hook{
+				CommonHook: &CommonHook{
 					Name:           "hook-1",
 					OrderByBinding: map[BindingType]float64{BeforeAll: 3},
 				},
 			},
 			{
-				Hook: &Hook{
+				CommonHook: &CommonHook{
 					Name:           "hook-2",
 					OrderByBinding: map[BindingType]float64{BeforeAll: 1},
 				},
 			},
 			{
-				Hook: &Hook{
+				CommonHook: &CommonHook{
 					Name:           "hook-3",
 					OrderByBinding: map[BindingType]float64{BeforeAll: 2},
 				},

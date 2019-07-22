@@ -545,8 +545,8 @@ func (m *Module) loadStaticValues() error {
 	valuesYamlPath := filepath.Join(m.Path, "values.yaml")
 
 	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
-		m.StaticConfig = utils.NewModuleConfig(m.Name).WithEnabled(true)
-		rlog.Debugf("module %s is enabled: no values.yaml exists", m.Name)
+		m.StaticConfig = utils.NewModuleConfig(m.Name)
+		rlog.Debugf("module %s is static disabled: no values.yaml exists", m.Name)
 		return nil
 	}
 

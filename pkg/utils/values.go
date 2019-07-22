@@ -268,3 +268,54 @@ func DumpValuesYaml(values Values) ([]byte, error) {
 func DumpValuesJson(values Values) ([]byte, error) {
 	return json.Marshal(values)
 }
+
+type ValuesLoader interface {
+	Read() (Values, error)
+}
+
+type ValuesDumper interface {
+	Write(values Values) error
+}
+
+// Load values by specific key from loader
+func Load(key string, loader ValuesLoader) (Values, error) {
+	return nil, nil
+}
+
+// LoadAll loads values from all keys from loader
+func LoadAll(loader ValuesLoader) (Values, error) {
+	return nil, nil
+}
+
+func Dump(values Values, dumper ValuesDumper) error {
+	return nil
+}
+
+type ValuesDumperToJsonFile struct {
+	FileName string
+}
+
+func NewDumperToJsonFile(path string) ValuesDumper {
+	return &ValuesDumperToJsonFile{
+		FileName: path,
+	}
+}
+
+func (*ValuesDumperToJsonFile) Write(values Values) error {
+	return fmt.Errorf("implement Write in ValuesDumperToJsonFile")
+}
+
+type ValuesLoaderFromJsonFile struct {
+	FileName string
+}
+
+func NewLoaderFromJsonFile(path string) ValuesLoader {
+	return &ValuesLoaderFromJsonFile{
+		FileName: path,
+	}
+}
+
+func (*ValuesLoaderFromJsonFile) Read() (Values, error) {
+	return nil, fmt.Errorf("implement Read methoid")
+}
+

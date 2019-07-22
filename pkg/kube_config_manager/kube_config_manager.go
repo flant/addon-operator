@@ -233,9 +233,9 @@ func (kcm *MainKubeConfigManager) initConfig() error {
 		globalValuesChecksum = globalKubeConfig.Checksum
 	}
 
-	for module := range GetModulesNamesFromConfigData(obj.Data) {
+	for moduleName := range GetModulesNamesFromConfigData(obj.Data) {
 		// all GetModulesNamesFromConfigData must exist
-		moduleKubeConfig, err := ModuleKubeConfigMustExist(GetModuleKubeConfigFromConfigData(module, obj.Data))
+		moduleKubeConfig, err := ExtractModuleKubeConfig(moduleName, obj.Data)
 		if err != nil {
 			return err
 		}
@@ -337,9 +337,9 @@ func (kcm *MainKubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 
 		// calculate new checksums of a module sections
 		newModulesValuesChecksum := make(map[string]string)
-		for module := range GetModulesNamesFromConfigData(obj.Data) {
+		for moduleName := range GetModulesNamesFromConfigData(obj.Data) {
 			// all GetModulesNamesFromConfigData must exist
-			moduleKubeConfig, err := ModuleKubeConfigMustExist(GetModuleKubeConfigFromConfigData(module, obj.Data))
+			moduleKubeConfig, err := ExtractModuleKubeConfig(moduleName, obj.Data)
 			if err != nil {
 				return err
 			}
@@ -365,21 +365,21 @@ func (kcm *MainKubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 
 		// create ModuleConfig for each module in configData
 		// IsUpdated flag set for updated configs
-		for module := range actualModulesNames {
+		for moduleName := range actualModulesNames {
 			// all GetModulesNamesFromConfigData must exist
-			moduleKubeConfig, err := ModuleKubeConfigMustExist(GetModuleKubeConfigFromConfigData(module, obj.Data))
+			moduleKubeConfig, err := ExtractModuleKubeConfig(moduleName, obj.Data)
 			if err != nil {
 				return err
 			}
 
-			if moduleKubeConfig.Checksum != savedChecksums[module] && moduleKubeConfig.Checksum != kcm.ModulesValuesChecksum[module] {
-				kcm.ModulesValuesChecksum[module] = moduleKubeConfig.Checksum
+			if moduleKubeConfig.Checksum != savedChecksums[moduleName] && moduleKubeConfig.Checksum != kcm.ModulesValuesChecksum[moduleName] {
+				kcm.ModulesValuesChecksum[moduleName] = moduleKubeConfig.Checksum
 				moduleKubeConfig.ModuleConfig.IsUpdated = true
 				updatedCount++
 			} else {
 				moduleKubeConfig.ModuleConfig.IsUpdated = false
 			}
-			moduleConfigsActual[module] = moduleKubeConfig.ModuleConfig
+			moduleConfigsActual[moduleName] = moduleKubeConfig.ModuleConfig
 		}
 
 		// delete checksums for removed module sections
@@ -460,7 +460,6 @@ func (kcm *MainKubeConfigManager) handleCmDelete(obj *v1.ConfigMap) error {
 			delete(kcm.ModulesValuesChecksum, module)
 			moduleConfigsUpdate[module] = utils.ModuleConfig{
 				ModuleName: module,
-				IsEnabled:  true,
 				Values:     make(utils.Values),
 			}
 		}

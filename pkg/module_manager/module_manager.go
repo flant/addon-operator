@@ -301,7 +301,7 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 	updateAfterRemoval := make(map[string]bool, 0)
 	for moduleName, module := range mm.allModulesByName {
 		_, hasKubeConfig := moduleConfigs[moduleName]
-		if !hasKubeConfig && module.StaticConfig.IsEnabled {
+		if !hasKubeConfig && mergeEnabled(module.StaticConfig.IsEnabled) {
 			if _, hasValues := mm.kubeModulesConfigValues[moduleName]; hasValues {
 				updateAfterRemoval[moduleName] = true
 			}
@@ -377,7 +377,9 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 	for moduleName, module := range mm.allModulesByName {
 		kubeConfig, hasKubeConfig := moduleConfigs[moduleName]
 		if hasKubeConfig {
-			if kubeConfig.IsEnabled {
+			isEnabled := mergeEnabled(module.StaticConfig.IsEnabled, kubeConfig.IsEnabled)
+
+			if isEnabled {
 				enabled = append(enabled, moduleName)
 				values[moduleName] = kubeConfig.Values
 			}
@@ -387,7 +389,8 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 				kubeConfig.IsEnabled,
 				kubeConfig.IsUpdated)
 		} else {
-			if module.StaticConfig.IsEnabled {
+			isEnabled := mergeEnabled(module.StaticConfig.IsEnabled)
+			if isEnabled {
 				enabled = append(enabled, moduleName)
 			}
 			rlog.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.IsEnabled)
@@ -548,7 +551,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 
 	// modules finally enabled with enable script
 	// no need to refresh mm.enabledModulesByConfig because
-	// it is updated before in Init or applyKubeUpdate
+	// it is updated before in Init or in applyKubeUpdate
 	rlog.Infof("DISCOVER run `enabled` for %s", mm.enabledModulesByConfig)
 	enabledModules, err := mm.determineEnableStateWithScript(mm.enabledModulesByConfig)
 	rlog.Infof("DISCOVER enabled modules %s", enabledModules)
@@ -774,4 +777,21 @@ func (mm *MainModuleManager) WithDirectories(modulesDir string, globalHooksDir s
 func (mm *MainModuleManager) WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager {
 	mm.kubeConfigManager = kubeConfigManager
 	return mm
+}
+
+// mergeEnabled merges enabled flags. Enabled flag can be nil.
+//
+// If all flags are nil, then false is returned — module is disabled by default.
+//
+func mergeEnabled(enabledFlags ... *bool) bool {
+	result := false
+	for _, enabled := range enabledFlags {
+		if enabled == nil {
+			continue
+		} else {
+			result = *enabled
+		}
+	}
+
+	return result
 }
