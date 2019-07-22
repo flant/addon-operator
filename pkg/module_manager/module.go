@@ -5,8 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/kennygrant/sanitize"
@@ -16,7 +18,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
@@ -107,7 +108,7 @@ func (m *Module) execRun() error {
 			return err
 		}
 
-		checksum, err := utils_checksum.CalculateChecksumOfPaths(runChartPath, valuesPath)
+		checksum, err := utils.CalculateChecksumOfPaths(runChartPath, valuesPath)
 		if err != nil {
 			return err
 		}
@@ -493,7 +494,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 }
 
 // initModulesIndex load all available modules from modules directory
-//
+// FIXME: Only 000-name modules are loaded, allow non-prefixed modules.
 func (mm *MainModuleManager) initModulesIndex() error {
 	rlog.Debug("INIT: Search modules ...")
 
@@ -607,27 +608,31 @@ func (mm *MainModuleManager) loadGlobalModulesValues() (utils.Values, error) {
 
 func getExecutableHooksFilesPaths(dir string) ([]string, error) {
 	paths := make([]string, 0)
-	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
 
-		if f.IsDir() {
-			return nil
-		}
+	nonExecutables := []string{}
 
-		if utils_file.IsFileExecutable(f) {
-			paths = append(paths, path)
-		} else {
-			return fmt.Errorf("found non-executable hook file '%s'", path)
+	// Find only executable files
+	files, err := utils.FilesFromRoot(dir, func(dir string, name string, info os.FileInfo) bool {
+		if info.Mode()&0111 != 0 {
+			return true
 		}
-
-		return nil
+		nonExecutables = append(nonExecutables, path.Join(dir, name))
+		return false
 	})
-
 	if err != nil {
 		return nil, err
 	}
+	if len(nonExecutables) > 0 {
+		return nil, fmt.Errorf("found non-executable hook files '%+v'", nonExecutables)
+	}
+
+	for dirPath, filePaths := range files {
+		for file := range filePaths {
+			paths = append(paths, path.Join(dirPath, file))
+		}
+	}
+
+	sort.Strings(paths)
 
 	return paths, nil
 }
