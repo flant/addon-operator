@@ -75,6 +75,10 @@ fi
 
 ```
 
+## before_config script
+
+A script or an executable file that runs once when module is enabled before running all hooks with `--config` flag. The script has access to the module values in $VALUES_PATH and $CONFIG_VALUES_PATH files, more details about the values are available in [VALUES](VALUES.md#using-values-in-enabled-script). Script can be used to setup module requirements in cluster, for example, to install CRDs.
+
 # Tasks queue
 
 Addon-operator cycle works like a simple FIFO queue. The Addon-operator processes an event, creates a task and adds it to the queue. The queue handler runs the current task and proceeds to the next. Each task is processed until successful completion. In case of an error, the task is returned to the top of the queue and executed after a 5 seconds delay. When executing tasks for the `onKubernetesEvent` and `schedule` events, the queue handler may ignore the execution errors if the `allowFailure: true` flag is specified in the binding configuration.
