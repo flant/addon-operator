@@ -72,7 +72,7 @@ func (obj *MainKubeEventsHooksController) EnableGlobalHooks(moduleManager module
 		globalHook, _ := moduleManager.GetGlobalHook(globalHookName)
 
 		for _, desc := range MakeKubeEventHookDescriptors(globalHook.Hook, &globalHook.Config.HookConfig) {
-			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.JqFilter, desc.Debug)
+			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.ObjectName, desc.JqFilter, desc.Debug)
 			if err != nil {
 				return err
 			}
@@ -103,7 +103,7 @@ func (obj *MainKubeEventsHooksController) EnableModuleHooks(moduleName string, m
 		moduleHook, _ := moduleManager.GetModuleHook(moduleHookName)
 
 		for _, desc := range MakeKubeEventHookDescriptors(moduleHook.Hook, &moduleHook.Config.HookConfig) {
-			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.JqFilter, desc.Debug)
+			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.ObjectName, desc.JqFilter, desc.Debug)
 			if err != nil {
 				return err
 			}
