@@ -4,17 +4,23 @@ version: 2.1
 executors:
   golang:
     docker:
-    - image: circleci/golang:1.11
+    - image: circleci/golang:1.12
 
 jobs:
   test:
     executor: golang
-    working_directory: /go/src/github.com/flant/addon-operator
     steps:
       - checkout
-      - run: go get -v -t -d ./...
-      # TODO add vet, lint, speller
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      # TODO add lint, speller
+      - run: go vet -v ./...
       - run: go test -v ./...
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
 
   build_image_branch:
     machine: true

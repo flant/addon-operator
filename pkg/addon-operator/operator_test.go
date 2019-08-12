@@ -47,7 +47,7 @@ func (obj *KubeEventsHooksControllerMock) HandleEvent(kubeEvent kube_events_mana
 
 type KubeEventsManagerMock struct{}
 
-func (kem *KubeEventsManagerMock) Run(eventTypes []kube_events_manager.OnKubernetesEventType, kind, namespace string, labelSelector *metav1.LabelSelector, jqFilter string, debug bool) (string, error) {
+func (kem *KubeEventsManagerMock) Run(eventTypes []kube_events_manager.OnKubernetesEventType, kind, namespace string, labelSelector *metav1.LabelSelector, objectName, jqFilter string, debug bool) (string, error) {
 	return uuid.NewV4().String(), nil
 }
 
@@ -116,9 +116,9 @@ func (m *ModuleManagerMock) GetModuleNamesInOrder() []string {
 
 func (m *ModuleManagerMock) DiscoverModulesState() (*module_manager.ModulesState, error) {
 	return &module_manager.ModulesState{
-		[]string{"test_module_1__101", "test_module_2__102"},
-		[]string{"disabled_module_1__111", "disabled_2__112", "disabled_3.14__113"},
-		[]string{"unknown_module_1__121", "abandoned_1__122", "forgotten_3.14__123"},
+		EnabledModules: []string{"test_module_1__101", "test_module_2__102"},
+		ModulesToDisable: []string{"disabled_module_1__111", "disabled_2__112", "disabled_3.14__113"},
+		ReleasedUnknownModules:	[]string{"unknown_module_1__121", "abandoned_1__122", "forgotten_3.14__123"},
 	}, nil
 }
 
@@ -153,7 +153,6 @@ func (m *ModuleManagerMock) GetGlobalHook(name string) (*module_manager.GlobalHo
 			},
 		}, nil
 	}
-	return nil, nil
 }
 
 func (m *ModuleManagerMock) GetModuleHook(name string) (*module_manager.ModuleHook, error) {
