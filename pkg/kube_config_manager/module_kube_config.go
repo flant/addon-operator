@@ -8,7 +8,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// TODO make a method of KubeConfig
 // GetModulesNamesFromConfigData returns all keys in kube config except global
+// modNameEnabled keys are also handled
 func GetModulesNamesFromConfigData(configData map[string]string) map[string]bool {
 	res := make(map[string]bool, 0)
 

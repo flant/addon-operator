@@ -12,7 +12,7 @@ import (
 )
 
 // MakeKubeEventHookDescriptors converts hook config into KubeEventHook structures
-func MakeKubeEventHookDescriptors(hook *module_manager.Hook, hookConfig *module_manager.HookConfig) []*kube_event.KubeEventHook {
+func MakeKubeEventHookDescriptors(hook module_manager.Hook, hookConfig *module_manager.HookConfig) []*kube_event.KubeEventHook {
 	res := make([]*kube_event.KubeEventHook, 0)
 
 	for _, config := range hookConfig.OnKubernetesEvent {
@@ -28,9 +28,9 @@ func MakeKubeEventHookDescriptors(hook *module_manager.Hook, hookConfig *module_
 	return res
 }
 
-func ConvertOnKubernetesEventToKubeEventHook(hook *module_manager.Hook, config kube_events_manager.OnKubernetesEventConfig, namespace string) *kube_event.KubeEventHook {
+func ConvertOnKubernetesEventToKubeEventHook(hook module_manager.Hook, config kube_events_manager.OnKubernetesEventConfig, namespace string) *kube_event.KubeEventHook {
 	return &kube_event.KubeEventHook{
-		HookName:     hook.Name,
+		HookName:     hook.GetName(),
 		Name:         config.Name,
 		EventTypes:   config.EventTypes,
 		Kind:         config.Kind,
@@ -71,7 +71,7 @@ func (obj *MainKubeEventsHooksController) EnableGlobalHooks(moduleManager module
 	for _, globalHookName := range globalHooks {
 		globalHook, _ := moduleManager.GetGlobalHook(globalHookName)
 
-		for _, desc := range MakeKubeEventHookDescriptors(globalHook.Hook, &globalHook.Config.HookConfig) {
+		for _, desc := range MakeKubeEventHookDescriptors(globalHook, &globalHook.Config.HookConfig) {
 			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.ObjectName, desc.JqFilter, desc.Debug)
 			if err != nil {
 				return err
@@ -102,7 +102,7 @@ func (obj *MainKubeEventsHooksController) EnableModuleHooks(moduleName string, m
 	for _, moduleHookName := range moduleHooks {
 		moduleHook, _ := moduleManager.GetModuleHook(moduleHookName)
 
-		for _, desc := range MakeKubeEventHookDescriptors(moduleHook.Hook, &moduleHook.Config.HookConfig) {
+		for _, desc := range MakeKubeEventHookDescriptors(moduleHook, &moduleHook.Config.HookConfig) {
 			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.ObjectName, desc.JqFilter, desc.Debug)
 			if err != nil {
 				return err

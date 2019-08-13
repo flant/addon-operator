@@ -125,7 +125,7 @@ func (m *ModuleManagerMock) DiscoverModulesState() (*module_manager.ModulesState
 func (m *ModuleManagerMock) GetGlobalHook(name string) (*module_manager.GlobalHook, error) {
 	if _, has_hook := scheduledHooks[name]; has_hook {
 		return &module_manager.GlobalHook{
-			Hook: &module_manager.Hook{
+			CommonHook: &module_manager.CommonHook{
 				Name:           name,
 				Path:           "/addon-operator/hooks/global_1",
 				Bindings:       []module_manager.BindingType{module_manager.Schedule},
@@ -142,7 +142,7 @@ func (m *ModuleManagerMock) GetGlobalHook(name string) (*module_manager.GlobalHo
 	} else {
 		// Global hook run task handler requires Path field
 		return &module_manager.GlobalHook{
-			Hook: &module_manager.Hook{
+			CommonHook: &module_manager.CommonHook{
 				Name:           name,
 				Path:           "/addon-operator/hooks/global_hook_1_1",
 				Bindings:       []module_manager.BindingType{module_manager.BeforeAll},
@@ -158,7 +158,7 @@ func (m *ModuleManagerMock) GetGlobalHook(name string) (*module_manager.GlobalHo
 func (m *ModuleManagerMock) GetModuleHook(name string) (*module_manager.ModuleHook, error) {
 	if _, has_hook := scheduledHooks[name]; has_hook {
 		return &module_manager.ModuleHook{
-			Hook: &module_manager.Hook{
+			CommonHook: &module_manager.CommonHook{
 				Name:           name,
 				Path:           "/addon-operator/modules/000_test_modu",
 				Bindings:       []module_manager.BindingType{module_manager.Schedule},

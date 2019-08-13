@@ -20,6 +20,10 @@ const (
 	GlobalValuesKey = "global"
 )
 
+type ValuesPatchType string
+const ConfigMapPatch ValuesPatchType = "CONFIG_MAP_PATCH"
+const MemoryValuesPatch ValuesPatchType = "MEMORY_VALUES_PATCH"
+
 // Values stores values for modules or hooks by name.
 type Values map[string]interface{}
 
