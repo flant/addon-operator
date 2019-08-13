@@ -55,10 +55,12 @@ func (op *ValuesPatchOperation) ToString() string {
 	return string(data)
 }
 
+// ModuleNameToValuesKey returns camelCased name from kebab-cased (very-simple-module become verySimpleModule)
 func ModuleNameToValuesKey(moduleName string) string {
 	return camelcase.Camelcase(moduleName)
 }
 
+// ModuleNameFromValuesKey returns kebab-cased name from camelCased (verySimpleModule become ver-simple-module)
 func ModuleNameFromValuesKey(moduleValuesKey string) string {
 	b := make([]byte, 0, 64)
 	l := len(moduleValuesKey)

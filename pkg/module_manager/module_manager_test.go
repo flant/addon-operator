@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/flant/addon-operator/pkg/helm"
 )
 
 func TestMainModuleManager_GetModule(t *testing.T) {
@@ -33,7 +35,12 @@ func TestMainModuleManager_GetModuleHook(t *testing.T) {
 	mm := NewMainModuleManager()
 
 	expectedModuleHook := &ModuleHook{Hook: &Hook{Name: "hook"}}
-	mm.modulesHooksByName["hook"] = expectedModuleHook
+
+	mm.modulesHooksOrderByName["module"] = map[BindingType][]*ModuleHook{
+		OnStartup: {
+			expectedModuleHook,
+		},
+	}
 
 	moduleHook, err := mm.GetModuleHook("hook")
 	if err != nil {
@@ -215,8 +222,8 @@ func (helm *mockDiscoverModulesHelmClient) ListReleasesNames(_ map[string]string
 }
 
 func TestMainModuleManager_DiscoverModulesState(t *testing.T) {
+	helm.Client = &mockDiscoverModulesHelmClient{}
 	mm := NewMainModuleManager()
-	mm.WithHelmClient(&mockDiscoverModulesHelmClient{})
 
 	mm.allModulesByName = make(map[string]*Module)
 	mm.allModulesByName["module-1"] = &Module{Name: "module-1", DirectoryName: "001-module-1", Path: "some/path/001-module-1"}

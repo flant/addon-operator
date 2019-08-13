@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -149,3 +150,31 @@ func WalkSymlinks(target string, linkName string, files map[string]map[string]st
 	return symlinkedDirectories, nil
 }
 
+// FindExecutableFilesInPath returns a list of executable and a list of non-executable files in path
+func FindExecutableFilesInPath(dir string) (executables []string, nonExecutables []string, err error) {
+	executables = make([]string, 0)
+
+	nonExecutables = make([]string, 0)
+
+	// Find only executable files
+	files, err := FilesFromRoot(dir, func(dir string, name string, info os.FileInfo) bool {
+		if info.Mode()&0111 != 0 {
+			return true
+		}
+		nonExecutables = append(nonExecutables, path.Join(dir, name))
+		return false
+	})
+	if err != nil {
+		return
+	}
+
+	for dirPath, filePaths := range files {
+		for file := range filePaths {
+			executables = append(executables, path.Join(dirPath, file))
+		}
+	}
+
+	sort.Strings(executables)
+
+	return
+}

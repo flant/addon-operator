@@ -52,9 +52,6 @@ var (
 
 	// ManagersEventsHandlerStopCh is the channel object for stopping infinite loop of the ManagersEventsHandler.
 	ManagersEventsHandlerStopCh chan struct{}
-
-	// HelmClient is the object for Helm client.
-	HelmClient helm.HelmClient
 )
 
 const DefaultModulesDir = "modules"
@@ -123,7 +120,7 @@ func Init() error {
 	// Initializing helm. Installing Tiller, if it is missing.
 	tillerNamespace := kube.AddonOperatorNamespace
 	rlog.Infof("INIT: Namespace for Tiller: %s", tillerNamespace)
-	HelmClient, err = helm.Init(tillerNamespace)
+	err = helm.Init(tillerNamespace)
 	if err != nil {
 		rlog.Errorf("INIT: cannot initialize Tiller in ns/%s: %s", tillerNamespace, err)
 		return err
@@ -146,8 +143,7 @@ func Init() error {
 	kube_config_manager.ValuesChecksumsAnnotation = ValuesChecksumsAnnotation
 	module_manager.Init()
 	ModuleManager = module_manager.NewMainModuleManager().
-		WithDirectories(ModulesDir, GlobalHooksDir, TempDir).
-		WithHelmClient(HelmClient)
+		WithDirectories(ModulesDir, GlobalHooksDir, TempDir)
 	err = ModuleManager.Init()
 	if err != nil {
 		rlog.Errorf("INIT: Cannot initialize module manager: %s", err)
@@ -232,53 +228,15 @@ func ManagersEventsHandler() {
 			// Some modules have changed.
 			case module_manager.ModulesChanged:
 				for _, moduleChange := range moduleEvent.ModulesChanges {
-					switch moduleChange.ChangeType {
-					case module_manager.Enabled:
-						// TODO этого события по сути нет. Нужно реализовать для вызова onStartup!
-						rlog.Infof("EVENT ModulesChanged, type=Enabled")
-						newTask := task.NewTask(task.ModuleRun, moduleChange.Name).
-							WithOnStartupHooks(true)
-						TasksQueue.Add(newTask)
-						rlog.Infof("QUEUE add ModuleRun %s", newTask.Name)
-
-						err := KubeEventsHooks.EnableModuleHooks(moduleChange.Name, ModuleManager, KubeEventsManager)
-						if err != nil {
-							rlog.Errorf("MAIN_LOOP module '%s' enabled: cannot enable hooks: %s", moduleChange.Name, err)
-						}
-
-					case module_manager.Changed:
-						rlog.Infof("EVENT ModulesChanged, type=Changed")
-						newTask := task.NewTask(task.ModuleRun, moduleChange.Name)
-						TasksQueue.Add(newTask)
-						rlog.Infof("QUEUE add ModuleRun %s", newTask.Name)
-
-					case module_manager.Disabled:
-						rlog.Infof("EVENT ModulesChanged, type=Disabled")
-						newTask := task.NewTask(task.ModuleDelete, moduleChange.Name)
-						TasksQueue.Add(newTask)
-						rlog.Infof("QUEUE add ModuleDelete %s", newTask.Name)
-
-						err := KubeEventsHooks.DisableModuleHooks(moduleChange.Name, ModuleManager, KubeEventsManager)
-						if err != nil {
-							rlog.Errorf("MAIN_LOOP module '%s' disabled: cannot disable hooks: %s", moduleChange.Name, err)
-						}
-
-					case module_manager.Purged:
-						rlog.Infof("EVENT ModulesChanged, type=Purged")
-						newTask := task.NewTask(task.ModulePurge, moduleChange.Name)
-						TasksQueue.Add(newTask)
-						rlog.Infof("QUEUE add ModulePurge %s", newTask.Name)
-
-						err := KubeEventsHooks.DisableModuleHooks(moduleChange.Name, ModuleManager, KubeEventsManager)
-						if err != nil {
-							rlog.Errorf("MAIN_LOOP module '%s' purged: cannot disable hooks: %s", moduleChange.Name, err)
-						}
-					}
+					rlog.Infof("EVENT ModulesChanged, type=Changed")
+					newTask := task.NewTask(task.ModuleRun, moduleChange.Name)
+					TasksQueue.Add(newTask)
+					rlog.Infof("QUEUE add ModuleRun %s", newTask.Name)
 				}
 				// As module list may have changed, hook schedule index must be re-created.
 				ScheduledHooks = UpdateScheduleHooks(ScheduledHooks)
-			// As global values may have changed, all modules must be restarted.
 			case module_manager.GlobalChanged:
+				// Global values are changed, all modules must be restarted.
 				rlog.Infof("EVENT GlobalChanged")
 				TasksQueue.ChangesDisable()
 				CreateReloadAllTasks(false)
@@ -286,7 +244,7 @@ func ManagersEventsHandler() {
 				// Re-creating schedule hook index
 				ScheduledHooks = UpdateScheduleHooks(ScheduledHooks)
 			case module_manager.AmbigousState:
-				rlog.Infof("EVENT AmbigousState")
+				rlog.Infof("EVENT AmbiguousState")
 				TasksQueue.ChangesDisable()
 				// It is the error in the module manager. The task must be added to
 				// the beginning of the queue so the module manager can restore its
@@ -401,7 +359,7 @@ func runDiscoverModulesState(t task.Task) error {
 	ScheduledHooks = UpdateScheduleHooks(nil)
 
 	// Enable kube events hooks for newly enabled modules
-	// FIXME convert to a task that run after AfterHelm if there is a flag in binding config.
+	// FIXME convert to a task that run after AfterHelm if there is a flag in binding config to start informers after CRD installation.
 	for _, moduleName := range modulesState.EnabledModules {
 		err = KubeEventsHooks.EnableModuleHooks(moduleName, ModuleManager, KubeEventsManager)
 		if err != nil {
@@ -409,6 +367,7 @@ func runDiscoverModulesState(t task.Task) error {
 		}
 	}
 
+	// TODO is queue should be cleaned from hook run tasks of deleted module?
 	// Disable kube events hooks for newly disabled modules
 	for _, moduleName := range modulesState.ModulesToDisable {
 		err = KubeEventsHooks.DisableModuleHooks(moduleName, ModuleManager, KubeEventsManager)
@@ -423,9 +382,7 @@ func runDiscoverModulesState(t task.Task) error {
 // TasksRunner handle tasks in queue.
 //
 // Task handler may delay task processing by pushing delay to the queue.
-// TODO пока только один обработчик, всё ок. Но лучше, чтобы очередь позволяла удалять только то, чему ранее был сделан peek.
-// Т.е. кто взял в обработку задание, тот его и удалил из очереди. Сейчас Peek-нуть может одна го-рутина, другая добавит,
-// первая Pop-нет задание — новое задание пропало, второй раз будет обработано одно и тоже.
+// FIXME: For now, only one TaskRunner for a TasksQueue. There should be a lock between Peek and Pop to prevent Poping tasks from other TaskRunner
 func TasksRunner() {
 	for {
 		if TasksQueue.IsEmpty() {
@@ -458,7 +415,7 @@ func TasksRunner() {
 				if err != nil {
 					MetricsStorage.SendCounterMetric(PrefixMetric("module_run_errors"), 1.0, map[string]string{"module": t.GetName()})
 					t.IncrementFailureCount()
-					rlog.Errorf("TASK_RUN %s '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetFailureCount(), err)
+					rlog.Errorf("TASK_RUN ModuleRun '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetName(), t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
 					rlog.Infof("QUEUE push FailedModuleDelay")
 				} else {
@@ -519,14 +476,13 @@ func TasksRunner() {
 			case task.ModulePurge:
 				rlog.Infof("TASK_RUN ModulePurge %s", t.GetName())
 				// Module for purge is unknown so log deletion error is enough.
-				err := HelmClient.DeleteRelease(t.GetName())
+				err := helm.Client.DeleteRelease(t.GetName())
 				if err != nil {
 					rlog.Errorf("TASK_RUN %s Helm delete '%s' failed. Error: %s", t.GetType(), t.GetName(), err)
 				}
 				TasksQueue.Pop()
 			case task.ModuleManagerRetry:
 				rlog.Infof("TASK_RUN ModuleManagerRetry")
-				// TODO метрику нужно отсылать из module_manager. Cделать metric_storage глобальным!
 				MetricsStorage.SendCounterMetric(PrefixMetric("modules_discover_errors"), 1.0, map[string]string{})
 				ModuleManager.Retry()
 				TasksQueue.Pop()

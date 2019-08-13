@@ -5,10 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/kennygrant/sanitize"
@@ -16,6 +14,7 @@ import (
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
 
+	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
@@ -30,7 +29,7 @@ type Module struct {
 	moduleManager *MainModuleManager
 }
 
-func (mm *MainModuleManager) NewModule() *Module {
+func NewModule(mm *MainModuleManager) *Module {
 	module := &Module{}
 	module.moduleManager = mm
 	return module
@@ -40,7 +39,9 @@ func (m *Module) SafeName() string {
 	return sanitize.BaseName(m.Name)
 }
 
-func (m *Module) run(onStartup bool) error {
+// Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
+// It is a handler of task MODULE_RUN
+func (m *Module) Run(onStartup bool) error {
 	if err := m.cleanup(); err != nil {
 		return err
 	}
@@ -66,6 +67,34 @@ func (m *Module) run(onStartup bool) error {
 	return nil
 }
 
+// Delete removes helm release if it exists and runs afterDeleteHelm hooks.
+// It is a handler for MODULE_DELETE task.
+func (m *Module) Delete() error {
+	// Если есть chart, но нет релиза — warning
+	// если нет чарта — молча перейти к хукам
+	// если есть и chart и релиз — удалить
+	chartExists, _ := m.checkHelmChart()
+	if chartExists {
+		releaseExists, err := helm.Client.IsReleaseExists(m.generateHelmReleaseName())
+		if !releaseExists {
+			if err != nil {
+				rlog.Warnf("Module delete: Cannot find helm release '%s' for module '%s'. Helm error: %s", m.generateHelmReleaseName(), m.Name, err)
+			} else {
+				rlog.Warnf("Module delete: Cannot find helm release '%s' for module '%s'.", m.generateHelmReleaseName(), m.Name)
+			}
+		} else {
+			// Chart and release are existed, so run helm delete command
+			err := helm.Client.DeleteRelease(m.generateHelmReleaseName())
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return m.runHooksByBinding(AfterDeleteHelm)
+}
+
+
 func (m *Module) cleanup() error {
 	chartExists, err := m.checkHelmChart()
 	if !chartExists {
@@ -76,11 +105,11 @@ func (m *Module) cleanup() error {
 	}
 
 	//rlog.Infof("MODULE '%s': cleanup helm revisions...", m.Name)
-	if err := m.moduleManager.helm.DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
+	if err := helm.Client.DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
-	if err := m.moduleManager.helm.DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
+	if err := helm.Client.DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
@@ -521,7 +550,7 @@ func (mm *MainModuleManager) initModulesIndex() error {
 
 				modulePath := filepath.Join(mm.ModulesDir, file.Name())
 
-				module := mm.NewModule()
+				module := NewModule(mm)
 				module.Name = moduleName
 				module.DirectoryName = file.Name()
 				module.Path = modulePath
@@ -604,37 +633,6 @@ func (mm *MainModuleManager) loadGlobalModulesValues() (utils.Values, error) {
 	}
 
 	return utils.FormatValues(res)
-}
-
-func getExecutableHooksFilesPaths(dir string) ([]string, error) {
-	paths := make([]string, 0)
-
-	nonExecutables := []string{}
-
-	// Find only executable files
-	files, err := utils.FilesFromRoot(dir, func(dir string, name string, info os.FileInfo) bool {
-		if info.Mode()&0111 != 0 {
-			return true
-		}
-		nonExecutables = append(nonExecutables, path.Join(dir, name))
-		return false
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(nonExecutables) > 0 {
-		return nil, fmt.Errorf("found non-executable hook files '%+v'", nonExecutables)
-	}
-
-	for dirPath, filePaths := range files {
-		for file := range filePaths {
-			paths = append(paths, path.Join(dirPath, file))
-		}
-	}
-
-	sort.Strings(paths)
-
-	return paths, nil
 }
 
 func dumpData(filePath string, data []byte) error {

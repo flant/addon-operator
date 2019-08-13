@@ -178,8 +178,6 @@ func (mm *MainModuleManager) addModuleHook(moduleName, name, path string, config
 		mm.addModulesHooksOrderByName(moduleName, KubeEvents, moduleHook)
 	}
 
-	mm.modulesHooksByName[name] = moduleHook
-
 	return nil
 }
 
@@ -189,6 +187,11 @@ func (mm *MainModuleManager) addModulesHooksOrderByName(moduleName string, bindi
 	}
 	mm.modulesHooksOrderByName[moduleName][bindingType] = append(mm.modulesHooksOrderByName[moduleName][bindingType], moduleHook)
 }
+
+func (mm *MainModuleManager) removeModuleHooks(moduleName string) {
+	delete(mm.modulesHooksOrderByName, moduleName)
+}
+
 
 type globalValuesMergeResult struct {
 	// Global values with the root "global" key.
@@ -665,6 +668,8 @@ func (mm *MainModuleManager) initModuleHooks(module *Module) error {
 	})
 
 	if err != nil {
+		// cleanup hook indexes on error
+		mm.removeModuleHooks(module.Name)
 		return err
 	}
 
@@ -676,7 +681,8 @@ func (mm *MainModuleManager) initHooks(hooksDir string, addHook func(hookPath st
 		return nil
 	}
 
-	hooksRelativePaths, err := getExecutableHooksFilesPaths(hooksDir) // returns a list of executable hooks sorted by filename
+	// retrieve a list of executable files in hooksDir sorted by filename
+    hooksRelativePaths, _, err := utils.FindExecutableFilesInPath(hooksDir)
 	if err != nil {
 		return err
 	}
@@ -692,6 +698,7 @@ func (mm *MainModuleManager) initHooks(hooksDir string, addHook func(hookPath st
 			return err
 		}
 	}
+
 
 	return nil
 }

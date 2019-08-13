@@ -256,11 +256,6 @@ func (m *ModuleManagerMock) WithDirectories(modulesDir string, globalHooksDir st
 	return m
 }
 
-func (m *ModuleManagerMock) WithHelmClient(helm helm.HelmClient) module_manager.ModuleManager {
-	fmt.Println("WithHelm")
-	return m
-}
-
 func (m *ModuleManagerMock) WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) module_manager.ModuleManager {
 	fmt.Println("WithKubeConfigManager")
 	return m
@@ -350,13 +345,14 @@ func TestMain_ModulesEventsHandler(t *testing.T) {
 	KubeEventsManager = &KubeEventsManagerMock{}
 	KubeEventsHooks = &KubeEventsHooksControllerMock{}
 
-	assert.Equal(t, 0, 0)
 	fmt.Println("Create queue")
 	// Fill a queue
 	TasksQueue = task.NewTasksQueue()
 	// watcher for more verbosity of CreateStartupTasks and
 	TasksQueue.AddWatcher(&QueueDumperTest{})
 	TasksQueue.ChangesEnable(true)
+
+	assert.Equal(t, 0, TasksQueue.Length())
 
 	go func(ch chan module_manager.Event) {
 		ch <- module_manager.Event{
@@ -368,7 +364,7 @@ func TestMain_ModulesEventsHandler(t *testing.T) {
 				},
 				{
 					Name:       "test_module_2",
-					ChangeType: module_manager.Disabled,
+					ChangeType: module_manager.Changed,
 				},
 			},
 		}
@@ -376,12 +372,17 @@ func TestMain_ModulesEventsHandler(t *testing.T) {
 			Type: module_manager.ModulesChanged,
 			ModulesChanges: []module_manager.ModuleChange{
 				{
-					Name:       "test_module_purged",
-					ChangeType: module_manager.Purged,
+					Name:       "test_module_2",
+					ChangeType: module_manager.Changed,
 				},
+			},
+		}
+		ch <- module_manager.Event{
+			Type: module_manager.ModulesChanged,
+			ModulesChanges: []module_manager.ModuleChange{
 				{
-					Name:       "test_module_enabled",
-					ChangeType: module_manager.Enabled,
+					Name:       "test_module_1",
+					ChangeType: module_manager.Changed,
 				},
 			},
 		}
@@ -426,7 +427,7 @@ func TestMain_Run_With_InfiniteModuleError(t *testing.T) {
 
 	// Сделать моки для всего, что нужно для запуска Run
 
-	HelmClient = MockHelmClient{
+	helm.Client = MockHelmClient{
 		DeleteReleaseErrorsCount: 0,
 	}
 
@@ -486,7 +487,7 @@ func TestMain_Run_With_RecoverableErrors(t *testing.T) {
 
 	// Сделать моки для всего, что нужно для запуска Run
 
-	HelmClient = MockHelmClient{
+	helm.Client = MockHelmClient{
 		DeleteReleaseErrorsCount: 3,
 	}
 
@@ -564,7 +565,7 @@ func TestMain_ScheduledTasks(t *testing.T) {
 
 	runOrder = []int{}
 
-	HelmClient = MockHelmClient{
+	helm.Client = MockHelmClient{
 		DeleteReleaseErrorsCount: 3,
 	}
 

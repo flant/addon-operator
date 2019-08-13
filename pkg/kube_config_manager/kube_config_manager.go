@@ -448,6 +448,7 @@ func (kcm *MainKubeConfigManager) handleCmDelete(obj *v1.ConfigMap) error {
 		// Global values is already known to be empty.
 		// So check each module values change separately,
 		// and generate signals per-module.
+		// Note: Only ModuleName field is needed in ModuleConfig.
 
 		moduleConfigsUpdate := make(ModuleConfigs)
 
