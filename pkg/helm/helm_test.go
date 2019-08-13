@@ -70,7 +70,7 @@ func shouldUpgradeRelease(helm HelmClient, releaseName string, chart string, val
 }
 
 func TestHelm(t *testing.T) {
-	// Для теста требуется kubernetes + helm, поэтому skip
+	// Skip because this test needs a Kubernetes cluster and a helm binary.
 	t.Skip()
 
 	var err error

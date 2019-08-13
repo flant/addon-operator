@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -14,9 +13,9 @@ import (
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
 
+	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
@@ -29,7 +28,7 @@ type Module struct {
 	moduleManager *MainModuleManager
 }
 
-func (mm *MainModuleManager) NewModule() *Module {
+func NewModule(mm *MainModuleManager) *Module {
 	module := &Module{}
 	module.moduleManager = mm
 	return module
@@ -39,7 +38,9 @@ func (m *Module) SafeName() string {
 	return sanitize.BaseName(m.Name)
 }
 
-func (m *Module) run(onStartup bool) error {
+// Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
+// It is a handler of task MODULE_RUN
+func (m *Module) Run(onStartup bool) error {
 	if err := m.cleanup(); err != nil {
 		return err
 	}
@@ -54,7 +55,7 @@ func (m *Module) run(onStartup bool) error {
 		return err
 	}
 
-	if err := m.execRun(); err != nil {
+	if err := m.runHelmInstall(); err != nil {
 		return err
 	}
 
@@ -64,6 +65,34 @@ func (m *Module) run(onStartup bool) error {
 
 	return nil
 }
+
+// Delete removes helm release if it exists and runs afterDeleteHelm hooks.
+// It is a handler for MODULE_DELETE task.
+func (m *Module) Delete() error {
+	// Если есть chart, но нет релиза — warning
+	// если нет чарта — молча перейти к хукам
+	// если есть и chart и релиз — удалить
+	chartExists, _ := m.checkHelmChart()
+	if chartExists {
+		releaseExists, err := helm.Client.IsReleaseExists(m.generateHelmReleaseName())
+		if !releaseExists {
+			if err != nil {
+				rlog.Warnf("Module delete: Cannot find helm release '%s' for module '%s'. Helm error: %s", m.generateHelmReleaseName(), m.Name, err)
+			} else {
+				rlog.Warnf("Module delete: Cannot find helm release '%s' for module '%s'.", m.generateHelmReleaseName(), m.Name)
+			}
+		} else {
+			// Chart and release are existed, so run helm delete command
+			err := helm.Client.DeleteRelease(m.generateHelmReleaseName())
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return m.runHooksByBinding(AfterDeleteHelm)
+}
+
 
 func (m *Module) cleanup() error {
 	chartExists, err := m.checkHelmChart()
@@ -75,146 +104,18 @@ func (m *Module) cleanup() error {
 	}
 
 	//rlog.Infof("MODULE '%s': cleanup helm revisions...", m.Name)
-	if err := m.moduleManager.helm.DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
+	if err := helm.Client.DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
-	if err := m.moduleManager.helm.DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *Module) execRun() error {
-	err := m.execHelm(func(valuesPath, helmReleaseName string) error {
-		var err error
-
-		runChartPath := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.chart", m.SafeName()))
-
-		err = os.RemoveAll(runChartPath)
-		if err != nil {
-			return err
-		}
-		err = copy.Copy(m.Path, runChartPath)
-		if err != nil {
-			return err
-		}
-
-		// Prepare dummy empty values.yaml for helm not to fail
-		err = os.Truncate(filepath.Join(runChartPath, "values.yaml"), 0)
-		if err != nil {
-			return err
-		}
-
-		checksum, err := utils_checksum.CalculateChecksumOfPaths(runChartPath, valuesPath)
-		if err != nil {
-			return err
-		}
-
-		doRelease := true
-
-		isReleaseExists, err := m.moduleManager.helm.IsReleaseExists(helmReleaseName)
-		if err != nil {
-			return err
-		}
-
-		if isReleaseExists {
-			_, status, err := m.moduleManager.helm.LastReleaseStatus(helmReleaseName)
-			if err != nil {
-				return err
-			}
-
-			// Skip helm release for unchanged modules only for non FAILED releases
-			if status != "FAILED" {
-				releaseValues, err := m.moduleManager.helm.GetReleaseValues(helmReleaseName)
-				if err != nil {
-					return err
-				}
-
-				if recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]; hasKey {
-					if recordedChecksumStr, ok := recordedChecksum.(string); ok {
-						if recordedChecksumStr == checksum {
-							doRelease = false
-							rlog.Infof("MODULE_RUN '%s': helm release '%s' checksum '%s' is not changed: skip helm upgrade", m.Name, helmReleaseName, checksum)
-						} else {
-							rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s' is changed to '%s': upgrade helm release", m.Name, helmReleaseName, recordedChecksumStr, checksum)
-						}
-					}
-				}
-			}
-		}
-
-		if doRelease {
-			rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s': installing/upgrading release", m.Name, helmReleaseName, checksum)
-
-			return m.moduleManager.helm.UpgradeRelease(
-				helmReleaseName, runChartPath,
-				[]string{valuesPath},
-				[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
-				m.moduleManager.helm.TillerNamespace(),
-			)
-		} else {
-			rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s': release install/upgrade is skipped", m.Name, helmReleaseName, checksum)
-		}
-
-		return nil
-	})
-
-	if err != nil {
+	if err := helm.Client.DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// delete removes helm release if it exists.
-//
-func (m *Module) delete() error {
-	// Если есть chart, но нет релиза — warning
-	// если нет чарта — молча перейти к хукам
-	// если есть и chart и релиз — удалить
-	chartExists, _ := m.checkHelmChart()
-	if chartExists {
-		releaseExists, err := m.moduleManager.helm.IsReleaseExists(m.generateHelmReleaseName())
-		if !releaseExists {
-			if err != nil {
-				rlog.Warnf("Module delete: Cannot find helm release '%s' for module '%s'. Helm error: %s", m.generateHelmReleaseName(), m.Name, err)
-			} else {
-				rlog.Warnf("Module delete: Cannot find helm release '%s' for module '%s'.", m.generateHelmReleaseName(), m.Name)
-			}
-		} else {
-			// Есть чарт и есть релиз — запуск удаления
-			err := m.moduleManager.helm.DeleteRelease(m.generateHelmReleaseName())
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	if err := m.runHooksByBinding(AfterDeleteHelm); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// execDelete
-//
-// Deprecated: no usages found
-func (m *Module) execDelete() error {
-	err := m.execHelm(func(_, helmReleaseName string) error {
-		return m.moduleManager.helm.DeleteRelease(helmReleaseName)
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *Module) execHelm(executeHelm func(valuesPath, helmReleaseName string) error) error {
+func (m *Module) runHelmInstall() error {
 	chartExists, err := m.checkHelmChart()
 	if !chartExists {
 		if err != nil {
@@ -224,17 +125,89 @@ func (m *Module) execHelm(executeHelm func(valuesPath, helmReleaseName string) e
 	}
 
 	helmReleaseName := m.generateHelmReleaseName()
+
+	// valuesPath, err := values.Dump
+	//valuesPath := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.yaml", m.SafeName()))
+	//err := values.Dump(m.values(), NewDumperToYamlFile(valuesPath))
+	//err := m.values().Dump(values.ToYamlFile(valuesPath))
+
 	valuesPath, err := m.prepareValuesYamlFile()
 	if err != nil {
 		return err
 	}
 
-	if err = executeHelm(valuesPath, helmReleaseName); err != nil {
+	// Create a temporary chart with empty values.yaml
+	runChartPath := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.chart", m.SafeName()))
+
+	err = os.RemoveAll(runChartPath)
+	if err != nil {
 		return err
+	}
+	err = copy.Copy(m.Path, runChartPath)
+	if err != nil {
+		return err
+	}
+
+	// Prepare dummy empty values.yaml for helm not to fail
+	err = os.Truncate(filepath.Join(runChartPath, "values.yaml"), 0)
+	if err != nil {
+		return err
+	}
+
+	checksum, err := utils.CalculateChecksumOfPaths(runChartPath, valuesPath)
+	if err != nil {
+		return err
+	}
+
+	doRelease := true
+
+	isReleaseExists, err := helm.Client.IsReleaseExists(helmReleaseName)
+	if err != nil {
+		return err
+	}
+
+	if isReleaseExists {
+		_, status, err := helm.Client.LastReleaseStatus(helmReleaseName)
+		if err != nil {
+			return err
+		}
+
+		// Skip helm release for unchanged modules only for non FAILED releases
+		if status != "FAILED" {
+			releaseValues, err := helm.Client.GetReleaseValues(helmReleaseName)
+			if err != nil {
+				return err
+			}
+
+			if recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]; hasKey {
+				if recordedChecksumStr, ok := recordedChecksum.(string); ok {
+					if recordedChecksumStr == checksum {
+						doRelease = false
+						rlog.Infof("MODULE_RUN '%s': helm release '%s' checksum '%s' is not changed: skip helm upgrade", m.Name, helmReleaseName, checksum)
+					} else {
+						rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s' is changed to '%s': upgrade helm release", m.Name, helmReleaseName, recordedChecksumStr, checksum)
+					}
+				}
+			}
+		}
+	}
+
+	if doRelease {
+		rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s': installing/upgrading release", m.Name, helmReleaseName, checksum)
+
+		return helm.Client.UpgradeRelease(
+			helmReleaseName, runChartPath,
+			[]string{valuesPath},
+			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
+			helm.Client.TillerNamespace(),
+		)
+	} else {
+		rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s': release install/upgrade is skipped", m.Name, helmReleaseName, checksum)
 	}
 
 	return nil
 }
+
 
 func (m *Module) runHooksByBinding(binding BindingType) error {
 	moduleHooksAfterHelm, err := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
@@ -331,6 +304,9 @@ func (m *Module) checkHelmChart() (bool, error) {
 	return true, nil
 }
 
+// generateHelmReleaseName returns a string that can be used as a helm release name.
+//
+// TODO Now it returns just a module name. Should it be cleaned from special symbols?
 func (m *Module) generateHelmReleaseName() string {
 	return m.Name
 }
@@ -349,12 +325,10 @@ func (m *Module) configValues() utils.Values {
 
 // constructValues returns effective values for module hook:
 //
-// global: static + kube + patches from hooks
+// global section: static + kube + patches from hooks
 //
-// module: static + kube + patches from hooks
-//
-// global section also contains enabledModules key with previously enabled modules
-func (m *Module) constructValues(enabledModules []string) utils.Values {
+// module section: static + kube + patches from hooks
+func (m *Module) constructValues() utils.Values {
 	var err error
 
 	res := utils.MergeValues(
@@ -383,25 +357,31 @@ func (m *Module) constructValues(enabledModules []string) utils.Values {
 		}
 	}
 
-	res = utils.MergeValues(res, m.constructEnabledModulesValues(enabledModules))
-
 	return res
 }
 
-func (m *Module) constructEnabledModulesValues(enabledModules []string) utils.Values {
-	return utils.Values{
-		"global": map[string]interface{}{
-			"enabledModules": enabledModules,
-		},
-	}
-}
-
+// valuesForEnabledScript returns merged values for enabled script.
+// There is enabledModules key in global section with previously enabled modules.
 func (m *Module) valuesForEnabledScript(precedingEnabledModules []string) utils.Values {
-	return m.constructValues(precedingEnabledModules)
+	res := m.constructValues()
+	res = utils.MergeValues(res, utils.Values{
+		"global": map[string]interface{}{
+			"enabledModules": precedingEnabledModules,
+		},
+	})
+	return res
 }
 
+// values returns merged values for hooks.
+// There is enabledModules key in global section with all enabled modules.
 func (m *Module) values() utils.Values {
-	return m.constructValues(m.moduleManager.enabledModulesInOrder)
+	res := m.constructValues()
+	res = utils.MergeValues(res, utils.Values{
+		"global": map[string]interface{}{
+			"enabledModules": m.moduleManager.enabledModulesInOrder,
+		},
+	})
+	return res
 }
 
 func (m *Module) moduleValuesKey() string {
@@ -465,14 +445,13 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 
 	rlog.Infof("MODULE '%s': run enabled script '%s'...", m.Name, enabledScriptPath)
 
-	// dir is empty to run hook in process's current directory
-	// FIXME: set to hook's directory?
-	cmd := m.moduleManager.makeHookCommand(
-		"", configValuesPath, valuesPath, "", enabledScriptPath, []string{},
-		[]string{
-			fmt.Sprintf("MODULE_ENABLED_RESULT=%s", enabledResultFilePath),
-		},
-	)
+	envs := make([]string, 0)
+	envs = append(envs, os.Environ()...)
+	envs = append(envs, fmt.Sprintf("CONFIG_VALUES_PATH=%s", configValuesPath))
+	envs = append(envs, fmt.Sprintf("VALUES_PATH=%s", valuesPath))
+	envs = append(envs, fmt.Sprintf("MODULE_ENABLED_RESULT=%s", enabledResultFilePath))
+
+	cmd := executor.MakeCommand("", enabledScriptPath, []string{}, envs)
 
 	if err := executor.Run(cmd, true); err != nil {
 		return false, err
@@ -493,7 +472,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 }
 
 // initModulesIndex load all available modules from modules directory
-//
+// FIXME: Only 000-name modules are loaded, allow non-prefixed modules.
 func (mm *MainModuleManager) initModulesIndex() error {
 	rlog.Debug("INIT: Search modules ...")
 
@@ -520,7 +499,7 @@ func (mm *MainModuleManager) initModulesIndex() error {
 
 				modulePath := filepath.Join(mm.ModulesDir, file.Name())
 
-				module := mm.NewModule()
+				module := NewModule(mm)
 				module.Name = moduleName
 				module.DirectoryName = file.Name()
 				module.Path = modulePath
@@ -561,13 +540,13 @@ func (mm *MainModuleManager) initGlobalConfigValues() (err error) {
 }
 
 // loadStaticValues loads config for module from values.yaml
-// Module is considered as enabled if values.yaml is not exists.
+// Module is enabled if values.yaml is not exists.
 func (m *Module) loadStaticValues() error {
 	valuesYamlPath := filepath.Join(m.Path, "values.yaml")
 
 	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
-		m.StaticConfig = utils.NewModuleConfig(m.Name).WithEnabled(true)
-		rlog.Debugf("module %s is enabled: no values.yaml exists", m.Name)
+		m.StaticConfig = utils.NewModuleConfig(m.Name)
+		rlog.Debugf("module %s is static disabled: no values.yaml exists", m.Name)
 		return nil
 	}
 
@@ -605,43 +584,10 @@ func (mm *MainModuleManager) loadGlobalModulesValues() (utils.Values, error) {
 	return utils.FormatValues(res)
 }
 
-func getExecutableHooksFilesPaths(dir string) ([]string, error) {
-	paths := make([]string, 0)
-	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if f.IsDir() {
-			return nil
-		}
-
-		if utils_file.IsFileExecutable(f) {
-			paths = append(paths, path)
-		} else {
-			return fmt.Errorf("found non-executable hook file '%s'", path)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return paths, nil
-}
-
 func dumpData(filePath string, data []byte) error {
 	err := ioutil.WriteFile(filePath, data, 0644)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (mm *MainModuleManager) makeCommand(dir string, entrypoint string, args []string, envs []string) *exec.Cmd {
-	envs = append(envs, os.Environ()...)
-	envs = append(envs, mm.helm.CommandEnv()...)
-	return executor.MakeCommand(dir, entrypoint, args, envs)
 }

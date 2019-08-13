@@ -3,13 +3,14 @@ package module_manager
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/romana/rlog"
+	"github.com/stretchr/testify/assert"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -113,7 +114,7 @@ func TestMainModuleManager_modulesStaticValues(t *testing.T) {
 	}
 }
 
-func TestMainModuleManager_GetModule2(t *testing.T) {
+func Test_MainModuleManager_GetModule2(t *testing.T) {
 	mm := NewMainModuleManager()
 
 	runInitModulesIndex(t, mm, "test_get_module")
@@ -126,8 +127,11 @@ func TestMainModuleManager_GetModule2(t *testing.T) {
 			StaticConfig: &utils.ModuleConfig{
 				ModuleName: "module",
 				Values:     utils.Values{},
-				IsEnabled:  true,
+				IsEnabled:  nil,
 				IsUpdated:  false,
+				ModuleConfigKey: "module",
+				ModuleEnabledKey: "moduleEnabled",
+				RawConfig: []string{},
 			},
 			moduleManager: mm,
 		},
@@ -148,15 +152,16 @@ func TestMainModuleManager_GetModule2(t *testing.T) {
 }
 
 func TestMainModuleManager_EnabledModules(t *testing.T) {
-	mm := NewMainModuleManager()
+	os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
+	rlog.UpdateEnv()
 
-	mm.WithHelmClient(&MockHelmClient{})
+	helm.Client = &MockHelmClient{}
+	mm := NewMainModuleManager()
 
 	runInitModulesIndex(t, mm, "test_get_module_names_in_order")
 
 	expectedModules := []string{
 		"module-c",
-		"module-a",
 		"module-b",
 	}
 
@@ -188,7 +193,7 @@ func TestMainModuleManager_GetModuleHook2(t *testing.T) {
 			orderByBindings[AfterDeleteHelm],
 		}
 
-		moduleHook := mm.newModuleHook(name, filepath.Join(mm.ModulesDir, name), config)
+		moduleHook := NewModuleHook(name, filepath.Join(mm.ModulesDir, name), config, mm)
 
 		var err error
 		if moduleHook.Module, err = mm.GetModule(moduleName); err != nil {
@@ -438,10 +443,10 @@ func TestMainModuleManager_RunModule(t *testing.T) {
 	// TODO something wrong here with patches from afterHelm and beforeHelm hooks
 	t.SkipNow()
 	hc := &MockHelmClient{}
+	helm.Client = hc
 
 	mm := NewMainModuleManager()
 
-	mm.WithHelmClient(hc)
 	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitModulesIndex(t, mm, "test_run_module")
@@ -485,9 +490,9 @@ func TestMainModuleManager_DeleteModule(t *testing.T) {
 	// TODO check afterHelmDelete patch
 	t.SkipNow()
 	hc := &MockHelmClient{}
+	helm.Client = hc
 
 	mm := NewMainModuleManager()
-	mm.WithHelmClient(hc)
 	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitModulesIndex(t, mm, "test_delete_module")
@@ -528,8 +533,8 @@ func TestMainModuleManager_DeleteModule(t *testing.T) {
 func TestMainModuleManager_RunModuleHook(t *testing.T) {
 	// TODO hooks not found
 	t.SkipNow()
+	helm.Client = &MockHelmClient{}
 	mm := NewMainModuleManager()
-	mm.WithHelmClient(&MockHelmClient{})
 	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitModulesIndex(t, mm, "test_run_module_hook")
@@ -680,7 +685,7 @@ func TestMainModuleManager_GetGlobalHook2(t *testing.T) {
 			orderByBindings[AfterAll],
 		}
 
-		globalHook := mm.newGlobalHook(name, filepath.Join(mm.GlobalHooksDir, name), config)
+		globalHook := NewGlobalHook(name, filepath.Join(mm.GlobalHooksDir, name), config, mm)
 		globalHook.Bindings = bindings
 
 		for k, v := range orderByBindings {
@@ -853,8 +858,8 @@ func TestMainModuleManager_GetGlobalHooksInOrder2(t *testing.T) {
 }
 
 func TestMainModuleManager_RunGlobalHook(t *testing.T) {
+	helm.Client = &MockHelmClient{}
 	mm := NewMainModuleManager()
-	mm.WithHelmClient(&MockHelmClient{})
 	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
 	runInitGlobalHooks(t, mm, "test_run_global_hook")

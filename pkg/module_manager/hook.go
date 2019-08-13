@@ -16,23 +16,33 @@ import (
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 	utils_data "github.com/flant/shell-operator/pkg/utils/data"
 
+	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type GlobalHook struct {
-	*Hook
+	*CommonHook
 	Config *GlobalHookConfig
 }
 
 type ModuleHook struct {
-	*Hook
+	*CommonHook
 	Module *Module
 	Config *ModuleHookConfig
 }
 
-type Hook struct {
-	Name           string // The unique name like 'global-hooks/startup_hook or 002-module/hooks/cleanup'.
-	Path           string // The absolute path to the executable file.
+type Hook interface {
+	GetName() string
+	GetPath() string
+	PrepareTmpFilesForHookRun(context []BindingContext) (map[string]string, error)
+}
+
+type CommonHook struct {
+	// The unique name like 'global-hooks/startup_hook' or '002-module/hooks/cleanup'.
+	Name           string
+	// The absolute path of the executable file.
+	Path           string
+
 	Bindings       []BindingType
 	OrderByBinding map[BindingType]float64
 
@@ -58,15 +68,15 @@ type HookConfig struct {
 	OnKubernetesEvent []kube_events_manager.OnKubernetesEventConfig `json:"onKubernetesEvent"`
 }
 
-func (mm *MainModuleManager) newGlobalHook(name, path string, config *GlobalHookConfig) *GlobalHook {
+func NewGlobalHook(name, path string, config *GlobalHookConfig, mm *MainModuleManager) *GlobalHook {
 	globalHook := &GlobalHook{}
-	globalHook.Hook = mm.newHook(name, path)
+	globalHook.CommonHook = NewHook(name, path, mm)
 	globalHook.Config = config
 	return globalHook
 }
 
-func (mm *MainModuleManager) newHook(name, path string) *Hook {
-	hook := &Hook{}
+func NewHook(name, path string, mm *MainModuleManager) *CommonHook {
+	hook := &CommonHook{}
 	hook.moduleManager = mm
 	hook.Name = name
 	hook.Path = path
@@ -74,16 +84,16 @@ func (mm *MainModuleManager) newHook(name, path string) *Hook {
 	return hook
 }
 
-func (mm *MainModuleManager) newModuleHook(name, path string, config *ModuleHookConfig) *ModuleHook {
+func NewModuleHook(name, path string, config *ModuleHookConfig, mm *MainModuleManager) *ModuleHook {
 	moduleHook := &ModuleHook{}
-	moduleHook.Hook = mm.newHook(name, path)
+	moduleHook.CommonHook = NewHook(name, path, mm)
 	moduleHook.Config = config
 	return moduleHook
 }
 
 func (mm *MainModuleManager) addGlobalHook(name, path string, config *GlobalHookConfig) (err error) {
 	var ok bool
-	globalHook := mm.newGlobalHook(name, path, config)
+	globalHook := NewGlobalHook(name, path, config, mm)
 
 	if config.BeforeAll != nil {
 		globalHook.Bindings = append(globalHook.Bindings, BeforeAll)
@@ -126,7 +136,7 @@ func (mm *MainModuleManager) addGlobalHook(name, path string, config *GlobalHook
 
 func (mm *MainModuleManager) addModuleHook(moduleName, name, path string, config *ModuleHookConfig) (err error) {
 	var ok bool
-	moduleHook := mm.newModuleHook(name, path, config)
+	moduleHook := NewModuleHook(name, path, config, mm)
 
 	if moduleHook.Module, err = mm.GetModule(moduleName); err != nil {
 		return err
@@ -175,8 +185,6 @@ func (mm *MainModuleManager) addModuleHook(moduleName, name, path string, config
 		mm.addModulesHooksOrderByName(moduleName, KubeEvents, moduleHook)
 	}
 
-	mm.modulesHooksByName[name] = moduleHook
-
 	return nil
 }
 
@@ -186,6 +194,11 @@ func (mm *MainModuleManager) addModulesHooksOrderByName(moduleName string, bindi
 	}
 	mm.modulesHooksOrderByName[moduleName][bindingType] = append(mm.modulesHooksOrderByName[moduleName][bindingType], moduleHook)
 }
+
+func (mm *MainModuleManager) removeModuleHooks(moduleName string) {
+	delete(mm.modulesHooksOrderByName, moduleName)
+}
+
 
 type globalValuesMergeResult struct {
 	// Global values with the root "global" key.
@@ -232,12 +245,14 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 func (h *GlobalHook) run(bindingType BindingType, context []BindingContext) error {
 	rlog.Infof("Running global hook '%s' binding '%s' ...", h.Name, bindingType)
 
-	configValuesPatch, valuesPatch, err := h.exec(context)
+	globalHookExecutor := NewHookExecutor(h, context)
+	patches, err := globalHookExecutor.Run()
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)
 	}
 
-	if configValuesPatch != nil {
+	configValuesPatch, has := patches[utils.ConfigMapPatch]
+	if has && configValuesPatch != nil {
 		preparedConfigValues := utils.MergeValues(
 			utils.Values{"global": map[string]interface{}{}},
 			h.moduleManager.kubeGlobalConfigValues,
@@ -259,7 +274,8 @@ func (h *GlobalHook) run(bindingType BindingType, context []BindingContext) erro
 		}
 	}
 
-	if valuesPatch != nil {
+	valuesPatch, has := patches[utils.MemoryValuesPatch]
+	if has && valuesPatch != nil {
 		valuesPatchResult, err := h.handleGlobalValuesPatch(h.values(), *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': dynamic global values update error: %s", h.Name, err)
@@ -273,31 +289,40 @@ func (h *GlobalHook) run(bindingType BindingType, context []BindingContext) erro
 	return nil
 }
 
-func (h *GlobalHook) exec(context []BindingContext) (*utils.ValuesPatch, *utils.ValuesPatch, error) {
-	configValuesPath, err := h.prepareConfigValuesJsonFile()
-	if err != nil {
-		return nil, nil, err
-	}
-	valuesPath, err := h.prepareValuesJsonFile()
-	if err != nil {
-		return nil, nil, err
-	}
-	contextPath, err := h.prepareBindingContextJsonFile(context)
-	if err != nil {
-		return nil, nil, err
-	}
-	cmd := h.moduleManager.makeHookCommand("", configValuesPath, valuesPath, contextPath, h.Path, []string{}, []string{})
+// PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
+func (h *GlobalHook) PrepareTmpFilesForHookRun(context []BindingContext) (tmpFiles map[string]string, err error) {
+	tmpFiles = make(map[string]string, 0)
 
-	configValuesPatchPath, err := h.prepareConfigValuesJsonPatchFile()
+	tmpFiles["CONFIG_VALUES_PATH"], err = h.prepareConfigValuesJsonFile()
 	if err != nil {
-		return nil, nil, err
+		return
 	}
-	valuesPatchPath, err := h.prepareValuesJsonPatchFile()
+
+	tmpFiles["VALUES_PATH"], err = h.prepareValuesJsonFile()
 	if err != nil {
-		return nil, nil, err
+		return
 	}
-	return h.moduleManager.execHook(h.Name, configValuesPatchPath, valuesPatchPath, cmd)
+
+	if len(context) > 0 {
+		tmpFiles["BINDING_CONTEXT_PATH"], err = h.prepareBindingContextJsonFile(context)
+		if err != nil {
+			return
+		}
+	}
+
+	tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"], err= h.prepareConfigValuesJsonPatchFile()
+	if err != nil {
+		return
+	}
+
+	tmpFiles["VALUES_JSON_PATCH_PATH"], err = h.prepareValuesJsonPatchFile()
+	if err != nil {
+		return
+	}
+
+	return
 }
+
 
 func (h *GlobalHook) configValues() utils.Values {
 	return utils.MergeValues(
@@ -411,8 +436,16 @@ type moduleValuesMergeResult struct {
 	ValuesChanged   bool
 }
 
-func (h *Hook) SafeName() string {
+func (h *CommonHook) SafeName() string {
 	return sanitize.BaseName(h.Name)
+}
+
+func (h *CommonHook) GetName() string {
+	return h.Name
+}
+
+func (h *CommonHook) GetPath() string {
+	return h.Path
 }
 
 func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesPatch utils.ValuesPatch) (*moduleValuesMergeResult, error) {
@@ -468,12 +501,14 @@ func (h *ModuleHook) run(bindingType BindingType, context []BindingContext) erro
 	moduleName := h.Module.Name
 	rlog.Infof("Running module hook '%s' binding '%s' ...", h.Name, bindingType)
 
-	configValuesPatch, valuesPatch, err := h.exec(context)
+	moduleHookExecutor := NewHookExecutor(h, context)
+	patches, err := moduleHookExecutor.Run()
 	if err != nil {
 		return fmt.Errorf("module hook '%s' failed: %s", h.Name, err)
 	}
 
-	if configValuesPatch != nil {
+	configValuesPatch, has := patches[utils.ConfigMapPatch]
+	if has && configValuesPatch != nil{
 		preparedConfigValues := utils.MergeValues(
 			utils.Values{utils.ModuleNameToValuesKey(moduleName): map[string]interface{}{}},
 			h.moduleManager.kubeModulesConfigValues[moduleName],
@@ -495,7 +530,8 @@ func (h *ModuleHook) run(bindingType BindingType, context []BindingContext) erro
 		}
 	}
 
-	if valuesPatch != nil {
+	valuesPatch, has := patches[utils.MemoryValuesPatch]
+	if has && valuesPatch != nil {
 		valuesPatchResult, err := h.handleModuleValuesPatch(h.values(), *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("module hook '%s': dynamic module values update error: %s", h.Name, err)
@@ -509,32 +545,40 @@ func (h *ModuleHook) run(bindingType BindingType, context []BindingContext) erro
 	return nil
 }
 
-func (h *ModuleHook) exec(context []BindingContext) (*utils.ValuesPatch, *utils.ValuesPatch, error) {
-	configValuesPath, err := h.prepareConfigValuesJsonFile()
-	if err != nil {
-		return nil, nil, err
-	}
-	valuesPath, err := h.prepareValuesJsonFile()
-	if err != nil {
-		return nil, nil, err
-	}
-	contextPath, err := h.prepareBindingContextJsonFile(context)
-	if err != nil {
-		return nil, nil, err
-	}
-	cmd := h.moduleManager.makeHookCommand("", configValuesPath, valuesPath, contextPath, h.Path, []string{}, []string{})
+// PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
+func (h *ModuleHook) PrepareTmpFilesForHookRun(context []BindingContext) (tmpFiles map[string]string, err error) {
+	tmpFiles = make(map[string]string, 0)
 
-	configValuesPatchPath, err := h.prepareConfigValuesJsonPatchFile()
+	tmpFiles["CONFIG_VALUES_PATH"], err = h.prepareConfigValuesJsonFile()
 	if err != nil {
-		return nil, nil, err
-	}
-	valuesPatchPath, err := h.prepareValuesJsonPatchFile()
-	if err != nil {
-		return nil, nil, err
+		return
 	}
 
-	return h.moduleManager.execHook(h.Name, configValuesPatchPath, valuesPatchPath, cmd)
+	tmpFiles["VALUES_PATH"], err = h.prepareValuesJsonFile()
+	if err != nil {
+		return
+	}
+
+	if len(context) > 0 {
+		tmpFiles["BINDING_CONTEXT_PATH"], err = h.prepareBindingContextJsonFile(context)
+		if err != nil {
+			return
+		}
+	}
+
+	tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"], err= h.prepareConfigValuesJsonPatchFile()
+	if err != nil {
+		return
+	}
+
+	tmpFiles["VALUES_JSON_PATCH_PATH"], err = h.prepareValuesJsonPatchFile()
+	if err != nil {
+		return
+	}
+
+	return
 }
+
 
 func (h *ModuleHook) configValues() utils.Values {
 	return h.Module.configValues()
@@ -662,18 +706,21 @@ func (mm *MainModuleManager) initModuleHooks(module *Module) error {
 	})
 
 	if err != nil {
+		// cleanup hook indexes on error
+		mm.removeModuleHooks(module.Name)
 		return err
 	}
 
 	return nil
 }
 
-func (mm *MainModuleManager) initHooks(hooksDir string, addHook func(hookPath string, output []byte) error) error {
+func (mm *MainModuleManager) initHooks(hooksDir string, addHookFn func(hookPath string, output []byte) error) error {
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil
 	}
 
-	hooksRelativePaths, err := getExecutableHooksFilesPaths(hooksDir) // returns a list of executable hooks sorted by filename
+	// retrieve a list of executable files in hooksDir sorted by filename
+	hooksRelativePaths, _, err := utils.FindExecutableFilesInPath(hooksDir)
 	if err != nil {
 		return err
 	}
@@ -685,10 +732,11 @@ func (mm *MainModuleManager) initHooks(hooksDir string, addHook func(hookPath st
 			return fmt.Errorf("cannot get config for hook '%s': %s", hookPath, err)
 		}
 
-		if err := addHook(hookPath, output); err != nil {
+		if err := addHookFn(hookPath, output); err != nil {
 			return err
 		}
 	}
+
 
 	return nil
 }
@@ -725,30 +773,6 @@ func (h *ModuleHook) prepareValuesJsonPatchFile() (string, error) {
 	return path, nil
 }
 
-func (mm *MainModuleManager) execHook(hookName string, configValuesJsonPatchPath string, valuesJsonPatchPath string, cmd *exec.Cmd) (*utils.ValuesPatch, *utils.ValuesPatch, error) {
-	cmd.Env = append(
-		cmd.Env,
-		fmt.Sprintf("CONFIG_VALUES_JSON_PATCH_PATH=%s", configValuesJsonPatchPath),
-		fmt.Sprintf("VALUES_JSON_PATCH_PATH=%s", valuesJsonPatchPath),
-	)
-
-	err := executor.Run(cmd, true)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%s FAILED: %s", hookName, err)
-	}
-
-	configValuesPatch, err := utils.ValuesPatchFromFile(configValuesJsonPatchPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("got bad config values json patch from hook %s: %s", hookName, err)
-	}
-
-	valuesPatch, err := utils.ValuesPatchFromFile(valuesJsonPatchPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("got bad values json patch from hook %s: %s", hookName, err)
-	}
-
-	return configValuesPatch, valuesPatch, nil
-}
 
 func createHookResultValuesFile(filePath string) error {
 	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
@@ -780,11 +804,57 @@ func execCommandOutput(cmd *exec.Cmd) ([]byte, error) {
 	return output, nil
 }
 
-func (mm *MainModuleManager) makeHookCommand(dir string, configValuesPath string, valuesPath string, contextPath string, entrypoint string, args []string, envs []string) *exec.Cmd {
-	envs = append(envs, fmt.Sprintf("CONFIG_VALUES_PATH=%s", configValuesPath))
-	envs = append(envs, fmt.Sprintf("VALUES_PATH=%s", valuesPath))
-	if contextPath != "" {
-		envs = append(envs, fmt.Sprintf("BINDING_CONTEXT_PATH=%s", contextPath))
+
+type HookExecutor struct {
+	Hook Hook
+	Context []BindingContext
+	ConfigValuesPath string
+	ValuesPath string
+	ContextPath string
+	ConfigValuesPatchPath string
+	ValuesPatchPath string
+}
+
+func NewHookExecutor(h Hook, context []BindingContext) *HookExecutor {
+	return &HookExecutor{
+		Hook: h,
+		Context: context,
 	}
-	return mm.makeCommand(dir, entrypoint, args, envs)
+}
+
+func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, err error) {
+	patches = make(map[utils.ValuesPatchType]*utils.ValuesPatch)
+
+	tmpFiles, err := e.Hook.PrepareTmpFilesForHookRun(e.Context)
+	if err != nil {
+		return nil, err
+	}
+	e.ConfigValuesPatchPath = tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
+	e.ValuesPatchPath = tmpFiles["VALUES_JSON_PATCH_PATH"]
+
+	envs := []string{}
+	envs = append(envs, os.Environ()...)
+	for envName, filePath := range tmpFiles {
+		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
+	}
+	envs = append(envs, helm.Client.CommandEnv()...)
+
+	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{}, envs)
+
+	err = executor.Run(cmd, true)
+	if err != nil {
+		return nil, fmt.Errorf("%s FAILED: %s", e.Hook.GetName(), err)
+	}
+
+	patches[utils.ConfigMapPatch], err = utils.ValuesPatchFromFile(e.ConfigValuesPatchPath)
+	if err != nil {
+		return nil, fmt.Errorf("got bad config values json patch from hook %s: %s", e.Hook.GetName(), err)
+	}
+
+	patches[utils.MemoryValuesPatch], err = utils.ValuesPatchFromFile(e.ValuesPatchPath)
+	if err != nil {
+		return nil, fmt.Errorf("got bad values json patch from hook %s: %s", e.Hook.GetName(), err)
+	}
+
+	return patches, nil
 }

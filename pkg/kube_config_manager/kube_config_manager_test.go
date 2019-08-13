@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/kubernetes"
 
@@ -77,37 +78,40 @@ func (mockConfigMaps MockConfigMaps) Update(obj *v1.ConfigMap) (*v1.ConfigMap, e
 	return nil, fmt.Errorf("no such resource '%s'", obj.Name)
 }
 
-func TestInit(t *testing.T) {
+func Test_Init(t *testing.T) {
 	ConfigMapName = "addon-operator"
+
+	cmDataText := `
+global: |
+  project: tfprod
+  clusterName: main
+  clusterHostname: kube.flant.com
+  settings:
+    count: 2
+    mysql:
+      user: myuser
+nginxIngress: | 
+  config:
+    hsts: true
+    setRealIPFrom:
+    - 1.1.1.1
+    - 2.2.2.2
+nginxIngressEnabled: "true"
+prometheus: |
+  adminPassword: qwerty
+  retentionDays: 20
+  userPassword: qwerty
+kubeLegoEnabled: "false"
+`
+	cmData := map[string]string{}
+	err := yaml.Unmarshal([]byte(cmDataText), cmData)
+	assert.NoError(t, err)
 
 	mockConfigMapList = &v1.ConfigMapList{
 		Items: []v1.ConfigMap{
 			v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{Name: ConfigMapName},
-				Data: map[string]string{
-					utils.GlobalValuesKey: `
-project: tfprod
-clusterName: main
-clusterHostname: kube.flant.com
-settings:
-  count: 2
-  mysql:
-    user: myuser`,
-					"nginxIngress": `
-config:
-  hsts: true
-  setRealIPFrom:
-    - 1.1.1.1
-    - 2.2.2.2`,
-					"prometheus": `
-adminPassword: qwerty
-estimatedNumberOfMetrics: 480000
-ingressHostname: prometheus.mysite.com
-madisonAuthKey: 70cf58be013c93b5e7960716ea8538eb877808f88303c8a08f18f16582c81b61
-retentionDays: 20
-userPassword: qwerty`,
-					"kubeLego": "false",
-				},
+				Data: cmData,
 			},
 		},
 	}
@@ -120,78 +124,68 @@ userPassword: qwerty`,
 	}
 	config := kcm.InitialConfig()
 
-	expectedData := utils.Values{
-		"global": utils.Values{
-			utils.GlobalValuesKey: map[string]interface{}{
-				"project":         "tfprod",
-				"clusterName":     "main",
-				"clusterHostname": "kube.flant.com",
-				"settings": map[string]interface{}{
-					"count": 2.0,
-					"mysql": map[string]interface{}{
-						"user": "myuser",
+	expectations := map[string] struct {
+		isEnabled *bool
+		values utils.Values
+	}{
+		"global": {
+			nil,
+			utils.Values{
+				utils.GlobalValuesKey: map[string]interface{}{
+					"project":         "tfprod",
+					"clusterName":     "main",
+					"clusterHostname": "kube.flant.com",
+					"settings": map[string]interface{}{
+						"count": 2.0,
+						"mysql": map[string]interface{}{
+							"user": "myuser",
+						},
 					},
 				},
 			},
 		},
-		"nginx-ingress": utils.Values{
-			utils.ModuleNameToValuesKey("nginx-ingress"): map[string]interface{}{
-				"config": map[string]interface{}{
-					"hsts": true,
-					"setRealIPFrom": []interface{}{
-						"1.1.1.1",
-						"2.2.2.2",
+		"nginx-ingress": {
+			&utils.ModuleEnabled,
+			utils.Values{
+				utils.ModuleNameToValuesKey("nginx-ingress"): map[string]interface{}{
+					"config": map[string]interface{}{
+						"hsts": true,
+						"setRealIPFrom": []interface{}{
+							"1.1.1.1",
+							"2.2.2.2",
+						},
 					},
 				},
 			},
 		},
-		"prometheus": utils.Values{
-			utils.ModuleNameToValuesKey("prometheus"): map[string]interface{}{
-				"adminPassword":            "qwerty",
-				"estimatedNumberOfMetrics": 480000.0,
-				"ingressHostname":          "prometheus.mysite.com",
-				"madisonAuthKey":           "70cf58be013c93b5e7960716ea8538eb877808f88303c8a08f18f16582c81b61",
-				"retentionDays":            20.0,
-				"userPassword":             "qwerty",
+		"prometheus": {
+			nil,
+			utils.Values{
+				utils.ModuleNameToValuesKey("prometheus"): map[string]interface{}{
+					"adminPassword": "qwerty",
+					"retentionDays": 20.0,
+					"userPassword":  "qwerty",
+				},
 			},
+		},
+		"kube-lego": {
+			&utils.ModuleDisabled,
+			utils.Values{},
 		},
 	}
 
-	for key, data := range expectedData {
-		if key == "global" {
-			if !reflect.DeepEqual(data, config.Values) {
-				t.Errorf("Bad global values: expected %#v, got %#v", data, config.Values)
+	for name, expect := range expectations {
+		t.Run(name, func(t *testing.T){
+			if name == "global" {
+				assert.Equal(t, expect.values, config.Values)
+			} else {
+				// module
+				moduleConfig, hasConfig := config.ModuleConfigs[name]
+				assert.True(t, hasConfig)
+				assert.Equal(t, expect.isEnabled, moduleConfig.IsEnabled)
+				assert.Equal(t, expect.values, moduleConfig.Values)
 			}
-		} else {
-			moduleName := key
-			moduleConfig, hasKey := config.ModuleConfigs[moduleName]
-			if !hasKey {
-				t.Errorf("Expected module %s values to be existing in config", moduleName)
-			}
-			if moduleConfig.ModuleName != moduleName {
-				t.Errorf("Expected %s module name, got %s", moduleName, moduleConfig.ModuleName)
-			}
-			if !moduleConfig.IsEnabled {
-				t.Errorf("Expected %s module to be enabled", moduleConfig.ModuleName)
-			}
-			if !reflect.DeepEqual(data, moduleConfig.Values) {
-				t.Errorf("Bad %s module values: expected %+v, got %+v", moduleConfig.ModuleName, data, moduleConfig.Values)
-			}
-		}
-	}
-
-	for moduleName, moduleConfig := range config.ModuleConfigs {
-		if _, hasKey := expectedData[moduleName]; hasKey {
-			continue
-		}
-
-		if moduleConfig.ModuleName != moduleName {
-			t.Errorf("Expected %s module name in index, got %s", moduleName, moduleConfig.ModuleName)
-		}
-
-		if moduleConfig.IsEnabled {
-			t.Errorf("Expected %s module to be disabled", moduleConfig.ModuleName)
-		}
+		})
 	}
 }
 
@@ -239,7 +233,8 @@ func configDataShouldEqual(expectedValues utils.Values) error {
 	return configRawDataShouldEqual(expectedDataRaw)
 }
 
-func TestSetConfig(t *testing.T) {
+//
+func Test_SetConfig(t *testing.T) {
 	mockConfigMapList = &v1.ConfigMapList{}
 	kube.Kubernetes = &MockKubernetesClientset{}
 	kcm := &MainKubeConfigManager{}

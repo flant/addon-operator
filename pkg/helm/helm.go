@@ -36,30 +36,34 @@ type HelmClient interface {
 	IsReleaseExists(releaseName string) (bool, error)
 }
 
+var Client HelmClient
+
 type CliHelm struct {
 	tillerNamespace string
 }
 
 // Init starts Tiller installation.
-func Init(tillerNamespace string) (HelmClient, error) {
+func Init(tillerNamespace string) error {
 	rlog.Info("Helm: run helm init")
 
-	helm := &CliHelm{tillerNamespace: tillerNamespace}
+	cliHelm := &CliHelm{tillerNamespace: tillerNamespace}
 
-	err := helm.InitTiller()
+	err := cliHelm.InitTiller()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	stdout, stderr, err := helm.Cmd("version")
+	stdout, stderr, err := cliHelm.Cmd("version")
 	if err != nil {
-		return nil, fmt.Errorf("unable to get helm version: %v\n%v %v", err, stdout, stderr)
+		return fmt.Errorf("unable to get helm version: %v\n%v %v", err, stdout, stderr)
 	}
 	rlog.Infof("Helm: helm version:\n%v %v", stdout, stderr)
 
 	rlog.Info("Helm: successfully initialized")
 
-	return helm, nil
+	Client = cliHelm
+
+	return nil
 }
 
 // InitTiller runs helm init with the same ServiceAccountName, NodeSelector and Tolerations

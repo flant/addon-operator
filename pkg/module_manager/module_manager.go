@@ -33,14 +33,17 @@ type ModuleManager interface {
 	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext) error
 	Retry()
 	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
-	WithHelmClient(helm helm.HelmClient) ModuleManager
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
 }
 
-// All modules are in the right order to run/disable/purge
+// ModulesState is a result of Discovery process, that determines which
+// modules should be enabled, disabled or purged.
 type ModulesState struct {
+	// modules that should be run
 	EnabledModules         []string
+	// modules that should be deleted
 	ModulesToDisable       []string
+	// modules that should be purged
 	ReleasedUnknownModules []string
 }
 
@@ -69,9 +72,8 @@ type MainModuleManager struct {
 	// Index for searching global hooks by their bindings.
 	globalHooksOrder map[BindingType][]*GlobalHook
 
-	// Index of all module hooks. Key is module hook name.
-	modulesHooksByName map[string]*ModuleHook
-	// Index for searching module hooks by module name and by bindings.
+	// module hooks by module name and binding type ordered by name
+	// Note: one module hook can have several binding types.
 	modulesHooksOrderByName map[string]map[BindingType][]*ModuleHook
 
 	// global static values from modules/values.yaml file
@@ -161,14 +163,9 @@ const (
 type ChangeType string
 
 const (
-	// Deprecated: Module becomes enabled is handled by module discovery.
-	Enabled ChangeType = "MODULE_ENABLED"
-	// Deprecated: Module become disabled is handled by module discovery.
-	Disabled ChangeType = "MODULE_DISABLED"
+	// All other types are deprecated. This const can be removed in future versions.
 	// Module values are changed
 	Changed ChangeType = "MODULE_CHANGED"
-	// Deprecated: Module files are no longer available is handled by module discovery.
-	Purged ChangeType = "MODULE_PURGED"
 )
 
 // ModuleChange contains module name and type of module changes.
@@ -200,7 +197,6 @@ func NewMainModuleManager() *MainModuleManager {
 		enabledModulesInOrder:       make([]string, 0),
 		globalHooksByName:           make(map[string]*GlobalHook),
 		globalHooksOrder:            make(map[BindingType][]*GlobalHook),
-		modulesHooksByName:          make(map[string]*ModuleHook),
 		modulesHooksOrderByName:     make(map[string]map[BindingType][]*ModuleHook),
 		globalStaticValues:          make(utils.Values),
 		kubeGlobalConfigValues:      make(utils.Values),
@@ -211,7 +207,6 @@ func NewMainModuleManager() *MainModuleManager {
 		moduleValuesChanged: make(chan string, 1),
 		globalValuesChanged: make(chan bool, 1),
 
-		helm:              nil,
 		kubeConfigManager: nil,
 
 		moduleConfigsUpdateBeforeAmbiguos: make(kube_config_manager.ModuleConfigs),
@@ -306,7 +301,7 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 	updateAfterRemoval := make(map[string]bool, 0)
 	for moduleName, module := range mm.allModulesByName {
 		_, hasKubeConfig := moduleConfigs[moduleName]
-		if !hasKubeConfig && module.StaticConfig.IsEnabled {
+		if !hasKubeConfig && mergeEnabled(module.StaticConfig.IsEnabled) {
 			if _, hasValues := mm.kubeModulesConfigValues[moduleName]; hasValues {
 				updateAfterRemoval[moduleName] = true
 			}
@@ -382,7 +377,9 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 	for moduleName, module := range mm.allModulesByName {
 		kubeConfig, hasKubeConfig := moduleConfigs[moduleName]
 		if hasKubeConfig {
-			if kubeConfig.IsEnabled {
+			isEnabled := mergeEnabled(module.StaticConfig.IsEnabled, kubeConfig.IsEnabled)
+
+			if isEnabled {
 				enabled = append(enabled, moduleName)
 				values[moduleName] = kubeConfig.Values
 			}
@@ -392,7 +389,8 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 				kubeConfig.IsEnabled,
 				kubeConfig.IsUpdated)
 		} else {
-			if module.StaticConfig.IsEnabled {
+			isEnabled := mergeEnabled(module.StaticConfig.IsEnabled)
+			if isEnabled {
 				enabled = append(enabled, moduleName)
 			}
 			rlog.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.IsEnabled)
@@ -518,15 +516,25 @@ func (mm *MainModuleManager) Retry() {
 	mm.retryOnAmbigous <- true
 }
 
-// discoverModulesState calculate new arrays for enabled modules, to be disabled modules and to be purged modules
-// This method needs updated mm.enabledModulesByConfig
-func (mm *MainModuleManager) discoverModulesState() (*ModulesState, error) {
-	// EnabledModules — modules that should be run
-	// ModulesToDisable — modules that should be deleted
-	// ReleasedUnknownModules — modules that should be purged
-	state := &ModulesState{}
 
-	releasedModules, err := mm.helm.ListReleasesNames(nil)
+// DiscoverModulesState handles DiscoverModulesState event: it calculates new arrays of enabled modules,
+// modules that should be disabled and modules that should be purged.
+//
+// This method requires that mm.enabledModulesByConfig and mm.kubeModulesConfigValues are updated.
+func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err error) {
+	rlog.Debugf("DISCOVER state:\n"+
+		"    mm.enabledModulesByConfig: %v\n"+
+		"    mm.enabledModulesInOrder:  %v\n",
+		mm.enabledModulesByConfig,
+		mm.enabledModulesInOrder)
+
+	state = &ModulesState{
+		EnabledModules: []string{},
+		ModulesToDisable: []string{},
+		ReleasedUnknownModules: []string{},
+	}
+
+	releasedModules, err := helm.Client.ListReleasesNames(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -543,7 +551,7 @@ func (mm *MainModuleManager) discoverModulesState() (*ModulesState, error) {
 
 	// modules finally enabled with enable script
 	// no need to refresh mm.enabledModulesByConfig because
-	// it is updated before in Init or applyKubeUpdate
+	// it is updated before in Init or in applyKubeUpdate
 	rlog.Infof("DISCOVER run `enabled` for %s", mm.enabledModulesByConfig)
 	enabledModules, err := mm.determineEnableStateWithScript(mm.enabledModulesByConfig)
 	rlog.Infof("DISCOVER enabled modules %s", enabledModules)
@@ -558,30 +566,14 @@ func (mm *MainModuleManager) discoverModulesState() (*ModulesState, error) {
 	}
 
 	state.EnabledModules = enabledModules
+	// save enabled modules for future usages
+	mm.enabledModulesInOrder = enabledModules
 
 	// Calculate modules that has helm release and are disabled for now.
 	// Sort them in reverse order for proper deletion.
 	state.ModulesToDisable = utils.ListSubtract(mm.allModulesNamesInOrder, enabledModules)
 	state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, releasedModules)
 	state.ModulesToDisable = utils.SortReverseByReference(state.ModulesToDisable, mm.allModulesNamesInOrder)
-
-	return state, nil
-}
-
-// DiscoverModulesState handles DiscoverModulesState event.
-// This method needs updated mm.enabledModulesByConfig and mm.kubeModulesConfigValues
-func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err error) {
-	rlog.Debugf("DISCOVER state:\n"+
-		"    mm.enabledModulesByConfig: %v\n"+
-		"    mm.enabledModulesInOrder:  %v\n",
-		mm.enabledModulesByConfig,
-		mm.enabledModulesInOrder)
-
-	state, err = mm.discoverModulesState()
-	if err != nil {
-		return nil, err
-	}
-	mm.enabledModulesInOrder = state.EnabledModules
 
 	rlog.Debugf("DISCOVER state results:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
@@ -619,12 +611,16 @@ func (mm *MainModuleManager) GetGlobalHook(name string) (*GlobalHook, error) {
 }
 
 func (mm *MainModuleManager) GetModuleHook(name string) (*ModuleHook, error) {
-	moduleHook, exist := mm.modulesHooksByName[name]
-	if exist {
-		return moduleHook, nil
-	} else {
-		return nil, fmt.Errorf("module hook '%s' not found", name)
+	for _, bindingHooks := range mm.modulesHooksOrderByName {
+		for _, hooks := range bindingHooks {
+			for _, hook := range hooks {
+				if hook.Name == name {
+					return hook, nil
+				}
+			}
+		}
 	}
+	return nil, fmt.Errorf("module hook '%s' is not found", name)
 }
 
 func (mm *MainModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []string {
@@ -679,20 +675,24 @@ func (mm *MainModuleManager) DeleteModule(moduleName string) error {
 		return err
 	}
 
-	if err := module.delete(); err != nil {
+	if err := module.Delete(); err != nil {
 		return err
 	}
+
+	// remove hooks structures
+	mm.removeModuleHooks(moduleName)
 
 	return nil
 }
 
-func (mm *MainModuleManager) RunModule(moduleName string, onStartup bool) error { // запускает before-helm + helm + after-helm
+// RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
+func (mm *MainModuleManager) RunModule(moduleName string, onStartup bool) error {
 	module, err := mm.GetModule(moduleName)
 	if err != nil {
 		return err
 	}
 
-	if err := module.run(onStartup); err != nil {
+	if err := module.Run(onStartup); err != nil {
 		return err
 	}
 
@@ -774,12 +774,24 @@ func (mm *MainModuleManager) WithDirectories(modulesDir string, globalHooksDir s
 	return mm
 }
 
-func (mm *MainModuleManager) WithHelmClient(helm helm.HelmClient) ModuleManager {
-	mm.helm = helm
-	return mm
-}
-
 func (mm *MainModuleManager) WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager {
 	mm.kubeConfigManager = kubeConfigManager
 	return mm
+}
+
+// mergeEnabled merges enabled flags. Enabled flag can be nil.
+//
+// If all flags are nil, then false is returned — module is disabled by default.
+//
+func mergeEnabled(enabledFlags ... *bool) bool {
+	result := false
+	for _, enabled := range enabledFlags {
+		if enabled == nil {
+			continue
+		} else {
+			result = *enabled
+		}
+	}
+
+	return result
 }
