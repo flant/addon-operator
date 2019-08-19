@@ -91,7 +91,7 @@ func NewModuleHook(name, path string, config *ModuleHookConfig, mm *MainModuleMa
 	return moduleHook
 }
 
-func (mm *MainModuleManager) addGlobalHook(name, path string, config *GlobalHookConfig) (err error) {
+func (mm *MainModuleManager) registerGlobalHook(name, path string, config *GlobalHookConfig) (err error) {
 	var ok bool
 	globalHook := NewGlobalHook(name, path, config, mm)
 
@@ -134,7 +134,7 @@ func (mm *MainModuleManager) addGlobalHook(name, path string, config *GlobalHook
 	return nil
 }
 
-func (mm *MainModuleManager) addModuleHook(moduleName, name, path string, config *ModuleHookConfig) (err error) {
+func (mm *MainModuleManager) registerModuleHook(moduleName, name, path string, config *ModuleHookConfig) (err error) {
 	var ok bool
 	moduleHook := NewModuleHook(name, path, config, mm)
 
@@ -310,7 +310,7 @@ func (h *GlobalHook) PrepareTmpFilesForHookRun(context []BindingContext) (tmpFil
 		}
 	}
 
-	tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"], err= h.prepareConfigValuesJsonPatchFile()
+	tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"], err = h.prepareConfigValuesJsonPatchFile()
 	if err != nil {
 		return
 	}
@@ -659,7 +659,7 @@ func (mm *MainModuleManager) initGlobalHooks() error {
 
 		prepareHookConfig(&hookConfig.HookConfig)
 
-		if err := mm.addGlobalHook(hookName, hookPath, hookConfig); err != nil {
+		if err := mm.registerGlobalHook(hookName, hookPath, hookConfig); err != nil {
 			return fmt.Errorf("INIT: cannot add global hook '%s': %s", hookName, err.Error())
 		}
 
@@ -698,7 +698,7 @@ func (mm *MainModuleManager) initModuleHooks(module *Module) error {
 
 		prepareHookConfig(&hookConfig.HookConfig)
 
-		if err := mm.addModuleHook(module.Name, hookName, hookPath, hookConfig); err != nil {
+		if err := mm.registerModuleHook(module.Name, hookName, hookPath, hookConfig); err != nil {
 			return fmt.Errorf("adding module '%s' hook '%s' failed: %s", module.SafeName(), hookName, err.Error())
 		}
 

@@ -20,7 +20,7 @@ func main() {
 	flag.CommandLine.Parse([]string{})
 
 	// Be a good parent - clean up after the child processes
-	// in case if shell-operator is a PID1.
+	// in case if addon-operator is a PID 1 process.
 	go executor.Reap()
 
 	operator.InitHttpServer()
