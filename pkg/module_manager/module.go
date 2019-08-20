@@ -533,7 +533,13 @@ func (mm *MainModuleManager) initModulesIndex() error {
 
 // loadStaticValues loads config for module from values.yaml
 // Module is enabled if values.yaml is not exists.
-func (m *Module) loadStaticValues() error {
+func (m *Module) loadStaticValues() (err error) {
+	m.CommonStaticConfig, err = utils.NewModuleConfig(m.Name).LoadFromValues(m.moduleManager.commonStaticValues)
+	if err != nil {
+		return err
+	}
+	rlog.Debugf("module %s common static values: %s", m.Name, utils.ValuesToString(m.CommonStaticConfig.Values))
+
 	valuesYamlPath := filepath.Join(m.Path, "values.yaml")
 
 	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
@@ -546,12 +552,6 @@ func (m *Module) loadStaticValues() error {
 	if err != nil {
 		return fmt.Errorf("cannot read '%s': %s", m.Path, err)
 	}
-
-	m.CommonStaticConfig, err = utils.NewModuleConfig(m.Name).LoadFromValues(m.moduleManager.commonStaticValues)
-	if err != nil {
-		return err
-	}
-	rlog.Debugf("module %s common static values: %s", m.Name, utils.ValuesToString(m.CommonStaticConfig.Values))
 
 	m.StaticConfig, err = utils.NewModuleConfig(m.Name).FromYaml(data)
 	if err != nil {

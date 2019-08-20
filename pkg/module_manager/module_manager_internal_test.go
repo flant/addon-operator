@@ -124,6 +124,15 @@ func Test_MainModuleManager_GetModule2(t *testing.T) {
 			Name:          "module",
 			Path:          filepath.Join(mm.ModulesDir, "000-module"),
 			DirectoryName: "000-module",
+			CommonStaticConfig: &utils.ModuleConfig{
+				ModuleName: "module",
+				Values:     utils.Values{},
+				IsEnabled:  nil,
+				IsUpdated:  false,
+				ModuleConfigKey: "module",
+				ModuleEnabledKey: "moduleEnabled",
+				RawConfig: []string{},
+			},
 			StaticConfig: &utils.ModuleConfig{
 				ModuleName: "module",
 				Values:     utils.Values{},
