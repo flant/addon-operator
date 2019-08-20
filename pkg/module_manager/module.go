@@ -564,7 +564,7 @@ func (m *Module) loadStaticValues() (err error) {
 func (mm *MainModuleManager) loadCommonStaticValues() (error) {
 	valuesPath := filepath.Join(mm.ModulesDir, "values.yaml")
 	if _, err := os.Stat(valuesPath); os.IsNotExist(err) {
-		rlog.Infof("Access common values file '%s': %s", valuesPath, err)
+		rlog.Debugf("No common static values file: %s", err)
 		return nil
 	}
 

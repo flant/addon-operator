@@ -1,0 +1,11 @@
+global:
+  a: 1
+  b: 2
+  c: 3
+  d: ["a", "b", "c"]
+withValues1:
+  a: 245
+withValues1Enabled: true
+withValues2:
+  one: Odin
+  two: Dva

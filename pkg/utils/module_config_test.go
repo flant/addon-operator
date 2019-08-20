@@ -34,7 +34,7 @@ testModule:
 			func() {
 				assert.Nil(t, config)
 				assert.Error(t, err)
-				assert.Containsf(t, err.Error(), "Module config should be array or map", "got unexpected error")
+				assert.Containsf(t, err.Error(), "module config should be array or map", "got unexpected error")
 			},
 		},
 		{

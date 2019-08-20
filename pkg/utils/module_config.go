@@ -62,7 +62,7 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 
 	if moduleValuesData, hasModuleData := values[mc.ModuleConfigKey]; hasModuleData {
 		switch v := moduleValuesData.(type) {
-		case map[interface{}]interface{}, []interface{}:
+		case map[interface{}]interface{}, map[string]interface{}, []interface{}:
 			data := map[interface{}]interface{}{mc.ModuleConfigKey: v}
 
 			values, err := NewValues(data)
@@ -72,7 +72,7 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 			mc.Values = values
 
 		default:
-			return nil, fmt.Errorf("Module config should be array or map. Got: %#v", moduleValuesData)
+			return nil, fmt.Errorf("load '%s' values: module config should be array or map. Got: %#v", mc.ModuleName, moduleValuesData)
 		}
 	}
 
@@ -81,7 +81,7 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 		case bool:
 			mc.WithEnabled(v)
 		default:
-			return nil, fmt.Errorf("Module enabled value should be bool. Got: %#v", moduleEnabled)
+			return nil, fmt.Errorf("load '%s' enable config: enabled value should be bool. Got: %#v", mc.ModuleName, moduleEnabled)
 		}
 	}
 

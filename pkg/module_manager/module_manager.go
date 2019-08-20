@@ -60,10 +60,11 @@ type MainModuleManager struct {
 	allModulesNamesInOrder []string
 
 	// List of modules enabled by values.yaml or by kube config.
-	// This list is changed on ConfigMap changes.
+	// This list is changed on ConfigMap updates.
 	enabledModulesByConfig []string
 
-	// Effective list of enabled modules in sorted order.
+	// Effective list of enabled modules after enabled script running.
+	// List is sorted by module name.
 	// This list is changed on ConfigMap changes.
 	enabledModulesInOrder []string
 
@@ -81,9 +82,9 @@ type MainModuleManager struct {
 	// global section from modules/values.yaml file
 	globalCommonStaticValues utils.Values
 
-	// values для всех модулей, для конкретного кластера
+	// global values from ConfigMap
 	kubeGlobalConfigValues utils.Values
-	// values для конкретного модуля, для конкретного кластера
+	// module values from ConfigMap, only for enabled modules
 	kubeModulesConfigValues map[string]utils.Values
 
 	// Invariant: do not store patches that cannot be applied.

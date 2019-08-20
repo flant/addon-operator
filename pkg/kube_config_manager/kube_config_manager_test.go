@@ -7,76 +7,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
-	"k8s.io/client-go/kubernetes"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/flant/addon-operator/pkg/kube"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-var (
-	mockConfigMapList *v1.ConfigMapList
-)
-
-type MockConfigMap struct {
-	ObjectMeta struct {
-		Name string
-	}
-	Data map[string]string
-}
-
-type MockKubernetesClientset struct {
-	kubernetes.Interface
-}
-
-func (client *MockKubernetesClientset) CoreV1() corev1.CoreV1Interface {
-	return MockCoreV1{}
-}
-
-type MockCoreV1 struct {
-	corev1.CoreV1Interface
-}
-
-func (mockCoreV1 MockCoreV1) ConfigMaps(namespace string) corev1.ConfigMapInterface {
-	return MockConfigMaps{}
-}
-
-type MockConfigMaps struct {
-	corev1.ConfigMapInterface
-}
-
-func (mockConfigMaps MockConfigMaps) List(options metav1.ListOptions) (*v1.ConfigMapList, error) {
-	return mockConfigMapList, nil
-}
-
-func (mockConfigMaps MockConfigMaps) Get(name string, options metav1.GetOptions) (*v1.ConfigMap, error) {
-	for _, v := range mockConfigMapList.Items {
-		if v.Name == name {
-			return &v, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no such resource '%s'", name)
-}
-
-func (mockConfigMaps MockConfigMaps) Create(obj *v1.ConfigMap) (*v1.ConfigMap, error) {
-	mockConfigMapList.Items = append(mockConfigMapList.Items, *obj)
-	return obj, nil
-}
-
-func (mockConfigMaps MockConfigMaps) Update(obj *v1.ConfigMap) (*v1.ConfigMap, error) {
-	for ind, v := range mockConfigMapList.Items {
-		if v.Name == obj.Name {
-			mockConfigMapList.Items[ind] = *obj
-			return obj, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no such resource '%s'", obj.Name)
-}
 
 func Test_Init(t *testing.T) {
 	ConfigMapName = "addon-operator"
@@ -107,7 +45,8 @@ kubeLegoEnabled: "false"
 	err := yaml.Unmarshal([]byte(cmDataText), cmData)
 	assert.NoError(t, err)
 
-	mockConfigMapList = &v1.ConfigMapList{
+	kubeMock := kube.NewMockKubernetesClientset()
+	kubeMock.ConfigMapList = &v1.ConfigMapList{
 		Items: []v1.ConfigMap{
 			v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{Name: ConfigMapName},
@@ -115,8 +54,7 @@ kubeLegoEnabled: "false"
 			},
 		},
 	}
-
-	kube.Kubernetes = &MockKubernetesClientset{}
+	kube.Kubernetes = kubeMock
 
 	kcm, err := Init()
 	if err != nil {
@@ -189,20 +127,11 @@ kubeLegoEnabled: "false"
 	}
 }
 
-func findCurrentConfigMap() *v1.ConfigMap {
-	for _, cm := range mockConfigMapList.Items {
-		if cm.Name == ConfigMapName {
-			return &cm
-		}
-	}
-
-	return nil
-}
-
 func configRawDataShouldEqual(expectedData map[string]string) error {
-	obj := findCurrentConfigMap()
-	if obj == nil {
-		return fmt.Errorf("expected ConfigMap 'addon-operator' to be existing")
+	obj, err := kube.Kubernetes.CoreV1().ConfigMaps("default").Get(ConfigMapName, metav1.GetOptions{})
+
+	if err != nil || obj == nil {
+		return fmt.Errorf("expected ConfigMap '%s' to be existing", ConfigMapName)
 	}
 
 	if !reflect.DeepEqual(obj.Data, expectedData) {
@@ -235,8 +164,8 @@ func configDataShouldEqual(expectedValues utils.Values) error {
 
 //
 func Test_SetConfig(t *testing.T) {
-	mockConfigMapList = &v1.ConfigMapList{}
-	kube.Kubernetes = &MockKubernetesClientset{}
+	kubeMock := kube.NewMockKubernetesClientset()
+	kube.Kubernetes = kubeMock
 	kcm := &MainKubeConfigManager{}
 
 	var err error

@@ -1,9 +1,5 @@
 #!/bin/bash -e
 
 if [[ "$1" == "--config" ]]; then
-    echo "
-{
-    \"afterAll\": 2
-}
-"
+    echo '{ "afterAll": 4 }'
 fi
