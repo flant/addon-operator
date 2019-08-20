@@ -70,8 +70,8 @@ func TestMainModuleManager_globalStaticValues(t *testing.T) {
 		},
 	}
 
-	if !reflect.DeepEqual(mm.globalStaticValues, expectedValues) {
-		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedValues, mm.globalStaticValues)
+	if !reflect.DeepEqual(mm.commonStaticValues, expectedValues) {
+		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedValues, mm.commonStaticValues)
 	}
 }
 

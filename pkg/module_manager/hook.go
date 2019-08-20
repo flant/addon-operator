@@ -336,7 +336,7 @@ func (h *GlobalHook) values() utils.Values {
 
 	res := utils.MergeValues(
 		utils.Values{"global": map[string]interface{}{}},
-		h.moduleManager.globalStaticValues,
+		h.moduleManager.globalCommonStaticValues,
 		h.moduleManager.kubeGlobalConfigValues,
 	)
 

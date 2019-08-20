@@ -23,6 +23,9 @@ type Module struct {
 	Name          string
 	DirectoryName string
 	Path          string
+	// module values from modules/values.yaml file
+	CommonStaticConfig *utils.ModuleConfig
+	// module values from modules/<module name>/values.yaml
 	StaticConfig  *utils.ModuleConfig
 
 	moduleManager *MainModuleManager
@@ -334,10 +337,11 @@ func (m *Module) constructValues() utils.Values {
 	res := utils.MergeValues(
 		// global
 		utils.Values{"global": map[string]interface{}{}},
-		m.moduleManager.globalStaticValues,
+		m.moduleManager.globalCommonStaticValues,
 		m.moduleManager.kubeGlobalConfigValues,
 		// module
 		utils.Values{utils.ModuleNameToValuesKey(m.Name): map[string]interface{}{}},
+		m.CommonStaticConfig.Values,
 		m.StaticConfig.Values,
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 	)
@@ -481,10 +485,10 @@ func (mm *MainModuleManager) initModulesIndex() error {
 		return fmt.Errorf("INIT: cannot list modules directory '%s': %s", mm.ModulesDir, err)
 	}
 
-	if err := mm.initGlobalConfigValues(); err != nil {
-		return err
+	// load global and modules common static values from modules/values.yaml
+	if err := mm.loadCommonStaticValues(); err != nil {
+		return fmt.Errorf("INIT: load common values: %s", err)
 	}
-	rlog.Debugf("INIT: MODULE_MANAGER: set configValues:\n%s", utils.ValuesToString(mm.globalStaticValues))
 
 	var validModuleName = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
 
@@ -504,7 +508,7 @@ func (mm *MainModuleManager) initModulesIndex() error {
 				module.DirectoryName = file.Name()
 				module.Path = modulePath
 
-				// load config from values.yaml
+				// load static config from values.yaml
 				err := module.loadStaticValues()
 				if err != nil {
 					return err
@@ -527,18 +531,6 @@ func (mm *MainModuleManager) initModulesIndex() error {
 	return nil
 }
 
-func (mm *MainModuleManager) initGlobalConfigValues() (err error) {
-	values, err := mm.loadGlobalModulesValues()
-	if err != nil {
-		return
-	}
-	mm.globalStaticValues = values
-
-	rlog.Debugf("Initialized global static values:\n%s", utils.ValuesToString(mm.globalStaticValues))
-
-	return
-}
-
 // loadStaticValues loads config for module from values.yaml
 // Module is enabled if values.yaml is not exists.
 func (m *Module) loadStaticValues() error {
@@ -555,6 +547,12 @@ func (m *Module) loadStaticValues() error {
 		return fmt.Errorf("cannot read '%s': %s", m.Path, err)
 	}
 
+	m.CommonStaticConfig, err = utils.NewModuleConfig(m.Name).LoadFromValues(m.moduleManager.commonStaticValues)
+	if err != nil {
+		return err
+	}
+	rlog.Debugf("module %s common static values: %s", m.Name, utils.ValuesToString(m.CommonStaticConfig.Values))
+
 	m.StaticConfig, err = utils.NewModuleConfig(m.Name).FromYaml(data)
 	if err != nil {
 		return err
@@ -563,25 +561,37 @@ func (m *Module) loadStaticValues() error {
 	return nil
 }
 
-func (mm *MainModuleManager) loadGlobalModulesValues() (utils.Values, error) {
+func (mm *MainModuleManager) loadCommonStaticValues() (error) {
 	valuesPath := filepath.Join(mm.ModulesDir, "values.yaml")
 	if _, err := os.Stat(valuesPath); os.IsNotExist(err) {
-		return make(utils.Values), nil
+		rlog.Infof("Access common values file '%s': %s", valuesPath, err)
+		return nil
 	}
 
 	valuesYaml, err := ioutil.ReadFile(valuesPath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read '%s': %s", valuesPath, err)
+		return fmt.Errorf("common values file '%s': %s", valuesPath, err)
 	}
 
 	var res map[interface{}]interface{}
 
 	err = yaml.Unmarshal(valuesYaml, &res)
 	if err != nil {
-		return nil, fmt.Errorf("bad '%s': %s\n%s", valuesPath, err, string(valuesYaml))
+		return fmt.Errorf("unmarshal values from common values file '%s': %s\n%s", valuesPath, err, string(valuesYaml))
 	}
 
-	return utils.FormatValues(res)
+	values, err := utils.FormatValues(res)
+	if err != nil {
+		return err
+	}
+
+	mm.commonStaticValues = values
+
+	mm.globalCommonStaticValues = utils.GetGlobalValues(values)
+
+	rlog.Debugf("Initialized global values from common static values:\n%s", utils.ValuesToString(mm.globalCommonStaticValues))
+
+	return nil
 }
 
 func dumpData(filePath string, data []byte) error {
