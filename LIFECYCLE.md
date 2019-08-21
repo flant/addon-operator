@@ -40,20 +40,35 @@ Addon-operator makes a list of all enabled modules for their execution and a lis
 - during the start of addon-operator
 - when an event to restart all modules occurs (see [VALUES](VALUES.md)).
 
-For each module in the values.yaml and in the ConfigMap/addon-operator there is a key with the name of a module that may contain:
+Modules are disabled by default. Module can be enabled by a key with the name of a module suffixed by `Enabled`. This key should contains a boolean value and can be specified in these sources:
 
-- false
-- true or the object with parameters
+- $MODULES_DIR/values.yaml
+- `values.yaml` files in modules directories
+- ConfigMap/addon-operator
 
-The key may be absent. In this case, the `true` value is considered.
+Boolean values from values.yaml files and ConfigMap/addon-operator are combined and if result is equal to `false` or is empty, then the module is disabled.
 
-If combined values from values.yaml and ConfigMap/addon-operator equal to `false`, then the module is disabled.
-
-If the value is not `false`, the additional check is conducted – the `enabled` script is executed (see below). If there is a script and it returns `false`, then the module is considered disabled.
+If the value is `true`, the additional check is performed – the `enabled` script is executed (see below). If script is present in module and it returns `false`, then the module is considered disabled. If script is not present or returns `true`, then module is enabled.
 
 If an error occurs during the modules discovery process, then the module discovery is restarted every 5 seconds until successful execution. In this case, the execution of hooks with `schedule` and `onKubernetesEvent` bindings will be blocked.
 
 As a result of a module discovery process the tasks for the execution of all *enabled* modules, deletion of all *disabled* modules, and execution of all global hook with the `afterAll` binding are added to the queue.
+
+### Module enable examples
+
+### 1
+
+modules/values.yaml
+```
+moduleNameEnabled: true
+```
+
+modules/001-moduleName/values.yaml
+```
+moduleNameEnabled: false
+```
+
+Module is disabled
 
 ## Enabled script
 
@@ -74,6 +89,42 @@ else
 fi
 
 ```
+
+## Example
+
+Let’s assume the following values and enabled script are defined:
+
+```
+$ cat modules/values.yaml:
+
+global:
+  param1: 100
+someModuleEnabled: false
+
+$ cat modules/01-some-module/values.yaml
+
+someModule:
+  param1: "String"
+
+
+$ kubectl -n addon-operator get cm/addon-operator -o yaml
+
+data:
+  global: |
+    param1: 200
+  someModule: |
+    param1: "Long string"
+    param2: "FOO"
+  someModuleEnabled: "true"
+
+$ cat modules/01-some-module/enabled
+
+#!/bin/bash
+
+echo false > $MODULE_ENABLED_RESULT
+```
+
+Module some-module is explicitly disabled in modules/values.yaml and enabled by `someModuleEnabled` key in ConfigMap/addon-operator. So enabled script is executed. Script returns `false` and the final result is that module is disabled.
 
 # Tasks queue
 
