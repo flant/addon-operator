@@ -40,21 +40,21 @@ Addon-operator makes a list of all enabled modules for their execution and a lis
 - during the start of addon-operator
 - when an event to restart all modules occurs (see [VALUES](VALUES.md)).
 
-Modules are disabled by default. Module can be enabled by a key with the name of a module suffixed by `Enabled`. This key should contains a boolean value and can be specified in these sources:
+Modules are disabled by default. The module can be enabled by a key with the module name suffixed by `Enabled`. This key should contain a boolean value and can be specified in these sources:
 
 - $MODULES_DIR/values.yaml
 - `values.yaml` files in modules directories
 - ConfigMap/addon-operator
 
-Boolean values from values.yaml files and ConfigMap/addon-operator are combined and if result is equal to `false` or is empty, then the module is disabled.
+Boolean values from values.yaml files and ConfigMap/addon-operator are combined and if the result is equal to `false` or is empty, then the module is disabled.
 
-If the value is `true`, the additional check is performed – the `enabled` script is executed (see below). If script is present in module and it returns `false`, then the module is considered disabled. If script is not present or returns `true`, then module is enabled.
+If the value is `true`, the additional check is performed – the `enabled` script is executed (see below). If the script is present in the module and it returns `false`, then the module is considered disabled. If the script is not present or returns `true`, then the module is enabled.
 
 If an error occurs during the modules discovery process, then the module discovery is restarted every 5 seconds until successful execution. In this case, the execution of hooks with `schedule` and `onKubernetesEvent` bindings will be blocked.
 
 As a result of a module discovery process the tasks for the execution of all *enabled* modules, deletion of all *disabled* modules, and execution of all global hook with the `afterAll` binding are added to the queue.
 
-### Module enable examples
+### Module enablement examples
 
 ### 1
 
@@ -124,7 +124,7 @@ $ cat modules/01-some-module/enabled
 echo false > $MODULE_ENABLED_RESULT
 ```
 
-Module some-module is explicitly disabled in modules/values.yaml and enabled by `someModuleEnabled` key in ConfigMap/addon-operator. So enabled script is executed. Script returns `false` and the final result is that module is disabled.
+Module some-module is explicitly disabled in modules/values.yaml and enabled by `someModuleEnabled` key in ConfigMap/addon-operator. So enabled script is executed. Script returns `false` and the final result is that the module is disabled.
 
 # Tasks queue
 

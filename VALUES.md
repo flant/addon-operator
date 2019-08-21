@@ -74,9 +74,12 @@ Patch for temporary updates is returned via $VALUES_JSON_PATCH_PATH file and rem
 
 # Merged values
 
-When hook or `enabled` script is executed or helm chart is installed, Addon-operator generates a merged set of values. This merged set combines global values from values.yaml files and ConfigMap/addon-operator and module values from the values.yaml files and ConfigMap/addon-operator. Also patches for the temporary update are applied.
+When the hook or `enabled` script should be executed, or helm chart is going to be installed, Addon-operator generates a merged set of values. This merged set combines:
+* global values from values.yaml files and ConfigMap/addon-operator;
+* module values from the values.yaml files and ConfigMap/addon-operator;
+* patches for the temporary update are applied.
 
-The merged values are passed as the temporary JSON file to hooks or `enabled` script and as a temporary values.yaml file to the helm chart.
+The merged values are passed as the temporary JSON file to hooks or `enabled` script and as the temporary values.yaml file to the helm installing the chart.
 
 # Using values in hook
 
