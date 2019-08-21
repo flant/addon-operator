@@ -1150,6 +1150,7 @@ func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 				assert.Equal(t, []string{"alpha", "gamma", "delta", "epsilon", "zeta", "eta"}, modulesState.EnabledModules)
 
 				// turn off alpha so gamma, delta and zeta should be disabled
+				// with the next call of DiscoverModulesState
 				mm.enabledModulesByConfig = []string{"beta", "gamma", "delta", "epsilon", "zeta", "eta"}
 				modulesState, err = mm.DiscoverModulesState()
 				assert.Equal(t, []string{"epsilon", "eta"}, modulesState.EnabledModules)
