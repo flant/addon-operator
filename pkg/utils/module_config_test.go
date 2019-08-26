@@ -34,7 +34,7 @@ testModule:
 			func() {
 				assert.Nil(t, config)
 				assert.Error(t, err)
-				assert.Containsf(t, err.Error(), "Module config should be array or map", "got unexpected error")
+				assert.Containsf(t, err.Error(), "module config should be array or map", "got unexpected error")
 			},
 		},
 		{
@@ -141,7 +141,7 @@ func Test_LoadValues(t *testing.T) {
 	var config *ModuleConfig
 	var err error
 
-	inputData := map[interface{}]interface{}{
+	inputData := map[string]interface{}{
 		"testModule": map[interface{}]interface{}{
 			"hello": "world", 4: "123", 5: 5,
 			"aaa": map[interface{}]interface{}{"no": []interface{}{"one", "two", "three"}},
@@ -154,7 +154,7 @@ func Test_LoadValues(t *testing.T) {
 		},
 	}
 
-	config, err = NewModuleConfig("test-module").LoadValues(inputData)
+	config, err = NewModuleConfig("test-module").LoadFromValues(inputData)
 	assert.NoError(t, err)
 	assert.NotNil(t, config)
 	assert.Equal(t, expectedData, config.Values)

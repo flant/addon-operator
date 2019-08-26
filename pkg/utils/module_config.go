@@ -54,15 +54,15 @@ func (mc *ModuleConfig) WithValues(values Values) *ModuleConfig {
 	return mc
 }
 
-// LoadValues loads module config from a map.
+// LoadFromValues loads module config from a map.
 //
 // Values for module in `values` map are addressed by a key.
 // This key should be produced with ModuleNameToValuesKey.
-func (mc *ModuleConfig) LoadValues(values map[interface{}]interface{}) (*ModuleConfig, error) {
+func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 
 	if moduleValuesData, hasModuleData := values[mc.ModuleConfigKey]; hasModuleData {
 		switch v := moduleValuesData.(type) {
-		case map[interface{}]interface{}, []interface{}:
+		case map[interface{}]interface{}, map[string]interface{}, []interface{}:
 			data := map[interface{}]interface{}{mc.ModuleConfigKey: v}
 
 			values, err := NewValues(data)
@@ -72,7 +72,7 @@ func (mc *ModuleConfig) LoadValues(values map[interface{}]interface{}) (*ModuleC
 			mc.Values = values
 
 		default:
-			return nil, fmt.Errorf("Module config should be array or map. Got: %#v", moduleValuesData)
+			return nil, fmt.Errorf("load '%s' values: module config should be array or map. Got: %#v", mc.ModuleName, moduleValuesData)
 		}
 	}
 
@@ -81,7 +81,7 @@ func (mc *ModuleConfig) LoadValues(values map[interface{}]interface{}) (*ModuleC
 		case bool:
 			mc.WithEnabled(v)
 		default:
-			return nil, fmt.Errorf("Module enabled value should be bool. Got: %#v", moduleEnabled)
+			return nil, fmt.Errorf("load '%s' enable config: enabled value should be bool. Got: %#v", mc.ModuleName, moduleEnabled)
 		}
 	}
 
@@ -97,7 +97,7 @@ func (mc *ModuleConfig) LoadValues(values map[interface{}]interface{}) (*ModuleC
 //   param2: 120
 // simpleModuleEnabled: true
 func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
-	var values map[interface{}]interface{}
+	values := make(Values)
 
 	err := yaml.Unmarshal(yamlString, &values)
 	if err != nil {
@@ -106,7 +106,7 @@ func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
 
 	mc.RawConfig = []string{string(yamlString)}
 
-	return mc.LoadValues(values)
+	return mc.LoadFromValues(values)
 }
 
 // FromKeyYamls loads module config from a structure with string keys and yaml string values (ConfigMap)
@@ -119,7 +119,7 @@ func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
 // simpleModuleEnabled: "true"
 func (mc *ModuleConfig) FromKeyYamls(configData map[string]string) (*ModuleConfig, error) {
 	// map with moduleNameKey and moduleEnabled keys
-	moduleConfigData := map[interface{}]interface{}{}
+	moduleConfigData := make(Values) // map[interface{}]interface{}{}
 
 	// if there is data for module, unmarshal it and put into moduleConfigData
 	valuesYaml, hasKey := configData[mc.ModuleConfigKey]
@@ -158,7 +158,7 @@ func (mc *ModuleConfig) FromKeyYamls(configData map[string]string) (*ModuleConfi
 		return mc, nil
 	}
 
-	return mc.LoadValues(moduleConfigData)
+	return mc.LoadFromValues(moduleConfigData)
 }
 
 func (mc *ModuleConfig) Checksum() string {

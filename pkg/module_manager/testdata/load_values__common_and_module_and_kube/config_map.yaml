@@ -1,0 +1,11 @@
+kind: ConfigMap
+data:
+  global: |
+    param1: qwe
+    param2: foo
+  withValues2Enabled: "false"
+  withValues2: |
+    foo: barbaz
+  withKubeValuesEnabled: "true"
+  withKubeValues: |
+    bar: foobaz

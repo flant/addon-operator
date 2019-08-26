@@ -60,10 +60,11 @@ type MainModuleManager struct {
 	allModulesNamesInOrder []string
 
 	// List of modules enabled by values.yaml or by kube config.
-	// This list is changed on ConfigMap changes.
+	// This list is changed on ConfigMap updates.
 	enabledModulesByConfig []string
 
-	// Effective list of enabled modules in sorted order.
+	// Effective list of enabled modules after enabled script running.
+	// List is sorted by module name.
 	// This list is changed on ConfigMap changes.
 	enabledModulesInOrder []string
 
@@ -76,12 +77,14 @@ type MainModuleManager struct {
 	// Note: one module hook can have several binding types.
 	modulesHooksOrderByName map[string]map[BindingType][]*ModuleHook
 
-	// global static values from modules/values.yaml file
-	globalStaticValues utils.Values
+	// all values from modules/values.yaml file
+	commonStaticValues utils.Values
+	// global section from modules/values.yaml file
+	globalCommonStaticValues utils.Values
 
-	// values для всех модулей, для конкретного кластера
+	// global values from ConfigMap
 	kubeGlobalConfigValues utils.Values
-	// values для конкретного модуля, для конкретного кластера
+	// module values from ConfigMap, only for enabled modules
 	kubeModulesConfigValues map[string]utils.Values
 
 	// Invariant: do not store patches that cannot be applied.
@@ -198,7 +201,8 @@ func NewMainModuleManager() *MainModuleManager {
 		globalHooksByName:           make(map[string]*GlobalHook),
 		globalHooksOrder:            make(map[BindingType][]*GlobalHook),
 		modulesHooksOrderByName:     make(map[string]map[BindingType][]*ModuleHook),
-		globalStaticValues:          make(utils.Values),
+		commonStaticValues:          make(utils.Values),
+		globalCommonStaticValues:    make(utils.Values),
 		kubeGlobalConfigValues:      make(utils.Values),
 		kubeModulesConfigValues:     make(map[string]utils.Values),
 		globalDynamicValuesPatches:  make([]utils.ValuesPatch, 0),
@@ -301,7 +305,7 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 	updateAfterRemoval := make(map[string]bool, 0)
 	for moduleName, module := range mm.allModulesByName {
 		_, hasKubeConfig := moduleConfigs[moduleName]
-		if !hasKubeConfig && mergeEnabled(module.StaticConfig.IsEnabled) {
+		if !hasKubeConfig && mergeEnabled(module.CommonStaticConfig.IsEnabled, module.StaticConfig.IsEnabled) {
 			if _, hasValues := mm.kubeModulesConfigValues[moduleName]; hasValues {
 				updateAfterRemoval[moduleName] = true
 			}
@@ -377,7 +381,9 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 	for moduleName, module := range mm.allModulesByName {
 		kubeConfig, hasKubeConfig := moduleConfigs[moduleName]
 		if hasKubeConfig {
-			isEnabled := mergeEnabled(module.StaticConfig.IsEnabled, kubeConfig.IsEnabled)
+		isEnabled := mergeEnabled(module.CommonStaticConfig.IsEnabled,
+			                      module.StaticConfig.IsEnabled,
+			                      kubeConfig.IsEnabled)
 
 			if isEnabled {
 				enabled = append(enabled, moduleName)
@@ -389,7 +395,7 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 				kubeConfig.IsEnabled,
 				kubeConfig.IsUpdated)
 		} else {
-			isEnabled := mergeEnabled(module.StaticConfig.IsEnabled)
+			isEnabled := mergeEnabled(module.CommonStaticConfig.IsEnabled, module.StaticConfig.IsEnabled)
 			if isEnabled {
 				enabled = append(enabled, moduleName)
 			}

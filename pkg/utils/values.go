@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/romana/rlog"
+
 	"github.com/evanphx/json-patch"
 	ghodssyaml "github.com/ghodss/yaml"
 	"github.com/go-yaml/yaml"
@@ -269,6 +271,19 @@ func DumpValuesJson(values Values) ([]byte, error) {
 	return json.Marshal(values)
 }
 
+func GetGlobalValues(values Values) Values {
+	globalValues, has := values[GlobalValuesKey]
+	if has {
+		data := map[interface{}]interface{}{GlobalValuesKey: globalValues}
+		v, err := NewValues(data)
+		if err != nil {
+			rlog.Errorf("get global Values: %s", err)
+		}
+		return v
+	}
+	return make(Values)
+}
+
 type ValuesLoader interface {
 	Read() (Values, error)
 }
@@ -318,4 +333,3 @@ func NewLoaderFromJsonFile(path string) ValuesLoader {
 func (*ValuesLoaderFromJsonFile) Read() (Values, error) {
 	return nil, fmt.Errorf("implement Read methoid")
 }
-
