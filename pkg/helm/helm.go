@@ -104,6 +104,10 @@ func (helm *CliHelm) InitTiller() error {
 		cmd = append(cmd, fmt.Sprintf("--override=%s", strings.Join(override, ",")))
 	}
 
+	if podSpec.HostNetwork {
+		cmd = append(cmd, "--net-host")
+	}
+
 	stdout, stderr, err := helm.Cmd(cmd...)
 	if err != nil {
 		return fmt.Errorf("%s\n%s\n%s", err, stdout, stderr)
