@@ -3,6 +3,7 @@ package addon_operator
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -630,7 +631,7 @@ func RunAddonOperatorMetrics() {
 	}()
 }
 
-func InitHttpServer() {
+func InitHttpServer(listenAddr *net.TCPAddr) {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte(`<html>
     <head><title>Addon-operator</title></head>
@@ -643,12 +644,12 @@ func InitHttpServer() {
 	http.Handle("/metrics", promhttp.Handler())
 
 	http.HandleFunc("/queue", func(writer http.ResponseWriter, request *http.Request) {
-		io.Copy(writer, TasksQueue.DumpReader())
+		_, _ = io.Copy(writer, TasksQueue.DumpReader())
 	})
 
 	go func() {
-		rlog.Info("Listening on :9115")
-		if err := http.ListenAndServe(":9115", nil); err != nil {
+		rlog.Infof("HTTP SERVER Listening on %s", listenAddr.String())
+		if err := http.ListenAndServe(listenAddr.String(), nil); err != nil {
 			rlog.Errorf("Error starting HTTP server: %s", err)
 		}
 	}()
