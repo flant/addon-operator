@@ -16,6 +16,7 @@ require (
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/stretchr/testify v1.3.0
 	golang.org/x/tools v0.0.0-20190627033414-4874f863e654 // indirect
+	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
 	gopkg.in/yaml.v2 v2.2.2
 	k8s.io/api v0.0.0-20190409092523-d687e77c8ae9

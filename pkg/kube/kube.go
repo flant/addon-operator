@@ -19,6 +19,7 @@ const (
 var (
 	Kubernetes             kubernetes.Interface
 	AddonOperatorNamespace string
+	AddonOperatorPod       string
 )
 
 // InitKube initialize a Kubernetes client config.
@@ -44,11 +45,17 @@ func InitKube() error {
 }
 
 func GetCurrentPod() (pod *v1.Pod, err error) {
-	currentName, err := os.Hostname()
-	if err != nil {
-		return nil, err
+	podName := AddonOperatorPod
+	if podName == "" {
+		podName = os.Getenv("ADDON_OPERATOR_POD")
 	}
-	pod, err = client.Kubernetes.CoreV1().Pods(AddonOperatorNamespace).Get(currentName, metav1.GetOptions{})
+	if podName == "" {
+		podName, err = os.Hostname()
+		if err != nil {
+			return nil, err
+		}
+	}
+	pod, err = client.Kubernetes.CoreV1().Pods(AddonOperatorNamespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
