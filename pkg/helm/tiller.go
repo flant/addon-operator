@@ -90,6 +90,8 @@ func InitTillerSidecar() error {
 		return fmt.Errorf("Update Deployment/%s with tiller sidecar: %v", currentDeployment.Name, err)
 	}
 
+	rlog.Infof("Tiller sidecar installed.")
+
 	return nil
 }
 

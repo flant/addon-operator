@@ -72,4 +72,14 @@ func SetupGlobalSettings(kpApp *kingpin.Application) {
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
 
+	kpApp.Flag("container-name", "Name of a container with addon-operator to get image name.").
+		Envar("ADDON_OPERATOR_CONTAINER_NAME").
+		Default(ContainerName).
+		StringVar(&ContainerName)
+
+	kpApp.Flag("values-checksums-annotation", "Annotation where checksums are saved.").
+		Envar("ADDON_OPERATOR_VALUES_CHECKSUMS_ANNOTATION").
+		Default(ValuesChecksumsAnnotation).
+		StringVar(&ValuesChecksumsAnnotation)
+
 }
