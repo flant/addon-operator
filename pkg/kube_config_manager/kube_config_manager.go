@@ -14,7 +14,9 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/shell-operator/pkg/kube"
+
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
@@ -115,7 +117,7 @@ func (kcm *MainKubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func
 			return err
 		}
 
-		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kube.AddonOperatorNamespace).Update(obj)
+		_, err := kube.Kubernetes.CoreV1().ConfigMaps(app.Namespace).Update(obj)
 		if err != nil {
 			return err
 		}
@@ -131,7 +133,7 @@ func (kcm *MainKubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func
 			return err
 		}
 
-		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kube.AddonOperatorNamespace).Create(obj)
+		_, err := kube.Kubernetes.CoreV1().ConfigMaps(app.Namespace).Create(obj)
 		if err != nil {
 			return err
 		}
@@ -172,7 +174,7 @@ func (kcm *MainKubeConfigManager) SetKubeModuleValues(moduleName string, values 
 
 func (kcm *MainKubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 	list, err := kube.Kubernetes.CoreV1().
-		ConfigMaps(kube.AddonOperatorNamespace).
+		ConfigMaps(app.Namespace).
 		List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -187,7 +189,7 @@ func (kcm *MainKubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 
 	if objExists {
 		obj, err := kube.Kubernetes.CoreV1().
-			ConfigMaps(kube.AddonOperatorNamespace).
+			ConfigMaps(app.Namespace).
 			Get(ConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
@@ -476,7 +478,7 @@ func (kcm *MainKubeConfigManager) Run() {
 	lw := cache.NewListWatchFromClient(
 		kube.Kubernetes.CoreV1().RESTClient(),
 		"configmaps",
-		kube.AddonOperatorNamespace,
+		app.Namespace,
 		fields.OneTermEqualSelector("metadata.name", ConfigMapName))
 
 	cmInformer := cache.NewSharedInformer(lw,

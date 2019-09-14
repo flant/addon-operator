@@ -2,18 +2,16 @@ package helm
 
 import (
 	"fmt"
-	"github.com/romana/rlog"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"sort"
 	"testing"
 
-	uuid "gopkg.in/satori/go.uuid.v1"
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/rbac/v1beta1"
+	"k8s.io/api/rbac/v1beta1"
 
-	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/shell-operator/pkg/kube"
 )
 
 func getTestDirectoryPath(testName string) string {
@@ -71,18 +69,18 @@ func shouldUpgradeRelease(helm HelmClient, releaseName string, chart string, val
 
 func TestHelm(t *testing.T) {
 	// Skip because this test needs a Kubernetes cluster and a helm binary.
-	t.Skip()
+	t.SkipNow()
 
 	var err error
 	var stdout, stderr string
 	var isExists bool
 	var releases []string
 
-	helm := &CliHelm{tillerNamespace: fmt.Sprintf("addon-operator-test-%s", uuid.NewV4())}
-	rlog.Infof("Testing tiller in '%s' namespace", helm.TillerNamespace())
+	helm := &CliHelm{}
+	//rlog.Infof("Testing tiller in '%s' namespace", helm.TillerNamespace())
 
-	kube.InitKube()
-	kube.AddonOperatorNamespace = helm.TillerNamespace()
+	_ = kube.Init(kube.InitOptions{})
+	//kube.AddonOperatorNamespace = helm.TillerNamespace()
 
 	testNs := &v1.Namespace{}
 	testNs.Name = helm.TillerNamespace()

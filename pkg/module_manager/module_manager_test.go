@@ -8,18 +8,18 @@ import (
 
 	"github.com/romana/rlog"
 	"github.com/stretchr/testify/assert"
-
 	"gopkg.in/yaml.v2"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 
 	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/kube"
+	kube_helpers "github.com/flant/addon-operator/pkg/kube"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
 )
@@ -61,7 +61,7 @@ func initModuleManager(t *testing.T, mm *MainModuleManager, configPath string) {
 			t.Fatalf("unmarshal config map file '%s': %s\n%s", cmFilePath, err, string(cmData))
 		}
 
-		kubeMock := kube.NewMockKubernetesClientset()
+		kubeMock := kube_helpers.NewMockKubernetesClientset()
 		kubeMock.ConfigMapList = &v1.ConfigMapList{
 			Items: []v1.ConfigMap{
 				v1.ConfigMap{

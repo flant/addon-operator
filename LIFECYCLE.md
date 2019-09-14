@@ -6,7 +6,7 @@ The module files are located in the `/modules` directory. The directory can be s
 
 During the start, Addon-operator finds and initializes all global hooks. For more info, see [HOOKS](HOOKS.md#initialization-of-global-hooks).
 
-Addon-operator installs a separate instance of tiller in the namespace where the addon-operator is running to store the information about helm-releases of modules.
+Addon-operator adds a container with tiller instance to operate helm charts of modules. Therefore, the preferred Addon-operator installation is a Deployment with 1 replica.
 
 # Main loop
 
@@ -140,12 +140,10 @@ Several tools are available for the debugging of addon-operator and hooks:
 
 - You can get logs of an Addon-operator’s pod for analysis (by executing `kubectl logs -f po/POD_NAME`)
 - You can set the environment variable RLOG_LOG_LEVEL=DEBUG to include the detailed debugging data into logs
-- You can run the Addon-operator with the `--debug=yes` argument to obtain even more detailed debugging information and save it to logs
 - You can view the contents of the working queue via the HTTP request of `/queue` endpoint:
 
 ```bash
-kubectl port-forward po/addon-operator 9115:9115
+kubectl port-forward deploy/addon-operator 9115:9115
 
 curl localhost:9115/queue
 ```
-

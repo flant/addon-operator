@@ -11,7 +11,9 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/shell-operator/pkg/kube"
+
+	kube_helpers "github.com/flant/addon-operator/pkg/kube"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
@@ -45,7 +47,8 @@ kubeLegoEnabled: "false"
 	err := yaml.Unmarshal([]byte(cmDataText), cmData)
 	assert.NoError(t, err)
 
-	kubeMock := kube.NewMockKubernetesClientset()
+	// TODO use fakeclient from client-go
+	kubeMock := kube_helpers.NewMockKubernetesClientset()
 	kubeMock.ConfigMapList = &v1.ConfigMapList{
 		Items: []v1.ConfigMap{
 			v1.ConfigMap{
@@ -162,9 +165,9 @@ func configDataShouldEqual(expectedValues utils.Values) error {
 	return configRawDataShouldEqual(expectedDataRaw)
 }
 
-//
+// TODO use fakeclient from client-go
 func Test_SetConfig(t *testing.T) {
-	kubeMock := kube.NewMockKubernetesClientset()
+	kubeMock := kube_helpers.NewMockKubernetesClientset()
 	kube.Kubernetes = kubeMock
 	kcm := &MainKubeConfigManager{}
 

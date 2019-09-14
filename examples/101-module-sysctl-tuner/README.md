@@ -12,23 +12,27 @@ Useful parameters for production nodes can be found in [Brendan Gregg's Blog](ht
 Build addon-operator image with custom scripts:
 
 ```
-$ docker build -t "registry.mycompany.com/addon-operator:module-sysctl-tuner" .
-$ docker push registry.mycompany.com/addon-operator:module-sysctl-tuner
+docker build -t "registry.mycompany.com/addon-operator:module-sysctl-tuner" .
+docker push registry.mycompany.com/addon-operator:module-sysctl-tuner
 ```
 
 Edit image in addon-operator-pod.yaml and apply manifests:
 
 ```
-$ kubectl create ns example-module-sysctl-tuner
-$ kubectl -n example-module-sysctl-tuner apply -f addon-operator-rbac.yaml
-$ kubectl -n example-module-sysctl-tuner apply -f addon-operator-cm.yaml
-$ kubectl -n example-module-sysctl-tuner apply -f addon-operator-pod.yaml
+kubectl create ns example-module-sysctl-tuner
+kubectl -n example-module-sysctl-tuner apply -f addon-operator-rbac.yaml
+kubectl -n example-module-sysctl-tuner apply -f addon-operator-cm.yaml
+kubectl -n example-module-sysctl-tuner apply -f addon-operator-deploy.yaml
 ```
+
+> Note: addon-operator-deploy.yaml use `hostNetwork: true` so tiller can listen on 127.0.0.1.  Use 
+ADDON_OPERATOR_PROMETHEUS_LISTEN_PORT, ADDON_OPERATOR_TILLER_LISTEN_PORT and  ADDON_OPERATOR_TILLER_PROBE_LISTEN_PORT to assign different ports to run other examples. 
+
 
 See in logs that helm release was successful and hook.sh was run as expected:
 
 ```
-kubectl -n example-module-sysctl-tuner logs -f po/addon-operator
+kubectl -n example-module-sysctl-tuner logs  deploy/addon-operator -c addon-operator -f
 ...
 INFO     : TASK_RUN ModuleRun sysctl-tuner
 INFO     : Running module hook '001-sysctl-tuner/hooks/module-hooks.sh' binding 'BEFORE_HELM' ...
@@ -60,10 +64,10 @@ Run 'afterHelm' hook for sysctl-tuner
 You can disable this module by editing cm/addon-operator:
 
 ```
-$ kubectl -n example-module-sysctl-tuner edit cm/addon-operator
+kubectl -n example-module-sysctl-tuner edit cm/addon-operator
 
 data:
-  sysctlTuner: "false"
+  sysctlTunerEnabled: "false"
 ```
 
 ```
@@ -77,18 +81,18 @@ Run 'afterDeleteHelm' hook for sysctl-tuner
 You can enable this module by editing cm/addon-operator:
 
 ```
-$ kubectl -n example-module-sysctl-tuner edit cm/addon-operator
+kubectl -n example-module-sysctl-tuner edit cm/addon-operator
 
 data:
-  sysctlTuner: "{}"
+  sysctlTunerEnabled: "true"
 ```
 
 
 ### cleanup
 
 ```
-$ kubectl delete clusterrolebinding/addon-operator
-$ kubectl delete clusterrole/addon-operator
-$ kubectl delete ns/example-module-sysctl-tuner
-$ docker rmi registry.mycompany.com/addon-operator:module-sysctl-tuner
+kubectl delete clusterrolebinding/addon-operator
+kubectl delete clusterrole/addon-operator
+kubectl delete ns/example-module-sysctl-tuner
+docker rmi registry.mycompany.com/addon-operator:module-sysctl-tuner
 ```

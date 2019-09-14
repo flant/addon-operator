@@ -3,7 +3,6 @@ package addon_operator
 import (
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -14,12 +13,13 @@ import (
 	"github.com/romana/rlog"
 
 	schedule_hook "github.com/flant/shell-operator/pkg/hook/schedule"
+	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/metrics_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/kube"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	kube_event_hook "github.com/flant/addon-operator/pkg/module_manager/hook/kube_event"
@@ -31,15 +31,10 @@ var (
 	GlobalHooksDir string
 	TempDir        string
 
-	// TasksQueueDumpFilePath is the name of the file to which the queue will be dumped.
-	TasksQueueDumpFilePath string
-
 	TasksQueue *task.TasksQueue
 
 	// ModuleManager is the module manager object, which monitors configuration
 	// and variable changes.
-	ConfigMapName string
-	ValuesChecksumsAnnotation string
 	ModuleManager module_manager.ModuleManager
 
 	ScheduleManager schedule_manager.ScheduleManager
@@ -48,23 +43,12 @@ var (
 	KubeEventsManager kube_events_manager.KubeEventsManager
 	KubeEventsHooks   kube_event_hook.KubeEventsHooksController
 
-	MetricsPrefix string
 	MetricsStorage *metrics_storage.MetricStorage
 
 	// ManagersEventsHandlerStopCh is the channel object for stopping infinite loop of the ManagersEventsHandler.
 	ManagersEventsHandlerStopCh chan struct{}
 )
 
-const DefaultModulesDir = "modules"
-const DefaultGlobalHooksDir = "global-hooks"
-
-const DefaultTasksQueueDumpFilePath = "/tmp/addon-operator-tasks-queue"
-const DefaultTmpDir = "/tmp/addon-operator"
-
-const DefaultMetricsPrefix = "addon_operator_"
-
-const DefaultConfigMapName = "addon-operator"
-const DefaultValuesChecksumsAnnotation = "addon-operator/values-checksums"
 
 // Defining delays in processing tasks from queue.
 var (
@@ -95,15 +79,15 @@ func Init() error {
 	// TODO: check if directories are existed
 	ModulesDir = os.Getenv("MODULES_DIR")
 	if ModulesDir == "" {
-		ModulesDir = path.Join(cwd, DefaultModulesDir)
+		ModulesDir = path.Join(cwd, app.ModulesDir)
 	}
 	GlobalHooksDir = os.Getenv("GLOBAL_HOOKS_DIR")
 	if GlobalHooksDir == "" {
-		GlobalHooksDir = path.Join(cwd, DefaultGlobalHooksDir)
+		GlobalHooksDir = path.Join(cwd, app.GlobalHooksDir)
 	}
 	rlog.Infof("INIT: Modules: '%s', Global hooks: '%s'", ModulesDir, GlobalHooksDir)
 
-	TempDir := DefaultTmpDir
+	TempDir := app.TmpDir
 	err = os.MkdirAll(TempDir, os.FileMode(0777))
 	if err != nil {
 		rlog.Errorf("INIT: Cannot create temporary dir '%s': %s", TempDir, err)
@@ -112,36 +96,29 @@ func Init() error {
 	rlog.Infof("INIT: Temporary dir: %s", TempDir)
 
 	// Initializing the connection to the k8s.
-	err = kube.InitKube()
+	err = kube.Init(kube.InitOptions{})
 	if err != nil {
 		rlog.Errorf("INIT: Cannot initialize Kubernetes client: %s", err)
 		return err
 	}
 
-	// Initializing helm. Installing Tiller, if it is missing.
-	tillerNamespace := kube.AddonOperatorNamespace
-	rlog.Infof("INIT: Namespace for Tiller: %s", tillerNamespace)
-	err = helm.Init(tillerNamespace)
+	err = helm.InitTillerSidecar()
 	if err != nil {
-		rlog.Errorf("INIT: cannot initialize Tiller in ns/%s: %s", tillerNamespace, err)
+		rlog.Errorf("INIT TILLER: cannot add sidecar: %s", err)
+		return err
+	}
+
+	// Initializing helm client
+	err = helm.InitClient()
+	if err != nil {
+		rlog.Errorf("INIT HELM: %s", err)
 		return err
 	}
 
 	// Initializing module manager.
-	if ConfigMapName == "" {
-		ConfigMapName = os.Getenv("CONFIG_MAP_NAME")
-		if ConfigMapName == "" {
-			ConfigMapName = DefaultConfigMapName
-		}
-	}
-	if ValuesChecksumsAnnotation == "" {
-		ValuesChecksumsAnnotation = os.Getenv("VALUES_CHECKSUMS_ANNOTATION")
-		if ValuesChecksumsAnnotation == "" {
-			ValuesChecksumsAnnotation = DefaultValuesChecksumsAnnotation
-		}
-	}
-	kube_config_manager.ConfigMapName = ConfigMapName
-	kube_config_manager.ValuesChecksumsAnnotation = ValuesChecksumsAnnotation
+
+	kube_config_manager.ConfigMapName = app.ConfigMapName
+	kube_config_manager.ValuesChecksumsAnnotation = app.ValuesChecksumsAnnotation
 	module_manager.Init()
 	ModuleManager = module_manager.NewMainModuleManager().
 		WithDirectories(ModulesDir, GlobalHooksDir, TempDir)
@@ -155,9 +132,8 @@ func Init() error {
 	TasksQueue = task.NewTasksQueue()
 
 	// Initializing the queue dumper, which writes queue changes to the dump file.
-	TasksQueueDumpFilePath = DefaultTasksQueueDumpFilePath
-	rlog.Debugf("INIT: Tasks queue dump file: '%s'", TasksQueueDumpFilePath)
-	queueWatcher := task.NewTasksQueueDumper(TasksQueueDumpFilePath, TasksQueue)
+	rlog.Debugf("INIT: Tasks queue dump file: '%s'", app.TasksQueueDumpFilePath)
+	queueWatcher := task.NewTasksQueueDumper(app.TasksQueueDumpFilePath, TasksQueue)
 	TasksQueue.AddWatcher(queueWatcher)
 
 	// Initializing the hooks schedule.
@@ -174,12 +150,6 @@ func Init() error {
 	}
 	KubeEventsHooks = kube_event_hook.NewMainKubeEventsHooksController()
 
-	if MetricsPrefix == "" {
-		MetricsPrefix = os.Getenv("METRICS_PREFIX")
-		if MetricsPrefix == "" {
-			MetricsPrefix = DefaultMetricsPrefix
-		}
-	}
 	MetricsStorage = metrics_storage.Init()
 
 	return nil
@@ -631,7 +601,7 @@ func RunAddonOperatorMetrics() {
 	}()
 }
 
-func InitHttpServer(listenAddr *net.TCPAddr) {
+func InitHttpServer(listenAddr string, listenPort string) {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte(`<html>
     <head><title>Addon-operator</title></head>
@@ -648,13 +618,14 @@ func InitHttpServer(listenAddr *net.TCPAddr) {
 	})
 
 	go func() {
-		rlog.Infof("HTTP SERVER Listening on %s", listenAddr.String())
-		if err := http.ListenAndServe(listenAddr.String(), nil); err != nil {
+		address := fmt.Sprintf("%s:%s", listenAddr, listenPort)
+		rlog.Infof("HTTP SERVER Listening on %s", address)
+		if err := http.ListenAndServe(address, nil); err != nil {
 			rlog.Errorf("Error starting HTTP server: %s", err)
 		}
 	}()
 }
 
 func PrefixMetric(metric string) string {
-	return fmt.Sprintf("%s%s", MetricsPrefix, metric)
+	return fmt.Sprintf("%s%s", app.PrometheusMetricsPrefix, metric)
 }
