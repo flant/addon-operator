@@ -1,11 +1,10 @@
 ## Example module with values
 
-Example of a sysctl tuner for nodes. Helm chart starts DaemonSet that periodically change sysctl parameters. Parameters are defined in values.yaml and can be added or overridden in cm/addon-operator.
+Example of a sysctl tuner for nodes. Helm chart starts DaemonSet that periodically change sysctl parameters. The difference from [101-module-sysctl-tuner](../101-module-sysctl-tuner) is that parameters are defined in values.yaml and can be added or overridden in cm/addon-operator.
 
 Useful parameters for production nodes can be found in [Brendan Gregg's Blog](http://www.brendangregg.com/blog/2017-12-31/reinvent-netflix-ec2-tuning.html).
 
 > Note: this module will not revert sysctl parameters. Do not experiment on production nodes!
-
 
 ### run
 
@@ -16,7 +15,7 @@ docker build -t "registry.mycompany.com/addon-operator:sysctl-tuner" .
 docker push registry.mycompany.com/addon-operator:sysctl-tuner
 ```
 
-Edit image in addon-operator-pod.yaml and apply manifests:
+Edit image in addon-operator-deploy.yaml and apply manifests:
 
 ```
 kubectl create ns example-sysctl-tuner
@@ -25,13 +24,11 @@ kubectl -n example-sysctl-tuner apply -f addon-operator-cm.yaml
 kubectl -n example-sysctl-tuner apply -f addon-operator-deploy.yaml
 ```
 
-> Note: addon-operator-deploy.yaml use `hostNetwork: true` so tiller can listen on 127.0.0.1.  Use 
-ADDON_OPERATOR_PROMETHEUS_LISTEN_PORT, ADDON_OPERATOR_TILLER_LISTEN_PORT and  ADDON_OPERATOR_TILLER_PROBE_LISTEN_PORT to assign different ports to run other examples. 
-
 See in logs that helm release was successful and hook.sh was run as expected:
 
 ```
-kubectl -n example-sysctl-tuner logs -f po/addon-operator
+kubectl -n example-sysctl-tuner logs -f deploy/addon-operator
+
 ...
 INFO     : TASK_RUN ModuleRun sysctl-tuner
 INFO     : Running module hook '001-sysctl-tuner/hooks/module-hooks.sh' binding 'BEFORE_HELM' ...
@@ -77,7 +74,7 @@ Run 'afterDeleteHelm' hook for sysctl-tuner
 ...
 ```
 
-You can enable this module by editing cm/addon-operator:
+You can enable this module again by editing cm/addon-operator:
 
 ```
 kubectl -n example-sysctl-tuner edit cm/addon-operator

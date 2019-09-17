@@ -16,16 +16,13 @@ Edit image in addon-operator-pod.yaml and apply manifests:
 ```
 kubectl create ns example-startup-global
 kubectl -n example-startup-global apply -f addon-operator-rbac.yaml
-kubectl -n example-startup-global apply -f addon-operator-deploy.yaml
+kubectl -n example-startup-global apply -f addon-operator-pod.yaml
 ```
-
-> Note: addon-operator-deploy.yaml use `hostNetwork: true` so tiller can listen on 127.0.0.1.  Use 
-ADDON_OPERATOR_PROMETHEUS_LISTEN_PORT, ADDON_OPERATOR_TILLER_LISTEN_PORT and  ADDON_OPERATOR_TILLER_PROBE_LISTEN_PORT to assign different ports to run other examples. 
 
 See in logs that hook.sh was run at startup:
 
 ```
-kubectl -n example-startup-global logs deploy/addon-operator -c addon-operator -f
+kubectl -n example-startup-global logs pod/addon-operator -f
 ...
 INFO     : Initializing global hooks ...
 INFO     : INIT: global hook 'hook.sh' ...

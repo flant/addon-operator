@@ -21,11 +21,8 @@ spec:
         imagePullPolicy: Always
         env:
         - name: ADDON_OPERATOR_NAMESPACE
-          value: test-addon
-        - name: ADDON_OPERATOR_POD
           valueFrom:
             fieldRef:
-              fieldPath: metadata.name
+              fieldPath: metadata.namespace
       serviceAccountName: addon-operator-acc
-      hostNetwork: true
 
