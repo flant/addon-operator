@@ -3,6 +3,7 @@ package addon_operator
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -33,6 +34,8 @@ var (
 
 	TasksQueue *task.TasksQueue
 
+	KubeConfigManager kube_config_manager.KubeConfigManager
+
 	// ModuleManager is the module manager object, which monitors configuration
 	// and variable changes.
 	ModuleManager module_manager.ModuleManager
@@ -47,6 +50,8 @@ var (
 
 	// ManagersEventsHandlerStopCh is the channel object for stopping infinite loop of the ManagersEventsHandler.
 	ManagersEventsHandlerStopCh chan struct{}
+
+	BeforeHelmInitCb func()
 )
 
 
@@ -95,6 +100,13 @@ func Init() error {
 	}
 	rlog.Infof("INIT: Temporary dir: %s", TempDir)
 
+	// init and start metrics gathering loop
+	MetricsStorage = metrics_storage.Init()
+	go MetricsStorage.Run()
+
+	// Initializing the empty task queue.
+	TasksQueue = task.NewTasksQueue()
+
 	// Initializing the connection to the k8s.
 	err = kube.Init(kube.InitOptions{})
 	if err != nil {
@@ -102,34 +114,53 @@ func Init() error {
 		return err
 	}
 
-	err = helm.InitTillerSidecar()
+	// A useful callback when addon-operator is used as library
+	if BeforeHelmInitCb != nil {
+		rlog.Debugf("INIT: run BeforeHelmInitCallback")
+		BeforeHelmInitCb()
+	}
+
+	err = helm.InitTillerProcess(helm.TillerOptions{
+		Namespace: app.Namespace,
+		HistoryMax: app.TillerMaxHistory,
+		ListenAddress: app.TillerListenAddress,
+		ListenPort: app.TillerListenPort,
+		ProbeListenAddress: app.TillerProbeListenAddress,
+		ProbeListenPort: app.TillerProbeListenPort,
+	})
 	if err != nil {
-		rlog.Errorf("INIT TILLER: cannot add sidecar: %s", err)
+		rlog.Errorf("INIT: Tiller is failed to start: %s", err)
 		return err
 	}
 
 	// Initializing helm client
 	err = helm.InitClient()
 	if err != nil {
-		rlog.Errorf("INIT HELM: %s", err)
+		rlog.Errorf("INIT: helm client: %s", err)
 		return err
 	}
 
 	// Initializing module manager.
 
-	kube_config_manager.ConfigMapName = app.ConfigMapName
-	kube_config_manager.ValuesChecksumsAnnotation = app.ValuesChecksumsAnnotation
+	KubeConfigManager = kube_config_manager.NewKubeConfigManager()
+	KubeConfigManager.WithNamespace(app.Namespace)
+	KubeConfigManager.WithConfigMapName(app.ConfigMapName)
+	KubeConfigManager.WithValuesChecksumsAnnotation(app.ValuesChecksumsAnnotation)
+
+	err = KubeConfigManager.Init()
+	if err != nil {
+		return err
+	}
+
 	module_manager.Init()
-	ModuleManager = module_manager.NewMainModuleManager().
-		WithDirectories(ModulesDir, GlobalHooksDir, TempDir)
+	ModuleManager = module_manager.NewMainModuleManager()
+	ModuleManager.WithDirectories(ModulesDir, GlobalHooksDir, TempDir)
+	ModuleManager.WithKubeConfigManager(KubeConfigManager)
 	err = ModuleManager.Init()
 	if err != nil {
 		rlog.Errorf("INIT: Cannot initialize module manager: %s", err)
 		return err
 	}
-
-	// Initializing the empty task queue.
-	TasksQueue = task.NewTasksQueue()
 
 	// Initializing the queue dumper, which writes queue changes to the dump file.
 	rlog.Debugf("INIT: Tasks queue dump file: '%s'", app.TasksQueueDumpFilePath)
@@ -149,8 +180,6 @@ func Init() error {
 		return err
 	}
 	KubeEventsHooks = kube_event_hook.NewMainKubeEventsHooksController()
-
-	MetricsStorage = metrics_storage.Init()
 
 	return nil
 }
@@ -173,9 +202,6 @@ func Run() {
 
 	go ModuleManager.Run()
 	go ScheduleManager.Run()
-
-	// Metric add handler
-	go MetricsStorage.Run()
 
 	// Managers events handler adds task to the queue on every received event/
 	go ManagersEventsHandler()
@@ -601,7 +627,7 @@ func RunAddonOperatorMetrics() {
 	}()
 }
 
-func InitHttpServer(listenAddr string, listenPort string) {
+func InitHttpServer(listenAddr string, listenPort string) error {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte(`<html>
     <head><title>Addon-operator</title></head>
@@ -613,17 +639,31 @@ func InitHttpServer(listenAddr string, listenPort string) {
 	})
 	http.Handle("/metrics", promhttp.Handler())
 
+	http.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
+		helm.TillerHealthHandler(app.TillerProbeListenAddress, app.TillerProbeListenPort)(writer, request)
+	})
+
 	http.HandleFunc("/queue", func(writer http.ResponseWriter, request *http.Request) {
 		_, _ = io.Copy(writer, TasksQueue.DumpReader())
 	})
 
+	address := fmt.Sprintf("%s:%s", listenAddr, listenPort)
+	rlog.Infof("HTTP SERVER Listening on %s", address)
+
+	// Check if port is available
+	ln, err := net.Listen("tcp", address)
+	if err != nil {
+		return err
+	}
+
 	go func() {
-		address := fmt.Sprintf("%s:%s", listenAddr, listenPort)
-		rlog.Infof("HTTP SERVER Listening on %s", address)
-		if err := http.ListenAndServe(address, nil); err != nil {
+		if err := http.Serve(ln, nil); err != nil {
 			rlog.Errorf("Error starting HTTP server: %s", err)
+			os.Exit(1)
 		}
 	}()
+
+	return nil
 }
 
 func PrefixMetric(metric string) string {

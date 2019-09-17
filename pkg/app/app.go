@@ -12,18 +12,15 @@ var AppDescription = ""
 var Version = "dev"
 
 var Namespace = ""
-var PodName = ""
-var ContainerName = "addon-operator"
 
-var PrometheusListenAddress = "0.0.0.0"
-var PrometheusListenPort = "9115"
+var ListenAddress = "0.0.0.0"
+var ListenPort = "9650"
 var PrometheusMetricsPrefix = "addon_operator_"
 
-var TillerContainerName = "tiller"
 var TillerListenAddress = "127.0.0.1"
-var TillerListenPort int32 = 44134
+var TillerListenPort int32 = 44434
 var TillerProbeListenAddress = "127.0.0.1"
-var TillerProbeListenPort int32 = 44135
+var TillerProbeListenPort int32 = 44435
 var TillerMaxHistory = 0
 
 var ConfigMapName = "addon-operator"
@@ -40,19 +37,15 @@ func SetupGlobalSettings(kpApp *kingpin.Application) {
 		Envar("ADDON_OPERATOR_NAMESPACE").
 		Required().
 		StringVar(&Namespace)
-	kpApp.Flag("pod-name", "Pod name to init additional container with tiller.").
-		Envar("ADDON_OPERATOR_POD").
-		Required().
-		StringVar(&PodName)
 
 	kpApp.Flag("prometheus-listen-address", "Address to use to serve metrics to Prometheus.").
-		Envar("ADDON_OPERATOR_PROMETHEUS_LISTEN_ADDRESS").
-		Default(PrometheusListenAddress).
-		StringVar(&PrometheusListenAddress)
+		Envar("ADDON_OPERATOR_LISTEN_ADDRESS").
+		Default(ListenAddress).
+		StringVar(&ListenAddress)
 	kpApp.Flag("prometheus-listen-port", "Port to use to serve metrics to Prometheus.").
-		Envar("ADDON_OPERATOR_PROMETHEUS_LISTEN_PORT").
-		Default(PrometheusListenPort).
-		StringVar(&PrometheusListenPort)
+		Envar("ADDON_OPERATOR_LISTEN_PORT").
+		Default(ListenPort).
+		StringVar(&ListenPort)
 	kpApp.Flag("prometheus-metrics-prefix", "Prefix for Prometheus metrics.").
 		Envar("ADDON_OPERATOR_PROMETHEUS_METRICS_PREFIX").
 		Default(PrometheusMetricsPrefix).
@@ -71,15 +64,5 @@ func SetupGlobalSettings(kpApp *kingpin.Application) {
 		Envar("ADDON_OPERATOR_CONFIG_MAP").
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
-
-	kpApp.Flag("container-name", "Name of a container with addon-operator to get image name.").
-		Envar("ADDON_OPERATOR_CONTAINER_NAME").
-		Default(ContainerName).
-		StringVar(&ContainerName)
-
-	kpApp.Flag("values-checksums-annotation", "Annotation where checksums are saved.").
-		Envar("ADDON_OPERATOR_VALUES_CHECKSUMS_ANNOTATION").
-		Default(ValuesChecksumsAnnotation).
-		StringVar(&ValuesChecksumsAnnotation)
 
 }

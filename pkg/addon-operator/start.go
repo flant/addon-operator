@@ -5,20 +5,29 @@ import (
 
 	"github.com/romana/rlog"
 
-	"github.com/flant/addon-operator/pkg/app"
 	shell_operator_app "github.com/flant/shell-operator/pkg/app"
+
+	"github.com/flant/addon-operator/pkg/app"
 )
 
 // Start is a start command. It is here to work with import.
 func Start() {
-	InitHttpServer(app.PrometheusListenAddress, app.PrometheusListenPort)
+	var err error
 
-	rlog.Infof("addon-operator %s, shell-operator %s", app.Version, shell_operator_app.Version)
-
-	err := Init()
+	err = InitHttpServer(app.ListenAddress, app.ListenPort)
 	if err != nil {
+		rlog.Errorf("HTTP SERVER start failed: %v", err)
 		os.Exit(1)
 	}
 
+	rlog.Infof("addon-operator %s, shell-operator %s", app.Version, shell_operator_app.Version)
+
+	err = Init()
+	if err != nil {
+		rlog.Errorf("INIT failed: %v", err)
+		os.Exit(1)
+	}
+
+	rlog.Debugf("START: Run")
 	Run()
 }

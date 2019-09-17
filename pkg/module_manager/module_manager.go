@@ -9,10 +9,11 @@ import (
 
 	"github.com/romana/rlog"
 
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
+
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
 // TODO separate modules and hooks storage, values storage and actions
@@ -426,13 +427,7 @@ func (mm *MainModuleManager) Init() error {
 		return err
 	}
 
-	kcm, err := kube_config_manager.Init()
-	if err != nil {
-		return err
-	}
-	mm.WithKubeConfigManager(kcm)
-
-	kubeConfig := kcm.InitialConfig()
+	kubeConfig := mm.kubeConfigManager.InitialConfig()
 	mm.kubeGlobalConfigValues = kubeConfig.Values
 
 	var unknown []utils.ModuleConfig

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/flant/addon-operator/pkg/utils"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
+
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
+
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 // TODO make a method of KubeConfig
@@ -73,7 +75,7 @@ func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) *Modu
 func ExtractModuleKubeConfig(moduleName string, configData map[string]string) (*ModuleKubeConfig, error) {
 	moduleConfig, err := utils.NewModuleConfig(moduleName).FromKeyYamls(configData)
 	if err != nil {
-		return nil, fmt.Errorf("'%s' ConfigMap bad yaml at key '%s': %s", ConfigMapName, utils.ModuleNameToValuesKey(moduleName), err)
+		return nil, fmt.Errorf("ConfigMap: bad yaml at key '%s': %s", utils.ModuleNameToValuesKey(moduleName), err)
 	}
 	// NOTE this should never happen because of GetModulesNamesFromConfigData
 	if moduleConfig == nil {
