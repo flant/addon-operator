@@ -46,6 +46,8 @@ type ModulesState struct {
 	ModulesToDisable       []string
 	// modules that should be purged
 	ReleasedUnknownModules []string
+	// modules that was disabled and now are enabled
+	NewlyEnabledModules    []string
 }
 
 type MainModuleManager struct {
@@ -533,6 +535,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 		EnabledModules: []string{},
 		ModulesToDisable: []string{},
 		ReleasedUnknownModules: []string{},
+		NewlyEnabledModules: []string{},
 	}
 
 	releasedModules, err := helm.Client.ListReleasesNames(nil)
@@ -567,6 +570,8 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	}
 
 	state.EnabledModules = enabledModules
+
+	state.NewlyEnabledModules = utils.ListSubtract(enabledModules, mm.enabledModulesInOrder)
 	// save enabled modules for future usages
 	mm.enabledModulesInOrder = enabledModules
 
@@ -580,11 +585,13 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 		"    mm.enabledModulesByConfig: %v\n"+
 		"    EnabledModules: %v\n"+
 		"    ReleasedUnknownModules: %v\n"+
-		"    ModulesToDisable: %v\n",
+		"    ModulesToDisable: %v\n"+
+		"    NewlyEnabled: %v\n",
 		mm.enabledModulesByConfig,
 		mm.enabledModulesInOrder,
 		state.ReleasedUnknownModules,
-		state.ModulesToDisable)
+		state.ModulesToDisable,
+		state.NewlyEnabledModules)
 	return
 }
 

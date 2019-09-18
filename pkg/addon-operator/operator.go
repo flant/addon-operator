@@ -314,15 +314,24 @@ func ManagersEventsHandler() {
 	}
 }
 
-func runDiscoverModulesState(t task.Task) error {
+func runDiscoverModulesState(discoverTask task.Task) error {
 	modulesState, err := ModuleManager.DiscoverModulesState()
 	if err != nil {
 		return err
 	}
 
 	for _, moduleName := range modulesState.EnabledModules {
+		isNewlyEnabled := false
+		for _, name := range modulesState.NewlyEnabledModules {
+			if name == moduleName {
+				isNewlyEnabled = true
+				break
+			}
+		}
+		runOnStartupHooks := discoverTask.GetOnStartupHooks() || isNewlyEnabled
+
 		newTask := task.NewTask(task.ModuleRun, moduleName).
-			WithOnStartupHooks(t.GetOnStartupHooks())
+			WithOnStartupHooks(runOnStartupHooks)
 
 		TasksQueue.Add(newTask)
 		rlog.Infof("QUEUE add ModuleRun %s", moduleName)
