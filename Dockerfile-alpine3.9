@@ -5,15 +5,12 @@ ADD . /addon-operator
 WORKDIR /addon-operator
 RUN ./go-build.sh $appVersion
 
-FROM gcr.io/kubernetes-helm/tiller:v2.8.2
-
 FROM alpine:3.9
-COPY --from=1 /tiller /
 RUN apk --no-cache add ca-certificates jq bash && \
     wget https://storage.googleapis.com/kubernetes-release/release/v1.13.5/bin/linux/amd64/kubectl -O /bin/kubectl && \
     chmod +x /bin/kubectl && \
     wget https://storage.googleapis.com/kubernetes-helm/helm-v2.12.1-linux-amd64.tar.gz -O /helm.tgz && \
-    tar -z -x -C /bin -f /helm.tgz --strip-components=1 linux-amd64/helm && \
+    tar -z -x -C /bin -f /helm.tgz --strip-components=1 linux-amd64/helm linux-amd64/tiller && \
     rm -f /helm.tgz && \
     helm init --client-only && \
     mkdir /hooks

@@ -9,7 +9,7 @@
 </p>
 
 
-The **Addon-operator** adds hooks and values to helm charts in order to enhance the capabilities of helm and transform charts into smart modules that configure themselves and respond to changes in the cluster.
+The **Addon-operator** combines helm charts with hooks and values storage to transform charts into smart modules that configure themselves and respond to changes in the cluster.
 
 # Features
 
@@ -25,7 +25,7 @@ Also, Addon-operator provides:
 - the possibility of *dynamic enabling/disabling* of a module (depending on detected parameters);
 - the ability to tie *conditions of module activation* to the activation of other modules;
 - *the unified ConfigMap* for the configuration of all settings;
-- the ability to run helm only if the parameters have changed. In this case, the release list would contain the time of build of the modified release;
+- the ability to run helm only if parameters have changed. In this case, `helm history` would output only releases with changes;
 - *global hooks* for figuring out parameters and performing actions that affect several dependent modules;
 - off-the-shelf *metrics* for monitoring via Prometheus.
 
@@ -42,7 +42,7 @@ A hook is an executable file that can make changes to Kubernetes and set values 
 
 ![A hook is an executable file](docs/readme-2.gif)
 
-Hooks are a part of the module. Also, there is a helm chart in the module. If the hook makes changes to values, then Addon-operator would start the reinstallation of the helm chart.
+Hooks are a part of the module. Also, there is a helm chart in the module. If the hook makes changes to values, then Addon-operator would upgrade the release of the helm chart.
 
 ![Hook is a part of the module](docs/readme-3.gif)
 
@@ -54,12 +54,12 @@ There can be many modules.
 
 In addition to modules, the Addon-operator supports global hooks and global values. They have their own storage of values. Global hooks are triggered by events and when active they can:
 
-- Make changes to Kubernetes
+- Make changes to Kubernetes cluster
 - Make changes to global values storage
 
 ![Global hooks and global values](docs/readme-5.gif)
 
-If the global hook changes values in the global storage, then the Addon-operator starts the reinstallation of all helm charts.
+If the global hook changes values in the global storage, then the Addon-operator triggers upgrade of releases of all helm charts.
 
 ![Changes in global values cause reinstallation](docs/readme-6.gif)
 
@@ -68,13 +68,15 @@ If the global hook changes values in the global storage, then the Addon-operator
 
 You may use the prepared image [flant/addon-operator](https://hub.docker.com/r/flant/addon-operator) to install Addon-operator in a cluster. The image comprises a binary addon-operator file as well as several required tools: helm, tiller, kubectl, jq, bash.
 
-The installation incorporates the image building process with *files of modules and hooks*, adding the necessary RBAC rights and launching image in the cluster. You may find a pre-shaped files and commands in the /examples directory.
+The installation incorporates the image building process with *files of modules and hooks*, applying the necessary RBAC rights and deploying the image in the cluster.
 
+To experiment with modules, hooks and values we are prepared some [examples](/examples).
 
 # What's next?
-- Find out more on [lifecycle](LIFECYCLE.md) of Addon-operator and how to use [modules](MODULES.md) and [values](VALUES.md) in documentation.
+- Find out more on [lifecycle](LIFECYCLE.md) of Addon-operator and how to use [modules](MODULES.md), [hooks](HOOKS.md) and [values](VALUES.md).
 - `/metrics` endpoint is implemented. See [METRICS](METRICS.md) for details.
-- More examples can be found in [examples](/examples/) directory.
+- Explore Shell-operator documentation, especialy [hooks](https://github.com/flant/shell-operator/blob/v1.0.0-beta.5/HOOKS.md) section.
+- See how to tune [deploy settings](RUNNING.md).
 
 ## License
 

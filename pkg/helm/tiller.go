@@ -35,7 +35,7 @@ func InitTillerProcess(options TillerOptions) error {
 		fmt.Sprintf("%s:%d", options.ProbeListenAddress, options.ProbeListenPort),
 	}
 
-	tillerCmd := exec.Command("/tiller", args...)
+	tillerCmd := exec.Command("/bin/tiller", args...)
 	tillerCmd.Env = append(os.Environ(), env...)
 	tillerCmd.Dir = "/"
 

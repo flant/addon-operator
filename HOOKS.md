@@ -126,11 +126,11 @@ Parameters:
 
 ## schedule
 
-[schedule binding](https://github.com/flant/shell-operator/blob/master/HOOKS.md#schedule).
+[schedule binding](https://github.com/flant/shell-operator/blob/v1.0.0-beta.5/HOOKS.md#schedule).
 
 ## onKubernetesEvent
 
-[onKubernetesEvent binding](https://github.com/flant/shell-operator/blob/master/HOOKS.md#onKubernetesEvent)
+[onKubernetesEvent binding](https://github.com/flant/shell-operator/blob/v1.0.0-beta.5/HOOKS.md#onKubernetesEvent)
 
 > Note: Addon-operator requires a ServiceAccount with the appropriate [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) permissions. See `addon-operator-rbac.yaml` files in [examples](/examples).
 

@@ -39,9 +39,13 @@ We recommend to define the `version` field in your Chart.yaml as "0.0.1" and use
 
 A module’s execution might be triggered by an event that does not change the parameters of the module (see [modules discovery](LIFECYCLE.md#modules-discovery)). Re-running Helm will lead to an "empty" release. To avoid this, Addon-operator compares values’ checksums and starts the installation of a Helm chart only if there are some changes.
 
-# Workarounds for Helm issues
+## Workarounds for Helm issues
 
 Helm badly handles failed chart installations ([PR#4871](https://github.com/helm/helm/pull/4871)). A workaround has been added to Addon-operator to reduce the number of manual interventions in such situations: automatic deletion of the single failed release. In the future, in addition to this mechanism, we plan to add a few improvements to the interaction with Helm. In particular, we plan to port related algorithms (how the interaction with Helm is done) from werf — [ROADMAP](https://github.com/flant/addon-operator/issues/17).
+
+## Tiller
+
+Tiller is started as subprocess. It listens on 127.0.0.1 and use two ports: one for gRPC connectivity with helm and one for cluster probes. These settings can be changed with environment variables (See [RUNNING](RUNNING.md)). If Tiller process suddenly exits, Addon-operator process also exits.
 
 # Next
 
