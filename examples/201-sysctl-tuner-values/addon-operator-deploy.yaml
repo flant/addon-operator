@@ -1,5 +1,5 @@
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: addon-operator
@@ -24,5 +24,9 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 9650
       serviceAccountName: addon-operator-acc
 
