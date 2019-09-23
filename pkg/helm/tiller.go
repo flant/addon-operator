@@ -41,7 +41,7 @@ func InitTillerProcess(options TillerOptions) error {
 
 	err := tillerCmd.Start()
 	if err != nil {
-		rlog.Error("Tiller process not started: %v", err)
+		rlog.Errorf("Tiller process not started: %v", err)
 		return err
 	}
 

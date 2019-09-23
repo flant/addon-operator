@@ -1,4 +1,7 @@
+apiVersion: v1
 kind: ConfigMap
+metadata:
+  name: addon-operator
 data:
   global: |
     param1: qwe
