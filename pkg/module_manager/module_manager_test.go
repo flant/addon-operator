@@ -1,25 +1,27 @@
 package module_manager
 
 import (
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
 	"testing"
 
+	"github.com/ghodss/yaml"
 	"github.com/romana/rlog"
 	"github.com/stretchr/testify/assert"
 
-	"gopkg.in/yaml.v2"
-
+	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/kube"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
 )
@@ -27,6 +29,8 @@ import (
 
 // initModuleManager is a test version of an Init method
 func initModuleManager(t *testing.T, mm *MainModuleManager, configPath string) {
+	EventCh = make(chan Event, 1)
+
 	rootDir := filepath.Join("testdata", configPath)
 
 	var err error
@@ -49,38 +53,29 @@ func initModuleManager(t *testing.T, mm *MainModuleManager, configPath string) {
 	cmFilePath := filepath.Join(rootDir, "config_map.yaml")
 	exists, _ := utils_file.FileExists(cmFilePath)
 	if exists {
-		cmData, err := ioutil.ReadFile(cmFilePath)
+		cmDataBytes, err := ioutil.ReadFile(cmFilePath)
 		if err != nil {
 			t.Fatalf("congig map file '%s': %s", cmFilePath, err)
 		}
 
-		cm := v1.ConfigMap{}
+		var cmObj = new(v1.ConfigMap)
+		_ = yaml.Unmarshal(cmDataBytes, &cmObj)
 
-		err = yaml.Unmarshal(cmData, &cm)
+		kube.Kubernetes = fake.NewSimpleClientset()
+		_, _ = kube.Kubernetes.CoreV1().ConfigMaps("default").Create(cmObj)
+
+		KubeConfigManager := kube_config_manager.NewKubeConfigManager()
+		KubeConfigManager.WithNamespace("default")
+		KubeConfigManager.WithConfigMapName("addon-operator")
+		KubeConfigManager.WithValuesChecksumsAnnotation(app.ValuesChecksumsAnnotation)
+
+		err = KubeConfigManager.Init()
 		if err != nil {
-			t.Fatalf("unmarshal config map file '%s': %s\n%s", cmFilePath, err, string(cmData))
+			t.Fatalf("KubeConfigManager.Init(): %v", err)
 		}
+		mm.WithKubeConfigManager(KubeConfigManager)
 
-		kubeMock := kube.NewMockKubernetesClientset()
-		kubeMock.ConfigMapList = &v1.ConfigMapList{
-			Items: []v1.ConfigMap{
-				v1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{Name: "addon-operator"},
-					Data:       cm.Data,
-				},
-			},
-		}
-		kube.Kubernetes = kubeMock
-
-		kube_config_manager.ConfigMapName = "addon-operator"
-
-		kcm, err := kube_config_manager.Init()
-		if err != nil {
-			t.Fatalf("kube config manager init: %s", err)
-		}
-		mm.WithKubeConfigManager(kcm)
-
-		kubeConfig := kcm.InitialConfig()
+		kubeConfig := KubeConfigManager.InitialConfig()
 		mm.kubeGlobalConfigValues = kubeConfig.Values
 
 		mm.enabledModulesByConfig, mm.kubeModulesConfigValues, _ = mm.calculateEnabledModulesByConfig(kubeConfig.ModuleConfigs)
@@ -195,6 +190,8 @@ func Test_MainModuleManager_LoadValuesInInit(t *testing.T) {
 				assert.NotNil(t, mm.allModulesByName["without-values"].StaticConfig)
 				assert.NotNil(t, mm.allModulesByName["with-kube-values"].CommonStaticConfig)
 				assert.NotNil(t, mm.allModulesByName["with-kube-values"].StaticConfig)
+
+				fmt.Printf("kubeModulesConfigValues: %#v\n", mm.kubeModulesConfigValues)
 
 				// with-values-2 has kube config but disabled
 				assert.NotContains(t, mm.kubeModulesConfigValues, "with-values-2")

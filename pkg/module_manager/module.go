@@ -13,10 +13,12 @@ import (
 	"github.com/romana/rlog"
 	"gopkg.in/yaml.v2"
 
-	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+
+	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type Module struct {
@@ -202,7 +204,8 @@ func (m *Module) runHelmInstall() error {
 			helmReleaseName, runChartPath,
 			[]string{valuesPath},
 			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
-			helm.Client.TillerNamespace(),
+			//helm.Client.TillerNamespace(),
+			app.Namespace,
 		)
 	} else {
 		rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s': release install/upgrade is skipped", m.Name, helmReleaseName, checksum)

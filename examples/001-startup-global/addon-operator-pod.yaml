@@ -5,7 +5,12 @@ metadata:
   name: addon-operator
 spec:
   containers:
-  - name: addon-operator
-    image: registry.mycompany.com/addon-operator:startup-global
-    imagePullPolicy: Always
+    - name: addon-operator
+      image: registry.mycompany.com/addon-operator:startup-global
+      imagePullPolicy: Always
+      env:
+        - name: ADDON_OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
   serviceAccountName: addon-operator-acc

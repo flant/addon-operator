@@ -1,24 +1,20 @@
 package kube_config_manager
 
 import (
-	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/flant/shell-operator/pkg/kube"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/flant/addon-operator/pkg/kube"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-
-func Test_Init(t *testing.T) {
-	ConfigMapName = "addon-operator"
-
+func Test_LoadValues_On_Init(t *testing.T) {
 	cmDataText := `
 global: |
   project: tfprod
@@ -42,27 +38,25 @@ prometheus: |
 kubeLegoEnabled: "false"
 `
 	cmData := map[string]string{}
-	err := yaml.Unmarshal([]byte(cmDataText), cmData)
-	assert.NoError(t, err)
+	_ = yaml.Unmarshal([]byte(cmDataText), cmData)
 
-	kubeMock := kube.NewMockKubernetesClientset()
-	kubeMock.ConfigMapList = &v1.ConfigMapList{
-		Items: []v1.ConfigMap{
-			v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{Name: ConfigMapName},
-				Data: cmData,
-			},
-		},
-	}
-	kube.Kubernetes = kubeMock
+	kube.Kubernetes = fake.NewSimpleClientset()
+	_, _ = kube.Kubernetes.CoreV1().ConfigMaps("default").Create(&v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "addon-operator"},
+		Data: cmData,
+	})
 
-	kcm, err := Init()
+	kcm := NewKubeConfigManager()
+	kcm.WithNamespace("default")
+	kcm.WithConfigMapName("addon-operator")
+
+	err := kcm.Init()
 	if err != nil {
 		t.Errorf("kube_config_manager initialization error: %s", err)
 	}
 	config := kcm.InitialConfig()
 
-	expectations := map[string] struct {
+	tests := map[string] struct {
 		isEnabled *bool
 		values utils.Values
 	}{
@@ -112,7 +106,7 @@ kubeLegoEnabled: "false"
 		},
 	}
 
-	for name, expect := range expectations {
+	for name, expect := range tests {
 		t.Run(name, func(t *testing.T){
 			if name == "global" {
 				assert.Equal(t, expect.values, config.Values)
@@ -127,133 +121,138 @@ kubeLegoEnabled: "false"
 	}
 }
 
-func configRawDataShouldEqual(expectedData map[string]string) error {
-	obj, err := kube.Kubernetes.CoreV1().ConfigMaps("default").Get(ConfigMapName, metav1.GetOptions{})
 
-	if err != nil || obj == nil {
-		return fmt.Errorf("expected ConfigMap '%s' to be existing", ConfigMapName)
-	}
+func Test_SaveValuesToConfigMap(t *testing.T) {
+	kube.Kubernetes = fake.NewSimpleClientset()
 
-	if !reflect.DeepEqual(obj.Data, expectedData) {
-		return fmt.Errorf("expected %+v ConfigMap data, got %+v", expectedData, obj.Data)
-	}
-
-	return nil
-}
-
-func convertToConfigData(values utils.Values) (map[string]string, error) {
-	res := make(map[string]string)
-	for k, v := range values {
-		yamlData, err := yaml.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		res[k] = string(yamlData)
-	}
-
-	return res, nil
-}
-
-func configDataShouldEqual(expectedValues utils.Values) error {
-	expectedDataRaw, err := convertToConfigData(expectedValues)
-	if err != nil {
-		return err
-	}
-	return configRawDataShouldEqual(expectedDataRaw)
-}
-
-//
-func Test_SetConfig(t *testing.T) {
-	kubeMock := kube.NewMockKubernetesClientset()
-	kube.Kubernetes = kubeMock
-	kcm := &MainKubeConfigManager{}
+	kcm := &kubeConfigManager{}
+	kcm.WithNamespace("default")
+	kcm.WithConfigMapName("addon-operator")
 
 	var err error
+	var cm *v1.ConfigMap
 
-	err = kcm.SetKubeGlobalValues(utils.Values{
-		utils.GlobalValuesKey: map[string]interface{}{
-			"mysql": map[string]interface{}{
-				"username": "root",
-				"password": "password",
+	tests := []struct{
+		name string
+		globalValues *utils.Values
+		moduleValues *utils.Values
+		moduleName string
+		testFn func(global *utils.Values, module *utils.Values)
+	} {
+		{
+			"scenario 1: first save with non existent ConfigMap",
+			&utils.Values{
+				utils.GlobalValuesKey: map[string]interface{}{
+					"mysql": map[string]interface{}{
+						"username": "root",
+						"password": "password",
+					},
+				},
+			},
+			nil,
+			"",
+			func(global *utils.Values, module *utils.Values) {
+				// Check values in a 'global' key
+				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
+				savedGlobalValues, err := NewGlobalValues(cm.Data["global"])
+				if assert.NoError(t, err, "ConfigMap should be created") {
+					assert.Equal(t, *global, savedGlobalValues)
+				}
 			},
 		},
-	})
-	if err != nil {
-		t.Fatal(err)
+		{
+			"scenario 2: add more values to global key",
+			&utils.Values{
+				utils.GlobalValuesKey: map[string]interface{}{
+					"mysql": map[string]interface{}{
+						"username": "root",
+						"password": "password",
+					},
+					"mongo": map[string]interface{}{
+						"username": "root",
+						"password": "password",
+					},
+				},
+			},
+			nil, "",
+			func(global *utils.Values, module *utils.Values) {
+				// Check values in a 'global' key
+				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
+				savedGlobalValues, err := NewGlobalValues(cm.Data["global"])
+				if assert.NoError(t, err, "ConfigMap should be created") {
+					assert.Equal(t, *global, savedGlobalValues)
+				}
+			},
+		},
+		{
+			"scenario 3: save module values",
+			nil,
+			&utils.Values{
+				utils.ModuleNameToValuesKey("mymodule"): map[string]interface{}{
+					"one": 1.0,
+					"two": 2.0,
+				},
+			},
+			"mymodule",
+			func(global *utils.Values, module *utils.Values) {
+				// Check values in a 'global' key
+				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
+
+
+
+				savedGlobalValues, err := NewGlobalValues(cm.Data["global"])
+				if assert.NoError(t, err, "ConfigMap should be created") {
+					assert.Equal(t, utils.Values{
+						utils.GlobalValuesKey: map[string]interface{}{
+							"mysql": map[string]interface{}{
+								"username": "root",
+								"password": "password",
+							},
+							"mongo": map[string]interface{}{
+								"username": "root",
+								"password": "password",
+							},
+						},
+					}, savedGlobalValues)
+				} else {
+					t.FailNow()
+				}
+
+				assert.Contains(t, cm.Data, utils.ModuleNameToValuesKey("mymodule"), "ConfigMap should contain a '%s' key", utils.ModuleNameToValuesKey("mymodule"))
+				mconf, err := ExtractModuleKubeConfig("mymodule", cm.Data)
+				if assert.NoError(t, err, "ModuleConfig should load") {
+					assert.Equal(t, *module, mconf.Values)
+				} else {
+					t.FailNow()
+				}
+			},
+		},
 	}
 
-	err = configDataShouldEqual(utils.Values{
-		utils.GlobalValuesKey: map[string]interface{}{
-			"mysql": map[string]interface{}{
-				"username": "root",
-				"password": "password",
-			},
-		},
-	})
-	if err != nil {
-		t.Error(err)
-	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.globalValues != nil {
+				err = kcm.SetKubeGlobalValues(*test.globalValues)
+				if !assert.NoError(t, err, "Global Values should be saved") {
+					t.FailNow()
+				}
+			} else if test.moduleValues != nil {
+				err = kcm.SetKubeModuleValues(test.moduleName, *test.moduleValues)
+				if !assert.NoError(t, err, "Module Values should be saved") {
+					t.FailNow()
+				}
+			}
 
-	err = kcm.SetKubeGlobalValues(utils.Values{
-		utils.GlobalValuesKey: map[string]interface{}{
-			"mysql": map[string]interface{}{
-				"username": "root",
-				"password": "password",
-			},
-			"mongo": map[string]interface{}{
-				"username": "root",
-				"password": "password",
-			},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+			// Check that ConfigMap is created or exists
+			cm, err = kube.Kubernetes.CoreV1().ConfigMaps("default").Get("addon-operator", metav1.GetOptions{})
+			if assert.NoError(t, err, "ConfigMap should exist after SetKubeGlobalValues") {
+				assert.NotNil(t, cm, "ConfigMap should not be nil")
+			} else {
+				t.FailNow()
+			}
 
-	err = configDataShouldEqual(utils.Values{
-		utils.GlobalValuesKey: map[string]interface{}{
-			"mysql": map[string]interface{}{
-				"username": "root",
-				"password": "password",
-			},
-			"mongo": map[string]interface{}{
-				"username": "root",
-				"password": "password",
-			},
-		},
-	})
-	if err != nil {
-		t.Error(err)
-	}
-
-	err = kcm.SetKubeModuleValues("mymodule", utils.Values{
-		utils.ModuleNameToValuesKey("mymodule"): map[string]interface{}{
-			"one": 1,
-			"two": 2,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = configDataShouldEqual(utils.Values{
-		utils.GlobalValuesKey: map[string]interface{}{
-			"mysql": map[string]interface{}{
-				"username": "root",
-				"password": "password",
-			},
-			"mongo": map[string]interface{}{
-				"username": "root",
-				"password": "password",
-			},
-		},
-		utils.ModuleNameToValuesKey("mymodule"): map[string]interface{}{
-			"one": 1,
-			"two": 2,
-		},
-	})
-	if err != nil {
-		t.Error(err)
+			test.testFn(test.globalValues, test.moduleValues)
+		})
 	}
 
 }

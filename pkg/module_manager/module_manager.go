@@ -9,10 +9,11 @@ import (
 
 	"github.com/romana/rlog"
 
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
+
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
 // TODO separate modules and hooks storage, values storage and actions
@@ -45,6 +46,8 @@ type ModulesState struct {
 	ModulesToDisable       []string
 	// modules that should be purged
 	ReleasedUnknownModules []string
+	// modules that was disabled and now are enabled
+	NewlyEnabledModules    []string
 }
 
 type MainModuleManager struct {
@@ -426,13 +429,7 @@ func (mm *MainModuleManager) Init() error {
 		return err
 	}
 
-	kcm, err := kube_config_manager.Init()
-	if err != nil {
-		return err
-	}
-	mm.WithKubeConfigManager(kcm)
-
-	kubeConfig := kcm.InitialConfig()
+	kubeConfig := mm.kubeConfigManager.InitialConfig()
 	mm.kubeGlobalConfigValues = kubeConfig.Values
 
 	var unknown []utils.ModuleConfig
@@ -538,6 +535,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 		EnabledModules: []string{},
 		ModulesToDisable: []string{},
 		ReleasedUnknownModules: []string{},
+		NewlyEnabledModules: []string{},
 	}
 
 	releasedModules, err := helm.Client.ListReleasesNames(nil)
@@ -572,6 +570,8 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	}
 
 	state.EnabledModules = enabledModules
+
+	state.NewlyEnabledModules = utils.ListSubtract(enabledModules, mm.enabledModulesInOrder)
 	// save enabled modules for future usages
 	mm.enabledModulesInOrder = enabledModules
 
@@ -585,11 +585,13 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 		"    mm.enabledModulesByConfig: %v\n"+
 		"    EnabledModules: %v\n"+
 		"    ReleasedUnknownModules: %v\n"+
-		"    ModulesToDisable: %v\n",
+		"    ModulesToDisable: %v\n"+
+		"    NewlyEnabled: %v\n",
 		mm.enabledModulesByConfig,
 		mm.enabledModulesInOrder,
 		state.ReleasedUnknownModules,
-		state.ModulesToDisable)
+		state.ModulesToDisable,
+		state.NewlyEnabledModules)
 	return
 }
 

@@ -1,6 +1,6 @@
 # Addon-operator metrics
 
-Addon-operator implements Prometheus target at `/metrics` endpoint. Default port is 9115.
+Addon-operator implements Prometheus target at `/metrics` endpoint. Default port is `9650`.
 
 __addon_operator_module_hook_errors{module=”module-name”, hook="hook-name"}__
 

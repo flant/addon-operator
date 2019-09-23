@@ -1,1 +1,1 @@
-> FIXME `modules` directory is required for now
+> FIXME: `modules` directory is required even if only global-hooks are used

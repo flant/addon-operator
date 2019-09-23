@@ -2,9 +2,11 @@ package kube_config_manager
 
 import (
 	"fmt"
-	"github.com/flant/addon-operator/pkg/utils"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	"gopkg.in/yaml.v2"
+
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
+
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type GlobalKubeConfig struct {
@@ -39,7 +41,7 @@ func GetGlobalKubeConfigFromConfigData(configData map[string]string) (*GlobalKub
 
 	values, err := NewGlobalValues(yamlData)
 	if err != nil {
-		return nil, fmt.Errorf("'%s' ConfigMap bad yaml at key '%s': %s:\n%s", ConfigMapName, utils.GlobalValuesKey, err, string(yamlData))
+		return nil, fmt.Errorf("ConfigMap: bad yaml at key '%s': %s:\n%s", utils.GlobalValuesKey, err, string(yamlData))
 	}
 
 	return &GlobalKubeConfig{

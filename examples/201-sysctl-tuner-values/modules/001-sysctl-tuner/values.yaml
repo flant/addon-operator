@@ -7,3 +7,4 @@ sysctlTuner:
     kernel.numa_balancing: 0
     net.core.somaxconn: 1000
   sleep: 600
+sysctlTunerEnabled: true

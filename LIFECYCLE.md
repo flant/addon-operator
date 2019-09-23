@@ -6,8 +6,6 @@ The module files are located in the `/modules` directory. The directory can be s
 
 During the start, Addon-operator finds and initializes all global hooks. For more info, see [HOOKS](HOOKS.md#initialization-of-global-hooks).
 
-Addon-operator installs a separate instance of tiller in the namespace where the addon-operator is running to store the information about helm-releases of modules.
-
 # Main loop
 
 After initialization Addon-operator executes all global `onStartup` hooks and starts the modules discovery process.
@@ -54,22 +52,6 @@ If an error occurs during the modules discovery process, then the module discove
 
 As a result of a module discovery process the tasks for the execution of all *enabled* modules, deletion of all *disabled* modules, and execution of all global hook with the `afterAll` binding are added to the queue.
 
-### Module enablement examples
-
-### 1
-
-modules/values.yaml
-```
-moduleNameEnabled: true
-```
-
-modules/001-moduleName/values.yaml
-```
-moduleNameEnabled: false
-```
-
-Module is disabled
-
 ## Enabled script
 
 A script or an executable file that returns a status of the module. The script has access to the module values in $VALUES_PATH and $CONFIG_VALUES_PATH files, more details about the values are available in [VALUES](VALUES.md#using-values-in-enabled-script). The variable $MODULE_ENABLED_RESULT passes the path to the file into which the script should write the module status: true or false.
@@ -90,18 +72,38 @@ fi
 
 ```
 
-## Example
+## Examples
+
+### keys in values.yaml files
+
+Let’s assume the module named `nginx-ingress` and the following values are defined:
+
+```
+$ cat modules/values.yaml
+
+nginxIngressEnabled: true
+
+$ cat modules/001-nginx-ingress/values.yaml
+
+nginxIngressEnabled: false
+```
+
+Module `nginx-ingress` is disabled in `modules/values.yaml` but enabled in `modules/001-nginx-ingress/values.yaml`. The final result is that the module is disabled.
+
+Also note that module's directory name is kebab-cased but keys in values.yaml are camelCased (see [VALUES](VALUES.md#values-storage)).
+
+### values.yaml and ConfigMap 
 
 Let’s assume the following values and enabled script are defined:
 
 ```
-$ cat modules/values.yaml:
+$ cat modules/values.yaml
 
 global:
   param1: 100
 someModuleEnabled: false
 
-$ cat modules/01-some-module/values.yaml
+$ cat modules/001-some-module/values.yaml
 
 someModule:
   param1: "String"
@@ -124,7 +126,7 @@ $ cat modules/01-some-module/enabled
 echo false > $MODULE_ENABLED_RESULT
 ```
 
-Module some-module is explicitly disabled in modules/values.yaml and enabled by `someModuleEnabled` key in ConfigMap/addon-operator. So enabled script is executed. Script returns `false` and the final result is that the module is disabled.
+Module `some-module` is explicitly disabled in `modules/values.yaml` but enabled by `someModuleEnabled` key in ConfigMap/addon-operator. Thus enabled script is executed and returns `false`. So the final result is that the module is disabled.
 
 # Tasks queue
 
@@ -140,7 +142,6 @@ Several tools are available for the debugging of addon-operator and hooks:
 
 - You can get logs of an Addon-operator’s pod for analysis (by executing `kubectl logs -f po/POD_NAME`)
 - You can set the environment variable RLOG_LOG_LEVEL=DEBUG to include the detailed debugging data into logs
-- You can run the Addon-operator with the `--debug=yes` argument to obtain even more detailed debugging information and save it to logs
 - You can view the contents of the working queue via the HTTP request of `/queue` endpoint:
 
 ```bash
@@ -148,4 +149,3 @@ kubectl port-forward po/addon-operator 9115:9115
 
 curl localhost:9115/queue
 ```
-

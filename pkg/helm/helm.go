@@ -14,9 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
 
-	"github.com/flant/addon-operator/pkg/kube"
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
+	"github.com/flant/shell-operator/pkg/kube"
 )
 
 const HelmPath = "helm"
@@ -39,21 +40,22 @@ type HelmClient interface {
 var Client HelmClient
 
 type CliHelm struct {
-	tillerNamespace string
 }
 
 // Init starts Tiller installation.
-func Init(tillerNamespace string) error {
+func InitClient() error {
 	rlog.Info("Helm: run helm init")
 
-	cliHelm := &CliHelm{tillerNamespace: tillerNamespace}
+	cliHelm := &CliHelm{}
 
-	err := cliHelm.InitTiller()
+	// initialize helm client
+	stdout, stderr, err := cliHelm.Cmd("init", "--client-only")
 	if err != nil {
-		return err
+		return fmt.Errorf("helm init: %v\n%v %v", err, stdout, stderr)
 	}
 
-	stdout, stderr, err := cliHelm.Cmd("version")
+
+	stdout, stderr, err = cliHelm.Cmd("version")
 	if err != nil {
 		return fmt.Errorf("unable to get helm version: %v\n%v %v", err, stdout, stderr)
 	}
@@ -66,64 +68,15 @@ func Init(tillerNamespace string) error {
 	return nil
 }
 
-// InitTiller runs helm init with the same ServiceAccountName, NodeSelector and Tolerations
-// as a Pod of addon-operator
-func (helm *CliHelm) InitTiller() error {
-	podSpec, err := kube.GetCurrentPodSpec()
-	if err != nil {
-		return fmt.Errorf("cannot get PodSpec of Addon-operator to gather settings for a Tiller deployment: %s", err)
-	}
-
-	cmd := make([]string, 0)
-	cmd = append(cmd,
-		"init",
-		"--service-account", podSpec.ServiceAccountName,
-		"--upgrade", "--wait", "--skip-refresh",
-	)
-
-	nodeSelectors := make([]string, 0)
-	for k, v := range podSpec.NodeSelector {
-		nodeSelectors = append(nodeSelectors, fmt.Sprintf("%s=%s", k, v))
-	}
-	if len(nodeSelectors) > 0 {
-		cmd = append(cmd, fmt.Sprintf("--node-selectors=%s", strings.Join(nodeSelectors, ",")))
-	}
-
-	override := make([]string, 0)
-	for i, spec := range podSpec.Tolerations {
-		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].key=%s", i, spec.Key))
-		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].operator=%s", i, spec.Operator))
-		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].value=%s", i, spec.Value))
-		override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].effect=%s", i, spec.Effect))
-
-		if spec.TolerationSeconds != nil {
-			override = append(override, fmt.Sprintf("spec.template.spec.tolerations[%d].tolerationSeconds=%d", i, *spec.TolerationSeconds))
-		}
-	}
-	if len(override) > 0 {
-		cmd = append(cmd, fmt.Sprintf("--override=%s", strings.Join(override, ",")))
-	}
-
-	if podSpec.HostNetwork {
-		cmd = append(cmd, "--net-host")
-	}
-
-	stdout, stderr, err := helm.Cmd(cmd...)
-	if err != nil {
-		return fmt.Errorf("%s\n%s\n%s", err, stdout, stderr)
-	}
-	rlog.Infof("Helm: tiller initialization done: %v %v", stdout, stderr)
-
-	return nil
+func (h *CliHelm) TillerNamespace() string {
+	//return h.tillerNamespace
+	return app.Namespace
 }
 
-func (helm *CliHelm) TillerNamespace() string {
-	return helm.tillerNamespace
-}
-
-func (helm *CliHelm) CommandEnv() []string {
+func (h *CliHelm) CommandEnv() []string {
 	res := make([]string, 0)
-	res = append(res, fmt.Sprintf("TILLER_NAMESPACE=%s", helm.TillerNamespace()))
+	res = append(res, fmt.Sprintf("TILLER_NAMESPACE=%s", app.Namespace))
+	res = append(res, fmt.Sprintf("HELM_HOST=%s", fmt.Sprintf("%s:%d", app.TillerListenAddress, app.TillerListenPort)))
 	return res
 }
 
@@ -206,7 +159,7 @@ func (helm *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 		rlog.Infof("helm release '%s': delete old FAILED revision cm/%s", releaseName, cmName)
 
 		err := kube.Kubernetes.CoreV1().
-			ConfigMaps(kube.AddonOperatorNamespace).
+			ConfigMaps(app.Namespace).
 			Delete(cmName, &metav1.DeleteOptions{})
 
 		if err != nil {
@@ -325,7 +278,7 @@ func (helm *CliHelm) ListReleases(labelSelector map[string]string) ([]string, er
 	labelsSet["OWNER"] = "TILLER"
 
 	cmList, err := kube.Kubernetes.CoreV1().
-		ConfigMaps(kube.AddonOperatorNamespace).
+		ConfigMaps(app.Namespace).
 		List(metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
 		rlog.Debugf("helm: list of releases ConfigMaps failed: %s", err)
