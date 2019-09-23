@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/evanphx/json-patch v4.5.0+incompatible
-	github.com/flant/shell-operator v1.0.0-beta.5.0.20190917065053-86a4b2a7a3ae // branch: fix_excutor
+	github.com/flant/shell-operator v1.0.0-beta.5.0.20190923140739-5f7d9cca9885 // branch: release-1.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-yaml/yaml v2.1.0+incompatible
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
