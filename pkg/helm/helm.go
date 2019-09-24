@@ -14,10 +14,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
 
-	"github.com/flant/addon-operator/pkg/app"
-	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/shell-operator/pkg/kube"
+
+	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/utils"
+
 )
 
 const HelmPath = "helm"

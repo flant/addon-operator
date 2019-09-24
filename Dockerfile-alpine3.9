@@ -13,7 +13,8 @@ RUN apk --no-cache add ca-certificates jq bash && \
     tar -z -x -C /bin -f /helm.tgz --strip-components=1 linux-amd64/helm linux-amd64/tiller && \
     rm -f /helm.tgz && \
     helm init --client-only && \
-    mkdir /hooks
+    wget https://dl.bintray.com/flant/werf/v1.0.4-beta.12/werf-linux-amd64-v1.0.4-beta.12 -O /bin/werf && \
+    chmod +x /bin/werf
 COPY --from=0 /addon-operator/addon-operator /
 WORKDIR /
 ENV MODULES_DIR /modules

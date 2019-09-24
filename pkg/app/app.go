@@ -23,6 +23,9 @@ var TillerProbeListenAddress = "127.0.0.1"
 var TillerProbeListenPort int32 = 44435
 var TillerMaxHistory = 0
 
+var WerfTillerNamespace = ""
+var WerfArgs = ""
+
 var ConfigMapName = "addon-operator"
 var ValuesChecksumsAnnotation = "addon-operator/values-checksums"
 var TasksQueueDumpFilePath = "/tmp/addon-operator-tasks-queue"
