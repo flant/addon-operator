@@ -11,6 +11,8 @@ import (
 	"github.com/romana/rlog"
 )
 
+const TillerPath = "tiller"
+
 // TillerOptions
 type TillerOptions struct {
 	Namespace string
@@ -35,7 +37,7 @@ func InitTillerProcess(options TillerOptions) error {
 		fmt.Sprintf("%s:%d", options.ProbeListenAddress, options.ProbeListenPort),
 	}
 
-	tillerCmd := exec.Command("/bin/tiller", args...)
+	tillerCmd := exec.Command(TillerPath, args...)
 	tillerCmd.Env = append(os.Environ(), env...)
 	tillerCmd.Dir = "/"
 
