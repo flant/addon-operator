@@ -1,4 +1,4 @@
-# Module scructure
+# Module structure
 
 A module is a directory with files. Addon-operator searches for the modules directories in `/modules` or in the path specified by $MODULES_DIR variable. The module has the same name as the corresponding directory excluding the numeric prefix.
 
