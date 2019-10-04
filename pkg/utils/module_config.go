@@ -3,8 +3,9 @@ package utils
 import (
 	"fmt"
 
+	"gopkg.in/yaml.v2"
+
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
-	"github.com/go-yaml/yaml"
 )
 
 var ModuleEnabled = true

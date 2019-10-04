@@ -7,18 +7,14 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ghodss/yaml"
 	"github.com/romana/rlog"
 	"github.com/stretchr/testify/assert"
-
-	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 
 	"github.com/flant/shell-operator/pkg/kube"
-	"github.com/flant/shell-operator/pkg/kube_events_manager"
-	"github.com/flant/shell-operator/pkg/schedule_manager"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+	"k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -46,7 +42,7 @@ func initModuleManager(t *testing.T, mm *MainModuleManager, configPath string) {
 		t.Fatal(err)
 	}
 
-	if err := mm.initGlobalHooks(); err != nil {
+	if err := mm.RegisterGlobalHooks(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -299,185 +295,185 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 	}
 }
 
-func Test_MainModuleManager_Get_ModuleHook(t *testing.T) {
-	t.SkipNow()
-	mm := NewMainModuleManager()
-
-	initModuleManager(t, mm, "get__module_hook")
-
-	var moduleHook *ModuleHook
-	var err error
-
-	tests := []struct{
-		name string
-		hookName string
-		testFn func()
-	} {
-		{
-			"module-hook-all-bindings",
-			"000-all-bindings/hooks/all",
-			func() {
-				expectedHook := &ModuleHook{
-					&CommonHook{
-						"000-all-bindings/hooks/all",
-						filepath.Join(mm.ModulesDir, "000-all-bindings/hooks/all"),
-						[]BindingType{BeforeHelm, AfterHelm, AfterDeleteHelm, OnStartup, Schedule, KubeEvents},
-						map[BindingType]float64 {
-							BeforeHelm:      1.0,
-							AfterHelm:       1.0,
-							AfterDeleteHelm: 1.0,
-							OnStartup:       1.0,
-						},
-						mm,
-					},
-					&Module{},
-					&ModuleHookConfig{
-						HookConfig{
-							1.0,
-							[]schedule_manager.ScheduleConfig{
-								{
-									Crontab:      "* * * * *",
-									AllowFailure: true,
-								},
-							},
-							[]kube_events_manager.OnKubernetesEventConfig{
-								{
-									EventTypes: []kube_events_manager.OnKubernetesEventType{kube_events_manager.KubernetesEventOnAdd},
-									Kind:       "configmap",
-									Selector: &metav1.LabelSelector{
-										MatchLabels: map[string]string{
-											"component": "component1",
-										},
-										MatchExpressions: []metav1.LabelSelectorRequirement{
-											{
-												Key:      "tier",
-												Operator: "In",
-												Values:   []string{"cache"},
-											},
-										},
-									},
-									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
-										MatchNames: []string{"namespace1"},
-										Any:        false,
-									},
-									JqFilter:     ".items[] | del(.metadata, .field1)",
-									AllowFailure: true,
-								},
-								{
-									EventTypes: []kube_events_manager.OnKubernetesEventType{
-										kube_events_manager.KubernetesEventOnAdd,
-										kube_events_manager.KubernetesEventOnUpdate,
-										kube_events_manager.KubernetesEventOnDelete,
-									},
-									Kind: "namespace",
-									Selector: &metav1.LabelSelector{
-										MatchLabels: map[string]string{
-											"component": "component2",
-										},
-										MatchExpressions: []metav1.LabelSelectorRequirement{
-											{
-												Key:      "tier",
-												Operator: "In",
-												Values:   []string{"cache"},
-											},
-										},
-									},
-									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
-										MatchNames: []string{"namespace2"},
-										Any:        false,
-									},
-									JqFilter:     ".items[] | del(.metadata, .field2)",
-									AllowFailure: true,
-								},
-								{
-									EventTypes: []kube_events_manager.OnKubernetesEventType{
-										kube_events_manager.KubernetesEventOnAdd,
-										kube_events_manager.KubernetesEventOnUpdate,
-										kube_events_manager.KubernetesEventOnDelete,
-									},
-									Kind: "pod",
-									Selector: &metav1.LabelSelector{
-										MatchLabels: map[string]string{
-											"component": "component3",
-										},
-										MatchExpressions: []metav1.LabelSelectorRequirement{
-											{
-												Key:      "tier",
-												Operator: "In",
-												Values:   []string{"cache"},
-											},
-										},
-									},
-									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
-										MatchNames: nil,
-										Any:        true,
-									},
-									JqFilter:     ".items[] | del(.metadata, .field3)",
-									AllowFailure: true,
-								},
-							},
-						},
-						1.0,
-						1.0,
-						1.0,
-					},
-				}
-				if assert.NoError(t, err) {
-					moduleHook.Module = &Module{}
-					assert.Equal(t, expectedHook, moduleHook)
-				}
-			},
-		},
-		{
-			"nested-module-hook",
-			"100-nested-hooks/hooks/sub/sub/nested-before-helm",
-			func() {
-				expectedHook := &ModuleHook{
-					&CommonHook{
-						"100-nested-hooks/hooks/sub/sub/nested-before-helm",
-						filepath.Join(mm.ModulesDir, "100-nested-hooks/hooks/sub/sub/nested-before-helm"),
-						[]BindingType{BeforeHelm},
-						map[BindingType]float64 {
-							BeforeHelm: 1.0,
-						},
-						mm,
-					},
-					&Module{},
-					&ModuleHookConfig{
-						HookConfig{
-							OnStartup: nil,
-							Schedule: nil,
-							OnKubernetesEvent: nil,
-						},
-						1.0,
-						nil,
-						nil,
-					},
-				}
-				if assert.NoError(t, err) {
-					moduleHook.Module = &Module{}
-					assert.Equal(t, expectedHook, moduleHook)
-				}
-			},
-		},
-		{
-			"error-on-non-existent-module-hook",
-			"non-existent",
-			func() {
-				assert.Error(t, err)
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			moduleHook = nil
-			err = nil
-			moduleHook, err = mm.GetModuleHook(test.hookName)
-			test.testFn()
-		})
-	}
-}
+//func Test_MainModuleManager_Get_ModuleHook(t *testing.T) {
+//	t.SkipNow()
+//	mm := NewMainModuleManager()
+//
+//	initModuleManager(t, mm, "get__module_hook")
+//
+//	var moduleHook *ModuleHook
+//	var err error
+//
+//	tests := []struct{
+//		name string
+//		hookName string
+//		testFn func()
+//	} {
+//		{
+//			"module-hook-all-bindings",
+//			"000-all-bindings/hooks/all",
+//			func() {
+//				expectedHook := &ModuleHook{
+//					&CommonHook{
+//						"000-all-bindings/hooks/all",
+//						filepath.Join(mm.ModulesDir, "000-all-bindings/hooks/all"),
+//						[]BindingType{BeforeHelm, AfterHelm, AfterDeleteHelm, OnStartup, Schedule, KubeEvents},
+//						map[BindingType]float64 {
+//							BeforeHelm:      1.0,
+//							AfterHelm:       1.0,
+//							AfterDeleteHelm: 1.0,
+//							OnStartup:       1.0,
+//						},
+//						mm,
+//					},
+//					&Module{},
+//					&ModuleHookConfig{
+//						HookConfig{
+//							1.0,
+//							[]schedule_manager.ScheduleConfig{
+//								{
+//									Crontab:      "* * * * *",
+//									AllowFailure: true,
+//								},
+//							},
+//							[]kube_events_manager.OnKubernetesEventConfig{
+//								{
+//									EventTypes: []kube_events_manager.OnKubernetesEventType{kube_events_manager.KubernetesEventOnAdd},
+//									Kind:       "configmap",
+//									Selector: &metav1.LabelSelector{
+//										MatchLabels: map[string]string{
+//											"component": "component1",
+//										},
+//										MatchExpressions: []metav1.LabelSelectorRequirement{
+//											{
+//												Key:      "tier",
+//												Operator: "In",
+//												Values:   []string{"cache"},
+//											},
+//										},
+//									},
+//									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
+//										MatchNames: []string{"namespace1"},
+//										Any:        false,
+//									},
+//									JqFilter:     ".items[] | del(.metadata, .field1)",
+//									AllowFailure: true,
+//								},
+//								{
+//									EventTypes: []kube_events_manager.OnKubernetesEventType{
+//										kube_events_manager.KubernetesEventOnAdd,
+//										kube_events_manager.KubernetesEventOnUpdate,
+//										kube_events_manager.KubernetesEventOnDelete,
+//									},
+//									Kind: "namespace",
+//									Selector: &metav1.LabelSelector{
+//										MatchLabels: map[string]string{
+//											"component": "component2",
+//										},
+//										MatchExpressions: []metav1.LabelSelectorRequirement{
+//											{
+//												Key:      "tier",
+//												Operator: "In",
+//												Values:   []string{"cache"},
+//											},
+//										},
+//									},
+//									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
+//										MatchNames: []string{"namespace2"},
+//										Any:        false,
+//									},
+//									JqFilter:     ".items[] | del(.metadata, .field2)",
+//									AllowFailure: true,
+//								},
+//								{
+//									EventTypes: []kube_events_manager.OnKubernetesEventType{
+//										kube_events_manager.KubernetesEventOnAdd,
+//										kube_events_manager.KubernetesEventOnUpdate,
+//										kube_events_manager.KubernetesEventOnDelete,
+//									},
+//									Kind: "pod",
+//									Selector: &metav1.LabelSelector{
+//										MatchLabels: map[string]string{
+//											"component": "component3",
+//										},
+//										MatchExpressions: []metav1.LabelSelectorRequirement{
+//											{
+//												Key:      "tier",
+//												Operator: "In",
+//												Values:   []string{"cache"},
+//											},
+//										},
+//									},
+//									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
+//										MatchNames: nil,
+//										Any:        true,
+//									},
+//									JqFilter:     ".items[] | del(.metadata, .field3)",
+//									AllowFailure: true,
+//								},
+//							},
+//						},
+//						1.0,
+//						1.0,
+//						1.0,
+//					},
+//				}
+//				if assert.NoError(t, err) {
+//					moduleHook.Module = &Module{}
+//					assert.Equal(t, expectedHook, moduleHook)
+//				}
+//			},
+//		},
+//		{
+//			"nested-module-hook",
+//			"100-nested-hooks/hooks/sub/sub/nested-before-helm",
+//			func() {
+//				expectedHook := &ModuleHook{
+//					&CommonHook{
+//						"100-nested-hooks/hooks/sub/sub/nested-before-helm",
+//						filepath.Join(mm.ModulesDir, "100-nested-hooks/hooks/sub/sub/nested-before-helm"),
+//						[]BindingType{BeforeHelm},
+//						map[BindingType]float64 {
+//							BeforeHelm: 1.0,
+//						},
+//						mm,
+//					},
+//					&Module{},
+//					&ModuleHookConfig{
+//						HookConfig{
+//							OnStartup: nil,
+//							Schedule: nil,
+//							OnKubernetesEvent: nil,
+//						},
+//						1.0,
+//						nil,
+//						nil,
+//					},
+//				}
+//				if assert.NoError(t, err) {
+//					moduleHook.Module = &Module{}
+//					assert.Equal(t, expectedHook, moduleHook)
+//				}
+//			},
+//		},
+//		{
+//			"error-on-non-existent-module-hook",
+//			"non-existent",
+//			func() {
+//				assert.Error(t, err)
+//			},
+//		},
+//	}
+//
+//	for _, test := range tests {
+//		t.Run(test.name, func(t *testing.T) {
+//			moduleHook = nil
+//			err = nil
+//			moduleHook, err = mm.GetModuleHook(test.hookName)
+//			test.testFn()
+//		})
+//	}
+//}
 
 func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 	helm.Client = &helm.MockHelmClient{}
@@ -791,177 +787,177 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 	}
 }
 
-func Test_MainModuleManager_Get_GlobalHook(t *testing.T) {
-	mm := NewMainModuleManager()
-
-	initModuleManager(t, mm, "get__global_hook")
-
-	var globalHook *GlobalHook
-	var err error
-
-	tests := []struct {
-		name              string
-		hookName          string
-		testFn func()
-	}{
-		{
-			"global-hook-with-all-bindings",
-			"000-all-bindings/all",
-			func() {
-				expectedHook := &GlobalHook{
-					&CommonHook{
-						"000-all-bindings/all",
-						filepath.Join(mm.GlobalHooksDir, "000-all-bindings/all"),
-						[]BindingType{BeforeAll, AfterAll, OnStartup, Schedule, KubeEvents},
-						map[BindingType]float64{
-							BeforeAll: 1.0,
-							AfterAll:  1.0,
-							OnStartup: 1.0,
-						},
-						mm,
-					},
-					&GlobalHookConfig{
-						HookConfig{
-							1.0,
-							[]schedule_manager.ScheduleConfig{
-								{
-									Crontab:      "* * * * *",
-									AllowFailure: true,
-								},
-							},
-							[]kube_events_manager.OnKubernetesEventConfig{
-								{
-									EventTypes: []kube_events_manager.OnKubernetesEventType{kube_events_manager.KubernetesEventOnAdd},
-									Kind:       "configmap",
-									Selector: &metav1.LabelSelector{
-										MatchLabels: map[string]string{
-											"component": "component1",
-										},
-										MatchExpressions: []metav1.LabelSelectorRequirement{
-											{
-												Key:      "tier",
-												Operator: "In",
-												Values:   []string{"cache"},
-											},
-										},
-									},
-									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
-										MatchNames: []string{"namespace1"},
-										Any:        false,
-									},
-									JqFilter:     ".items[] | del(.metadata, .field1)",
-									AllowFailure: true,
-								},
-								{
-									EventTypes: []kube_events_manager.OnKubernetesEventType{
-										kube_events_manager.KubernetesEventOnAdd,
-										kube_events_manager.KubernetesEventOnUpdate,
-										kube_events_manager.KubernetesEventOnDelete,
-									},
-									Kind: "namespace",
-									Selector: &metav1.LabelSelector{
-										MatchLabels: map[string]string{
-											"component": "component2",
-										},
-										MatchExpressions: []metav1.LabelSelectorRequirement{
-											{
-												Key:      "tier",
-												Operator: "In",
-												Values:   []string{"cache"},
-											},
-										},
-									},
-									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
-										MatchNames: []string{"namespace2"},
-										Any:        false,
-									},
-									JqFilter:     ".items[] | del(.metadata, .field2)",
-									AllowFailure: true,
-								},
-								{
-									EventTypes: []kube_events_manager.OnKubernetesEventType{
-										kube_events_manager.KubernetesEventOnAdd,
-										kube_events_manager.KubernetesEventOnUpdate,
-										kube_events_manager.KubernetesEventOnDelete,
-									},
-									Kind: "pod",
-									Selector: &metav1.LabelSelector{
-										MatchLabels: map[string]string{
-											"component": "component3",
-										},
-										MatchExpressions: []metav1.LabelSelectorRequirement{
-											{
-												Key:      "tier",
-												Operator: "In",
-												Values:   []string{"cache"},
-											},
-										},
-									},
-									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
-										MatchNames: nil,
-										Any:        true,
-									},
-									JqFilter:     ".items[] | del(.metadata, .field3)",
-									AllowFailure: true,
-								},
-							},
-						},
-						1.0,
-						1.0,
-					},
-				}
-
-				if assert.NoError(t, err) {
-					assert.Equal(t, expectedHook, globalHook)
-				}
-			},
-		},
-		{
-			"global-hook-nested",
-			"100-nested-hook/sub/sub/nested-before-all",
-			func() {
-				expectedHook := &GlobalHook{
-					&CommonHook {
-						"100-nested-hook/sub/sub/nested-before-all",
-						filepath.Join(mm.GlobalHooksDir, "100-nested-hook/sub/sub/nested-before-all"),
-						[]BindingType{BeforeAll},
-						map[BindingType]float64{
-							BeforeAll: 1.0,
-						},
-						mm,
-					},
-					&GlobalHookConfig{
-						HookConfig{
-							nil,
-							nil,
-							nil,
-						},
-						1.0,
-						nil,
-					},
-				}
-				if assert.NoError(t, err) {
-					assert.Equal(t, expectedHook, globalHook)
-				}
-			},
-		},
-		{
-			"error-if-hook-not-registered",
-			"non-existent",
-			func(){
-				assert.Error(t, err)
-				assert.Nil(t, globalHook)
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			globalHook, err = mm.GetGlobalHook(test.hookName)
-			test.testFn()
-		})
-	}
-}
+//func Test_MainModuleManager_Get_GlobalHook(t *testing.T) {
+//	mm := NewMainModuleManager()
+//
+//	initModuleManager(t, mm, "get__global_hook")
+//
+//	var globalHook *GlobalHook
+//	var err error
+//
+//	tests := []struct {
+//		name              string
+//		hookName          string
+//		testFn func()
+//	}{
+//		{
+//			"global-hook-with-all-bindings",
+//			"000-all-bindings/all",
+//			func() {
+//				expectedHook := &GlobalHook{
+//					&CommonHook{
+//						"000-all-bindings/all",
+//						filepath.Join(mm.GlobalHooksDir, "000-all-bindings/all"),
+//						[]BindingType{BeforeAll, AfterAll, OnStartup, Schedule, KubeEvents},
+//						map[BindingType]float64{
+//							BeforeAll: 1.0,
+//							AfterAll:  1.0,
+//							OnStartup: 1.0,
+//						},
+//						mm,
+//					},
+//					&GlobalHookConfig{
+//						HookConfig{
+//							1.0,
+//							[]schedule_manager.ScheduleConfig{
+//								{
+//									Crontab:      "* * * * *",
+//									AllowFailure: true,
+//								},
+//							},
+//							[]kube_events_manager.OnKubernetesEventConfig{
+//								{
+//									EventTypes: []kube_events_manager.OnKubernetesEventType{kube_events_manager.KubernetesEventOnAdd},
+//									Kind:       "configmap",
+//									Selector: &metav1.LabelSelector{
+//										MatchLabels: map[string]string{
+//											"component": "component1",
+//										},
+//										MatchExpressions: []metav1.LabelSelectorRequirement{
+//											{
+//												Key:      "tier",
+//												Operator: "In",
+//												Values:   []string{"cache"},
+//											},
+//										},
+//									},
+//									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
+//										MatchNames: []string{"namespace1"},
+//										Any:        false,
+//									},
+//									JqFilter:     ".items[] | del(.metadata, .field1)",
+//									AllowFailure: true,
+//								},
+//								{
+//									EventTypes: []kube_events_manager.OnKubernetesEventType{
+//										kube_events_manager.KubernetesEventOnAdd,
+//										kube_events_manager.KubernetesEventOnUpdate,
+//										kube_events_manager.KubernetesEventOnDelete,
+//									},
+//									Kind: "namespace",
+//									Selector: &metav1.LabelSelector{
+//										MatchLabels: map[string]string{
+//											"component": "component2",
+//										},
+//										MatchExpressions: []metav1.LabelSelectorRequirement{
+//											{
+//												Key:      "tier",
+//												Operator: "In",
+//												Values:   []string{"cache"},
+//											},
+//										},
+//									},
+//									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
+//										MatchNames: []string{"namespace2"},
+//										Any:        false,
+//									},
+//									JqFilter:     ".items[] | del(.metadata, .field2)",
+//									AllowFailure: true,
+//								},
+//								{
+//									EventTypes: []kube_events_manager.OnKubernetesEventType{
+//										kube_events_manager.KubernetesEventOnAdd,
+//										kube_events_manager.KubernetesEventOnUpdate,
+//										kube_events_manager.KubernetesEventOnDelete,
+//									},
+//									Kind: "pod",
+//									Selector: &metav1.LabelSelector{
+//										MatchLabels: map[string]string{
+//											"component": "component3",
+//										},
+//										MatchExpressions: []metav1.LabelSelectorRequirement{
+//											{
+//												Key:      "tier",
+//												Operator: "In",
+//												Values:   []string{"cache"},
+//											},
+//										},
+//									},
+//									NamespaceSelector: &kube_events_manager.KubeNamespaceSelector{
+//										MatchNames: nil,
+//										Any:        true,
+//									},
+//									JqFilter:     ".items[] | del(.metadata, .field3)",
+//									AllowFailure: true,
+//								},
+//							},
+//						},
+//						1.0,
+//						1.0,
+//					},
+//				}
+//
+//				if assert.NoError(t, err) {
+//					assert.Equal(t, expectedHook, globalHook)
+//				}
+//			},
+//		},
+//		{
+//			"global-hook-nested",
+//			"100-nested-hook/sub/sub/nested-before-all",
+//			func() {
+//				expectedHook := &GlobalHook{
+//					&CommonHook {
+//						"100-nested-hook/sub/sub/nested-before-all",
+//						filepath.Join(mm.GlobalHooksDir, "100-nested-hook/sub/sub/nested-before-all"),
+//						[]BindingType{BeforeAll},
+//						map[BindingType]float64{
+//							BeforeAll: 1.0,
+//						},
+//						mm,
+//					},
+//					&GlobalHookConfig{
+//						HookConfig{
+//							nil,
+//							nil,
+//							nil,
+//						},
+//						1.0,
+//						nil,
+//					},
+//				}
+//				if assert.NoError(t, err) {
+//					assert.Equal(t, expectedHook, globalHook)
+//				}
+//			},
+//		},
+//		{
+//			"error-if-hook-not-registered",
+//			"non-existent",
+//			func(){
+//				assert.Error(t, err)
+//				assert.Nil(t, globalHook)
+//			},
+//		},
+//	}
+//
+//	for _, test := range tests {
+//		t.Run(test.name, func(t *testing.T) {
+//			globalHook, err = mm.GetGlobalHook(test.hookName)
+//			test.testFn()
+//		})
+//	}
+//}
 
 func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
 	helm.Client = &helm.MockHelmClient{}
