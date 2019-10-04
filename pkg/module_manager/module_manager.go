@@ -1,7 +1,6 @@
 package module_manager
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
@@ -9,7 +8,7 @@ import (
 
 	"github.com/romana/rlog"
 
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
+	hook_config "github.com/flant/shell-operator/pkg/hook"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
@@ -32,7 +31,7 @@ type ModuleManager interface {
 	RunModule(moduleName string, onStartup bool) error
 	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext) error
 	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext) error
-	InitModuleHooks(module *Module) error
+	RegisterModuleHooks(module *Module) error
 	Retry()
 	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
@@ -145,13 +144,15 @@ var ContextBindingType = map[BindingType]string{
 	KubeEvents:      "onKubernetesEvent",
 }
 
+var ShOpBindingType = map[BindingType]hook_config.BindingType{
+	OnStartup:       hook_config.OnStartup,
+	Schedule:        hook_config.Schedule,
+	KubeEvents:      hook_config.OnKubernetesEvent,
+}
+
 // BindingContext is a json with additional info for schedule and onKubeEvent hooks
 type BindingContext struct {
-	Binding           string `json:"binding"`
-	ResourceEvent     string `json:"resourceEvent,omitempty"`
-	ResourceNamespace string `json:"resourceNamespace,omitempty"`
-	ResourceKind      string `json:"resourceKind,omitempty"`
-	ResourceName      string `json:"resourceName,omitempty"`
+	hook_config.BindingContext
 }
 
 // EventType are events for the main loop.
@@ -385,9 +386,9 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 	for moduleName, module := range mm.allModulesByName {
 		kubeConfig, hasKubeConfig := moduleConfigs[moduleName]
 		if hasKubeConfig {
-		isEnabled := mergeEnabled(module.CommonStaticConfig.IsEnabled,
-			                      module.StaticConfig.IsEnabled,
-			                      kubeConfig.IsEnabled)
+			isEnabled := mergeEnabled(module.CommonStaticConfig.IsEnabled,
+			                          module.StaticConfig.IsEnabled,
+			                          kubeConfig.IsEnabled)
 
 			if isEnabled {
 				enabled = append(enabled, moduleName)
@@ -422,7 +423,7 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 func (mm *MainModuleManager) Init() error {
 	rlog.Debug("INIT: MODULE_MANAGER")
 
-	if err := mm.initGlobalHooks(); err != nil {
+	if err := mm.RegisterGlobalHooks(); err != nil {
 		return err
 	}
 
@@ -565,7 +566,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	}
 
 	for _, moduleName := range enabledModules {
-		if err = mm.InitModuleHooks(mm.allModulesByName[moduleName]); err != nil {
+		if err = mm.RegisterModuleHooks(mm.allModulesByName[moduleName]); err != nil {
 			return nil, err
 		}
 	}
@@ -581,7 +582,6 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	state.ModulesToDisable = utils.ListSubtract(mm.allModulesNamesInOrder, enabledModules)
 	state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, releasedModules)
 	state.ModulesToDisable = utils.SortReverseByReference(state.ModulesToDisable, mm.allModulesNamesInOrder)
-
 
 	rlog.Debugf("DISCOVER state results:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
@@ -640,7 +640,7 @@ func (mm *MainModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []st
 	}
 
 	sort.Slice(globalHooks[:], func(i, j int) bool {
-		return globalHooks[i].OrderByBinding[bindingType] < globalHooks[j].OrderByBinding[bindingType]
+		return globalHooks[i].Order(bindingType) < globalHooks[j].Order(bindingType)
 	})
 
 	var globalHooksNames []string
@@ -667,7 +667,7 @@ func (mm *MainModuleManager) GetModuleHooksInOrder(moduleName string, bindingTyp
 	}
 
 	sort.Slice(moduleBindingHooks[:], func(i, j int) bool {
-		return moduleBindingHooks[i].OrderByBinding[bindingType] < moduleBindingHooks[j].OrderByBinding[bindingType]
+		return moduleBindingHooks[i].Order(bindingType) < moduleBindingHooks[j].Order(bindingType)
 	})
 
 	var moduleHooksNames []string
@@ -689,8 +689,8 @@ func (mm *MainModuleManager) DeleteModule(moduleName string) error {
 		return err
 	}
 
-	// remove hooks structures
-	mm.removeModuleHooks(moduleName)
+	// remove module hooks from indexes
+	delete(mm.modulesHooksOrderByName, moduleName)
 
 	return nil
 }
@@ -709,21 +709,13 @@ func (mm *MainModuleManager) RunModule(moduleName string, onStartup bool) error 
 	return nil
 }
 
-func valuesChecksum(valuesArr ...utils.Values) (string, error) {
-	valuesJson, err := json.Marshal(utils.MergeValues(valuesArr...))
-	if err != nil {
-		return "", err
-	}
-	return utils_checksum.CalculateChecksum(string(valuesJson)), nil
-}
-
 func (mm *MainModuleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext) error {
 	globalHook, err := mm.GetGlobalHook(hookName)
 	if err != nil {
 		return err
 	}
 
-	oldValuesChecksum, err := valuesChecksum(globalHook.values())
+	oldValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
 	if err != nil {
 		return err
 	}
@@ -732,7 +724,7 @@ func (mm *MainModuleManager) RunGlobalHook(hookName string, binding BindingType,
 		return err
 	}
 
-	newValuesChecksum, err := valuesChecksum(globalHook.values())
+	newValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
 	if err != nil {
 		return err
 	}
@@ -753,7 +745,7 @@ func (mm *MainModuleManager) RunModuleHook(hookName string, binding BindingType,
 		return err
 	}
 
-	oldValuesChecksum, err := valuesChecksum(moduleHook.values())
+	oldValuesChecksum, err := utils.ValuesChecksum(moduleHook.values())
 	if err != nil {
 		return err
 	}
@@ -762,7 +754,7 @@ func (mm *MainModuleManager) RunModuleHook(hookName string, binding BindingType,
 		return err
 	}
 
-	newValuesChecksum, err := valuesChecksum(moduleHook.values())
+	newValuesChecksum, err := utils.ValuesChecksum(moduleHook.values())
 	if err != nil {
 		return err
 	}

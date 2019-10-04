@@ -11,12 +11,12 @@ import (
 	"github.com/romana/rlog"
 
 	"github.com/evanphx/json-patch"
-	ghodssyaml "github.com/ghodss/yaml"
-	"github.com/go-yaml/yaml"
 	"github.com/peterbourgon/mergemap"
 	"github.com/segmentio/go-camelcase"
+	"gopkg.in/yaml.v2"
+	k8syaml "sigs.k8s.io/yaml"
 
-	utils_data "github.com/flant/shell-operator/pkg/utils/data"
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
 const (
@@ -113,7 +113,7 @@ func NewValuesFromBytes(data []byte) (Values, error) {
 func NewValues(data map[interface{}]interface{}) (Values, error) {
 	values, err := FormatValues(data)
 	if err != nil {
-		return nil, fmt.Errorf("cannot cast data to JSON compatible format: %s:\n%s", err, utils_data.YamlToString(data))
+		return nil, fmt.Errorf("cannot cast data to JSON compatible format: %s:\n%s", err, ValuesToString(values))
 	}
 
 	return values, nil
@@ -125,7 +125,7 @@ func FormatValues(someValues map[interface{}]interface{}) (Values, error) {
 		return nil, err
 	}
 
-	jsonDoc, err := ghodssyaml.YAMLToJSON(yamlDoc)
+	jsonDoc, err := k8syaml.YAMLToJSON(yamlDoc)
 	if err != nil {
 		return nil, err
 	}
@@ -251,6 +251,24 @@ func ApplyJsonPatchToValues(values Values, patch jsonpatch.Patch) (Values, error
 	return resValues, nil
 }
 
+func ValidateHookValuesPatch(valuesPatch ValuesPatch, acceptableKey string) error {
+	for _, op := range valuesPatch.Operations {
+		if op.Op == "replace" {
+			return fmt.Errorf("unsupported patch operation '%s': '%s'", op.Op, op.ToString())
+		}
+
+		pathParts := strings.Split(op.Path, "/")
+		if len(pathParts) > 1 {
+			affectedKey := pathParts[1]
+			if affectedKey != acceptableKey {
+				return fmt.Errorf("unacceptable patch operation path '%s' (only '%s' accepted): '%s'", affectedKey, acceptableKey, op.ToString())
+			}
+		}
+	}
+
+	return nil
+}
+
 func MergeValues(values ...Values) Values {
 	res := make(Values)
 
@@ -262,8 +280,22 @@ func MergeValues(values ...Values) Values {
 }
 
 func ValuesToString(values Values) string {
-	return utils_data.YamlToString(values)
+	valuesYaml, err := yaml.Marshal(&values)
+	if err != nil {
+		panic(fmt.Sprintf("Cannot dump data to YAML: \n%#v\n error: %s", values, err))
+	}
+	return string(valuesYaml)
 }
+
+
+func ValuesChecksum(valuesArr ...Values) (string, error) {
+	valuesJson, err := json.Marshal(MergeValues(valuesArr...))
+	if err != nil {
+		return "", err
+	}
+	return utils_checksum.CalculateChecksum(string(valuesJson)), nil
+}
+
 
 func MustDump(data []byte, err error) []byte {
 	if err != nil {

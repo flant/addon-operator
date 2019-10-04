@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/flant/shell-operator/pkg/executor"
+	hook2 "github.com/flant/shell-operator/pkg/hook"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 
 	"github.com/flant/addon-operator/pkg/app"
@@ -227,7 +228,14 @@ func (m *Module) runHooksByBinding(binding BindingType) error {
 			return err
 		}
 
-		if err := moduleHook.run(binding, []BindingContext{{Binding: ContextBindingType[binding]}}); err != nil {
+		err = moduleHook.run(binding, []BindingContext{
+			{
+				BindingContext: hook2.BindingContext{
+					Binding: ContextBindingType[binding],
+				},
+			},
+		})
+		if err != nil {
 			return err
 		}
 	}
@@ -397,7 +405,7 @@ func (m *Module) moduleValuesKey() string {
 
 func (m *Module) prepareModuleEnabledResultFile() (string, error) {
 	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-enabled-result", m.Name))
-	if err := createHookResultValuesFile(path); err != nil {
+	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
 	return path, nil
@@ -460,7 +468,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 
 	cmd := executor.MakeCommand("", enabledScriptPath, []string{}, envs)
 
-	if err := executor.Run(cmd, true); err != nil {
+	if err := executor.Run(cmd); err != nil {
 		return false, err
 	}
 

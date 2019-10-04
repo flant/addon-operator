@@ -91,7 +91,7 @@ func (helm *CliHelm) Cmd(args ...string) (stdout string, stderr string, err erro
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 
-	err = executor.Run(cmd, true)
+	err = executor.Run(cmd)
 	stdout = strings.TrimSpace(stdoutBuf.String())
 	stderr = strings.TrimSpace(stderrBuf.String())
 

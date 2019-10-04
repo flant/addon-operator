@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
@@ -30,9 +29,6 @@ func main() {
 	kpApp.Command("start", "Start events processing.").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			// Setting flag.Parsed() for glog.
-			_ = flag.CommandLine.Parse([]string{})
-
 			// Be a good parent - clean up after the child processes
 			// in case if addon-operator is a PID 1 process.
 			go executor.Reap()
