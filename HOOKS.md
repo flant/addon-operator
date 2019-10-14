@@ -116,7 +116,7 @@ The execution of a module hook after the helm chart deletion (see [module lifecy
 
 ```
 {
-  "afterHelm": ORDER
+  "afterDeleteHelm": ORDER
 }
 ```
 
