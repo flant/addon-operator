@@ -108,8 +108,9 @@ func (m *ModuleManagerMock) Run() {
 	fmt.Println("ModuleManagerMock Run")
 }
 
+// Only for InitModuleHooks
 func (m *ModuleManagerMock) GetModule(name string) (*module_manager.Module, error) {
-	panic("implement GetModule")
+	return nil, nil
 }
 
 func (m *ModuleManagerMock) GetModuleNamesInOrder() []string {
@@ -432,6 +433,8 @@ func TestMain_Run_With_InfiniteModuleError(t *testing.T) {
 	runOrder = []int{}
 
 	// Сделать моки для всего, что нужно для запуска Run
+	KubeEventsManager = &KubeEventsManagerMock{}
+	KubeEventsHooks = &KubeEventsHooksControllerMock{}
 
 	helm.Client = MockHelmClient{
 		DeleteReleaseErrorsCount: 0,
