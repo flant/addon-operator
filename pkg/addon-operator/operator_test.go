@@ -62,6 +62,8 @@ type ModuleManagerMock struct {
 	ScheduledHookErrorsCount int
 }
 
+var _ module_manager.ModuleManager = &ModuleManagerMock{}
+
 var mainTestGlobalHooksMap = map[module_manager.BindingType][]string{
 	module_manager.OnStartup: {
 		"hook_1__31", "hook_2__32",
@@ -244,6 +246,10 @@ func (m *ModuleManagerMock) RunModuleHook(hookName string, binding module_manage
 		m.ScheduledHookErrorsCount--
 		return fmt.Errorf("fake module hook error: /bin/ash not found")
 	}
+	return nil
+}
+
+func (m *ModuleManagerMock) InitModuleHooks(module *module_manager.Module) error {
 	return nil
 }
 
