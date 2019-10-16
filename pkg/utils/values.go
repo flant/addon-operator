@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/romana/rlog"
@@ -50,7 +51,7 @@ func (p *ValuesPatch) JsonPatch() jsonpatch.Patch {
 type ValuesPatchOperation struct {
 	Op    string      `json:"op"`
 	Path  string      `json:"path"`
-	Value interface{} `json:"value"`
+	Value interface{} `json:"value,omitempty"`
 }
 
 func (op *ValuesPatchOperation) ToString() string {
@@ -178,36 +179,46 @@ func AppendValuesPatch(valuesPatches []ValuesPatch, newValuesPatch ValuesPatch) 
 }
 
 func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatch) []ValuesPatch {
-	var compactValuesPatches []ValuesPatch
-	for _, valuesPatch := range valuesPatches {
-		compactValuesPatchOperations := CompactValuesPatchOperations(valuesPatch.Operations, newValuesPatch.Operations)
-		if compactValuesPatchOperations != nil {
-			valuesPatch.Operations = compactValuesPatchOperations
-			compactValuesPatches = append(compactValuesPatches, valuesPatch)
-		}
+	operations := []*ValuesPatchOperation{}
+
+	for _, patch := range valuesPatches {
+		operations = append(operations, patch.Operations...)
 	}
-	return compactValuesPatches
+	operations = append(operations, newValuesPatch.Operations...)
+
+	return []ValuesPatch{CompactPatches(operations)}
 }
 
-func CompactValuesPatchOperations(operations []*ValuesPatchOperation, newOperations []*ValuesPatchOperation) []*ValuesPatchOperation {
-	var compactOperations []*ValuesPatchOperation
+func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
+	patchesTree := map[string]*ValuesPatchOperation{}
 
-operations:
-	for _, operation := range operations {
-		for _, newOperation := range newOperations {
-			if newOperation.Op == operation.Op {
-				equalPath := newOperation.Path == operation.Path
-				subpathOfPath := strings.HasPrefix(operation.Path, strings.Join([]string{newOperation.Path, "/"}, ""))
-
-				if equalPath || subpathOfPath {
-					continue operations
+	for _, op := range operations {
+		patchesTree[op.Path] = op
+		// remove subpathes if got 'remove' operation
+		if op.Op == "remove" {
+			for subPath := range patchesTree {
+				if len(op.Path) < len(subPath) && strings.HasPrefix(subPath, op.Path+"/") {
+					delete(patchesTree, subPath)
 				}
 			}
 		}
-		compactOperations = append(compactOperations, operation)
+
 	}
 
-	return compactOperations
+	paths := []string{}
+	for path := range patchesTree {
+		paths = append(paths, path)
+	}
+
+	sort.Strings(paths)
+
+	newOps := []*ValuesPatchOperation{}
+	for _, path := range paths {
+		newOps = append(newOps, patchesTree[path])
+	}
+
+	newValuesPatch := ValuesPatch{Operations: newOps}
+	return newValuesPatch
 }
 
 func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, error) {
