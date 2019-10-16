@@ -32,6 +32,7 @@ type ModuleManager interface {
 	RunModule(moduleName string, onStartup bool) error
 	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext) error
 	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext) error
+	InitModuleHooks(module *Module) error
 	Retry()
 	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
@@ -564,7 +565,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	}
 
 	for _, moduleName := range enabledModules {
-		if err = mm.initModuleHooks(mm.allModulesByName[moduleName]); err != nil {
+		if err = mm.InitModuleHooks(mm.allModulesByName[moduleName]); err != nil {
 			return nil, err
 		}
 	}
@@ -580,6 +581,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	state.ModulesToDisable = utils.ListSubtract(mm.allModulesNamesInOrder, enabledModules)
 	state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, releasedModules)
 	state.ModulesToDisable = utils.SortReverseByReference(state.ModulesToDisable, mm.allModulesNamesInOrder)
+
 
 	rlog.Debugf("DISCOVER state results:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+

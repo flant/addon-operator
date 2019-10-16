@@ -338,6 +338,15 @@ func runDiscoverModulesState(discoverTask task.Task) error {
 	}
 
 	for _, moduleName := range modulesState.ModulesToDisable {
+		// TODO may be only afterHelmDelete hooks should be initialized?
+		// Enable module hooks on startup to run afterHelmDelete hooks
+		if discoverTask.GetOnStartupHooks() {
+			// error can be ignored, DiscoverModulesState should return existed modules
+			disabledModule, _ := ModuleManager.GetModule(moduleName)
+			if err = ModuleManager.InitModuleHooks(disabledModule); err != nil {
+				return err
+			}
+		}
 		newTask := task.NewTask(task.ModuleDelete, moduleName)
 		TasksQueue.Add(newTask)
 		rlog.Infof("QUEUE add ModuleDelete %s", moduleName)

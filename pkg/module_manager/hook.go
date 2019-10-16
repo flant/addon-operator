@@ -673,7 +673,7 @@ func (mm *MainModuleManager) initGlobalHooks() error {
 	return nil
 }
 
-func (mm *MainModuleManager) initModuleHooks(module *Module) error {
+func (mm *MainModuleManager) InitModuleHooks(module *Module) error {
 	if _, ok := mm.modulesHooksOrderByName[module.Name]; ok {
 		rlog.Debugf("INIT: module '%s' hooks: already initialized", module.Name)
 		return nil
