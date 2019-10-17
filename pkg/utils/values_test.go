@@ -1,9 +1,13 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/evanphx/json-patch"
+	"github.com/stretchr/testify/assert"
 )
 
 
@@ -77,158 +81,6 @@ func TestModuleNameConversions(t *testing.T) {
 	}
 }
 
-func TestCompactValuesPatchOperations(t *testing.T) {
-	expectations := []struct {
-		testName           string
-		operations         []*ValuesPatchOperation
-		newOperations      []*ValuesPatchOperation
-		expectedOperations []*ValuesPatchOperation
-	}{
-		{
-			"path",
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a",
-					"",
-				},
-			},
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a",
-					"",
-				},
-			},
-			nil,
-		},
-		{
-			"subpath",
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a/b",
-					"",
-				},
-			},
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a",
-					"",
-				},
-			},
-			nil,
-		},
-		{
-			"different op",
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a",
-					"",
-				},
-			},
-			[]*ValuesPatchOperation{
-				{
-					"delete",
-					"/a",
-					"",
-				},
-			},
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a",
-					"",
-				},
-			},
-		},
-		{
-			"different path",
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a",
-					"",
-				},
-			},
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/b",
-					"",
-				},
-			},
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a",
-					"",
-				},
-			},
-		},
-		{
-			"sample",
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a",
-					"",
-				},
-				{
-					"add",
-					"/a/b",
-					"",
-				},
-				{
-					"add",
-					"/b",
-					"",
-				},
-				{
-					"delete",
-					"/c",
-					"",
-				},
-			},
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/a",
-					"",
-				},
-				{
-					"delete",
-					"/c",
-					"",
-				},
-				{
-					"add",
-					"/d",
-					"",
-				},
-			},
-			[]*ValuesPatchOperation{
-				{
-					"add",
-					"/b",
-					"",
-				},
-			},
-		},
-	}
-
-	for _, expectation := range expectations {
-		t.Run(expectation.testName, func(t *testing.T) {
-			compactOperations := CompactValuesPatchOperations(expectation.operations, expectation.newOperations)
-
-			if !reflect.DeepEqual(expectation.expectedOperations, compactOperations) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedOperations, compactOperations)
-			}
-		})
-	}
-}
 
 // TODO поправить после изменения алгоритма compact
 func TestApplyPatch(t *testing.T) {
@@ -304,3 +156,390 @@ func TestApplyPatch(t *testing.T) {
 		})
 	}
 }
+
+
+func Test_ApplyRemove_NonExistent(t *testing.T) {
+	t.SkipNow()
+	patch1, _ := jsonpatch.DecodePatch([]byte(`[{"op":"remove", "path":"/test_key"}]`))
+
+	origDoc := []byte(`{"asd":"foof"}`)
+
+	expectNewDoc := []byte(`{"asd":"foof"}`)
+
+	newDoc, err :=  patch1.Apply(origDoc)
+	if err != nil{
+		t.Logf("patch Apply: %v", err)
+		t.FailNow()
+	}
+
+	assert.True(t, jsonpatch.Equal(newDoc, expectNewDoc), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+
+}
+
+func Test_Apply_Remove_ObjectAndArray(t *testing.T) {
+	patch1, _ := jsonpatch.DecodePatch([]byte(`[{"op":"remove", "path":"/test_obj"}, {"op":"remove", "path":"/test_array"}]`))
+
+	//origDoc := []byte(`{"asd":"foof", "test_key":"123"}`)
+	origDoc := []byte(`{"asd":"foof", "test_obj":{"color":"red", "model":"sedan"}, "test_array":["uno", "deux", "three"]}`)
+
+	expectNewDoc := []byte(`{"asd":"foof"}`)
+
+	newDoc, err :=  patch1.Apply(origDoc)
+	if err != nil{
+		t.Logf("patch Apply: %v", err)
+		t.FailNow()
+	}
+
+	assert.True(t, jsonpatch.Equal(newDoc, expectNewDoc), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+
+}
+
+
+// Replace non existent path is error!
+func Test_Apply_Replace_NonExistent(t *testing.T) {
+	t.SkipNow()
+	//patch1, _ := jsonpatch.DecodePatch([]byte(`{"op":"remove", "path":"/test_key", "value":"baz"}`))
+	patch1, _ := jsonpatch.DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
+
+	//origDoc := []byte(`{"asd":"foof", "test_key":"123"}`)
+	origDoc := []byte(`{"asd":"foof"}`)
+
+	expectNewDoc := []byte(`{"asd":"foof"}`)
+
+	newDoc, err :=  patch1.Apply(origDoc)
+	if err != nil{
+		t.Logf("patch Apply: %v", err)
+		t.FailNow()
+	}
+
+	assert.True(t, jsonpatch.Equal(newDoc, expectNewDoc), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+
+}
+
+func Test_Apply_Add_WithNonExistentParent(t *testing.T) {
+	// Not working!
+//	patch1, _ := jsonpatch.DecodePatch([]byte(`
+//[{"op":"add", "path":"/level1/level2/test_key", "value":"qwe"}]`))
+
+	patch1, _ := jsonpatch.DecodePatch([]byte(`
+[
+  {"op":"add", "path":"/level1", "value":{}},
+  {"op":"add", "path":"/level1/level2", "value":{}},
+  {"op":"add", "path":"/level1/level2/test_key", "value":"qwe"}
+]
+`))
+
+	origDoc := []byte(`{"bar":"foo"}`)
+
+	expectNewDoc := []byte(`{"bar":"foo", "level1":{"level2":{"test_key":"qwe"}}}`)
+
+	newDoc, err :=  patch1.Apply(origDoc)
+	if err != nil{
+		t.Logf("patch Apply: %v", err)
+		t.FailNow()
+	}
+
+	assert.True(t, jsonpatch.Equal(newDoc, expectNewDoc), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+}
+
+// add operation with type replace is error!
+func Test_Apply_Add_NullObj_AddKey(t *testing.T) {
+	t.SkipNow()
+	patch1, _ := jsonpatch.DecodePatch([]byte(`
+[
+	{"op":"add", "path":"/test_obj/key3", "value":"foo"}
+]
+`))
+
+	origDoc := []byte(`{"test_obj":""}`)
+
+	expectNewDoc := []byte(`{"test_obj":{"key3":"foo"}}`)
+
+	newDoc, err :=  patch1.Apply(origDoc)
+	if err != nil{
+		t.Logf("patch Apply: %v", err)
+		t.FailNow()
+	}
+
+	assert.True(t, jsonpatch.Equal(newDoc, expectNewDoc), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+}
+
+func Test_Apply_MergePatch_Add_NullObj_AddKey(t *testing.T) {
+	// It is not working without adding parent keys!
+//	patch1, _ := jsonpatch.DecodePatch([]byte(`
+//[{"op":"add", "path":"/level1/level2/test_key", "value":"qwe"}]`))
+
+	//{"op":"add", "path":"/test_obj", "value":{}},
+	//{"op":"add", "path":"/test_obj/key1", "value":"foo"},
+	//{"op":"add", "path":"/test_obj/key2", "value":"bar"},
+//	{"op":"remove", "path":"/test_obj"},
+	//{"op":"add", "path":"/test_obj", "value":{}},
+	patch1 := []byte(`
+{"test_obj":{"key3":"foo"}, "remove":null}
+`)
+
+	origDoc := []byte(`{"test_obj":"foo"}`)
+
+	expectNewDoc := []byte(`{"test_obj":{"key3":"foo"}}`)
+
+	newDoc, err := jsonpatch.MergePatch(origDoc, patch1)
+	if err != nil{
+		t.Logf("patch Merge: %v", err)
+		t.FailNow()
+	}
+
+	assert.True(t, jsonpatch.Equal(newDoc, expectNewDoc), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+}
+
+// MergeMergePatches doesn't work as a merge for JSON Patches
+func Test_Merge_Patches_By_Steps(t *testing.T) {
+	t.SkipNow()
+	//patch1, _ := jsonpatch.DecodePatch([]byte(`{"op":"remove", "path":"/test_key", "value":"baz"}`))
+
+	patches := []string{
+		`[{"op":"remove", "path":"/test_key"}]`,
+		`[{"op":"add", "path":"/test_key", "value":333}]`,
+		`[{"op":"add", "path":"/foo", "value":"bar"}]`,
+		`[{"op":"remove", "path":"/test_key"}]`,
+		`[{"op":"add", "path":"/foo", "value":"zoo"}]`,
+	}
+
+	newPatch := []byte(`[]`)
+	var err error
+
+	for i, patch := range patches {
+		newPatch, err = jsonpatch.MergeMergePatches(newPatch, []byte(patch))
+		if err != nil{
+			t.Logf("merge patches: %v", err)
+			t.FailNow()
+		}
+		t.Logf("%d.  %s", i, patch)
+		t.Logf(" == %s", newPatch)
+	}
+}
+
+
+
+
+func Test_CompactPatches_Result(t *testing.T) {
+	tests := []struct{
+		name string
+		patches []string
+		expected string
+	}{
+		{
+			"remove+add",
+			[]string{
+				`[{"op":"remove", "path":"/test_key"}]`,
+				`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
+			},
+			`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
+		},
+		{
+			"add+remove",
+			[]string{
+				`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
+				`[{"op":"remove", "path":"/test_key"}]`,
+			},
+			`[{"op":"remove", "path":"/test_key"}]`,
+		},
+		{
+			"add+add",
+			[]string{
+				`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
+			},
+			`[{"op":"add", "path":"/test_key", "value":"foo"}, {"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
+		},
+		{
+			"add+add+remove",
+			[]string{
+				`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
+				`[{"op":"remove", "path":"/test_key"}]`,
+			},
+			`[{"op":"remove", "path":"/test_key"}, {"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
+		},
+		{
+			"add object + remove parent == remove parent",
+			[]string{
+				`[{"op":"add", "path":"/test_obj", "value":{}}]`,
+				`[{"op":"add", "path":"/test_obj/key1", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_obj/key2", "value":"bar"}]`,
+				`[{"op":"remove", "path":"/test_obj"}]`,
+			},
+			`[{"op":"remove", "path":"/test_obj"}]`,
+		},
+		{
+			"add parent with keys + remove parent + add new object == add new object",
+			[]string{
+				`[{"op":"add", "path":"/test_obj", "value":{}}]`,
+				`[{"op":"add", "path":"/test_obj/key1", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_obj/key2", "value":"bar"}]`,
+				`[{"op":"remove", "path":"/test_obj"}]`,
+				`[{"op":"add", "path":"/test_obj", "value":{}}]`,
+				`[{"op":"add", "path":"/test_obj/key3", "value":"foo"}]`,
+			},
+			`[{"op":"add", "path":"/test_obj", "value":{}},{"op":"add", "path":"/test_obj/key3", "value":"foo"}]`,
+		},
+		{
+			"add parent + remove parent + add new object == add new object",
+			[]string{
+				`[{"op":"add", "path":"/test_obj", "value":{}}]`,
+				`[{"op":"add", "path":"/test_obj/key1", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_obj/key2", "value":"bar"}]`,
+				`[{"op":"remove", "path":"/test_obj"}]`,
+				`[{"op":"add", "path":"/test_obj", "value":[]}]`,
+				`[{"op":"add", "path":"/test_obj/0", "value":"0"}]`,
+			},
+			`[{"op":"add", "path":"/test_obj", "value":[]},{"op":"add", "path":"/test_obj/0", "value":"0"}]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			operations := []*ValuesPatchOperation{}
+			for _, patch := range tt.patches {
+				vp, _ := ValuesPatchFromBytes([]byte(patch))
+				operations = append(operations, vp.Operations...)
+			}
+
+			newPatch := CompactPatches(operations)
+			newPatchBytes, err := json.Marshal(newPatch.Operations)
+			if assert.NoError(t, err) {
+				assert.True(t, jsonpatch.Equal(newPatchBytes, []byte(tt.expected)), "%s should be equal to %s", newPatchBytes, tt.expected)
+			}
+		})
+	}
+}
+
+func Test_CompactPatches_Apply(t *testing.T) {
+	tests := []struct{
+		name string
+		patches []string
+		input string
+		expected string
+	}{
+		{
+			"remove+add",
+			[]string{
+				`[{"op":"remove", "path":"/test_key"}]`,
+				`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
+			},
+			`{"test_key":"wqe"}`,
+			`{"test_key":"foo"}`,
+		},
+		{
+			"add+remove",
+			[]string{
+				`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
+				`[{"op":"remove", "path":"/test_key"}]`,
+			},
+			`{"test_key":"wqe"}`,
+			`{}`,
+		},
+		{
+			"add+add",
+			[]string{
+				`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
+			},
+			`{"test_key":"wqe"}`,
+			`{"test_key":"foo", "test_key_2":"qwe"}`,
+		},
+		{
+			"add+add+remove",
+			[]string{
+				`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
+				`[{"op":"remove", "path":"/test_key"}]`,
+			},
+			`{"test_key":"/123"}`,
+			`{"test_key_2":"qwe"}`,
+		},
+		{
+			"add object + remove parent == remove parent",
+			[]string{
+				`[{"op":"add", "path":"/test_obj", "value":{}}]`,
+				`[{"op":"add", "path":"/test_obj/key1", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_obj/key2", "value":"bar"}]`,
+				`[{"op":"remove", "path":"/test_obj"}]`,
+			},
+			`{"test_obj":{}}`,
+			`{}`,
+		},
+		{
+			"add parent with keys + remove parent + add new object == add new object",
+			[]string{
+				`[{"op":"add", "path":"/test_obj", "value":{}}]`,
+				`[{"op":"add", "path":"/test_obj/key1", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_obj/key2", "value":"bar"}]`,
+				`[{"op":"remove", "path":"/test_obj"}]`,
+				`[{"op":"add", "path":"/test_obj", "value":{}}]`,
+				`[{"op":"add", "path":"/test_obj/key3", "value":"foo"}]`,
+			},
+			`{"test_obj":{}}`,
+			`{"test_obj":{"key3":"foo"}}`,
+		},
+		{
+			"add parent + remove parent + add new object == add new object",
+			[]string{
+				`[{"op":"add", "path":"/test_obj", "value":{}}]`,
+				`[{"op":"add", "path":"/test_obj/key1", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_obj/key2", "value":"bar"}]`,
+				`[{"op":"remove", "path":"/test_obj"}]`,
+				`[{"op":"add", "path":"/test_obj", "value":[]}]`,
+				`[{"op":"add", "path":"/test_obj/0", "value":"foo"}]`,
+			},
+			`{"test_obj":{}}`,
+			`{"test_obj":["foo"]}`,
+		},
+		{
+			"add parent + remove parent + add new object == add new object",
+			[]string{
+				`[{"op":"add", "path":"/test_obj", "value":{}}]`,
+				`[{"op":"add", "path":"/test_obj/key1", "value":"foo"}]`,
+				`[{"op":"add", "path":"/test_obj/key2", "value":"bar"}]`,
+				`[{"op":"remove", "path":"/test_obj"}]`,
+				`[{"op":"add", "path":"/test_obj", "value":[]}]`,
+				`[{"op":"add", "path":"/test_obj/0", "value":"foo"}]`,
+			},
+			`{"test_ob":{"foo":"bar"}, "test_object":{"foo":"bar"}, "test_obj":{}}`,
+			`{"test_ob":{"foo":"bar"}, "test_object":{"foo":"bar"}, "test_obj":["foo"]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var origPatchedDoc []byte = []byte(tt.input)
+			var err error
+
+			operations := []*ValuesPatchOperation{}
+			for _, patch := range tt.patches {
+				vp, _ := ValuesPatchFromBytes([]byte(patch))
+				operations = append(operations, vp.Operations...)
+
+				patchedDoc, err := vp.JsonPatch().Apply([]byte(origPatchedDoc))
+				if !assert.NoError(t, err) {
+					t.Logf("%s should apply on %s", patch, origPatchedDoc)
+					t.FailNow()
+				}
+				origPatchedDoc = patchedDoc
+			}
+
+			assert.True(t, jsonpatch.Equal(origPatchedDoc, []byte(tt.expected)), "%s should be equal to %s", origPatchedDoc, tt.expected)
+
+
+			newPatch := CompactPatches(operations)
+			if !assert.NoError(t, err) {
+				t.FailNow()
+			}
+			patched, err := newPatch.JsonPatch().Apply([]byte(tt.input))
+			if assert.NoError(t, err) {
+				assert.True(t, jsonpatch.Equal(patched, []byte(tt.expected)), "%s should be equal to %s", patched, tt.expected)
+			}
+		})
+	}
+}
+
+
