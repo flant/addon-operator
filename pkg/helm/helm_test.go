@@ -8,11 +8,57 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/sirupsen/logrus"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/rbac/v1beta1"
 
 	"github.com/flant/shell-operator/pkg/kube"
 )
+
+func Test_Logging(t *testing.T) {
+	log.SetFormatter(&log.JSONFormatter{DisableTimestamp: true})
+
+	log.Info("Start test")
+
+	logEntry1 := log.WithField("test", "helm")
+	logEntry1.Infof("asd")
+
+	logEntry2 := log.WithField("test2", "helm2")
+	logEntry2.Infof("asd")
+
+	logEntry11 := logEntry1.WithField("subtest", "helmm")
+	logEntry11.Infof("helmm info")
+
+	logEntry1.Infof("asd again")
+
+
+	logEntry11.WithField("test","helm11").Infof("helmm info")
+
+	fields1 := map[string]string {
+		"module": "mod1",
+		"hook": "hook2",
+		"component": "main",
+	}
+	logEntry1F := logEntry1.WithFields(utils.LabelsToLogFields(fields1))
+	logEntry1F.Infof("top record")
+
+	fields2 := map[string]string {
+		"module":"mod2",
+		"event.id": "123",
+	}
+
+	logEntry2F := logEntry1F.WithFields(utils.LabelsToLogFields(fields2))
+
+	logEntry2F.Infof("nested record")
+	logEntry1F.Infof("new top record")
+	logEntry2F.Infof("new nested record")
+
+
+	logEntry2F.WithField("result", "qwe\nfoo\bqwe").Infof("record with multiline field")
+
+}
 
 func getTestDirectoryPath(testName string) string {
 	_, testFile, _, _ := runtime.Caller(0)
@@ -77,7 +123,6 @@ func TestHelm(t *testing.T) {
 	var releases []string
 
 	helm := &CliHelm{}
-	//rlog.Infof("Testing tiller in '%s' namespace", helm.TillerNamespace())
 
 	_ = kube.Init(kube.InitOptions{})
 	//kube.AddonOperatorNamespace = helm.TillerNamespace()

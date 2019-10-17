@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 
 	hook2 "github.com/flant/shell-operator/pkg/hook"
 	utils_data "github.com/flant/shell-operator/pkg/utils/data"
@@ -91,9 +91,7 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 	return result, nil
 }
 
-func (h *GlobalHook) run(bindingType BindingType, context []BindingContext) error {
-	rlog.Infof("Running global hook '%s' binding '%s' ...", h.Name, bindingType)
-
+func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
 	// Convert context for version
 	versionedContext := make([]interface{}, 0, len(context))
 	for _, c := range context {
@@ -101,6 +99,7 @@ func (h *GlobalHook) run(bindingType BindingType, context []BindingContext) erro
 	}
 
 	globalHookExecutor := NewHookExecutor(h, versionedContext)
+	globalHookExecutor.WithLogLabels(logLabels)
 	patches, err := globalHookExecutor.Run()
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)
@@ -121,12 +120,12 @@ func (h *GlobalHook) run(bindingType BindingType, context []BindingContext) erro
 		if configValuesPatchResult.ValuesChanged {
 			err := h.moduleManager.kubeConfigManager.SetKubeGlobalValues(configValuesPatchResult.Values)
 			if err != nil {
-				rlog.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
+				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
 			}
 
 			h.moduleManager.kubeGlobalConfigValues = configValuesPatchResult.Values
-			rlog.Debugf("Global hook '%s': kube config global values updated:\n%s", h.Name, utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
+			log.Debugf("Global hook '%s': kube config global values updated:\n%s", h.Name, utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
 		}
 	}
 
@@ -138,7 +137,7 @@ func (h *GlobalHook) run(bindingType BindingType, context []BindingContext) erro
 		}
 		if valuesPatchResult.ValuesChanged {
 			h.moduleManager.globalDynamicValuesPatches = utils.AppendValuesPatch(h.moduleManager.globalDynamicValuesPatches, valuesPatchResult.ValuesPatch)
-			rlog.Debugf("Global hook '%s': global values updated:\n%s", h.Name, utils.ValuesToString(h.values()))
+			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, utils.ValuesToString(h.values()))
 		}
 	}
 
@@ -216,7 +215,7 @@ func (h *GlobalHook) prepareConfigValuesYamlFile() (string, error) {
 		return "", err
 	}
 
-	rlog.Debugf("Prepared global hook %s config values:\n%s", h.Name, utils.ValuesToString(values))
+	log.Debugf("Prepared global hook %s config values:\n%s", h.Name, utils.ValuesToString(values))
 
 	return path, nil
 }
@@ -231,7 +230,7 @@ func (h *GlobalHook) prepareConfigValuesJsonFile() (string, error) {
 		return "", err
 	}
 
-	rlog.Debugf("Prepared global hook %s config values:\n%s", h.Name, utils.ValuesToString(values))
+	log.Debugf("Prepared global hook %s config values:\n%s", h.Name, utils.ValuesToString(values))
 
 	return path, nil
 }
@@ -246,7 +245,7 @@ func (h *GlobalHook) prepareValuesYamlFile() (string, error) {
 		return "", err
 	}
 
-	rlog.Debugf("Prepared global hook %s values:\n%s", h.Name, utils.ValuesToString(values))
+	log.Debugf("Prepared global hook %s values:\n%s", h.Name, utils.ValuesToString(values))
 
 	return path, nil
 }
@@ -261,7 +260,7 @@ func (h *GlobalHook) prepareValuesJsonFile() (string, error) {
 		return "", err
 	}
 
-	rlog.Debugf("Prepared global hook %s values:\n%s", h.Name, utils.ValuesToString(values))
+	log.Debugf("Prepared global hook %s values:\n%s", h.Name, utils.ValuesToString(values))
 
 	return path, nil
 }
@@ -275,7 +274,7 @@ func (h *GlobalHook) prepareBindingContextJsonFile(context interface{}) (string,
 		return "", err
 	}
 
-	rlog.Debugf("Prepared global hook %s binding context:\n%s", h.Name, utils_data.YamlToString(context))
+	log.Debugf("Prepared global hook %s binding context:\n%s", h.Name, utils_data.YamlToString(context))
 
 	return path, nil
 }

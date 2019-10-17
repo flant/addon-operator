@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 )
 
 type TasksQueueDumper struct {
@@ -40,14 +40,14 @@ func (t *TasksQueueDumper) WatchQueue() {
 func (t *TasksQueueDumper) DumpQueue() {
 	f, err := os.Create(t.DumpFilePath)
 	if err != nil {
-		rlog.Errorf("TasksQueueDumper: Cannot open '%s': %s\n", t.DumpFilePath, err)
+		log.Errorf("TasksQueueDumper: Cannot open '%s': %s\n", t.DumpFilePath, err)
 	}
 	_, err = io.Copy(f, t.queue.DumpReader())
 	if err != nil {
-		rlog.Errorf("TasksQueueDumper: Cannot dump tasks to '%s': %s\n", t.DumpFilePath, err)
+		log.Errorf("TasksQueueDumper: Cannot dump tasks to '%s': %s\n", t.DumpFilePath, err)
 	}
 	err = f.Close()
 	if err != nil {
-		rlog.Errorf("TasksQueueDumper: Cannot close '%s': %s\n", t.DumpFilePath, err)
+		log.Errorf("TasksQueueDumper: Cannot close '%s': %s\n", t.DumpFilePath, err)
 	}
 }

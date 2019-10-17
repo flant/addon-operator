@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
 
@@ -35,37 +35,45 @@ type HelmClient interface {
 	ListReleases(labelSelector map[string]string) ([]string, error)
 	ListReleasesNames(labelSelector map[string]string) ([]string, error)
 	IsReleaseExists(releaseName string) (bool, error)
+	WithLog(entry *log.Entry)
 }
 
 var Client HelmClient
 
 type CliHelm struct {
+	LogEntry *log.Entry
 }
 
-// Init starts Tiller installation.
-func InitClient() error {
-	rlog.Info("Helm: run helm init")
+var _ HelmClient = &CliHelm{}
 
+// InitClient initialize helm client
+func InitClient() error {
 	cliHelm := &CliHelm{}
 
-	// initialize helm client
 	stdout, stderr, err := cliHelm.Cmd("init", "--client-only")
 	if err != nil {
 		return fmt.Errorf("helm init: %v\n%v %v", err, stdout, stderr)
 	}
 
-
-	stdout, stderr, err = cliHelm.Cmd("version")
+	stdout, stderr, err = cliHelm.Cmd("version", "--short")
 	if err != nil {
-		return fmt.Errorf("unable to get helm version: %v\n%v %v", err, stdout, stderr)
+		return fmt.Errorf("unable to get helm or tiller version: %v\n%v %v", err, stdout, stderr)
 	}
-	rlog.Infof("Helm: helm version:\n%v %v", stdout, stderr)
-
-	rlog.Info("Helm: successfully initialized")
-
-	Client = cliHelm
+	stdout = strings.Join([]string{stdout, stderr}, "\n")
+	stdout = strings.ReplaceAll(stdout, "\n", " ")
+	log.Infof("Helm successfully initialized. Version: %s", stdout)
 
 	return nil
+}
+
+var NewHelmCli = func(logEntry *log.Entry) HelmClient {
+	return &CliHelm{
+		LogEntry: logEntry.WithField("operator.component", "helm"),
+	}
+}
+
+func (h *CliHelm) WithLog(logEntry *log.Entry) {
+	h.LogEntry = logEntry.WithField("operator.component", "helm")
 }
 
 func (h *CliHelm) TillerNamespace() string {
@@ -82,9 +90,9 @@ func (h *CliHelm) CommandEnv() []string {
 
 // Cmd starts Helm with specified arguments.
 // Sets the TILLER_NAMESPACE environment variable before starting, because Addon-operator works with its own Tiller.
-func (helm *CliHelm) Cmd(args ...string) (stdout string, stderr string, err error) {
+func (h *CliHelm) Cmd(args ...string) (stdout string, stderr string, err error) {
 	cmd := exec.Command(HelmPath, args...)
-	cmd.Env = append(os.Environ(), helm.CommandEnv()...)
+	cmd.Env = append(os.Environ(), h.CommandEnv()...)
 
 	var stdoutBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -98,41 +106,41 @@ func (helm *CliHelm) Cmd(args ...string) (stdout string, stderr string, err erro
 	return
 }
 
-func (helm *CliHelm) DeleteSingleFailedRevision(releaseName string) (err error) {
-	revision, status, err := helm.LastReleaseStatus(releaseName)
+func (h *CliHelm) DeleteSingleFailedRevision(releaseName string) (err error) {
+	revision, status, err := h.LastReleaseStatus(releaseName)
 	if err != nil {
 		if revision == "0" {
 			// Revision 0 is not an error. Just skips deletion.
-			rlog.Debugf("helm release '%s': Release not found, no cleanup required.", releaseName)
+			log.Debugf("helm release '%s': Release not found, no cleanup required.", releaseName)
 			return nil
 		}
-		rlog.Errorf("helm release '%s': got error from LastReleaseStatus: %s", releaseName, err)
+		h.LogEntry.Errorf("helm release '%s': got error from LastReleaseStatus: %s", releaseName, err)
 		return err
 	}
 
 	if revision == "1" && status == "FAILED" {
 		// Deletes and purges!
-		err = helm.DeleteRelease(releaseName)
+		err = h.DeleteRelease(releaseName)
 		if err != nil {
-			rlog.Errorf("helm release '%s': cleanup of failed revision got error: %v", releaseName, err)
+			h.LogEntry.Errorf("helm release '%s': cleanup of failed revision got error: %v", releaseName, err)
 			return err
 		}
-		rlog.Infof("helm release '%s': cleanup of failed revision succeeded", releaseName)
+		h.LogEntry.Infof("helm release '%s': cleanup of failed revision succeeded", releaseName)
 	} else {
 		// No interest of revisions older than 1.
-		rlog.Debugf("helm release '%s': has revision '%s' with status %s", releaseName, revision, status)
+		h.LogEntry.Debugf("helm release '%s': has revision '%s' with status %s", releaseName, revision, status)
 	}
 
 	return
 }
 
-func (helm *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
-	cmNames, err := helm.ListReleases(map[string]string{"STATUS": "FAILED", "NAME": releaseName})
+func (h *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
+	cmNames, err := h.ListReleases(map[string]string{"STATUS": "FAILED", "NAME": releaseName})
 	if err != nil {
 		return err
 	}
 
-	rlog.Debugf("helm release '%s': found ConfigMaps: %v", cmNames)
+	h.LogEntry.Debugf("helm release '%s': found ConfigMaps: %v", releaseName, cmNames)
 
 	var releaseCmNamePattern = regexp.MustCompile(`^(.*).v([0-9]+)$`)
 
@@ -156,7 +164,7 @@ func (helm *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 
 	for _, revision := range revisions {
 		cmName := fmt.Sprintf("%s.v%d", releaseName, revision)
-		rlog.Infof("helm release '%s': delete old FAILED revision cm/%s", releaseName, cmName)
+		h.LogEntry.Infof("helm release '%s': delete old FAILED revision cm/%s", releaseName, cmName)
 
 		err := kube.Kubernetes.CoreV1().
 			ConfigMaps(app.Namespace).
@@ -175,8 +183,8 @@ func (helm *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 // helm history output:
 // REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
 // 1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
-func (helm *CliHelm) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
-	stdout, stderr, err := helm.Cmd("history", releaseName, "--max", "1")
+func (h *CliHelm) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
+	stdout, stderr, err := h.Cmd("history", releaseName, "--max", "1")
 
 	if err != nil {
 		errLine := strings.Split(stderr, "\n")[0]
@@ -199,7 +207,7 @@ func (helm *CliHelm) LastReleaseStatus(releaseName string) (revision string, sta
 	return
 }
 
-func (helm *CliHelm) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
+func (h *CliHelm) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
 	args := make([]string, 0)
 	args = append(args, "upgrade")
 	args = append(args, "--install")
@@ -221,18 +229,18 @@ func (helm *CliHelm) UpgradeRelease(releaseName string, chart string, valuesPath
 		args = append(args, setValue)
 	}
 
-	rlog.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chart, namespace)
-	stdout, stderr, err := helm.Cmd(args...)
+	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chart, namespace)
+	stdout, stderr, err := h.Cmd(args...)
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
 	}
-	rlog.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful:\n%s\n%s", releaseName, chart, namespace, stdout, stderr)
+	h.LogEntry.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful:\n%s\n%s", releaseName, chart, namespace, stdout, stderr)
 
 	return nil
 }
 
-func (helm *CliHelm) GetReleaseValues(releaseName string) (utils.Values, error) {
-	stdout, stderr, err := helm.Cmd("get", "values", releaseName)
+func (h *CliHelm) GetReleaseValues(releaseName string) (utils.Values, error) {
+	stdout, stderr, err := h.Cmd("get", "values", releaseName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get values of helm release %s: %s\n%s %s", releaseName, err, stdout, stderr)
 	}
@@ -245,10 +253,10 @@ func (helm *CliHelm) GetReleaseValues(releaseName string) (utils.Values, error) 
 	return values, nil
 }
 
-func (helm *CliHelm) DeleteRelease(releaseName string) (err error) {
-	rlog.Debugf("helm release '%s': execute helm delete --purge", releaseName)
+func (h *CliHelm) DeleteRelease(releaseName string) (err error) {
+	h.LogEntry.Debugf("helm release '%s': execute helm delete --purge", releaseName)
 
-	stdout, stderr, err := helm.Cmd("delete", "--purge", releaseName)
+	stdout, stderr, err := h.Cmd("delete", "--purge", releaseName)
 	if err != nil {
 		return fmt.Errorf("helm delete --purge %s invocation error: %v\n%v %v", releaseName, err, stdout, stderr)
 	}
@@ -256,8 +264,8 @@ func (helm *CliHelm) DeleteRelease(releaseName string) (err error) {
 	return
 }
 
-func (helm *CliHelm) IsReleaseExists(releaseName string) (bool, error) {
-	revision, _, err := helm.LastReleaseStatus(releaseName)
+func (h *CliHelm) IsReleaseExists(releaseName string) (bool, error) {
+	revision, _, err := h.LastReleaseStatus(releaseName)
 	if err != nil && revision == "0" {
 		return false, nil
 	} else if err != nil {
@@ -270,7 +278,7 @@ func (helm *CliHelm) IsReleaseExists(releaseName string) (bool, error) {
 // Returns all known releases as strings — "<release_name>.v<release_number>"
 // Helm looks for ConfigMaps by label 'OWNER=TILLER' and gets release info from the 'release' key.
 // https://github.com/kubernetes/helm/blob/8981575082ea6fc2a670f81fb6ca5b560c4f36a7/pkg/storage/driver/cfgmaps.go#L88
-func (helm *CliHelm) ListReleases(labelSelector map[string]string) ([]string, error) {
+func (h *CliHelm) ListReleases(labelSelector map[string]string) ([]string, error) {
 	labelsSet := make(kblabels.Set)
 	for k, v := range labelSelector {
 		labelsSet[k] = v
@@ -281,7 +289,7 @@ func (helm *CliHelm) ListReleases(labelSelector map[string]string) ([]string, er
 		ConfigMaps(app.Namespace).
 		List(metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
-		rlog.Debugf("helm: list of releases ConfigMaps failed: %s", err)
+		h.LogEntry.Debugf("helm: list of releases ConfigMaps failed: %s", err)
 		return nil, err
 	}
 
@@ -298,8 +306,8 @@ func (helm *CliHelm) ListReleases(labelSelector map[string]string) ([]string, er
 }
 
 // ListReleasesNames returns list of release names without suffixes ".v<release_number>"
-func (helm *CliHelm) ListReleasesNames(labelSelector map[string]string) ([]string, error) {
-	releases, err := helm.ListReleases(labelSelector)
+func (h *CliHelm) ListReleasesNames(labelSelector map[string]string) ([]string, error) {
+	releases, err := h.ListReleases(labelSelector)
 	if err != nil {
 		return []string{}, err
 	}

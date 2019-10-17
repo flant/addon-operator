@@ -11,10 +11,12 @@ import (
 	"path"
 	"time"
 
-	"github.com/flant/shell-operator/pkg/hook"
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/satori/go.uuid.v1"
 
+	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/metrics_storage"
@@ -73,14 +75,16 @@ var (
 //
 // Creating an empty queue with jobs.
 func Init() error {
-	rlog.Debug("INIT: started")
+	logLabels := map[string]string {
+		"operator.component": "Init",
+	}
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	var err error
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		rlog.Errorf("INIT: Cannot get current working directory of process: %s", err)
-		return err
+		return fmt.Errorf("get working directory of process: %s", err)
 	}
 
 	// TODO: check if directories are existed
@@ -92,15 +96,15 @@ func Init() error {
 	if GlobalHooksDir == "" {
 		GlobalHooksDir = path.Join(cwd, app.GlobalHooksDir)
 	}
-	rlog.Infof("INIT: Modules: '%s', Global hooks: '%s'", ModulesDir, GlobalHooksDir)
+	logEntry.Infof("Global hooks directory: %s", GlobalHooksDir)
+	logEntry.Infof("Modules directory: %s", ModulesDir)
 
 	TempDir := app.TmpDir
 	err = os.MkdirAll(TempDir, os.FileMode(0777))
 	if err != nil {
-		rlog.Errorf("INIT: Cannot create temporary dir '%s': %s", TempDir, err)
-		return err
+		return fmt.Errorf("create temp directory '%s': %s", TempDir, err)
 	}
-	rlog.Infof("INIT: Temporary dir: %s", TempDir)
+	logEntry.Infof("Temp directory: %s", TempDir)
 
 
 	// init and start metrics gathering loop
@@ -111,7 +115,7 @@ func Init() error {
 	// Initializing the empty task queue and queue dumper
 	TasksQueue = task.NewTasksQueue()
 	// Initializing the queue dumper, which writes queue changes to the dump file.
-	rlog.Debugf("INIT: Tasks queue dump file: '%s'", app.TasksQueueDumpFilePath)
+	logEntry.Infof("Queue dump file path: %s", app.TasksQueueDumpFilePath)
 	queueWatcher := task.NewTasksQueueDumper(app.TasksQueueDumpFilePath, TasksQueue)
 	TasksQueue.AddWatcher(queueWatcher)
 
@@ -119,14 +123,13 @@ func Init() error {
 	// Initializing the connection to the k8s.
 	err = kube.Init(kube.InitOptions{})
 	if err != nil {
-		rlog.Errorf("INIT: Cannot initialize Kubernetes client: %s", err)
-		return err
+		return fmt.Errorf("init Kubernetes client: %s", err)
 	}
 
 
 	// A useful callback when addon-operator is used as library
 	if BeforeHelmInitCb != nil {
-		rlog.Debugf("INIT: run BeforeHelmInitCallback")
+		logEntry.Debugf("run BeforeHelmInitCallback")
 		BeforeHelmInitCb()
 	}
 
@@ -139,15 +142,13 @@ func Init() error {
 		ProbeListenPort: app.TillerProbeListenPort,
 	})
 	if err != nil {
-		rlog.Errorf("INIT: Tiller is failed to start: %s", err)
-		return err
+		return fmt.Errorf("init tiller: %s", err)
 	}
 
 	// Initializing helm client
 	err = helm.InitClient()
 	if err != nil {
-		rlog.Errorf("INIT: helm client: %s", err)
-		return err
+		return fmt.Errorf("init helm client: %s", err)
 	}
 
 
@@ -159,7 +160,7 @@ func Init() error {
 
 	err = KubeConfigManager.Init()
 	if err != nil {
-		return err
+		return fmt.Errorf("init kube config manager: %s", err)
 	}
 
 	module_manager.Init()
@@ -168,16 +169,14 @@ func Init() error {
 	ModuleManager.WithKubeConfigManager(KubeConfigManager)
 	err = ModuleManager.Init()
 	if err != nil {
-		rlog.Errorf("INIT: Cannot initialize module manager: %s", err)
-		return err
+		return fmt.Errorf("init module manager: %s", err)
 	}
 
 
 	// Initializing the hooks schedule.
 	ScheduleManager, err = schedule_manager.Init()
 	if err != nil {
-		rlog.Errorf("INIT: Cannot initialize schedule manager: %s", err)
-		return err
+		return fmt.Errorf("init schedule manager: %s", err)
 	}
 
 	ScheduleHooksController = schedule_hook.NewScheduleHooksController()
@@ -191,15 +190,6 @@ func Init() error {
 	KubernetesHooksController.WithModuleManager(ModuleManager)
 	KubernetesHooksController.WithKubeEventsManager(KubeEventsManager)
 
-
-	//// Initialize kube events
-	//KubeEventsManager, err = kube_events_manager.Init()
-	//if err != nil {
-	//	rlog.Errorf("INIT: Cannot initialize kube events manager: %s", err)
-	//	return err
-	//}
-	//KubernetesHooksController = kube_event_hook.NewKubernetesHooksController()
-
 	return nil
 }
 
@@ -209,22 +199,21 @@ func Init() error {
 func Run() {
 	// Loading the onStartup hooks into the queue and running all modules.
 	// Turning tracking changes on only after startup ends.
-	rlog.Info("MAIN: Start. Trigger onStartup event.")
+	onStartupLabels := map[string]string {}
+	onStartupLabels["event.id"] = "OperatorOnStartup"
 	TasksQueue.ChangesDisable()
+	CreateOnStartupTasks(onStartupLabels)
+	CreateReloadAllTasks(true, onStartupLabels)
+	TasksQueue.ChangesEnable(true)
 
-	CreateOnStartupTasks()
-	CreateReloadAllTasks(true)
-
-	err := KubernetesHooksController.EnableGlobalHooks()
+	// Handle kubernetes events
+	err := KubernetesHooksController.EnableGlobalHooks(onStartupLabels)
 	if err != nil {
 		// Something wrong with global hook configs, cannot start informers.
-		rlog.Errorf("Start informers for global kubernetes hooks: %v", err)
+		log.Errorf("Create informers for global kubernetes hooks: %v", err)
 		return
 	}
-	// Start all created informers
-	KubeEventsManager.Start()
 
-	TasksQueue.ChangesEnable(true)
 
 	go ModuleManager.Run()
 	go ScheduleManager.Run()
@@ -235,6 +224,7 @@ func Run() {
 	// TasksRunner runs tasks from the queue.
 	go TasksRunner()
 
+	// Health metrics
 	RunAddonOperatorMetrics()
 }
 
@@ -243,6 +233,10 @@ func ManagersEventsHandler() {
 		select {
 		// Event from module manager (module restart or full restart).
 		case moduleEvent := <-module_manager.EventCh:
+			logLabels := map[string]string{
+				"event.id": uuid.NewV4().String(),
+			}
+			eventLogEntry := log.WithField("operator.component", "handleManagerEvents")
 			// Event from module manager can come if modules list have changed,
 			// so event hooks need to be re-register with:
 			// RegisterScheduledHooks()
@@ -250,154 +244,102 @@ func ManagersEventsHandler() {
 			switch moduleEvent.Type {
 			// Some modules have changed.
 			case module_manager.ModulesChanged:
+				logLabels["event.type"] = "ModulesChanged"
+				logEntry := eventLogEntry.WithFields(utils.LabelsToLogFields(logLabels))
 				for _, moduleChange := range moduleEvent.ModulesChanges {
-					rlog.Infof("EVENT ModulesChanged, type=Changed")
-					newTask := task.NewTask(task.ModuleRun, moduleChange.Name)
+					logEntry.WithField("module", moduleChange.Name).Infof("module values are changed, queue ModuleRun task", moduleChange.Name)
+					newTask := task.NewTask(task.ModuleRun, moduleChange.Name).
+						WithLogLabels(logLabels)
 					TasksQueue.Add(newTask)
-					rlog.Infof("QUEUE add ModuleRun %s", newTask.Name)
 				}
 				// As module list may have changed, hook schedule index must be re-created.
 				ScheduleHooksController.UpdateScheduleHooks()
 			case module_manager.GlobalChanged:
+				logLabels["event.type"] = "GlobalChanged"
+				logEntry := eventLogEntry.WithFields(utils.LabelsToLogFields(logLabels))
 				// Global values are changed, all modules must be restarted.
-				rlog.Infof("EVENT GlobalChanged")
+				logEntry.Infof("global values are changed, queue ReloadAll tasks")
 				TasksQueue.ChangesDisable()
-				CreateReloadAllTasks(false)
+				CreateReloadAllTasks(false, logLabels)
 				TasksQueue.ChangesEnable(true)
 				// As module list may have changed, hook schedule index must be re-created.
 				ScheduleHooksController.UpdateScheduleHooks()
 			case module_manager.AmbigousState:
-				rlog.Infof("EVENT AmbiguousState")
-				TasksQueue.ChangesDisable()
 				// It is the error in the module manager. The task must be added to
 				// the beginning of the queue so the module manager can restore its
 				// state before running other queue tasks
-				newTask := task.NewTask(task.ModuleManagerRetry, "")
+				logLabels["event.type"] = "AmbigousState"
+				logEntry := eventLogEntry.WithFields(utils.LabelsToLogFields(logLabels))
+				logEntry.Infof("module manager is in ambiguous state, queue ModuleManagerRetry task with delay")
+				TasksQueue.ChangesDisable()
+				newTask := task.NewTask(task.ModuleManagerRetry, "").
+					WithLogLabels(logLabels)
 				TasksQueue.Push(newTask)
 				// It is the delay before retry.
-				TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
+				TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay).WithLogLabels(logLabels))
 				TasksQueue.ChangesEnable(true)
-				rlog.Infof("QUEUE push ModuleManagerRetry, push FailedModuleDelay")
 			}
+
 		case crontab := <-schedule_manager.ScheduleCh:
-			rlog.Infof("EVENT Schedule event '%s'", crontab)
-
-			tasks, err := ScheduleHooksController.HandleEvent(crontab)
-			if err != nil {
-				rlog.Errorf("MAIN_LOOP Schedule event '%s': %s", crontab, err)
-				break
+			logLabels := map[string]string{
+				"event.id": uuid.NewV4().String(),
+				"binding": module_manager.ContextBindingType[module_manager.Schedule],
 			}
+			logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+			logEntry.Infof("Event from '%s'", crontab)
 
-			for _, resTask := range tasks {
-				TasksQueue.Add(resTask)
-				rlog.Infof("QUEUE add %s@%s %s", resTask.GetType(), resTask.GetBinding(), resTask.GetName())
-			}
-
-		case kubeEvent := <-kube_events_manager.KubeEventCh:
-			rlog.Infof("EVENT Kube event '%s'", kubeEvent.ConfigId)
-
-			tasks, err := KubernetesHooksController.HandleEvent(kubeEvent)
+			tasks, err := ScheduleHooksController.HandleEvent(crontab, logLabels)
 			if err != nil {
-				rlog.Errorf("MAIN_LOOP error handling kube event '%s': %s", kubeEvent.ConfigId, err)
+				logEntry.Errorf("handle schedule event '%s': %s", crontab, err)
 				break
 			}
 
 			for _, t := range tasks {
+				logEntry.
+					WithFields(utils.LabelsToLogFields(t.GetLogLabels())).
+					Infof("queue %s task", t.GetType())
 				TasksQueue.Add(t)
-				rlog.Infof("QUEUE add %s@%s %s", t.GetType(), t.GetBinding(), t.GetName())
 			}
+
+		case kubeEvent := <-kube_events_manager.KubeEventCh:
+			logLabels := map[string]string{
+				"event.id": uuid.NewV4().String(),
+				"binding": module_manager.ContextBindingType[module_manager.KubeEvents],
+			}
+			logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+			if kubeEvent.Type == "Event" {
+				logEntry.Infof("%s event for %s/%s/%s", kubeEvent.Event, kubeEvent.Namespace, kubeEvent.Kind, kubeEvent.Name)
+			} else {
+				logEntry.Infof("Synchronization")
+			}
+
+			tasks, err := KubernetesHooksController.HandleEvent(kubeEvent, logLabels)
+			if err != nil {
+				logEntry.Errorf("handle kubernetes event '%s': %s", kubeEvent.ConfigId, err)
+				break
+			}
+
+			for _, t := range tasks {
+				logEntry.
+					WithFields(utils.LabelsToLogFields(t.GetLogLabels())).
+					Infof("queue %s task", t.GetType())
+				TasksQueue.Add(t)
+			}
+
 		case <-ManagersEventsHandlerStopCh:
-			rlog.Infof("EVENT Stop")
+			log.Infof("Stop from ManagersEventsHandlerStopCh")
 			return
 		}
 	}
 }
 
-func runDiscoverModulesState(discoverTask task.Task) error {
-	modulesState, err := ModuleManager.DiscoverModulesState()
-	if err != nil {
-		return err
-	}
-
-	for _, moduleName := range modulesState.EnabledModules {
-		isNewlyEnabled := false
-		for _, name := range modulesState.NewlyEnabledModules {
-			if name == moduleName {
-				isNewlyEnabled = true
-				break
-			}
-		}
-		runOnStartupHooks := discoverTask.GetOnStartupHooks() || isNewlyEnabled
-
-		newTask := task.NewTask(task.ModuleRun, moduleName).
-			WithOnStartupHooks(runOnStartupHooks)
-
-		TasksQueue.Add(newTask)
-		rlog.Infof("QUEUE add ModuleRun %s", moduleName)
-	}
-
-	for _, moduleName := range modulesState.ModulesToDisable {
-		// TODO may be only afterHelmDelete hooks should be initialized?
-		// Enable module hooks on startup to run afterHelmDelete hooks
-		if discoverTask.GetOnStartupHooks() {
-			// error can be ignored, DiscoverModulesState should return existed modules
-			disabledModule, _ := ModuleManager.GetModule(moduleName)
-			if err = ModuleManager.RegisterModuleHooks(disabledModule); err != nil {
-				return err
-			}
-		}
-		newTask := task.NewTask(task.ModuleDelete, moduleName)
-		TasksQueue.Add(newTask)
-		rlog.Infof("QUEUE add ModuleDelete %s", moduleName)
-	}
-
-	for _, moduleName := range modulesState.ReleasedUnknownModules {
-		newTask := task.NewTask(task.ModulePurge, moduleName)
-		TasksQueue.Add(newTask)
-		rlog.Infof("QUEUE add ModulePurge %s", moduleName)
-	}
-
-	// Queue afterAll global hooks
-	afterAllHooks := ModuleManager.GetGlobalHooksInOrder(module_manager.AfterAll)
-	for _, hookName := range afterAllHooks {
-		newTask := task.NewTask(task.GlobalHookRun, hookName).
-			WithBinding(module_manager.AfterAll).
-			AppendBindingContext(module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: module_manager.ContextBindingType[module_manager.AfterAll]}})
-		TasksQueue.Add(newTask)
-		rlog.Debugf("QUEUE add GlobalHookRun@AfterAll '%s'", hookName)
-	}
-	if len(afterAllHooks) > 0 {
-		rlog.Infof("QUEUE add all GlobalHookRun@AfterAll")
-	}
-
-	ScheduleHooksController.UpdateScheduleHooks()
-
-	// Enable kube events hooks for newly enabled modules
-	// FIXME convert to a task that run after AfterHelm if there is a flag in binding config to start informers after CRD installation.
-	for _, moduleName := range modulesState.EnabledModules {
-		err = KubernetesHooksController.EnableModuleHooks(moduleName)
-		if err != nil {
-			return err
-		}
-	}
-
-	// TODO is queue should be cleaned from hook run tasks of deleted module?
-	// Disable kube events hooks for newly disabled modules
-	for _, moduleName := range modulesState.ModulesToDisable {
-		err = KubernetesHooksController.DisableModuleHooks(moduleName)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
 
 // TasksRunner handle tasks in queue.
 //
 // Task handler may delay task processing by pushing delay to the queue.
-// FIXME: For now, only one TaskRunner for a TasksQueue. There should be a lock between Peek and Pop to prevent Poping tasks from other TaskRunner
+// FIXME: For now, only one TaskRunner for a TasksQueue. There should be a lock between Peek and Pop to prevent Poping tasks by other TaskRunner for multiple queues.
 func TasksRunner() {
+	logEntry := log.WithField("operator.component", "TaskRunner")
 	for {
 		if TasksQueue.IsEmpty() {
 			time.Sleep(QueueIsEmptyDelay)
@@ -408,48 +350,49 @@ func TasksRunner() {
 				break
 			}
 
+			taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels())).
+				WithField("task.type", t.GetType())
+
 			switch t.GetType() {
 			case task.DiscoverModulesState:
-				rlog.Infof("TASK_RUN DiscoverModulesState")
-				err := runDiscoverModulesState(t)
+				taskLogEntry.Info("Run DiscoverModules")
+				err := RunDiscoverModulesState(t, t.GetLogLabels())
 				if err != nil {
 					MetricsStorage.SendCounterMetric(PrefixMetric("modules_discover_errors"), 1.0, map[string]string{})
 					t.IncrementFailureCount()
-					rlog.Errorf("TASK_RUN %s failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetFailureCount(), err)
+					taskLogEntry.Errorf("DiscoverModulesState failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
-					rlog.Infof("QUEUE push FailedModuleDelay")
-					break
+				} else {
+					taskLogEntry.Infof("DiscoverModulesState success")
+					TasksQueue.Pop()
 				}
-
-				TasksQueue.Pop()
-
 			case task.ModuleRun:
-				rlog.Infof("TASK_RUN ModuleRun %s", t.GetName())
-				err := ModuleManager.RunModule(t.GetName(), t.GetOnStartupHooks())
+				taskLogEntry.Info("Run module")
+				err := ModuleManager.RunModule(t.GetName(), t.GetOnStartupHooks(), t.GetLogLabels())
 				if err != nil {
 					MetricsStorage.SendCounterMetric(PrefixMetric("module_run_errors"), 1.0, map[string]string{"module": t.GetName()})
 					t.IncrementFailureCount()
-					rlog.Errorf("TASK_RUN ModuleRun '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetName(), t.GetFailureCount(), err)
+					taskLogEntry.Errorf("ModuleRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
-					rlog.Infof("QUEUE push FailedModuleDelay")
 				} else {
+					taskLogEntry.Infof("ModuleRun success")
 					TasksQueue.Pop()
 				}
 			case task.ModuleDelete:
-				rlog.Infof("TASK_RUN ModuleDelete %s", t.GetName())
-				err := ModuleManager.DeleteModule(t.GetName())
+				taskLogEntry.Info("Delete module")
+				err := ModuleManager.DeleteModule(t.GetName(), t.GetLogLabels())
 				if err != nil {
 					MetricsStorage.SendCounterMetric(PrefixMetric("module_delete_errors"), 1.0, map[string]string{"module": t.GetName()})
 					t.IncrementFailureCount()
-					rlog.Errorf("%s '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetFailureCount(), err)
+					taskLogEntry.Errorf("ModuleDelete failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 					TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
-					rlog.Infof("QUEUE push FailedModuleDelay")
 				} else {
+					taskLogEntry.Infof("ModuleDelete success")
 					TasksQueue.Pop()
 				}
 			case task.ModuleHookRun:
-				rlog.Infof("TASK_RUN ModuleHookRun@%s %s", t.GetBinding(), t.GetName())
-				err := ModuleManager.RunModuleHook(t.GetName(), t.GetBinding(), t.GetBindingContext())
+				taskLogEntry.Info("Run module hooks")
+				err := ModuleManager.RunModuleHook(t.GetName(), t.GetBinding(), t.GetBindingContext(), t.GetLogLabels())
 				if err != nil {
 					moduleHook, _ := ModuleManager.GetModuleHook(t.GetName())
 					hookLabel := path.Base(moduleHook.Path)
@@ -457,104 +400,230 @@ func TasksRunner() {
 
 					if t.GetAllowFailure() {
 						MetricsStorage.SendCounterMetric(PrefixMetric("module_hook_allowed_errors"), 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+						taskLogEntry.Infof("ModuleHookRun failed, but allowed to fail. Error: %v", err)
 						TasksQueue.Pop()
 					} else {
 						MetricsStorage.SendCounterMetric(PrefixMetric("module_hook_errors"), 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 						t.IncrementFailureCount()
-						rlog.Errorf("%s '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetFailureCount(), err)
+						taskLogEntry.Errorf("ModuleHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 						TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
-						rlog.Infof("QUEUE push FailedModuleDelay")
 					}
 				} else {
+					taskLogEntry.Infof("ModuleHookRun success")
 					TasksQueue.Pop()
 				}
 			case task.GlobalHookRun:
-				rlog.Infof("TASK_RUN GlobalHookRun@%s %s", t.GetBinding(), t.GetName())
-				err := ModuleManager.RunGlobalHook(t.GetName(), t.GetBinding(), t.GetBindingContext())
+				taskLogEntry.Infof("Run global hook")
+				err := ModuleManager.RunGlobalHook(t.GetName(), t.GetBinding(), t.GetBindingContext(), t.GetLogLabels())
 				if err != nil {
 					globalHook, _ := ModuleManager.GetGlobalHook(t.GetName())
 					hookLabel := path.Base(globalHook.Path)
 
 					if t.GetAllowFailure() {
 						MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_allowed_errors"), 1.0, map[string]string{"hook": hookLabel})
+						taskLogEntry.Infof("GlobalHookRun failed, but allowed to fail. Error: %v", err)
 						TasksQueue.Pop()
 					} else {
 						MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_errors"), 1.0, map[string]string{"hook": hookLabel})
 						t.IncrementFailureCount()
-						rlog.Errorf("TASK_RUN %s '%s' on '%s' failed. Will retry after delay. Failed count is %d. Error: %s", t.GetType(), t.GetName(), t.GetBinding(), t.GetFailureCount(), err)
+						taskLogEntry.Errorf("GlobalHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 						TasksQueue.Push(task.NewTaskDelay(FailedHookDelay))
 					}
 				} else {
+					taskLogEntry.Infof("GlobalHookRun success")
 					TasksQueue.Pop()
 				}
 			case task.ModulePurge:
-				rlog.Infof("TASK_RUN ModulePurge %s", t.GetName())
-				// Module for purge is unknown so log deletion error is enough.
-				err := helm.Client.DeleteRelease(t.GetName())
+				// Purge is for unknown modules, so error is just ignored.
+				taskLogEntry.Infof("Run module purge")
+				err := helm.NewHelmCli(taskLogEntry).DeleteRelease(t.GetName())
 				if err != nil {
-					rlog.Errorf("TASK_RUN %s Helm delete '%s' failed. Error: %s", t.GetType(), t.GetName(), err)
+					taskLogEntry.Errorf("ModulePurge failed, no retry. Error: %s", err)
+				} else {
+					taskLogEntry.Infof("ModulePurge success")
 				}
 				TasksQueue.Pop()
 			case task.ModuleManagerRetry:
-				rlog.Infof("TASK_RUN ModuleManagerRetry")
 				MetricsStorage.SendCounterMetric(PrefixMetric("modules_discover_errors"), 1.0, map[string]string{})
 				ModuleManager.Retry()
 				TasksQueue.Pop()
-				// Adding a delay before retrying module/hook task.
-				TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay))
-				rlog.Infof("QUEUE push FailedModuleDelay")
+				newTask := task.NewTaskDelay(FailedModuleDelay).WithLogLabels(t.GetLogLabels())
+				taskLogEntry.Infof("Queue Delay task immediately to wait for success module discovery")
+				TasksQueue.Push(newTask)
 			case task.Delay:
-				rlog.Infof("TASK_RUN Delay for %s", t.GetDelay().String())
+				taskLogEntry.Debugf("Sleep for %s", t.GetDelay().String())
 				TasksQueue.Pop()
 				time.Sleep(t.GetDelay())
 			case task.Stop:
-				rlog.Infof("TASK_RUN Stop: Exiting TASK_RUN loop.")
+				logEntry.Infof("Stop")
 				TasksQueue.Pop()
 				return
 			}
 
 			// Breaking, if the task queue is empty to prevent the infinite loop.
 			if TasksQueue.IsEmpty() {
-				rlog.Debug("Task queue is empty. Will sleep now.")
+				logEntry.Debugf("Task queue is empty.")
 				break
 			}
 		}
 	}
 }
 
-func CreateOnStartupTasks() {
-	rlog.Infof("QUEUE add all GlobalHookRun@OnStartup")
+func CreateOnStartupTasks(logLabels map[string]string) {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	onStartupHooks := ModuleManager.GetGlobalHooksInOrder(module_manager.OnStartup)
 
 	for _, hookName := range onStartupHooks {
+		hookLogLabels := utils.MergeLabels(logLabels)
+		hookLogLabels["hook"] = hookName
+		hookLogLabels["hook.type"] = "global"
+		hookLogLabels["binding"] = module_manager.ContextBindingType[module_manager.OnStartup]
+
+		logEntry.WithFields(utils.LabelsToLogFields(hookLogLabels)).
+			Infof("queue GlobalHookRun task")
 		newTask := task.NewTask(task.GlobalHookRun, hookName).
 			WithBinding(module_manager.OnStartup).
+			WithLogLabels(hookLogLabels).
 			AppendBindingContext(module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: module_manager.ContextBindingType[module_manager.OnStartup]}})
 		TasksQueue.Add(newTask)
-		rlog.Debugf("QUEUE add GlobalHookRun@OnStartup '%s'", hookName)
 	}
 
 	return
 }
 
-func CreateReloadAllTasks(onStartup bool) {
-	rlog.Infof("QUEUE add all GlobalHookRun@BeforeAll, add DiscoverModulesState")
+func CreateReloadAllTasks(onStartup bool, logLabels map[string]string) {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	// Queue beforeAll global hooks.
 	beforeAllHooks := ModuleManager.GetGlobalHooksInOrder(module_manager.BeforeAll)
 
 	for _, hookName := range beforeAllHooks {
+		hookLogLabels := utils.MergeLabels(logLabels)
+		hookLogLabels["hook"] = hookName
+		hookLogLabels["hook.type"] = "global"
+		hookLogLabels["binding"] = module_manager.ContextBindingType[module_manager.BeforeAll]
+
+		logEntry.WithFields(utils.LabelsToLogFields(hookLogLabels)).
+			Infof("queue GlobalHookRun task")
 		newTask := task.NewTask(task.GlobalHookRun, hookName).
 			WithBinding(module_manager.BeforeAll).
+			WithLogLabels(hookLogLabels).
 			AppendBindingContext(module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: module_manager.ContextBindingType[module_manager.BeforeAll]}})
-
 		TasksQueue.Add(newTask)
-		rlog.Debugf("QUEUE GlobalHookRun@BeforeAll '%s'", module_manager.BeforeAll, hookName)
 	}
 
-	TasksQueue.Add(task.NewTask(task.DiscoverModulesState, "").WithOnStartupHooks(onStartup))
+	logEntry.Infof("queue DiscoverModulesState task")
+	discoverTask := task.NewTask(task.DiscoverModulesState, "").
+		WithOnStartupHooks(onStartup).
+		WithLogLabels(logLabels)
+	TasksQueue.Add(discoverTask)
 }
+
+func RunDiscoverModulesState(discoverTask task.Task, logLabels map[string]string) error {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	modulesState, err := ModuleManager.DiscoverModulesState(logLabels)
+	if err != nil {
+		return err
+	}
+
+	// queue ModuleRun tasks for enabled modules
+	for _, moduleName := range modulesState.EnabledModules {
+		moduleLogEntry := logEntry.WithField("module", moduleName)
+		moduleLogLabels := utils.MergeLabels(logLabels)
+		moduleLogLabels["module"] = moduleName
+
+		// Run OnStartup hooks on application startup or if module become enabled
+		runOnStartupHooks := discoverTask.GetOnStartupHooks()
+		if !runOnStartupHooks {
+			for _, name := range modulesState.NewlyEnabledModules {
+				if name == moduleName {
+					runOnStartupHooks = true
+					break
+				}
+			}
+		}
+
+		newTask := task.NewTask(task.ModuleRun, moduleName).
+			WithLogLabels(moduleLogLabels).
+			WithOnStartupHooks(runOnStartupHooks)
+
+		moduleLogEntry.Infof("queue ModuleRun task for %s", moduleName)
+		TasksQueue.Add(newTask)
+	}
+
+	// queue ModuleDelete tasks for disabled modules
+	for _, moduleName := range modulesState.ModulesToDisable {
+		moduleLogEntry := logEntry.WithField("module", moduleName)
+		modLogLabels := utils.MergeLabels(logLabels)
+		modLogLabels["module"] = moduleName
+		// TODO may be only afterHelmDelete hooks should be initialized?
+		// Enable module hooks on startup to run afterHelmDelete hooks
+		if discoverTask.GetOnStartupHooks() {
+			// error can be ignored, DiscoverModulesState should return existed modules
+			disabledModule, _ := ModuleManager.GetModule(moduleName)
+			if err = ModuleManager.RegisterModuleHooks(disabledModule, modLogLabels); err != nil {
+				return err
+			}
+		}
+		moduleLogEntry.Infof("queue ModuleDelete task for %s", moduleName)
+		newTask := task.NewTask(task.ModuleDelete, moduleName).
+			WithLogLabels(modLogLabels)
+		TasksQueue.Add(newTask)
+	}
+
+	// queue ModulePurge tasks for unknown modules
+	for _, moduleName := range modulesState.ReleasedUnknownModules {
+		moduleLogEntry := logEntry.WithField("module", moduleName)
+		newTask := task.NewTask(task.ModulePurge, moduleName).
+			WithLogLabels(logLabels)
+		TasksQueue.Add(newTask)
+		moduleLogEntry.Infof("queue ModulePurge task")
+	}
+
+	// Queue afterAll global hooks
+	afterAllHooks := ModuleManager.GetGlobalHooksInOrder(module_manager.AfterAll)
+	for _, hookName := range afterAllHooks {
+		hookLogLabels := utils.MergeLabels(logLabels)
+		hookLogLabels["hook"] = hookName
+		hookLogLabels["hook.type"] = "global"
+
+		logEntry.WithFields(utils.LabelsToLogFields(hookLogLabels)).
+			Infof("queue GlobalHookRun task")
+		newTask := task.NewTask(task.GlobalHookRun, hookName).
+			WithBinding(module_manager.AfterAll).
+			WithLogLabels(hookLogLabels).
+			AppendBindingContext(module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: module_manager.ContextBindingType[module_manager.AfterAll]}})
+		TasksQueue.Add(newTask)
+	}
+
+	ScheduleHooksController.UpdateScheduleHooks()
+
+	// Enable kube events hooks for newly enabled modules
+	// FIXME convert to a task that run after AfterHelm if there is a flag in binding config to start informers after CRD installation.
+	for _, moduleName := range modulesState.EnabledModules {
+		modLogLabels := utils.MergeLabels(logLabels)
+		modLogLabels["module"] = moduleName
+		err = KubernetesHooksController.EnableModuleHooks(moduleName, modLogLabels)
+		if err != nil {
+			return err
+		}
+	}
+
+	// TODO is queue should be cleaned from hook run tasks of deleted module?
+	// Disable kube events hooks for newly disabled modules
+	for _, moduleName := range modulesState.ModulesToDisable {
+		modLogLabels := utils.MergeLabels(logLabels)
+		modLogLabels["module"] = moduleName
+		err = KubernetesHooksController.DisableModuleHooks(moduleName, modLogLabels)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 
 func RunAddonOperatorMetrics() {
 	// Addon-operator live ticks.
@@ -581,6 +650,11 @@ func InitHttpServer(listenAddr string, listenPort string) error {
     <body>
     <h1>Addon-operator</h1>
     <pre>go tool pprof goprofex http://ADDON_OPERATOR_IP:9115/debug/pprof/profile</pre>
+    <p>
+      <a href="/metrics">prometheus metrics</a>
+      <a href="/healthz">health url</a>
+      <a href="/queue">queue stats</a>
+    </p>
     </body>
     </html>`))
 	})
@@ -595,7 +669,7 @@ func InitHttpServer(listenAddr string, listenPort string) error {
 	})
 
 	address := fmt.Sprintf("%s:%s", listenAddr, listenPort)
-	rlog.Infof("HTTP SERVER Listening on %s", address)
+	log.Infof("Listen on %s", address)
 
 	// Check if port is available
 	ln, err := net.Listen("tcp", address)
@@ -605,7 +679,7 @@ func InitHttpServer(listenAddr string, listenPort string) error {
 
 	go func() {
 		if err := http.Serve(ln, nil); err != nil {
-			rlog.Errorf("Error starting HTTP server: %s", err)
+			log.Errorf("Error starting HTTP server: %s", err)
 			os.Exit(1)
 		}
 	}()

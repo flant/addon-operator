@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 
 	hook2 "github.com/flant/shell-operator/pkg/hook"
 	utils_data "github.com/flant/shell-operator/pkg/utils/data"
@@ -99,9 +99,8 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 	return result, nil
 }
 
-func (h *ModuleHook) run(bindingType BindingType, context []BindingContext) error {
+func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
 	moduleName := h.Module.Name
-	rlog.Infof("Running module hook '%s' binding '%s' ...", h.Name, bindingType)
 
 	// Convert context for version
 	versionedContext := make([]interface{}, 0, len(context))
@@ -110,6 +109,7 @@ func (h *ModuleHook) run(bindingType BindingType, context []BindingContext) erro
 	}
 
 	moduleHookExecutor := NewHookExecutor(h, versionedContext)
+	moduleHookExecutor.WithLogLabels(logLabels)
 	patches, err := moduleHookExecutor.Run()
 	if err != nil {
 		return fmt.Errorf("module hook '%s' failed: %s", h.Name, err)
@@ -129,12 +129,12 @@ func (h *ModuleHook) run(bindingType BindingType, context []BindingContext) erro
 		if configValuesPatchResult.ValuesChanged {
 			err := h.moduleManager.kubeConfigManager.SetKubeModuleValues(moduleName, configValuesPatchResult.Values)
 			if err != nil {
-				rlog.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", utils.ValuesToString(h.moduleManager.kubeModulesConfigValues[moduleName]))
+				log.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", utils.ValuesToString(h.moduleManager.kubeModulesConfigValues[moduleName]))
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.Name, err)
 			}
 
 			h.moduleManager.kubeModulesConfigValues[moduleName] = configValuesPatchResult.Values
-			rlog.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.Name, moduleName, utils.ValuesToString(h.moduleManager.kubeModulesConfigValues[moduleName]))
+			log.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.Name, moduleName, utils.ValuesToString(h.moduleManager.kubeModulesConfigValues[moduleName]))
 		}
 	}
 
@@ -146,7 +146,7 @@ func (h *ModuleHook) run(bindingType BindingType, context []BindingContext) erro
 		}
 		if valuesPatchResult.ValuesChanged {
 			h.moduleManager.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(h.moduleManager.modulesDynamicValuesPatches[moduleName], valuesPatchResult.ValuesPatch)
-			rlog.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.Name, moduleName, utils.ValuesToString(h.values()))
+			log.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.Name, moduleName, utils.ValuesToString(h.values()))
 		}
 	}
 
@@ -219,7 +219,7 @@ func (h *ModuleHook) prepareBindingContextJsonFile(context interface{}) (string,
 		return "", err
 	}
 
-	rlog.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, utils_data.YamlToString(context))
+	log.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, utils_data.YamlToString(context))
 
 	return path, nil
 }

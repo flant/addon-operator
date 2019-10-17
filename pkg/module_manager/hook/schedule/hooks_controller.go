@@ -3,9 +3,10 @@ package schedule
 import (
 	"fmt"
 
-	"github.com/flant/shell-operator/pkg/hook"
-	"github.com/romana/rlog"
+	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/sirupsen/logrus"
 
+	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/schedule"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 
@@ -19,7 +20,7 @@ type ScheduleHooksController interface {
 
 	UpdateScheduleHooks()
 
-	HandleEvent(crontab string) ([]task.Task, error)
+	HandleEvent(crontab string, logLabels map[string]string) ([]task.Task, error)
 }
 
 type scheduleHooksController struct {
@@ -58,10 +59,10 @@ func (c *scheduleHooksController) UpdateScheduleHooks() {
 		for _, scheduleCfg := range globalHook.Config.Schedules {
 			_, err := c.scheduleManager.Add(scheduleCfg.Crontab)
 			if err != nil {
-				rlog.Errorf("Schedule: cannot add '%s' for hook '%s': %s", scheduleCfg.Crontab, hookName, err)
+				log.Errorf("Schedule: cannot add '%s' for hook '%s': %s", scheduleCfg.Crontab, hookName, err)
 				continue
 			}
-			rlog.Debugf("Schedule: add '%s' for hook '%s'", scheduleCfg.Crontab, hookName)
+			log.Debugf("Schedule: add '%s' for hook '%s'", scheduleCfg.Crontab, hookName)
 			newGlobalHooks.AddHook(globalHook.Name, scheduleCfg)
 		}
 	}
@@ -77,10 +78,10 @@ func (c *scheduleHooksController) UpdateScheduleHooks() {
 			for _, scheduleCfg := range moduleHook.Config.Schedules {
 				_, err := c.scheduleManager.Add(scheduleCfg.Crontab)
 				if err != nil {
-					rlog.Errorf("Schedule: cannot add '%s' for hook '%s': %s", scheduleCfg.Crontab, moduleHookName, err)
+					log.Errorf("Schedule: cannot add '%s' for hook '%s': %s", scheduleCfg.Crontab, moduleHookName, err)
 					continue
 				}
-				rlog.Debugf("Schedule: add '%s' for hook '%s'", scheduleCfg.Crontab, moduleHookName)
+				log.Debugf("Schedule: add '%s' for hook '%s'", scheduleCfg.Crontab, moduleHookName)
 				newModuleHooks.AddHook(moduleHook.Name, scheduleCfg)
 			}
 		}
@@ -112,7 +113,7 @@ func (c *scheduleHooksController) UpdateScheduleHooks() {
 	c.ModuleHooks = newModuleHooks
 }
 
-func (c *scheduleHooksController) HandleEvent(crontab string) ([]task.Task, error) {
+func (c *scheduleHooksController) HandleEvent(crontab string, logLabels map[string]string) ([]task.Task, error) {
 	res := make([]task.Task, 0)
 
 	// search for global hooks by crontab
@@ -121,13 +122,17 @@ func (c *scheduleHooksController) HandleEvent(crontab string) ([]task.Task, erro
 	for _, scheduleHook := range scheduleGlobalHooks {
 		_, err := c.moduleManager.GetGlobalHook(scheduleHook.HookName)
 		if err != nil {
-			rlog.Errorf("Possible a bug: global hook '%s' is registered for schedule but not found", scheduleHook.HookName)
+			log.Errorf("Possible a bug: global hook '%s' is registered for schedule but not found", scheduleHook.HookName)
 			continue
 		}
+		hookLabels := utils.MergeLabels(logLabels)
+		hookLabels["hook"] = scheduleHook.HookName
+		hookLabels["hook.type"] = "global"
 		newTask := task.NewTask(task.GlobalHookRun, scheduleHook.HookName).
 			WithBinding(module_manager.Schedule).
 			AppendBindingContext(module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: scheduleHook.ConfigName}}).
-			WithAllowFailure(scheduleHook.AllowFailure)
+			WithAllowFailure(scheduleHook.AllowFailure).
+			WithLogLabels(hookLabels)
 		res = append(res, newTask)
 	}
 
@@ -135,15 +140,20 @@ func (c *scheduleHooksController) HandleEvent(crontab string) ([]task.Task, erro
 	scheduleModuleHooks := c.ModuleHooks.GetHooksForSchedule(crontab)
 
 	for _, scheduleHook := range scheduleModuleHooks {
-		_, err := c.moduleManager.GetModuleHook(scheduleHook.HookName)
+		moduleHook, err := c.moduleManager.GetModuleHook(scheduleHook.HookName)
 		if err != nil {
-			rlog.Errorf("Possible a bug: module hook '%s' is registered for schedule but not found", scheduleHook.HookName)
+			log.Errorf("Possible a bug: module hook '%s' is registered for schedule but not found", scheduleHook.HookName)
 			continue
 		}
+		hookLabels := utils.MergeLabels(logLabels)
+		hookLabels["module"] = moduleHook.Module.Name
+		hookLabels["hook"] = scheduleHook.HookName
+		hookLabels["hook.type"] = "module"
 		newTask := task.NewTask(task.ModuleHookRun, scheduleHook.HookName).
 			WithBinding(module_manager.Schedule).
 			AppendBindingContext(module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: scheduleHook.ConfigName}}).
-			WithAllowFailure(scheduleHook.AllowFailure)
+			WithAllowFailure(scheduleHook.AllowFailure).
+			WithLogLabels(hookLabels)
 		res = append(res, newTask)
 	}
 
