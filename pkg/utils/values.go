@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/evanphx/json-patch"
 	"github.com/peterbourgon/mergemap"
@@ -320,7 +320,7 @@ func GetGlobalValues(values Values) Values {
 		data := map[interface{}]interface{}{GlobalValuesKey: globalValues}
 		v, err := NewValues(data)
 		if err != nil {
-			rlog.Errorf("get global Values: %s", err)
+			log.Errorf("get global Values: %s", err)
 		}
 		return v
 	}

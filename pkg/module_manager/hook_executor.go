@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/shell-operator/pkg/executor"
 
@@ -45,7 +45,7 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
-	envs = append(envs, helm.Client.CommandEnv()...)
+	envs = append(envs, helm.NewHelmCli(nil).CommandEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{}, envs)
 
@@ -70,20 +70,20 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 func (e *HookExecutor) Config() (configOutput []byte, err error) {
 	envs := []string{}
 	envs = append(envs, os.Environ()...)
-	envs = append(envs, helm.Client.CommandEnv()...)
+	envs = append(envs, helm.NewHelmCli(nil).CommandEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{"--config"}, envs)
 
-	rlog.Debugf("Executing hook in %s: '%s'", cmd.Dir, strings.Join(cmd.Args, " "))
+	log.Debugf("Executing hook in %s: '%s'", cmd.Dir, strings.Join(cmd.Args, " "))
 	cmd.Stdout = nil
 
 	output, err := executor.Output(cmd)
 	if err != nil {
-		rlog.Errorf("Hook '%s' config failed: %v, output:\n%s",  e.Hook.GetName(), err, string(output))
+		log.Errorf("Hook '%s' config failed: %v, output:\n%s",  e.Hook.GetName(), err, string(output))
 		return nil, fmt.Errorf("%s FAILED: %s", e.Hook.GetName(), err)
 	}
 
-	rlog.Debugf("Hook '%s' config output:\n%s", e.Hook.GetName(), string(output))
+	log.Debugf("Hook '%s' config output:\n%s", e.Hook.GetName(), string(output))
 
 	return output, nil
 }

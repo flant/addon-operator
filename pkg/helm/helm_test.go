@@ -8,11 +8,33 @@ import (
 	"sort"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/rbac/v1beta1"
 
 	"github.com/flant/shell-operator/pkg/kube"
 )
+
+func Test_Logging(t *testing.T) {
+	log.Info("Start test")
+
+	logEntry1 := log.WithField("test", "helm")
+	logEntry1.Infof("asd")
+
+	logEntry2 := log.WithField("test2", "helm2")
+	logEntry2.Infof("asd")
+
+	logEntry11 := logEntry1.WithField("subtest", "helmm")
+	logEntry11.Infof("helmm info")
+
+	logEntry1.Infof("asd again")
+
+
+	logEntry11.WithField("test","helm11").Infof("helmm info")
+
+
+}
 
 func getTestDirectoryPath(testName string) string {
 	_, testFile, _, _ := runtime.Caller(0)
@@ -77,7 +99,6 @@ func TestHelm(t *testing.T) {
 	var releases []string
 
 	helm := &CliHelm{}
-	//rlog.Infof("Testing tiller in '%s' namespace", helm.TillerNamespace())
 
 	_ = kube.Init(kube.InitOptions{})
 	//kube.AddonOperatorNamespace = helm.TillerNamespace()

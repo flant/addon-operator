@@ -3,6 +3,8 @@ package kube_event
 import (
 	"fmt"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/kube_event"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
@@ -59,7 +61,8 @@ func (c *kubernetesHooksController) EnableGlobalHooks() error {
 		globalHook, _ := c.moduleManager.GetGlobalHook(globalHookName)
 
 		for _, config := range globalHook.Config.OnKubernetesEvents {
-			err := c.kubeEventsManager.AddMonitor("", config.Monitor)
+			logEntry := log.WithField("hook", globalHook.Name).WithField("hook.type", "global")
+			err := c.kubeEventsManager.AddMonitor("", config.Monitor, logEntry)
 			if err != nil {
 				return fmt.Errorf("run kube monitor for hook %s: %s", globalHook.Name, err)
 			}
@@ -69,16 +72,6 @@ func (c *kubernetesHooksController) EnableGlobalHooks() error {
 				AllowFailure: config.AllowFailure,
 			}
 		}
-		//
-		//for _, desc := range MakeKubeEventHookDescriptors(globalHook, &globalHook.Config.HookConfig) {
-		//	configId, err := c.kubeEventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.ObjectName, desc.JqFilter, desc.Debug)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	c.GlobalHooks[configId] = desc
-		//
-		//	rlog.Debugf("MAIN: run informer %s for global hook %s", configId, globalHook.Name)
-		//}
 	}
 
 	return nil
@@ -102,7 +95,8 @@ func (c *kubernetesHooksController) EnableModuleHooks(moduleName string) error {
 		moduleHook, _ := c.moduleManager.GetModuleHook(moduleHookName)
 
 		for _, config := range moduleHook.Config.OnKubernetesEvents {
-			err := c.kubeEventsManager.AddMonitor("", config.Monitor)
+			logEntry := log.WithField("hook", moduleHook.Name).WithField("hook.type", "module").WithField("module", moduleHook.Module.Name)
+			err := c.kubeEventsManager.AddMonitor("", config.Monitor, logEntry)
 			if err != nil {
 				return fmt.Errorf("run kube monitor for hook %s: %s", moduleHook.Name, err)
 			}
@@ -112,16 +106,6 @@ func (c *kubernetesHooksController) EnableModuleHooks(moduleName string) error {
 				AllowFailure: config.AllowFailure,
 			}
 		}
-
-		//for _, desc := range MakeKubeEventHookDescriptors(moduleHook, &moduleHook.Config.HookConfig) {
-		//	configId, err := c.kubeEventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.ObjectName, desc.JqFilter, desc.Debug)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	c.ModuleHooks[configId] = desc
-		//
-		//	rlog.Debugf("MAIN: run informer %s for module hook %s", configId, moduleHook.Name)
-		//}
 	}
 
 	c.EnabledModules = append(c.EnabledModules, moduleName)

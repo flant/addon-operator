@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/kennygrant/sanitize"
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
@@ -48,7 +48,7 @@ func (h *CommonHook) GetPath() string {
 
 
 func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
-	rlog.Debug("INIT: search global hooks...")
+	log.Debug("INIT: search global hooks...")
 
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
@@ -63,7 +63,7 @@ func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	rlog.Debugf("  Hook paths: %+v", hooksRelativePaths)
+	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(hooksDir, hookPath)
@@ -71,7 +71,7 @@ func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 			return nil, err
 		}
 
-		rlog.Infof("INIT: global hook '%s'", hookName)
+		log.Infof("INIT: global hook '%s'", hookName)
 
 		globalHook := NewGlobalHook(hookName, hookPath)
 
@@ -82,7 +82,7 @@ func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 }
 
 func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
-	rlog.Infof("INIT: module '%s' hooks ...", module.Name)
+	log.Infof("INIT: module '%s' hooks ...", module.Name)
 
 	hooksDir := filepath.Join(module.Path, "hooks")
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
@@ -98,7 +98,7 @@ func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	rlog.Debugf("  Hook paths: %+v", hooksRelativePaths)
+	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(filepath.Dir(module.Path), hookPath)
@@ -106,7 +106,7 @@ func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
 			return nil, err
 		}
 
-		rlog.Infof("INIT:   hook '%s' ...", hookName)
+		log.Infof("INIT:   hook '%s' ...", hookName)
 
 		moduleHook := NewModuleHook(hookName, hookPath)
 		moduleHook.WithModule(module)
@@ -152,7 +152,7 @@ func LoadGlobalHooksConfig(hooks []*GlobalHook) error {
 
 
 func (mm *MainModuleManager) RegisterGlobalHooks() error {
-	rlog.Debug("INIT: global hooks")
+	log.Debug("INIT: global hooks")
 
 	mm.globalHooksOrder = make(map[BindingType][]*GlobalHook)
 	mm.globalHooksByName = make(map[string]*GlobalHook)
@@ -181,11 +181,11 @@ func (mm *MainModuleManager) RegisterGlobalHooks() error {
 
 func (mm *MainModuleManager) RegisterModuleHooks(module *Module) error {
 	if _, ok := mm.modulesHooksOrderByName[module.Name]; ok {
-		rlog.Debugf("INIT: module '%s' hooks: already initialized", module.Name)
+		log.Debugf("INIT: module '%s' hooks: already initialized", module.Name)
 		return nil
 	}
 
-	rlog.Infof("INIT: module '%s' hooks ...", module.Name)
+	log.Infof("INIT: module '%s' hooks ...", module.Name)
 
 	hooks, err := SearchModuleHooks(module)
 	if err != nil {

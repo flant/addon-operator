@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/romana/rlog"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/yaml"
 
@@ -31,7 +31,7 @@ func initModuleManager(t *testing.T, mm *MainModuleManager, configPath string) {
 
 	var err error
 	tempDir, err := ioutil.TempDir("", "addon-operator-")
-	rlog.Infof("TEMP DIR %s", tempDir)
+	t.Logf("TEMP DIR %s", tempDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,8 +476,9 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
-	helm.Client = &helm.MockHelmClient{}
-
+	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+		return &helm.MockHelmClient{}
+	}
 	mm := NewMainModuleManager()
 
 	initModuleManager(t, mm, "get__module_hooks_in_order")
@@ -561,7 +562,10 @@ func Test_MainModuleManager_RunModule(t *testing.T) {
 	// TODO something wrong here with patches from afterHelm and beforeHelm hooks
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
-	helm.Client = hc
+
+	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+		return hc
+	}
 
 	mm := NewMainModuleManager()
 
@@ -608,7 +612,10 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 	// TODO check afterHelmDelete patch
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
-	helm.Client = hc
+
+	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+		return hc
+	}
 
 	mm := NewMainModuleManager()
 	mm.WithKubeConfigManager(MockKubeConfigManager{})
@@ -651,7 +658,9 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 	// TODO hooks not found
 	t.SkipNow()
-	helm.Client = &helm.MockHelmClient{}
+	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+		return &helm.MockHelmClient{}
+	}
 	mm := NewMainModuleManager()
 	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
@@ -960,7 +969,9 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
-	helm.Client = &helm.MockHelmClient{}
+	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+		return &helm.MockHelmClient{}
+	}
 	mm := NewMainModuleManager()
 
 	initModuleManager(t, mm, "get__global_hooks_in_order")
@@ -995,7 +1006,9 @@ func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
 }
 
 func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
-	helm.Client = &helm.MockHelmClient{}
+	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+		return &helm.MockHelmClient{}
+	}
 	mm := NewMainModuleManager()
 	mm.WithKubeConfigManager(MockKubeConfigManager{})
 
@@ -1171,8 +1184,10 @@ func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 			modulesState = nil
 			err = nil
 
-			helm.Client = &helm.MockHelmClient{
-				ReleaseNames: test.helmReleases,
+			helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+				return &helm.MockHelmClient{
+					ReleaseNames: test.helmReleases,
+				}
 			}
 			mm = NewMainModuleManager()
 			initModuleManager(t, mm, test.configPath)

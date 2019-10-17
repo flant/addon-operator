@@ -10,7 +10,7 @@ import (
 
 	"github.com/kennygrant/sanitize"
 	"github.com/otiai10/copy"
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	"github.com/flant/shell-operator/pkg/executor"
@@ -72,24 +72,27 @@ func (m *Module) Run(onStartup bool) error {
 	return nil
 }
 
+// TODO LOG: add field 'on startup'
 // Delete removes helm release if it exists and runs afterDeleteHelm hooks.
 // It is a handler for MODULE_DELETE task.
 func (m *Module) Delete() error {
+	logEntry := log.WithField("module", m.Name).WithField("phase", "delete")
+
 	// Если есть chart, но нет релиза — warning
 	// если нет чарта — молча перейти к хукам
 	// если есть и chart и релиз — удалить
 	chartExists, _ := m.checkHelmChart()
 	if chartExists {
-		releaseExists, err := helm.Client.IsReleaseExists(m.generateHelmReleaseName())
+		releaseExists, err := helm.NewHelmCli(logEntry).IsReleaseExists(m.generateHelmReleaseName())
 		if !releaseExists {
 			if err != nil {
-				rlog.Warnf("Module delete: Cannot find helm release '%s' for module '%s'. Helm error: %s", m.generateHelmReleaseName(), m.Name, err)
+				logEntry.Warnf("Cannot find helm release '%s' for module '%s'. Helm error: %s", m.generateHelmReleaseName(), m.Name, err)
 			} else {
-				rlog.Warnf("Module delete: Cannot find helm release '%s' for module '%s'.", m.generateHelmReleaseName(), m.Name)
+				logEntry.Warnf("Cannot find helm release '%s' for module '%s'.", m.generateHelmReleaseName(), m.Name)
 			}
 		} else {
 			// Chart and release are existed, so run helm delete command
-			err := helm.Client.DeleteRelease(m.generateHelmReleaseName())
+			err := helm.NewHelmCli(logEntry).DeleteRelease(m.generateHelmReleaseName())
 			if err != nil {
 				return err
 			}
@@ -104,17 +107,18 @@ func (m *Module) cleanup() error {
 	chartExists, err := m.checkHelmChart()
 	if !chartExists {
 		if err != nil {
-			rlog.Debugf("MODULE '%s': cleanup is not needed: %s", m.Name, err)
+			log.Debugf("MODULE '%s': cleanup is not needed: %s", m.Name, err)
 			return nil
 		}
 	}
 
-	//rlog.Infof("MODULE '%s': cleanup helm revisions...", m.Name)
-	if err := helm.Client.DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
+	logEntry := log.WithField("module", m.Name).WithField("phase", "run")
+
+	if err := helm.NewHelmCli(logEntry).DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
-	if err := helm.Client.DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
+	if err := helm.NewHelmCli(logEntry).DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
@@ -122,10 +126,12 @@ func (m *Module) cleanup() error {
 }
 
 func (m *Module) runHelmInstall() error {
+	logEntry := log.WithField("module", m.Name).WithField("phase", "run")
+
 	chartExists, err := m.checkHelmChart()
 	if !chartExists {
 		if err != nil {
-			rlog.Debugf("Module '%s': no Chart.yaml, helm is not needed: %s", m.Name, err)
+			logEntry.Debugf("no Chart.yaml, helm is not needed: %s", err)
 			return nil
 		}
 	}
@@ -167,20 +173,22 @@ func (m *Module) runHelmInstall() error {
 
 	doRelease := true
 
-	isReleaseExists, err := helm.Client.IsReleaseExists(helmReleaseName)
+	helmClient := helm.NewHelmCli(logEntry)
+
+	isReleaseExists, err := helmClient.IsReleaseExists(helmReleaseName)
 	if err != nil {
 		return err
 	}
 
 	if isReleaseExists {
-		_, status, err := helm.Client.LastReleaseStatus(helmReleaseName)
+		_, status, err := helmClient.LastReleaseStatus(helmReleaseName)
 		if err != nil {
 			return err
 		}
 
 		// Skip helm release for unchanged modules only for non FAILED releases
 		if status != "FAILED" {
-			releaseValues, err := helm.Client.GetReleaseValues(helmReleaseName)
+			releaseValues, err := helmClient.GetReleaseValues(helmReleaseName)
 			if err != nil {
 				return err
 			}
@@ -189,9 +197,9 @@ func (m *Module) runHelmInstall() error {
 				if recordedChecksumStr, ok := recordedChecksum.(string); ok {
 					if recordedChecksumStr == checksum {
 						doRelease = false
-						rlog.Infof("MODULE_RUN '%s': helm release '%s' checksum '%s' is not changed: skip helm upgrade", m.Name, helmReleaseName, checksum)
+						logEntry.Infof("helm release '%s' checksum '%s' is not changed: skip helm upgrade", helmReleaseName, checksum)
 					} else {
-						rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s' is changed to '%s': upgrade helm release", m.Name, helmReleaseName, recordedChecksumStr, checksum)
+						logEntry.Debugf("helm release '%s' checksum '%s' is changed to '%s': upgrade helm release", helmReleaseName, recordedChecksumStr, checksum)
 					}
 				}
 			}
@@ -199,9 +207,9 @@ func (m *Module) runHelmInstall() error {
 	}
 
 	if doRelease {
-		rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s': installing/upgrading release", m.Name, helmReleaseName, checksum)
+		logEntry.Debugf("helm release '%s' checksum '%s': installing/upgrading release", helmReleaseName, checksum)
 
-		return helm.Client.UpgradeRelease(
+		return helmClient.UpgradeRelease(
 			helmReleaseName, runChartPath,
 			[]string{valuesPath},
 			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
@@ -209,7 +217,7 @@ func (m *Module) runHelmInstall() error {
 			app.Namespace,
 		)
 	} else {
-		rlog.Debugf("MODULE_RUN '%s': helm release '%s' checksum '%s': release install/upgrade is skipped", m.Name, helmReleaseName, checksum)
+		logEntry.Debugf("helm release '%s' checksum '%s': release install/upgrade is skipped", helmReleaseName, checksum)
 	}
 
 	return nil
@@ -253,7 +261,7 @@ func (m *Module) prepareConfigValuesYamlFile() (string, error) {
 		return "", err
 	}
 
-	rlog.Debugf("Prepared module %s config values:\n%s", m.Name, utils.ValuesToString(values))
+	log.Debugf("Prepared module %s config values:\n%s", m.Name, utils.ValuesToString(values))
 
 	return path, nil
 }
@@ -268,7 +276,7 @@ func (m *Module) prepareConfigValuesJsonFile() (string, error) {
 		return "", err
 	}
 
-	rlog.Debugf("Prepared module %s config values:\n%s", m.Name, utils.ValuesToString(values))
+	log.Debugf("Prepared module %s config values:\n%s", m.Name, utils.ValuesToString(values))
 
 	return path, nil
 }
@@ -283,7 +291,7 @@ func (m *Module) prepareValuesYamlFile() (string, error) {
 		return "", err
 	}
 
-	rlog.Debugf("Prepared module %s values:\n%s", m.Name, utils.ValuesToString(values))
+	log.Debugf("Prepared module %s values:\n%s", m.Name, utils.ValuesToString(values))
 
 	return path, nil
 }
@@ -296,7 +304,7 @@ func (m *Module) prepareValuesJsonFileWith(values utils.Values) (string, error) 
 		return "", err
 	}
 
-	rlog.Debugf("Prepared module %s values:\n%s", m.Name, utils.ValuesToString(values))
+	log.Debugf("Prepared module %s values:\n%s", m.Name, utils.ValuesToString(values))
 
 	return path, nil
 }
@@ -433,7 +441,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 
 	f, err := os.Stat(enabledScriptPath)
 	if os.IsNotExist(err) {
-		rlog.Debugf("MODULE '%s':  ENABLED. Enabled script is not exist!", m.Name)
+		log.Debugf("MODULE '%s':  ENABLED. Enabled script is not exist!", m.Name)
 		return true, nil
 	} else if err != nil {
 		return false, err
@@ -458,7 +466,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 		return false, err
 	}
 
-	rlog.Infof("MODULE '%s': run enabled script '%s'...", m.Name, enabledScriptPath)
+	log.Infof("MODULE '%s': run enabled script '%s'...", m.Name, enabledScriptPath)
 
 	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
@@ -478,18 +486,18 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 	}
 
 	if moduleEnabled {
-		rlog.Debugf("Module '%s'  ENABLED with script. Preceding: %s", m.Name, precedingEnabledModules)
+		log.Debugf("Module '%s'  ENABLED with script. Preceding: %s", m.Name, precedingEnabledModules)
 		return true, nil
 	}
 
-	rlog.Debugf("Module '%s' DISABLED with script. Preceding: %s ", m.Name, precedingEnabledModules)
+	log.Debugf("Module '%s' DISABLED with script. Preceding: %s ", m.Name, precedingEnabledModules)
 	return false, nil
 }
 
 // initModulesIndex load all available modules from modules directory
 // FIXME: Only 000-name modules are loaded, allow non-prefixed modules.
 func (mm *MainModuleManager) initModulesIndex() error {
-	rlog.Debug("INIT: Search modules ...")
+	log.Debug("INIT: Search modules ...")
 
 	files, err := ioutil.ReadDir(mm.ModulesDir) // returns a list of modules sorted by filename
 	if err != nil {
@@ -510,7 +518,7 @@ func (mm *MainModuleManager) initModulesIndex() error {
 			matchRes := validModuleName.FindStringSubmatch(file.Name())
 			if matchRes != nil {
 				moduleName := matchRes[1]
-				rlog.Infof("INIT: Register module '%s'", moduleName)
+				log.Infof("INIT: Register module '%s'", moduleName)
 
 				modulePath := filepath.Join(mm.ModulesDir, file.Name())
 
@@ -533,7 +541,7 @@ func (mm *MainModuleManager) initModulesIndex() error {
 		}
 	}
 
-	rlog.Debugf("INIT: initModulesIndex registered modules: %v", mm.allModulesByName)
+	log.Debugf("INIT: initModulesIndex registered modules: %v", mm.allModulesByName)
 
 	if len(badModulesDirs) > 0 {
 		return fmt.Errorf("found directories not matched regex '%s': %s", validModuleName, strings.Join(badModulesDirs, ", "))
@@ -549,13 +557,13 @@ func (m *Module) loadStaticValues() (err error) {
 	if err != nil {
 		return err
 	}
-	rlog.Debugf("module %s common static values: %s", m.Name, utils.ValuesToString(m.CommonStaticConfig.Values))
+	log.Debugf("module %s common static values: %s", m.Name, utils.ValuesToString(m.CommonStaticConfig.Values))
 
 	valuesYamlPath := filepath.Join(m.Path, "values.yaml")
 
 	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
 		m.StaticConfig = utils.NewModuleConfig(m.Name)
-		rlog.Debugf("module %s is static disabled: no values.yaml exists", m.Name)
+		log.Debugf("module %s is static disabled: no values.yaml exists", m.Name)
 		return nil
 	}
 
@@ -568,14 +576,14 @@ func (m *Module) loadStaticValues() (err error) {
 	if err != nil {
 		return err
 	}
-	rlog.Debugf("module %s static values: %s", m.Name, utils.ValuesToString(m.StaticConfig.Values))
+	log.Debugf("module %s static values: %s", m.Name, utils.ValuesToString(m.StaticConfig.Values))
 	return nil
 }
 
 func (mm *MainModuleManager) loadCommonStaticValues() (error) {
 	valuesPath := filepath.Join(mm.ModulesDir, "values.yaml")
 	if _, err := os.Stat(valuesPath); os.IsNotExist(err) {
-		rlog.Debugf("No common static values file: %s", err)
+		log.Debugf("No common static values file: %s", err)
 		return nil
 	}
 
@@ -600,7 +608,7 @@ func (mm *MainModuleManager) loadCommonStaticValues() (error) {
 
 	mm.globalCommonStaticValues = utils.GetGlobalValues(values)
 
-	rlog.Debugf("Initialized global values from common static values:\n%s", utils.ValuesToString(mm.globalCommonStaticValues))
+	log.Debugf("Initialized global values from common static values:\n%s", utils.ValuesToString(mm.globalCommonStaticValues))
 
 	return nil
 }

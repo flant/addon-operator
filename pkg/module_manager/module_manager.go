@@ -6,7 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
+
+	hook_config "github.com/flant/shell-operator/pkg/hook"
 
 	hook_config "github.com/flant/shell-operator/pkg/hook"
 
@@ -190,7 +192,7 @@ type Event struct {
 
 // Init loads global hooks configs, searches for modules, loads values and calculates enabled modules
 func Init() {
-	rlog.Debug("INIT: module_manager")
+	log.WithField("operator.phase", "init").Debug("INIT: module_manager")
 
 	EventCh = make(chan Event, 1)
 	return
@@ -226,8 +228,8 @@ func NewMainModuleManager() *MainModuleManager {
 // determineEnableStateWithScript runs enable script for each module that is enabled by config.
 // Enable script receives a list of previously enabled modules.
 func (mm *MainModuleManager) determineEnableStateWithScript(enabledByConfig []string) ([]string, error) {
+	log.Debugf("Run enable scripts for modules: %+v", enabledByConfig)
 	enabledModules := make([]string, 0)
-	//rlog.Infof("Run enable scripts for modules list: %s", enabledByConfig)
 
 	for _, name := range utils.SortByReference(enabledByConfig, mm.allModulesNamesInOrder) {
 		module := mm.allModulesByName[name]
@@ -241,7 +243,7 @@ func (mm *MainModuleManager) determineEnableStateWithScript(enabledByConfig []st
 		}
 	}
 
-	//rlog.Info("Modules enabled with script: %s", enabledModules)
+	log.Debugf("Modules enabled with script: %+v", enabledModules)
 	return enabledModules, nil
 }
 
@@ -254,7 +256,7 @@ type kubeUpdate struct {
 }
 
 func (mm *MainModuleManager) applyKubeUpdate(kubeUpdate *kubeUpdate) error {
-	rlog.Debugf("Apply kubeupdate %+v", kubeUpdate)
+	log.Debugf("Apply kubeupdate %+v", kubeUpdate)
 	mm.kubeGlobalConfigValues = kubeUpdate.KubeGlobalConfigValues
 	mm.kubeModulesConfigValues = kubeUpdate.KubeModulesConfigValues
 	mm.enabledModulesByConfig = kubeUpdate.EnabledModulesByConfig
@@ -267,7 +269,9 @@ func (mm *MainModuleManager) applyKubeUpdate(kubeUpdate *kubeUpdate) error {
 }
 
 func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.Config) (*kubeUpdate, error) {
-	rlog.Debugf("MODULE_MANAGER: handle new kube config")
+	logEntry := log.WithField("operator.component", "ModuleManager").
+		WithField("operator.action", "handleNewKubeConfig")
+	logEntry.Debugf("new kube config received")
 
 	res := &kubeUpdate{
 		KubeGlobalConfigValues: newConfig.Values,
@@ -278,7 +282,7 @@ func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.C
 	res.EnabledModulesByConfig, res.KubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(newConfig.ModuleConfigs)
 
 	for _, moduleConfig := range unknown {
-		rlog.Warnf("MODULE_MANAGER: new kube config: Ignore kube config for absent module: \n%s",
+		logEntry.Warnf("Ignore kube config for absent module : \n%s",
 			moduleConfig.String(),
 		)
 	}
@@ -287,7 +291,10 @@ func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.C
 }
 
 func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_manager.ModuleConfigs) (*kubeUpdate, error) {
-	rlog.Debugf("MODULE_MANAGER handle changes in module sections")
+	logEntry := log.WithField("operator.component", "ModuleManager").
+		WithField("operator.action", "handleNewKubeModuleConfigs")
+
+	logEntry.Debugf("handle changes in module sections")
 
 	res := &kubeUpdate{
 		Events:                 make([]Event, 0),
@@ -301,7 +308,7 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 	res.EnabledModulesByConfig, res.KubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(moduleConfigs)
 
 	for _, moduleConfig := range unknown {
-		rlog.Warnf("HANDLE_CM_UPD ignore module section for unknown module '%s':\n%s",
+		logEntry.Warnf("ignore module section for unknown module '%s':\n%s",
 			moduleConfig.ModuleName, moduleConfig.String())
 	}
 
@@ -321,23 +328,23 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 	res.EnabledModulesByConfig = utils.SortByReference(res.EnabledModulesByConfig, mm.allModulesNamesInOrder)
 
 	// Run enable scripts
-	rlog.Infof("HANDLE_CM_UPD run `enabled` for %s", res.EnabledModulesByConfig)
+	logEntry.Infof("run `enabled` for %s", res.EnabledModulesByConfig)
 	enabledModules, err := mm.determineEnableStateWithScript(res.EnabledModulesByConfig)
 	if err != nil {
 		return nil, err
 	}
-	rlog.Infof("HANDLE_CM_UPD enabled modules %s", enabledModules)
+	logEntry.Infof("enabled modules: %+v", enabledModules)
 
 	// Configure events
 	if !reflect.DeepEqual(mm.enabledModulesInOrder, enabledModules) {
 		// Enabled modules set is changed — return GlobalChanged event, that will
 		// create a Discover task, run enabled scripts again, init new module hooks,
 		// update mm.enabledModulesInOrder
-		rlog.Debugf("HANDLE_CM_UPD enabledByConfig changed from %v to %v: generate GlobalChanged event", mm.enabledModulesByConfig, res.EnabledModulesByConfig)
+		logEntry.Debugf("enabledByConfig changed from %v to %v: generate GlobalChanged event", mm.enabledModulesByConfig, res.EnabledModulesByConfig)
 		res.Events = append(res.Events, Event{Type: GlobalChanged})
 	} else {
 		// Enabled modules set is not changed, only values in configmap are changed.
-		rlog.Debugf("HANDLE_CM_UPD generate ModulesChanged events...")
+		logEntry.Debugf("generate ModulesChanged events...")
 
 		moduleChanges := make([]ModuleChange, 0)
 
@@ -351,7 +358,7 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 				isUpdated = moduleConfig.IsUpdated
 				// skip not updated module configs
 				if !isUpdated {
-					rlog.Debugf("HANDLE_CM_UPD ignore module '%s': kube config is not updated", name)
+					logEntry.Debugf("ignore module '%s': kube config is not updated", name)
 					continue
 				}
 			}
@@ -365,8 +372,8 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 		}
 
 		if len(moduleChanges) > 0 {
-			rlog.Infof("HANDLE_CM_UPD fire ModulesChanged event for %d modules", len(moduleChanges))
-			rlog.Debugf("HANDLE_CM_UPD event changes: %v", moduleChanges)
+			logEntry.Infof("fire ModulesChanged event for %d modules", len(moduleChanges))
+			logEntry.Debugf("event changes: %v", moduleChanges)
 			res.Events = append(res.Events, Event{Type: ModulesChanged, ModulesChanges: moduleChanges})
 		}
 	}
@@ -394,7 +401,7 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 				enabled = append(enabled, moduleName)
 				values[moduleName] = kubeConfig.Values
 			}
-			rlog.Debugf("Module %s: static enabled %v, kubeConfig: enabled %v, updated %v",
+			log.Debugf("Module %s: static enabled %v, kubeConfig: enabled %v, updated %v",
 				module.Name,
 				module.StaticConfig.IsEnabled,
 				kubeConfig.IsEnabled,
@@ -404,7 +411,7 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 			if isEnabled {
 				enabled = append(enabled, moduleName)
 			}
-			rlog.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.IsEnabled)
+			log.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.IsEnabled)
 		}
 	}
 
@@ -421,7 +428,7 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 
 // Init — initialize module manager
 func (mm *MainModuleManager) Init() error {
-	rlog.Debug("INIT: MODULE_MANAGER")
+	log.Debug("INIT: MODULE_MANAGER")
 
 	if err := mm.RegisterGlobalHooks(); err != nil {
 		return err
@@ -438,7 +445,7 @@ func (mm *MainModuleManager) Init() error {
 	mm.enabledModulesByConfig, mm.kubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(kubeConfig.ModuleConfigs)
 
 	for _, config := range unknown {
-		rlog.Warnf("INIT: MODULE_MANAGER: ignore kube config for absent module: \n%s",
+		log.Warnf("INIT: MODULE_MANAGER: ignore kube config for absent module: \n%s",
 			config.String(),
 		)
 	}
@@ -450,14 +457,16 @@ func (mm *MainModuleManager) Init() error {
 func (mm *MainModuleManager) Run() {
 	go mm.kubeConfigManager.Run()
 
+
+
 	for {
 		select {
 		case <-mm.globalValuesChanged:
-			rlog.Debugf("MODULE_MANAGER_RUN global values")
+			log.Debugf("MODULE_MANAGER_RUN global values")
 			EventCh <- Event{Type: GlobalChanged}
 
 		case moduleName := <-mm.moduleValuesChanged:
-			rlog.Debugf("MODULE_MANAGER_RUN module '%s' values changed", moduleName)
+			log.Debugf("MODULE_MANAGER_RUN module '%s' values changed", moduleName)
 
 			// Перезапускать enabled-скрипт не нужно, т.к.
 			// изменение values модуля не может вызвать
@@ -472,12 +481,12 @@ func (mm *MainModuleManager) Run() {
 		case newKubeConfig := <-kube_config_manager.ConfigUpdated:
 			handleRes, err := mm.handleNewKubeConfig(newKubeConfig)
 			if err != nil {
-				rlog.Errorf("MODULE_MANAGER_RUN unable to handle kube config update: %s", err)
+				log.Errorf("MODULE_MANAGER_RUN unable to handle kube config update: %s", err)
 			}
 			if handleRes != nil {
 				err = mm.applyKubeUpdate(handleRes)
 				if err != nil {
-					rlog.Errorf("MODULE_MANAGER_RUN cannot apply kube config update: %s", err)
+					log.Errorf("MODULE_MANAGER_RUN cannot apply kube config update: %s", err)
 				}
 			}
 
@@ -492,7 +501,7 @@ func (mm *MainModuleManager) Run() {
 				for _, newModuleConfig := range newModuleConfigs {
 					modulesNames = append(modulesNames, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
 				}
-				rlog.Errorf("MODULE_MANAGER_RUN unable to handle modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
+				log.Errorf("MODULE_MANAGER_RUN unable to handle modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
 			}
 			if handleRes != nil {
 				err = mm.applyKubeUpdate(handleRes)
@@ -501,23 +510,22 @@ func (mm *MainModuleManager) Run() {
 					for _, newModuleConfig := range newModuleConfigs {
 						modulesNames = append(modulesNames, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
 					}
-					rlog.Errorf("MODULE_MANAGER_RUN cannot apply modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
+					log.Errorf("MODULE_MANAGER_RUN cannot apply modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
 				}
 			}
 
 		case <-mm.retryOnAmbigous:
 			if len(mm.moduleConfigsUpdateBeforeAmbiguos) != 0 {
-				rlog.Infof("MODULE_MANAGER_RUN Retry saved moduleConfigs: %v", mm.moduleConfigsUpdateBeforeAmbiguos)
+				log.Infof("MODULE_MANAGER_RUN Retry saved moduleConfigs: %v", mm.moduleConfigsUpdateBeforeAmbiguos)
 				kube_config_manager.ModuleConfigsUpdated <- mm.moduleConfigsUpdateBeforeAmbiguos
 			} else {
-				rlog.Debugf("MODULE_MANAGER_RUN Retry IS NOT needed")
+				log.Debugf("MODULE_MANAGER_RUN Retry IS NOT needed")
 			}
 		}
 	}
 }
 
 func (mm *MainModuleManager) Retry() {
-	rlog.Debugf("MODULE_MANAGER Retry on ambigous")
 	mm.retryOnAmbigous <- true
 }
 
@@ -527,7 +535,9 @@ func (mm *MainModuleManager) Retry() {
 //
 // This method requires that mm.enabledModulesByConfig and mm.kubeModulesConfigValues are updated.
 func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err error) {
-	rlog.Debugf("DISCOVER state:\n"+
+	logEntry := log.WithField("operator.component", "moduleManager,discoverModulesState")
+
+	logEntry.Debugf("DISCOVER state:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
 		"    mm.enabledModulesInOrder:  %v\n",
 		mm.enabledModulesByConfig,
@@ -540,7 +550,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 		NewlyEnabledModules: []string{},
 	}
 
-	releasedModules, err := helm.Client.ListReleasesNames(nil)
+	releasedModules, err := helm.NewHelmCli(logEntry).ListReleasesNames(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -549,7 +559,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	state.ReleasedUnknownModules = utils.ListSubtract(releasedModules, mm.allModulesNamesInOrder)
 	state.ReleasedUnknownModules = utils.SortReverse(state.ReleasedUnknownModules)
 	if len(state.ReleasedUnknownModules) > 0 {
-		rlog.Infof("DISCOVER found modules with releases: %s", state.ReleasedUnknownModules)
+		logEntry.Infof("found modules with releases: %s", state.ReleasedUnknownModules)
 	}
 
 	// ignore unknown released modules for next operations
@@ -558,9 +568,9 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	// modules finally enabled with enable script
 	// no need to refresh mm.enabledModulesByConfig because
 	// it is updated before in Init or in applyKubeUpdate
-	rlog.Infof("DISCOVER run `enabled` for %s", mm.enabledModulesByConfig)
+	logEntry.Infof("run `enabled` for %s", mm.enabledModulesByConfig)
 	enabledModules, err := mm.determineEnableStateWithScript(mm.enabledModulesByConfig)
-	rlog.Infof("DISCOVER enabled modules %s", enabledModules)
+	logEntry.Infof("enabled modules %s", enabledModules)
 	if err != nil {
 		return nil, err
 	}
@@ -583,7 +593,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, releasedModules)
 	state.ModulesToDisable = utils.SortReverseByReference(state.ModulesToDisable, mm.allModulesNamesInOrder)
 
-	rlog.Debugf("DISCOVER state results:\n"+
+	logEntry.Debugf("DISCOVER state results:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
 		"    EnabledModules: %v\n"+
 		"    ReleasedUnknownModules: %v\n"+

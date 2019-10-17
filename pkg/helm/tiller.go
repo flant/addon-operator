@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 )
 
 const TillerPath = "tiller"
@@ -43,7 +43,7 @@ func InitTillerProcess(options TillerOptions) error {
 
 	err := tillerCmd.Start()
 	if err != nil {
-		rlog.Errorf("Tiller process not started: %v", err)
+		log.Errorf("Tiller process not started: %v", err)
 		return err
 	}
 
@@ -51,12 +51,12 @@ func InitTillerProcess(options TillerOptions) error {
 	for {
 		cliHelm := &CliHelm{}
 		stdout, stderr, err := cliHelm.Cmd("version")
-		rlog.Debugf("helm version: %s %s", stdout, stderr)
+		log.Debugf("helm version: %s %s", stdout, stderr)
 		if err != nil {
-			rlog.Errorf("unable to get helm version: %v\n%v %v", err, stdout, stderr)
+			log.Errorf("unable to get helm version: %v\n%v %v", err, stdout, stderr)
 			time.Sleep(100*time.Millisecond)
 		} else {
-			rlog.Infof("tiller started and is available")
+			log.Infof("tiller started and is available")
 			break
 		}
 	}
@@ -64,9 +64,9 @@ func InitTillerProcess(options TillerOptions) error {
 	go func() {
 		err = tillerCmd.Wait()
 		if err != nil {
-			rlog.Errorf("Tiller process exited, now stop. (%v)", err)
+			log.Errorf("Tiller process exited, now stop. (%v)", err)
 		} else {
-			rlog.Errorf("Tiller process exited, now stop.")
+			log.Errorf("Tiller process exited, now stop.")
 		}
 		os.Exit(1)
 	}()

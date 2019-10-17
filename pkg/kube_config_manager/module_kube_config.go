@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
@@ -13,6 +13,7 @@ import (
 )
 
 // TODO make a method of KubeConfig
+// TODO LOG: multierror?
 // GetModulesNamesFromConfigData returns all keys in kube config except global
 // modNameEnabled keys are also handled
 func GetModulesNamesFromConfigData(configData map[string]string) map[string]bool {
@@ -30,7 +31,7 @@ func GetModulesNamesFromConfigData(configData map[string]string) map[string]bool
 		modName := utils.ModuleNameFromValuesKey(key)
 
 		if utils.ModuleNameToValuesKey(modName) != key {
-			rlog.Errorf("Bad module name '%s': should be camelCased module name: ignoring data", key)
+			log.Errorf("Bad module name '%s': should be camelCased module name: ignoring data", key)
 			continue
 		}
 		res[modName] = true
