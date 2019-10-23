@@ -91,9 +91,7 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 	return result, nil
 }
 
-func (h *GlobalHook) run(bindingType BindingType, context []BindingContext) error {
-	log.Infof("Running global hook '%s' binding '%s' ...", h.Name, bindingType)
-
+func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
 	// Convert context for version
 	versionedContext := make([]interface{}, 0, len(context))
 	for _, c := range context {
@@ -101,6 +99,7 @@ func (h *GlobalHook) run(bindingType BindingType, context []BindingContext) erro
 	}
 
 	globalHookExecutor := NewHookExecutor(h, versionedContext)
+	globalHookExecutor.WithLogLabels(logLabels)
 	patches, err := globalHookExecutor.Run()
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)

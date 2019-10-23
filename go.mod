@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/evanphx/json-patch v4.5.0+incompatible
-	github.com/flant/shell-operator v1.0.0-beta.5.0.20191014100941-a02a093d4a71 // branch: json_logging
+	github.com/flant/shell-operator v1.0.0-beta.5.0.20191023115920-4f35920cc42f // branch: json_logging
 	github.com/go-openapi/spec v0.19.3
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/otiai10/copy v1.0.1

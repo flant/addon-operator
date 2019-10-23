@@ -99,9 +99,8 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 	return result, nil
 }
 
-func (h *ModuleHook) run(bindingType BindingType, context []BindingContext) error {
+func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
 	moduleName := h.Module.Name
-	log.Infof("Running module hook '%s' binding '%s' ...", h.Name, bindingType)
 
 	// Convert context for version
 	versionedContext := make([]interface{}, 0, len(context))
@@ -110,6 +109,7 @@ func (h *ModuleHook) run(bindingType BindingType, context []BindingContext) erro
 	}
 
 	moduleHookExecutor := NewHookExecutor(h, versionedContext)
+	moduleHookExecutor.WithLogLabels(logLabels)
 	patches, err := moduleHookExecutor.Run()
 	if err != nil {
 		return fmt.Errorf("module hook '%s' failed: %s", h.Name, err)

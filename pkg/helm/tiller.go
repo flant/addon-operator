@@ -12,6 +12,7 @@ import (
 )
 
 const TillerPath = "tiller"
+const MaxHelmVersionWaits = 32
 
 // TillerOptions
 type TillerOptions struct {
@@ -25,6 +26,8 @@ type TillerOptions struct {
 
 // InitTillerProcess starts tiller as a subprocess. If tiller is exited, addon-operator also exits.
 func InitTillerProcess(options TillerOptions) error {
+	logEntry := log.WithField("operator.component", "tiller")
+
 	env := []string{
 		fmt.Sprintf("TILLER_NAMESPACE=%s", options.Namespace),
 		fmt.Sprintf("TILLER_HISTORY_MAX=%d", options.HistoryMax),
@@ -43,30 +46,40 @@ func InitTillerProcess(options TillerOptions) error {
 
 	err := tillerCmd.Start()
 	if err != nil {
-		log.Errorf("Tiller process not started: %v", err)
-		return err
+		return fmt.Errorf("start tiller subprocess: %v", err)
 	}
 
 	// Wait for success of "helm version"
+	helmCounter := 0
 	for {
 		cliHelm := &CliHelm{}
 		stdout, stderr, err := cliHelm.Cmd("version")
-		log.Debugf("helm version: %s %s", stdout, stderr)
+
 		if err != nil {
-			log.Errorf("unable to get helm version: %v\n%v %v", err, stdout, stderr)
-			time.Sleep(100*time.Millisecond)
+			// log stdout and stderr as fields. Json formatter will escape multilines.
+			logEntry.WithField("stdout", stdout).
+				WithField("stderr", stderr).
+				Warnf("Unable to get tiller version: %v", err)
+			time.Sleep(250*time.Millisecond)
 		} else {
-			log.Infof("tiller started and is available")
+			logEntry.WithField("stdout", stdout).
+				WithField("stderr", stderr).
+				Debugf("Output of helm version")
+			logEntry.Infof("Tiller started and is available")
 			break
+		}
+		helmCounter += 1
+		if helmCounter > MaxHelmVersionWaits {
+			return fmt.Errorf("wait tiller timeout")
 		}
 	}
 
 	go func() {
 		err = tillerCmd.Wait()
 		if err != nil {
-			log.Errorf("Tiller process exited, now stop. (%v)", err)
+			logEntry.Errorf("Tiller process exited, now stop. Wait error: %v", err)
 		} else {
-			log.Errorf("Tiller process exited, now stop.")
+			logEntry.Errorf("Tiller process exited, now stop.")
 		}
 		os.Exit(1)
 	}()
@@ -85,7 +98,7 @@ func TillerHealthHandler(tillerProbeAddress string, tillerProbePort int32) func(
 			return
 		}
 
-		body, err := ioutil.ReadAll(res.Body)
+		tillerLivenessBody, err := ioutil.ReadAll(res.Body)
 		res.Body.Close()
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -93,8 +106,7 @@ func TillerHealthHandler(tillerProbeAddress string, tillerProbePort int32) func(
 			return
 		}
 
-		// TODO translate response of GET /liveness from tiller probe port
 		writer.WriteHeader(http.StatusOK)
-		writer.Write(body)
+		writer.Write(tillerLivenessBody)
 	}
 }

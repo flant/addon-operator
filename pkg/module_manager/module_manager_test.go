@@ -38,7 +38,7 @@ func initModuleManager(t *testing.T, mm *MainModuleManager, configPath string) {
 
 	mm.WithDirectories(filepath.Join(rootDir, "modules"), filepath.Join(rootDir, "global-hooks"), tempDir)
 
-	if err := mm.initModulesIndex(); err != nil {
+	if err := mm.RegisterModules(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -241,7 +241,6 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 				expectedModule := &Module{
 					Name:          "module",
 					Path:          filepath.Join(mm.ModulesDir, "000-module"),
-					DirectoryName: "000-module",
 					CommonStaticConfig: &utils.ModuleConfig{
 						ModuleName:       "module",
 						Values:           utils.Values{},

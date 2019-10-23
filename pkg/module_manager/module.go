@@ -24,7 +24,6 @@ import (
 
 type Module struct {
 	Name          string
-	DirectoryName string
 	Path          string
 	// module values from modules/values.yaml file
 	CommonStaticConfig *utils.ModuleConfig
@@ -34,10 +33,15 @@ type Module struct {
 	moduleManager *MainModuleManager
 }
 
-func NewModule(mm *MainModuleManager) *Module {
-	module := &Module{}
-	module.moduleManager = mm
-	return module
+func NewModule(name, path string) *Module {
+	return &Module{
+		Name: name,
+		Path: path,
+	}
+}
+
+func (m *Module) WithModuleManager(moduleManager *MainModuleManager) {
+	m.moduleManager = moduleManager
 }
 
 func (m *Module) SafeName() string {
@@ -46,18 +50,18 @@ func (m *Module) SafeName() string {
 
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
 // It is a handler of task MODULE_RUN
-func (m *Module) Run(onStartup bool) error {
+func (m *Module) Run(onStartup bool, logLabels map[string]string) error {
 	if err := m.cleanup(); err != nil {
 		return err
 	}
 
 	if onStartup {
-		if err := m.runHooksByBinding(OnStartup); err != nil {
+		if err := m.runHooksByBinding(OnStartup, logLabels); err != nil {
 			return err
 		}
 	}
 
-	if err := m.runHooksByBinding(BeforeHelm); err != nil {
+	if err := m.runHooksByBinding(BeforeHelm, logLabels); err != nil {
 		return err
 	}
 
@@ -65,7 +69,7 @@ func (m *Module) Run(onStartup bool) error {
 		return err
 	}
 
-	if err := m.runHooksByBinding(AfterHelm); err != nil {
+	if err := m.runHooksByBinding(AfterHelm, logLabels); err != nil {
 		return err
 	}
 
@@ -75,8 +79,10 @@ func (m *Module) Run(onStartup bool) error {
 // TODO LOG: add field 'on startup'
 // Delete removes helm release if it exists and runs afterDeleteHelm hooks.
 // It is a handler for MODULE_DELETE task.
-func (m *Module) Delete() error {
-	logEntry := log.WithField("module", m.Name).WithField("phase", "delete")
+func (m *Module) Delete(logLabels map[string]string) error {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).
+		WithField("module", m.Name).
+		WithField("phase", "delete")
 
 	// Если есть chart, но нет релиза — warning
 	// если нет чарта — молча перейти к хукам
@@ -99,7 +105,7 @@ func (m *Module) Delete() error {
 		}
 	}
 
-	return m.runHooksByBinding(AfterDeleteHelm)
+	return m.runHooksByBinding(AfterDeleteHelm, logLabels)
 }
 
 
@@ -224,7 +230,7 @@ func (m *Module) runHelmInstall() error {
 }
 
 
-func (m *Module) runHooksByBinding(binding BindingType) error {
+func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]string) error {
 	moduleHooksAfterHelm, err := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
 	if err != nil {
 		return err
@@ -236,13 +242,13 @@ func (m *Module) runHooksByBinding(binding BindingType) error {
 			return err
 		}
 
-		err = moduleHook.run(binding, []BindingContext{
+		err = moduleHook.Run(binding, []BindingContext{
 			{
 				BindingContext: hook2.BindingContext{
 					Binding: ContextBindingType[binding],
 				},
 			},
-		})
+		}, logLabels)
 		if err != nil {
 			return err
 		}
@@ -436,12 +442,13 @@ func (m *Module) readModuleEnabledResult(filePath string) (bool, error) {
 	return false, fmt.Errorf("expected 'true' or 'false', got '%s'", value)
 }
 
-func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool, error) {
+func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLabels map[string]string) (bool, error) {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	enabledScriptPath := filepath.Join(m.Path, "enabled")
 
 	f, err := os.Stat(enabledScriptPath)
 	if os.IsNotExist(err) {
-		log.Debugf("MODULE '%s':  ENABLED. Enabled script is not exist!", m.Name)
+		logEntry.Debugf("MODULE '%s' is ENABLED. Enabled script is not exist!", m.Name)
 		return true, nil
 	} else if err != nil {
 		return false, err
@@ -465,8 +472,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 	if err != nil {
 		return false, err
 	}
-
-	log.Infof("MODULE '%s': run enabled script '%s'...", m.Name, enabledScriptPath)
+	logEntry.Debugf("Execute enabled script '%s', preceding modules: %v", enabledScriptPath, precedingEnabledModules)
 
 	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
@@ -485,66 +491,79 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string) (bool,
 		return false, fmt.Errorf("bad enabled result in file MODULE_ENABLED_RESULT=\"%s\" from enabled script '%s' for module '%s': %s", enabledResultFilePath, enabledScriptPath, m.Name, err)
 	}
 
+	result := "Disabled"
 	if moduleEnabled {
-		log.Debugf("Module '%s'  ENABLED with script. Preceding: %s", m.Name, precedingEnabledModules)
-		return true, nil
+		result = "Enabled"
 	}
-
-	log.Debugf("Module '%s' DISABLED with script. Preceding: %s ", m.Name, precedingEnabledModules)
-	return false, nil
+	logEntry.Infof("Enabled script run successful, result: module %q", result)
+	return moduleEnabled, nil
 }
 
-// initModulesIndex load all available modules from modules directory
-// FIXME: Only 000-name modules are loaded, allow non-prefixed modules.
-func (mm *MainModuleManager) initModulesIndex() error {
-	log.Debug("INIT: Search modules ...")
+var ValidModuleNameRe = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
 
-	files, err := ioutil.ReadDir(mm.ModulesDir) // returns a list of modules sorted by filename
+func SearchModules(modulesDir string) (modules []*Module, err error) {
+	files, err := ioutil.ReadDir(modulesDir) // returns a list of modules sorted by filename
 	if err != nil {
-		return fmt.Errorf("INIT: cannot list modules directory '%s': %s", mm.ModulesDir, err)
+		return nil, fmt.Errorf("list modules directory '%s': %s", modulesDir, err)
 	}
-
-	// load global and modules common static values from modules/values.yaml
-	if err := mm.loadCommonStaticValues(); err != nil {
-		return fmt.Errorf("INIT: load common values: %s", err)
-	}
-
-	var validModuleName = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
 
 	badModulesDirs := make([]string, 0)
+	modules = make([]*Module, 0)
 
 	for _, file := range files {
-		if file.IsDir() {
-			matchRes := validModuleName.FindStringSubmatch(file.Name())
-			if matchRes != nil {
-				moduleName := matchRes[1]
-				log.Infof("INIT: Register module '%s'", moduleName)
-
-				modulePath := filepath.Join(mm.ModulesDir, file.Name())
-
-				module := NewModule(mm)
-				module.Name = moduleName
-				module.DirectoryName = file.Name()
-				module.Path = modulePath
-
-				// load static config from values.yaml
-				err := module.loadStaticValues()
-				if err != nil {
-					return err
-				}
-
-				mm.allModulesByName[module.Name] = module
-				mm.allModulesNamesInOrder = append(mm.allModulesNamesInOrder, module.Name)
-			} else {
-				badModulesDirs = append(badModulesDirs, filepath.Join(mm.ModulesDir, file.Name()))
-			}
+		if !file.IsDir() {
+			continue
+		}
+		matchRes := ValidModuleNameRe.FindStringSubmatch(file.Name())
+		if matchRes != nil {
+			moduleName := matchRes[1]
+			modulePath := filepath.Join(modulesDir, file.Name())
+			module := NewModule(moduleName, modulePath)
+			modules = append(modules, module)
+		} else {
+			badModulesDirs = append(badModulesDirs, filepath.Join(modulesDir, file.Name()))
 		}
 	}
 
-	log.Debugf("INIT: initModulesIndex registered modules: %v", mm.allModulesByName)
-
 	if len(badModulesDirs) > 0 {
-		return fmt.Errorf("found directories not matched regex '%s': %s", validModuleName, strings.Join(badModulesDirs, ", "))
+		return nil, fmt.Errorf("modules directory contains directories not matched ValidModuleRegex '%s': %s", ValidModuleNameRe, strings.Join(badModulesDirs, ", "))
+	}
+
+	return
+}
+
+// RegisterModules load all available modules from modules directory
+// FIXME: Only 000-name modules are loaded, allow non-prefixed modules.
+func (mm *MainModuleManager) RegisterModules() error {
+	log.Debug("Search and register modules")
+
+	modules, err := SearchModules(mm.ModulesDir)
+	if err != nil {
+		return err
+	}
+	log.Debug("Found %d modules", len(modules))
+
+	// load global and modules common static values from modules/values.yaml
+	if err := mm.loadCommonStaticValues(); err != nil {
+		return fmt.Errorf("load common values for modules: %s", err)
+	}
+
+	for _, module := range modules {
+		logEntry := log.WithField("module", module.Name)
+
+		module.WithModuleManager(mm)
+
+		// load static config from values.yaml
+		err := module.loadStaticValues()
+		if err != nil {
+			logEntry.Errorf("Load values.yaml: %s", err)
+			return fmt.Errorf("bad module values")
+		}
+
+		mm.allModulesByName[module.Name] = module
+		mm.allModulesNamesInOrder = append(mm.allModulesNamesInOrder, module.Name)
+
+		logEntry.Infof("Registered")
 	}
 
 	return nil

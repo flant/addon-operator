@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 
@@ -46,10 +47,8 @@ func (h *CommonHook) GetPath() string {
 	return h.Path
 }
 
-
+// SearchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
 func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
-	log.Debug("INIT: search global hooks...")
-
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -71,8 +70,6 @@ func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 			return nil, err
 		}
 
-		log.Infof("INIT: global hook '%s'", hookName)
-
 		globalHook := NewGlobalHook(hookName, hookPath)
 
 		hooks = append(hooks, globalHook)
@@ -82,8 +79,6 @@ func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 }
 
 func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
-	log.Infof("INIT: module '%s' hooks ...", module.Name)
-
 	hooksDir := filepath.Join(module.Path, "hooks")
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
@@ -106,8 +101,6 @@ func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
 			return nil, err
 		}
 
-		log.Infof("INIT:   hook '%s' ...", hookName)
-
 		moduleHook := NewModuleHook(hookName, hookPath)
 		moduleHook.WithModule(module)
 
@@ -118,41 +111,8 @@ func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
 }
 
 
-func LoadModuleHooksConfig(hooks []*ModuleHook) error {
-	for _, hook := range hooks {
-		configOutput, err := NewHookExecutor(hook, nil).Config()
-		if err != nil {
-			return fmt.Errorf("hook '%s' config: %s", hook.GetPath(), err)
-		}
-
-		err = hook.WithConfig(configOutput)
-		if err != nil {
-			return fmt.Errorf("creating global hook '%s': %s", hook.GetName(), err)
-		}
-	}
-
-	return nil
-}
-
-func LoadGlobalHooksConfig(hooks []*GlobalHook) error {
-	for _, hook := range hooks {
-		configOutput, err := NewHookExecutor(hook, nil).Config()
-		if err != nil {
-			return fmt.Errorf("hook '%s' config: %s", hook.GetPath(), err)
-		}
-
-		err = hook.WithConfig(configOutput)
-		if err != nil {
-			return fmt.Errorf("creating module hook '%s': %s", hook.GetName(), err)
-		}
-	}
-
-	return nil
-}
-
-
 func (mm *MainModuleManager) RegisterGlobalHooks() error {
-	log.Debug("INIT: global hooks")
+	log.Debug("Search and register global hooks")
 
 	mm.globalHooksOrder = make(map[BindingType][]*GlobalHook)
 	mm.globalHooksByName = make(map[string]*GlobalHook)
@@ -161,43 +121,69 @@ func (mm *MainModuleManager) RegisterGlobalHooks() error {
 	if err != nil {
 		return err
 	}
-
-	err = LoadGlobalHooksConfig(hooks)
-	if err != nil {
-		return err
-	}
+	log.Debug("Found %d global hooks", len(hooks))
 
 	for _, globalHook := range hooks {
+		logEntry := log.WithField("hook", globalHook.Name).
+			WithField("hook.type", "global")
+
+		configOutput, err := NewHookExecutor(globalHook, nil).Config()
+		if err != nil {
+			logEntry.Errorf("Run --config: %s", err)
+			return fmt.Errorf("global hook --config run problem")
+		}
+
+		err = globalHook.WithConfig(configOutput)
+		if err != nil {
+			logEntry.Errorf("Hook return bad config: %s", err)
+			return fmt.Errorf("global hook return bad config")
+		}
+
 		globalHook.WithModuleManager(mm)
 		// register global hook in indexes
 		for _, binding := range globalHook.Config.Bindings() {
 			mm.globalHooksOrder[binding] = append(mm.globalHooksOrder[binding], globalHook)
 		}
 		mm.globalHooksByName[globalHook.Name] = globalHook
+
+		logEntry.Infof("Registered")
 	}
 
 	return nil
 }
 
-func (mm *MainModuleManager) RegisterModuleHooks(module *Module) error {
+func (mm *MainModuleManager) RegisterModuleHooks(module *Module, logLabels map[string]string) error {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).WithField("module", module.Name)
+
 	if _, ok := mm.modulesHooksOrderByName[module.Name]; ok {
-		log.Debugf("INIT: module '%s' hooks: already initialized", module.Name)
+		logEntry.Debugf("Module hooks already registered")
 		return nil
 	}
 
-	log.Infof("INIT: module '%s' hooks ...", module.Name)
+	logEntry.Debugf("Search and register hooks")
 
 	hooks, err := SearchModuleHooks(module)
 	if err != nil {
 		return err
 	}
-
-	err = LoadModuleHooksConfig(hooks)
-	if err != nil {
-		return err
-	}
+	logEntry.Debugf("Found %d hooks", len(hooks))
 
 	for _, moduleHook := range hooks {
+		hookLogEntry := logEntry.WithField("hook", moduleHook.Name).
+			WithField("hook.type", "module")
+
+		configOutput, err := NewHookExecutor(moduleHook, nil).Config()
+		if err != nil {
+			hookLogEntry.Errorf("Run --config: %s", err)
+			return fmt.Errorf("module hook --config run problem")
+		}
+
+		err = moduleHook.WithConfig(configOutput)
+		if err != nil {
+			hookLogEntry.Errorf("Hook return bad config: %s", err)
+			return fmt.Errorf("module hook return bad config")
+		}
+
 		moduleHook.WithModuleManager(mm)
 		// register module hook in indexes
 		for _, binding := range moduleHook.Config.Bindings() {
@@ -206,6 +192,8 @@ func (mm *MainModuleManager) RegisterModuleHooks(module *Module) error {
 			}
 			mm.modulesHooksOrderByName[module.Name][binding] = append(mm.modulesHooksOrderByName[module.Name][binding], moduleHook)
 		}
+
+		hookLogEntry.Infof("Registered")
 	}
 
 	return nil

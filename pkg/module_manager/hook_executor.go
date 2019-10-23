@@ -21,13 +21,19 @@ type HookExecutor struct {
 	ContextPath string
 	ConfigValuesPatchPath string
 	ValuesPatchPath string
+	LogLabels map[string]string
 }
 
 func NewHookExecutor(h Hook, context interface{}) *HookExecutor {
 	return &HookExecutor{
 		Hook: h,
 		Context: context,
+		LogLabels: map[string]string{},
 	}
+}
+
+func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
+	e.LogLabels = logLabels
 }
 
 func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, err error) {
@@ -45,23 +51,23 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
-	envs = append(envs, helm.NewHelmCli(nil).CommandEnv()...)
+	envs = append(envs, helm.NewHelmCli(log.NewEntry(log.StandardLogger())).CommandEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{}, envs)
 
-	err = executor.Run(cmd)
+	err = executor.RunAndLogLines(cmd, e.LogLabels)
 	if err != nil {
-		return nil, fmt.Errorf("%s FAILED: %s", e.Hook.GetName(), err)
+		return nil, err
 	}
 
 	patches[utils.ConfigMapPatch], err = utils.ValuesPatchFromFile(e.ConfigValuesPatchPath)
 	if err != nil {
-		return nil, fmt.Errorf("got bad config values json patch from hook %s: %s", e.Hook.GetName(), err)
+		return nil, fmt.Errorf("got bad json patch for config values: %s", err)
 	}
 
 	patches[utils.MemoryValuesPatch], err = utils.ValuesPatchFromFile(e.ValuesPatchPath)
 	if err != nil {
-		return nil, fmt.Errorf("got bad values json patch from hook %s: %s", e.Hook.GetName(), err)
+		return nil, fmt.Errorf("got bad json patch for values: %s", err)
 	}
 
 	return patches, nil
@@ -70,7 +76,7 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 func (e *HookExecutor) Config() (configOutput []byte, err error) {
 	envs := []string{}
 	envs = append(envs, os.Environ()...)
-	envs = append(envs, helm.NewHelmCli(nil).CommandEnv()...)
+	envs = append(envs, helm.NewHelmCli(log.NewEntry(log.StandardLogger())).CommandEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{"--config"}, envs)
 
@@ -79,8 +85,8 @@ func (e *HookExecutor) Config() (configOutput []byte, err error) {
 
 	output, err := executor.Output(cmd)
 	if err != nil {
-		log.Errorf("Hook '%s' config failed: %v, output:\n%s",  e.Hook.GetName(), err, string(output))
-		return nil, fmt.Errorf("%s FAILED: %s", e.Hook.GetName(), err)
+		log.Debugf("Hook '%s' config failed: %v, output:\n%s",  e.Hook.GetName(), err, string(output))
+		return nil, err
 	}
 
 	log.Debugf("Hook '%s' config output:\n%s", e.Hook.GetName(), string(output))

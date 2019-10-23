@@ -48,8 +48,6 @@ var _ HelmClient = &CliHelm{}
 
 // InitClient initialize helm client
 func InitClient() error {
-	log.Info("Helm: run helm init")
-
 	cliHelm := &CliHelm{}
 
 	stdout, stderr, err := cliHelm.Cmd("init", "--client-only")
@@ -63,7 +61,7 @@ func InitClient() error {
 	}
 	stdout = strings.Join([]string{stdout, stderr}, "\n")
 	stdout = strings.ReplaceAll(stdout, "\n", " ")
-	log.Infof("Helm: successfully initialized. Version: %s", stdout)
+	log.Infof("Helm successfully initialized. Version: %s", stdout)
 
 	return nil
 }

@@ -5,21 +5,21 @@ import "github.com/flant/addon-operator/pkg/kube_config_manager"
 type ModuleManagerMockFns struct {
 	Init func() error
 	Run func()
-	DiscoverModulesState func() (*ModulesState, error)
+	DiscoverModulesState func(logLabels map[string]string) (*ModulesState, error)
 	GetModule func(name string) (*Module, error)
 	GetModuleNamesInOrder func() []string
 	GetGlobalHook func(name string) (*GlobalHook, error)
 	GetModuleHook func(name string) (*ModuleHook, error)
 	GetGlobalHooksInOrder func(bindingType BindingType) []string
 	GetModuleHooksInOrder func(moduleName string, bindingType BindingType) ([]string, error)
-	DeleteModule func(moduleName string) error
-	RunModule func(moduleName string, onStartup bool) error
-	RunGlobalHook func(hookName string, binding BindingType, bindingContext []BindingContext) error
-	RunModuleHook func(hookName string, binding BindingType, bindingContext []BindingContext) error
+	DeleteModule func(moduleName string, logLabels map[string]string) error
+	RunModule func(moduleName string, onStartup bool, logLabels map[string]string) error
+	RunGlobalHook func(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
+	RunModuleHook func(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
 	Retry func()
 	WithDirectories func(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
 	WithKubeConfigManager func(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
-	RegisterModuleHooks func(*Module) error
+	RegisterModuleHooks func(*Module, map[string]string) error
 }
 
 
@@ -47,9 +47,9 @@ func (m *ModuleManagerMock) Run() {
 	panic("implement me")
 }
 
-func (m *ModuleManagerMock) DiscoverModulesState() (*ModulesState, error) {
+func (m *ModuleManagerMock) DiscoverModulesState(logLabels map[string]string) (*ModulesState, error) {
 	if m.Fns.DiscoverModulesState != nil {
-		return m.Fns.DiscoverModulesState()
+		return m.Fns.DiscoverModulesState(logLabels)
 	}
 	panic("implement me")
 }
@@ -96,30 +96,30 @@ func (m *ModuleManagerMock) GetModuleHooksInOrder(moduleName string, bindingType
 	panic("implement me")
 }
 
-func (m *ModuleManagerMock) DeleteModule(moduleName string) error {
+func (m *ModuleManagerMock) DeleteModule(moduleName string, logLabels map[string]string) error {
 	if m.Fns.DeleteModule != nil {
-		return m.Fns.DeleteModule(moduleName)
+		return m.Fns.DeleteModule(moduleName, logLabels)
 	}
 	panic("implement me")
 }
 
-func (m *ModuleManagerMock) RunModule(moduleName string, onStartup bool) error {
+func (m *ModuleManagerMock) RunModule(moduleName string, onStartup bool, logLabels map[string]string) error {
 	if m.Fns.RunModule != nil {
-		return m.Fns.RunModule(moduleName, onStartup)
+		return m.Fns.RunModule(moduleName, onStartup, logLabels)
 	}
 	panic("implement me")
 }
 
-func (m *ModuleManagerMock) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext) error {
+func (m *ModuleManagerMock) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
 	if m.Fns.RunGlobalHook != nil {
-		return m.Fns.RunGlobalHook(hookName, binding, bindingContext)
+		return m.Fns.RunGlobalHook(hookName, binding, bindingContext, logLabels)
 	}
 	panic("implement me")
 }
 
-func (m *ModuleManagerMock) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext) error {
+func (m *ModuleManagerMock) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
 	if m.Fns.RunModuleHook != nil {
-		return m.Fns.RunModuleHook(hookName, binding, bindingContext)
+		return m.Fns.RunModuleHook(hookName, binding, bindingContext, logLabels)
 	}
 	panic("implement me")
 }
@@ -145,9 +145,9 @@ func (m *ModuleManagerMock) WithKubeConfigManager(kubeConfigManager kube_config_
 	panic("implement me")
 }
 
-func (m *ModuleManagerMock) RegisterModuleHooks(module *Module) error {
+func (m *ModuleManagerMock) RegisterModuleHooks(module *Module, logLabels map[string]string) error {
 	if m.Fns.RegisterModuleHooks != nil {
-		return m.Fns.RegisterModuleHooks(module)
+		return m.Fns.RegisterModuleHooks(module, logLabels)
 	}
 	panic("implement me")
 }
