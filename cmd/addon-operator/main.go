@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"gopkg.in/alecthomas/kingpin.v2"
+	log "github.com/sirupsen/logrus"
 
 	shell_operator_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -32,6 +33,8 @@ func main() {
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
 			shell_operator_app.SetupLogging()
+			log.Infof("%s %s, shell-operator %s", app.AppName, app.Version, shell_operator_app.Version)
+
 			// Be a good parent - clean up after the child processes
 			// in case if addon-operator is a PID 1 process.
 			go executor.Reap()

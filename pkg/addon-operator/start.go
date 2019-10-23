@@ -5,8 +5,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	shell_operator_app "github.com/flant/shell-operator/pkg/app"
-
 	"github.com/flant/addon-operator/pkg/app"
 )
 
@@ -19,8 +17,6 @@ func Start() {
 		log.Errorf("HTTP SERVER start failed: %v", err)
 		os.Exit(1)
 	}
-
-	log.Infof("addon-operator %s, shell-operator %s", app.Version, shell_operator_app.Version)
 
 	err = Init()
 	if err != nil {
