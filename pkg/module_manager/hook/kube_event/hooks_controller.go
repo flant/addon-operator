@@ -169,30 +169,40 @@ func (c *kubernetesHooksController) DisableModuleHooks(moduleName string, logLab
 func (c *kubernetesHooksController) HandleEvent(kubeEvent kube_events_manager.KubeEvent, logLabels map[string]string) ([]task.Task, error) {
 	res := make([]task.Task, 0)
 
-	globalHook, hasGlobalHook := c.GlobalHooks[kubeEvent.ConfigId]
-	moduleHook, hasModuleHook := c.ModuleHooks[kubeEvent.ConfigId]
+	globalEventHook, hasGlobalHook := c.GlobalHooks[kubeEvent.ConfigId]
+	moduleEventHook, hasModuleHook := c.ModuleHooks[kubeEvent.ConfigId]
 	if !hasGlobalHook && !hasModuleHook {
 		return nil, fmt.Errorf("Possible a bug: kubernetes event '%s/%s/%s %s' is received, but no hook is found", kubeEvent.Namespace, kubeEvent.Kind, kubeEvent.Name, kubeEvent.Event)
 	}
+
+	globalHook, _ := c.moduleManager.GetGlobalHook(globalEventHook.HookName)
+	moduleHook, _ := c.moduleManager.GetModuleHook(moduleEventHook.HookName)
 
 	hookLabels := utils.MergeLabels(logLabels)
 
 	var taskType task.TaskType
 	var kubeHook *kube_event.KubeEventHook
+	var configVersion string
 	if hasGlobalHook {
-		kubeHook = globalHook
 		taskType = task.GlobalHookRun
-		hookLabels["hook"] = globalHook.HookName
+		kubeHook = globalEventHook
+		configVersion = globalHook.Config.Version
+		hookLabels["hook"] = globalEventHook.HookName
 		hookLabels["hook.type"] = "global"
 	} else {
-		kubeHook = moduleHook
 		taskType = task.ModuleHookRun
-		hookLabels["hook"] = moduleHook.HookName
+		kubeHook = moduleEventHook
+		configVersion = moduleHook.Config.Version
+		hookLabels["hook"] = moduleEventHook.HookName
 		hookLabels["hook.type"] = "module"
 	}
 
 	switch kubeEvent.Type {
 	case "Synchronization":
+		// Ignore Synchronization for v0
+		if configVersion == "v0" {
+			break
+		}
 		// Send all objects
 		objList := make([]interface{}, 0)
 		for _, obj := range kubeEvent.Objects {
