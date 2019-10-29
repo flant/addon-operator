@@ -175,8 +175,6 @@ func (c *kubernetesHooksController) HandleEvent(kubeEvent kube_events_manager.Ku
 		return nil, fmt.Errorf("Possible a bug: kubernetes event '%s/%s/%s %s' is received, but no hook is found", kubeEvent.Namespace, kubeEvent.Kind, kubeEvent.Name, kubeEvent.Event)
 	}
 
-	globalHook, _ := c.moduleManager.GetGlobalHook(globalEventHook.HookName)
-	moduleHook, _ := c.moduleManager.GetModuleHook(moduleEventHook.HookName)
 
 	hookLabels := utils.MergeLabels(logLabels)
 
@@ -186,12 +184,14 @@ func (c *kubernetesHooksController) HandleEvent(kubeEvent kube_events_manager.Ku
 	if hasGlobalHook {
 		taskType = task.GlobalHookRun
 		kubeHook = globalEventHook
+		globalHook, _ := c.moduleManager.GetGlobalHook(globalEventHook.HookName)
 		configVersion = globalHook.Config.Version
 		hookLabels["hook"] = globalEventHook.HookName
 		hookLabels["hook.type"] = "global"
 	} else {
 		taskType = task.ModuleHookRun
 		kubeHook = moduleEventHook
+		moduleHook, _ := c.moduleManager.GetModuleHook(moduleEventHook.HookName)
 		configVersion = moduleHook.Config.Version
 		hookLabels["hook"] = moduleEventHook.HookName
 		hookLabels["hook.type"] = "module"
