@@ -6,23 +6,25 @@ import (
 	"time"
 
 	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/utils"
+	"gopkg.in/satori/go.uuid.v1"
 )
 
 type TaskType string
 
 const (
-	ModuleDelete         TaskType = "TASK_MODULE_DELETE"
-	ModuleRun            TaskType = "TASK_MODULE_RUN"
-	ModuleHookRun        TaskType = "TASK_MODULE_HOOK_RUN"
-	GlobalHookRun        TaskType = "TASK_GLOBAL_HOOK_RUN"
-	DiscoverModulesState TaskType = "TASK_DISCOVER_MODULES_STATE"
+	ModuleDelete         TaskType = "ModuleDelete"
+	ModuleRun            TaskType = "ModuleRun"
+	ModuleHookRun        TaskType = "ModuleHookRun"
+	GlobalHookRun        TaskType = "GlobalHookRun"
+	DiscoverModulesState TaskType = "DiscoverModulesState"
 	// удаление релиза без сведений о модуле
-	ModulePurge TaskType = "TASK_MODULE_PURGE"
+	ModulePurge TaskType = "ModulePurge"
 	// retry module_manager-а
-	ModuleManagerRetry TaskType = "TASK_MODULE_MANAGER_RETRY"
+	ModuleManagerRetry TaskType = "ModuleManagerRetry"
 	// вспомогательные задачи: задержка и остановка обработки
-	Delay TaskType = "TASK_DELAY"
-	Stop  TaskType = "TASK_STOP"
+	Delay TaskType = "Delay"
+	Stop  TaskType = "Stop"
 )
 
 type Task interface {
@@ -35,6 +37,7 @@ type Task interface {
 	GetDelay() time.Duration
 	GetAllowFailure() bool
 	GetOnStartupHooks() bool
+	GetLogLabels() map[string]string
 }
 
 type BaseTask struct {
@@ -47,7 +50,10 @@ type BaseTask struct {
 	AllowFailure   bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
 	OnStartupHooks bool // Run module onStartup hooks on Addon-operator startup or on module enabled.
+	LogLabels map[string]string
 }
+
+var _ Task = &BaseTask{}
 
 func NewTask(taskType TaskType, name string) *BaseTask {
 	return &BaseTask{
@@ -56,6 +62,7 @@ func NewTask(taskType TaskType, name string) *BaseTask {
 		Type:           taskType,
 		AllowFailure:   false,
 		BindingContext: make([]module_manager.BindingContext, 0),
+		LogLabels: map[string]string{"task.id": uuid.NewV4().String()},
 	}
 }
 
@@ -87,6 +94,10 @@ func (t *BaseTask) GetOnStartupHooks() bool {
 	return t.OnStartupHooks
 }
 
+func (t *BaseTask) GetLogLabels() map[string]string {
+	return t.LogLabels
+}
+
 func (t *BaseTask) WithBinding(binding module_manager.BindingType) *BaseTask {
 	t.Binding = binding
 	return t
@@ -109,6 +120,11 @@ func (t *BaseTask) WithAllowFailure(allowFailure bool) *BaseTask {
 
 func (t *BaseTask) WithOnStartupHooks(onStartupHooks bool) *BaseTask {
 	t.OnStartupHooks = onStartupHooks
+	return t
+}
+
+func (t *BaseTask) WithLogLabels(labels map[string]string) *BaseTask {
+	t.LogLabels = utils.MergeLabels(t.LogLabels, labels)
 	return t
 }
 

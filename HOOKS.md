@@ -144,7 +144,7 @@ Binding context is information about the event which caused the hook execution.
 
 The $BINDING_CONTEXT_PATH environment variable contains the path to a file with JSON array of structures with the following fields:
 
-- `binding` is a string from the `name` parameter for `schecdule` or `onKubernetesEvent` or a binding type if parameter is not set and for other hooks. For example, binding context for `beforeAll` hook:
+- `binding` is a string from the `name` parameter for `schedule` or `onKubernetesEvent` or a binding type if parameter is not set and for other hooks. For example, binding context for `beforeAll` hook:
 
 ```json
 [{"binding":"beforeAll"}]
