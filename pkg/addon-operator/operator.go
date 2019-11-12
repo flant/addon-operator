@@ -201,19 +201,12 @@ func Run() {
 	// Turning tracking changes on only after startup ends.
 	onStartupLabels := map[string]string {}
 	onStartupLabels["event.id"] = "OperatorOnStartup"
+
 	TasksQueue.ChangesDisable()
 	CreateOnStartupTasks(onStartupLabels)
+	CreateEnableGlobalKubernetesHookTasks(onStartupLabels)
 	CreateReloadAllTasks(true, onStartupLabels)
 	TasksQueue.ChangesEnable(true)
-
-	// Handle kubernetes events
-	err := KubernetesHooksController.EnableGlobalHooks(onStartupLabels)
-	if err != nil {
-		// Something wrong with global hook configs, cannot start informers.
-		log.Errorf("Create informers for global kubernetes hooks: %v", err)
-		return
-	}
-
 
 	go ModuleManager.Run()
 	go ScheduleManager.Run()
@@ -354,6 +347,55 @@ func TasksRunner() {
 				WithField("task.type", t.GetType())
 
 			switch t.GetType() {
+			case task.GlobalHookRun:
+				taskLogEntry.Infof("Run global hook")
+				err := ModuleManager.RunGlobalHook(t.GetName(), t.GetBinding(), t.GetBindingContext(), t.GetLogLabels())
+				if err != nil {
+					globalHook, _ := ModuleManager.GetGlobalHook(t.GetName())
+					hookLabel := path.Base(globalHook.Path)
+
+					if t.GetAllowFailure() {
+						MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_allowed_errors"), 1.0, map[string]string{"hook": hookLabel})
+						taskLogEntry.Infof("GlobalHookRun failed, but allowed to fail. Error: %v", err)
+						TasksQueue.Pop()
+					} else {
+						MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_errors"), 1.0, map[string]string{"hook": hookLabel})
+						t.IncrementFailureCount()
+						taskLogEntry.Errorf("GlobalHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
+						TasksQueue.Push(task.NewTaskDelay(FailedHookDelay))
+					}
+				} else {
+					taskLogEntry.Infof("GlobalHookRun success")
+					TasksQueue.Pop()
+				}
+
+			case task.GlobalKubernetesBindingsStart:
+				taskLogEntry.Infof("Enable global hook with kubernetes binding")
+
+				hookRunTasks, err := KubernetesHooksController.EnableGlobalKubernetesBindings(t.GetName(), t.GetLogLabels())
+				if err != nil {
+					globalHook, _ := ModuleManager.GetGlobalHook(t.GetName())
+					hookLabel := path.Base(globalHook.Path)
+
+					MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_errors"), 1.0, map[string]string{"hook": hookLabel})
+					t.IncrementFailureCount()
+					taskLogEntry.Errorf("GlobalHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
+
+					delayTask := task.NewTaskDelay(FailedHookDelay)
+					delayTask.Name = t.GetName()
+					delayTask.Binding = t.GetBinding()
+					TasksQueue.Push(delayTask)
+				} else {
+					// Push Synchronization tasks to queue head. Informers can be started now — their events will
+					// be added to the queue tail.
+					taskLogEntry.Infof("Kubernetes binding for hook enabled successfully")
+					TasksQueue.Pop()
+					for _, hookRunTask := range hookRunTasks {
+						TasksQueue.Push(hookRunTask)
+					}
+					KubernetesHooksController.StartGlobalInformers(t.GetName())
+				}
+
 			case task.DiscoverModulesState:
 				taskLogEntry.Info("Run DiscoverModules")
 				err := RunDiscoverModulesState(t, t.GetLogLabels())
@@ -368,7 +410,28 @@ func TasksRunner() {
 				}
 			case task.ModuleRun:
 				taskLogEntry.Info("Run module")
-				err := ModuleManager.RunModule(t.GetName(), t.GetOnStartupHooks(), t.GetLogLabels())
+				err := ModuleManager.RunModule(t.GetName(), t.GetOnStartupHooks(), t.GetLogLabels(), func() error {
+					tasks, err := KubernetesHooksController.EnableModuleHooks(t.GetName(), t.GetLogLabels())
+					if err != nil {
+						return err
+					}
+					for _, t := range tasks {
+						hookLogEntry := taskLogEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
+						hookLogEntry.Info("Run module hook with type Sychronization")
+						err := ModuleManager.RunModuleHook(t.GetName(), t.GetBinding(), t.GetBindingContext(), t.GetLogLabels())
+						if err != nil {
+							moduleHook, _ := ModuleManager.GetModuleHook(t.GetName())
+							hookLabel := path.Base(moduleHook.Path)
+							moduleLabel := moduleHook.Module.Name
+							MetricsStorage.SendCounterMetric(PrefixMetric("module_hook_errors"), 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+							return err
+						} else {
+							hookLogEntry.Infof("ModuleHookRun success")
+						}
+					}
+					KubernetesHooksController.StartModuleInformers(t.GetName())
+					return nil
+				})
 				if err != nil {
 					MetricsStorage.SendCounterMetric(PrefixMetric("module_run_errors"), 1.0, map[string]string{"module": t.GetName()})
 					t.IncrementFailureCount()
@@ -391,7 +454,7 @@ func TasksRunner() {
 					TasksQueue.Pop()
 				}
 			case task.ModuleHookRun:
-				taskLogEntry.Info("Run module hooks")
+				taskLogEntry.Info("Run module hook")
 				err := ModuleManager.RunModuleHook(t.GetName(), t.GetBinding(), t.GetBindingContext(), t.GetLogLabels())
 				if err != nil {
 					moduleHook, _ := ModuleManager.GetModuleHook(t.GetName())
@@ -410,27 +473,6 @@ func TasksRunner() {
 					}
 				} else {
 					taskLogEntry.Infof("ModuleHookRun success")
-					TasksQueue.Pop()
-				}
-			case task.GlobalHookRun:
-				taskLogEntry.Infof("Run global hook")
-				err := ModuleManager.RunGlobalHook(t.GetName(), t.GetBinding(), t.GetBindingContext(), t.GetLogLabels())
-				if err != nil {
-					globalHook, _ := ModuleManager.GetGlobalHook(t.GetName())
-					hookLabel := path.Base(globalHook.Path)
-
-					if t.GetAllowFailure() {
-						MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_allowed_errors"), 1.0, map[string]string{"hook": hookLabel})
-						taskLogEntry.Infof("GlobalHookRun failed, but allowed to fail. Error: %v", err)
-						TasksQueue.Pop()
-					} else {
-						MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_errors"), 1.0, map[string]string{"hook": hookLabel})
-						t.IncrementFailureCount()
-						taskLogEntry.Errorf("GlobalHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
-						TasksQueue.Push(task.NewTaskDelay(FailedHookDelay))
-					}
-				} else {
-					taskLogEntry.Infof("GlobalHookRun success")
 					TasksQueue.Pop()
 				}
 			case task.ModulePurge:
@@ -487,6 +529,24 @@ func CreateOnStartupTasks(logLabels map[string]string) {
 			WithLogLabels(hookLogLabels).
 			AppendBindingContext(module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: module_manager.ContextBindingType[module_manager.OnStartup]}})
 		TasksQueue.Add(newTask)
+	}
+
+	return
+}
+
+func CreateEnableGlobalKubernetesHookTasks(logLabels map[string]string) {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+
+	// create tasks to enable all global hooks with kubernetes bindings
+	enableBindingsTasks, err := KubernetesHooksController.EnableGlobalHooks(logLabels)
+	if err != nil {
+		// Something wrong with hook configs, cannot start informers.
+		logEntry.Errorf("enable kubernetes hooks: %v", err)
+		return
+	}
+	for _, resTask := range enableBindingsTasks {
+		TasksQueue.Add(resTask)
+		logEntry.Infof("queue GlobalKubernetesBindingsStart task %s@%s %s", resTask.GetType(), resTask.GetBinding(), resTask.GetName())
 	}
 
 	return
@@ -599,18 +659,7 @@ func RunDiscoverModulesState(discoverTask task.Task, logLabels map[string]string
 
 	ScheduleHooksController.UpdateScheduleHooks()
 
-	// Enable kube events hooks for newly enabled modules
-	// FIXME convert to a task that run after AfterHelm if there is a flag in binding config to start informers after CRD installation.
-	for _, moduleName := range modulesState.EnabledModules {
-		modLogLabels := utils.MergeLabels(logLabels)
-		modLogLabels["module"] = moduleName
-		err = KubernetesHooksController.EnableModuleHooks(moduleName, modLogLabels)
-		if err != nil {
-			return err
-		}
-	}
-
-	// TODO is queue should be cleaned from hook run tasks of deleted module?
+	// TODO queue should be cleaned from hook run tasks of deleted module!
 	// Disable kube events hooks for newly disabled modules
 	for _, moduleName := range modulesState.ModulesToDisable {
 		modLogLabels := utils.MergeLabels(logLabels)

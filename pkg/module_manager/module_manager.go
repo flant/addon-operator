@@ -29,7 +29,7 @@ type ModuleManager interface {
 	GetGlobalHooksInOrder(bindingType BindingType) []string
 	GetModuleHooksInOrder(moduleName string, bindingType BindingType) ([]string, error)
 	DeleteModule(moduleName string, logLabels map[string]string) error
-	RunModule(moduleName string, onStartup bool, logLabels map[string]string) error
+	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error
 	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
 	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
 	RegisterModuleHooks(module *Module, logLabels map[string]string) error
@@ -708,13 +708,13 @@ func (mm *MainModuleManager) DeleteModule(moduleName string, logLabels map[strin
 }
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
-func (mm *MainModuleManager) RunModule(moduleName string, onStartup bool, logLabels map[string]string) error {
+func (mm *MainModuleManager) RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
 	module, err := mm.GetModule(moduleName)
 	if err != nil {
 		return err
 	}
 
-	if err := module.Run(onStartup, logLabels); err != nil {
+	if err := module.Run(onStartup, logLabels, afterStartupCb); err != nil {
 		return err
 	}
 

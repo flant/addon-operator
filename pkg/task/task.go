@@ -18,6 +18,10 @@ const (
 	ModuleHookRun        TaskType = "ModuleHookRun"
 	GlobalHookRun        TaskType = "GlobalHookRun"
 	DiscoverModulesState TaskType = "DiscoverModulesState"
+
+	GlobalKubernetesBindingsStart TaskType = "GlobalKubernetesBindingsStart"
+	ModuleKubernetesBindingsStart TaskType = "ModuleKubernetesBindingsStart"
+
 	// удаление релиза без сведений о модуле
 	ModulePurge TaskType = "ModulePurge"
 	// retry module_manager-а

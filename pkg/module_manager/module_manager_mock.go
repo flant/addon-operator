@@ -13,7 +13,7 @@ type ModuleManagerMockFns struct {
 	GetGlobalHooksInOrder func(bindingType BindingType) []string
 	GetModuleHooksInOrder func(moduleName string, bindingType BindingType) ([]string, error)
 	DeleteModule func(moduleName string, logLabels map[string]string) error
-	RunModule func(moduleName string, onStartup bool, logLabels map[string]string) error
+	RunModule func(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error
 	RunGlobalHook func(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
 	RunModuleHook func(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
 	Retry func()
@@ -103,9 +103,9 @@ func (m *ModuleManagerMock) DeleteModule(moduleName string, logLabels map[string
 	panic("implement me")
 }
 
-func (m *ModuleManagerMock) RunModule(moduleName string, onStartup bool, logLabels map[string]string) error {
+func (m *ModuleManagerMock) RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
 	if m.Fns.RunModule != nil {
-		return m.Fns.RunModule(moduleName, onStartup, logLabels)
+		return m.Fns.RunModule(moduleName, onStartup, logLabels, afterStartupCb)
 	}
 	panic("implement me")
 }

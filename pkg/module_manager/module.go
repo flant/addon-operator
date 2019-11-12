@@ -50,13 +50,17 @@ func (m *Module) SafeName() string {
 
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
 // It is a handler of task MODULE_RUN
-func (m *Module) Run(onStartup bool, logLabels map[string]string) error {
+func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
 	if err := m.cleanup(); err != nil {
 		return err
 	}
 
 	if onStartup {
 		if err := m.runHooksByBinding(OnStartup, logLabels); err != nil {
+			return err
+		}
+
+		if err := afterStartupCb(); err != nil {
 			return err
 		}
 	}
