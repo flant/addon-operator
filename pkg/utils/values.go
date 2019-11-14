@@ -173,9 +173,7 @@ func ValuesPatchFromFile(filePath string) (*ValuesPatch, error) {
 }
 
 func AppendValuesPatch(valuesPatches []ValuesPatch, newValuesPatch ValuesPatch) []ValuesPatch {
-	// TODO #280 - придумать более безопасный способ compact-а.
-	//compactValuesPatches := CompactValuesPatches(valuesPatches, newValuesPatch)
-	return append(valuesPatches, newValuesPatch)
+	return CompactValuesPatches(valuesPatches, newValuesPatch)
 }
 
 func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatch) []ValuesPatch {
