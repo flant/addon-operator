@@ -66,20 +66,16 @@ func (c *kubernetesHooksController) EnableGlobalHooks(logLabels map[string]strin
 	globalHooks := c.moduleManager.GetGlobalHooksInOrder(module_manager.KubeEvents)
 
 	for _, hookName := range globalHooks {
-		newTask := task.NewTask(task.GlobalKubernetesBindingsStart, hookName)
+		logLabels := map[string]string{
+			"hook": hookName,
+			"hook.type": "global",
+		}
+		newTask := task.NewTask(task.GlobalKubernetesBindingsStart, hookName).
+			WithLogLabels(logLabels)
 		res = append(res, newTask)
 	}
 
 	return res, nil
-
-	//for _, globalHookName := range globalHooks {
-	//
-	//}
-	//
-	//// Start created informers
-	//c.kubeEventsManager.Start()
-	//
-	//return nil
 }
 
 func (c *kubernetesHooksController) EnableGlobalKubernetesBindings(hookName string, logLabels map[string]string) ([]task.Task, error)  {
@@ -159,11 +155,13 @@ func (c *kubernetesHooksController) EnableModuleHooks(moduleName string, logLabe
 	for _, moduleHookName := range moduleHooks {
 		moduleHook, _ := c.moduleManager.GetModuleHook(moduleHookName)
 
+		hookLogLabels := logLabels
+		hookLogLabels["hook"] = moduleHook.Name
+		hookLogLabels["hook.type"] = "module"
+		hookLogLabels["hook"] = moduleHook.Module.Name
+
 		for _, config := range moduleHook.Config.OnKubernetesEvents {
-			logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).
-				WithField("hook", moduleHook.Name).
-				WithField("hook.type", "module").
-				WithField("module", moduleHook.Module.Name)
+			logEntry := log.WithFields(utils.LabelsToLogFields(hookLogLabels))
 			existedObjects, err := c.kubeEventsManager.AddMonitor("", config.Monitor, logEntry)
 			if err != nil {
 				return nil, fmt.Errorf("run kube monitor for module hook %s: %s", moduleHook.Name, err)
@@ -197,7 +195,7 @@ func (c *kubernetesHooksController) EnableModuleHooks(moduleName string, logLabe
 				WithBinding(module_manager.KubeEvents).
 				WithBindingContext(bindingContext).
 				WithAllowFailure(config.AllowFailure).
-				WithLogLabels(logLabels)
+				WithLogLabels(hookLogLabels)
 
 			res = append(res, newTask)
 		}
