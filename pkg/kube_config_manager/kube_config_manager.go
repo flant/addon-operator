@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/romana/rlog"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	"k8s.io/api/core/v1"
@@ -166,7 +166,7 @@ func (kcm *kubeConfigManager) SetKubeGlobalValues(values utils.Values) error {
 	globalKubeConfig := GetGlobalKubeConfigFromValues(values)
 
 	if globalKubeConfig != nil {
-		rlog.Debugf("Kube config manager: set kube global values:\n%s", utils.ValuesToString(values))
+		log.Debugf("Kube config manager: set kube global values:\n%s", utils.ValuesToString(values))
 
 		err := kcm.saveGlobalKubeConfig(*globalKubeConfig)
 		if err != nil {
@@ -181,7 +181,7 @@ func (kcm *kubeConfigManager) SetKubeModuleValues(moduleName string, values util
 	moduleKubeConfig := GetModuleKubeConfigFromValues(moduleName, values)
 
 	if moduleKubeConfig != nil {
-		rlog.Debugf("Kube config manager: set kube module values:\n%s", moduleKubeConfig.ModuleConfig.String())
+		log.Debugf("Kube config manager: set kube module values:\n%s", moduleKubeConfig.ModuleConfig.String())
 
 		err := kcm.saveModuleKubeConfig(*moduleKubeConfig)
 		if err != nil {
@@ -214,10 +214,10 @@ func (kcm *kubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 		if err != nil {
 			return nil, err
 		}
-		rlog.Debugf("KUBE_CONFIG_MANAGER: Will use ConfigMap/%s for persistent values", kcm.ConfigMapName)
+		log.Debugf("KUBE_CONFIG_MANAGER: Will use ConfigMap/%s for persistent values", kcm.ConfigMapName)
 		return obj, nil
 	} else {
-		rlog.Debugf("KUBE_CONFIG_MANAGER: ConfigMap/%s is not created", kcm.ConfigMapName)
+		log.Debugf("KUBE_CONFIG_MANAGER: ConfigMap/%s is not created", kcm.ConfigMapName)
 		return nil, nil
 	}
 }
@@ -239,7 +239,7 @@ func (kcm *kubeConfigManager) initConfig() error {
 	}
 
 	if obj == nil {
-		rlog.Infof("Init config from ConfigMap: cm/%s is not found", kcm.ConfigMapName)
+		log.Infof("Init config from ConfigMap: cm/%s is not found", kcm.ConfigMapName)
 		return nil
 	}
 
@@ -275,7 +275,7 @@ func (kcm *kubeConfigManager) initConfig() error {
 }
 
 func (kcm *kubeConfigManager) Init() error {
-	rlog.Debug("INIT: KUBE_CONFIG")
+	log.Debug("INIT: KUBE_CONFIG")
 
 	VerboseDebug = false
 	if os.Getenv("KUBE_CONFIG_MANAGER_DEBUG") != "" {
@@ -345,7 +345,7 @@ func (kcm *kubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 	isGlobalDeleted := globalKubeConfig == nil && kcm.GlobalValuesChecksum != ""
 
 	if isGlobalUpdated || isGlobalDeleted {
-		rlog.Infof("Kube config manager: detect changes in global section")
+		log.Infof("Kube config manager: detect changes in global section")
 		newConfig := NewConfig()
 
 		// calculate new checksum of a global section
@@ -370,10 +370,10 @@ func (kcm *kubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 		}
 		kcm.ModulesValuesChecksum = newModulesValuesChecksum
 
-		rlog.Debugf("Kube config manager: global section new values:\n%s",
+		log.Debugf("Kube config manager: global section new values:\n%s",
 			utils.ValuesToString(newConfig.Values))
 		for _, moduleConfig := range newConfig.ModuleConfigs {
-			rlog.Debugf("%s", moduleConfig.String())
+			log.Debugf("%s", moduleConfig.String())
 		}
 
 		ConfigUpdated <- *newConfig
@@ -413,9 +413,9 @@ func (kcm *kubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 		}
 
 		if updatedCount > 0 || removedCount > 0 {
-			rlog.Infof("KUBE_CONFIG Detect module sections changes: %d updated, %d removed", updatedCount, removedCount)
+			log.Infof("KUBE_CONFIG Detect module sections changes: %d updated, %d removed", updatedCount, removedCount)
 			for _, moduleConfig := range moduleConfigsActual {
-				rlog.Debugf("%s", moduleConfig.String())
+				log.Debugf("%s", moduleConfig.String())
 			}
 			ModuleConfigsUpdated <- moduleConfigsActual
 		}
@@ -430,7 +430,7 @@ func (kcm *kubeConfigManager) handleCmAdd(obj *v1.ConfigMap) error {
 		if err != nil {
 			return err
 		}
-		rlog.Debugf("Kube config manager: informer: handle ConfigMap '%s' add:\n%s", obj.Name, objYaml)
+		log.Debugf("Kube config manager: informer: handle ConfigMap '%s' add:\n%s", obj.Name, objYaml)
 	}
 
 	return kcm.handleNewCm(obj)
@@ -442,7 +442,7 @@ func (kcm *kubeConfigManager) handleCmUpdate(_ *v1.ConfigMap, obj *v1.ConfigMap)
 		if err != nil {
 			return err
 		}
-		rlog.Debugf("Kube config manager: informer: handle ConfigMap '%s' update:\n%s", obj.Name, objYaml)
+		log.Debugf("Kube config manager: informer: handle ConfigMap '%s' update:\n%s", obj.Name, objYaml)
 	}
 
 	return kcm.handleNewCm(obj)
@@ -454,7 +454,7 @@ func (kcm *kubeConfigManager) handleCmDelete(obj *v1.ConfigMap) error {
 		if err != nil {
 			return err
 		}
-		rlog.Debugf("Kube config manager: handle ConfigMap '%s' delete:\n%s", obj.Name, objYaml)
+		log.Debugf("Kube config manager: handle ConfigMap '%s' delete:\n%s", obj.Name, objYaml)
 	}
 
 	if kcm.GlobalValuesChecksum != "" {
@@ -492,7 +492,7 @@ func (kcm *kubeConfigManager) handleCmDelete(obj *v1.ConfigMap) error {
 }
 
 func (kcm *kubeConfigManager) Run() {
-	rlog.Debugf("Run kube config manager")
+	log.Debugf("Run kube config manager")
 
 	lw := cache.NewListWatchFromClient(
 		kube.Kubernetes.CoreV1().RESTClient(),
@@ -508,19 +508,19 @@ func (kcm *kubeConfigManager) Run() {
 		AddFunc: func(obj interface{}) {
 			err := kcm.handleCmAdd(obj.(*v1.ConfigMap))
 			if err != nil {
-				rlog.Errorf("Kube config manager: cannot handle ConfigMap add: %s", err)
+				log.Errorf("Kube config manager: cannot handle ConfigMap add: %s", err)
 			}
 		},
 		UpdateFunc: func(prevObj interface{}, obj interface{}) {
 			err := kcm.handleCmUpdate(prevObj.(*v1.ConfigMap), obj.(*v1.ConfigMap))
 			if err != nil {
-				rlog.Errorf("Kube config manager: cannot handle ConfigMap update: %s", err)
+				log.Errorf("Kube config manager: cannot handle ConfigMap update: %s", err)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			err := kcm.handleCmDelete(obj.(*v1.ConfigMap))
 			if err != nil {
-				rlog.Errorf("Kube config manager: cannot handle ConfigMap delete: %s", err)
+				log.Errorf("Kube config manager: cannot handle ConfigMap delete: %s", err)
 			}
 		},
 	})

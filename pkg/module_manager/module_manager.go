@@ -1,15 +1,15 @@
 package module_manager
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 
-	"github.com/romana/rlog"
+	"github.com/flant/addon-operator/pkg/app"
+	log "github.com/sirupsen/logrus"
 
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
+	hook_config "github.com/flant/shell-operator/pkg/hook"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
@@ -21,18 +21,18 @@ import (
 type ModuleManager interface {
 	Init() error
 	Run()
-	DiscoverModulesState() (*ModulesState, error)
+	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
 	GetModule(name string) (*Module, error)
 	GetModuleNamesInOrder() []string
 	GetGlobalHook(name string) (*GlobalHook, error)
 	GetModuleHook(name string) (*ModuleHook, error)
 	GetGlobalHooksInOrder(bindingType BindingType) []string
 	GetModuleHooksInOrder(moduleName string, bindingType BindingType) ([]string, error)
-	DeleteModule(moduleName string) error
-	RunModule(moduleName string, onStartup bool) error
-	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext) error
-	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext) error
-	InitModuleHooks(module *Module) error
+	DeleteModule(moduleName string, logLabels map[string]string) error
+	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error
+	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
+	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
+	RegisterModuleHooks(module *Module, logLabels map[string]string) error
 	Retry()
 	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
@@ -115,6 +115,8 @@ type MainModuleManager struct {
 	retryOnAmbigous chan bool
 }
 
+var _ ModuleManager = &MainModuleManager{}
+
 var (
 	EventCh chan Event
 )
@@ -145,13 +147,15 @@ var ContextBindingType = map[BindingType]string{
 	KubeEvents:      "onKubernetesEvent",
 }
 
+var ShOpBindingType = map[BindingType]hook_config.BindingType{
+	OnStartup:       hook_config.OnStartup,
+	Schedule:        hook_config.Schedule,
+	KubeEvents:      hook_config.OnKubernetesEvent,
+}
+
 // BindingContext is a json with additional info for schedule and onKubeEvent hooks
 type BindingContext struct {
-	Binding           string `json:"binding"`
-	ResourceEvent     string `json:"resourceEvent,omitempty"`
-	ResourceNamespace string `json:"resourceNamespace,omitempty"`
-	ResourceKind      string `json:"resourceKind,omitempty"`
-	ResourceName      string `json:"resourceName,omitempty"`
+	hook_config.BindingContext
 }
 
 // EventType are events for the main loop.
@@ -189,7 +193,7 @@ type Event struct {
 
 // Init loads global hooks configs, searches for modules, loads values and calculates enabled modules
 func Init() {
-	rlog.Debug("INIT: module_manager")
+	log.WithField("operator.phase", "init").Debug("INIT: module_manager")
 
 	EventCh = make(chan Event, 1)
 	return
@@ -222,15 +226,16 @@ func NewMainModuleManager() *MainModuleManager {
 	}
 }
 
-// determineEnableStateWithScript runs enable script for each module that is enabled by config.
+// RunModulesEnabledScript runs enable script for each module that is enabled by config.
 // Enable script receives a list of previously enabled modules.
-func (mm *MainModuleManager) determineEnableStateWithScript(enabledByConfig []string) ([]string, error) {
+func (mm *MainModuleManager) RunModulesEnabledScript(enabledByConfig []string, logLabels map[string]string) ([]string, error) {
 	enabledModules := make([]string, 0)
-	//rlog.Infof("Run enable scripts for modules list: %s", enabledByConfig)
 
 	for _, name := range utils.SortByReference(enabledByConfig, mm.allModulesNamesInOrder) {
+		moduleLogLabels := utils.MergeLabels(logLabels)
+		moduleLogLabels["module"] = name
 		module := mm.allModulesByName[name]
-		moduleIsEnabled, err := module.checkIsEnabledByScript(enabledModules)
+		moduleIsEnabled, err := module.checkIsEnabledByScript(enabledModules, moduleLogLabels)
 		if err != nil {
 			return nil, err
 		}
@@ -240,7 +245,6 @@ func (mm *MainModuleManager) determineEnableStateWithScript(enabledByConfig []st
 		}
 	}
 
-	//rlog.Info("Modules enabled with script: %s", enabledModules)
 	return enabledModules, nil
 }
 
@@ -253,7 +257,7 @@ type kubeUpdate struct {
 }
 
 func (mm *MainModuleManager) applyKubeUpdate(kubeUpdate *kubeUpdate) error {
-	rlog.Debugf("Apply kubeupdate %+v", kubeUpdate)
+	log.Debugf("Apply kubeupdate %+v", kubeUpdate)
 	mm.kubeGlobalConfigValues = kubeUpdate.KubeGlobalConfigValues
 	mm.kubeModulesConfigValues = kubeUpdate.KubeModulesConfigValues
 	mm.enabledModulesByConfig = kubeUpdate.EnabledModulesByConfig
@@ -266,7 +270,9 @@ func (mm *MainModuleManager) applyKubeUpdate(kubeUpdate *kubeUpdate) error {
 }
 
 func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.Config) (*kubeUpdate, error) {
-	rlog.Debugf("MODULE_MANAGER: handle new kube config")
+	logEntry := log.WithField("operator.component", "ModuleManager").
+		WithField("operator.action", "handleNewKubeConfig")
+	logEntry.Debugf("new kube config received")
 
 	res := &kubeUpdate{
 		KubeGlobalConfigValues: newConfig.Values,
@@ -277,7 +283,7 @@ func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.C
 	res.EnabledModulesByConfig, res.KubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(newConfig.ModuleConfigs)
 
 	for _, moduleConfig := range unknown {
-		rlog.Warnf("MODULE_MANAGER: new kube config: Ignore kube config for absent module: \n%s",
+		logEntry.Warnf("Ignore kube config for absent module : \n%s",
 			moduleConfig.String(),
 		)
 	}
@@ -286,7 +292,12 @@ func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.C
 }
 
 func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_manager.ModuleConfigs) (*kubeUpdate, error) {
-	rlog.Debugf("MODULE_MANAGER handle changes in module sections")
+	logLabels := map[string]string{
+		"operator.component": "HandleConfigMap",
+	}
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+
+	logEntry.Debugf("handle changes in module sections")
 
 	res := &kubeUpdate{
 		Events:                 make([]Event, 0),
@@ -300,7 +311,7 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 	res.EnabledModulesByConfig, res.KubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(moduleConfigs)
 
 	for _, moduleConfig := range unknown {
-		rlog.Warnf("HANDLE_CM_UPD ignore module section for unknown module '%s':\n%s",
+		logEntry.Warnf("ignore module section for unknown module '%s':\n%s",
 			moduleConfig.ModuleName, moduleConfig.String())
 	}
 
@@ -320,23 +331,23 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 	res.EnabledModulesByConfig = utils.SortByReference(res.EnabledModulesByConfig, mm.allModulesNamesInOrder)
 
 	// Run enable scripts
-	rlog.Infof("HANDLE_CM_UPD run `enabled` for %s", res.EnabledModulesByConfig)
-	enabledModules, err := mm.determineEnableStateWithScript(res.EnabledModulesByConfig)
+	logEntry.Debugf("Run enabled script for %+v", res.EnabledModulesByConfig)
+	enabledModules, err := mm.RunModulesEnabledScript(res.EnabledModulesByConfig, logLabels)
 	if err != nil {
 		return nil, err
 	}
-	rlog.Infof("HANDLE_CM_UPD enabled modules %s", enabledModules)
+	logEntry.Infof("Modules enabled by script: %+v", enabledModules)
 
 	// Configure events
 	if !reflect.DeepEqual(mm.enabledModulesInOrder, enabledModules) {
 		// Enabled modules set is changed — return GlobalChanged event, that will
 		// create a Discover task, run enabled scripts again, init new module hooks,
 		// update mm.enabledModulesInOrder
-		rlog.Debugf("HANDLE_CM_UPD enabledByConfig changed from %v to %v: generate GlobalChanged event", mm.enabledModulesByConfig, res.EnabledModulesByConfig)
+		logEntry.Debugf("enabledByConfig changed from %v to %v: generate GlobalChanged event", mm.enabledModulesByConfig, res.EnabledModulesByConfig)
 		res.Events = append(res.Events, Event{Type: GlobalChanged})
 	} else {
 		// Enabled modules set is not changed, only values in configmap are changed.
-		rlog.Debugf("HANDLE_CM_UPD generate ModulesChanged events...")
+		logEntry.Debugf("generate ModulesChanged events...")
 
 		moduleChanges := make([]ModuleChange, 0)
 
@@ -350,7 +361,7 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 				isUpdated = moduleConfig.IsUpdated
 				// skip not updated module configs
 				if !isUpdated {
-					rlog.Debugf("HANDLE_CM_UPD ignore module '%s': kube config is not updated", name)
+					logEntry.Debugf("ignore module '%s': kube config is not updated", name)
 					continue
 				}
 			}
@@ -364,8 +375,8 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 		}
 
 		if len(moduleChanges) > 0 {
-			rlog.Infof("HANDLE_CM_UPD fire ModulesChanged event for %d modules", len(moduleChanges))
-			rlog.Debugf("HANDLE_CM_UPD event changes: %v", moduleChanges)
+			logEntry.Infof("fire ModulesChanged event for %d modules", len(moduleChanges))
+			logEntry.Debugf("event changes: %v", moduleChanges)
 			res.Events = append(res.Events, Event{Type: ModulesChanged, ModulesChanges: moduleChanges})
 		}
 	}
@@ -385,15 +396,15 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 	for moduleName, module := range mm.allModulesByName {
 		kubeConfig, hasKubeConfig := moduleConfigs[moduleName]
 		if hasKubeConfig {
-		isEnabled := mergeEnabled(module.CommonStaticConfig.IsEnabled,
-			                      module.StaticConfig.IsEnabled,
-			                      kubeConfig.IsEnabled)
+			isEnabled := mergeEnabled(module.CommonStaticConfig.IsEnabled,
+			                          module.StaticConfig.IsEnabled,
+			                          kubeConfig.IsEnabled)
 
 			if isEnabled {
 				enabled = append(enabled, moduleName)
 				values[moduleName] = kubeConfig.Values
 			}
-			rlog.Debugf("Module %s: static enabled %v, kubeConfig: enabled %v, updated %v",
+			log.Debugf("Module %s: static enabled %v, kubeConfig: enabled %v, updated %v",
 				module.Name,
 				module.StaticConfig.IsEnabled,
 				kubeConfig.IsEnabled,
@@ -403,7 +414,7 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 			if isEnabled {
 				enabled = append(enabled, moduleName)
 			}
-			rlog.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.IsEnabled)
+			log.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.IsEnabled)
 		}
 	}
 
@@ -420,13 +431,13 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 
 // Init — initialize module manager
 func (mm *MainModuleManager) Init() error {
-	rlog.Debug("INIT: MODULE_MANAGER")
+	log.Debug("Init ModuleManager")
 
-	if err := mm.initGlobalHooks(); err != nil {
+	if err := mm.RegisterGlobalHooks(); err != nil {
 		return err
 	}
 
-	if err := mm.initModulesIndex(); err != nil {
+	if err := mm.RegisterModules(); err != nil {
 		return err
 	}
 
@@ -436,11 +447,11 @@ func (mm *MainModuleManager) Init() error {
 	var unknown []utils.ModuleConfig
 	mm.enabledModulesByConfig, mm.kubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(kubeConfig.ModuleConfigs)
 
+	unknownNames := []string{}
 	for _, config := range unknown {
-		rlog.Warnf("INIT: MODULE_MANAGER: ignore kube config for absent module: \n%s",
-			config.String(),
-		)
+		unknownNames = append(unknownNames, config.ModuleName)
 	}
+	log.Warnf("ConfigMap/%s has values for absent modules: %+v", app.ConfigMapName, unknownNames)
 
 	return nil
 }
@@ -452,11 +463,11 @@ func (mm *MainModuleManager) Run() {
 	for {
 		select {
 		case <-mm.globalValuesChanged:
-			rlog.Debugf("MODULE_MANAGER_RUN global values")
+			log.Debugf("MODULE_MANAGER_RUN global values")
 			EventCh <- Event{Type: GlobalChanged}
 
 		case moduleName := <-mm.moduleValuesChanged:
-			rlog.Debugf("MODULE_MANAGER_RUN module '%s' values changed", moduleName)
+			log.Debugf("MODULE_MANAGER_RUN module '%s' values changed", moduleName)
 
 			// Перезапускать enabled-скрипт не нужно, т.к.
 			// изменение values модуля не может вызвать
@@ -471,12 +482,12 @@ func (mm *MainModuleManager) Run() {
 		case newKubeConfig := <-kube_config_manager.ConfigUpdated:
 			handleRes, err := mm.handleNewKubeConfig(newKubeConfig)
 			if err != nil {
-				rlog.Errorf("MODULE_MANAGER_RUN unable to handle kube config update: %s", err)
+				log.Errorf("MODULE_MANAGER_RUN unable to handle kube config update: %s", err)
 			}
 			if handleRes != nil {
 				err = mm.applyKubeUpdate(handleRes)
 				if err != nil {
-					rlog.Errorf("MODULE_MANAGER_RUN cannot apply kube config update: %s", err)
+					log.Errorf("MODULE_MANAGER_RUN cannot apply kube config update: %s", err)
 				}
 			}
 
@@ -491,7 +502,7 @@ func (mm *MainModuleManager) Run() {
 				for _, newModuleConfig := range newModuleConfigs {
 					modulesNames = append(modulesNames, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
 				}
-				rlog.Errorf("MODULE_MANAGER_RUN unable to handle modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
+				log.Errorf("MODULE_MANAGER_RUN unable to handle modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
 			}
 			if handleRes != nil {
 				err = mm.applyKubeUpdate(handleRes)
@@ -500,23 +511,22 @@ func (mm *MainModuleManager) Run() {
 					for _, newModuleConfig := range newModuleConfigs {
 						modulesNames = append(modulesNames, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
 					}
-					rlog.Errorf("MODULE_MANAGER_RUN cannot apply modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
+					log.Errorf("MODULE_MANAGER_RUN cannot apply modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
 				}
 			}
 
 		case <-mm.retryOnAmbigous:
 			if len(mm.moduleConfigsUpdateBeforeAmbiguos) != 0 {
-				rlog.Infof("MODULE_MANAGER_RUN Retry saved moduleConfigs: %v", mm.moduleConfigsUpdateBeforeAmbiguos)
+				log.Infof("MODULE_MANAGER_RUN Retry saved moduleConfigs: %v", mm.moduleConfigsUpdateBeforeAmbiguos)
 				kube_config_manager.ModuleConfigsUpdated <- mm.moduleConfigsUpdateBeforeAmbiguos
 			} else {
-				rlog.Debugf("MODULE_MANAGER_RUN Retry IS NOT needed")
+				log.Debugf("MODULE_MANAGER_RUN Retry IS NOT needed")
 			}
 		}
 	}
 }
 
 func (mm *MainModuleManager) Retry() {
-	rlog.Debugf("MODULE_MANAGER Retry on ambigous")
 	mm.retryOnAmbigous <- true
 }
 
@@ -525,8 +535,10 @@ func (mm *MainModuleManager) Retry() {
 // modules that should be disabled and modules that should be purged.
 //
 // This method requires that mm.enabledModulesByConfig and mm.kubeModulesConfigValues are updated.
-func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err error) {
-	rlog.Debugf("DISCOVER state:\n"+
+func (mm *MainModuleManager) DiscoverModulesState(logLabels map[string]string) (state *ModulesState, err error) {
+	logEntry := log.WithField("operator.component", "moduleManager,discoverModulesState")
+
+	logEntry.Debugf("DISCOVER state:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
 		"    mm.enabledModulesInOrder:  %v\n",
 		mm.enabledModulesByConfig,
@@ -539,7 +551,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 		NewlyEnabledModules: []string{},
 	}
 
-	releasedModules, err := helm.Client.ListReleasesNames(nil)
+	releasedModules, err := helm.NewHelmCli(logEntry).ListReleasesNames(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -548,7 +560,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	state.ReleasedUnknownModules = utils.ListSubtract(releasedModules, mm.allModulesNamesInOrder)
 	state.ReleasedUnknownModules = utils.SortReverse(state.ReleasedUnknownModules)
 	if len(state.ReleasedUnknownModules) > 0 {
-		rlog.Infof("DISCOVER found modules with releases: %s", state.ReleasedUnknownModules)
+		logEntry.Infof("found modules with releases: %s", state.ReleasedUnknownModules)
 	}
 
 	// ignore unknown released modules for next operations
@@ -557,15 +569,16 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	// modules finally enabled with enable script
 	// no need to refresh mm.enabledModulesByConfig because
 	// it is updated before in Init or in applyKubeUpdate
-	rlog.Infof("DISCOVER run `enabled` for %s", mm.enabledModulesByConfig)
-	enabledModules, err := mm.determineEnableStateWithScript(mm.enabledModulesByConfig)
-	rlog.Infof("DISCOVER enabled modules %s", enabledModules)
+	logEntry.Debugf("Run enabled script for %+v", mm.enabledModulesByConfig)
+	enabledModules, err := mm.RunModulesEnabledScript(mm.enabledModulesByConfig, logLabels)
+	logEntry.Infof("Modules enabled by script: %+v", enabledModules)
+
 	if err != nil {
 		return nil, err
 	}
 
 	for _, moduleName := range enabledModules {
-		if err = mm.InitModuleHooks(mm.allModulesByName[moduleName]); err != nil {
+		if err = mm.RegisterModuleHooks(mm.allModulesByName[moduleName], logLabels); err != nil {
 			return nil, err
 		}
 	}
@@ -582,8 +595,7 @@ func (mm *MainModuleManager) DiscoverModulesState() (state *ModulesState, err er
 	state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, releasedModules)
 	state.ModulesToDisable = utils.SortReverseByReference(state.ModulesToDisable, mm.allModulesNamesInOrder)
 
-
-	rlog.Debugf("DISCOVER state results:\n"+
+	logEntry.Debugf("DISCOVER state results:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
 		"    EnabledModules: %v\n"+
 		"    ReleasedUnknownModules: %v\n"+
@@ -640,7 +652,7 @@ func (mm *MainModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []st
 	}
 
 	sort.Slice(globalHooks[:], func(i, j int) bool {
-		return globalHooks[i].OrderByBinding[bindingType] < globalHooks[j].OrderByBinding[bindingType]
+		return globalHooks[i].Order(bindingType) < globalHooks[j].Order(bindingType)
 	})
 
 	var globalHooksNames []string
@@ -667,7 +679,7 @@ func (mm *MainModuleManager) GetModuleHooksInOrder(moduleName string, bindingTyp
 	}
 
 	sort.Slice(moduleBindingHooks[:], func(i, j int) bool {
-		return moduleBindingHooks[i].OrderByBinding[bindingType] < moduleBindingHooks[j].OrderByBinding[bindingType]
+		return moduleBindingHooks[i].Order(bindingType) < moduleBindingHooks[j].Order(bindingType)
 	})
 
 	var moduleHooksNames []string
@@ -679,60 +691,52 @@ func (mm *MainModuleManager) GetModuleHooksInOrder(moduleName string, bindingTyp
 }
 
 // TODO: moduleManager.Module(modName).Delete()
-func (mm *MainModuleManager) DeleteModule(moduleName string) error {
+func (mm *MainModuleManager) DeleteModule(moduleName string, logLabels map[string]string) error {
 	module, err := mm.GetModule(moduleName)
 	if err != nil {
 		return err
 	}
 
-	if err := module.Delete(); err != nil {
+	if err := module.Delete(logLabels); err != nil {
 		return err
 	}
 
-	// remove hooks structures
-	mm.removeModuleHooks(moduleName)
+	// remove module hooks from indexes
+	delete(mm.modulesHooksOrderByName, moduleName)
 
 	return nil
 }
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
-func (mm *MainModuleManager) RunModule(moduleName string, onStartup bool) error {
+func (mm *MainModuleManager) RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
 	module, err := mm.GetModule(moduleName)
 	if err != nil {
 		return err
 	}
 
-	if err := module.Run(onStartup); err != nil {
+	if err := module.Run(onStartup, logLabels, afterStartupCb); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func valuesChecksum(valuesArr ...utils.Values) (string, error) {
-	valuesJson, err := json.Marshal(utils.MergeValues(valuesArr...))
-	if err != nil {
-		return "", err
-	}
-	return utils_checksum.CalculateChecksum(string(valuesJson)), nil
-}
-
-func (mm *MainModuleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext) error {
+func (mm *MainModuleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
 	globalHook, err := mm.GetGlobalHook(hookName)
 	if err != nil {
 		return err
 	}
 
-	oldValuesChecksum, err := valuesChecksum(globalHook.values())
+	oldValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
 	if err != nil {
 		return err
 	}
 
-	if err := globalHook.run(binding, bindingContext); err != nil {
+	if err := globalHook.Run(binding, bindingContext, logLabels); err != nil {
 		return err
 	}
 
-	newValuesChecksum, err := valuesChecksum(globalHook.values())
+	newValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
 	if err != nil {
 		return err
 	}
@@ -747,22 +751,22 @@ func (mm *MainModuleManager) RunGlobalHook(hookName string, binding BindingType,
 	return nil
 }
 
-func (mm *MainModuleManager) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext) error {
+func (mm *MainModuleManager) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
 	moduleHook, err := mm.GetModuleHook(hookName)
 	if err != nil {
 		return err
 	}
 
-	oldValuesChecksum, err := valuesChecksum(moduleHook.values())
+	oldValuesChecksum, err := utils.ValuesChecksum(moduleHook.values())
 	if err != nil {
 		return err
 	}
 
-	if err := moduleHook.run(binding, bindingContext); err != nil {
+	if err := moduleHook.Run(binding, bindingContext, logLabels); err != nil {
 		return err
 	}
 
-	newValuesChecksum, err := valuesChecksum(moduleHook.values())
+	newValuesChecksum, err := utils.ValuesChecksum(moduleHook.values())
 	if err != nil {
 		return err
 	}

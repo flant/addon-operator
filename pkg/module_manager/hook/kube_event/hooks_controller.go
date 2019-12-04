@@ -3,125 +3,233 @@ package kube_event
 import (
 	"fmt"
 
-	"github.com/flant/addon-operator/pkg/module_manager"
-	"github.com/flant/addon-operator/pkg/task"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/kube_event"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 
-	"github.com/romana/rlog"
+	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/task"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
-// MakeKubeEventHookDescriptors converts hook config into KubeEventHook structures
-func MakeKubeEventHookDescriptors(hook module_manager.Hook, hookConfig *module_manager.HookConfig) []*kube_event.KubeEventHook {
-	res := make([]*kube_event.KubeEventHook, 0)
 
-	for _, config := range hookConfig.OnKubernetesEvent {
-		if config.NamespaceSelector.Any {
-			res = append(res, ConvertOnKubernetesEventToKubeEventHook(hook, config, ""))
-		} else {
-			for _, namespace := range config.NamespaceSelector.MatchNames {
-				res = append(res, ConvertOnKubernetesEventToKubeEventHook(hook, config, namespace))
-			}
-		}
-	}
-
-	return res
+type KubernetesHooksController interface {
+	WithModuleManager(moduleManager module_manager.ModuleManager)
+	WithKubeEventsManager(kube_events_manager.KubeEventsManager)
+	EnableGlobalHooks(logLabels map[string]string) ([]task.Task, error)
+	EnableGlobalKubernetesBindings(hookName string, logLabels map[string]string) ([]task.Task, error)
+	StartGlobalInformers(hookName string)
+	EnableModuleHooks(moduleName string, logLabels map[string]string) ([]task.Task, error)
+	//EnableModuleKubernetesBindings(hookName string, logLabels map[string]string) ([]task.Task, error)
+	StartModuleInformers(moduleName string)
+	DisableModuleHooks(moduleName string, logLabels map[string]string) error
+	HandleEvent(kubeEvent kube_events_manager.KubeEvent, logLabels map[string]string) ([]task.Task, error)
 }
 
-func ConvertOnKubernetesEventToKubeEventHook(hook module_manager.Hook, config kube_events_manager.OnKubernetesEventConfig, namespace string) *kube_event.KubeEventHook {
-	return &kube_event.KubeEventHook{
-		HookName:     hook.GetName(),
-		Name:         config.Name,
-		EventTypes:   config.EventTypes,
-		Kind:         config.Kind,
-		Namespace:    namespace,
-		Selector:     config.Selector,
-		JqFilter:     config.JqFilter,
-		AllowFailure: config.AllowFailure,
-		Debug:        !config.DisableDebug,
-	}
-}
-
-type KubeEventsHooksController interface {
-	EnableGlobalHooks(moduleManager module_manager.ModuleManager, eventsManager kube_events_manager.KubeEventsManager) error
-	EnableModuleHooks(moduleName string, moduleManager module_manager.ModuleManager, eventsManager kube_events_manager.KubeEventsManager) error
-	DisableModuleHooks(moduleName string, moduleManager module_manager.ModuleManager, eventsManager kube_events_manager.KubeEventsManager) error
-	HandleEvent(kubeEvent kube_events_manager.KubeEvent) (*struct{ Tasks []task.Task }, error)
-}
-
-type MainKubeEventsHooksController struct {
+type kubernetesHooksController struct {
+	// storages for registered module hooks and global hooks
 	GlobalHooks    map[string]*kube_event.KubeEventHook
 	ModuleHooks    map[string]*kube_event.KubeEventHook
 	EnabledModules []string
+
+	// dependencies
+	moduleManager  module_manager.ModuleManager
+	kubeEventsManager kube_events_manager.KubeEventsManager
 }
 
-// NewMainKubeEventsHooksController returns new instance of MainKubeEventsHooksController
-func NewMainKubeEventsHooksController() *MainKubeEventsHooksController {
-	obj := &MainKubeEventsHooksController{}
+// kubernetesHooksController should implement KubernetesHooksController
+var _ KubernetesHooksController = &kubernetesHooksController{}
+
+// NewKubernetesHooksController returns new instance of kubernetesHooksController
+func NewKubernetesHooksController() *kubernetesHooksController {
+	obj := &kubernetesHooksController{}
 	obj.GlobalHooks = make(map[string]*kube_event.KubeEventHook)
 	obj.ModuleHooks = make(map[string]*kube_event.KubeEventHook)
 	obj.EnabledModules = make([]string, 0)
 	return obj
 }
 
+func (c *kubernetesHooksController) WithModuleManager(mm module_manager.ModuleManager) {
+	c.moduleManager = mm
+}
+
+func (c *kubernetesHooksController) WithKubeEventsManager(kem kube_events_manager.KubeEventsManager) {
+	c.kubeEventsManager = kem
+}
+
 // EnableGlobalHooks starts kube events informers for all global hooks
-func (obj *MainKubeEventsHooksController) EnableGlobalHooks(moduleManager module_manager.ModuleManager, eventsManager kube_events_manager.KubeEventsManager) error {
-	globalHooks := moduleManager.GetGlobalHooksInOrder(module_manager.KubeEvents)
+func (c *kubernetesHooksController) EnableGlobalHooks(logLabels map[string]string) ([]task.Task, error) {
+	res := make([]task.Task, 0)
 
-	for _, globalHookName := range globalHooks {
-		globalHook, _ := moduleManager.GetGlobalHook(globalHookName)
+	globalHooks := c.moduleManager.GetGlobalHooksInOrder(module_manager.KubeEvents)
 
-		for _, desc := range MakeKubeEventHookDescriptors(globalHook, &globalHook.Config.HookConfig) {
-			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.ObjectName, desc.JqFilter, desc.Debug)
-			if err != nil {
-				return err
-			}
-			obj.GlobalHooks[configId] = desc
-
-			rlog.Debugf("MAIN: run informer %s for global hook %s", configId, globalHook.Name)
-		}
+	for _, hookName := range globalHooks {
+		newTask := task.NewTask(task.GlobalKubernetesBindingsStart, hookName)
+		res = append(res, newTask)
 	}
 
-	return nil
+	return res, nil
+
+	//for _, globalHookName := range globalHooks {
+	//
+	//}
+	//
+	//// Start created informers
+	//c.kubeEventsManager.Start()
+	//
+	//return nil
+}
+
+func (c *kubernetesHooksController) EnableGlobalKubernetesBindings(hookName string, logLabels map[string]string) ([]task.Task, error)  {
+	res := make([]task.Task, 0)
+
+	globalHook, _ := c.moduleManager.GetGlobalHook(hookName)
+
+	for _, config := range globalHook.Config.OnKubernetesEvents {
+		logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).
+			WithField("hook", globalHook.Name).
+			WithField("hook.type", "global")
+		existedObjects, err := c.kubeEventsManager.AddMonitor("", config.Monitor, logEntry)
+		if err != nil {
+			return nil, fmt.Errorf("run kube monitor for hook %s: %s", globalHook.Name, err)
+		}
+		c.GlobalHooks[config.Monitor.Metadata.ConfigId] = &kube_event.KubeEventHook{
+			HookName:     globalHook.Name,
+			ConfigName:   config.ConfigName,
+			AllowFailure: config.AllowFailure,
+		}
+
+		// Do not create Synchronization task for 'v0' binding configuration
+		if globalHook.Config.Version == "v0" {
+			continue
+		}
+
+		// Create HookRun task with Synchronization type
+		objList := make([]interface{}, 0)
+		for _, obj := range existedObjects {
+			objList = append(objList, interface{}(obj))
+		}
+		bindingContext := make([]module_manager.BindingContext, 0)
+		bindingContext = append(bindingContext, module_manager.BindingContext{
+			BindingContext: hook.BindingContext{
+				Binding: config.ConfigName,
+				Type:    "Synchronization",
+				Objects: objList,
+			},
+		})
+
+		newTask := task.NewTask(task.GlobalHookRun, hookName).
+			WithBinding(module_manager.KubeEvents).
+			WithBindingContext(bindingContext).
+			WithAllowFailure(config.AllowFailure).
+			WithLogLabels(logLabels)
+
+		res = append(res, newTask)
+	}
+
+	return res, nil
+}
+
+func (c *kubernetesHooksController) StartGlobalInformers(hookName string) {
+	globalHook, _ := c.moduleManager.GetGlobalHook(hookName)
+
+	for _, config := range globalHook.Config.OnKubernetesEvents {
+		c.kubeEventsManager.StartMonitor(config.Monitor.Metadata.ConfigId)
+	}
 }
 
 // EnableModuleHooks starts kube events informers for all module hooks
-func (obj *MainKubeEventsHooksController) EnableModuleHooks(moduleName string, moduleManager module_manager.ModuleManager, eventsManager kube_events_manager.KubeEventsManager) error {
-	for _, enabledModuleName := range obj.EnabledModules {
+func (c *kubernetesHooksController) EnableModuleHooks(moduleName string, logLabels map[string]string) ([]task.Task, error) {
+	for _, enabledModuleName := range c.EnabledModules {
 		if enabledModuleName == moduleName {
 			// already enabled
-			return nil
+			return nil, nil
 		}
 	}
 
-	moduleHooks, err := moduleManager.GetModuleHooksInOrder(moduleName, module_manager.KubeEvents)
+	res := make([]task.Task, 0)
+
+	moduleHooks, err := c.moduleManager.GetModuleHooksInOrder(moduleName, module_manager.KubeEvents)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, moduleHookName := range moduleHooks {
-		moduleHook, _ := moduleManager.GetModuleHook(moduleHookName)
+		moduleHook, _ := c.moduleManager.GetModuleHook(moduleHookName)
 
-		for _, desc := range MakeKubeEventHookDescriptors(moduleHook, &moduleHook.Config.HookConfig) {
-			configId, err := eventsManager.Run(desc.EventTypes, desc.Kind, desc.Namespace, desc.Selector, desc.ObjectName, desc.JqFilter, desc.Debug)
+		for _, config := range moduleHook.Config.OnKubernetesEvents {
+			logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).
+				WithField("hook", moduleHook.Name).
+				WithField("hook.type", "module").
+				WithField("module", moduleHook.Module.Name)
+			existedObjects, err := c.kubeEventsManager.AddMonitor("", config.Monitor, logEntry)
 			if err != nil {
-				return err
+				return nil, fmt.Errorf("run kube monitor for module hook %s: %s", moduleHook.Name, err)
 			}
-			obj.ModuleHooks[configId] = desc
+			c.ModuleHooks[config.Monitor.Metadata.ConfigId] = &kube_event.KubeEventHook{
+				HookName:     moduleHook.Name,
+				ConfigName:   config.ConfigName,
+				AllowFailure: config.AllowFailure,
+			}
 
-			rlog.Debugf("MAIN: run informer %s for module hook %s", configId, moduleHook.Name)
+			// Do not create Synchronization task for 'v0' binding configuration
+			if moduleHook.Config.Version == "v0" {
+				continue
+			}
+ 
+			// Create HookRun task with Synchronization type
+			objList := make([]interface{}, 0)
+			for _, obj := range existedObjects {
+				objList = append(objList, interface{}(obj))
+			}
+			bindingContext := make([]module_manager.BindingContext, 0)
+			bindingContext = append(bindingContext, module_manager.BindingContext{
+				BindingContext: hook.BindingContext{
+					Binding: config.ConfigName,
+					Type:    "Synchronization",
+					Objects: objList,
+				},
+			})
+
+			newTask := task.NewTask(task.ModuleHookRun, moduleHook.Name).
+				WithBinding(module_manager.KubeEvents).
+				WithBindingContext(bindingContext).
+				WithAllowFailure(config.AllowFailure).
+				WithLogLabels(logLabels)
+
+			res = append(res, newTask)
 		}
 	}
 
-	obj.EnabledModules = append(obj.EnabledModules, moduleName)
+	c.EnabledModules = append(c.EnabledModules, moduleName)
 
-	return nil
+	return res, nil
 }
 
-// DisableModuleHooks stops informers for module hooks
-func (obj *MainKubeEventsHooksController) DisableModuleHooks(moduleName string, moduleManager module_manager.ModuleManager, eventsManager kube_events_manager.KubeEventsManager) error {
+func (c *kubernetesHooksController) StartModuleInformers(moduleName string) {
+	moduleHooks, err := c.moduleManager.GetModuleHooksInOrder(moduleName, module_manager.KubeEvents)
+	if err != nil {
+		log.Errorf("Possible bug: Trying to enable non-existent module '%s' kubernetes hooks.", moduleName)
+	}
+
+	for _, moduleHookName := range moduleHooks {
+		moduleHook, _ := c.moduleManager.GetModuleHook(moduleHookName)
+
+		for _, config := range moduleHook.Config.OnKubernetesEvents {
+			c.kubeEventsManager.StartMonitor(config.Monitor.Metadata.ConfigId)
+		}
+	}
+}
+
+
+// DisableModuleHooks stops all monitors for all hooks in module
+func (c *kubernetesHooksController) DisableModuleHooks(moduleName string, logLabels map[string]string) error {
+	// TODO remove EnabledModules index. ConfigId is now in  moduleHook.Config.OnKubernetesEvents[].Monitor.Metadata.ConfigId
+	// loop through module hooks and check if configId is in c.ModuleHooks, stop monitor and delete a map item.
 	moduleEnabledInd := -1
-	for i, enabledModuleName := range obj.EnabledModules {
+	for i, enabledModuleName := range c.EnabledModules {
 		if enabledModuleName == moduleName {
 			moduleEnabledInd = i
 			break
@@ -130,22 +238,23 @@ func (obj *MainKubeEventsHooksController) DisableModuleHooks(moduleName string, 
 	if moduleEnabledInd < 0 {
 		return nil
 	}
-	obj.EnabledModules = append(obj.EnabledModules[:moduleEnabledInd], obj.EnabledModules[moduleEnabledInd+1:]...)
+	// remove name from enabled modules index
+	c.EnabledModules = append(c.EnabledModules[:moduleEnabledInd], c.EnabledModules[moduleEnabledInd+1:]...)
 
-	disabledModuleHooks, err := moduleManager.GetModuleHooksInOrder(moduleName, module_manager.KubeEvents)
+	disabledModuleHooks, err := c.moduleManager.GetModuleHooksInOrder(moduleName, module_manager.KubeEvents)
 	if err != nil {
 		return err
 	}
 
-	for configId, desc := range obj.ModuleHooks {
+	for configId, desc := range c.ModuleHooks {
 		for _, disabledModuleHookName := range disabledModuleHooks {
 			if desc.HookName == disabledModuleHookName {
-				err := eventsManager.Stop(configId)
+				err := c.kubeEventsManager.StopMonitor(configId)
 				if err != nil {
 					return err
 				}
 
-				delete(obj.ModuleHooks, configId)
+				delete(c.ModuleHooks, configId)
 
 				break
 			}
@@ -156,44 +265,90 @@ func (obj *MainKubeEventsHooksController) DisableModuleHooks(moduleName string, 
 }
 
 // HandleEvent creates a task from kube event
-func (obj *MainKubeEventsHooksController) HandleEvent(kubeEvent kube_events_manager.KubeEvent) (*struct{ Tasks []task.Task }, error) {
-	res := &struct{ Tasks []task.Task }{Tasks: make([]task.Task, 0)}
-	var desc *kube_event.KubeEventHook
-	var taskType task.TaskType
+func (c *kubernetesHooksController) HandleEvent(kubeEvent kube_events_manager.KubeEvent, logLabels map[string]string) ([]task.Task, error) {
+	res := make([]task.Task, 0)
 
-	if moduleDesc, hasKey := obj.ModuleHooks[kubeEvent.ConfigId]; hasKey {
-		desc = moduleDesc
-		taskType = task.ModuleHookRun
-	} else if globalDesc, hasKey := obj.GlobalHooks[kubeEvent.ConfigId]; hasKey {
-		desc = globalDesc
-		taskType = task.GlobalHookRun
+	globalEventHook, hasGlobalHook := c.GlobalHooks[kubeEvent.ConfigId]
+	moduleEventHook, hasModuleHook := c.ModuleHooks[kubeEvent.ConfigId]
+	if !hasGlobalHook && !hasModuleHook {
+		return nil, fmt.Errorf("Possible a bug: kubernetes event '%s/%s/%s %s' is received, but no hook is found", kubeEvent.Namespace, kubeEvent.Kind, kubeEvent.Name, kubeEvent.Event)
 	}
 
-	if desc != nil && taskType != "" {
-		bindingName := desc.Name
-		if desc.Name == "" {
-			bindingName = module_manager.ContextBindingType[module_manager.KubeEvents]
-		}
 
+	hookLabels := utils.MergeLabels(logLabels)
+
+	var taskType task.TaskType
+	var kubeHook *kube_event.KubeEventHook
+	var configVersion string
+	if hasGlobalHook {
+		taskType = task.GlobalHookRun
+		kubeHook = globalEventHook
+		globalHook, _ := c.moduleManager.GetGlobalHook(globalEventHook.HookName)
+		configVersion = globalHook.Config.Version
+		hookLabels["hook"] = globalEventHook.HookName
+		hookLabels["hook.type"] = "global"
+	} else {
+		taskType = task.ModuleHookRun
+		kubeHook = moduleEventHook
+		moduleHook, _ := c.moduleManager.GetModuleHook(moduleEventHook.HookName)
+		configVersion = moduleHook.Config.Version
+		hookLabels["hook"] = moduleEventHook.HookName
+		hookLabels["hook.type"] = "module"
+	}
+
+	switch kubeEvent.Type {
+	case "Synchronization":
+		// Ignore Synchronization for v0
+		if configVersion == "v0" {
+			break
+		}
+		// Send all objects
+		objList := make([]interface{}, 0)
+		for _, obj := range kubeEvent.Objects {
+			objList = append(objList, interface{}(obj))
+		}
 		bindingContext := make([]module_manager.BindingContext, 0)
-		for _, kEvent := range kubeEvent.Events {
+		bindingContext = append(bindingContext, module_manager.BindingContext{
+			BindingContext: hook.BindingContext{
+				Binding: kubeHook.ConfigName,
+				Type:    kubeEvent.Type,
+				Objects: objList,
+			},
+		})
+
+		newTask := task.NewTask(taskType, kubeHook.HookName).
+			WithBinding(module_manager.KubeEvents).
+			WithBindingContext(bindingContext).
+			WithAllowFailure(kubeHook.AllowFailure).
+			WithLogLabels(hookLabels)
+
+		res = append(res, newTask)
+	default:
+		bindingContext := make([]module_manager.BindingContext, 0)
+		for _, kEvent := range kubeEvent.WatchEvents {
 			bindingContext = append(bindingContext, module_manager.BindingContext{
-				Binding:           bindingName,
-				ResourceEvent:     kEvent,
-				ResourceNamespace: kubeEvent.Namespace,
-				ResourceKind:      kubeEvent.Kind,
-				ResourceName:      kubeEvent.Name,
+				BindingContext:	hook.BindingContext{
+				Binding:    kubeHook.ConfigName,
+				Type:       "Event",
+				WatchEvent: kEvent,
+
+				Namespace: kubeEvent.Namespace,
+				Kind:      kubeEvent.Kind,
+				Name:      kubeEvent.Name,
+
+				Object:       kubeEvent.Object,
+				FilterResult: kubeEvent.FilterResult,
+			},
 			})
 		}
 
-		newTask := task.NewTask(taskType, desc.HookName).
+		newTask := task.NewTask(taskType, kubeHook.HookName).
 			WithBinding(module_manager.KubeEvents).
 			WithBindingContext(bindingContext).
-			WithAllowFailure(desc.Config.AllowFailure)
+			WithAllowFailure(kubeHook.AllowFailure).
+			WithLogLabels(hookLabels)
 
-		res.Tasks = append(res.Tasks, newTask)
-	} else {
-		return nil, fmt.Errorf("Unknown kube event: no such config id '%s' registered", kubeEvent.ConfigId)
+		res = append(res, newTask)
 	}
 
 	return res, nil

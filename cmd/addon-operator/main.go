@@ -1,13 +1,14 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
-	"github.com/flant/shell-operator/pkg/executor"
 	"gopkg.in/alecthomas/kingpin.v2"
+	log "github.com/sirupsen/logrus"
 
+	shell_operator_app "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/executor"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
 	operator "github.com/flant/addon-operator/pkg/addon-operator"
@@ -19,6 +20,7 @@ func main() {
 
 	// global defaults
 	app.SetupGlobalSettings(kpApp)
+	shell_operator_app.SetupGlobalSettings(kpApp)
 
 	// print version
 	kpApp.Command("version", "Show version.").Action(func(c *kingpin.ParseContext) error {
@@ -30,8 +32,8 @@ func main() {
 	kpApp.Command("start", "Start events processing.").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			// Setting flag.Parsed() for glog.
-			_ = flag.CommandLine.Parse([]string{})
+			shell_operator_app.SetupLogging()
+			log.Infof("%s %s, shell-operator %s", app.AppName, app.Version, shell_operator_app.Version)
 
 			// Be a good parent - clean up after the child processes
 			// in case if addon-operator is a PID 1 process.
