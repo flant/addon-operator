@@ -4,9 +4,11 @@
 
 if [[ $1 == "--config" ]] ; then
   cat <<EOF
-{"beforeHelm": 1,
-"afterHelm": 1,
-"afterDeleteHelm": 1
+{
+  "configVersion":"v1",
+  "beforeHelm": 1,
+  "afterHelm": 1,
+  "afterDeleteHelm": 1
 }
 EOF
 exit 0
