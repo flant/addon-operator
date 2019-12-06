@@ -4,7 +4,8 @@ go 1.12
 
 require (
 	github.com/evanphx/json-patch v4.5.0+incompatible
-	github.com/flant/shell-operator v1.0.0-beta.5.0.20191125094655-2f269284bbdf // branch: fix_filter_result_for_deleted
+	github.com/flant/libjq-go v0.0.0-20191126154400-1afb898d97a3 // branch: master
+	github.com/flant/shell-operator v1.0.0-beta.5.0.20191206083725-3afec8eab61a // branch: master
 	github.com/go-openapi/spec v0.19.3
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/otiai10/copy v1.0.1
@@ -16,7 +17,7 @@ require (
 	github.com/stretchr/testify v1.4.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
-	gopkg.in/yaml.v2 v2.2.2
+	gopkg.in/yaml.v2 v2.2.4
 	k8s.io/api v0.0.0-20190409092523-d687e77c8ae9
 	k8s.io/apimachinery v0.0.0-20190409092423-760d1845f48b
 	k8s.io/client-go v0.0.0-20190411052641-7a6b4715b709

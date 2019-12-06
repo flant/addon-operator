@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	. "github.com/flant/libjq-go"
 	"gopkg.in/alecthomas/kingpin.v2"
 	log "github.com/sirupsen/logrus"
 
@@ -38,6 +39,9 @@ func main() {
 			// Be a good parent - clean up after the child processes
 			// in case if addon-operator is a PID 1 process.
 			go executor.Reap()
+
+			jqDone := make(chan struct{})
+			go JqCallLoop(jqDone)
 
 			operator.Start()
 

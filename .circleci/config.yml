@@ -11,25 +11,28 @@ jobs:
     executor: golang
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-      # TODO add lint, speller
-      - run: go vet -v ./...
-      - run: go test -v ./...
-      - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
+#      - restore_cache:
+#          keys:
+#            - go-mod-v1-{{ checksum "go.sum" }}
+#      # TODO add lint, speller
+#      - run: go vet -v ./...
+#      - run: go test -v ./...
+#      - save_cache:
+#          key: go-mod-v1-{{ checksum "go.sum" }}
+#          paths:
+#            - "/go/pkg/mod"
 
   build_image_branch:
     machine: true
     steps:
       - checkout
       - run: docker login -u $DOCKER_USER -p $DOCKER_PASS
-      # build and push only alpine version
-      - run: docker build --build-arg appVersion=$CIRCLE_BRANCH-$CIRCLE_SHA1 -t flant/addon-operator:dev -f Dockerfile-alpine3.9 .
-      - run: docker push flant/addon-operator:dev
+      # build and push ubuntu dev version
+      - run: docker build --build-arg appVersion=$CIRCLE_BRANCH-$CIRCLE_SHA1 -t flant/addon-operator:dev-ubuntu .
+      - run: docker push flant/addon-operator:dev-ubuntu
+      # build and push alpine dev version
+      - run: docker build --build-arg appVersion=$CIRCLE_BRANCH-$CIRCLE_SHA1 -t flant/addon-operator:dev-alpine -f Dockerfile-alpine3.9 .
+      - run: docker push flant/addon-operator:dev-alpine
 
   build_image_latest:
     machine: true
