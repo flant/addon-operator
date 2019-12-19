@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/shell-operator/pkg/executor"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -15,7 +16,7 @@ import (
 
 type HookExecutor struct {
 	Hook Hook
-	Context interface{}
+	Context BindingContextList
 	ConfigValuesPath string
 	ValuesPath string
 	ContextPath string
@@ -24,7 +25,7 @@ type HookExecutor struct {
 	LogLabels map[string]string
 }
 
-func NewHookExecutor(h Hook, context interface{}) *HookExecutor {
+func NewHookExecutor(h Hook, context BindingContextList) *HookExecutor {
 	return &HookExecutor{
 		Hook: h,
 		Context: context,
@@ -39,7 +40,12 @@ func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
 func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, err error) {
 	patches = make(map[utils.ValuesPatchType]*utils.ValuesPatch)
 
-	tmpFiles, err := e.Hook.PrepareTmpFilesForHookRun(e.Context)
+	bindingContextBytes, err := e.Context.Json()
+	if err != nil {
+		return nil, err
+	}
+
+	tmpFiles, err := e.Hook.PrepareTmpFilesForHookRun(bindingContextBytes)
 	if err != nil {
 		return nil, err
 	}

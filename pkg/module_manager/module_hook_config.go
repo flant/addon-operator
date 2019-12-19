@@ -6,6 +6,9 @@ import (
 
 	"github.com/go-openapi/spec"
 
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+
 	hook_config "github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
 )
@@ -25,17 +28,17 @@ type ModuleHookConfig struct {
 }
 
 type BeforeHelmConfig struct {
-	hook_config.CommonBindingConfig
+	CommonBindingConfig
 	Order float64
 }
 
 type AfterHelmConfig struct {
-	hook_config.CommonBindingConfig
+	CommonBindingConfig
 	Order float64
 }
 
 type AfterDeleteHelmConfig struct {
-	hook_config.CommonBindingConfig
+	CommonBindingConfig
 	Order float64
 }
 
@@ -184,7 +187,7 @@ func (c *ModuleHookConfig) ConvertBeforeHelm(value interface{}) (*BeforeHelmConf
 	}
 
 	res := &BeforeHelmConfig{}
-	res.ConfigName = ContextBindingType[BeforeHelm]
+	res.BindingName = ContextBindingType[BeforeHelm]
 	res.Order = *floatValue
 	return res, nil
 }
@@ -196,7 +199,7 @@ func (c *ModuleHookConfig) ConvertAfterHelm(value interface{}) (*AfterHelmConfig
 	}
 
 	res := &AfterHelmConfig{}
-	res.ConfigName = ContextBindingType[AfterHelm]
+	res.BindingName = ContextBindingType[AfterHelm]
 	res.Order = *floatValue
 	return res, nil
 }
@@ -208,7 +211,7 @@ func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDele
 	}
 
 	res := &AfterDeleteHelmConfig{}
-	res.ConfigName = ContextBindingType[AfterDeleteHelm]
+	res.BindingName = ContextBindingType[AfterDeleteHelm]
 	res.Order = *floatValue
 	return res, nil
 }
@@ -217,13 +220,7 @@ func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDele
 func (c *ModuleHookConfig) Bindings() []BindingType {
 	res := []BindingType{}
 
-	for _, binding := range []BindingType{OnStartup, Schedule, KubeEvents} {
-		if c.HookConfig.HasBinding(ShOpBindingType[binding]) {
-			res = append(res, binding)
-		}
-	}
-
-	for _, binding := range []BindingType{BeforeHelm, AfterHelm, AfterDeleteHelm} {
+	for _, binding := range []BindingType{OnStartup, Schedule, OnKubernetesEvent, BeforeHelm, AfterHelm, AfterDeleteHelm} {
 		if c.HasBinding(binding) {
 			res = append(res, binding)
 		}
@@ -233,7 +230,7 @@ func (c *ModuleHookConfig) Bindings() []BindingType {
 }
 
 func (c *ModuleHookConfig) HasBinding(binding BindingType) bool {
-	if c.HookConfig.HasBinding(ShOpBindingType[binding]) {
+	if c.HookConfig.HasBinding(binding) {
 		return true
 	}
 	switch binding {

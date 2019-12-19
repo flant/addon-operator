@@ -6,37 +6,36 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 
+	. "github.com/flant/shell-operator/pkg/hook/types"
+
+	"github.com/flant/shell-operator/pkg/hook"
+
+	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/shell-operator/pkg/hook/controller"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
 type Hook interface {
-	WithModuleManager(moduleManager *MainModuleManager)
+	WithModuleManager(moduleManager *moduleManager)
 	WithConfig(configOutput []byte) (err error)
+	WithHookController(hookController controller.HookController)
+	GetHookController() controller.HookController
 	GetName() string
 	GetPath() string
-	PrepareTmpFilesForHookRun(context interface{}) (map[string]string, error)
+	PrepareTmpFilesForHookRun(bindingContext []byte) (map[string]string, error)
 	Order(binding BindingType) float64
 }
 
 type CommonHook struct {
-	// The unique name like 'global-hooks/startup_hook' or '002-module/hooks/cleanup'.
-	Name           string
-	// The absolute path of the executable file.
-	Path           string
+	hook.Hook
 
-	moduleManager *MainModuleManager
+	moduleManager *moduleManager
 }
 
-func (c *CommonHook) WithModuleManager(moduleManager *MainModuleManager) {
+func (c *CommonHook) WithModuleManager(moduleManager *moduleManager) {
 	c.moduleManager = moduleManager
-}
-
-func (h *CommonHook) SafeName() string {
-	return sanitize.BaseName(h.Name)
 }
 
 func (h *CommonHook) GetName() string {
@@ -111,7 +110,7 @@ func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
 }
 
 
-func (mm *MainModuleManager) RegisterGlobalHooks() error {
+func (mm *moduleManager) RegisterGlobalHooks() error {
 	log.Debug("Search and register global hooks")
 
 	mm.globalHooksOrder = make(map[BindingType][]*GlobalHook)
@@ -140,19 +139,33 @@ func (mm *MainModuleManager) RegisterGlobalHooks() error {
 		}
 
 		globalHook.WithModuleManager(mm)
+
+		// Add hook info as log labels
+		for _, kubeCfg := range globalHook.Config.OnKubernetesEvents {
+			kubeCfg.Monitor.Metadata.LogLabels["hook"] = globalHook.Name
+			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "global"
+		}
+
+		hookCtrl := controller.NewHookController()
+		hookCtrl.InitKubernetesBindings(globalHook.Config.OnKubernetesEvents, mm.kubeEventsManager)
+		hookCtrl.InitScheduleBindings(globalHook.Config.Schedules, mm.scheduleManager)
+
+		globalHook.WithHookController(hookCtrl)
+		globalHook.WithTmpDir(mm.TempDir)
+
 		// register global hook in indexes
 		for _, binding := range globalHook.Config.Bindings() {
 			mm.globalHooksOrder[binding] = append(mm.globalHooksOrder[binding], globalHook)
 		}
 		mm.globalHooksByName[globalHook.Name] = globalHook
 
-		logEntry.Infof("Registered")
+		logEntry.Infof("Global Hook is registered with config: %s", globalHook.GetConfigDescription())
 	}
 
 	return nil
 }
 
-func (mm *MainModuleManager) RegisterModuleHooks(module *Module, logLabels map[string]string) error {
+func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[string]string) error {
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).WithField("module", module.Name)
 
 	if _, ok := mm.modulesHooksOrderByName[module.Name]; ok {
@@ -185,6 +198,21 @@ func (mm *MainModuleManager) RegisterModuleHooks(module *Module, logLabels map[s
 		}
 
 		moduleHook.WithModuleManager(mm)
+
+		// Add hook info as log labels
+		for _, kubeCfg := range moduleHook.Config.OnKubernetesEvents {
+			kubeCfg.Monitor.Metadata.LogLabels["module"] = module.Name
+			kubeCfg.Monitor.Metadata.LogLabels["hook"] = moduleHook.Name
+			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "module"
+		}
+
+		hookCtrl := controller.NewHookController()
+		hookCtrl.InitKubernetesBindings(moduleHook.Config.OnKubernetesEvents, mm.kubeEventsManager)
+		hookCtrl.InitScheduleBindings(moduleHook.Config.Schedules, mm.scheduleManager)
+
+		moduleHook.WithHookController(hookCtrl)
+		moduleHook.WithTmpDir(mm.TempDir)
+
 		// register module hook in indexes
 		for _, binding := range moduleHook.Config.Bindings() {
 			if mm.modulesHooksOrderByName[module.Name] == nil {
@@ -193,7 +221,7 @@ func (mm *MainModuleManager) RegisterModuleHooks(module *Module, logLabels map[s
 			mm.modulesHooksOrderByName[module.Name][binding] = append(mm.modulesHooksOrderByName[module.Name][binding], moduleHook)
 		}
 
-		hookLogEntry.Infof("Registered")
+		hookLogEntry.Infof("Module Hook is registered with config: %s", moduleHook.GetConfigDescription())
 	}
 
 	return nil

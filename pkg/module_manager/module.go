@@ -13,8 +13,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+
 	"github.com/flant/shell-operator/pkg/executor"
-	hook2 "github.com/flant/shell-operator/pkg/hook"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 
 	"github.com/flant/addon-operator/pkg/app"
@@ -30,7 +33,7 @@ type Module struct {
 	// module values from modules/<module name>/values.yaml
 	StaticConfig  *utils.ModuleConfig
 
-	moduleManager *MainModuleManager
+	moduleManager *moduleManager
 }
 
 func NewModule(name, path string) *Module {
@@ -40,7 +43,7 @@ func NewModule(name, path string) *Module {
 	}
 }
 
-func (m *Module) WithModuleManager(moduleManager *MainModuleManager) {
+func (m *Module) WithModuleManager(moduleManager *moduleManager) {
 	m.moduleManager = moduleManager
 }
 
@@ -233,7 +236,8 @@ func (m *Module) runHelmInstall() error {
 	return nil
 }
 
-
+// FIXME rename moduleHooksAfterHelm
+// TODO SNAPSHOTS: add snapshots to binding context here
 func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]string) error {
 	moduleHooksAfterHelm, err := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
 	if err != nil {
@@ -246,13 +250,10 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 			return err
 		}
 
-		err = moduleHook.Run(binding, []BindingContext{
-			{
-				BindingContext: hook2.BindingContext{
+		err = moduleHook.Run(binding, []BindingContext{{
 					Binding: ContextBindingType[binding],
-				},
-			},
-		}, logLabels)
+			}},
+			logLabels)
 		if err != nil {
 			return err
 		}
@@ -538,7 +539,7 @@ func SearchModules(modulesDir string) (modules []*Module, err error) {
 
 // RegisterModules load all available modules from modules directory
 // FIXME: Only 000-name modules are loaded, allow non-prefixed modules.
-func (mm *MainModuleManager) RegisterModules() error {
+func (mm *moduleManager) RegisterModules() error {
 	log.Debug("Search and register modules")
 
 	modules, err := SearchModules(mm.ModulesDir)
@@ -603,7 +604,7 @@ func (m *Module) loadStaticValues() (err error) {
 	return nil
 }
 
-func (mm *MainModuleManager) loadCommonStaticValues() (error) {
+func (mm *moduleManager) loadCommonStaticValues() (error) {
 	valuesPath := filepath.Join(mm.ModulesDir, "values.yaml")
 	if _, err := os.Stat(valuesPath); os.IsNotExist(err) {
 		log.Debugf("No common static values file: %s", err)

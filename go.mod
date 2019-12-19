@@ -25,3 +25,5 @@ require (
 )
 
 replace github.com/go-openapi/validate => github.com/flant/go-openapi-validate v0.19.4-0.20190926112101-38fbca4ac77f // branch: fix_in_body
+
+replace github.com/flant/shell-operator => ../shell-operator

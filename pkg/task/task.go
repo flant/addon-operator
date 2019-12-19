@@ -1,125 +1,78 @@
 package task
 
 import (
-	"bytes"
-	"fmt"
 	"time"
 
-	"github.com/flant/addon-operator/pkg/module_manager"
-	"github.com/flant/addon-operator/pkg/utils"
-	"gopkg.in/satori/go.uuid.v1"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/task"
 )
 
-type TaskType string
-
+// Define additional task types
 const (
-	ModuleDelete         TaskType = "ModuleDelete"
-	ModuleRun            TaskType = "ModuleRun"
-	ModuleHookRun        TaskType = "ModuleHookRun"
-	GlobalHookRun        TaskType = "GlobalHookRun"
-	DiscoverModulesState TaskType = "DiscoverModulesState"
+	ModuleDelete         task.TaskType = "ModuleDelete"
+	ModuleRun            task.TaskType = "ModuleRun"
+	ModuleHookRun        task.TaskType = "ModuleHookRun"
+	GlobalHookRun        task.TaskType = "GlobalHookRun"
+	DiscoverModulesState task.TaskType = "DiscoverModulesState"
 
-	GlobalKubernetesBindingsStart TaskType = "GlobalKubernetesBindingsStart"
-	ModuleKubernetesBindingsStart TaskType = "ModuleKubernetesBindingsStart"
+	GlobalKubernetesBindingsStart task.TaskType = "GlobalKubernetesBindingsStart"
+	ModuleKubernetesBindingsStart task.TaskType = "ModuleKubernetesBindingsStart"
 
 	// удаление релиза без сведений о модуле
-	ModulePurge TaskType = "ModulePurge"
+	ModulePurge task.TaskType = "ModulePurge"
 	// retry module_manager-а
-	ModuleManagerRetry TaskType = "ModuleManagerRetry"
-	// вспомогательные задачи: задержка и остановка обработки
-	Delay TaskType = "Delay"
-	Stop  TaskType = "Stop"
+	ModuleManagerRetry task.TaskType = "ModuleManagerRetry"
 )
 
 type Task interface {
-	GetName() string
-	GetType() TaskType
-	GetBinding() module_manager.BindingType
-	GetBindingContext() []module_manager.BindingContext
-	GetFailureCount() int
-	IncrementFailureCount()
-	GetDelay() time.Duration
-	GetAllowFailure() bool
+	task.Task
+
 	GetOnStartupHooks() bool
-	GetLogLabels() map[string]string
 }
 
 type BaseTask struct {
-	FailureCount   int    // Failed executions count
-	Name           string // Module or hook name
-	Type           TaskType
-	Binding        module_manager.BindingType
-	BindingContext []module_manager.BindingContext
-	Delay          time.Duration
-	AllowFailure   bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
+	task.BaseTask
 
 	OnStartupHooks bool // Run module onStartup hooks on Addon-operator startup or on module enabled.
-	LogLabels map[string]string
 }
 
 var _ Task = &BaseTask{}
 
-func NewTask(taskType TaskType, name string) *BaseTask {
+func NewTask(taskType task.TaskType, name string) *BaseTask {
 	return &BaseTask{
-		FailureCount:   0,
-		Name:           name,
-		Type:           taskType,
-		AllowFailure:   false,
-		BindingContext: make([]module_manager.BindingContext, 0),
-		LogLabels: map[string]string{"task.id": uuid.NewV4().String()},
+		BaseTask: *task.NewTask(taskType, name),
 	}
 }
 
-func (t *BaseTask) GetName() string {
-	return t.Name
-}
-
-func (t *BaseTask) GetType() TaskType {
-	return t.Type
-}
-
-func (t *BaseTask) GetBinding() module_manager.BindingType {
-	return t.Binding
-}
-
-func (t *BaseTask) GetBindingContext() []module_manager.BindingContext {
-	return t.BindingContext
-}
-
-func (t *BaseTask) GetDelay() time.Duration {
-	return t.Delay
-}
-
-func (t *BaseTask) GetAllowFailure() bool {
-	return t.AllowFailure
-}
-
-func (t *BaseTask) GetOnStartupHooks() bool {
-	return t.OnStartupHooks
-}
-
-func (t *BaseTask) GetLogLabels() map[string]string {
-	return t.LogLabels
-}
-
-func (t *BaseTask) WithBinding(binding module_manager.BindingType) *BaseTask {
-	t.Binding = binding
+func (t *BaseTask) WithBinding(binding BindingType) *BaseTask {
+	t.BaseTask.WithBinding(binding)
 	return t
 }
 
-func (t *BaseTask) WithBindingContext(context []module_manager.BindingContext) *BaseTask {
-	t.BindingContext = context
+func (t *BaseTask) WithBindingContext(context []BindingContext) *BaseTask {
+	t.BaseTask.WithBindingContext(context)
 	return t
 }
 
-func (t *BaseTask) AppendBindingContext(context module_manager.BindingContext) *BaseTask {
-	t.BindingContext = append(t.BindingContext, context)
+func (t *BaseTask) AppendBindingContext(context BindingContext) *BaseTask {
+	t.BaseTask.AppendBindingContext(context)
 	return t
 }
 
 func (t *BaseTask) WithAllowFailure(allowFailure bool) *BaseTask {
-	t.AllowFailure = allowFailure
+	t.BaseTask.WithAllowFailure(allowFailure)
 	return t
+}
+
+func (t *BaseTask) WithLogLabels(labels map[string]string) *BaseTask {
+	t.BaseTask.WithLogLabels(labels)
+	return t
+}
+
+
+func (t *BaseTask) GetOnStartupHooks() bool {
+	return t.OnStartupHooks
 }
 
 func (t *BaseTask) WithOnStartupHooks(onStartupHooks bool) *BaseTask {
@@ -127,31 +80,8 @@ func (t *BaseTask) WithOnStartupHooks(onStartupHooks bool) *BaseTask {
 	return t
 }
 
-func (t *BaseTask) WithLogLabels(labels map[string]string) *BaseTask {
-	t.LogLabels = utils.MergeLabels(t.LogLabels, labels)
-	return t
-}
-
-func (t *BaseTask) DumpAsText() string {
-	var buf bytes.Buffer
-	buf.WriteString(fmt.Sprintf("%s '%s'", t.Type, t.Name))
-	if t.FailureCount > 0 {
-		buf.WriteString(fmt.Sprintf(" failed %d times. ", t.FailureCount))
-	}
-	return buf.String()
-}
-
-func (t *BaseTask) GetFailureCount() int {
-	return t.FailureCount
-}
-
-func (t *BaseTask) IncrementFailureCount() {
-	t.FailureCount++
-}
-
 func NewTaskDelay(delay time.Duration) *BaseTask {
 	return &BaseTask{
-		Type:  Delay,
-		Delay: delay,
+		BaseTask: *task.NewTaskDelay(delay),
 	}
 }
