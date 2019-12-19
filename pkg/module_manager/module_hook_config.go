@@ -1,18 +1,21 @@
 package module_manager
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/go-openapi/spec"
+	"sigs.k8s.io/yaml"
 
-	hook_config "github.com/flant/shell-operator/pkg/hook"
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+
+	sh_op_hook "github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
 )
 
 // ModuleHookConfig is a structure with versioned hook configuration
 type ModuleHookConfig struct {
-	hook_config.HookConfig
+	sh_op_hook.HookConfig
 
 	// versioned raw config values
 	ModuleV0 *ModuleHookConfigV0
@@ -25,17 +28,17 @@ type ModuleHookConfig struct {
 }
 
 type BeforeHelmConfig struct {
-	hook_config.CommonBindingConfig
+	CommonBindingConfig
 	Order float64
 }
 
 type AfterHelmConfig struct {
-	hook_config.CommonBindingConfig
+	CommonBindingConfig
 	Order float64
 }
 
 type AfterDeleteHelmConfig struct {
-	hook_config.CommonBindingConfig
+	CommonBindingConfig
 	Order float64
 }
 
@@ -115,7 +118,7 @@ func (c *ModuleHookConfig) ConvertAndCheck(data []byte) error {
 	switch c.Version {
 	case "v0":
 		configV0 := &ModuleHookConfigV0{}
-		err := json.Unmarshal(data, configV0)
+		err := yaml.Unmarshal(data, configV0)
 		if err != nil {
 			return fmt.Errorf("unmarshal ModuleHookConfig version 0: %s", err)
 		}
@@ -126,7 +129,7 @@ func (c *ModuleHookConfig) ConvertAndCheck(data []byte) error {
 		}
 	case "v1":
 		configV1 := &ModuleHookConfigV0{}
-		err := json.Unmarshal(data, configV1)
+		err := yaml.Unmarshal(data, configV1)
 		if err != nil {
 			return fmt.Errorf("unmarshal ModuleHookConfig v1: %s", err)
 		}
@@ -178,37 +181,37 @@ func (c *ModuleHookConfig) ConvertAndCheckV1() (err error) {
 }
 
 func (c *ModuleHookConfig) ConvertBeforeHelm(value interface{}) (*BeforeHelmConfig, error) {
-	floatValue, err := hook_config.ConvertFloatForBinding(value, "beforeHelm")
+	floatValue, err := sh_op_hook.ConvertFloatForBinding(value, "beforeHelm")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}
 
 	res := &BeforeHelmConfig{}
-	res.ConfigName = ContextBindingType[BeforeHelm]
+	res.BindingName = ContextBindingType[BeforeHelm]
 	res.Order = *floatValue
 	return res, nil
 }
 
 func (c *ModuleHookConfig) ConvertAfterHelm(value interface{}) (*AfterHelmConfig, error) {
-	floatValue, err := hook_config.ConvertFloatForBinding(value, "afterHelm")
+	floatValue, err := sh_op_hook.ConvertFloatForBinding(value, "afterHelm")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}
 
 	res := &AfterHelmConfig{}
-	res.ConfigName = ContextBindingType[AfterHelm]
+	res.BindingName = ContextBindingType[AfterHelm]
 	res.Order = *floatValue
 	return res, nil
 }
 
 func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDeleteHelmConfig, error) {
-	floatValue, err := hook_config.ConvertFloatForBinding(value, "afterDeleteHelm")
+	floatValue, err := sh_op_hook.ConvertFloatForBinding(value, "afterDeleteHelm")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}
 
 	res := &AfterDeleteHelmConfig{}
-	res.ConfigName = ContextBindingType[AfterDeleteHelm]
+	res.BindingName = ContextBindingType[AfterDeleteHelm]
 	res.Order = *floatValue
 	return res, nil
 }
@@ -217,13 +220,7 @@ func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDele
 func (c *ModuleHookConfig) Bindings() []BindingType {
 	res := []BindingType{}
 
-	for _, binding := range []BindingType{OnStartup, Schedule, KubeEvents} {
-		if c.HookConfig.HasBinding(ShOpBindingType[binding]) {
-			res = append(res, binding)
-		}
-	}
-
-	for _, binding := range []BindingType{BeforeHelm, AfterHelm, AfterDeleteHelm} {
+	for _, binding := range []BindingType{OnStartup, Schedule, OnKubernetesEvent, BeforeHelm, AfterHelm, AfterDeleteHelm} {
 		if c.HasBinding(binding) {
 			res = append(res, binding)
 		}
@@ -233,7 +230,7 @@ func (c *ModuleHookConfig) Bindings() []BindingType {
 }
 
 func (c *ModuleHookConfig) HasBinding(binding BindingType) bool {
-	if c.HookConfig.HasBinding(ShOpBindingType[binding]) {
+	if c.HookConfig.HasBinding(binding) {
 		return true
 	}
 	switch binding {

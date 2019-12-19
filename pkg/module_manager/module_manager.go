@@ -1,16 +1,27 @@
 package module_manager
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 
-	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/hook/controller"
+	"github.com/flant/shell-operator/pkg/kube"
 	log "github.com/sirupsen/logrus"
 
-	hook_config "github.com/flant/shell-operator/pkg/hook"
+	// bindings constants and binding configs
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/schedule_manager"
+
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -20,22 +31,39 @@ import (
 
 type ModuleManager interface {
 	Init() error
-	Run()
-	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
-	GetModule(name string) (*Module, error)
-	GetModuleNamesInOrder() []string
-	GetGlobalHook(name string) (*GlobalHook, error)
-	GetModuleHook(name string) (*ModuleHook, error)
-	GetGlobalHooksInOrder(bindingType BindingType) []string
-	GetModuleHooksInOrder(moduleName string, bindingType BindingType) ([]string, error)
-	DeleteModule(moduleName string, logLabels map[string]string) error
-	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error
-	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
-	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
-	RegisterModuleHooks(module *Module, logLabels map[string]string) error
-	Retry()
+	Start()
+	Ch() chan Event
+
+	WithContext(ctx context.Context)
 	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
+	WithKubeEventManager(kube_events_manager.KubeEventsManager)
+	WithScheduleManager(schedule_manager.ScheduleManager)
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
+
+	GetModule(name string) *Module
+	GetModuleNamesInOrder() []string
+	GetModuleHookNames(moduleName string) []string
+	GetGlobalHook(name string) *GlobalHook
+	GetModuleHook(name string) *ModuleHook
+	GetGlobalHooksInOrder(bindingType BindingType) []string
+	GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string
+
+	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
+	DeleteModule(moduleName string, logLabels map[string]string) error
+	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error)
+	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (checksum string, err error)
+	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
+	Retry()
+
+	RegisterModuleHooks(module *Module, logLabels map[string]string) error
+
+	HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo))
+	HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*GlobalHook, controller.BindingExecutionInfo)) error
+	HandleModuleEnableKubernetesBindings(hookName string, createTaskFn func(*ModuleHook, controller.BindingExecutionInfo)) error
+	StartModuleHooks(moduleName string)
+	//EnableScheduleBindings()
+	DisableModuleHooks(moduleName string)
+	HandleScheduleEvent(crontab string, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) error
 }
 
 // ModulesState is a result of Discovery process, that determines which
@@ -51,11 +79,22 @@ type ModulesState struct {
 	NewlyEnabledModules    []string
 }
 
-type MainModuleManager struct {
+type moduleManager struct {
+	ctx context.Context
+	cancel context.CancelFunc
+
+	ValuesLock sync.Mutex
+
 	// Directories
 	ModulesDir     string
 	GlobalHooksDir string
 	TempDir        string
+
+	EventCh chan Event
+
+	KubeClient kube.KubernetesClient
+	kubeEventsManager kube_events_manager.KubeEventsManager
+	scheduleManager   schedule_manager.ScheduleManager
 
 	// Index of all modules in modules directory. Key is module name.
 	allModulesByName map[string]*Module
@@ -115,48 +154,7 @@ type MainModuleManager struct {
 	retryOnAmbigous chan bool
 }
 
-var _ ModuleManager = &MainModuleManager{}
-
-var (
-	EventCh chan Event
-)
-
-// BindingType is types of events that can trigger hooks.
-type BindingType string
-
-const (
-	BeforeHelm      BindingType = "BEFORE_HELM"
-	AfterHelm       BindingType = "AFTER_HELM"
-	AfterDeleteHelm BindingType = "AFTER_DELETE_HELM"
-	BeforeAll       BindingType = "BEFORE_ALL"
-	AfterAll        BindingType = "AFTER_ALL"
-	Schedule        BindingType = "SCHEDULE"
-	OnStartup       BindingType = "ON_STARTUP"
-	KubeEvents      BindingType = "KUBE_EVENTS"
-)
-
-// ContextBindingType is a reverse index for BindingType constants to use in BINDING_CONTEXT_PATH file.
-var ContextBindingType = map[BindingType]string{
-	BeforeHelm:      "beforeHelm",
-	AfterHelm:       "afterHelm",
-	AfterDeleteHelm: "afterDeleteHelm",
-	BeforeAll:       "beforeAll",
-	AfterAll:        "afterAll",
-	Schedule:        "schedule",
-	OnStartup:       "onStartup",
-	KubeEvents:      "onKubernetesEvent",
-}
-
-var ShOpBindingType = map[BindingType]hook_config.BindingType{
-	OnStartup:       hook_config.OnStartup,
-	Schedule:        hook_config.Schedule,
-	KubeEvents:      hook_config.OnKubernetesEvent,
-}
-
-// BindingContext is a json with additional info for schedule and onKubeEvent hooks
-type BindingContext struct {
-	hook_config.BindingContext
-}
+var _ ModuleManager = &moduleManager{}
 
 // EventType are events for the main loop.
 type EventType string
@@ -191,17 +189,12 @@ type Event struct {
 	Type           EventType
 }
 
-// Init loads global hooks configs, searches for modules, loads values and calculates enabled modules
-func Init() {
-	log.WithField("operator.phase", "init").Debug("INIT: module_manager")
-
-	EventCh = make(chan Event, 1)
-	return
-}
-
 // NewMainModuleManager returns new MainModuleManager
-func NewMainModuleManager() *MainModuleManager {
-	return &MainModuleManager{
+func NewMainModuleManager() *moduleManager {
+	return &moduleManager{
+		EventCh: make(chan Event),
+		ValuesLock: sync.Mutex{},
+
 		allModulesByName:            make(map[string]*Module),
 		allModulesNamesInOrder:      make([]string, 0),
 		enabledModulesByConfig:      make([]string, 0),
@@ -226,9 +219,28 @@ func NewMainModuleManager() *MainModuleManager {
 	}
 }
 
+func (mm *moduleManager) WithKubeEventManager(mgr kube_events_manager.KubeEventsManager) {
+	mm.kubeEventsManager = mgr
+}
+
+func (mm *moduleManager) WithScheduleManager(mgr schedule_manager.ScheduleManager) {
+	mm.scheduleManager = mgr
+}
+
+func (mm *moduleManager) WithContext(ctx context.Context) {
+	mm.ctx, mm.cancel = context.WithCancel(ctx)
+}
+
+func (mm *moduleManager) Stop() {
+	if mm.cancel != nil {
+		mm.cancel()
+	}
+}
+
+
 // RunModulesEnabledScript runs enable script for each module that is enabled by config.
 // Enable script receives a list of previously enabled modules.
-func (mm *MainModuleManager) RunModulesEnabledScript(enabledByConfig []string, logLabels map[string]string) ([]string, error) {
+func (mm *moduleManager) RunModulesEnabledScript(enabledByConfig []string, logLabels map[string]string) ([]string, error) {
 	enabledModules := make([]string, 0)
 
 	for _, name := range utils.SortByReference(enabledByConfig, mm.allModulesNamesInOrder) {
@@ -256,20 +268,20 @@ type kubeUpdate struct {
 	Events                  []Event
 }
 
-func (mm *MainModuleManager) applyKubeUpdate(kubeUpdate *kubeUpdate) error {
+func (mm *moduleManager) applyKubeUpdate(kubeUpdate *kubeUpdate) error {
 	log.Debugf("Apply kubeupdate %+v", kubeUpdate)
 	mm.kubeGlobalConfigValues = kubeUpdate.KubeGlobalConfigValues
 	mm.kubeModulesConfigValues = kubeUpdate.KubeModulesConfigValues
 	mm.enabledModulesByConfig = kubeUpdate.EnabledModulesByConfig
 
 	for _, event := range kubeUpdate.Events {
-		EventCh <- event
+		mm.EventCh <- event
 	}
 
 	return nil
 }
 
-func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.Config) (*kubeUpdate, error) {
+func (mm *moduleManager) handleNewKubeConfig(newConfig kube_config_manager.Config) (*kubeUpdate, error) {
 	logEntry := log.WithField("operator.component", "ModuleManager").
 		WithField("operator.action", "handleNewKubeConfig")
 	logEntry.Debugf("new kube config received")
@@ -291,7 +303,7 @@ func (mm *MainModuleManager) handleNewKubeConfig(newConfig kube_config_manager.C
 	return res, nil
 }
 
-func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_manager.ModuleConfigs) (*kubeUpdate, error) {
+func (mm *moduleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_manager.ModuleConfigs) (*kubeUpdate, error) {
 	logLabels := map[string]string{
 		"operator.component": "HandleConfigMap",
 	}
@@ -390,7 +402,7 @@ func (mm *MainModuleManager) handleNewKubeModuleConfigs(moduleConfigs kube_confi
 //
 // Module is enabled by config if module section in ConfigMap is a map or an array
 // or ConfigMap has no module section and module has a map or an array in values.yaml
-func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_config_manager.ModuleConfigs) (enabled []string, values map[string]utils.Values, unknown []utils.ModuleConfig) {
+func (mm *moduleManager) calculateEnabledModulesByConfig(moduleConfigs kube_config_manager.ModuleConfigs) (enabled []string, values map[string]utils.Values, unknown []utils.ModuleConfig) {
 	values = make(map[string]utils.Values)
 
 	for moduleName, module := range mm.allModulesByName {
@@ -406,7 +418,7 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 			}
 			log.Debugf("Module %s: static enabled %v, kubeConfig: enabled %v, updated %v",
 				module.Name,
-				module.StaticConfig.IsEnabled,
+				module.StaticConfig.GetEnabled(),
 				kubeConfig.IsEnabled,
 				kubeConfig.IsUpdated)
 		} else {
@@ -414,7 +426,7 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 			if isEnabled {
 				enabled = append(enabled, moduleName)
 			}
-			log.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.IsEnabled)
+			log.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.GetEnabled())
 		}
 	}
 
@@ -430,7 +442,7 @@ func (mm *MainModuleManager) calculateEnabledModulesByConfig(moduleConfigs kube_
 }
 
 // Init — initialize module manager
-func (mm *MainModuleManager) Init() error {
+func (mm *moduleManager) Init() error {
 	log.Debug("Init ModuleManager")
 
 	if err := mm.RegisterGlobalHooks(); err != nil {
@@ -451,83 +463,91 @@ func (mm *MainModuleManager) Init() error {
 	for _, config := range unknown {
 		unknownNames = append(unknownNames, config.ModuleName)
 	}
-	log.Warnf("ConfigMap/%s has values for absent modules: %+v", app.ConfigMapName, unknownNames)
+	if len(unknownNames) > 0 {
+		log.Warnf("ConfigMap/%s has values for absent modules: %+v", app.ConfigMapName, unknownNames)
+	}
 
 	return nil
 }
 
 // Module manager loop
-func (mm *MainModuleManager) Run() {
-	go mm.kubeConfigManager.Run()
+func (mm *moduleManager) Start() {
+	go mm.kubeConfigManager.Start()
 
-	for {
-		select {
-		case <-mm.globalValuesChanged:
-			log.Debugf("MODULE_MANAGER_RUN global values")
-			EventCh <- Event{Type: GlobalChanged}
+	go func() {
+		for {
+			select {
+			case <-mm.globalValuesChanged:
+				log.Debugf("MODULE_MANAGER_RUN global values")
+				mm.EventCh <- Event{Type: GlobalChanged}
 
-		case moduleName := <-mm.moduleValuesChanged:
-			log.Debugf("MODULE_MANAGER_RUN module '%s' values changed", moduleName)
+			case moduleName := <-mm.moduleValuesChanged:
+				log.Debugf("MODULE_MANAGER_RUN module '%s' values changed", moduleName)
 
-			// Перезапускать enabled-скрипт не нужно, т.к.
-			// изменение values модуля не может вызвать
-			// изменение состояния включенности модуля
-			EventCh <- Event{
-				Type: ModulesChanged,
-				ModulesChanges: []ModuleChange{
-					{Name: moduleName, ChangeType: Changed},
-				},
-			}
-
-		case newKubeConfig := <-kube_config_manager.ConfigUpdated:
-			handleRes, err := mm.handleNewKubeConfig(newKubeConfig)
-			if err != nil {
-				log.Errorf("MODULE_MANAGER_RUN unable to handle kube config update: %s", err)
-			}
-			if handleRes != nil {
-				err = mm.applyKubeUpdate(handleRes)
-				if err != nil {
-					log.Errorf("MODULE_MANAGER_RUN cannot apply kube config update: %s", err)
+				// Перезапускать enabled-скрипт не нужно, т.к.
+				// изменение values модуля не может вызвать
+				// изменение состояния включенности модуля
+				mm.EventCh <- Event{
+					Type: ModulesChanged,
+					ModulesChanges: []ModuleChange{
+						{Name: moduleName, ChangeType: Changed},
+					},
 				}
-			}
 
-		case newModuleConfigs := <-kube_config_manager.ModuleConfigsUpdated:
-			// Сбросить запомненные перед ошибкой конфиги
-			mm.moduleConfigsUpdateBeforeAmbiguos = kube_config_manager.ModuleConfigs{}
-
-			handleRes, err := mm.handleNewKubeModuleConfigs(newModuleConfigs)
-			if err != nil {
-				mm.moduleConfigsUpdateBeforeAmbiguos = newModuleConfigs
-				modulesNames := make([]string, 0)
-				for _, newModuleConfig := range newModuleConfigs {
-					modulesNames = append(modulesNames, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
-				}
-				log.Errorf("MODULE_MANAGER_RUN unable to handle modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
-			}
-			if handleRes != nil {
-				err = mm.applyKubeUpdate(handleRes)
+			case newKubeConfig := <-kube_config_manager.ConfigUpdated:
+				handleRes, err := mm.handleNewKubeConfig(newKubeConfig)
 				if err != nil {
+					log.Errorf("MODULE_MANAGER_RUN unable to handle kube config update: %s", err)
+				}
+				if handleRes != nil {
+					err = mm.applyKubeUpdate(handleRes)
+					if err != nil {
+						log.Errorf("MODULE_MANAGER_RUN cannot apply kube config update: %s", err)
+					}
+				}
+
+			case newModuleConfigs := <-kube_config_manager.ModuleConfigsUpdated:
+				// Сбросить запомненные перед ошибкой конфиги
+				mm.moduleConfigsUpdateBeforeAmbiguos = kube_config_manager.ModuleConfigs{}
+
+				handleRes, err := mm.handleNewKubeModuleConfigs(newModuleConfigs)
+				if err != nil {
+					mm.moduleConfigsUpdateBeforeAmbiguos = newModuleConfigs
 					modulesNames := make([]string, 0)
 					for _, newModuleConfig := range newModuleConfigs {
 						modulesNames = append(modulesNames, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
 					}
-					log.Errorf("MODULE_MANAGER_RUN cannot apply modules %s kube config update: %s", strings.Join(modulesNames, ", "), err)
+					log.Errorf("Unable to handle update of ConfigMap for modules [%s]: %s", strings.Join(modulesNames, ", "), err)
+				}
+				if handleRes != nil {
+					err = mm.applyKubeUpdate(handleRes)
+					if err != nil {
+						modulesNames := make([]string, 0)
+						for _, newModuleConfig := range newModuleConfigs {
+							modulesNames = append(modulesNames, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
+						}
+						log.Errorf("ConfigMap update cannot be applied to values for modules %s: %s", strings.Join(modulesNames, ", "), err)
+					}
+				}
+
+			case <-mm.retryOnAmbigous:
+				if len(mm.moduleConfigsUpdateBeforeAmbiguos) != 0 {
+					log.Infof("MODULE_MANAGER_RUN Retry saved moduleConfigs: %v", mm.moduleConfigsUpdateBeforeAmbiguos)
+					kube_config_manager.ModuleConfigsUpdated <- mm.moduleConfigsUpdateBeforeAmbiguos
+				} else {
+					log.Debugf("MODULE_MANAGER_RUN Retry IS NOT needed")
 				}
 			}
-
-		case <-mm.retryOnAmbigous:
-			if len(mm.moduleConfigsUpdateBeforeAmbiguos) != 0 {
-				log.Infof("MODULE_MANAGER_RUN Retry saved moduleConfigs: %v", mm.moduleConfigsUpdateBeforeAmbiguos)
-				kube_config_manager.ModuleConfigsUpdated <- mm.moduleConfigsUpdateBeforeAmbiguos
-			} else {
-				log.Debugf("MODULE_MANAGER_RUN Retry IS NOT needed")
-			}
 		}
-	}
+	}()
 }
 
-func (mm *MainModuleManager) Retry() {
+func (mm *moduleManager) Retry() {
 	mm.retryOnAmbigous <- true
+}
+
+func (mm *moduleManager) Ch() chan Event {
+	return mm.EventCh
 }
 
 
@@ -535,8 +555,11 @@ func (mm *MainModuleManager) Retry() {
 // modules that should be disabled and modules that should be purged.
 //
 // This method requires that mm.enabledModulesByConfig and mm.kubeModulesConfigValues are updated.
-func (mm *MainModuleManager) DiscoverModulesState(logLabels map[string]string) (state *ModulesState, err error) {
-	logEntry := log.WithField("operator.component", "moduleManager,discoverModulesState")
+func (mm *moduleManager) DiscoverModulesState(logLabels map[string]string) (state *ModulesState, err error) {
+	discoverLogLabels := utils.MergeLabels(logLabels, map[string]string{
+		"operator.component": "moduleManager.discoverModulesState",
+	})
+	logEntry := log.WithFields(utils.LabelsToLogFields(discoverLogLabels))
 
 	logEntry.Debugf("DISCOVER state:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
@@ -551,7 +574,7 @@ func (mm *MainModuleManager) DiscoverModulesState(logLabels map[string]string) (
 		NewlyEnabledModules: []string{},
 	}
 
-	releasedModules, err := helm.NewHelmCli(logEntry).ListReleasesNames(nil)
+	releasedModules, err := helm.NewClient(discoverLogLabels).ListReleasesNames(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -610,42 +633,45 @@ func (mm *MainModuleManager) DiscoverModulesState(logLabels map[string]string) (
 }
 
 // TODO replace with Module and ModuleShouldExists
-func (mm *MainModuleManager) GetModule(name string) (*Module, error) {
+func (mm *moduleManager) GetModule(name string) *Module{
 	module, exist := mm.allModulesByName[name]
 	if exist {
-		return module, nil
+		return module
 	} else {
-		return nil, fmt.Errorf("module '%s' not found", name)
+		log.Errorf("Possible bug!!! GetModule: no module '%s' in ModuleManager indexes", name)
+		return nil
 	}
 }
 
-func (mm *MainModuleManager) GetModuleNamesInOrder() []string {
+func (mm *moduleManager) GetModuleNamesInOrder() []string {
 	return mm.enabledModulesInOrder
 }
 
-func (mm *MainModuleManager) GetGlobalHook(name string) (*GlobalHook, error) {
+func (mm *moduleManager) GetGlobalHook(name string) *GlobalHook {
 	globalHook, exist := mm.globalHooksByName[name]
 	if exist {
-		return globalHook, nil
+		return globalHook
 	} else {
-		return nil, fmt.Errorf("global hook '%s' not found", name)
+		log.Errorf("Possible bug!!! GetGlobalHook: no global hook '%s' in ModuleManager indexes", name)
+		return nil
 	}
 }
 
-func (mm *MainModuleManager) GetModuleHook(name string) (*ModuleHook, error) {
+func (mm *moduleManager) GetModuleHook(name string) *ModuleHook {
 	for _, bindingHooks := range mm.modulesHooksOrderByName {
 		for _, hooks := range bindingHooks {
 			for _, hook := range hooks {
 				if hook.Name == name {
-					return hook, nil
+					return hook
 				}
 			}
 		}
 	}
-	return nil, fmt.Errorf("module hook '%s' is not found", name)
+	log.Errorf("Possible bug!!! GetModuleHook: no module hook '%s' in ModuleManager indexes", name)
+	return nil
 }
 
-func (mm *MainModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []string {
+func (mm *moduleManager) GetGlobalHooksInOrder(bindingType BindingType) []string {
 	globalHooks, ok := mm.globalHooksOrder[bindingType]
 	if !ok {
 		return []string{}
@@ -663,19 +689,16 @@ func (mm *MainModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []st
 	return globalHooksNames
 }
 
-func (mm *MainModuleManager) GetModuleHooksInOrder(moduleName string, bindingType BindingType) ([]string, error) {
-	if _, err := mm.GetModule(moduleName); err != nil {
-		return nil, err
-	}
+func (mm *moduleManager) GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string {
 
 	moduleHooksByBinding, ok := mm.modulesHooksOrderByName[moduleName]
 	if !ok {
-		return []string{}, nil
+		return []string{}
 	}
 
 	moduleBindingHooks, ok := moduleHooksByBinding[bindingType]
 	if !ok {
-		return []string{}, nil
+		return []string{}
 	}
 
 	sort.Slice(moduleBindingHooks[:], func(i, j int) bool {
@@ -687,15 +710,36 @@ func (mm *MainModuleManager) GetModuleHooksInOrder(moduleName string, bindingTyp
 		moduleHooksNames = append(moduleHooksNames, moduleHook.Name)
 	}
 
-	return moduleHooksNames, nil
+	return moduleHooksNames
 }
 
-// TODO: moduleManager.Module(modName).Delete()
-func (mm *MainModuleManager) DeleteModule(moduleName string, logLabels map[string]string) error {
-	module, err := mm.GetModule(moduleName)
-	if err != nil {
-		return err
+func (mm *moduleManager) GetModuleHookNames(moduleName string) []string {
+	moduleHooksByBinding, ok := mm.modulesHooksOrderByName[moduleName]
+	if !ok {
+		return []string{}
 	}
+
+	moduleHookNamesMap := map[string]bool{}
+	for _, moduleHooks := range moduleHooksByBinding {
+		for _, moduleHook := range moduleHooks {
+			moduleHookNamesMap[moduleHook.Name] = true
+		}
+	}
+
+	var moduleHookNames []string
+	for name := range moduleHookNamesMap {
+		moduleHookNames = append(moduleHookNames, name)
+	}
+
+	return moduleHookNames
+}
+
+// TODO: moduleManager.GetModule(modName).Delete()
+func (mm *moduleManager) DeleteModule(moduleName string, logLabels map[string]string) error {
+	module := mm.GetModule(moduleName)
+
+	// Stop kubernetes informers and remove scheduled functions
+	mm.DisableModuleHooks(moduleName)
 
 	if err := module.Delete(logLabels); err != nil {
 		return err
@@ -708,58 +752,75 @@ func (mm *MainModuleManager) DeleteModule(moduleName string, logLabels map[strin
 }
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
-func (mm *MainModuleManager) RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
-	module, err := mm.GetModule(moduleName)
-	if err != nil {
-		return err
-	}
+func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error) {
+	module := mm.GetModule(moduleName)
 
-	if err := module.Run(onStartup, logLabels, afterStartupCb); err != nil {
-		return err
-	}
-
-	return nil
+	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
+	return module.Run(onStartup, logLabels, afterStartupCb)
 }
 
-func (mm *MainModuleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
-	globalHook, err := mm.GetGlobalHook(hookName)
-	if err != nil {
-		return err
-	}
+func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, error) {
+	globalHook := mm.GetGlobalHook(hookName)
 
+	// ValuesLock.Lock()
+	//
 	oldValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
 	if err != nil {
-		return err
+		return "", err
+	}
+
+	log.Debugf("RunGH: %s %s", hookName, binding)
+
+	// Update kubernetes snapshots just before execute a hook
+	if binding == OnKubernetesEvent || binding == Schedule {
+		bindingContext = globalHook.HookController.UpdateSnapshots(bindingContext)
+	}
+
+	if binding == BeforeAll || binding == AfterAll {
+		snapshots := globalHook.HookController.KubernetesSnapshots()
+		newBindingContext := []BindingContext{}
+		for _, context := range bindingContext {
+			context.Snapshots = snapshots
+			context.Metadata.IncludeAllSnapshots = true
+			newBindingContext = append(newBindingContext, context)
+		}
+		bindingContext = newBindingContext
 	}
 
 	if err := globalHook.Run(binding, bindingContext, logLabels); err != nil {
-		return err
+		return "", err
 	}
 
+	//	ValuesLock.Lock()
 	newValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if newValuesChecksum != oldValuesChecksum {
 		switch binding {
-		case Schedule, KubeEvents:
+		case Schedule, OnKubernetesEvent:
 			mm.globalValuesChanged <- true
+		//case AfterAll:
+		//	mm.globalValuesChanged <- true
 		}
 	}
 
-	return nil
+	return newValuesChecksum, nil
 }
 
-func (mm *MainModuleManager) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
-	moduleHook, err := mm.GetModuleHook(hookName)
-	if err != nil {
-		return err
-	}
+func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
+	moduleHook := mm.GetModuleHook(hookName)
 
 	oldValuesChecksum, err := utils.ValuesChecksum(moduleHook.values())
 	if err != nil {
 		return err
+	}
+
+	// Update kubernetes snapshots just before execute a hook
+	// Note: BeforeHelm and AfterHelm are run by runHookByBinding
+	if binding == OnKubernetesEvent || binding == Schedule {
+		bindingContext = moduleHook.HookController.UpdateSnapshots(bindingContext)
 	}
 
 	if err := moduleHook.Run(binding, bindingContext, logLabels); err != nil {
@@ -773,7 +834,7 @@ func (mm *MainModuleManager) RunModuleHook(hookName string, binding BindingType,
 
 	if newValuesChecksum != oldValuesChecksum {
 		switch binding {
-		case Schedule, KubeEvents:
+		case Schedule, OnKubernetesEvent:
 			mm.moduleValuesChanged <- moduleHook.Module.Name
 		}
 	}
@@ -781,16 +842,164 @@ func (mm *MainModuleManager) RunModuleHook(hookName string, binding BindingType,
 	return nil
 }
 
-func (mm *MainModuleManager) WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager {
+func (mm *moduleManager) WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager {
 	mm.ModulesDir = modulesDir
 	mm.GlobalHooksDir = globalHooksDir
 	mm.TempDir = tempDir
 	return mm
 }
 
-func (mm *MainModuleManager) WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager {
+func (mm *moduleManager) WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager {
 	mm.kubeConfigManager = kubeConfigManager
 	return mm
+}
+
+func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) {
+	mm.LoopByBinding(OnKubernetesEvent, func(gh *GlobalHook, m *Module, mh *ModuleHook) {
+		if gh != nil {
+			if gh.HookController.CanHandleKubeEvent(kubeEvent) {
+				gh.HookController.HandleKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) {
+					if createGlobalTaskFn!= nil {
+						createGlobalTaskFn(gh, info)
+					}
+				})
+			}
+		} else {
+			if mh.HookController.CanHandleKubeEvent(kubeEvent) {
+				mh.HookController.HandleKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) {
+					if createModuleTaskFn!= nil {
+						createModuleTaskFn(m, mh, info)
+					}
+				})
+			}
+		}
+	})
+
+	return
+}
+
+func (mm *moduleManager) HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*GlobalHook, controller.BindingExecutionInfo)) error {
+	gh := mm.GetGlobalHook(hookName)
+
+	err := gh.HookController.HandleEnableKubernetesBindings(func(info controller.BindingExecutionInfo) {
+		if createTaskFn != nil {
+			createTaskFn(gh, info)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (mm *moduleManager) HandleModuleEnableKubernetesBindings(moduleName string, createTaskFn func(*ModuleHook, controller.BindingExecutionInfo)) error {
+	kubeHooks := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
+
+	for _, hookName := range kubeHooks {
+		mh := mm.GetModuleHook(hookName)
+		err := mh.HookController.HandleEnableKubernetesBindings(func(info controller.BindingExecutionInfo) {
+			if createTaskFn != nil {
+				createTaskFn(mh, info)
+			}
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+
+	return nil
+}
+
+func (mm *moduleManager) StartModuleHooks(moduleName string) {
+	kubeHooks := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
+
+	for _, hookName := range kubeHooks {
+		mh := mm.GetModuleHook(hookName)
+		mh.HookController.StartMonitors()
+	}
+
+	schHooks := mm.GetModuleHooksInOrder(moduleName, Schedule)
+	for _, hookName := range schHooks {
+		mh := mm.GetModuleHook(hookName)
+		mh.HookController.EnableScheduleBindings()
+	}
+
+	return
+}
+
+func (mm *moduleManager) DisableModuleHooks(moduleName string) {
+	kubeHooks := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
+
+	for _, hookName := range kubeHooks {
+		mh := mm.GetModuleHook(hookName)
+		mh.HookController.StopMonitors()
+	}
+
+	schHooks := mm.GetModuleHooksInOrder(moduleName, Schedule)
+	for _, hookName := range schHooks {
+		mh := mm.GetModuleHook(hookName)
+		mh.HookController.DisableScheduleBindings()
+	}
+
+	return
+}
+
+//func (mm *moduleManager) EnableModuleScheduleBindings(moduleName) {
+//
+//}
+
+//func (mm *moduleManager) EnableGlobalScheduleBindings(moduleName) {
+//
+//}
+
+func (mm *moduleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) error {
+	mm.LoopByBinding(Schedule, func(gh *GlobalHook, m *Module, mh *ModuleHook) {
+		if gh != nil {
+			if gh.HookController.CanHandleScheduleEvent(crontab) {
+				gh.HookController.HandleScheduleEvent(crontab, func(info controller.BindingExecutionInfo) {
+					if createGlobalTaskFn!= nil {
+						createGlobalTaskFn(gh, info)
+					}
+				})
+			}
+		} else {
+			if mh.HookController.CanHandleScheduleEvent(crontab) {
+				mh.HookController.HandleScheduleEvent(crontab, func(info controller.BindingExecutionInfo) {
+					if createModuleTaskFn!= nil {
+						createModuleTaskFn(m, mh, info)
+					}
+				})
+			}
+		}
+	})
+
+	return nil
+}
+
+func (mm *moduleManager) LoopByBinding(binding BindingType, fn func(gh *GlobalHook, m *Module, mh *ModuleHook)) {
+	globalHooks := mm.GetGlobalHooksInOrder(binding)
+
+	for _, hookName := range globalHooks {
+		gh := mm.GetGlobalHook(hookName)
+		fn(gh, nil, nil)
+	}
+
+	modules := mm.enabledModulesInOrder
+
+	for _, moduleName := range modules {
+		m := mm.GetModule(moduleName)
+		moduleHooks := mm.GetModuleHooksInOrder(moduleName, binding)
+		for _, hookName := range moduleHooks {
+			mh := mm.GetModuleHook(hookName)
+
+			fn(nil, m, mh)
+		}
+
+	}
+
+	return
 }
 
 // mergeEnabled merges enabled flags. Enabled flag can be nil.

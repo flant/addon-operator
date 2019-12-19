@@ -1,6 +1,7 @@
 package kube_config_manager
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,17 +21,24 @@ import (
 )
 
 type KubeConfigManager interface {
+	WithContext(ctx context.Context)
+	WithKubeClient(client kube.KubernetesClient)
 	WithNamespace(namespace string)
 	WithConfigMapName(configMap string)
 	WithValuesChecksumsAnnotation(annotation string)
 	SetKubeGlobalValues(values utils.Values) error
 	SetKubeModuleValues(moduleName string, values utils.Values) error
 	Init() error
-	Run()
+	Start()
+	Stop()
 	InitialConfig() *Config
 }
 
 type kubeConfigManager struct {
+	ctx context.Context
+	cancel context.CancelFunc
+
+	KubeClient kube.KubernetesClient
 	Namespace string
 	ConfigMapName string
 	ValuesChecksumsAnnotation string
@@ -71,6 +79,20 @@ func simpleMergeConfigMapData(data map[string]string, newData map[string]string)
 		data[k] = v
 	}
 	return data
+}
+
+func (kcm *kubeConfigManager) WithContext(ctx context.Context) {
+	kcm.ctx, kcm.cancel = context.WithCancel(ctx)
+}
+
+func (kcm *kubeConfigManager) Stop() {
+	if kcm.cancel != nil {
+		kcm.cancel()
+	}
+}
+
+func (kcm *kubeConfigManager) WithKubeClient(client kube.KubernetesClient) {
+	kcm.KubeClient = client
 }
 
 func (kcm *kubeConfigManager) saveGlobalKubeConfig(globalKubeConfig GlobalKubeConfig) error {
@@ -125,7 +147,7 @@ func (kcm *kubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func(*v1
 			return err
 		}
 
-		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kcm.Namespace).Update(obj)
+		_, err := kcm.KubeClient.CoreV1().ConfigMaps(kcm.Namespace).Update(obj)
 		if err != nil {
 			return err
 		}
@@ -141,7 +163,7 @@ func (kcm *kubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func(*v1
 			return err
 		}
 
-		_, err := kube.Kubernetes.CoreV1().ConfigMaps(kcm.Namespace).Create(obj)
+		_, err := kcm.KubeClient.CoreV1().ConfigMaps(kcm.Namespace).Create(obj)
 		if err != nil {
 			return err
 		}
@@ -193,7 +215,7 @@ func (kcm *kubeConfigManager) SetKubeModuleValues(moduleName string, values util
 }
 
 func (kcm *kubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
-	list, err := kube.Kubernetes.CoreV1().
+	list, err := kcm.KubeClient.CoreV1().
 		ConfigMaps(kcm.Namespace).
 		List(metav1.ListOptions{})
 	if err != nil {
@@ -208,7 +230,7 @@ func (kcm *kubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 	}
 
 	if objExists {
-		obj, err := kube.Kubernetes.CoreV1().
+		obj, err := kcm.KubeClient.CoreV1().
 			ConfigMaps(kcm.Namespace).
 			Get(kcm.ConfigMapName, metav1.GetOptions{})
 		if err != nil {
@@ -491,11 +513,11 @@ func (kcm *kubeConfigManager) handleCmDelete(obj *v1.ConfigMap) error {
 	return nil
 }
 
-func (kcm *kubeConfigManager) Run() {
+func (kcm *kubeConfigManager) Start() {
 	log.Debugf("Run kube config manager")
 
 	lw := cache.NewListWatchFromClient(
-		kube.Kubernetes.CoreV1().RESTClient(),
+		kcm.KubeClient.CoreV1().RESTClient(),
 		"configmaps",
 		kcm.Namespace,
 		fields.OneTermEqualSelector("metadata.name", kcm.ConfigMapName))
@@ -525,5 +547,5 @@ func (kcm *kubeConfigManager) Run() {
 		},
 	})
 
-	cmInformer.Run(make(<-chan struct{}, 1))
+	cmInformer.Run(kcm.ctx.Done())
 }

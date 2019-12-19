@@ -1,16 +1,20 @@
 package module_manager
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/satori/go.uuid.v1"
 
-	hook2 "github.com/flant/shell-operator/pkg/hook"
-	utils_data "github.com/flant/shell-operator/pkg/utils/data"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+
+	. "github.com/flant/addon-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	utils_data "github.com/flant/addon-operator/pkg/utils/data"
 )
 
 type GlobalHook struct {
@@ -20,13 +24,13 @@ type GlobalHook struct {
 var _ Hook = &GlobalHook{}
 
 func NewGlobalHook(name, path string) *GlobalHook {
-	return &GlobalHook{
-		CommonHook: &CommonHook{
-			Name: name,
-			Path: path,
-		},
+	res := &GlobalHook{
+		CommonHook: &CommonHook{},
 		Config: &GlobalHookConfig{},
 	}
+	res.Name = name
+	res.Path = path
+	return res
 }
 
 func (g *GlobalHook) WithConfig(configOutput []byte) (err error) {
@@ -34,9 +38,24 @@ func (g *GlobalHook) WithConfig(configOutput []byte) (err error) {
 	if err != nil {
 		return fmt.Errorf("load global hook '%s' config: %s\nhook --config output: %s", g.Name, err.Error(), configOutput)
 	}
+	// Make HookController and GetConfigDescription work.
+	g.Hook.Config = &g.Config.HookConfig
 	return nil
 }
 
+func (gh *GlobalHook) GetConfigDescription() string {
+	msgs := []string{}
+	if gh.Config.BeforeAll != nil {
+		msgs = append(msgs, fmt.Sprintf("beforeAll:%d", int64(gh.Config.BeforeAll.Order)))
+	}
+	if gh.Config.AfterAll != nil {
+		msgs = append(msgs, fmt.Sprintf("afterAll:%d", int64(gh.Config.AfterAll.Order)))
+	}
+	msgs = append(msgs, gh.Hook.GetConfigDescription())
+	return strings.Join(msgs, ", ")
+}
+
+// Order return float order number for bindings with order.
 func (g *GlobalHook) Order(binding BindingType) float64 {
 	if g.Config.HasBinding(binding) {
 		switch binding {
@@ -44,9 +63,16 @@ func (g *GlobalHook) Order(binding BindingType) float64 {
 			return g.Config.BeforeAll.Order
 		case AfterAll:
 			return g.Config.AfterAll.Order
+		case OnStartup:
+			return g.Config.OnStartup.Order
 		}
 	}
 	return 0.0
+}
+
+// Order return float order number for bindings with order.
+func (g *GlobalHook) ValuesChecksum() (string, error) {
+	return utils.ValuesChecksum(g.values())
 }
 
 type globalValuesMergeResult struct {
@@ -93,17 +119,17 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 
 func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
 	// Convert context for version
-	versionedContext := make([]interface{}, 0, len(context))
-	for _, c := range context {
-		versionedContext = append(versionedContext, hook2.ConvertBindingContext(h.Config.Version, c.BindingContext))
-	}
+	versionedContextList := ConvertBindingContextList(h.Config.Version, context)
 
-	globalHookExecutor := NewHookExecutor(h, versionedContext)
+	globalHookExecutor := NewHookExecutor(h, versionedContextList)
 	globalHookExecutor.WithLogLabels(logLabels)
 	patches, err := globalHookExecutor.Run()
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)
 	}
+
+	//h.moduleManager.ValuesLock.Lock()
+	//defer h.moduleManager.ValuesLock.Unlock()
 
 	configValuesPatch, has := patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
@@ -120,7 +146,7 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 		if configValuesPatchResult.ValuesChanged {
 			err := h.moduleManager.kubeConfigManager.SetKubeGlobalValues(configValuesPatchResult.Values)
 			if err != nil {
-				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
+				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
 			}
 
@@ -145,7 +171,7 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 }
 
 // PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
-func (h *GlobalHook) PrepareTmpFilesForHookRun(context interface{}) (tmpFiles map[string]string, err error) {
+func (h *GlobalHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles map[string]string, err error) {
 	tmpFiles = make(map[string]string, 0)
 
 	tmpFiles["CONFIG_VALUES_PATH"], err = h.prepareConfigValuesJsonFile()
@@ -158,7 +184,7 @@ func (h *GlobalHook) PrepareTmpFilesForHookRun(context interface{}) (tmpFiles ma
 		return
 	}
 
-	tmpFiles["BINDING_CONTEXT_PATH"], err = h.prepareBindingContextJsonFile(context)
+	tmpFiles["BINDING_CONTEXT_PATH"], err = h.prepareBindingContextJsonFile(bindingContext)
 	if err != nil {
 		return
 	}
@@ -205,11 +231,12 @@ func (h *GlobalHook) values() utils.Values {
 	return res
 }
 
+// FIXME look like this is not used anywhere
 func (h *GlobalHook) prepareConfigValuesYamlFile() (string, error) {
 	values := h.configValues()
 
 	data := utils.MustDump(utils.DumpValuesYaml(values))
-	path := filepath.Join(h.moduleManager.TempDir, fmt.Sprintf("global-hook-%s-config-values.yaml", h.SafeName()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-config-values-%s.yaml", h.SafeName(), uuid.NewV4().String()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -220,11 +247,12 @@ func (h *GlobalHook) prepareConfigValuesYamlFile() (string, error) {
 	return path, nil
 }
 
+// CONFIG_VALUES_PATH
 func (h *GlobalHook) prepareConfigValuesJsonFile() (string, error) {
 	values := h.configValues()
 
 	data := utils.MustDump(utils.DumpValuesJson(values))
-	path := filepath.Join(h.moduleManager.TempDir, fmt.Sprintf("global-hook-%s-config-values.json", h.SafeName()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-config-values-%s.json", h.SafeName(), uuid.NewV4().String()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -235,11 +263,12 @@ func (h *GlobalHook) prepareConfigValuesJsonFile() (string, error) {
 	return path, nil
 }
 
+// values.yaml for helm
 func (h *GlobalHook) prepareValuesYamlFile() (string, error) {
 	values := h.values()
 
 	data := utils.MustDump(utils.DumpValuesYaml(values))
-	path := filepath.Join(h.moduleManager.TempDir, fmt.Sprintf("global-hook-%s-values.yaml", h.SafeName()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-values-%s.yaml", h.SafeName(), uuid.NewV4().String()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -250,11 +279,12 @@ func (h *GlobalHook) prepareValuesYamlFile() (string, error) {
 	return path, nil
 }
 
+// VALUES_PATH
 func (h *GlobalHook) prepareValuesJsonFile() (string, error) {
 	values := h.values()
 
 	data := utils.MustDump(utils.DumpValuesJson(values))
-	path := filepath.Join(h.moduleManager.TempDir, fmt.Sprintf("global-hook-%s-values.json", h.SafeName()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-values-%s.json", h.SafeName(), uuid.NewV4().String()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -265,31 +295,32 @@ func (h *GlobalHook) prepareValuesJsonFile() (string, error) {
 	return path, nil
 }
 
-func (h *GlobalHook) prepareBindingContextJsonFile(context interface{}) (string, error) {
-	data, _ := json.Marshal(context)
-	//data := utils.MustDump(utils.DumpValuesJson(context))
-	path := filepath.Join(h.moduleManager.TempDir, fmt.Sprintf("global-hook-%s-binding-context.json", h.SafeName()))
-	err := dumpData(path, data)
+// BINDING_CONTEXT_PATH
+func (h *GlobalHook) prepareBindingContextJsonFile(bindingContext []byte) (string, error) {
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-binding-context-%s.json", h.SafeName(), uuid.NewV4().String()))
+	err := dumpData(path, bindingContext)
 	if err != nil {
 		return "", err
 	}
 
-	log.Debugf("Prepared global hook %s binding context:\n%s", h.Name, utils_data.YamlToString(context))
+	// TODO too much information in binding context with snapshots!
+	//log.Debugf("Prepared global hook %s binding context:\n%s", h.Name, string(bindingContext))
 
 	return path, nil
 }
 
-
+// CONFIG_VALUES_JSON_PATCH_PATH
 func (h *GlobalHook) prepareConfigValuesJsonPatchFile() (string, error) {
-	path := filepath.Join(h.moduleManager.TempDir, fmt.Sprintf("%s.global-hook-config-values.json-patch", h.SafeName()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-config-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
 	return path, nil
 }
 
+// VALUES_JSON_PATCH_PATH
 func (h *GlobalHook) prepareValuesJsonPatchFile() (string, error) {
-	path := filepath.Join(h.moduleManager.TempDir, fmt.Sprintf("%s.global-hook-values.json-patch", h.SafeName()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}

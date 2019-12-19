@@ -122,7 +122,7 @@ func TestHelm(t *testing.T) {
 	var isExists bool
 	var releases []string
 
-	helm := &CliHelm{}
+	helm := &helmClient{}
 
 	_ = kube.Init(kube.InitOptions{})
 	//kube.AddonOperatorNamespace = helm.TillerNamespace()

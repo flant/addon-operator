@@ -1,10 +1,13 @@
 package module_manager
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/go-openapi/spec"
+	"sigs.k8s.io/yaml"
+
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	hook_config "github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
@@ -24,12 +27,12 @@ type GlobalHookConfig struct {
 }
 
 type BeforeAllConfig struct {
-	hook_config.CommonBindingConfig
+	CommonBindingConfig
 	Order float64
 }
 
 type AfterAllConfig struct {
-	hook_config.CommonBindingConfig
+	CommonBindingConfig
 	Order float64
 }
 
@@ -102,7 +105,7 @@ func (c *GlobalHookConfig) ConvertAndCheck(data []byte) error {
 	switch c.Version {
 	case "v0":
 		configV0 := &GlobalHookConfigV0{}
-		err := json.Unmarshal(data, configV0)
+		err := yaml.Unmarshal(data, configV0)
 		if err != nil {
 			return fmt.Errorf("unmarshal GlobalHookConfig version 0: %s", err)
 		}
@@ -113,7 +116,7 @@ func (c *GlobalHookConfig) ConvertAndCheck(data []byte) error {
 		}
 	case "v1":
 		configV1 := &GlobalHookConfigV0{}
-		err := json.Unmarshal(data, configV1)
+		err := yaml.Unmarshal(data, configV1)
 		if err != nil {
 			return fmt.Errorf("unmarshal GlobalHookConfig v1: %s", err)
 		}
@@ -165,7 +168,7 @@ func (c *GlobalHookConfig) ConvertBeforeAll(value interface{}) (*BeforeAllConfig
 	}
 
 	res := &BeforeAllConfig{}
-	res.ConfigName = ContextBindingType[BeforeAll]
+	res.BindingName = ContextBindingType[BeforeAll]
 	res.Order = *floatValue
 	return res, nil
 }
@@ -177,7 +180,7 @@ func (c *GlobalHookConfig) ConvertAfterAll(value interface{}) (*AfterAllConfig, 
 	}
 
 	res := &AfterAllConfig{}
-	res.ConfigName = ContextBindingType[AfterAll]
+	res.BindingName = ContextBindingType[AfterAll]
 	res.Order = *floatValue
 	return res, nil
 }
@@ -185,13 +188,7 @@ func (c *GlobalHookConfig) ConvertAfterAll(value interface{}) (*AfterAllConfig, 
 func (c *GlobalHookConfig) Bindings() []BindingType {
 	res := []BindingType{}
 
-	for _, binding := range []BindingType{OnStartup, Schedule, KubeEvents} {
-		if c.HookConfig.HasBinding(ShOpBindingType[binding]) {
-			res = append(res, binding)
-		}
-	}
-
-	for _, binding := range []BindingType{BeforeAll, AfterAll} {
+	for _, binding := range []BindingType{OnStartup, Schedule, OnKubernetesEvent, BeforeAll, AfterAll} {
 		if c.HasBinding(binding) {
 			res = append(res, binding)
 		}
@@ -201,7 +198,7 @@ func (c *GlobalHookConfig) Bindings() []BindingType {
 }
 
 func (c *GlobalHookConfig) HasBinding(binding BindingType) bool {
-	if c.HookConfig.HasBinding(ShOpBindingType[binding]) {
+	if c.HookConfig.HasBinding(binding) {
 		return true
 	}
 	switch binding {

@@ -11,10 +11,15 @@ import (
 	"github.com/kennygrant/sanitize"
 	"github.com/otiai10/copy"
 	log "github.com/sirupsen/logrus"
+	uuid "gopkg.in/satori/go.uuid.v1"
 	"gopkg.in/yaml.v2"
 
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+
+	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
-	hook2 "github.com/flant/shell-operator/pkg/hook"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 
 	"github.com/flant/addon-operator/pkg/app"
@@ -30,7 +35,7 @@ type Module struct {
 	// module values from modules/<module name>/values.yaml
 	StaticConfig  *utils.ModuleConfig
 
-	moduleManager *MainModuleManager
+	moduleManager *moduleManager
 }
 
 func NewModule(name, path string) *Module {
@@ -40,7 +45,7 @@ func NewModule(name, path string) *Module {
 	}
 }
 
-func (m *Module) WithModuleManager(moduleManager *MainModuleManager) {
+func (m *Module) WithModuleManager(moduleManager *moduleManager) {
 	m.moduleManager = moduleManager
 }
 
@@ -50,50 +55,58 @@ func (m *Module) SafeName() string {
 
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
 // It is a handler of task MODULE_RUN
-func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
+func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error) {
+	logLabels = utils.MergeLabels(logLabels, map[string]string{
+		"module": m.Name,
+		"queue": "main",
+	})
+
 	if err := m.cleanup(); err != nil {
-		return err
+		return false, err
 	}
 
 	if onStartup {
 		if err := m.runHooksByBinding(OnStartup, logLabels); err != nil {
-			return err
+			return false, err
 		}
 
 		if err := afterStartupCb(); err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	if err := m.runHooksByBinding(BeforeHelm, logLabels); err != nil {
-		return err
+		return false, err
 	}
 
-	if err := m.runHelmInstall(); err != nil {
-		return err
+	if err := m.runHelmInstall(logLabels); err != nil {
+		return false, err
 	}
 
-	if err := m.runHooksByBinding(AfterHelm, logLabels); err != nil {
-		return err
+	valuesChanged, err := m.runHooksByBindingAndCheckValues(AfterHelm, logLabels)
+	if err != nil {
+		return false, err
 	}
-
-	return nil
+	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
+	return valuesChanged, nil
 }
 
-// TODO LOG: add field 'on startup'
 // Delete removes helm release if it exists and runs afterDeleteHelm hooks.
 // It is a handler for MODULE_DELETE task.
 func (m *Module) Delete(logLabels map[string]string) error {
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).
-		WithField("module", m.Name).
-		WithField("phase", "delete")
+	deleteLogLabels := utils.MergeLabels(logLabels,
+		map[string]string{
+			"module": m.Name,
+			"queue": "main",
+		})
+	logEntry := log.WithFields(utils.LabelsToLogFields(deleteLogLabels))
 
 	// Если есть chart, но нет релиза — warning
 	// если нет чарта — молча перейти к хукам
 	// если есть и chart и релиз — удалить
 	chartExists, _ := m.checkHelmChart()
 	if chartExists {
-		releaseExists, err := helm.NewHelmCli(logEntry).IsReleaseExists(m.generateHelmReleaseName())
+		releaseExists, err := helm.NewClient(deleteLogLabels).IsReleaseExists(m.generateHelmReleaseName())
 		if !releaseExists {
 			if err != nil {
 				logEntry.Warnf("Cannot find helm release '%s' for module '%s'. Helm error: %s", m.generateHelmReleaseName(), m.Name, err)
@@ -102,14 +115,14 @@ func (m *Module) Delete(logLabels map[string]string) error {
 			}
 		} else {
 			// Chart and release are existed, so run helm delete command
-			err := helm.NewHelmCli(logEntry).DeleteRelease(m.generateHelmReleaseName())
+			err := helm.NewClient(deleteLogLabels).DeleteRelease(m.generateHelmReleaseName())
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	return m.runHooksByBinding(AfterDeleteHelm, logLabels)
+	return m.runHooksByBinding(AfterDeleteHelm, deleteLogLabels)
 }
 
 
@@ -122,21 +135,23 @@ func (m *Module) cleanup() error {
 		}
 	}
 
-	logEntry := log.WithField("module", m.Name).WithField("phase", "run")
+	helmLogLabels := map[string]string{
+		"module": m.Name,
+	}
 
-	if err := helm.NewHelmCli(logEntry).DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
+	if err := helm.NewClient(helmLogLabels).DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
-	if err := helm.NewHelmCli(logEntry).DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
+	if err := helm.NewClient(helmLogLabels).DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (m *Module) runHelmInstall() error {
-	logEntry := log.WithField("module", m.Name).WithField("phase", "run")
+func (m *Module) runHelmInstall(logLabels map[string]string) error {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	chartExists, err := m.checkHelmChart()
 	if !chartExists {
@@ -158,13 +173,24 @@ func (m *Module) runHelmInstall() error {
 		return err
 	}
 
-	// Create a temporary chart with empty values.yaml
-	runChartPath := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.chart", m.SafeName()))
+	// Create a temporary chart with empty values.yaml and unique path
+	runChartPath := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.chart.%s", m.SafeName(), uuid.NewV4().String()))
 
 	err = os.RemoveAll(runChartPath)
 	if err != nil {
 		return err
 	}
+
+	// Remove chart directory after helm run
+	defer func(){
+		if sh_app.DebugKeepTmpFiles == "yes" {
+			return
+		}
+		err := os.RemoveAll(runChartPath)
+		log.WithField("module", m.Name).
+			Errorf("Remove chart directory '%s': %s", runChartPath, err)
+	}()
+
 	err = copy.Copy(m.Path, runChartPath)
 	if err != nil {
 		return err
@@ -176,14 +202,25 @@ func (m *Module) runHelmInstall() error {
 		return err
 	}
 
-	checksum, err := utils.CalculateChecksumOfPaths(runChartPath, valuesPath)
+	// Old style values checksum calculation
+	//checksum, err := utils.CalculateChecksumOfPaths(runChartPath, valuesPath)
+	//if err != nil {
+	//	return err
+	//}
+
+	// New style — render templates
+	helmClient := helm.NewClient(logLabels)
+
+	helmTemplateOutput, err := helmClient.Render(runChartPath, []string{valuesPath},
+		[]string{},
+		app.Namespace)
 	if err != nil {
 		return err
 	}
 
-	doRelease := true
+	checksum := utils.CalculateStringsChecksum(helmTemplateOutput)
 
-	helmClient := helm.NewHelmCli(logEntry)
+	doRelease := true
 
 	isReleaseExists, err := helmClient.IsReleaseExists(helmReleaseName)
 	if err != nil {
@@ -233,26 +270,26 @@ func (m *Module) runHelmInstall() error {
 	return nil
 }
 
-
+// runHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
+// sets KubernetesSnapshots and runs the hook.
 func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]string) error {
-	moduleHooksAfterHelm, err := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
-	if err != nil {
-		return err
-	}
+	moduleHooks := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
 
-	for _, moduleHookName := range moduleHooksAfterHelm {
-		moduleHook, err := m.moduleManager.GetModuleHook(moduleHookName)
-		if err != nil {
-			return err
+	for _, moduleHookName := range moduleHooks {
+		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
+
+		bc := BindingContext{
+			Binding: ContextBindingType[binding],
 		}
+		// Update kubernetes snapshots just before execute a hook
+		if binding == BeforeHelm || binding == AfterHelm || binding == AfterDeleteHelm {
+			bc.Snapshots = moduleHook.HookController.KubernetesSnapshots()
+			bc.Metadata.IncludeAllSnapshots = true
+		}
+		bc.Metadata.BindingType = binding
 
-		err = moduleHook.Run(binding, []BindingContext{
-			{
-				BindingContext: hook2.BindingContext{
-					Binding: ContextBindingType[binding],
-				},
-			},
-		}, logLabels)
+
+		err := moduleHook.Run(binding, []BindingContext{bc}, logLabels)
 		if err != nil {
 			return err
 		}
@@ -260,6 +297,50 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 
 	return nil
 }
+
+// runHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
+// sets KubernetesSnapshots and runs the hook. If values are changed after hooks execution, return true.
+func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels map[string]string) (bool, error) {
+	moduleHooks := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
+
+	valuesChecksum, err := utils.ValuesChecksum(m.values())
+	if err != nil {
+		return false, err
+	}
+
+	for _, moduleHookName := range moduleHooks {
+		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
+
+		bc := BindingContext{
+			Binding: ContextBindingType[binding],
+		}
+		// Update kubernetes snapshots just before execute a hook
+		if binding == BeforeHelm || binding == AfterHelm || binding == AfterDeleteHelm {
+			bc.Snapshots = moduleHook.HookController.KubernetesSnapshots()
+			bc.Metadata.IncludeAllSnapshots = true
+		}
+		bc.Metadata.BindingType = binding
+
+
+		err := moduleHook.Run(binding, []BindingContext{bc}, logLabels)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	newValuesChecksum, err := utils.ValuesChecksum(m.values())
+	if err != nil {
+		return false, err
+	}
+
+	if newValuesChecksum != valuesChecksum {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+
 
 func (m *Module) prepareConfigValuesYamlFile() (string, error) {
 	values := m.configValues()
@@ -276,11 +357,12 @@ func (m *Module) prepareConfigValuesYamlFile() (string, error) {
 	return path, nil
 }
 
+// CONFIG_VALUES_PATH
 func (m *Module) prepareConfigValuesJsonFile() (string, error) {
 	values := m.configValues()
 
 	data := utils.MustDump(utils.DumpValuesJson(values))
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-config-values.json", m.SafeName()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-config-values-%s.json", m.SafeName(), uuid.NewV4().String()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -291,11 +373,12 @@ func (m *Module) prepareConfigValuesJsonFile() (string, error) {
 	return path, nil
 }
 
+// values.yaml for helm
 func (m *Module) prepareValuesYamlFile() (string, error) {
 	values := m.values()
 
 	data := utils.MustDump(utils.DumpValuesYaml(values))
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.yaml", m.SafeName()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.yaml-%s", m.SafeName(), uuid.NewV4().String()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -306,9 +389,10 @@ func (m *Module) prepareValuesYamlFile() (string, error) {
 	return path, nil
 }
 
+// VALUES_PATH
 func (m *Module) prepareValuesJsonFileWith(values utils.Values) (string, error) {
 	data := utils.MustDump(utils.DumpValuesJson(values))
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.json", m.SafeName()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values-%s.json", m.SafeName(), uuid.NewV4().String()))
 	err := dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -455,28 +539,67 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 		logEntry.Debugf("MODULE '%s' is ENABLED. Enabled script is not exist!", m.Name)
 		return true, nil
 	} else if err != nil {
+		logEntry.Errorf("Cannot stat enabled script '%s': %s", enabledScriptPath, err)
 		return false, err
 	}
 
 	if !utils_file.IsFileExecutable(f) {
-		return false, fmt.Errorf("cannot execute non-executable enable script '%s'", enabledScriptPath)
+		logEntry.Errorf("Found non-executable enabled script '%s'", enabledScriptPath)
+		return false, fmt.Errorf("non-executable enable script")
 	}
 
+	// ValuesLock.Lock()
 	configValuesPath, err := m.prepareConfigValuesJsonFile()
 	if err != nil {
+		logEntry.Errorf("Prepare CONFIG_VALUES_PATH file for '%s': %s", enabledScriptPath, err)
 		return false, err
 	}
+	defer func(){
+		if sh_app.DebugKeepTmpFiles == "yes" {
+			return
+		}
+		err := os.Remove(configValuesPath)
+		if err != nil {
+			log.WithField("module", m.Name).
+				Errorf("Remove tmp file '%s': %s", configValuesPath, err)
+		}
+	}()
 
 	valuesPath, err := m.prepareValuesJsonFileForEnabledScript(precedingEnabledModules)
 	if err != nil {
+		logEntry.Errorf("Prepare VALUES_PATH file for '%s': %s", enabledScriptPath, err)
 		return false, err
 	}
+	defer func(){
+		if sh_app.DebugKeepTmpFiles == "yes" {
+			return
+		}
+		err := os.Remove(valuesPath)
+		if err != nil {
+			log.WithField("module", m.Name).
+				Errorf("Remove tmp file '%s': %s", configValuesPath, err)
+		}
+	}()
 
 	enabledResultFilePath, err := m.prepareModuleEnabledResultFile()
 	if err != nil {
+		logEntry.Errorf("Prepare MODULE_ENABLED_RESULT file for '%s': %s", enabledScriptPath, err)
 		return false, err
 	}
+	defer func(){
+		if sh_app.DebugKeepTmpFiles == "yes" {
+			return
+		}
+		err := os.Remove(enabledResultFilePath)
+		if err != nil {
+			log.WithField("module", m.Name).
+				Errorf("Remove tmp file '%s': %s", configValuesPath, err)
+		}
+	}()
+
 	logEntry.Debugf("Execute enabled script '%s', preceding modules: %v", enabledScriptPath, precedingEnabledModules)
+
+	// ValuesLock.UnLock()
 
 	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
@@ -486,13 +609,15 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 
 	cmd := executor.MakeCommand("", enabledScriptPath, []string{}, envs)
 
-	if err := executor.Run(cmd); err != nil {
+	if err := executor.RunAndLogLines(cmd, logLabels); err != nil {
+		logEntry.Errorf("Fail to run enabled script '%s': %s", enabledScriptPath, err)
 		return false, err
 	}
 
 	moduleEnabled, err := m.readModuleEnabledResult(enabledResultFilePath)
 	if err != nil {
-		return false, fmt.Errorf("bad enabled result in file MODULE_ENABLED_RESULT=\"%s\" from enabled script '%s' for module '%s': %s", enabledResultFilePath, enabledScriptPath, m.Name, err)
+		logEntry.Errorf("Read enabled result from '%s': %s", enabledScriptPath, err)
+		return false, fmt.Errorf("bad enabled result")
 	}
 
 	result := "Disabled"
@@ -538,14 +663,14 @@ func SearchModules(modulesDir string) (modules []*Module, err error) {
 
 // RegisterModules load all available modules from modules directory
 // FIXME: Only 000-name modules are loaded, allow non-prefixed modules.
-func (mm *MainModuleManager) RegisterModules() error {
+func (mm *moduleManager) RegisterModules() error {
 	log.Debug("Search and register modules")
 
 	modules, err := SearchModules(mm.ModulesDir)
 	if err != nil {
 		return err
 	}
-	log.Debug("Found %d modules", len(modules))
+	log.Debugf("Found %d modules", len(modules))
 
 	// load global and modules common static values from modules/values.yaml
 	if err := mm.loadCommonStaticValues(); err != nil {
@@ -567,7 +692,7 @@ func (mm *MainModuleManager) RegisterModules() error {
 		mm.allModulesByName[module.Name] = module
 		mm.allModulesNamesInOrder = append(mm.allModulesNamesInOrder, module.Name)
 
-		logEntry.Infof("Registered")
+		logEntry.Infof("Module is registered")
 	}
 
 	return nil
@@ -603,7 +728,7 @@ func (m *Module) loadStaticValues() (err error) {
 	return nil
 }
 
-func (mm *MainModuleManager) loadCommonStaticValues() (error) {
+func (mm *moduleManager) loadCommonStaticValues() (error) {
 	valuesPath := filepath.Join(mm.ModulesDir, "values.yaml")
 	if _, err := os.Stat(valuesPath); os.IsNotExist(err) {
 		log.Debugf("No common static values file: %s", err)

@@ -8,37 +8,43 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	. "github.com/flant/shell-operator/pkg/task"
+	//. "github.com/flant/shell-operator/pkg/hook/task_metadata"
+
+	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 func TestTasksQueue_Length(t *testing.T) {
-	q := NewTasksQueue()
+	q := queue.NewTasksQueue()
 	FillQueue4(q)
 
 	assert.Equalf(t, 4, q.Length(), "queue length problem")
-	q.Pop()
+	q.RemoveFirst()
 	assert.Equalf(t, 3, q.Length(), "queue length problem after Pop")
 
-	newTask := NewTask(ModuleDelete, "prometheus")
-	q.Add(newTask)
+	newTask := NewTask(ModuleDelete).WithMetadata(HookMetadata{HookName: "prometheus"})
+	q.AddLast(newTask)
 	assert.Equalf(t, 4, q.Length(), "queue length problem after Add")
 
-	q.Pop()
+	q.RemoveFirst()
 	assert.Equalf(t, 3, q.Length(), "queue length problem after second Pop")
 
-	newTaskDelay := NewTaskDelay(time.Second)
-	q.Push(newTaskDelay)
+	modHookRun := NewTask(ModuleHookRun).WithMetadata(HookMetadata{HookName: "hook-2"})
+	q.AddFirst(modHookRun)
 	assert.Equalf(t, 4, q.Length(), "queue length problem after Push")
 
-	q.Pop()
-	q.Pop()
+	q.RemoveFirst()
+	q.RemoveFirst()
 	assert.Equalf(t, 2, q.Length(), "queue length problem after double Pop")
-
 }
 
 // Тест многопоточного добавления/удаления
 func TestTasksQueue_MultiThread(t *testing.T) {
-	q := NewTasksQueue()
+	q := queue.NewTasksQueue()
+
 	FillQueue4(q)
+
 	tasksCount := q.Length()
 	queueHandled := make(chan int, 0)
 	queueAdd1 := make(chan int, 0)
@@ -163,7 +169,7 @@ func TestTasksQueue_MultiThread(t *testing.T) {
 }
 
 func TestTasksQueue_FileDumper(t *testing.T) {
-	q := NewTasksQueue()
+	q := queue.NewTasksQueue()
 
 	f, err := ioutil.TempFile("/tmp", "test-task-queue-dumper")
 	if err != nil {

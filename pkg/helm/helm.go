@@ -22,66 +22,72 @@ import (
 
 const HelmPath = "helm"
 
+type HelmClientFactory struct {
+	KubeClient kube.KubernetesClient
+}
+
+var clientFactory *HelmClientFactory
+
+func clientFactoryInstance() *HelmClientFactory {
+	if clientFactory == nil {
+		clientFactory = &HelmClientFactory{}
+	}
+	return clientFactory
+}
+
+func WithKubeClient(client kube.KubernetesClient) {
+	factory := clientFactoryInstance()
+	factory.KubeClient = client
+}
+
 type HelmClient interface {
 	TillerNamespace() string
 	CommandEnv() []string
 	Cmd(args ...string) (string, string, error)
+	InitAndVersion() error
 	DeleteSingleFailedRevision(releaseName string) error
 	DeleteOldFailedRevisions(releaseName string) error
 	LastReleaseStatus(releaseName string) (string, string, error)
 	UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error
+	Render(chart string, valuesPaths []string, setValues []string, namespace string) (string, error)
 	GetReleaseValues(releaseName string) (utils.Values, error)
 	DeleteRelease(releaseName string) error
 	ListReleases(labelSelector map[string]string) ([]string, error)
 	ListReleasesNames(labelSelector map[string]string) ([]string, error)
 	IsReleaseExists(releaseName string) (bool, error)
-	WithLog(entry *log.Entry)
 }
 
 var Client HelmClient
 
-type CliHelm struct {
+type helmClient struct {
+	KubeClient kube.KubernetesClient
 	LogEntry *log.Entry
 }
 
-var _ HelmClient = &CliHelm{}
+var _ HelmClient = &helmClient{}
 
-// InitClient initialize helm client
-func InitClient() error {
-	cliHelm := &CliHelm{}
-
-	stdout, stderr, err := cliHelm.Cmd("init", "--client-only")
-	if err != nil {
-		return fmt.Errorf("helm init: %v\n%v %v", err, stdout, stderr)
+var NewClient = func(logLabels ... map[string]string) HelmClient {
+	logEntry := log.WithField("operator.component", "helm")
+	if len(logLabels) > 0 {
+		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
 	}
 
-	stdout, stderr, err = cliHelm.Cmd("version", "--short")
-	if err != nil {
-		return fmt.Errorf("unable to get helm or tiller version: %v\n%v %v", err, stdout, stderr)
-	}
-	stdout = strings.Join([]string{stdout, stderr}, "\n")
-	stdout = strings.ReplaceAll(stdout, "\n", " ")
-	log.Infof("Helm successfully initialized. Version: %s", stdout)
-
-	return nil
-}
-
-var NewHelmCli = func(logEntry *log.Entry) HelmClient {
-	return &CliHelm{
-		LogEntry: logEntry.WithField("operator.component", "helm"),
+	return &helmClient{
+		LogEntry: logEntry,
+		KubeClient: clientFactoryInstance().KubeClient,
 	}
 }
 
-func (h *CliHelm) WithLog(logEntry *log.Entry) {
-	h.LogEntry = logEntry.WithField("operator.component", "helm")
+func (h *helmClient) WithKubeClient(client kube.KubernetesClient) {
+	h.KubeClient = client
 }
 
-func (h *CliHelm) TillerNamespace() string {
+func (h *helmClient) TillerNamespace() string {
 	//return h.tillerNamespace
 	return app.Namespace
 }
 
-func (h *CliHelm) CommandEnv() []string {
+func (h *helmClient) CommandEnv() []string {
 	res := make([]string, 0)
 	res = append(res, fmt.Sprintf("TILLER_NAMESPACE=%s", app.Namespace))
 	res = append(res, fmt.Sprintf("HELM_HOST=%s", fmt.Sprintf("%s:%d", app.TillerListenAddress, app.TillerListenPort)))
@@ -90,7 +96,7 @@ func (h *CliHelm) CommandEnv() []string {
 
 // Cmd starts Helm with specified arguments.
 // Sets the TILLER_NAMESPACE environment variable before starting, because Addon-operator works with its own Tiller.
-func (h *CliHelm) Cmd(args ...string) (stdout string, stderr string, err error) {
+func (h *helmClient) Cmd(args ...string) (stdout string, stderr string, err error) {
 	cmd := exec.Command(HelmPath, args...)
 	cmd.Env = append(os.Environ(), h.CommandEnv()...)
 
@@ -106,7 +112,25 @@ func (h *CliHelm) Cmd(args ...string) (stdout string, stderr string, err error) 
 	return
 }
 
-func (h *CliHelm) DeleteSingleFailedRevision(releaseName string) (err error) {
+// InitAndVersion runs helm init and helm version commands
+func (h *helmClient) InitAndVersion() error {
+	stdout, stderr, err := h.Cmd("init", "--client-only")
+	if err != nil {
+		return fmt.Errorf("helm init: %v\n%v %v", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = h.Cmd("version", "--short")
+	if err != nil {
+		return fmt.Errorf("unable to get helm or tiller version: %v\n%v %v", err, stdout, stderr)
+	}
+	stdout = strings.Join([]string{stdout, stderr}, "\n")
+	stdout = strings.ReplaceAll(stdout, "\n", " ")
+	log.Infof("Helm successfully initialized. Version: %s", stdout)
+
+	return nil
+}
+
+func (h *helmClient) DeleteSingleFailedRevision(releaseName string) (err error) {
 	revision, status, err := h.LastReleaseStatus(releaseName)
 	if err != nil {
 		if revision == "0" {
@@ -134,7 +158,7 @@ func (h *CliHelm) DeleteSingleFailedRevision(releaseName string) (err error) {
 	return
 }
 
-func (h *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
+func (h *helmClient) DeleteOldFailedRevisions(releaseName string) error {
 	cmNames, err := h.ListReleases(map[string]string{"STATUS": "FAILED", "NAME": releaseName})
 	if err != nil {
 		return err
@@ -166,7 +190,7 @@ func (h *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 		cmName := fmt.Sprintf("%s.v%d", releaseName, revision)
 		h.LogEntry.Infof("helm release '%s': delete old FAILED revision cm/%s", releaseName, cmName)
 
-		err := kube.Kubernetes.CoreV1().
+		err := h.KubeClient.CoreV1().
 			ConfigMaps(app.Namespace).
 			Delete(cmName, &metav1.DeleteOptions{})
 
@@ -183,7 +207,7 @@ func (h *CliHelm) DeleteOldFailedRevisions(releaseName string) error {
 // helm history output:
 // REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
 // 1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
-func (h *CliHelm) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
+func (h *helmClient) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
 	stdout, stderr, err := h.Cmd("history", releaseName, "--max", "1")
 
 	if err != nil {
@@ -207,7 +231,7 @@ func (h *CliHelm) LastReleaseStatus(releaseName string) (revision string, status
 	return
 }
 
-func (h *CliHelm) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
+func (h *helmClient) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
 	args := make([]string, 0)
 	args = append(args, "upgrade")
 	args = append(args, "--install")
@@ -239,7 +263,7 @@ func (h *CliHelm) UpgradeRelease(releaseName string, chart string, valuesPaths [
 	return nil
 }
 
-func (h *CliHelm) GetReleaseValues(releaseName string) (utils.Values, error) {
+func (h *helmClient) GetReleaseValues(releaseName string) (utils.Values, error) {
 	stdout, stderr, err := h.Cmd("get", "values", releaseName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get values of helm release %s: %s\n%s %s", releaseName, err, stdout, stderr)
@@ -253,7 +277,7 @@ func (h *CliHelm) GetReleaseValues(releaseName string) (utils.Values, error) {
 	return values, nil
 }
 
-func (h *CliHelm) DeleteRelease(releaseName string) (err error) {
+func (h *helmClient) DeleteRelease(releaseName string) (err error) {
 	h.LogEntry.Debugf("helm release '%s': execute helm delete --purge", releaseName)
 
 	stdout, stderr, err := h.Cmd("delete", "--purge", releaseName)
@@ -264,7 +288,7 @@ func (h *CliHelm) DeleteRelease(releaseName string) (err error) {
 	return
 }
 
-func (h *CliHelm) IsReleaseExists(releaseName string) (bool, error) {
+func (h *helmClient) IsReleaseExists(releaseName string) (bool, error) {
 	revision, _, err := h.LastReleaseStatus(releaseName)
 	if err != nil && revision == "0" {
 		return false, nil
@@ -278,14 +302,14 @@ func (h *CliHelm) IsReleaseExists(releaseName string) (bool, error) {
 // Returns all known releases as strings — "<release_name>.v<release_number>"
 // Helm looks for ConfigMaps by label 'OWNER=TILLER' and gets release info from the 'release' key.
 // https://github.com/kubernetes/helm/blob/8981575082ea6fc2a670f81fb6ca5b560c4f36a7/pkg/storage/driver/cfgmaps.go#L88
-func (h *CliHelm) ListReleases(labelSelector map[string]string) ([]string, error) {
+func (h *helmClient) ListReleases(labelSelector map[string]string) ([]string, error) {
 	labelsSet := make(kblabels.Set)
 	for k, v := range labelSelector {
 		labelsSet[k] = v
 	}
 	labelsSet["OWNER"] = "TILLER"
 
-	cmList, err := kube.Kubernetes.CoreV1().
+	cmList, err := h.KubeClient.CoreV1().
 		ConfigMaps(app.Namespace).
 		List(metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
@@ -306,7 +330,7 @@ func (h *CliHelm) ListReleases(labelSelector map[string]string) ([]string, error
 }
 
 // ListReleasesNames returns list of release names without suffixes ".v<release_number>"
-func (h *CliHelm) ListReleasesNames(labelSelector map[string]string) ([]string, error) {
+func (h *helmClient) ListReleasesNames(labelSelector map[string]string) ([]string, error) {
 	releases, err := h.ListReleases(labelSelector)
 	if err != nil {
 		return []string{}, err
@@ -329,4 +353,35 @@ func (h *CliHelm) ListReleasesNames(labelSelector map[string]string) ([]string, 
 	}
 
 	return releasesNames, nil
+}
+
+// ListReleasesNames returns list of release names without suffixes ".v<release_number>"
+func (h *helmClient) Render(chart string, valuesPaths []string, setValues []string, namespace string) (string, error) {
+	args := make([]string, 0)
+	args = append(args, "template")
+	args = append(args, chart)
+
+	if namespace != "" {
+		args = append(args, "--namespace")
+		args = append(args, namespace)
+	}
+
+	for _, valuesPath := range valuesPaths {
+		args = append(args, "--values")
+		args = append(args, valuesPath)
+	}
+
+	for _, setValue := range setValues {
+		args = append(args, "--set")
+		args = append(args, setValue)
+	}
+
+	h.LogEntry.Infof("Running helm template for chart '%s' in namespace '%s' ...", chart, namespace)
+	stdout, stderr, err := h.Cmd(args...)
+	if err != nil {
+		return "", fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
+	}
+	h.LogEntry.Infof("Helm template for chart '%s' in namespace '%s' successful:\n%s\n%s", chart, namespace, stdout, stderr)
+
+	return stdout, nil
 }
