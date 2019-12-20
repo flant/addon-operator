@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	// bindings constants and binding configs
+	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
@@ -35,12 +36,13 @@ type ModuleManager interface {
 	WithScheduleManager(schedule_manager.ScheduleManager)
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
 
-	GetModule(name string) (*Module, error)
+	GetModule(name string) *Module
 	GetModuleNamesInOrder() []string
-	GetGlobalHook(name string) (*GlobalHook, error)
-	GetModuleHook(name string) (*ModuleHook, error)
+	GetModuleHookNames(moduleName string) []string
+	GetGlobalHook(name string) *GlobalHook
+	GetModuleHook(name string) *ModuleHook
 	GetGlobalHooksInOrder(bindingType BindingType) []string
-	GetModuleHooksInOrder(moduleName string, bindingType BindingType) ([]string, error)
+	GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string
 
 	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
 	DeleteModule(moduleName string, logLabels map[string]string) error
@@ -603,12 +605,13 @@ func (mm *moduleManager) DiscoverModulesState(logLabels map[string]string) (stat
 }
 
 // TODO replace with Module and ModuleShouldExists
-func (mm *moduleManager) GetModule(name string) (*Module, error) {
+func (mm *moduleManager) GetModule(name string) *Module{
 	module, exist := mm.allModulesByName[name]
 	if exist {
-		return module, nil
+		return module
 	} else {
-		return nil, fmt.Errorf("module '%s' not found", name)
+		log.Errorf("Possible bug!!! GetModule: no module '%s' in ModuleManager indexes", name)
+		return nil
 	}
 }
 
@@ -616,26 +619,28 @@ func (mm *moduleManager) GetModuleNamesInOrder() []string {
 	return mm.enabledModulesInOrder
 }
 
-func (mm *moduleManager) GetGlobalHook(name string) (*GlobalHook, error) {
+func (mm *moduleManager) GetGlobalHook(name string) *GlobalHook {
 	globalHook, exist := mm.globalHooksByName[name]
 	if exist {
-		return globalHook, nil
+		return globalHook
 	} else {
-		return nil, fmt.Errorf("global hook '%s' not found", name)
+		log.Errorf("Possible bug!!! GetGlobalHook: no global hook '%s' in ModuleManager indexes", name)
+		return nil
 	}
 }
 
-func (mm *moduleManager) GetModuleHook(name string) (*ModuleHook, error) {
+func (mm *moduleManager) GetModuleHook(name string) *ModuleHook {
 	for _, bindingHooks := range mm.modulesHooksOrderByName {
 		for _, hooks := range bindingHooks {
 			for _, hook := range hooks {
 				if hook.Name == name {
-					return hook, nil
+					return hook
 				}
 			}
 		}
 	}
-	return nil, fmt.Errorf("module hook '%s' is not found", name)
+	log.Errorf("Possible bug!!! GetModuleHook: no module hook '%s' in ModuleManager indexes", name)
+	return nil
 }
 
 func (mm *moduleManager) GetGlobalHooksInOrder(bindingType BindingType) []string {
@@ -656,19 +661,16 @@ func (mm *moduleManager) GetGlobalHooksInOrder(bindingType BindingType) []string
 	return globalHooksNames
 }
 
-func (mm *moduleManager) GetModuleHooksInOrder(moduleName string, bindingType BindingType) ([]string, error) {
-	if _, err := mm.GetModule(moduleName); err != nil {
-		return nil, err
-	}
+func (mm *moduleManager) GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string {
 
 	moduleHooksByBinding, ok := mm.modulesHooksOrderByName[moduleName]
 	if !ok {
-		return []string{}, nil
+		return []string{}
 	}
 
 	moduleBindingHooks, ok := moduleHooksByBinding[bindingType]
 	if !ok {
-		return []string{}, nil
+		return []string{}
 	}
 
 	sort.Slice(moduleBindingHooks[:], func(i, j int) bool {
@@ -680,15 +682,36 @@ func (mm *moduleManager) GetModuleHooksInOrder(moduleName string, bindingType Bi
 		moduleHooksNames = append(moduleHooksNames, moduleHook.Name)
 	}
 
-	return moduleHooksNames, nil
+	return moduleHooksNames
 }
 
-// TODO: moduleManager.Module(modName).Delete()
-func (mm *moduleManager) DeleteModule(moduleName string, logLabels map[string]string) error {
-	module, err := mm.GetModule(moduleName)
-	if err != nil {
-		return err
+func (mm *moduleManager) GetModuleHookNames(moduleName string) []string {
+	moduleHooksByBinding, ok := mm.modulesHooksOrderByName[moduleName]
+	if !ok {
+		return []string{}
 	}
+
+	moduleHookNamesMap := map[string]bool{}
+	for _, moduleHooks := range moduleHooksByBinding {
+		for _, moduleHook := range moduleHooks {
+			moduleHookNamesMap[moduleHook.Name] = true
+		}
+	}
+
+	var moduleHookNames []string
+	for name := range moduleHookNamesMap {
+		moduleHookNames = append(moduleHookNames, name)
+	}
+
+	return moduleHookNames
+}
+
+// TODO: moduleManager.GetModule(modName).Delete()
+func (mm *moduleManager) DeleteModule(moduleName string, logLabels map[string]string) error {
+	module := mm.GetModule(moduleName)
+
+	// Stop kubernetes informers and remove scheduled functions
+	mm.DisableModuleHooks(moduleName)
 
 	if err := module.Delete(logLabels); err != nil {
 		return err
@@ -702,10 +725,7 @@ func (mm *moduleManager) DeleteModule(moduleName string, logLabels map[string]st
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
 func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
-	module, err := mm.GetModule(moduleName)
-	if err != nil {
-		return err
-	}
+	module := mm.GetModule(moduleName)
 
 	if err := module.Run(onStartup, logLabels, afterStartupCb); err != nil {
 		return err
@@ -715,18 +735,24 @@ func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels 
 }
 
 func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
-	globalHook, err := mm.GetGlobalHook(hookName)
-	if err != nil {
-		return err
-	}
+	globalHook := mm.GetGlobalHook(hookName)
 
 	oldValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
 	if err != nil {
 		return err
 	}
 
-	// TODO SNAPSHOT: Add snapshots here for beforeAll and afterAll
-
+	// Update kubernetes snapshots
+	switch binding {
+	case OnKubernetesEvent:
+		fallthrough
+	case Schedule:
+		fallthrough
+	case BeforeAll:
+		fallthrough
+	case AfterAll:
+		bindingContext = globalHook.HookController.UpdateSnapshots(bindingContext)
+	}
 
 	if err := globalHook.Run(binding, bindingContext, logLabels); err != nil {
 		return err
@@ -748,14 +774,16 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 }
 
 func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
-	moduleHook, err := mm.GetModuleHook(hookName)
-	if err != nil {
-		return err
-	}
+	moduleHook := mm.GetModuleHook(hookName)
 
 	oldValuesChecksum, err := utils.ValuesChecksum(moduleHook.values())
 	if err != nil {
 		return err
+	}
+
+	// Update kubernetes snapshots
+	if binding == OnKubernetesEvent || binding == Schedule {
+		bindingContext = moduleHook.HookController.UpdateSnapshots(bindingContext)
 	}
 
 	if err := moduleHook.Run(binding, bindingContext, logLabels); err != nil {
@@ -814,7 +842,7 @@ func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn
 }
 
 func (mm *moduleManager) HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*GlobalHook, controller.BindingExecutionInfo)) error {
-	gh, _ := mm.GetGlobalHook(hookName)
+	gh := mm.GetGlobalHook(hookName)
 
 	err := gh.HookController.HandleEnableKubernetesBindings(func(info controller.BindingExecutionInfo) {
 		if createTaskFn != nil {
@@ -829,10 +857,10 @@ func (mm *moduleManager) HandleGlobalEnableKubernetesBindings(hookName string, c
 }
 
 func (mm *moduleManager) HandleModuleEnableKubernetesBindings(moduleName string, createTaskFn func(*ModuleHook, controller.BindingExecutionInfo)) error {
-	kubeHooks, _ := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
+	kubeHooks := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
 
 	for _, hookName := range kubeHooks {
-		mh, _ := mm.GetModuleHook(hookName)
+		mh := mm.GetModuleHook(hookName)
 		err := mh.HookController.HandleEnableKubernetesBindings(func(info controller.BindingExecutionInfo) {
 			if createTaskFn != nil {
 				createTaskFn(mh, info)
@@ -848,16 +876,16 @@ func (mm *moduleManager) HandleModuleEnableKubernetesBindings(moduleName string,
 }
 
 func (mm *moduleManager) StartModuleHooks(moduleName string) {
-	kubeHooks, _ := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
+	kubeHooks := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
 
 	for _, hookName := range kubeHooks {
-		mh, _ := mm.GetModuleHook(hookName)
+		mh := mm.GetModuleHook(hookName)
 		mh.HookController.StartMonitors()
 	}
 
-	schHooks, _ := mm.GetModuleHooksInOrder(moduleName, Schedule)
+	schHooks := mm.GetModuleHooksInOrder(moduleName, Schedule)
 	for _, hookName := range schHooks {
-		mh, _ := mm.GetModuleHook(hookName)
+		mh := mm.GetModuleHook(hookName)
 		mh.HookController.EnableScheduleBindings()
 	}
 
@@ -865,16 +893,16 @@ func (mm *moduleManager) StartModuleHooks(moduleName string) {
 }
 
 func (mm *moduleManager) DisableModuleHooks(moduleName string) {
-	kubeHooks, _ := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
+	kubeHooks := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
 
 	for _, hookName := range kubeHooks {
-		mh, _ := mm.GetModuleHook(hookName)
+		mh := mm.GetModuleHook(hookName)
 		mh.HookController.StopMonitors()
 	}
 
-	schHooks, _ := mm.GetModuleHooksInOrder(moduleName, Schedule)
+	schHooks := mm.GetModuleHooksInOrder(moduleName, Schedule)
 	for _, hookName := range schHooks {
-		mh, _ := mm.GetModuleHook(hookName)
+		mh := mm.GetModuleHook(hookName)
 		mh.HookController.DisableScheduleBindings()
 	}
 
@@ -917,17 +945,17 @@ func (mm *moduleManager) LoopByBinding(binding BindingType, fn func(gh *GlobalHo
 	globalHooks := mm.GetGlobalHooksInOrder(binding)
 
 	for _, hookName := range globalHooks {
-		gh, _ := mm.GetGlobalHook(hookName)
+		gh := mm.GetGlobalHook(hookName)
 		fn(gh, nil, nil)
 	}
 
 	modules := mm.enabledModulesInOrder
 
 	for _, moduleName := range modules {
-		m, _ := mm.GetModule(moduleName)
-		moduleHooks, _ := mm.GetModuleHooksInOrder(moduleName, binding)
+		m := mm.GetModule(moduleName)
+		moduleHooks := mm.GetModuleHooksInOrder(moduleName, binding)
 		for _, hookName := range moduleHooks {
-			mh, _ := mm.GetModuleHook(hookName)
+			mh := mm.GetModuleHook(hookName)
 
 			fn(nil, m, mh)
 		}

@@ -288,7 +288,7 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			module = nil
 			err = nil
-			module, err = mm.GetModule(test.moduleName)
+			module = mm.GetModule(test.moduleName)
 			test.testFn()
 		})
 	}
@@ -594,10 +594,7 @@ func Test_MainModuleManager_RunModule(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	module, err := mm.GetModule(moduleName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	module := mm.GetModule(moduleName)
 
 	if !reflect.DeepEqual(expectedModuleValues, module.values()) {
 		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.values())
@@ -642,10 +639,7 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	module, err := mm.GetModule(moduleName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	module := mm.GetModule(moduleName)
 
 	if !reflect.DeepEqual(expectedModuleValues, module.values()) {
 		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.values())
@@ -779,10 +773,7 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			module, err := mm.GetModule(expectation.moduleName)
-			if err != nil {
-				t.Fatal(err)
-			}
+			module := mm.GetModule(expectation.moduleName)
 
 			if !reflect.DeepEqual(expectation.expectedModuleConfigValues, module.configValues()) {
 				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedModuleConfigValues, module.configValues())

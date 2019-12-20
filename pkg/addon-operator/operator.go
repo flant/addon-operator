@@ -389,7 +389,7 @@ func TasksRunner() {
 				taskLogEntry.Infof("Run global hook")
 				err := ModuleManager.RunGlobalHook(t.GetName(), t.GetBinding(), t.GetBindingContext(), t.GetLogLabels())
 				if err != nil {
-					globalHook, _ := ModuleManager.GetGlobalHook(t.GetName())
+					globalHook := ModuleManager.GetGlobalHook(t.GetName())
 					hookLabel := path.Base(globalHook.Path)
 
 					if t.GetAllowFailure() {
@@ -422,7 +422,7 @@ func TasksRunner() {
 				})
 
 				if err != nil {
-					globalHook, _ := ModuleManager.GetGlobalHook(t.GetName())
+					globalHook := ModuleManager.GetGlobalHook(t.GetName())
 					hookLabel := path.Base(globalHook.Path)
 
 					MetricsStorage.SendCounterMetric(PrefixMetric("global_hook_errors"), 1.0, map[string]string{"hook": hookLabel})
@@ -441,7 +441,7 @@ func TasksRunner() {
 					for _, hookRunTask := range hookRunTasks {
 						TasksQueue.Push(hookRunTask)
 					}
-					gh, _ := ModuleManager.GetGlobalHook(t.GetName())
+					gh := ModuleManager.GetGlobalHook(t.GetName())
 					gh.HookController.StartMonitors()
 					gh.HookController.EnableScheduleBindings()
 				}
@@ -485,7 +485,7 @@ func TasksRunner() {
 						hookLogEntry.Info("Run module hook with type Sychronization")
 						err := ModuleManager.RunModuleHook(t.GetName(), t.GetBinding(), t.GetBindingContext(), t.GetLogLabels())
 						if err != nil {
-							moduleHook, _ := ModuleManager.GetModuleHook(t.GetName())
+							moduleHook := ModuleManager.GetModuleHook(t.GetName())
 							hookLabel := path.Base(moduleHook.Path)
 							moduleLabel := moduleHook.Module.Name
 							MetricsStorage.SendCounterMetric(PrefixMetric("module_hook_errors"), 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
@@ -520,9 +520,10 @@ func TasksRunner() {
 				}
 			case task.ModuleHookRun:
 				taskLogEntry.Info("Run module hook")
+
 				err := ModuleManager.RunModuleHook(t.GetName(), t.GetBinding(), t.GetBindingContext(), t.GetLogLabels())
 				if err != nil {
-					moduleHook, _ := ModuleManager.GetModuleHook(t.GetName())
+					moduleHook := ModuleManager.GetModuleHook(t.GetName())
 					hookLabel := path.Base(moduleHook.Path)
 					moduleLabel := moduleHook.Module.Name
 
@@ -698,7 +699,7 @@ func RunDiscoverModulesState(discoverTask task.Task, logLabels map[string]string
 		// Enable module hooks on startup to run afterHelmDelete hooks
 		if discoverTask.GetOnStartupHooks() {
 			// error can be ignored, DiscoverModulesState should return existed modules
-			disabledModule, _ := ModuleManager.GetModule(moduleName)
+			disabledModule := ModuleManager.GetModule(moduleName)
 			if err = ModuleManager.RegisterModuleHooks(disabledModule, modLogLabels); err != nil {
 				return err
 			}

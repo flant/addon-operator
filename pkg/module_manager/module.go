@@ -236,24 +236,23 @@ func (m *Module) runHelmInstall() error {
 	return nil
 }
 
-// FIXME rename moduleHooksAfterHelm
-// TODO SNAPSHOTS: add snapshots to binding context here
+// runHooksByBinding gets all hooks for binding and for each hook it creates a BindingContext,
+// sets KubernetesSnapshots and runs the hook.
 func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]string) error {
-	moduleHooksAfterHelm, err := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
-	if err != nil {
-		return err
-	}
+	moduleHooks := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
 
-	for _, moduleHookName := range moduleHooksAfterHelm {
-		moduleHook, err := m.moduleManager.GetModuleHook(moduleHookName)
-		if err != nil {
-			return err
+	for _, moduleHookName := range moduleHooks {
+		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
+
+		bindingContext := BindingContext{
+			Binding: ContextBindingType[binding],
 		}
 
-		err = moduleHook.Run(binding, []BindingContext{{
-					Binding: ContextBindingType[binding],
-			}},
-			logLabels)
+		if binding == BeforeHelm || binding == AfterHelm {
+			bindingContext.KubernetesSnapshots = moduleHook.HookController.KubernetesSnapshots()
+		}
+
+		err := moduleHook.Run(binding, []BindingContext{bindingContext}, logLabels)
 		if err != nil {
 			return err
 		}
