@@ -5,7 +5,7 @@ go 1.12
 require (
 	github.com/evanphx/json-patch v4.5.0+incompatible
 	github.com/flant/libjq-go v0.0.0-20191126154400-1afb898d97a3 // branch: master
-	github.com/flant/shell-operator v1.0.0-beta.5.0.20191223121820-431cc874966a // branch: feat_kubernetes_binding_mode
+	github.com/flant/shell-operator v1.0.0-beta.5.0.20191223123144-33b2126ef623 // branch: feat_kubernetes_binding_mode
 	github.com/go-openapi/spec v0.19.3
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/otiai10/copy v1.0.1
