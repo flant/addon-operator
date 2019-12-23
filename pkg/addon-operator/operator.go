@@ -644,10 +644,16 @@ func CreateReloadAllTasks(onStartup bool, logLabels map[string]string) {
 		// bc := module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: module_manager.ContextBindingType[module_manager.BeforeAll]}}
 		// bc.KubernetesSnapshots := ModuleManager.GetGlobalHook(hookName).HookController.KubernetesSnapshots()
 
+		bc := BindingContext{
+			Binding: ContextBindingType[BeforeAll],
+		}
+		bc.Metadata.BindingType = BeforeAll
+		bc.Metadata.IncludeAllSnapshots = true
+
 		newTask := task.NewTask(task.GlobalHookRun, hookName).
 			WithBinding(BeforeAll).
 			WithLogLabels(hookLogLabels).
-			AppendBindingContext(BindingContext{Binding: ContextBindingType[BeforeAll]})
+			AppendBindingContext(bc)
 		TasksQueue.Add(newTask)
 	}
 
@@ -726,14 +732,19 @@ func RunDiscoverModulesState(discoverTask task.Task, logLabels map[string]string
 		hookLogLabels["hook"] = hookName
 		hookLogLabels["hook.type"] = "global"
 
-		// TODO SNAPSHOTS add snapshots to binding contexts!
-
 		logEntry.WithFields(utils.LabelsToLogFields(hookLogLabels)).
 			Infof("queue GlobalHookRun task")
+
+		bc := BindingContext{
+			Binding: ContextBindingType[BeforeAll],
+		}
+		bc.Metadata.BindingType = BeforeAll
+		bc.Metadata.IncludeAllSnapshots = true
+
 		newTask := task.NewTask(task.GlobalHookRun, hookName).
 			WithBinding(AfterAll).
 			WithLogLabels(hookLogLabels).
-			AppendBindingContext(BindingContext{Binding: ContextBindingType[AfterAll]})
+			AppendBindingContext(bc)
 		TasksQueue.Add(newTask)
 	}
 

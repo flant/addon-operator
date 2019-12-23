@@ -244,15 +244,18 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 	for _, moduleHookName := range moduleHooks {
 		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
 
-		bindingContext := BindingContext{
+		bc := BindingContext{
 			Binding: ContextBindingType[binding],
 		}
-
-		if binding == BeforeHelm || binding == AfterHelm {
-			bindingContext.KubernetesSnapshots = moduleHook.HookController.KubernetesSnapshots()
+		// Update kubernetes snapshots just before execute a hook
+		if binding == BeforeHelm || binding == AfterHelm || binding == AfterDeleteHelm {
+			bc.Snapshots = moduleHook.HookController.KubernetesSnapshots()
+			bc.Metadata.IncludeAllSnapshots = true
 		}
+		bc.Metadata.BindingType = binding
 
-		err := moduleHook.Run(binding, []BindingContext{bindingContext}, logLabels)
+
+		err := moduleHook.Run(binding, []BindingContext{bc}, logLabels)
 		if err != nil {
 			return err
 		}
@@ -545,7 +548,7 @@ func (mm *moduleManager) RegisterModules() error {
 	if err != nil {
 		return err
 	}
-	log.Debug("Found %d modules", len(modules))
+	log.Debugf("Found %d modules", len(modules))
 
 	// load global and modules common static values from modules/values.yaml
 	if err := mm.loadCommonStaticValues(); err != nil {

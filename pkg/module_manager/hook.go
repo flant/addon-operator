@@ -120,7 +120,7 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 	if err != nil {
 		return err
 	}
-	log.Debug("Found %d global hooks", len(hooks))
+	log.Debugf("Found %d global hooks", len(hooks))
 
 	for _, globalHook := range hooks {
 		logEntry := log.WithField("hook", globalHook.Name).

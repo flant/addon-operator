@@ -742,16 +742,20 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 		return err
 	}
 
-	// Update kubernetes snapshots
-	switch binding {
-	case OnKubernetesEvent:
-		fallthrough
-	case Schedule:
-		fallthrough
-	case BeforeAll:
-		fallthrough
-	case AfterAll:
+	// Update kubernetes snapshots just before execute a hook
+	if binding == OnKubernetesEvent || binding == Schedule {
 		bindingContext = globalHook.HookController.UpdateSnapshots(bindingContext)
+	}
+
+	if binding == BeforeAll || binding == AfterAll {
+		snapshots := globalHook.HookController.KubernetesSnapshots()
+		newBindingContext := []BindingContext{}
+		for _, context := range bindingContext {
+			context.Snapshots = snapshots
+			context.Metadata.IncludeAllSnapshots = true
+			newBindingContext = append(newBindingContext, context)
+		}
+		bindingContext = newBindingContext
 	}
 
 	if err := globalHook.Run(binding, bindingContext, logLabels); err != nil {
@@ -781,7 +785,8 @@ func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bin
 		return err
 	}
 
-	// Update kubernetes snapshots
+	// Update kubernetes snapshots just before execute a hook
+	// Note: BeforeHelm and AfterHelm are run by runHookByBinding
 	if binding == OnKubernetesEvent || binding == Schedule {
 		bindingContext = moduleHook.HookController.UpdateSnapshots(bindingContext)
 	}
