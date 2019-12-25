@@ -413,7 +413,7 @@ func TasksRunner() {
 				hookRunTasks := []task.Task{}
 
 				err := ModuleManager.HandleGlobalEnableKubernetesBindings(t.GetName(), func(hook *module_manager.GlobalHook, info controller.BindingExecutionInfo){
-					newTask := task.NewTask(task.GlobalHookRun, t.GetName()).
+					newTask := task.NewTask(task.GlobalHookRun, hook.GetName()).
 						WithBinding(OnKubernetesEvent).
 						WithBindingContext(info.BindingContext).
 						WithAllowFailure(info.AllowFailure).
@@ -470,7 +470,7 @@ func TasksRunner() {
 					hookRunTasks := []task.Task{}
 
 					err := ModuleManager.HandleModuleEnableKubernetesBindings(t.GetName(), func(hook *module_manager.ModuleHook, info controller.BindingExecutionInfo){
-						newTask := task.NewTask(task.ModuleHookRun, t.GetName()).
+						newTask := task.NewTask(task.ModuleHookRun, hook.GetName()).
 							WithBinding(OnKubernetesEvent).
 							WithBindingContext(info.BindingContext).
 							WithAllowFailure(info.AllowFailure).
