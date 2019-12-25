@@ -1,21 +1,21 @@
 package module_manager
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/go-openapi/spec"
+	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
-	hook_config "github.com/flant/shell-operator/pkg/hook"
+	sh_op_hook "github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
 )
 
 // ModuleHookConfig is a structure with versioned hook configuration
 type ModuleHookConfig struct {
-	hook_config.HookConfig
+	sh_op_hook.HookConfig
 
 	// versioned raw config values
 	ModuleV0 *ModuleHookConfigV0
@@ -118,7 +118,7 @@ func (c *ModuleHookConfig) ConvertAndCheck(data []byte) error {
 	switch c.Version {
 	case "v0":
 		configV0 := &ModuleHookConfigV0{}
-		err := json.Unmarshal(data, configV0)
+		err := yaml.Unmarshal(data, configV0)
 		if err != nil {
 			return fmt.Errorf("unmarshal ModuleHookConfig version 0: %s", err)
 		}
@@ -129,7 +129,7 @@ func (c *ModuleHookConfig) ConvertAndCheck(data []byte) error {
 		}
 	case "v1":
 		configV1 := &ModuleHookConfigV0{}
-		err := json.Unmarshal(data, configV1)
+		err := yaml.Unmarshal(data, configV1)
 		if err != nil {
 			return fmt.Errorf("unmarshal ModuleHookConfig v1: %s", err)
 		}
@@ -181,7 +181,7 @@ func (c *ModuleHookConfig) ConvertAndCheckV1() (err error) {
 }
 
 func (c *ModuleHookConfig) ConvertBeforeHelm(value interface{}) (*BeforeHelmConfig, error) {
-	floatValue, err := hook_config.ConvertFloatForBinding(value, "beforeHelm")
+	floatValue, err := sh_op_hook.ConvertFloatForBinding(value, "beforeHelm")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (c *ModuleHookConfig) ConvertBeforeHelm(value interface{}) (*BeforeHelmConf
 }
 
 func (c *ModuleHookConfig) ConvertAfterHelm(value interface{}) (*AfterHelmConfig, error) {
-	floatValue, err := hook_config.ConvertFloatForBinding(value, "afterHelm")
+	floatValue, err := sh_op_hook.ConvertFloatForBinding(value, "afterHelm")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ func (c *ModuleHookConfig) ConvertAfterHelm(value interface{}) (*AfterHelmConfig
 }
 
 func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDeleteHelmConfig, error) {
-	floatValue, err := hook_config.ConvertFloatForBinding(value, "afterDeleteHelm")
+	floatValue, err := sh_op_hook.ConvertFloatForBinding(value, "afterDeleteHelm")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}

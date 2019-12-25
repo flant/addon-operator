@@ -1,10 +1,10 @@
 package module_manager
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/go-openapi/spec"
+	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -105,7 +105,7 @@ func (c *GlobalHookConfig) ConvertAndCheck(data []byte) error {
 	switch c.Version {
 	case "v0":
 		configV0 := &GlobalHookConfigV0{}
-		err := json.Unmarshal(data, configV0)
+		err := yaml.Unmarshal(data, configV0)
 		if err != nil {
 			return fmt.Errorf("unmarshal GlobalHookConfig version 0: %s", err)
 		}
@@ -116,7 +116,7 @@ func (c *GlobalHookConfig) ConvertAndCheck(data []byte) error {
 		}
 	case "v1":
 		configV1 := &GlobalHookConfigV0{}
-		err := json.Unmarshal(data, configV1)
+		err := yaml.Unmarshal(data, configV1)
 		if err != nil {
 			return fmt.Errorf("unmarshal GlobalHookConfig v1: %s", err)
 		}

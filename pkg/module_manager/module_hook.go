@@ -8,11 +8,11 @@ import (
 
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	utils_data "github.com/flant/shell-operator/pkg/utils/data"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	utils_data "github.com/flant/addon-operator/pkg/utils/data"
 )
 
 type ModuleHook struct {
@@ -135,7 +135,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		if configValuesPatchResult.ValuesChanged {
 			err := h.moduleManager.kubeConfigManager.SetKubeModuleValues(moduleName, configValuesPatchResult.Values)
 			if err != nil {
-				log.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", utils.ValuesToString(h.moduleManager.kubeModulesConfigValues[moduleName]))
+				log.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.Name, utils.ValuesToString(h.moduleManager.kubeModulesConfigValues[moduleName]))
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.Name, err)
 			}
 

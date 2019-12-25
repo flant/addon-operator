@@ -8,11 +8,11 @@ import (
 
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	utils_data "github.com/flant/shell-operator/pkg/utils/data"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	utils_data "github.com/flant/addon-operator/pkg/utils/data"
 )
 
 type GlobalHook struct {
@@ -126,7 +126,7 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 		if configValuesPatchResult.ValuesChanged {
 			err := h.moduleManager.kubeConfigManager.SetKubeGlobalValues(configValuesPatchResult.Values)
 			if err != nil {
-				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
+				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
 			}
 
