@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/yaml"
 
@@ -477,7 +477,7 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -564,7 +564,7 @@ func Test_MainModuleManager_RunModule(t *testing.T) {
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
 
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return hc
 	}
 
@@ -611,7 +611,7 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
 
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return hc
 	}
 
@@ -653,7 +653,7 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 	// TODO hooks not found
 	t.SkipNow()
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -961,7 +961,7 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -998,7 +998,7 @@ func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
 }
 
 func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -1172,7 +1172,7 @@ func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 			modulesState = nil
 			err = nil
 
-			helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+			helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 				return &helm.MockHelmClient{
 					ReleaseNames: test.helmReleases,
 				}

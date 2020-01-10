@@ -5,14 +5,14 @@ import (
 	"os"
 
 	. "github.com/flant/libjq-go"
-	"gopkg.in/alecthomas/kingpin.v2"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/alecthomas/kingpin.v2"
 
-	shell_operator_app "github.com/flant/shell-operator/pkg/app"
+	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
-	operator "github.com/flant/addon-operator/pkg/addon-operator"
+	"github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
 )
 
@@ -21,7 +21,6 @@ func main() {
 
 	// global defaults
 	app.SetupGlobalSettings(kpApp)
-	shell_operator_app.SetupGlobalSettings(kpApp)
 
 	// print version
 	kpApp.Command("version", "Show version.").Action(func(c *kingpin.ParseContext) error {
@@ -33,8 +32,8 @@ func main() {
 	kpApp.Command("start", "Start events processing.").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			shell_operator_app.SetupLogging()
-			log.Infof("%s %s, shell-operator %s", app.AppName, app.Version, shell_operator_app.Version)
+			sh_app.SetupLogging()
+			log.Infof("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
 
 			// Be a good parent - clean up after the child processes
 			// in case if addon-operator is a PID 1 process.
@@ -43,10 +42,16 @@ func main() {
 			jqDone := make(chan struct{})
 			go JqCallLoop(jqDone)
 
-			operator.Start()
+			operator := addon_operator.DefaultOperator()
+			err := addon_operator.InitAndStart(operator)
+			if err != nil {
+				os.Exit(1)
+			}
 
 			// Block action by waiting signals from OS.
-			utils_signal.WaitForProcessInterruption()
+			utils_signal.WaitForProcessInterruption(func() {
+				operator.Stop()
+			})
 
 			return nil
 		})

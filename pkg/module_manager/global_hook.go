@@ -3,6 +3,7 @@ package module_manager
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -41,9 +42,16 @@ func (g *GlobalHook) WithConfig(configOutput []byte) (err error) {
 	return nil
 }
 
-// TODO SNAPSHOTS: Add description about beforeAll, afterAll
 func (gh *GlobalHook) GetConfigDescription() string {
-	return gh.Hook.GetConfigDescription()
+	msgs := []string{}
+	if gh.Config.BeforeAll != nil {
+		msgs = append(msgs, fmt.Sprintf("beforeAll:%d", int64(gh.Config.BeforeAll.Order)))
+	}
+	if gh.Config.AfterAll != nil {
+		msgs = append(msgs, fmt.Sprintf("afterAll:%d", int64(gh.Config.AfterAll.Order)))
+	}
+	msgs = append(msgs, gh.Hook.GetConfigDescription())
+	return strings.Join(msgs, ", ")
 }
 
 func (g *GlobalHook) Order(binding BindingType) float64 {

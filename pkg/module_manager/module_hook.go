@@ -3,13 +3,13 @@ package module_manager
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
+	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-
-	. "github.com/flant/addon-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
 	utils_data "github.com/flant/addon-operator/pkg/utils/data"
@@ -46,9 +46,19 @@ func (m *ModuleHook) WithConfig(configOutput []byte) (err error) {
 	return nil
 }
 
-// TODO SNAPSHOTS: Add description about BeforeHelm, AfterHelm, AfterDeleteHelm
 func (m *ModuleHook) GetConfigDescription() string {
-	return m.Hook.GetConfigDescription()
+	msgs := []string{}
+	if m.Config.BeforeHelm != nil {
+		msgs = append(msgs, fmt.Sprintf("beforeHelm:%d", int64(m.Config.BeforeHelm.Order)))
+	}
+	if m.Config.AfterHelm != nil {
+		msgs = append(msgs, fmt.Sprintf("afterHelm:%d", int64(m.Config.AfterHelm.Order)))
+	}
+	if m.Config.AfterDeleteHelm != nil {
+		msgs = append(msgs, fmt.Sprintf("afterDeleteHelm:%d", int64(m.Config.AfterDeleteHelm.Order)))
+	}
+	msgs = append(msgs, m.Hook.GetConfigDescription())
+	return strings.Join(msgs, ", ")
 }
 
 func (m *ModuleHook) Order(binding BindingType) float64 {

@@ -52,7 +52,7 @@ func InitTillerProcess(options TillerOptions) error {
 	// Wait for success of "helm version"
 	helmCounter := 0
 	for {
-		cliHelm := &CliHelm{}
+		cliHelm := &helmClient{}
 		stdout, stderr, err := cliHelm.Cmd("version")
 
 		if err != nil {

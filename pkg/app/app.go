@@ -3,6 +3,8 @@ package app
 import (
 	"strconv"
 
+	sh_app "github.com/flant/shell-operator/pkg/app"
+
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -29,7 +31,7 @@ var TasksQueueDumpFilePath = "/tmp/addon-operator-tasks-queue"
 
 var GlobalHooksDir = "global-hooks"
 var ModulesDir = "modules"
-var TmpDir = "/tmp/addon-operator"
+var DefaultTempDir = "/tmp/addon-operator"
 
 // SetupGlobalSettings init global flags with default values
 func SetupGlobalSettings(kpApp *kingpin.Application) {
@@ -65,4 +67,7 @@ func SetupGlobalSettings(kpApp *kingpin.Application) {
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
 
+	sh_app.TempDir = DefaultTempDir
+	// FIXME remove excess flags and change SHELL_OPERATOR_* environment variables.
+	sh_app.SetupGlobalSettings(kpApp)
 }

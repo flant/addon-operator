@@ -147,7 +147,7 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		}
 
 		hookCtrl := controller.NewHookController()
-		hookCtrl.InitKubernetesBindings(globalHook.Config.OnKubernetesEvents, mm.kubeEventsManager)
+		hookCtrl.InitKubernetesBindings(globalHook.Hook.Config.OnKubernetesEvents, mm.kubeEventsManager)
 		hookCtrl.InitScheduleBindings(globalHook.Config.Schedules, mm.scheduleManager)
 
 		globalHook.WithHookController(hookCtrl)
@@ -159,7 +159,7 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		}
 		mm.globalHooksByName[globalHook.Name] = globalHook
 
-		logEntry.Infof("Global Hook is registered with config: %s", globalHook.GetConfigDescription())
+		logEntry.Infof("Global hook successfully run with --config. Register with bindings: %s", globalHook.GetConfigDescription())
 	}
 
 	return nil
@@ -221,7 +221,7 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 			mm.modulesHooksOrderByName[module.Name][binding] = append(mm.modulesHooksOrderByName[module.Name][binding], moduleHook)
 		}
 
-		hookLogEntry.Infof("Module Hook is registered with config: %s", moduleHook.GetConfigDescription())
+		hookLogEntry.Infof("Module hook successfully run with --config. Register with bindings: %s", moduleHook.GetConfigDescription())
 	}
 
 	return nil

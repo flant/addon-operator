@@ -87,16 +87,19 @@ func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb
 // Delete removes helm release if it exists and runs afterDeleteHelm hooks.
 // It is a handler for MODULE_DELETE task.
 func (m *Module) Delete(logLabels map[string]string) error {
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).
-		WithField("module", m.Name).
-		WithField("phase", "delete")
+	deleteLogLabels := utils.MergeLabels(logLabels,
+		map[string]string{
+			"module": m.Name,
+			"phase": "delete",
+		})
+	logEntry := log.WithFields(utils.LabelsToLogFields(deleteLogLabels))
 
 	// Если есть chart, но нет релиза — warning
 	// если нет чарта — молча перейти к хукам
 	// если есть и chart и релиз — удалить
 	chartExists, _ := m.checkHelmChart()
 	if chartExists {
-		releaseExists, err := helm.NewHelmCli(logEntry).IsReleaseExists(m.generateHelmReleaseName())
+		releaseExists, err := helm.NewClient(deleteLogLabels).IsReleaseExists(m.generateHelmReleaseName())
 		if !releaseExists {
 			if err != nil {
 				logEntry.Warnf("Cannot find helm release '%s' for module '%s'. Helm error: %s", m.generateHelmReleaseName(), m.Name, err)
@@ -105,7 +108,7 @@ func (m *Module) Delete(logLabels map[string]string) error {
 			}
 		} else {
 			// Chart and release are existed, so run helm delete command
-			err := helm.NewHelmCli(logEntry).DeleteRelease(m.generateHelmReleaseName())
+			err := helm.NewClient(deleteLogLabels).DeleteRelease(m.generateHelmReleaseName())
 			if err != nil {
 				return err
 			}
@@ -125,13 +128,16 @@ func (m *Module) cleanup() error {
 		}
 	}
 
-	logEntry := log.WithField("module", m.Name).WithField("phase", "run")
+	helmLogLabels := map[string]string{
+		"module": m.Name,
+		"phase": "run",
+	}
 
-	if err := helm.NewHelmCli(logEntry).DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
+	if err := helm.NewClient(helmLogLabels).DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
-	if err := helm.NewHelmCli(logEntry).DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
+	if err := helm.NewClient(helmLogLabels).DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
@@ -139,7 +145,11 @@ func (m *Module) cleanup() error {
 }
 
 func (m *Module) runHelmInstall() error {
-	logEntry := log.WithField("module", m.Name).WithField("phase", "run")
+	installLogLabels := map[string]string{
+		"module": m.Name,
+		"phase": "run",
+	}
+	logEntry := log.WithFields(utils.LabelsToLogFields(installLogLabels))
 
 	chartExists, err := m.checkHelmChart()
 	if !chartExists {
@@ -186,7 +196,7 @@ func (m *Module) runHelmInstall() error {
 
 	doRelease := true
 
-	helmClient := helm.NewHelmCli(logEntry)
+	helmClient := helm.NewClient(installLogLabels)
 
 	isReleaseExists, err := helmClient.IsReleaseExists(helmReleaseName)
 	if err != nil {
@@ -570,7 +580,7 @@ func (mm *moduleManager) RegisterModules() error {
 		mm.allModulesByName[module.Name] = module
 		mm.allModulesNamesInOrder = append(mm.allModulesNamesInOrder, module.Name)
 
-		logEntry.Infof("Registered")
+		logEntry.Infof("Module is registered")
 	}
 
 	return nil

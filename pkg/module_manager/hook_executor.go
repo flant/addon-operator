@@ -57,7 +57,7 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
-	envs = append(envs, helm.NewHelmCli(log.NewEntry(log.StandardLogger())).CommandEnv()...)
+	envs = append(envs, helm.NewClient().CommandEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{}, envs)
 
@@ -82,7 +82,7 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 func (e *HookExecutor) Config() (configOutput []byte, err error) {
 	envs := []string{}
 	envs = append(envs, os.Environ()...)
-	envs = append(envs, helm.NewHelmCli(log.NewEntry(log.StandardLogger())).CommandEnv()...)
+	envs = append(envs, helm.NewClient().CommandEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{"--config"}, envs)
 

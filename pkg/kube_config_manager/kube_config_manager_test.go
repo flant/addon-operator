@@ -3,11 +3,9 @@ package kube_config_manager
 import (
 	"testing"
 
+	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
-	"k8s.io/client-go/kubernetes/fake"
-
-	"github.com/flant/shell-operator/pkg/kube"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,13 +38,14 @@ kubeLegoEnabled: "false"
 	cmData := map[string]string{}
 	_ = yaml.Unmarshal([]byte(cmDataText), cmData)
 
-	kube.Kubernetes = fake.NewSimpleClientset()
-	_, _ = kube.Kubernetes.CoreV1().ConfigMaps("default").Create(&v1.ConfigMap{
+	kubeClient := kube.NewFakeKubernetesClient()
+	_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(&v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "addon-operator"},
 		Data: cmData,
 	})
 
 	kcm := NewKubeConfigManager()
+	kcm.WithKubeClient(kubeClient)
 	kcm.WithNamespace("default")
 	kcm.WithConfigMapName("addon-operator")
 
@@ -123,9 +122,10 @@ kubeLegoEnabled: "false"
 
 
 func Test_SaveValuesToConfigMap(t *testing.T) {
-	kube.Kubernetes = fake.NewSimpleClientset()
+	kubeClient := kube.NewFakeKubernetesClient()
 
 	kcm := &kubeConfigManager{}
+	kcm.WithKubeClient(kubeClient)
 	kcm.WithNamespace("default")
 	kcm.WithConfigMapName("addon-operator")
 
@@ -244,7 +244,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 			}
 
 			// Check that ConfigMap is created or exists
-			cm, err = kube.Kubernetes.CoreV1().ConfigMaps("default").Get("addon-operator", metav1.GetOptions{})
+			cm, err = kubeClient.CoreV1().ConfigMaps("default").Get("addon-operator", metav1.GetOptions{})
 			if assert.NoError(t, err, "ConfigMap should exist after SetKubeGlobalValues") {
 				assert.NotNil(t, cm, "ConfigMap should not be nil")
 			} else {
@@ -256,3 +256,4 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 	}
 
 }
+
