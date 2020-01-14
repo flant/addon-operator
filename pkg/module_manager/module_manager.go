@@ -414,7 +414,7 @@ func (mm *moduleManager) calculateEnabledModulesByConfig(moduleConfigs kube_conf
 			}
 			log.Debugf("Module %s: static enabled %v, kubeConfig: enabled %v, updated %v",
 				module.Name,
-				*module.StaticConfig.IsEnabled,
+				module.StaticConfig.GetEnabled(),
 				kubeConfig.IsEnabled,
 				kubeConfig.IsUpdated)
 		} else {
@@ -422,7 +422,7 @@ func (mm *moduleManager) calculateEnabledModulesByConfig(moduleConfigs kube_conf
 			if isEnabled {
 				enabled = append(enabled, moduleName)
 			}
-			log.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, *module.StaticConfig.IsEnabled)
+			log.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.GetEnabled())
 		}
 	}
 
