@@ -1,6 +1,8 @@
 package task
 
 import (
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
 
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -33,3 +35,15 @@ func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
 	return
 }
 
+func (hm HookMetadata) GetDescription() string {
+	if hm.ModuleName == "" {
+		// global hook
+		return fmt.Sprintf("%s:%s", string(hm.BindingType), hm.HookName)
+	} else {
+		osh := ""
+		if hm.OnStartupHooks {
+			osh = ":onStartupHooks"
+		}
+		return fmt.Sprintf("%s:%s%s", string(hm.BindingType), hm.HookName, osh)
+	}
+}

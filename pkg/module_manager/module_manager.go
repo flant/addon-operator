@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube"
@@ -81,6 +82,8 @@ type ModulesState struct {
 type moduleManager struct {
 	ctx context.Context
 	cancel context.CancelFunc
+
+	ValuesLock sync.Mutex
 
 	// Directories
 	ModulesDir     string
@@ -190,6 +193,7 @@ type Event struct {
 func NewMainModuleManager() *moduleManager {
 	return &moduleManager{
 		EventCh: make(chan Event),
+		ValuesLock: sync.Mutex{},
 
 		allModulesByName:            make(map[string]*Module),
 		allModulesNamesInOrder:      make([]string, 0),
@@ -761,6 +765,8 @@ func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels 
 func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
 	globalHook := mm.GetGlobalHook(hookName)
 
+	// ValuesLock.Lock()
+	//
 	oldValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
 	if err != nil {
 		return err
@@ -775,10 +781,8 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 
 	if binding == BeforeAll || binding == AfterAll {
 		snapshots := globalHook.HookController.KubernetesSnapshots()
-		log.Debugf("RunGH: %s %s has %d snapshots", hookName, binding, len(snapshots))
 		newBindingContext := []BindingContext{}
 		for _, context := range bindingContext {
-			log.Debugf("RunGH: %s %s add %d snapshots to %s", hookName, binding, len(snapshots), context.Metadata.BindingType)
 			context.Snapshots = snapshots
 			context.Metadata.IncludeAllSnapshots = true
 			newBindingContext = append(newBindingContext, context)
@@ -790,6 +794,7 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 		return err
 	}
 
+	//	ValuesLock.Lock()
 	newValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
 	if err != nil {
 		return err

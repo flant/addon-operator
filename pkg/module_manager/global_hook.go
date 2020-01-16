@@ -54,6 +54,7 @@ func (gh *GlobalHook) GetConfigDescription() string {
 	return strings.Join(msgs, ", ")
 }
 
+// Order return float order number for bindings with order.
 func (g *GlobalHook) Order(binding BindingType) float64 {
 	if g.Config.HasBinding(binding) {
 		switch binding {
@@ -61,6 +62,8 @@ func (g *GlobalHook) Order(binding BindingType) float64 {
 			return g.Config.BeforeAll.Order
 		case AfterAll:
 			return g.Config.AfterAll.Order
+		case OnStartup:
+			return g.Config.OnStartup.Order
 		}
 	}
 	return 0.0
@@ -118,6 +121,9 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)
 	}
+
+	//h.moduleManager.ValuesLock.Lock()
+	//defer h.moduleManager.ValuesLock.Unlock()
 
 	configValuesPatch, has := patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
@@ -286,7 +292,8 @@ func (h *GlobalHook) prepareBindingContextJsonFile(bindingContext []byte) (strin
 		return "", err
 	}
 
-	log.Debugf("Prepared global hook %s binding context:\n%s", h.Name, string(bindingContext))
+	// TODO too much information in binding context with snapshots!
+	//log.Debugf("Prepared global hook %s binding context:\n%s", h.Name, string(bindingContext))
 
 	return path, nil
 }

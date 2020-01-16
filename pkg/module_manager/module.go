@@ -54,6 +54,12 @@ func (m *Module) SafeName() string {
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
 // It is a handler of task MODULE_RUN
 func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
+	logLabels = utils.MergeLabels(logLabels, map[string]string{
+		"module": m.Name,
+		"queue": "main",
+		"phase": "run",
+	})
+
 	if err := m.cleanup(); err != nil {
 		return err
 	}
@@ -72,7 +78,7 @@ func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb
 		return err
 	}
 
-	if err := m.runHelmInstall(); err != nil {
+	if err := m.runHelmInstall(logLabels); err != nil {
 		return err
 	}
 
@@ -90,6 +96,7 @@ func (m *Module) Delete(logLabels map[string]string) error {
 	deleteLogLabels := utils.MergeLabels(logLabels,
 		map[string]string{
 			"module": m.Name,
+			"queue": "main",
 			"phase": "delete",
 		})
 	logEntry := log.WithFields(utils.LabelsToLogFields(deleteLogLabels))
@@ -144,12 +151,8 @@ func (m *Module) cleanup() error {
 	return nil
 }
 
-func (m *Module) runHelmInstall() error {
-	installLogLabels := map[string]string{
-		"module": m.Name,
-		"phase": "run",
-	}
-	logEntry := log.WithFields(utils.LabelsToLogFields(installLogLabels))
+func (m *Module) runHelmInstall(logLabels map[string]string) error {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	chartExists, err := m.checkHelmChart()
 	if !chartExists {
@@ -196,7 +199,7 @@ func (m *Module) runHelmInstall() error {
 
 	doRelease := true
 
-	helmClient := helm.NewClient(installLogLabels)
+	helmClient := helm.NewClient(logLabels)
 
 	isReleaseExists, err := helmClient.IsReleaseExists(helmReleaseName)
 	if err != nil {
@@ -475,6 +478,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 		return false, fmt.Errorf("cannot execute non-executable enable script '%s'", enabledScriptPath)
 	}
 
+	// ValuesLock.Lock()
 	configValuesPath, err := m.prepareConfigValuesJsonFile()
 	if err != nil {
 		return false, err
@@ -490,6 +494,8 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 		return false, err
 	}
 	logEntry.Debugf("Execute enabled script '%s', preceding modules: %v", enabledScriptPath, precedingEnabledModules)
+
+	// ValuesLock.UnLock()
 
 	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)

@@ -1,13 +1,13 @@
 package module_manager
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/yaml"
 
@@ -15,15 +15,13 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
-	"github.com/flant/shell-operator/pkg/kube"
-	utils_file "github.com/flant/shell-operator/pkg/utils/file"
-	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes/fake"
-
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/shell-operator/pkg/kube"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+	"k8s.io/api/core/v1"
 )
 
 
@@ -59,10 +57,12 @@ func initModuleManager(t *testing.T, mm *moduleManager, configPath string) {
 		var cmObj = new(v1.ConfigMap)
 		_ = yaml.Unmarshal(cmDataBytes, &cmObj)
 
-		kube.Kubernetes = fake.NewSimpleClientset()
-		_, _ = kube.Kubernetes.CoreV1().ConfigMaps("default").Create(cmObj)
+		kubeClient := kube.NewFakeKubernetesClient()
+		_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(cmObj)
 
 		KubeConfigManager := kube_config_manager.NewKubeConfigManager()
+		KubeConfigManager.WithKubeClient(kubeClient)
+		KubeConfigManager.WithContext(context.Background())
 		KubeConfigManager.WithNamespace("default")
 		KubeConfigManager.WithConfigMapName("addon-operator")
 		KubeConfigManager.WithValuesChecksumsAnnotation(app.ValuesChecksumsAnnotation)

@@ -61,9 +61,12 @@ func (m *ModuleHook) GetConfigDescription() string {
 	return strings.Join(msgs, ", ")
 }
 
+// Order return float order number for bindings with order.
 func (m *ModuleHook) Order(binding BindingType) float64 {
 	if m.Config.HasBinding(binding) {
 		switch binding {
+		case OnStartup:
+			return m.Config.OnStartup.Order
 		case BeforeHelm:
 			return m.Config.BeforeHelm.Order
 		case AfterHelm:
@@ -119,6 +122,12 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 }
 
 func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
+	logLabels = utils.MergeLabels(logLabels, map[string]string{
+		"hook": h.Name,
+		"hook.type": "module",
+		"binding": string(bindingType),
+	})
+
 	// Convert context for version
 	versionedContextList := ConvertBindingContextList(h.Config.Version, context)
 
@@ -130,6 +139,10 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	}
 
 	moduleName := h.Module.Name
+
+	// ValuesLock.Lock()
+	// defer ValuesLock.UnLock()
+	//h.moduleManager.ValuesLock.Lock()
 
 	configValuesPatch, has := patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil{
@@ -234,7 +247,8 @@ func (h *ModuleHook) prepareBindingContextJsonFile(bindingContext []byte) (strin
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, string(bindingContext))
+	// FIXME too much information because of snapshots
+	//log.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, string(bindingContext))
 
 	return path, nil
 }
