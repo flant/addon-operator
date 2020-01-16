@@ -68,7 +68,10 @@ github.com/flant/shell-operator v1.0.0-beta.5.0.20200110162130-75d0f7425c07/go.m
 github.com/flant/shell-operator v1.0.0-beta.5.0.20200110164619-e0f3412abc4f/go.mod h1:l//F2yW4PBHo669EEpkIhuyTa/PkUr1TJ5ZTl9ASr0s=
 github.com/flant/shell-operator v1.0.0-beta.5.0.20200116113657-bb2f30149b55 h1:y5SRFKfPVb2bXED3LHxkXHqJQ5pY4EOTADxkGXbFzsQ=
 github.com/flant/shell-operator v1.0.0-beta.5.0.20200116113657-bb2f30149b55/go.mod h1:syafiwIeRpxLhccoTUnkZ2GfBvAtKwsogTntkFqXTlc=
+github.com/flant/shell-operator v1.0.0-beta.5.0.20200116174356-b039bfa09f49 h1:gxnIPK9IjkQYo0BQlglr3Wj2kCBrnakD4P/bLqNwkns=
 github.com/flant/shell-operator v1.0.0-beta.5.0.20200116174356-b039bfa09f49/go.mod h1:syafiwIeRpxLhccoTUnkZ2GfBvAtKwsogTntkFqXTlc=
+github.com/flant/shell-operator v1.0.0-beta.5.0.20200116180311-86c4055da42a h1:CArHxJYd9gFaLOng8t2HrMMiBjj/guEXEqLNQi8VtM0=
+github.com/flant/shell-operator v1.0.0-beta.5.0.20200116180311-86c4055da42a/go.mod h1:syafiwIeRpxLhccoTUnkZ2GfBvAtKwsogTntkFqXTlc=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/globalsign/mgo v0.0.0-20180905125535-1ca0a4f7cbcb/go.mod h1:xkRDCp4j0OGD1HRkm4kmhM+pmpv3AKq5SU7GMg4oO/Q=
