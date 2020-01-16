@@ -625,7 +625,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 	case task.DiscoverModulesState:
 		logEntry.Info("Run DiscoverModules")
-		err := op.RunDiscoverModulesState(t, t.GetLogLabels())
+		tasks, err := op.RunDiscoverModulesState(t, t.GetLogLabels())
 		if err != nil {
 			op.MetricStorage.SendCounterMetric(PrefixMetric("modules_discover_errors"), 1.0, map[string]string{})
 			t.IncrementFailureCount()
@@ -634,6 +634,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		} else {
 			logEntry.Infof("DiscoverModulesState success")
 			res.Status = "Success"
+			res.AfterTasks = tasks
 		}
 
 	case task.ModuleRun:
@@ -765,12 +766,14 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 }
 
 
-func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logLabels map[string]string) error {
+func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logLabels map[string]string) ([]sh_task.Task, error) {
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	modulesState, err := op.ModuleManager.DiscoverModulesState(logLabels)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	var newTasks []sh_task.Task
 
 	hm := task.HookMetadataAccessor(discoverTask)
 
@@ -799,7 +802,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 			WithLogLabels(moduleLogLabels)
 
 		moduleLogEntry.Infof("queue ModuleRun task for %s", moduleName)
-		op.TaskQueues.GetMain().AddLast(newTask)
+		newTasks = append(newTasks, newTask)
 	}
 
 	// queue ModuleDelete tasks for disabled modules
@@ -813,7 +816,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 			// error can be ignored, DiscoverModulesState should return existed modules
 			disabledModule := op.ModuleManager.GetModule(moduleName)
 			if err = op.ModuleManager.RegisterModuleHooks(disabledModule, modLogLabels); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		moduleLogEntry.Infof("queue ModuleDelete task for %s", moduleName)
@@ -822,7 +825,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 				ModuleName: moduleName,
 			}).
 			WithLogLabels(modLogLabels)
-		op.TaskQueues.GetMain().AddLast(newTask)
+		newTasks = append(newTasks, newTask)
 	}
 
 	// queue ModulePurge tasks for unknown modules
@@ -835,16 +838,18 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 				ModuleName: moduleName,
 			}).
 			WithLogLabels(logLabels)
-		op.TaskQueues.GetMain().AddLast(newTask)
+		newTasks = append(newTasks, newTask)
 	}
 
 	// Queue afterAll global hooks
 	afterAllHooks := op.ModuleManager.GetGlobalHooksInOrder(AfterAll)
 	for _, hookName := range afterAllHooks {
-		hookLogLabels := utils.MergeLabels(logLabels)
-		hookLogLabels["hook"] = hookName
-		hookLogLabels["hook.type"] = "global"
-		hookLogLabels["queue"] = "main"
+		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
+			"hook": hookName,
+			"hook.type": "global",
+			"queue": "main",
+			"binding": string(AfterAll),
+		})
 
 		logEntry.WithFields(utils.LabelsToLogFields(hookLogLabels)).
 			Infof("queue GlobalHookRun task")
@@ -862,7 +867,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 				BindingType: AfterAll,
 				BindingContext: []BindingContext{afterAllBc},
 			})
-		op.TaskQueues.GetMain().AddLast(newTask)
+		newTasks = append(newTasks, newTask)
 	}
 
 	// TODO queues should be cleaned from hook run tasks of deleted module!
@@ -871,7 +876,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 		op.ModuleManager.DisableModuleHooks(moduleName)
 	}
 
-	return nil
+	return newTasks, nil
 }
 
 
@@ -918,19 +923,7 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	})
 
 	http.HandleFunc("/queue", func(writer http.ResponseWriter, request *http.Request) {
-		out := strings.Builder{}
-
-		out.WriteString(dump.TaskQueueToReader(op.TaskQueues.GetMain()))
-
-		op.TaskQueues.Iterate(func(queue *queue.TaskQueue) {
-			if queue.Name == "main" {
-				return
-			}
-			out.WriteString("\n\n==========\n")
-			out.WriteString(dump.TaskQueueToReader(queue))
-		})
-
-		_, _ = io.Copy(writer, strings.NewReader(out.String()))
+		_, _ = io.Copy(writer, strings.NewReader(dump.TaskQueueSetToText(op.TaskQueues)))
 	})
 
 }

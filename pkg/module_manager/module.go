@@ -249,7 +249,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 	return nil
 }
 
-// runHooksByBinding gets all hooks for binding and for each hook it creates a BindingContext,
+// runHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
 // sets KubernetesSnapshots and runs the hook.
 func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]string) error {
 	moduleHooks := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
