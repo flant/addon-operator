@@ -650,7 +650,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			op.InitAndStartHookQueues()
 		}
 
-		err := op.ModuleManager.RunModule(hm.ModuleName, hm.OnStartupHooks, t.GetLogLabels(), func() error {
+		valuesChanged, err := op.ModuleManager.RunModule(hm.ModuleName, hm.OnStartupHooks, t.GetLogLabels(), func() error {
 			// EnableKubernetesBindings and StartInformers for all kubernetes bindings
 			// after running all OnStartup hooks.
 			hookRunTasks := []sh_task.Task{}
@@ -701,6 +701,16 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		} else {
 			logEntry.Infof("ModuleRun success")
 			res.Status = "Success"
+			if valuesChanged {
+				// One of afterHelm hooks changes values, run ModuleRun again.
+				// copy task and reset RunOnStartupHooks if needed
+				hm.OnStartupHooks = false
+				newTask := sh_task.NewTask(task.ModuleRun).
+					WithMetadata(hm).
+					WithLogLabels(t.GetLogLabels()).
+					WithQueueName(t.GetQueueName())
+				res.AfterTasks = []sh_task.Task{newTask}
+			}
 		}
 	case task.ModuleDelete:
 		logEntry.Info("Delete module")

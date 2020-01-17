@@ -50,7 +50,7 @@ type ModuleManager interface {
 
 	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
 	DeleteModule(moduleName string, logLabels map[string]string) error
-	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error
+	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error)
 	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
 	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
 	Retry()
@@ -752,14 +752,11 @@ func (mm *moduleManager) DeleteModule(moduleName string, logLabels map[string]st
 }
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
-func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
+func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error) {
 	module := mm.GetModule(moduleName)
 
-	if err := module.Run(onStartup, logLabels, afterStartupCb); err != nil {
-		return err
-	}
-
-	return nil
+	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
+	return module.Run(onStartup, logLabels, afterStartupCb)
 }
 
 func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {

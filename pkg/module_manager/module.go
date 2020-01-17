@@ -53,43 +53,42 @@ func (m *Module) SafeName() string {
 
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
 // It is a handler of task MODULE_RUN
-func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb func() error) error {
+func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error) {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"module": m.Name,
 		"queue": "main",
-		"phase": "run",
 	})
 
 	if err := m.cleanup(); err != nil {
-		return err
+		return false, err
 	}
 
 	if onStartup {
 		if err := m.runHooksByBinding(OnStartup, logLabels); err != nil {
-			return err
+			return false, err
 		}
 
 		if err := afterStartupCb(); err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	if err := m.runHooksByBinding(BeforeHelm, logLabels); err != nil {
-		return err
+		return false, err
 	}
 
 	if err := m.runHelmInstall(logLabels); err != nil {
-		return err
+		return false, err
 	}
 
-	if err := m.runHooksByBinding(AfterHelm, logLabels); err != nil {
-		return err
+	valuesChanged, err := m.runHooksByBindingAndCheckValues(AfterHelm, logLabels)
+	if err != nil {
+		return false, err
 	}
-
-	return nil
+	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
+	return valuesChanged, nil
 }
 
-// TODO LOG: add field 'on startup'
 // Delete removes helm release if it exists and runs afterDeleteHelm hooks.
 // It is a handler for MODULE_DELETE task.
 func (m *Module) Delete(logLabels map[string]string) error {
@@ -97,7 +96,6 @@ func (m *Module) Delete(logLabels map[string]string) error {
 		map[string]string{
 			"module": m.Name,
 			"queue": "main",
-			"phase": "delete",
 		})
 	logEntry := log.WithFields(utils.LabelsToLogFields(deleteLogLabels))
 
@@ -122,7 +120,7 @@ func (m *Module) Delete(logLabels map[string]string) error {
 		}
 	}
 
-	return m.runHooksByBinding(AfterDeleteHelm, logLabels)
+	return m.runHooksByBinding(AfterDeleteHelm, deleteLogLabels)
 }
 
 
@@ -137,7 +135,6 @@ func (m *Module) cleanup() error {
 
 	helmLogLabels := map[string]string{
 		"module": m.Name,
-		"phase": "run",
 	}
 
 	if err := helm.NewClient(helmLogLabels).DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
@@ -276,6 +273,59 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 
 	return nil
 }
+
+// runHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
+// sets KubernetesSnapshots and runs the hook. If one hook changes values, return true.
+func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels map[string]string) (bool, error) {
+	moduleHooks := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
+
+	var prevValuesChecksum string
+	var newValuesChecksum string
+	var err error
+
+	for _, moduleHookName := range moduleHooks {
+		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
+
+		if prevValuesChecksum == "" {
+			prevValuesChecksum, err = utils.ValuesChecksum(moduleHook.values())
+			if err != nil {
+				return false, err
+			}
+		} else {
+			prevValuesChecksum = newValuesChecksum
+		}
+
+		bc := BindingContext{
+			Binding: ContextBindingType[binding],
+		}
+		// Update kubernetes snapshots just before execute a hook
+		if binding == BeforeHelm || binding == AfterHelm || binding == AfterDeleteHelm {
+			bc.Snapshots = moduleHook.HookController.KubernetesSnapshots()
+			bc.Metadata.IncludeAllSnapshots = true
+		}
+		bc.Metadata.BindingType = binding
+
+
+		err := moduleHook.Run(binding, []BindingContext{bc}, logLabels)
+		if err != nil {
+			return false, err
+		}
+
+		newValuesChecksum, err = utils.ValuesChecksum(moduleHook.values())
+		if err != nil {
+			return false, err
+		}
+
+		if newValuesChecksum != prevValuesChecksum {
+			return true, err
+		}
+		prevValuesChecksum = newValuesChecksum
+	}
+
+	return false, nil
+}
+
+
 
 func (m *Module) prepareConfigValuesYamlFile() (string, error) {
 	values := m.configValues()
