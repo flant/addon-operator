@@ -42,6 +42,7 @@ RUN apt-get update && \
     rm -f /helm.tgz && \
     helm init --client-only && \
     mkdir /hooks
+ADD frameworks /
 COPY --from=addon-operator /addon-operator/addon-operator /
 WORKDIR /
 ENV MODULES_DIR /modules
