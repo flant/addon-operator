@@ -3,10 +3,12 @@ package module_manager
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/gomega"
 )
 
 func Test_GlobalHook_Config_v0_v1(t *testing.T) {
+	var g = NewWithT(t)
+
 	var err error
 	var config *GlobalHookConfig
 
@@ -19,21 +21,39 @@ func Test_GlobalHook_Config_v0_v1(t *testing.T) {
 		{
 			"load v0 config",
 			"hook_v0",
-			`{"onStartup":10, "schedule":[{"crontab":"*/5 * * * * *"}], "beforeAll":10}`,
+			`{"onStartup":10, "schedule":[{"crontab":"*/5 * * * * *"}], "beforeAll":22, "afterAll":10}`,
 			func() {
-				if !assert.NoError(t, err) {
-					t.FailNow()
-				}
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(config.BeforeAll.Order).To(Equal(22.0))
+				g.Expect(config.AfterAll.Order).To(Equal(10.0))
 			},
 		},
 		{
 			"load v1 config",
 			"hook_v1",
-			`{"configVersion": "v1", "onStartup":10, "kubernetes":[{"kind":"Pod", "watchEvent":["Added"]}], "afterAll":10}`,
+			`{"configVersion": "v1", "onStartup":10, "kubernetes":[{"kind":"Pod", "watchEvent":["Added"]}], "beforeAll":22, "afterAll":10}`,
 			func() {
-				if !assert.NoError(t, err) {
-					t.FailNow()
-				}
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(config.BeforeAll.Order).To(Equal(22.0))
+				g.Expect(config.AfterAll.Order).To(Equal(10.0))
+			},
+		},
+		{
+			"load v1 yaml config",
+			"hook_v1",
+			`
+configVersion: v1
+onStartup: 10
+kubernetes:
+- kind: Pod
+  watchEvent: ["Added"]
+beforeAll: 22
+afterAll: 10
+`,
+			func() {
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(config.BeforeAll.Order).To(Equal(22.0))
+				g.Expect(config.AfterAll.Order).To(Equal(10.0))
 			},
 		},
 	}

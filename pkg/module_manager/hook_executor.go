@@ -7,7 +7,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -15,7 +17,7 @@ import (
 
 type HookExecutor struct {
 	Hook Hook
-	Context interface{}
+	Context BindingContextList
 	ConfigValuesPath string
 	ValuesPath string
 	ContextPath string
@@ -24,7 +26,7 @@ type HookExecutor struct {
 	LogLabels map[string]string
 }
 
-func NewHookExecutor(h Hook, context interface{}) *HookExecutor {
+func NewHookExecutor(h Hook, context BindingContextList) *HookExecutor {
 	return &HookExecutor{
 		Hook: h,
 		Context: context,
@@ -39,10 +41,28 @@ func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
 func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, err error) {
 	patches = make(map[utils.ValuesPatchType]*utils.ValuesPatch)
 
-	tmpFiles, err := e.Hook.PrepareTmpFilesForHookRun(e.Context)
+	bindingContextBytes, err := e.Context.Json()
 	if err != nil {
 		return nil, err
 	}
+
+	tmpFiles, err := e.Hook.PrepareTmpFilesForHookRun(bindingContextBytes)
+	if err != nil {
+		return nil, err
+	}
+	// Remove tmp files after execution
+	defer func() {
+		if sh_app.DebugKeepTmpFiles == "yes" {
+			return
+		}
+		for _, f := range tmpFiles {
+			err := os.Remove(f)
+			if err != nil {
+				log.WithField("hook", e.Hook.GetName()).
+					Errorf("Remove tmp file '%s': %s", f, err)
+			}
+		}
+	}()
 	e.ConfigValuesPatchPath = tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
 	e.ValuesPatchPath = tmpFiles["VALUES_JSON_PATCH_PATH"]
 
@@ -51,7 +71,7 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
-	envs = append(envs, helm.NewHelmCli(log.NewEntry(log.StandardLogger())).CommandEnv()...)
+	envs = append(envs, helm.NewClient().CommandEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{}, envs)
 
@@ -76,7 +96,7 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 func (e *HookExecutor) Config() (configOutput []byte, err error) {
 	envs := []string{}
 	envs = append(envs, os.Environ()...)
-	envs = append(envs, helm.NewHelmCli(log.NewEntry(log.StandardLogger())).CommandEnv()...)
+	envs = append(envs, helm.NewClient().CommandEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{"--config"}, envs)
 

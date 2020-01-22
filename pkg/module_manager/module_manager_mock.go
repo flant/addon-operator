@@ -1,6 +1,13 @@
+// +build test
+
 package module_manager
 
-import "github.com/flant/addon-operator/pkg/kube_config_manager"
+import (
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+
+	"github.com/flant/addon-operator/pkg/kube_config_manager"
+)
 
 type ModuleManagerMockFns struct {
 	Init func() error

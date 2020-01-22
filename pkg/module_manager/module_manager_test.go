@@ -1,32 +1,32 @@
 package module_manager
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/yaml"
 
-	"github.com/flant/shell-operator/pkg/kube"
-	utils_file "github.com/flant/shell-operator/pkg/utils/file"
-	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes/fake"
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/shell-operator/pkg/kube"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+	"k8s.io/api/core/v1"
 )
 
 
 // initModuleManager is a test version of an Init method
-func initModuleManager(t *testing.T, mm *MainModuleManager, configPath string) {
-	EventCh = make(chan Event, 1)
-
+func initModuleManager(t *testing.T, mm *moduleManager, configPath string) {
 	rootDir := filepath.Join("testdata", configPath)
 
 	var err error
@@ -57,10 +57,12 @@ func initModuleManager(t *testing.T, mm *MainModuleManager, configPath string) {
 		var cmObj = new(v1.ConfigMap)
 		_ = yaml.Unmarshal(cmDataBytes, &cmObj)
 
-		kube.Kubernetes = fake.NewSimpleClientset()
-		_, _ = kube.Kubernetes.CoreV1().ConfigMaps("default").Create(cmObj)
+		kubeClient := kube.NewFakeKubernetesClient()
+		_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(cmObj)
 
 		KubeConfigManager := kube_config_manager.NewKubeConfigManager()
+		KubeConfigManager.WithKubeClient(kubeClient)
+		KubeConfigManager.WithContext(context.Background())
 		KubeConfigManager.WithNamespace("default")
 		KubeConfigManager.WithConfigMapName("addon-operator")
 		KubeConfigManager.WithValuesChecksumsAnnotation(app.ValuesChecksumsAnnotation)
@@ -82,7 +84,7 @@ func initModuleManager(t *testing.T, mm *MainModuleManager, configPath string) {
 }
 
 func Test_MainModuleManager_LoadValuesInInit(t *testing.T) {
-	var mm *MainModuleManager
+	var mm *moduleManager
 
 	tests := []struct {
 		name       string
@@ -288,7 +290,7 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			module = nil
 			err = nil
-			module, err = mm.GetModule(test.moduleName)
+			module = mm.GetModule(test.moduleName)
 			test.testFn()
 		})
 	}
@@ -475,14 +477,14 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
 
 	initModuleManager(t, mm, "get__module_hooks_in_order")
 
-	_, _ = mm.DiscoverModulesState()
+	_, _ = mm.DiscoverModulesState(map[string]string{})
 
 	var moduleHooks []string
 	var err error
@@ -538,7 +540,7 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			moduleHooks = nil
 			err = nil
-			moduleHooks, err = mm.GetModuleHooksInOrder(test.moduleName, test.bindingType)
+			moduleHooks = mm.GetModuleHooksInOrder(test.moduleName, test.bindingType)
 			test.testFn()
 		})
 	}
@@ -562,7 +564,7 @@ func Test_MainModuleManager_RunModule(t *testing.T) {
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
 
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return hc
 	}
 
@@ -589,15 +591,12 @@ func Test_MainModuleManager_RunModule(t *testing.T) {
 		},
 	}
 
-	err := mm.RunModule(moduleName, false)
+	err := mm.RunModule(moduleName, false, map[string]string{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	module, err := mm.GetModule(moduleName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	module := mm.GetModule(moduleName)
 
 	if !reflect.DeepEqual(expectedModuleValues, module.values()) {
 		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.values())
@@ -612,7 +611,7 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
 
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return hc
 	}
 
@@ -637,15 +636,12 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 		},
 	}
 
-	err := mm.DeleteModule(moduleName)
+	err := mm.DeleteModule(moduleName, map[string]string{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	module, err := mm.GetModule(moduleName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	module := mm.GetModule(moduleName)
 
 	if !reflect.DeepEqual(expectedModuleValues, module.values()) {
 		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.values())
@@ -657,7 +653,7 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 	// TODO hooks not found
 	t.SkipNow()
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -775,14 +771,11 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 			mm.kubeModulesConfigValues[expectation.moduleName] = expectation.kubeModuleConfigValues
 			mm.modulesDynamicValuesPatches[expectation.moduleName] = expectation.moduleDynamicValuesPatches
 
-			if err := mm.RunModuleHook(expectation.hookName, BeforeHelm, nil); err != nil {
+			if err := mm.RunModuleHook(expectation.hookName, BeforeHelm, nil, map[string]string{}); err != nil {
 				t.Fatal(err)
 			}
 
-			module, err := mm.GetModule(expectation.moduleName)
-			if err != nil {
-				t.Fatal(err)
-			}
+			module := mm.GetModule(expectation.moduleName)
 
 			if !reflect.DeepEqual(expectation.expectedModuleConfigValues, module.configValues()) {
 				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedModuleConfigValues, module.configValues())
@@ -968,7 +961,7 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -1005,7 +998,7 @@ func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
 }
 
 func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
-	helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -1101,14 +1094,11 @@ func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
 			mm.kubeGlobalConfigValues = expectation.kubeGlobalConfigValues
 			mm.globalDynamicValuesPatches = expectation.globalDynamicValuesPatches
 
-			if err := mm.RunGlobalHook(expectation.hookName, BeforeHelm, []BindingContext{}); err != nil {
+			if err := mm.RunGlobalHook(expectation.hookName, BeforeHelm, []BindingContext{}, map[string]string{}); err != nil {
 				t.Fatal(err)
 			}
 
-			hook, err := mm.GetGlobalHook(expectation.hookName)
-			if err != nil {
-				t.Fatal(err)
-			}
+			hook := mm.GetGlobalHook(expectation.hookName)
 
 			if !reflect.DeepEqual(expectation.expectedConfigValues, hook.configValues()) {
 				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedConfigValues, hook.configValues())
@@ -1123,8 +1113,7 @@ func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
 
 
 func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
-
-	var mm *MainModuleManager
+	var mm *moduleManager
 	var modulesState *ModulesState
 	var err error
 
@@ -1157,7 +1146,7 @@ func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 				// turn off alpha so gamma, delta and zeta should be disabled
 				// with the next call of DiscoverModulesState
 				mm.enabledModulesByConfig = []string{"beta", "gamma", "delta", "epsilon", "zeta", "eta"}
-				modulesState, err = mm.DiscoverModulesState()
+				modulesState, err = mm.DiscoverModulesState(map[string]string{})
 				assert.Equal(t, []string{"epsilon", "eta"}, modulesState.EnabledModules)
 			},
 		},
@@ -1183,7 +1172,7 @@ func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 			modulesState = nil
 			err = nil
 
-			helm.NewHelmCli = func(logEntry *logrus.Entry) helm.HelmClient {
+			helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
 				return &helm.MockHelmClient{
 					ReleaseNames: test.helmReleases,
 				}
@@ -1191,7 +1180,7 @@ func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 			mm = NewMainModuleManager()
 			initModuleManager(t, mm, test.configPath)
 
-			modulesState, err = mm.DiscoverModulesState()
+			modulesState, err = mm.DiscoverModulesState(map[string]string{})
 
 			test.testFn()
 		})

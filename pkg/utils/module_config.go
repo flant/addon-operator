@@ -165,3 +165,15 @@ func (mc *ModuleConfig) FromKeyYamls(configData map[string]string) (*ModuleConfi
 func (mc *ModuleConfig) Checksum() string {
 	return utils_checksum.CalculateChecksum(mc.RawConfig...)
 }
+
+func (mc *ModuleConfig) GetEnabled() string {
+	if mc.IsEnabled == nil {
+		return "n/d"
+	} else {
+		if *mc.IsEnabled {
+			return "true"
+		}
+		return "false"
+	}
+}
+
