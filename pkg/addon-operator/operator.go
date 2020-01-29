@@ -3,22 +3,21 @@ package addon_operator
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/flant/shell-operator/pkg/shell-operator"
-	"github.com/flant/shell-operator/pkg/task/dump"
 	"github.com/flant/shell-operator/pkg/task/queue"
+	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/satori/go.uuid.v1"
 
+	sh_app "github.com/flant/shell-operator/pkg/app"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -573,11 +572,11 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			hookLabel := path.Base(globalHook.Path)
 
 			if hm.AllowFailure {
-				op.MetricStorage.SendCounterMetric(PrefixMetric("global_hook_allowed_errors"), 1.0, map[string]string{"hook": hookLabel})
+				op.MetricStorage.SendCounter("global_hook_allowed_errors", 1.0, map[string]string{"hook": hookLabel})
 				logEntry.Infof("GlobalHookRun failed, but allowed to fail. Error: %v", err)
 				res.Status = "Success"
 			} else {
-				op.MetricStorage.SendCounterMetric(PrefixMetric("global_hook_errors"), 1.0, map[string]string{"hook": hookLabel})
+				op.MetricStorage.SendCounter("global_hook_errors", 1.0, map[string]string{"hook": hookLabel})
 				t.IncrementFailureCount()
 				logEntry.Errorf("GlobalHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 				res.Status = "Fail"
@@ -616,7 +615,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		if err != nil {
 			hookLabel := path.Base(globalHook.Path)
 
-			op.MetricStorage.SendCounterMetric(PrefixMetric("global_hook_errors"), 1.0, map[string]string{"hook": hookLabel})
+			op.MetricStorage.SendCounter("global_hook_errors", 1.0, map[string]string{"hook": hookLabel})
 			res.Status = "Fail"
 
 			//t.IncrementFailureCount()
@@ -642,7 +641,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		logEntry.Info("Run DiscoverModules")
 		tasks, err := op.RunDiscoverModulesState(t, t.GetLogLabels())
 		if err != nil {
-			op.MetricStorage.SendCounterMetric(PrefixMetric("modules_discover_errors"), 1.0, map[string]string{})
+			op.MetricStorage.SendCounter("modules_discover_errors", 1.0, map[string]string{})
 			t.IncrementFailureCount()
 			logEntry.Errorf("DiscoverModulesState failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 			res.Status = "Fail"
@@ -699,7 +698,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 					moduleHook := op.ModuleManager.GetModuleHook(hm.HookName)
 					hookLabel := path.Base(moduleHook.Path)
 					moduleLabel := moduleHook.Module.Name
-					op.MetricStorage.SendCounterMetric(PrefixMetric("module_hook_errors"), 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+					op.MetricStorage.SendCounter("module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 					return err
 				} else {
 					hookLogEntry.Infof("ModuleHookRun success")
@@ -709,7 +708,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			return nil
 		})
 		if err != nil {
-			op.MetricStorage.SendCounterMetric(PrefixMetric("module_run_errors"), 1.0, map[string]string{"module": hm.ModuleName})
+			op.MetricStorage.SendCounter("module_run_errors", 1.0, map[string]string{"module": hm.ModuleName})
 			t.IncrementFailureCount()
 			logEntry.Errorf("ModuleRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 			res.Status = "Fail"
@@ -733,7 +732,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		hm := task.HookMetadataAccessor(t)
 		err := op.ModuleManager.DeleteModule(hm.ModuleName, t.GetLogLabels())
 		if err != nil {
-			op.MetricStorage.SendCounterMetric(PrefixMetric("module_delete_errors"), 1.0, map[string]string{"module": hm.ModuleName})
+			op.MetricStorage.SendCounter("module_delete_errors", 1.0, map[string]string{"module": hm.ModuleName})
 			t.IncrementFailureCount()
 			logEntry.Errorf("ModuleDelete failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 			res.Status = "Fail"
@@ -752,11 +751,11 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			moduleLabel := moduleHook.Module.Name
 
 			if hm.AllowFailure {
-				op.MetricStorage.SendCounterMetric(PrefixMetric("module_hook_allowed_errors"), 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+				op.MetricStorage.SendCounter("module_hook_allowed_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 				logEntry.Infof("ModuleHookRun failed, but allowed to fail. Error: %v", err)
 				res.Status = "Success"
 			} else {
-				op.MetricStorage.SendCounterMetric(PrefixMetric("module_hook_errors"), 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+				op.MetricStorage.SendCounter("module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 				logEntry.Errorf("ModuleHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
 				res.Status = "Fail"
 			}
@@ -779,7 +778,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		res.Status = "Success"
 
 	case task.ModuleManagerRetry:
-		op.MetricStorage.SendCounterMetric(PrefixMetric("modules_discover_errors"), 1.0, map[string]string{})
+		op.MetricStorage.SendCounter("modules_discover_errors", 1.0, map[string]string{})
 		op.ModuleManager.Retry()
 		logEntry.Infof("Queue Delay task immediately to wait for success module discovery")
 
@@ -895,7 +894,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 		}
 		if i == len(afterAllHooks)-1 {
 			taskMetadata.LastAfterAllHook = true
-			taskMetadata.ValuesChecksum, err = op.ModuleManager.GetGlobalHook(hookName).ValuesChecksum()
+			taskMetadata.ValuesChecksum, err = op.ModuleManager.GlobalValues().Checksum()
 			if err != nil {
 				return nil, err
 			}
@@ -922,7 +921,7 @@ func (op *AddonOperator) RunAddonOperatorMetrics() {
 	// Addon-operator live ticks.
 	go func() {
 		for {
-			op.MetricStorage.SendCounterMetric(PrefixMetric("live_ticks"), 1.0, map[string]string{})
+			op.MetricStorage.SendCounter("live_ticks", 1.0, map[string]string{})
 			time.Sleep(10 * time.Second)
 		}
 	}()
@@ -932,11 +931,75 @@ func (op *AddonOperator) RunAddonOperatorMetrics() {
 			// task queue length
 			op.TaskQueues.Iterate(func(queue *queue.TaskQueue) {
 				queueLen := float64(queue.Length())
-				op.MetricStorage.SendGaugeMetric(PrefixMetric("tasks_queue_length"), queueLen, map[string]string{"queue":queue.Name})
+				op.MetricStorage.SendGauge("tasks_queue_length", queueLen, map[string]string{"queue":queue.Name})
 			})
 			time.Sleep(5 * time.Second)
 		}
 	}()
+}
+
+
+func (op *AddonOperator) SetupDebugServerHandles() {
+	op.DebugServer.Router.Get("/global/{type:(config|values)}.{format:(json|yaml)}", func(writer http.ResponseWriter, request *http.Request) {
+		valType := chi.URLParam(request, "type")
+		format := chi.URLParam(request, "format")
+
+		var values utils.Values
+		switch valType {
+		case "config":
+			values = op.ModuleManager.GlobalConfigValues()
+		case "values":
+			values = op.ModuleManager.GlobalValues()
+		}
+
+		outBytes, err := values.AsBytes(format)
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			writer.Write([]byte(err.Error()))
+			return
+		}
+		writer.Write(outBytes)
+	})
+
+	op.DebugServer.Router.Get("/module/list.{format:(json|yaml|text)}", func(writer http.ResponseWriter, request *http.Request) {
+		format := chi.URLParam(request, "format")
+
+		fmt.Fprintf(writer,"Dump modules in %s format.\n", format)
+
+		for _, mName := range op.ModuleManager.GetModuleNamesInOrder() {
+			fmt.Fprintf(writer,"%s \n", mName)
+		}
+
+	})
+
+	op.DebugServer.Router.Get("/module/{name}/{type:(config|values)}.{format:(json|yaml)}", func(writer http.ResponseWriter, request *http.Request) {
+		modName := chi.URLParam(request, "name")
+		valType := chi.URLParam(request, "type")
+		format := chi.URLParam(request, "format")
+
+		m := op.ModuleManager.GetModule(modName)
+		if m == nil {
+			writer.WriteHeader(http.StatusNotFound)
+			writer.Write([]byte("Module not found"))
+			return
+		}
+
+		var values utils.Values
+		switch valType {
+		case "config":
+			values = m.ConfigValues()
+		case "values":
+			values = m.Values()
+		}
+
+		outBytes, err := values.AsBytes(format)
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			writer.Write([]byte(err.Error()))
+			return
+		}
+		writer.Write(outBytes)
+	})
 }
 
 func (op *AddonOperator) SetupHttpServerHandles() {
@@ -949,7 +1012,6 @@ func (op *AddonOperator) SetupHttpServerHandles() {
     <p>
       <a href="/metrics">prometheus metrics</a>
       <a href="/healthz">health url</a>
-      <a href="/queue">queue stats</a>
     </p>
     </body>
     </html>`))
@@ -959,16 +1021,8 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	http.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
 		helm.TillerHealthHandler(app.TillerProbeListenAddress, app.TillerProbeListenPort)(writer, request)
 	})
-
-	http.HandleFunc("/queue", func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = io.Copy(writer, strings.NewReader(dump.TaskQueueSetToText(op.TaskQueues)))
-	})
-
 }
 
-func PrefixMetric(metric string) string {
-	return fmt.Sprintf("%s%s", app.PrometheusMetricsPrefix, metric)
-}
 
 func DefaultOperator() *AddonOperator {
 	operator := NewAddonOperator()
@@ -979,7 +1033,7 @@ func DefaultOperator() *AddonOperator {
 func InitAndStart(operator *AddonOperator) error {
 	operator.SetupHttpServerHandles()
 
-	err := operator.StartHttpServer(app.ListenAddress, app.ListenPort)
+	err := operator.StartHttpServer(sh_app.ListenAddress, sh_app.ListenPort)
 	if err != nil {
 		log.Errorf("HTTP SERVER start failed: %v", err)
 		return err
@@ -990,6 +1044,9 @@ func InitAndStart(operator *AddonOperator) error {
 		log.Errorf("INIT failed: %v", err)
 		return err
 	}
+
+	operator.ShellOperator.SetupDebugServerHandles()
+	operator.SetupDebugServerHandles()
 
 	err = operator.InitModuleManager()
 	if err != nil {

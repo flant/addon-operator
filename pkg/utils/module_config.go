@@ -3,7 +3,8 @@ package utils
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v2"
+	"github.com/davecgh/go-spew/spew"
+	"sigs.k8s.io/yaml"
 
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
@@ -21,8 +22,21 @@ type ModuleConfig struct {
 	RawConfig []string
 }
 
+// String returns description of ModuleConfig values.
 func (mc ModuleConfig) String() string {
-	return fmt.Sprintf("Module(Name=%s IsEnabled=%v IsUpdated=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.IsUpdated, ValuesToString(mc.Values))
+	return fmt.Sprintf("Module(Name=%s IsEnabled=%v IsUpdated=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.IsUpdated, mc.Values.DebugString())
+}
+
+// GetEnabled returns string description of enabled status.
+func (mc *ModuleConfig) GetEnabled() string {
+	switch {
+	case mc.IsEnabled == nil:
+		return "n/d"
+	case *mc.IsEnabled == true:
+		return "true"
+	default:
+		return "false"
+	}
 }
 
 func NewModuleConfig(moduleName string) *ModuleConfig {
@@ -63,17 +77,16 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 
 	if moduleValuesData, hasModuleData := values[mc.ModuleConfigKey]; hasModuleData {
 		switch v := moduleValuesData.(type) {
-		case map[interface{}]interface{}, map[string]interface{}, []interface{}:
-			data := map[interface{}]interface{}{mc.ModuleConfigKey: v}
+		case map[string]interface{}, []interface{}:
+			data := map[string]interface{}{mc.ModuleConfigKey: v}
 
 			values, err := NewValues(data)
 			if err != nil {
 				return nil, err
 			}
 			mc.Values = values
-
 		default:
-			return nil, fmt.Errorf("load '%s' values: module config should be array or map. Got: %#v", mc.ModuleName, moduleValuesData)
+			return nil, fmt.Errorf("load '%s' values: module config should be array or map. Got: %s", mc.ModuleName, spew.Sdump(moduleValuesData))
 		}
 	}
 
@@ -98,11 +111,9 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 //   param2: 120
 // simpleModuleEnabled: true
 func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
-	values := make(Values)
-
-	err := yaml.Unmarshal(yamlString, &values)
+	values, err := NewValuesFromBytes(yamlString)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal module '%s' yaml config: %s\n%s", mc.ModuleName, err, string(yamlString))
+		return nil, fmt.Errorf("load module '%s' yaml config: %s\n%s", mc.ModuleName, err, string(yamlString))
 	}
 
 	mc.RawConfig = []string{string(yamlString)}
@@ -110,7 +121,7 @@ func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
 	return mc.LoadFromValues(values)
 }
 
-// FromKeyYamls loads module config from a structure with string keys and yaml string values (ConfigMap)
+// FromConfigMapData loads module config from a structure with string keys and yaml string values (ConfigMap)
 //
 // Example:
 //
@@ -118,21 +129,29 @@ func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
 //   param1: 10
 //   param2: 120
 // simpleModuleEnabled: "true"
-func (mc *ModuleConfig) FromKeyYamls(configData map[string]string) (*ModuleConfig, error) {
-	// map with moduleNameKey and moduleEnabled keys
-	moduleConfigData := make(Values) // map[interface{}]interface{}{}
 
-	// if there is data for module, unmarshal it and put into moduleConfigData
+// TODO "msg": "Kube config manager: cannot handle ConfigMap update: ConfigMap:
+//  bad yaml at key 'deployWithHooks':
+//  data is not compatible with JSON and YAML:
+//  error marshaling into JSON:
+//  json: unsupported type: map[interface {}]interface {}, data:
+//  (map[string]interface {}) (len=1) {\n (string) (len=15) \"deployWithHooks\": (map[interface {}]interface {}) (len=3) {\n  (string) (len=6) \"param2\": (string) (len=11) \"srqweqweqwe\",\n  (string) (len=8) \"paramArr\": ([]interface {}) (len=4 cap=4) {\n   (string) (len=3) \"asd\",\n   (string) (len=3) \"qwe\",\n   (string) (len=6) \"sadasd\",\n   (string) (len=5) \"salad\"\n  },\n  (string) (len=6) \"param1\": (int) 1\n }\n}\n",
+
+func (mc *ModuleConfig) FromConfigMapData(configData map[string]string) (*ModuleConfig, error) {
+	// create Values with moduleNameKey and moduleEnabled keys
+	configValues := make(Values)
+
+	// if there is data for module, unmarshal it and put into configValues
 	valuesYaml, hasKey := configData[mc.ModuleConfigKey]
 	if hasKey {
-		var values interface{}
+		var moduleValues interface{}
 
-		err := yaml.Unmarshal([]byte(valuesYaml), &values)
+		err := yaml.Unmarshal([]byte(valuesYaml), &moduleValues)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal yaml data in a module config key '%s': %v", mc.ModuleConfigKey, err)
 		}
 
-		moduleConfigData[mc.ModuleConfigKey] = values
+		configValues[mc.ModuleConfigKey] = moduleValues
 
 		mc.RawConfig = append(mc.RawConfig, valuesYaml)
 	}
@@ -150,30 +169,18 @@ func (mc *ModuleConfig) FromKeyYamls(configData map[string]string) (*ModuleConfi
 			return nil, fmt.Errorf("module enabled key '%s' should have a boolean value, got '%v'", mc.ModuleEnabledKey, enabledString)
 		}
 
-		moduleConfigData[mc.ModuleEnabledKey] = enabled
+		configValues[mc.ModuleEnabledKey] = enabled
 
 		mc.RawConfig = append(mc.RawConfig, enabledString)
 	}
 
-	if len(moduleConfigData) == 0 {
+	if len(configValues) == 0 {
 		return mc, nil
 	}
 
-	return mc.LoadFromValues(moduleConfigData)
+	return mc.LoadFromValues(configValues)
 }
 
 func (mc *ModuleConfig) Checksum() string {
 	return utils_checksum.CalculateChecksum(mc.RawConfig...)
 }
-
-func (mc *ModuleConfig) GetEnabled() string {
-	if mc.IsEnabled == nil {
-		return "n/d"
-	} else {
-		if *mc.IsEnabled {
-			return "true"
-		}
-		return "false"
-	}
-}
-

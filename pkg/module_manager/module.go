@@ -9,10 +9,8 @@ import (
 	"strings"
 
 	"github.com/kennygrant/sanitize"
-	"github.com/otiai10/copy"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
-	"gopkg.in/yaml.v2"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -163,61 +161,19 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 
 	helmReleaseName := m.generateHelmReleaseName()
 
-	// valuesPath, err := values.Dump
-	//valuesPath := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.yaml", m.SafeName()))
-	//err := values.Dump(m.values(), NewDumperToYamlFile(valuesPath))
-	//err := m.values().Dump(values.ToYamlFile(valuesPath))
-
 	valuesPath, err := m.prepareValuesYamlFile()
 	if err != nil {
 		return err
 	}
 
-	// Create a temporary chart with empty values.yaml and unique path
-	runChartPath := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.chart.%s", m.SafeName(), uuid.NewV4().String()))
-
-	err = os.RemoveAll(runChartPath)
-	if err != nil {
-		return err
-	}
-
-	// Remove chart directory after helm run
-	defer func(){
-		if sh_app.DebugKeepTmpFiles == "yes" {
-			return
-		}
-		err := os.RemoveAll(runChartPath)
-		log.WithField("module", m.Name).
-			Errorf("Remove chart directory '%s': %s", runChartPath, err)
-	}()
-
-	err = copy.Copy(m.Path, runChartPath)
-	if err != nil {
-		return err
-	}
-
-	// Prepare dummy empty values.yaml for helm not to fail
-	err = os.Truncate(filepath.Join(runChartPath, "values.yaml"), 0)
-	if err != nil {
-		return err
-	}
-
-	// Old style values checksum calculation
-	//checksum, err := utils.CalculateChecksumOfPaths(runChartPath, valuesPath)
-	//if err != nil {
-	//	return err
-	//}
-
-	// New style — render templates
+	// Render templates to prevent excess helm runs.
 	helmClient := helm.NewClient(logLabels)
-
-	helmTemplateOutput, err := helmClient.Render(runChartPath, []string{valuesPath},
+	helmTemplateOutput, err := helmClient.Render(m.Path, []string{valuesPath},
 		[]string{},
 		app.Namespace)
 	if err != nil {
 		return err
 	}
-
 	checksum := utils.CalculateStringsChecksum(helmTemplateOutput)
 
 	doRelease := true
@@ -257,7 +213,8 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 		logEntry.Debugf("helm release '%s' checksum '%s': installing/upgrading release", helmReleaseName, checksum)
 
 		return helmClient.UpgradeRelease(
-			helmReleaseName, runChartPath,
+			helmReleaseName,
+			m.Path,
 			[]string{valuesPath},
 			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
 			//helm.Client.TillerNamespace(),
@@ -303,7 +260,7 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels map[string]string) (bool, error) {
 	moduleHooks := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
 
-	valuesChecksum, err := utils.ValuesChecksum(m.values())
+	valuesChecksum, err := m.Values().Checksum()
 	if err != nil {
 		return false, err
 	}
@@ -328,7 +285,7 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 		}
 	}
 
-	newValuesChecksum, err := utils.ValuesChecksum(m.values())
+	newValuesChecksum, err := m.Values().Checksum()
 	if err != nil {
 		return false, err
 	}
@@ -341,70 +298,62 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 }
 
 
-
-func (m *Module) prepareConfigValuesYamlFile() (string, error) {
-	values := m.configValues()
-
-	data := utils.MustDump(utils.DumpValuesYaml(values))
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-config-values.yaml", m.SafeName()))
-	err := dumpData(path, data)
-	if err != nil {
-		return "", err
-	}
-
-	log.Debugf("Prepared module %s config values:\n%s", m.Name, utils.ValuesToString(values))
-
-	return path, nil
-}
-
 // CONFIG_VALUES_PATH
 func (m *Module) prepareConfigValuesJsonFile() (string, error) {
-	values := m.configValues()
-
-	data := utils.MustDump(utils.DumpValuesJson(values))
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-config-values-%s.json", m.SafeName(), uuid.NewV4().String()))
-	err := dumpData(path, data)
+	data, err := m.ConfigValues().JsonBytes()
 	if err != nil {
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s config values:\n%s", m.Name, utils.ValuesToString(values))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-config-values-%s.json", m.SafeName(), uuid.NewV4().String()))
+	err = dumpData(path, data)
+	if err != nil {
+		return "", err
+	}
+
+	log.Debugf("Prepared module %s config values:\n%s", m.Name, m.ConfigValues().DebugString())
 
 	return path, nil
 }
 
 // values.yaml for helm
 func (m *Module) prepareValuesYamlFile() (string, error) {
-	values := m.values()
-
-	data := utils.MustDump(utils.DumpValuesYaml(values))
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.yaml-%s", m.SafeName(), uuid.NewV4().String()))
-	err := dumpData(path, data)
+	data, err := m.Values().YamlBytes()
 	if err != nil {
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s values:\n%s", m.Name, utils.ValuesToString(values))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.yaml-%s", m.SafeName(), uuid.NewV4().String()))
+	err = dumpData(path, data)
+	if err != nil {
+		return "", err
+	}
+
+	log.Debugf("Prepared module %s values:\n%s", m.Name, m.Values().DebugString())
 
 	return path, nil
 }
 
 // VALUES_PATH
 func (m *Module) prepareValuesJsonFileWith(values utils.Values) (string, error) {
-	data := utils.MustDump(utils.DumpValuesJson(values))
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values-%s.json", m.SafeName(), uuid.NewV4().String()))
-	err := dumpData(path, data)
+	data, err := values.JsonBytes()
 	if err != nil {
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s values:\n%s", m.Name, utils.ValuesToString(values))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values-%s.json", m.SafeName(), uuid.NewV4().String()))
+	err = dumpData(path, data)
+	if err != nil {
+		return "", err
+	}
+
+	log.Debugf("Prepared module %s values:\n%s", m.Name, values.DebugString())
 
 	return path, nil
 }
 
 func (m *Module) prepareValuesJsonFile() (string, error) {
-	return m.prepareValuesJsonFileWith(m.values())
+	return m.prepareValuesJsonFileWith(m.Values())
 }
 
 func (m *Module) prepareValuesJsonFileForEnabledScript(precedingEnabledModules []string) (string, error) {
@@ -427,14 +376,14 @@ func (m *Module) generateHelmReleaseName() string {
 	return m.Name
 }
 
-// configValues returns values from ConfigMap: global section and module section
-func (m *Module) configValues() utils.Values {
+// ConfigValues returns values from ConfigMap: global section and module section
+func (m *Module) ConfigValues() utils.Values {
 	return utils.MergeValues(
 		// global section
 		utils.Values{"global": map[string]interface{}{}},
 		m.moduleManager.kubeGlobalConfigValues,
 		// module section
-		utils.Values{utils.ModuleNameToValuesKey(m.Name): map[string]interface{}{}},
+		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 	)
 }
@@ -450,10 +399,10 @@ func (m *Module) constructValues() utils.Values {
 	res := utils.MergeValues(
 		// global
 		utils.Values{"global": map[string]interface{}{}},
-		m.moduleManager.globalCommonStaticValues,
+		m.moduleManager.commonStaticValues.Global(),
 		m.moduleManager.kubeGlobalConfigValues,
 		// module
-		utils.Values{utils.ModuleNameToValuesKey(m.Name): map[string]interface{}{}},
+		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		m.CommonStaticConfig.Values,
 		m.StaticConfig.Values,
 		m.moduleManager.kubeModulesConfigValues[m.Name],
@@ -491,7 +440,7 @@ func (m *Module) valuesForEnabledScript(precedingEnabledModules []string) utils.
 
 // values returns merged values for hooks.
 // There is enabledModules key in global section with all enabled modules.
-func (m *Module) values() utils.Values {
+func (m *Module) Values() utils.Values {
 	res := m.constructValues()
 	res = utils.MergeValues(res, utils.Values{
 		"global": map[string]interface{}{
@@ -501,7 +450,7 @@ func (m *Module) values() utils.Values {
 	return res
 }
 
-func (m *Module) moduleValuesKey() string {
+func (m *Module) ValuesKey() string {
 	return utils.ModuleNameToValuesKey(m.Name)
 }
 
@@ -705,7 +654,7 @@ func (m *Module) loadStaticValues() (err error) {
 	if err != nil {
 		return err
 	}
-	log.Debugf("module %s common static values: %s", m.Name, utils.ValuesToString(m.CommonStaticConfig.Values))
+	log.Debugf("module %s common static values: %s", m.Name, m.CommonStaticConfig.Values.DebugString())
 
 	valuesYamlPath := filepath.Join(m.Path, "values.yaml")
 
@@ -724,7 +673,7 @@ func (m *Module) loadStaticValues() (err error) {
 	if err != nil {
 		return err
 	}
-	log.Debugf("module %s static values: %s", m.Name, utils.ValuesToString(m.StaticConfig.Values))
+	log.Debugf("module %s static values: %s", m.Name, m.StaticConfig.Values.DebugString())
 	return nil
 }
 
@@ -737,26 +686,17 @@ func (mm *moduleManager) loadCommonStaticValues() (error) {
 
 	valuesYaml, err := ioutil.ReadFile(valuesPath)
 	if err != nil {
-		return fmt.Errorf("common values file '%s': %s", valuesPath, err)
+		return fmt.Errorf("load common values file '%s': %s", valuesPath, err)
 	}
 
-	var res map[interface{}]interface{}
-
-	err = yaml.Unmarshal(valuesYaml, &res)
-	if err != nil {
-		return fmt.Errorf("unmarshal values from common values file '%s': %s\n%s", valuesPath, err, string(valuesYaml))
-	}
-
-	values, err := utils.FormatValues(res)
+	values, err := utils.NewValuesFromBytes(valuesYaml)
 	if err != nil {
 		return err
 	}
 
 	mm.commonStaticValues = values
 
-	mm.globalCommonStaticValues = utils.GetGlobalValues(values)
-
-	log.Debugf("Initialized global values from common static values:\n%s", utils.ValuesToString(mm.globalCommonStaticValues))
+	log.Debugf("Successfully load common static values:\n%s", mm.commonStaticValues.DebugString())
 
 	return nil
 }

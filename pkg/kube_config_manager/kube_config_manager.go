@@ -188,7 +188,7 @@ func (kcm *kubeConfigManager) SetKubeGlobalValues(values utils.Values) error {
 	globalKubeConfig := GetGlobalKubeConfigFromValues(values)
 
 	if globalKubeConfig != nil {
-		log.Debugf("Kube config manager: set kube global values:\n%s", utils.ValuesToString(values))
+		log.Debugf("Kube config manager: set kube global values:\n%s", values.DebugString())
 
 		err := kcm.saveGlobalKubeConfig(*globalKubeConfig)
 		if err != nil {
@@ -393,7 +393,7 @@ func (kcm *kubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 		kcm.ModulesValuesChecksum = newModulesValuesChecksum
 
 		log.Debugf("Kube config manager: global section new values:\n%s",
-			utils.ValuesToString(newConfig.Values))
+			newConfig.Values.DebugString())
 		for _, moduleConfig := range newConfig.ModuleConfigs {
 			log.Debugf("%s", moduleConfig.String())
 		}

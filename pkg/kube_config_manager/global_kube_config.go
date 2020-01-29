@@ -26,6 +26,8 @@ func GetGlobalKubeConfigFromValues(values utils.Values) *GlobalKubeConfig {
 		panic(fmt.Sprintf("cannot dump yaml for global kube config: %s\nfailed values data: %#v", err, globalValues))
 	}
 
+	// FIXME checksum is calculated over yaml representation, but other code
+	// uses json representation!
 	return &GlobalKubeConfig{
 		Values:     utils.Values{utils.GlobalValuesKey: globalValues},
 		Checksum:   utils_checksum.CalculateChecksum(string(yamlData)),
@@ -39,7 +41,7 @@ func GetGlobalKubeConfigFromConfigData(configData map[string]string) (*GlobalKub
 		return nil, nil
 	}
 
-	values, err := NewGlobalValues(yamlData)
+	values, err := utils.NewGlobalValues(yamlData)
 	if err != nil {
 		return nil, fmt.Errorf("ConfigMap: bad yaml at key '%s': %s:\n%s", utils.GlobalValuesKey, err, string(yamlData))
 	}
@@ -49,20 +51,4 @@ func GetGlobalKubeConfigFromConfigData(configData map[string]string) (*GlobalKub
 		Values:     values,
 		Checksum:   utils_checksum.CalculateChecksum(yamlData),
 	}, nil
-}
-
-func NewGlobalValues(yamlData string) (utils.Values, error) {
-	var dataMap map[interface{}]interface{}
-	err := yaml.Unmarshal([]byte(yamlData), &dataMap)
-	if err != nil {
-		return nil, err
-	}
-	data := map[interface{}]interface{}{utils.GlobalValuesKey: dataMap}
-
-	values, err := utils.NewValues(data)
-	if err != nil {
-		return nil, err
-	}
-
-	return values, nil
 }

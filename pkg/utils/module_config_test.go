@@ -3,11 +3,14 @@ package utils
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 // Test_FromYaml creates ModuleConfig objects from different input yaml strings
 func Test_FromYaml(t *testing.T) {
+	g := NewWithT(t)
+
 	var config *ModuleConfig
 	var err error
 
@@ -20,41 +23,40 @@ func Test_FromYaml(t *testing.T) {
 			"simple config",
 			`
 testModule:
-  poaram1: "1234"
+  param1: "1234"
 `,
 			func() {
-				assert.NoError(t, err)
-				assert.NotNil(t, config)
-				assert.Nil(t, config.IsEnabled)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(config).ToNot(BeNil())
+				g.Expect(config.IsEnabled).To(BeNil())
 			},
 		},
 		{
 			"bad type",
 			`testModule: 1234`,
 			func() {
-				assert.Nil(t, config)
-				assert.Error(t, err)
-				assert.Containsf(t, err.Error(), "module config should be array or map", "got unexpected error")
+				g.Expect(err).Should(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("module config should be array or map"),"got unexpected error")
 			},
 		},
 		{
 			"disabled module",
 			`testModuleEnabled: false`,
 			func() {
-				assert.NoError(t, err)
-				assert.NotNil(t, config)
-				assert.Empty(t, config.Values)
-				assert.False(t, *config.IsEnabled)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(config).ToNot(BeNil())
+				g.Expect(config.Values).To(BeEmpty())
+				g.Expect(config.IsEnabled).To(Equal(&ModuleDisabled))
 			},
 		},
 		{
 			"enabled module",
 			`testModuleEnabled: true`,
 			func() {
-				assert.NoError(t, err)
-				assert.NotNil(t, config)
-				assert.Empty(t, config.Values)
-				assert.True(t, *config.IsEnabled)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(config).ToNot(BeNil())
+				g.Expect(config.Values).To(BeEmpty())
+				g.Expect(config.IsEnabled).To(Equal(&ModuleEnabled))
 			},
 		},
 		{
@@ -72,56 +74,56 @@ testModule:
 testModuleEnabled: true
 `,
 			func() {
-				assert.NoError(t, err)
-				assert.NotNil(t, config)
-				assert.True(t, *config.IsEnabled)
-				assert.Contains(t, config.Values, "testModule")
-				modVals := config.Values["testModule"]
-				//assert.IsType(t, interface{}{}, modVals)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(config).ToNot(BeNil())
+				g.Expect(config.IsEnabled).To(Equal(&ModuleEnabled))
 
-				modValsMap, ok := modVals.(map[string]interface{})
-				assert.True(t, ok)
-				assert.Equal(t, "world", modValsMap["hello"])
+				g.Expect(config.Values).ToNot(BeEmpty())
+				g.Expect(config.Values).To(HaveKey("testModule"))
+				g.Expect(config.Values["testModule"]).To(BeAssignableToTypeOf(map[string]interface{}{}))
 
-				assert.Contains(t, modValsMap, "4")
-				assert.Equal(t, "123", modValsMap["4"])
-				assert.Contains(t, modVals, "5")
-				assert.Equal(t, 5.0, modValsMap["5"])
+				modValsMap := config.Values["testModule"].(map[string]interface{})
+				g.Expect(modValsMap["hello"]).To(Equal("world"))
+				g.Expect(modValsMap["4"]).To(Equal("123"))
+				g.Expect(modValsMap["5"]).To(Equal(5.0))
 
-				assert.Contains(t, modVals, "aaa")
-				aaa, ok := modValsMap["aaa"].(map[string]interface{})
-				assert.True(t, ok)
+				g.Expect(modValsMap["aaa"]).To(BeAssignableToTypeOf(map[string]interface{}{}))
+				aaaMap := modValsMap["aaa"].(map[string]interface{})
 
-				assert.Contains(t, aaa, "numbers")
-				noArray, ok := aaa["numbers"].([]interface{})
-				assert.True(t, ok)
-
-				assert.Len(t, noArray, 3)
-
+				g.Expect(aaaMap["numbers"]).To(BeAssignableToTypeOf([]interface{}{}))
+				arr := aaaMap["numbers"].([]interface{})
+				g.Expect(arr).To(HaveLen(3))
 			},
 		},
 		{
 			"array config",
 			`
 testModule:
-  - a: 1
-  - b: 2
+  - id: "0"
+    a: 1
+  - id: "1"
+    b: 2
 `,
 			func() {
-				assert.NoError(t, err)
-				assert.NotNil(t, config)
-				assert.Contains(t, config.Values, "testModule")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(config).ToNot(BeNil())
 
-				vals, ok := config.Values["testModule"].([]interface{})
-				assert.True(t, ok, "testModule should be []interface{}")
-				assert.Len(t, vals, 2)
+				arrayId := func(element interface{}) string {
+					return (element.(map[string]interface{})["id"]).(string)
+				}
 
-				vals0, ok := vals[0].(map[string]interface{})
-				assert.True(t, ok)
-				assert.Equal(t, vals0["a"], 1.0)
-				vals1, ok := vals[1].(map[string]interface{})
-				assert.True(t, ok)
-				assert.Equal(t, vals1["b"], 2.0)
+				g.Expect(config.Values).To(MatchAllKeys(Keys{
+					"testModule": MatchAllElements(arrayId, Elements{
+						"0": MatchAllKeys(Keys{
+							"a": Equal(1.0),
+							"id": Ignore(),
+						}),
+						"1": MatchAllKeys(Keys{
+							"b": Equal(2.0),
+							"id": Ignore(),
+						}),
+					}),
+				}))
 			},
 		},
 	}
@@ -138,15 +140,49 @@ testModule:
 
 
 func Test_LoadValues(t *testing.T) {
+	g := NewWithT(t)
+
 	var config *ModuleConfig
 	var err error
 
 	inputData := map[string]interface{}{
-		"testModule": map[interface{}]interface{}{
-			"hello": "world", 4: "123", 5: 5,
-			"aaa": map[interface{}]interface{}{"no": []interface{}{"one", "two", "three"}},
+		"testModule": map[string]interface{}{
+			"hello": "world", "4": "123", "5": 5,
+			"aaa": map[string]interface{}{"no": []interface{}{"one", "two", "three"}},
 		},
 	}
+
+	inputValuesYaml := `
+testModule:
+  hello: world
+  4: "123"
+  5: 5
+  aaa:
+    "no":
+    - one
+    - two
+    - three
+testModuleEnabled: true
+`
+
+	configMapDataMapValues := map[string]string {
+		"global": `asd: qwe`,
+		"test-module": `
+foo: bar
+`,
+		"testModule": `
+hello: world
+4: "123"
+5: 5
+aaa:
+  "no":
+  - one
+  - two
+  - three
+`,
+		"testModuleEnabled": "false",
+	}
+
 	expectedData := Values{
 		"testModule": map[string]interface{}{
 			"hello": "world", "4": "123", "5": 5.0,
@@ -155,7 +191,82 @@ func Test_LoadValues(t *testing.T) {
 	}
 
 	config, err = NewModuleConfig("test-module").LoadFromValues(inputData)
-	assert.NoError(t, err)
-	assert.NotNil(t, config)
-	assert.Equal(t, expectedData, config.Values)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(config).ToNot(BeNil())
+	g.Expect(config.Values).To(Equal(expectedData))
+
+	config, err = NewModuleConfig("test-module").FromYaml([]byte(inputValuesYaml))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(config).ToNot(BeNil())
+	g.Expect(config.Values).To(Equal(expectedData))
+	g.Expect(config.IsEnabled).ToNot(BeNil())
+	g.Expect(config.IsEnabled).To(Equal(&ModuleEnabled))
+
+	config, err = NewModuleConfig("test-module").FromConfigMapData(configMapDataMapValues)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(config).ToNot(BeNil())
+	g.Expect(config.Values).To(Equal(expectedData))
+	g.Expect(config.IsEnabled).ToNot(BeNil())
+	g.Expect(config.IsEnabled).To(Equal(&ModuleDisabled))
+}
+
+func Test_GetEnabled(t *testing.T) {
+	g := NewWithT(t)
+
+	var config *ModuleConfig
+
+	tests := []struct {
+		name string
+		fn func()
+		expected string
+	}{
+		{
+			"nil",
+			func() {
+				config = &ModuleConfig{}
+			},
+			"n/d",
+		},
+		{
+			"nil",
+			func() {
+				config = &ModuleConfig{}
+				config.IsEnabled = &ModuleEnabled
+			},
+			"true",
+		},
+		{
+			"nil",
+			func() {
+				config = &ModuleConfig{}
+				config.IsEnabled = &ModuleDisabled
+			},
+			"false",
+		},
+		{
+			"nil",
+			func() {
+				config = &ModuleConfig{}
+				config.WithEnabled(true)
+			},
+			"true",
+		},
+		{
+			"nil",
+			func() {
+				config = &ModuleConfig{}
+				config.WithEnabled(false)
+			},
+			"false",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.fn()
+			actual := config.GetEnabled()
+			g.Expect(actual).To(Equal(test.expected))
+		})
+	}
+
 }

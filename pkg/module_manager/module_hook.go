@@ -92,7 +92,7 @@ type moduleValuesMergeResult struct {
 
 
 func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesPatch utils.ValuesPatch) (*moduleValuesMergeResult, error) {
-	moduleValuesKey := utils.ModuleNameToValuesKey(h.Module.Name)
+	moduleValuesKey := h.Module.ValuesKey()
 
 	if err := utils.ValidateHookValuesPatch(valuesPatch, moduleValuesKey); err != nil {
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", h.Module.Name, err)
@@ -148,7 +148,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	configValuesPatch, has := patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil{
 		preparedConfigValues := utils.MergeValues(
-			utils.Values{utils.ModuleNameToValuesKey(moduleName): map[string]interface{}{}},
+			utils.Values{h.Module.ValuesKey(): map[string]interface{}{}},
 			h.moduleManager.kubeModulesConfigValues[moduleName],
 		)
 
@@ -176,7 +176,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		}
 		if valuesPatchResult.ValuesChanged {
 			h.moduleManager.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(h.moduleManager.modulesDynamicValuesPatches[moduleName], valuesPatchResult.ValuesPatch)
-			log.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.Name, moduleName, utils.ValuesToString(h.values()))
+			log.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.Name, moduleName, h.values().DebugString())
 		}
 	}
 
@@ -217,27 +217,19 @@ func (h *ModuleHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 
 
 func (h *ModuleHook) configValues() utils.Values {
-	return h.Module.configValues()
+	return h.Module.ConfigValues()
 }
 
 func (h *ModuleHook) values() utils.Values {
-	return h.Module.values()
+	return h.Module.Values()
 }
 
 func (h *ModuleHook) prepareValuesJsonFile() (string, error) {
 	return h.Module.prepareValuesJsonFile()
 }
 
-func (h *ModuleHook) prepareValuesYamlFile() (string, error) {
-	return h.Module.prepareValuesYamlFile()
-}
-
 func (h *ModuleHook) prepareConfigValuesJsonFile() (string, error) {
 	return h.Module.prepareConfigValuesJsonFile()
-}
-
-func (h *ModuleHook) prepareConfigValuesYamlFile() (string, error) {
-	return h.Module.prepareConfigValuesYamlFile()
 }
 
 // BINDING_CONTEXT_PATH
