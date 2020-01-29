@@ -9,6 +9,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/debug"
 	"github.com/flant/shell-operator/pkg/executor"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
@@ -19,8 +20,8 @@ import (
 func main() {
 	kpApp := kingpin.New(app.AppName, fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription))
 
-	// global defaults
-	app.SetupGlobalSettings(kpApp)
+	// override usage template to reveal additional commands with information about start command
+	kpApp.UsageTemplate(sh_app.OperatorUsageTemplate(app.AppName))
 
 	// print version
 	kpApp.Command("version", "Show version.").Action(func(c *kingpin.ParseContext) error {
@@ -29,7 +30,7 @@ func main() {
 	})
 
 	// start main loop
-	kpApp.Command("start", "Start events processing.").
+	startCmd := kpApp.Command("start", "Start events processing.").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
 			sh_app.SetupLogging()
@@ -55,6 +56,12 @@ func main() {
 
 			return nil
 		})
+	app.SetupStartCommandFlags(kpApp, startCmd)
+
+	//debug.DefineDebugCommand(kpApp)
+	// TODO add more debug flags for addon-operator here
+	debug.DefineDebugCommands(kpApp)
+	app.DefineDebugCommands(kpApp)
 
 	kingpin.MustParse(kpApp.Parse(os.Args[1:]))
 

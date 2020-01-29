@@ -70,11 +70,6 @@ func (g *GlobalHook) Order(binding BindingType) float64 {
 	return 0.0
 }
 
-// Order return float order number for bindings with order.
-func (g *GlobalHook) ValuesChecksum() (string, error) {
-	return utils.ValuesChecksum(g.values())
-}
-
 type globalValuesMergeResult struct {
 	// Global values with the root "global" key.
 	Values utils.Values
@@ -146,24 +141,24 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 		if configValuesPatchResult.ValuesChanged {
 			err := h.moduleManager.kubeConfigManager.SetKubeGlobalValues(configValuesPatchResult.Values)
 			if err != nil {
-				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
+				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
 			}
 
 			h.moduleManager.kubeGlobalConfigValues = configValuesPatchResult.Values
-			log.Debugf("Global hook '%s': kube config global values updated:\n%s", h.Name, utils.ValuesToString(h.moduleManager.kubeGlobalConfigValues))
+			log.Debugf("Global hook '%s': kube config global values updated:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
 		}
 	}
 
 	valuesPatch, has := patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
-		valuesPatchResult, err := h.handleGlobalValuesPatch(h.values(), *valuesPatch)
+		valuesPatchResult, err := h.handleGlobalValuesPatch(h.moduleManager.GlobalValues(), *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': dynamic global values update error: %s", h.Name, err)
 		}
 		if valuesPatchResult.ValuesChanged {
 			h.moduleManager.globalDynamicValuesPatches = utils.AppendValuesPatch(h.moduleManager.globalDynamicValuesPatches, valuesPatchResult.ValuesPatch)
-			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, utils.ValuesToString(h.values()))
+			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, h.moduleManager.GlobalValues().DebugString())
 		}
 	}
 
@@ -202,97 +197,42 @@ func (h *GlobalHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 	return
 }
 
-
-func (h *GlobalHook) configValues() utils.Values {
-	return utils.MergeValues(
-		utils.Values{"global": map[string]interface{}{}},
-		h.moduleManager.kubeGlobalConfigValues,
-	)
-}
-
-func (h *GlobalHook) values() utils.Values {
-	var err error
-
-	res := utils.MergeValues(
-		utils.Values{"global": map[string]interface{}{}},
-		h.moduleManager.globalCommonStaticValues,
-		h.moduleManager.kubeGlobalConfigValues,
-	)
-
-	// Invariant: do not store patches that does not apply
-	// Give user error for patches early, after patch receive
-	for _, patch := range h.moduleManager.globalDynamicValuesPatches {
-		res, _, err = utils.ApplyValuesPatch(res, patch)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	return res
-}
-
-// FIXME look like this is not used anywhere
-func (h *GlobalHook) prepareConfigValuesYamlFile() (string, error) {
-	values := h.configValues()
-
-	data := utils.MustDump(utils.DumpValuesYaml(values))
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-config-values-%s.yaml", h.SafeName(), uuid.NewV4().String()))
-	err := dumpData(path, data)
-	if err != nil {
-		return "", err
-	}
-
-	log.Debugf("Prepared global hook %s config values:\n%s", h.Name, utils.ValuesToString(values))
-
-	return path, nil
-}
-
 // CONFIG_VALUES_PATH
 func (h *GlobalHook) prepareConfigValuesJsonFile() (string, error) {
-	values := h.configValues()
+	var configValues = h.moduleManager.GlobalConfigValues()
+	data, err := configValues.JsonBytes()
+	if err != nil {
+		return "", err
+	}
 
-	data := utils.MustDump(utils.DumpValuesJson(values))
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-config-values-%s.json", h.SafeName(), uuid.NewV4().String()))
-	err := dumpData(path, data)
+	err = dumpData(path, data)
 	if err != nil {
 		return "", err
 	}
 
-	log.Debugf("Prepared global hook %s config values:\n%s", h.Name, utils.ValuesToString(values))
-
-	return path, nil
-}
-
-// values.yaml for helm
-func (h *GlobalHook) prepareValuesYamlFile() (string, error) {
-	values := h.values()
-
-	data := utils.MustDump(utils.DumpValuesYaml(values))
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-values-%s.yaml", h.SafeName(), uuid.NewV4().String()))
-	err := dumpData(path, data)
-	if err != nil {
-		return "", err
-	}
-
-	log.Debugf("Prepared global hook %s values:\n%s", h.Name, utils.ValuesToString(values))
+	log.Debugf("Prepared global hook %s config values:\n%s", h.Name, configValues.DebugString())
 
 	return path, nil
 }
 
 // VALUES_PATH
-func (h *GlobalHook) prepareValuesJsonFile() (string, error) {
-	values := h.values()
-
-	data := utils.MustDump(utils.DumpValuesJson(values))
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-values-%s.json", h.SafeName(), uuid.NewV4().String()))
-	err := dumpData(path, data)
+func (h *GlobalHook) prepareValuesJsonFile() (filePath string, err error) {
+	var values = h.moduleManager.GlobalValues()
+	data, err := values.JsonBytes()
 	if err != nil {
 		return "", err
 	}
 
-	log.Debugf("Prepared global hook %s values:\n%s", h.Name, utils.ValuesToString(values))
+	filePath = filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-values-%s.json", h.SafeName(), uuid.NewV4().String()))
+	err = dumpData(filePath, data)
+	if err != nil {
+		return "", err
+	}
 
-	return path, nil
+	log.Debugf("Prepared global hook %s values:\n%s", h.Name, values.DebugString())
+
+	return filePath, nil
 }
 
 // BINDING_CONTEXT_PATH

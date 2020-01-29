@@ -376,12 +376,12 @@ func (h *helmClient) Render(chart string, valuesPaths []string, setValues []stri
 		args = append(args, setValue)
 	}
 
-	h.LogEntry.Infof("Running helm template for chart '%s' in namespace '%s' ...", chart, namespace)
+	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chart, namespace)
 	stdout, stderr, err := h.Cmd(args...)
 	if err != nil {
 		return "", fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
 	}
-	h.LogEntry.Infof("Helm template for chart '%s' in namespace '%s' successful:\n%s\n%s", chart, namespace, stdout, stderr)
+	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chart)
 
 	return stdout, nil
 }

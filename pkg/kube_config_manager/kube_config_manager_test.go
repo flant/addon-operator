@@ -154,7 +154,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 			func(global *utils.Values, module *utils.Values) {
 				// Check values in a 'global' key
 				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
-				savedGlobalValues, err := NewGlobalValues(cm.Data["global"])
+				savedGlobalValues, err := utils.NewGlobalValues(cm.Data["global"])
 				if assert.NoError(t, err, "ConfigMap should be created") {
 					assert.Equal(t, *global, savedGlobalValues)
 				}
@@ -178,7 +178,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 			func(global *utils.Values, module *utils.Values) {
 				// Check values in a 'global' key
 				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
-				savedGlobalValues, err := NewGlobalValues(cm.Data["global"])
+				savedGlobalValues, err := utils.NewGlobalValues(cm.Data["global"])
 				if assert.NoError(t, err, "ConfigMap should be created") {
 					assert.Equal(t, *global, savedGlobalValues)
 				}
@@ -200,7 +200,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 
 
 
-				savedGlobalValues, err := NewGlobalValues(cm.Data["global"])
+				savedGlobalValues, err := utils.NewGlobalValues(cm.Data["global"])
 				if assert.NoError(t, err, "ConfigMap should be created") {
 					assert.Equal(t, utils.Values{
 						utils.GlobalValuesKey: map[string]interface{}{

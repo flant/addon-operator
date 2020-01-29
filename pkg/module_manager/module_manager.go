@@ -48,6 +48,9 @@ type ModuleManager interface {
 	GetGlobalHooksInOrder(bindingType BindingType) []string
 	GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string
 
+	GlobalConfigValues() utils.Values
+	GlobalValues() utils.Values
+
 	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
 	DeleteModule(moduleName string, logLabels map[string]string) error
 	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error)
@@ -120,10 +123,8 @@ type moduleManager struct {
 	// Note: one module hook can have several binding types.
 	modulesHooksOrderByName map[string]map[BindingType][]*ModuleHook
 
-	// all values from modules/values.yaml file
+	// Values from modules/values.yaml file
 	commonStaticValues utils.Values
-	// global section from modules/values.yaml file
-	globalCommonStaticValues utils.Values
 
 	// global values from ConfigMap
 	kubeGlobalConfigValues utils.Values
@@ -203,7 +204,6 @@ func NewMainModuleManager() *moduleManager {
 		globalHooksOrder:            make(map[BindingType][]*GlobalHook),
 		modulesHooksOrderByName:     make(map[string]map[BindingType][]*ModuleHook),
 		commonStaticValues:          make(utils.Values),
-		globalCommonStaticValues:    make(utils.Values),
 		kubeGlobalConfigValues:      make(utils.Values),
 		kubeModulesConfigValues:     make(map[string]utils.Values),
 		globalDynamicValuesPatches:  make([]utils.ValuesPatch, 0),
@@ -217,6 +217,18 @@ func NewMainModuleManager() *moduleManager {
 		moduleConfigsUpdateBeforeAmbiguos: make(kube_config_manager.ModuleConfigs),
 		retryOnAmbigous:                   make(chan bool, 1),
 	}
+}
+
+func (mm *moduleManager) WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager {
+	mm.ModulesDir = modulesDir
+	mm.GlobalHooksDir = globalHooksDir
+	mm.TempDir = tempDir
+	return mm
+}
+
+func (mm *moduleManager) WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager {
+	mm.kubeConfigManager = kubeConfigManager
+	return mm
 }
 
 func (mm *moduleManager) WithKubeEventManager(mgr kube_events_manager.KubeEventsManager) {
@@ -764,7 +776,7 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 
 	// ValuesLock.Lock()
 	//
-	oldValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
+	oldValuesChecksum, err := mm.GlobalValues().Checksum()
 	if err != nil {
 		return "", err
 	}
@@ -792,7 +804,7 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 	}
 
 	//	ValuesLock.Lock()
-	newValuesChecksum, err := utils.ValuesChecksum(globalHook.values())
+	newValuesChecksum, err := mm.GlobalValues().Checksum()
 	if err != nil {
 		return "", err
 	}
@@ -812,7 +824,7 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
 	moduleHook := mm.GetModuleHook(hookName)
 
-	oldValuesChecksum, err := utils.ValuesChecksum(moduleHook.values())
+	oldValuesChecksum, err := moduleHook.values().Checksum()
 	if err != nil {
 		return err
 	}
@@ -827,7 +839,7 @@ func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bin
 		return err
 	}
 
-	newValuesChecksum, err := utils.ValuesChecksum(moduleHook.values())
+	newValuesChecksum, err := moduleHook.values().Checksum()
 	if err != nil {
 		return err
 	}
@@ -842,16 +854,34 @@ func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bin
 	return nil
 }
 
-func (mm *moduleManager) WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager {
-	mm.ModulesDir = modulesDir
-	mm.GlobalHooksDir = globalHooksDir
-	mm.TempDir = tempDir
-	return mm
+// GlobalConfigValues return global values defined in a ConfigMap
+func (mm *moduleManager) GlobalConfigValues() utils.Values {
+	return utils.MergeValues(
+		utils.Values{"global": map[string]interface{}{}},
+		mm.kubeGlobalConfigValues,
+	)
 }
 
-func (mm *moduleManager) WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager {
-	mm.kubeConfigManager = kubeConfigManager
-	return mm
+// GlobalValues return current global values with applied patches
+func (mm *moduleManager) GlobalValues() utils.Values {
+	var err error
+
+	res := utils.MergeValues(
+		utils.Values{"global": map[string]interface{}{}},
+		mm.commonStaticValues.Global(),
+		mm.kubeGlobalConfigValues,
+	)
+
+	// Invariant: do not store patches that does not apply
+	// Give user error for patches early, after patch receive
+	for _, patch := range mm.globalDynamicValuesPatches {
+		res, _, err = utils.ApplyValuesPatch(res, patch)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	return res
 }
 
 func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) {

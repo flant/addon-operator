@@ -3,9 +3,11 @@ module github.com/flant/addon-operator
 go 1.12
 
 require (
+	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.5.0+incompatible
 	github.com/flant/libjq-go v0.0.0-20191126154400-1afb898d97a3 // branch: master
-	github.com/flant/shell-operator v1.0.0-beta.6.0.20200122060338-5bcb9a731be3 // branch: feat_named_queues, +feat_kubernetes_binding_mode, feat_helm_render, feat_unique_tmp_names
+	github.com/flant/shell-operator v1.0.0-beta.7.0.20200129063147-c2ac19835db0 // branch: master
+	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.3
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/gomega v1.5.0

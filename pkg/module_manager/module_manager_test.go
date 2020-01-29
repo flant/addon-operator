@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/yaml"
 
@@ -105,7 +106,7 @@ func Test_MainModuleManager_LoadValuesInInit(t *testing.T) {
 				}
 
 				assert.Equal(t, expectedValues, mm.commonStaticValues, "all common values")
-				assert.Equal(t, expectedValues, mm.globalCommonStaticValues, "global section of common values")
+				assert.Equal(t, expectedValues, mm.commonStaticValues.Global(), "global section of common values")
 			},
 		},
 		{
@@ -142,7 +143,7 @@ func Test_MainModuleManager_LoadValuesInInit(t *testing.T) {
 			"load_values__common_static_empty",
 			func() {
 				assert.Len(t, mm.commonStaticValues, 0)
-				assert.Len(t, mm.globalCommonStaticValues, 0)
+				assert.Len(t, mm.commonStaticValues.Global(), 0)
 				assert.Len(t, mm.allModulesByName, 1)
 				assert.NotNil(t, mm.allModulesByName["module"].CommonStaticConfig)
 				assert.NotNil(t, mm.allModulesByName["module"].StaticConfig)
@@ -153,7 +154,7 @@ func Test_MainModuleManager_LoadValuesInInit(t *testing.T) {
 			"load_values__common_and_module_and_kube",
 			func() {
 				assert.Len(t, mm.commonStaticValues, 4)
-				assert.Len(t, mm.globalCommonStaticValues, 1)
+				assert.Len(t, mm.commonStaticValues.Global(), 1)
 				assert.Len(t, mm.allModulesByName, 4)
 
 				assert.Contains(t, mm.allModulesByName, "with-values-1")
@@ -591,15 +592,15 @@ func Test_MainModuleManager_RunModule(t *testing.T) {
 		},
 	}
 
-	err := mm.RunModule(moduleName, false, map[string]string{}, nil)
+	_, err := mm.RunModule(moduleName, false, map[string]string{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	module := mm.GetModule(moduleName)
 
-	if !reflect.DeepEqual(expectedModuleValues, module.values()) {
-		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.values())
+	if !reflect.DeepEqual(expectedModuleValues, module.Values()) {
+		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.Values())
 	}
 
 	assert.Equal(t, hc.DeleteSingleFailedRevisionExecuted, true, "helm.DeleteSingleFailedRevision must be executed!")
@@ -643,8 +644,8 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 
 	module := mm.GetModule(moduleName)
 
-	if !reflect.DeepEqual(expectedModuleValues, module.values()) {
-		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.values())
+	if !reflect.DeepEqual(expectedModuleValues, module.Values()) {
+		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.Values())
 	}
 
 	assert.Equal(t, hc.DeleteReleaseExecuted, true, "helm.DeleteRelease must be executed!")
@@ -777,12 +778,12 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 
 			module := mm.GetModule(expectation.moduleName)
 
-			if !reflect.DeepEqual(expectation.expectedModuleConfigValues, module.configValues()) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedModuleConfigValues, module.configValues())
+			if !reflect.DeepEqual(expectation.expectedModuleConfigValues, module.ConfigValues()) {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedModuleConfigValues, module.ConfigValues())
 			}
 
-			if !reflect.DeepEqual(expectation.expectedModuleValues, module.values()) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedModuleValues, module.values())
+			if !reflect.DeepEqual(expectation.expectedModuleValues, module.Values()) {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedModuleValues, module.Values())
 			}
 		})
 	}
@@ -1094,18 +1095,19 @@ func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
 			mm.kubeGlobalConfigValues = expectation.kubeGlobalConfigValues
 			mm.globalDynamicValuesPatches = expectation.globalDynamicValuesPatches
 
-			if err := mm.RunGlobalHook(expectation.hookName, BeforeHelm, []BindingContext{}, map[string]string{}); err != nil {
+			_, err := mm.RunGlobalHook(expectation.hookName, BeforeHelm, []BindingContext{}, map[string]string{})
+			if err != nil {
 				t.Fatal(err)
 			}
 
-			hook := mm.GetGlobalHook(expectation.hookName)
-
-			if !reflect.DeepEqual(expectation.expectedConfigValues, hook.configValues()) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedConfigValues, hook.configValues())
+			var values = mm.GlobalValues()
+			if !reflect.DeepEqual(expectation.expectedConfigValues, values) {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", spew.Sdump(expectation.expectedConfigValues), spew.Sdump(values))
 			}
 
-			if !reflect.DeepEqual(expectation.expectedValues, hook.values()) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedValues, hook.values())
+			var configValues = mm.GlobalConfigValues()
+			if !reflect.DeepEqual(expectation.expectedValues, configValues) {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", spew.Sdump(expectation.expectedValues), spew.Sdump(configValues))
 			}
 		})
 	}

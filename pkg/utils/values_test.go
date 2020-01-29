@@ -6,6 +6,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
+	. "github.com/onsi/gomega"
+
 	"github.com/evanphx/json-patch"
 	"github.com/stretchr/testify/assert"
 )
@@ -542,4 +545,109 @@ func Test_CompactPatches_Apply(t *testing.T) {
 	}
 }
 
+func Test_Values_loaders(t *testing.T) {
+	g := NewWithT(t)
 
+	jsonInput := []byte(`{
+"global": {
+  "param1": "value1",
+  "param2": "value2"},
+"moduleOne": {
+  "paramStr": "string",
+  "paramNum": 123,
+  "paramArr": ["H", "He", "Li"]}
+}`)
+	yamlInput := []byte(`
+global:
+  param1: value1
+  param2: value2
+moduleOne:
+  paramStr: string
+  paramNum: 123
+  paramArr:
+  - H
+  - He
+  - Li
+`)
+	mapInput := map[string]interface{} {
+		"global": map[string]string {
+			"param1": "value1",
+			"param2": "value2",
+ 		},
+ 		"moduleOne": map[string]interface{} {
+ 			"paramStr": "string",
+ 			"paramNum": 123,
+ 			"paramArr": []string {
+ 				"H",
+ 				"He",
+ 				"Li",
+			},
+		},
+	}
+
+	expected := Values(map[string]interface{}{
+		"global": map[string]interface{} {
+			"param1": "value1",
+			"param2": "value2",
+		},
+		"moduleOne": map[string]interface{} {
+			"paramArr": []interface{} {
+				"H",
+				"He",
+				"Li",
+			},
+			"paramNum": 123.0,
+			"paramStr": "string",
+		},
+	})
+
+	var values Values
+	var err error
+
+	values, err = NewValuesFromBytes(jsonInput)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(values).To(Equal(expected), "expected: %s\nvalues: %s\n", spew.Sdump(expected), spew.Sdump(values))
+
+	values, err = NewValuesFromBytes(yamlInput)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(values).To(Equal(expected), "expected: %s\nvalues: %s\n", spew.Sdump(expected), spew.Sdump(values))
+
+	values, err = NewValues(mapInput)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(values).To(Equal(expected))
+
+}
+
+
+func Test_Values_NewGlobalValues(t *testing.T) {
+	g := NewWithT(t)
+
+	yamlInput := `
+paramStr: string
+paramNum: 123
+paramArr:
+- H
+- He
+- Li
+`
+
+	expected := Values(map[string]interface{}{
+		"global": map[string]interface{} {
+			"paramArr": []interface{} {
+				"H",
+				"He",
+				"Li",
+			},
+			"paramNum": 123.0,
+			"paramStr": "string",
+		},
+	})
+
+	var values Values
+	var err error
+
+	values, err = NewGlobalValues(yamlInput)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(values).To(Equal(expected))
+
+}

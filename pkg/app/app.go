@@ -10,14 +10,11 @@ import (
 
 var AppName = "addon-operator"
 var AppDescription = ""
-
 var Version = "dev"
 
-var Namespace = ""
-
-var ListenAddress = "0.0.0.0"
-var ListenPort = "9650"
-var PrometheusMetricsPrefix = "addon_operator_"
+var DefaultListenAddress = "0.0.0.0"
+var DefaultListenPort = "9650"
+var DefaultPrometheusMetricsPrefix = "addon_operator_"
 
 var TillerListenAddress = "127.0.0.1"
 var TillerListenPort int32 = 44434
@@ -25,49 +22,68 @@ var TillerProbeListenAddress = "127.0.0.1"
 var TillerProbeListenPort int32 = 44435
 var TillerMaxHistory = 0
 
+var Namespace = ""
 var ConfigMapName = "addon-operator"
 var ValuesChecksumsAnnotation = "addon-operator/values-checksums"
-var TasksQueueDumpFilePath = "/tmp/addon-operator-tasks-queue"
 
 var GlobalHooksDir = "global-hooks"
 var ModulesDir = "modules"
 var DefaultTempDir = "/tmp/addon-operator"
 
-// SetupGlobalSettings init global flags with default values
-func SetupGlobalSettings(kpApp *kingpin.Application) {
-	kpApp.Flag("namespace", "Namespace of addon-operator.").
+var DefaultDebugUnixSocket = "/var/run/addon-operator/debug.socket"
+
+// SetupStartCommandFlags init global flags with default values
+func SetupStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause) {
+	cmd.Flag("tmp-dir", "a path to store temporary files with data for hooks").
+		Envar("ADDON_OPERATOR_TMP_DIR").
+		Default(DefaultTempDir).
+		StringVar(&sh_app.TempDir)
+
+	cmd.Flag("kube-context", "The name of the kubeconfig context to use (can be set with $SHELL_OPERATOR_KUBE_CONTEXT).").
+		Envar("ADDON_OPERATOR_KUBE_CONTEXT").
+		Default(sh_app.KubeContext).
+		StringVar(&sh_app.KubeContext)
+
+	cmd.Flag("kube-config", "Path to the kubeconfig file (can be set with $SHELL_OPERATOR_KUBE_CONFIG).").
+		Envar("ADDON_OPERATOR_KUBE_CONFIG").
+		Default(sh_app.KubeConfig).
+		StringVar(&sh_app.KubeConfig)
+
+	cmd.Flag("namespace", "Namespace of addon-operator.").
 		Envar("ADDON_OPERATOR_NAMESPACE").
 		Required().
 		StringVar(&Namespace)
 
-	kpApp.Flag("prometheus-listen-address", "Address to use to serve metrics to Prometheus.").
+	cmd.Flag("prometheus-listen-address", "Address to use to serve metrics to Prometheus.").
 		Envar("ADDON_OPERATOR_LISTEN_ADDRESS").
-		Default(ListenAddress).
-		StringVar(&ListenAddress)
-	kpApp.Flag("prometheus-listen-port", "Port to use to serve metrics to Prometheus.").
+		Default(DefaultListenAddress).
+		StringVar(&sh_app.ListenAddress)
+	cmd.Flag("prometheus-listen-port", "Port to use to serve metrics to Prometheus.").
 		Envar("ADDON_OPERATOR_LISTEN_PORT").
-		Default(ListenPort).
-		StringVar(&ListenPort)
-	kpApp.Flag("prometheus-metrics-prefix", "Prefix for Prometheus metrics.").
+		Default(DefaultListenPort).
+		StringVar(&sh_app.ListenPort)
+	cmd.Flag("prometheus-metrics-prefix", "Prefix for Prometheus metrics.").
 		Envar("ADDON_OPERATOR_PROMETHEUS_METRICS_PREFIX").
-		Default(PrometheusMetricsPrefix).
-		StringVar(&PrometheusMetricsPrefix)
+		Default(DefaultPrometheusMetricsPrefix).
+		StringVar(&sh_app.PrometheusMetricsPrefix)
 
-	kpApp.Flag("tiller-listen-port", "Listen port for tiller.").
+	cmd.Flag("tiller-listen-port", "Listen port for tiller.").
 		Envar("ADDON_OPERATOR_TILLER_LISTEN_PORT").
 		Default(strconv.Itoa(int(TillerListenPort))).
 		Int32Var(&TillerListenPort)
-	kpApp.Flag("tiller-probe-listen-port", "Listen port for tiller.").
+	cmd.Flag("tiller-probe-listen-port", "Listen port for tiller.").
 		Envar("ADDON_OPERATOR_TILLER_PROBE_LISTEN_PORT").
 		Default(strconv.Itoa(int(TillerProbeListenPort))).
 		Int32Var(&TillerProbeListenPort)
 
-	kpApp.Flag("config-map", "Name of a ConfigMap to store values.").
+	cmd.Flag("config-map", "Name of a ConfigMap to store values.").
 		Envar("ADDON_OPERATOR_CONFIG_MAP").
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
 
-	sh_app.TempDir = DefaultTempDir
-	// FIXME remove excess flags and change SHELL_OPERATOR_* environment variables.
-	sh_app.SetupGlobalSettings(kpApp)
+	sh_app.DefineJqFlags(cmd)
+	sh_app.DefineLoggingFlags(cmd)
+
+	sh_app.DebugUnixSocket = DefaultDebugUnixSocket
+	sh_app.DefineDebugFlags(kpApp, cmd)
 }

@@ -74,7 +74,7 @@ func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) *Modu
 // TODO make a method of KubeConfig
 // ExtractModuleKubeConfig returns ModuleKubeConfig with values loaded from ConfigMap
 func ExtractModuleKubeConfig(moduleName string, configData map[string]string) (*ModuleKubeConfig, error) {
-	moduleConfig, err := utils.NewModuleConfig(moduleName).FromKeyYamls(configData)
+	moduleConfig, err := utils.NewModuleConfig(moduleName).FromConfigMapData(configData)
 	if err != nil {
 		return nil, fmt.Errorf("ConfigMap: bad yaml at key '%s': %s", utils.ModuleNameToValuesKey(moduleName), err)
 	}

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/evanphx/json-patch"
@@ -99,45 +100,47 @@ func ModuleNameFromValuesKey(moduleValuesKey string) string {
 	return string(b)
 }
 
+// NewValuesFromBytes loads values sections from maps in yaml or json format
 func NewValuesFromBytes(data []byte) (Values, error) {
-	var rawValues map[interface{}]interface{}
+	var values map[string]interface{}
 
-	err := yaml.Unmarshal(data, &rawValues)
+	err := k8syaml.Unmarshal(data, &values)
 	if err != nil {
 		return nil, fmt.Errorf("bad values data: %s\n%s", err, string(data))
 	}
 
-	return NewValues(rawValues)
+	return Values(values), nil
 }
 
-func NewValues(data map[interface{}]interface{}) (Values, error) {
-	values, err := FormatValues(data)
+// NewValues load all sections from input data and makes sure that input map
+// can be marshaled to yaml and that yaml is compatible with json.
+func NewValues(data map[string]interface{}) (Values, error) {
+	yamlDoc, err := k8syaml.Marshal(data)
 	if err != nil {
-		return nil, fmt.Errorf("cannot cast data to JSON compatible format: %s:\n%s", err, ValuesToString(values))
+		return nil, fmt.Errorf("data is not compatible with JSON and YAML: %s, data:\n%s", err, spew.Sdump(data))
+	}
+
+	var values Values
+	if err := k8syaml.Unmarshal(yamlDoc, &values); err != nil {
+		return nil, fmt.Errorf("convert data YAML to values: %s, data:\n%s", err, spew.Sdump(data))
 	}
 
 	return values, nil
 }
 
-func FormatValues(someValues map[interface{}]interface{}) (Values, error) {
-	yamlDoc, err := yaml.Marshal(someValues)
-	if err != nil {
-		return nil, err
+// NewGlobalValues creates Values with global section loaded from input string.
+func NewGlobalValues(globalSectionContent string) (Values, error) {
+	var section map[string]interface{}
+	if err := k8syaml.Unmarshal([]byte(globalSectionContent), &section); err != nil {
+		return nil, fmt.Errorf("global section is not compatible with JSON and YAML: %s, data:\n%s", err, globalSectionContent)
 	}
 
-	jsonDoc, err := k8syaml.YAMLToJSON(yamlDoc)
-	if err != nil {
-		return nil, err
-	}
-
-	values := make(Values)
-	if err := json.Unmarshal(jsonDoc, &values); err != nil {
-		return nil, err
-	}
-
-	return values, nil
+	return Values(map[string]interface{}{
+		GlobalValuesKey: section,
+	}), nil
 }
 
+// TODO used only in tests
 func MustValuesPatch(res *ValuesPatch, err error) *ValuesPatch {
 	if err != nil {
 		panic(err)
@@ -279,6 +282,16 @@ func MergeValues(values ...Values) Values {
 	return res
 }
 
+// DebugString returns values as yaml or an error line if dump is failed
+func (v Values) DebugString() string {
+	b, err := v.YamlBytes()
+	if err != nil {
+		return "bad values: " + err.Error()
+	}
+	return string(b)
+}
+
+// TODO used for Debugf messages, should be replaced with DebugString
 func ValuesToString(values Values) string {
 	valuesYaml, err := yaml.Marshal(&values)
 	if err != nil {
@@ -288,42 +301,62 @@ func ValuesToString(values Values) string {
 }
 
 
-func ValuesChecksum(valuesArr ...Values) (string, error) {
-	valuesJson, err := json.Marshal(MergeValues(valuesArr...))
+func (v Values) Checksum() (string, error) {
+	valuesJson, err := json.Marshal(v)
 	if err != nil {
 		return "", err
 	}
 	return utils_checksum.CalculateChecksum(string(valuesJson)), nil
 }
 
-
-func MustDump(data []byte, err error) []byte {
-	if err != nil {
-		panic(err)
-	}
-	return data
-}
-
-func DumpValuesYaml(values Values) ([]byte, error) {
-	return yaml.Marshal(values)
-}
-
-func DumpValuesJson(values Values) ([]byte, error) {
-	return json.Marshal(values)
-}
-
-func GetGlobalValues(values Values) Values {
-	globalValues, has := values[GlobalValuesKey]
+func (v Values) Global() Values {
+	globalValues, has := v[GlobalValuesKey]
 	if has {
-		data := map[interface{}]interface{}{GlobalValuesKey: globalValues}
-		v, err := NewValues(data)
+		data := map[string]interface{}{GlobalValuesKey: globalValues}
+		newV, err := NewValues(data)
 		if err != nil {
 			log.Errorf("get global Values: %s", err)
 		}
-		return v
+		return newV
 	}
 	return make(Values)
 }
+
+func (v Values) AsBytes(format string) ([]byte, error) {
+	switch format {
+	case "json":
+		return json.Marshal(v)
+	case "yaml":
+		fallthrough
+	default:
+		return yaml.Marshal(v)
+	}
+}
+
+func (v Values) AsString(format string) (string, error) {
+	b, err := v.AsBytes(format)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func (v Values) JsonString() (string, error) {
+	return v.AsString("json")
+}
+
+func (v Values) JsonBytes() ([]byte, error) {
+	return v.AsBytes("json")
+}
+
+func (v Values) YamlString() (string, error) {
+	return v.AsString("yaml")
+}
+
+func (v Values) YamlBytes() ([]byte, error) {
+	return v.AsBytes("yaml")
+}
+
 
 type ValuesLoader interface {
 	Read() (Values, error)
