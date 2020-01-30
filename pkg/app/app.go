@@ -32,8 +32,8 @@ var DefaultTempDir = "/tmp/addon-operator"
 
 var DefaultDebugUnixSocket = "/var/run/addon-operator/debug.socket"
 
-// SetupStartCommandFlags init global flags with default values
-func SetupStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause) {
+// DefineStartCommandFlags init global flags with default values
+func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause) {
 	cmd.Flag("tmp-dir", "a path to store temporary files with data for hooks").
 		Envar("ADDON_OPERATOR_TMP_DIR").
 		Default(DefaultTempDir).
