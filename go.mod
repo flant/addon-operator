@@ -5,8 +5,8 @@ go 1.12
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.5.0+incompatible
-	github.com/flant/libjq-go v0.0.0-20191126154400-1afb898d97a3 // branch: master
-	github.com/flant/shell-operator v1.0.0-beta.7.0.20200129063147-c2ac19835db0 // branch: master
+	github.com/flant/libjq-go v1.0.0 // branch: master
+	github.com/flant/shell-operator v1.0.0-beta.7.0.20200130065049-508e02717e2e // branch: master
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.3
 	github.com/kennygrant/sanitize v1.2.4

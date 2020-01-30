@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	. "github.com/flant/libjq-go"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -40,9 +39,6 @@ func main() {
 			// in case if addon-operator is a PID 1 process.
 			go executor.Reap()
 
-			jqDone := make(chan struct{})
-			go JqCallLoop(jqDone)
-
 			operator := addon_operator.DefaultOperator()
 			err := addon_operator.InitAndStart(operator)
 			if err != nil {
@@ -56,7 +52,7 @@ func main() {
 
 			return nil
 		})
-	app.SetupStartCommandFlags(kpApp, startCmd)
+	app.DefineStartCommandFlags(kpApp, startCmd)
 
 	//debug.DefineDebugCommand(kpApp)
 	// TODO add more debug flags for addon-operator here
