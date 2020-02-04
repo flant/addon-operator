@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/flant/shell-operator/pkg/utils/manifest"
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
@@ -32,6 +33,8 @@ type Module struct {
 	CommonStaticConfig *utils.ModuleConfig
 	// module values from modules/<module name>/values.yaml
 	StaticConfig  *utils.ModuleConfig
+
+	LastReleaseManifests []manifest.Manifest
 
 	moduleManager *moduleManager
 }
@@ -62,6 +65,9 @@ func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb
 	if err := m.cleanup(); err != nil {
 		return false, err
 	}
+
+	// Hooks can delete release resources, so stop resources monitor before run hooks.
+	m.moduleManager.HelmResourcesManager.StopMonitor(m.Name)
 
 	if onStartup {
 		if err := m.runHooksByBinding(OnStartup, logLabels); err != nil {
@@ -98,6 +104,9 @@ func (m *Module) Delete(logLabels map[string]string) error {
 			"queue": "main",
 		})
 	logEntry := log.WithFields(utils.LabelsToLogFields(deleteLogLabels))
+
+	// Stop resources monitor before deleting release
+	m.moduleManager.HelmResourcesManager.StopMonitor(m.Name)
 
 	// Если есть chart, но нет релиза — warning
 	// если нет чарта — молча перейти к хукам
@@ -168,63 +177,112 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 
 	// Render templates to prevent excess helm runs.
 	helmClient := helm.NewClient(logLabels)
-	helmTemplateOutput, err := helmClient.Render(m.Path, []string{valuesPath},
+	renderedManifests, err := helmClient.Render(m.Path, []string{valuesPath},
 		[]string{},
 		app.Namespace)
 	if err != nil {
 		return err
 	}
-	checksum := utils.CalculateStringsChecksum(helmTemplateOutput)
+	checksum := utils.CalculateStringsChecksum(renderedManifests)
 
-	doRelease := true
+	manifests, err := manifest.GetManifestListFromYamlDocuments(renderedManifests)
+	if err != nil {
+		return err
+	}
+	m.LastReleaseManifests = manifests
 
-	isReleaseExists, err := helmClient.IsReleaseExists(helmReleaseName)
+	// Skip upgrades if nothing is changes
+	runUpgradeRelease, err := m.ShouldRunHelmUpgrade(helmClient, helmReleaseName, checksum, manifests, logLabels)
 	if err != nil {
 		return err
 	}
 
-	if isReleaseExists {
-		_, status, err := helmClient.LastReleaseStatus(helmReleaseName)
-		if err != nil {
-			return err
+	if !runUpgradeRelease {
+		// Start resources monitor if release is not changed
+		if !m.moduleManager.HelmResourcesManager.HasMonitor(m.Name) {
+			m.moduleManager.HelmResourcesManager.StartMonitor(m.Name, manifests, app.Namespace)
 		}
-
-		// Skip helm release for unchanged modules only for non FAILED releases
-		if status != "FAILED" {
-			releaseValues, err := helmClient.GetReleaseValues(helmReleaseName)
-			if err != nil {
-				return err
-			}
-
-			if recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]; hasKey {
-				if recordedChecksumStr, ok := recordedChecksum.(string); ok {
-					if recordedChecksumStr == checksum {
-						doRelease = false
-						logEntry.Infof("helm release '%s' checksum '%s' is not changed: skip helm upgrade", helmReleaseName, checksum)
-					} else {
-						logEntry.Debugf("helm release '%s' checksum '%s' is changed to '%s': upgrade helm release", helmReleaseName, recordedChecksumStr, checksum)
-					}
-				}
-			}
-		}
+		return nil
 	}
 
-	if doRelease {
-		logEntry.Debugf("helm release '%s' checksum '%s': installing/upgrading release", helmReleaseName, checksum)
-
-		return helmClient.UpgradeRelease(
-			helmReleaseName,
-			m.Path,
-			[]string{valuesPath},
-			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
-			//helm.Client.TillerNamespace(),
-			app.Namespace,
-		)
-	} else {
-		logEntry.Debugf("helm release '%s' checksum '%s': release install/upgrade is skipped", helmReleaseName, checksum)
+	err = helmClient.UpgradeRelease(
+		helmReleaseName,
+		m.Path,
+		[]string{valuesPath},
+		[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
+		//helm.Client.TillerNamespace(),
+		app.Namespace,
+	)
+	if err != nil {
+		return err
 	}
+	// Start monitor resources if release was successful
+	m.moduleManager.HelmResourcesManager.StartMonitor(m.Name, manifests, app.Namespace)
 
 	return nil
+}
+
+func (m *Module) ShouldRunHelmUpgrade(helmClient helm.HelmClient, releaseName string, checksum string, manifests []manifest.Manifest, logLabels map[string]string) (bool, error) {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+
+	isReleaseExists, err := helmClient.IsReleaseExists(releaseName)
+	if err != nil {
+		return false, err
+	}
+
+	// Always run helm upgrade if there is no release
+	if !isReleaseExists {
+		logEntry.Debugf("helm release '%s' not exists: upgrade helm release", releaseName)
+		return true, nil
+	}
+
+	_, status, err := helmClient.LastReleaseStatus(releaseName)
+	if err != nil {
+		return false, err
+	}
+
+	// Run helm upgrade if last release is failed
+	if status == "FAILED" {
+		logEntry.Debugf("helm release '%s' has FAILED status: upgrade helm release", releaseName)
+		return true, nil
+	}
+
+	// Get values for a non failed release.
+	releaseValues, err := helmClient.GetReleaseValues(releaseName)
+	if err != nil {
+		return false, err
+	}
+
+	// Run helm upgrade if there is no stored checksum
+	recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]
+	if !hasKey {
+		logEntry.Debugf("helm release '%s' has no saved checksum of values: upgrade helm release", releaseName)
+		return true, nil
+	}
+
+	// Calculate a checksum of current values and compare to a stored checksum.
+	// Run helm upgrade if checksum is changed
+	if recordedChecksumStr, ok := recordedChecksum.(string); ok {
+		if recordedChecksumStr != checksum {
+			logEntry.Debugf("helm release '%s' checksum '%s' is changed to '%s': upgrade helm release", releaseName, recordedChecksumStr, checksum)
+			return true, nil
+		}
+	}
+
+	// Check if there are absent resources
+	absent, err := m.moduleManager.HelmResourcesManager.GetAbsentResources(manifests, app.Namespace)
+	if err != nil {
+		return false, err
+	}
+
+	// Run helm upgrade if there are absent resources
+	if len(absent) > 0 {
+		logEntry.Debugf("helm release '%s' has %d absent resources: upgrade helm release", releaseName, len(absent))
+		return true, nil
+	}
+
+	logEntry.Debugf("helm release '%s': skip upgrade helm release", releaseName, checksum)
+	return false, nil
 }
 
 // runHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,

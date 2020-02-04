@@ -81,6 +81,21 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	// -o json|yaml and --debug-unix-socket <file>
 	AddOutputJsonYamlFlag(moduleConfigCmd)
 	sh_app.DefineDebugUnixSocketFlag(moduleConfigCmd)
+
+	moduleResourceMonitorCmd := moduleCmd.Command("resource-monitor", "Dump resource monitors.").
+		Action(func(c *kingpin.ParseContext) error {
+			out, err := Module(sh_debug.DefaultClient()).ResourceMonitor(sh_debug.OutputFormat)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(out))
+			return nil
+		})
+	// -o json|yaml and --debug-unix-socket <file>
+	AddOutputJsonYamlFlag(moduleResourceMonitorCmd)
+	sh_app.DefineDebugUnixSocketFlag(moduleResourceMonitorCmd)
+
+
 }
 
 
@@ -122,6 +137,11 @@ func Module(client *sh_debug.Client) *ModuleRequest {
 func (r *ModuleRequest) List(format string) ([]byte, error) {
 	url := fmt.Sprintf("http://unix/module/list.%s", format)
 	return r.client.Get(url)
+}
+
+func (mr *ModuleRequest) ResourceMonitor(format string) ([]byte, error) {
+	url := fmt.Sprintf("http://unix/module/resource-monitor.%s", format)
+	return mr.client.Get(url)
 }
 
 func (mr *ModuleRequest) Name(name string) *ModuleRequest {
