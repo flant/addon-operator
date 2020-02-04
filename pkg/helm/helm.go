@@ -331,28 +331,30 @@ func (h *helmClient) ListReleases(labelSelector map[string]string) ([]string, er
 
 // ListReleasesNames returns list of release names without suffixes ".v<release_number>"
 func (h *helmClient) ListReleasesNames(labelSelector map[string]string) ([]string, error) {
+	// Get all release names
 	releases, err := h.ListReleases(labelSelector)
 	if err != nil {
 		return []string{}, err
 	}
 
-	var releaseCmNamePattern = regexp.MustCompile(`^(.*).v[0-9]+$`)
+	var releaseNameRegex = regexp.MustCompile(`^(.*).v[0-9]+$`)
 
-	releasesNamesMap := map[string]bool{}
+	// Drop .v* suffix and make array of unique names
+	uniqNamesMap := map[string]bool{}
 	for _, release := range releases {
-		matchRes := releaseCmNamePattern.FindStringSubmatch(release)
+		matchRes := releaseNameRegex.FindStringSubmatch(release)
 		if matchRes != nil {
 			releaseName := matchRes[1]
-			releasesNamesMap[releaseName] = true
+			uniqNamesMap[releaseName] = true
 		}
 	}
 
-	releasesNames := make([]string, 0)
-	for releaseName := range releasesNamesMap {
-		releasesNames = append(releasesNames, releaseName)
+	uniqNames := make([]string, 0)
+	for name := range uniqNamesMap {
+		uniqNames = append(uniqNames, name)
 	}
 
-	return releasesNames, nil
+	return uniqNames, nil
 }
 
 // ListReleasesNames returns list of release names without suffixes ".v<release_number>"

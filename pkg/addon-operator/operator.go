@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -9,22 +10,24 @@ import (
 	"path"
 	"time"
 
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	"github.com/flant/shell-operator/pkg/shell-operator"
-	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/satori/go.uuid.v1"
+	"sigs.k8s.io/yaml"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	"github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
@@ -47,6 +50,8 @@ type AddonOperator struct {
 	// ModuleManager is the module manager object, which monitors configuration
 	// and variable changes.
 	ModuleManager module_manager.ModuleManager
+
+	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 }
 
 func NewAddonOperator() *AddonOperator {
@@ -161,6 +166,14 @@ func (op *AddonOperator) InitModuleManager() error {
 
 	op.DefineEventHandlers()
 
+	// Init helm resources manager
+	op.HelmResourcesManager = helm_resources_manager.NewHelmResourcesManager()
+	op.HelmResourcesManager.WithContext(op.ctx)
+	op.HelmResourcesManager.WithKubeClient(op.KubeClient)
+	op.HelmResourcesManager.WithDefaultNamespace(app.Namespace)
+
+	op.ModuleManager.WithHelmResourcesManager(op.HelmResourcesManager)
+
 	return nil
 }
 
@@ -205,6 +218,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
 					WithMetadata(task.HookMetadata{
+						ModuleName: module.Name,
 						HookName: moduleHook.GetName(),
 						BindingType: Schedule,
 						BindingContext: info.BindingContext,
@@ -262,6 +276,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
 					WithMetadata(task.HookMetadata{
+						ModuleName: module.Name,
 						HookName: moduleHook.GetName(),
 						BindingType: OnKubernetesEvent,
 						BindingContext: info.BindingContext,
@@ -517,15 +532,15 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					// TODO SNAPSHOT: Check this
 					//ScheduleHooksController.UpdateScheduleHooks()
 				case module_manager.GlobalChanged:
+					// Global values are changed, all modules must be restarted.
 					logLabels["event.type"] = "GlobalChanged"
 					logEntry := eventLogEntry.WithFields(utils.LabelsToLogFields(logLabels))
-					// Global values are changed, all modules must be restarted.
 					logEntry.Infof("global values are changed, queue ReloadAll tasks")
-					//TasksQueue.ChangesDisable()
+					// Stop all resource monitors before run modules discovery.
+					op.HelmResourcesManager.StopMonitors()
 					op.CreateReloadAllTasks(false, logLabels)
-					//TasksQueue.ChangesEnable(true)
+					// TODO Check if this is needed?
 					// As module list may have changed, hook schedule index must be re-created.
-					// TODO SNAPSHOT: Check this
 					//ScheduleHooksController.UpdateScheduleHooks()
 				case module_manager.AmbigousState:
 					// It is the error in the module manager. The task must be added to
@@ -543,6 +558,24 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					//TasksQueue.Push(task.NewTaskDelay(FailedModuleDelay).WithLogLabels(logLabels))
 					//TasksQueue.ChangesEnable(true)
 				}
+			case absentResourcesEvent := <-op.HelmResourcesManager.Ch():
+				logLabels := map[string]string{
+					"event.id": uuid.NewV4().String(),
+					"module": absentResourcesEvent.ModuleName,
+					"operator.component": "handleManagerEvents",
+				}
+				eventLogEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+
+				//eventLogEntry.Debugf("Got %d absent resources from module", len(absentResourcesEvent.Absent))
+
+				eventLogEntry.Infof("Got %d absent module resources, queue ModuleRun task", len(absentResourcesEvent.Absent))
+				newTask := sh_task.NewTask(task.ModuleRun).
+					WithLogLabels(logLabels).
+					WithQueueName("main").
+					WithMetadata(task.HookMetadata{
+						ModuleName: absentResourcesEvent.ModuleName,
+					})
+				op.TaskQueues.GetMain().AddLast(newTask)
 			}
 		}
 	}()
@@ -563,8 +596,6 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 	case task.GlobalHookRun:
 		logEntry.Infof("Run global hook")
 		hm := task.HookMetadataAccessor(t)
-
-
 
 		checksum, err := op.ModuleManager.RunGlobalHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
 		if err != nil {
@@ -587,6 +618,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			if hm.BindingType == AfterAll && hm.LastAfterAllHook {
 				if checksum != hm.ValuesChecksum {
 					// values are changed when afterAll hooks are executed
+					op.HelmResourcesManager.StopMonitors()
 					op.CreateReloadAllTasks(false, t.GetLogLabels())
 				}
 			}
@@ -677,6 +709,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 					WithLogLabels(hookLogLabels).
 					WithQueueName(info.QueueName).
 					WithMetadata(task.HookMetadata{
+						ModuleName: hm.ModuleName,
 						HookName: hook.GetName(),
 						BindingType: OnKubernetesEvent,
 						BindingContext: info.BindingContext,
@@ -744,6 +777,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		logEntry.Info("Run module hook")
 		hm := task.HookMetadataAccessor(t)
 
+		// Pause resources monitor
+		op.HelmResourcesManager.PauseMonitor(hm.ModuleName)
+
 		err := op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
 		if err != nil {
 			moduleHook := op.ModuleManager.GetModuleHook(hm.HookName)
@@ -754,6 +790,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				op.MetricStorage.SendCounter("module_hook_allowed_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 				logEntry.Infof("ModuleHookRun failed, but allowed to fail. Error: %v", err)
 				res.Status = "Success"
+				op.HelmResourcesManager.ResumeMonitor(hm.ModuleName)
 			} else {
 				op.MetricStorage.SendCounter("module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 				logEntry.Errorf("ModuleHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
@@ -762,6 +799,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		} else {
 			logEntry.Infof("ModuleHookRun success")
 			res.Status = "Success"
+			op.HelmResourcesManager.ResumeMonitor(hm.ModuleName)
 		}
 
 	case task.ModulePurge:
@@ -1000,6 +1038,40 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 		}
 		writer.Write(outBytes)
 	})
+
+	op.DebugServer.Router.Get("/module/resource-monitor.{format:(json|yaml)}", func(writer http.ResponseWriter, request *http.Request) {
+		format := chi.URLParam(request, "format")
+
+		dump := map[string]interface{}{}
+
+		for _, moduleName := range op.ModuleManager.GetModuleNamesInOrder() {
+			if !op.HelmResourcesManager.HasMonitor(moduleName) {
+				dump[moduleName] = "No monitor"
+				continue
+			}
+			manifests := op.ModuleManager.GetModule(moduleName).LastReleaseManifests
+			info := []string{}
+			for _, m := range manifests {
+				info = append(info, m.Id())
+			}
+			dump[moduleName] = info
+		}
+
+		var outBytes []byte
+		var err error
+		switch format {
+		case "yaml":
+			outBytes, err = yaml.Marshal(dump)
+		case "json":
+			outBytes, err = json.Marshal(dump)
+		}
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(writer, "Error: %s", err)
+		}
+		writer.Write(outBytes)
+	})
+
 }
 
 func (op *AddonOperator) SetupHttpServerHandles() {

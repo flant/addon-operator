@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube"
 	log "github.com/sirupsen/logrus"
@@ -39,6 +40,7 @@ type ModuleManager interface {
 	WithKubeEventManager(kube_events_manager.KubeEventsManager)
 	WithScheduleManager(schedule_manager.ScheduleManager)
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
+	WithHelmResourcesManager(manager helm_resources_manager.HelmResourcesManager)
 
 	GetModule(name string) *Module
 	GetModuleNamesInOrder() []string
@@ -98,6 +100,7 @@ type moduleManager struct {
 	KubeClient kube.KubernetesClient
 	kubeEventsManager kube_events_manager.KubeEventsManager
 	scheduleManager   schedule_manager.ScheduleManager
+	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 
 	// Index of all modules in modules directory. Key is module name.
 	allModulesByName map[string]*Module
@@ -237,6 +240,10 @@ func (mm *moduleManager) WithKubeEventManager(mgr kube_events_manager.KubeEvents
 
 func (mm *moduleManager) WithScheduleManager(mgr schedule_manager.ScheduleManager) {
 	mm.scheduleManager = mgr
+}
+
+func (mm *moduleManager) WithHelmResourcesManager(manager helm_resources_manager.HelmResourcesManager) {
+	mm.HelmResourcesManager = manager
 }
 
 func (mm *moduleManager) WithContext(ctx context.Context) {
