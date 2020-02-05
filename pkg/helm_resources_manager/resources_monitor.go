@@ -2,12 +2,15 @@ package helm_resources_manager
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/flant/shell-operator/pkg/utils/manifest"
@@ -128,25 +131,34 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 	for _, m := range r.manifests {
 		// Get GVR
 		//log.Debugf("%s: discover GVR for apiVersion '%s' kind '%s'...", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind)
-		gvr, err := r.kubeClient.GroupVersionResource(m.ApiVersion(), m.Kind())
+		apiRes, err := r.kubeClient.APIResource(m.ApiVersion(), m.Kind())
 		if err != nil {
 			//log.Errorf("%s: Cannot get GroupVersionResource info for apiVersion '%s' kind '%s' from api-server. Possibly CRD is not created before informers are started. Error was: %v", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind, err)
 			return nil, err
 		}
 		//log.Debugf("%s: GVR for kind '%s' is '%s'", ei.Monitor.Metadata.DebugName, ei.Monitor.Kind, ei.GroupVersionResource.String())
 
-		// List resources in a namespace by metadata.name field. Object is considered absent if list is empty.
-		ns := m.Namespace(r.defaultNamespace)
+		gvr := schema.GroupVersionResource{
+			Group: apiRes.Group,
+			Version: apiRes.Version,
+			Resource: apiRes.Name,
+		}
+		// Resources are filtered by metadata.name field. Object is considered absent if list is empty.
 		listOptions := v1.ListOptions{
 			FieldSelector: fields.OneTermEqualSelector("metadata.name", m.Name()).String(),
 		}
-		objList, err := r.kubeClient.Dynamic().Resource(gvr).Namespace(ns).List(listOptions)
-		if err != nil {
-			return nil, err
-		}
 
-		// log.Debugf("List %s: %d\n", m.Id(), len(objList.Items))
-		//fmt.Printf("List %s: %d\n", m.Id(), len(objList.Items))
+		var objList *unstructured.UnstructuredList
+
+		if apiRes.Namespaced {
+			ns := m.Namespace(r.defaultNamespace)
+			objList, err = r.kubeClient.Dynamic().Resource(gvr).Namespace(ns).List(listOptions)
+		} else {
+			objList, err = r.kubeClient.Dynamic().Resource(gvr).List(listOptions)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("Fetch list for helm resource %s: %s", m.Id(), err)
+		}
 
 		if len(objList.Items) == 0 {
 			res = append(res, m)
