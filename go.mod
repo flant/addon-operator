@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.5.0+incompatible
 	github.com/flant/libjq-go v1.0.1-0.20200205115921-27e93c18c17f // branch: master
-	github.com/flant/shell-operator v1.0.0-beta.7.0.20200205180330-22622f8aa612 // branch: master
+	github.com/flant/shell-operator v1.0.0-beta.7.0.20200206051355-7ed900348af8 // branch: master
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.3
 	github.com/kennygrant/sanitize v1.2.4
