@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -199,6 +200,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
 					WithMetadata(task.HookMetadata{
+						EventDescription: "Schedule",
 						HookName: globalHook.GetName(),
 						BindingType: Schedule,
 						BindingContext: info.BindingContext,
@@ -218,6 +220,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
 					WithMetadata(task.HookMetadata{
+						EventDescription: "Schedule",
 						ModuleName: module.Name,
 						HookName: moduleHook.GetName(),
 						BindingType: Schedule,
@@ -257,6 +260,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
 					WithMetadata(task.HookMetadata{
+						EventDescription: "Kubernetes",
 						HookName: globalHook.GetName(),
 						BindingType: OnKubernetesEvent,
 						BindingContext: info.BindingContext,
@@ -276,6 +280,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
 					WithMetadata(task.HookMetadata{
+						EventDescription: "Kubernetes",
 						ModuleName: module.Name,
 						HookName: moduleHook.GetName(),
 						BindingType: OnKubernetesEvent,
@@ -357,6 +362,7 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 			WithLogLabels(hookLogLabels).
 			WithQueueName("main").
 			WithMetadata(task.HookMetadata{
+				EventDescription: "PrepopulateMainQueue",
 				HookName: hookName,
 				BindingType: OnStartup,
 				BindingContext: []BindingContext{onStartupBindingContext},
@@ -382,17 +388,18 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 			WithLogLabels(hookLogLabels).
 			WithQueueName("main").
 			WithMetadata(task.HookMetadata{
+				EventDescription: "PrepopulateMainQueue",
 				HookName: hookName,
 			})
 		op.TaskQueues.GetMain().AddLast(newTask)
 	}
 
 	// Create "ReloadAll" set of tasks with onStartup flag to discover modules state for the first time.
-	op.CreateReloadAllTasks(true, onStartupLabels)
+	op.CreateReloadAllTasks(true, onStartupLabels, "PrepopulateMainQueue")
 }
 
 // CreateReloadAllTasks
-func (op *AddonOperator) CreateReloadAllTasks(onStartup bool, logLabels map[string]string) {
+func (op *AddonOperator) CreateReloadAllTasks(onStartup bool, logLabels map[string]string, eventDescription string) {
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	// Queue beforeAll global hooks.
@@ -422,6 +429,7 @@ func (op *AddonOperator) CreateReloadAllTasks(onStartup bool, logLabels map[stri
 			WithLogLabels(hookLogLabels).
 			WithQueueName("main").
 			WithMetadata(task.HookMetadata{
+				EventDescription: eventDescription,
 				HookName: hookName,
 				BindingType: BeforeAll,
 				BindingContext: []BindingContext{beforeAllBc},
@@ -434,6 +442,7 @@ func (op *AddonOperator) CreateReloadAllTasks(onStartup bool, logLabels map[stri
 		WithLogLabels(logLabels).
 		WithQueueName("main").
 		WithMetadata(task.HookMetadata{
+			EventDescription: eventDescription,
 			OnStartupHooks: onStartup,
 		})
 	op.TaskQueues.GetMain().AddLast(discoverTask)
@@ -524,6 +533,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							WithLogLabels(logLabels).
 							WithQueueName("main").
 							WithMetadata(task.HookMetadata{
+								EventDescription: "ModuleValuesChanged",
 								ModuleName: moduleChange.Name,
 							})
 						op.TaskQueues.GetMain().AddLast(newTask)
@@ -538,7 +548,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					logEntry.Infof("global values are changed, queue ReloadAll tasks")
 					// Stop all resource monitors before run modules discovery.
 					op.HelmResourcesManager.StopMonitors()
-					op.CreateReloadAllTasks(false, logLabels)
+					op.CreateReloadAllTasks(false, logLabels, "GlobalValuesChanged")
 					// TODO Check if this is needed?
 					// As module list may have changed, hook schedule index must be re-created.
 					//ScheduleHooksController.UpdateScheduleHooks()
@@ -573,6 +583,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					WithLogLabels(logLabels).
 					WithQueueName("main").
 					WithMetadata(task.HookMetadata{
+						EventDescription: "DetectAbsentHelmResources",
 						ModuleName: absentResourcesEvent.ModuleName,
 					})
 				op.TaskQueues.GetMain().AddLast(newTask)
@@ -619,7 +630,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				if checksum != hm.ValuesChecksum {
 					// values are changed when afterAll hooks are executed
 					op.HelmResourcesManager.StopMonitors()
-					op.CreateReloadAllTasks(false, t.GetLogLabels())
+					op.CreateReloadAllTasks(false, t.GetLogLabels(), "AfterAllHooksChangeGlobalValues")
 				}
 			}
 		}
@@ -631,11 +642,17 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 		hookRunTasks := []sh_task.Task{}
 
+		eventDescription := hm.EventDescription
+		if !strings.Contains(eventDescription, "HandleGlobalEnableKubernetesBindings") {
+			eventDescription += ".HandleGlobalEnableKubernetesBindings"
+		}
+
 		err := op.ModuleManager.HandleGlobalEnableKubernetesBindings(hm.HookName, func(hook *module_manager.GlobalHook, info controller.BindingExecutionInfo){
 			newTask := sh_task.NewTask(task.GlobalHookRun).
 				WithLogLabels(t.GetLogLabels()).
 				WithQueueName(info.QueueName).
 				WithMetadata(task.HookMetadata{
+					EventDescription: eventDescription,
 					HookName: hook.GetName(),
 					BindingType: OnKubernetesEvent,
 					BindingContext: info.BindingContext,
@@ -752,6 +769,12 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				// One of afterHelm hooks changes values, run ModuleRun again.
 				// copy task and reset RunOnStartupHooks if needed
 				hm.OnStartupHooks = false
+				eventDescription := hm.EventDescription
+				if !strings.Contains(eventDescription, "AfterHelmHooksChangeModuleValues") {
+					eventDescription += ".AfterHelmHooksChangeModuleValues"
+				}
+				hm.EventDescription = eventDescription
+
 				newTask := sh_task.NewTask(task.ModuleRun).
 					WithLogLabels(t.GetLogLabels()).
 					WithQueueName(t.GetQueueName()).
@@ -839,6 +862,11 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 
 	hm := task.HookMetadataAccessor(discoverTask)
 
+	eventDescription := hm.EventDescription
+	if !strings.Contains(eventDescription, "DiscoverModulesState") {
+		eventDescription += ".DiscoverModulesState"
+	}
+
 	// queue ModuleRun tasks for enabled modules
 	for _, moduleName := range modulesState.EnabledModules {
 		moduleLogEntry := logEntry.WithField("module", moduleName)
@@ -860,6 +888,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 			WithLogLabels(moduleLogLabels).
 			WithQueueName("main").
 			WithMetadata(task.HookMetadata{
+				EventDescription: eventDescription,
 				ModuleName: moduleName,
 				OnStartupHooks: runOnStartupHooks,
 			})
@@ -887,6 +916,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 			WithLogLabels(modLogLabels).
 			WithQueueName("main").
 			WithMetadata(task.HookMetadata{
+				EventDescription: eventDescription,
 				ModuleName: moduleName,
 			})
 		newTasks = append(newTasks, newTask)
@@ -901,6 +931,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 			WithLogLabels(logLabels).
 			WithQueueName("main").
 			WithMetadata(task.HookMetadata{
+				EventDescription: eventDescription,
 				ModuleName: moduleName,
 			})
 		newTasks = append(newTasks, newTask)
@@ -926,6 +957,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 		afterAllBc.Metadata.IncludeAllSnapshots = true
 
 		taskMetadata := task.HookMetadata{
+			EventDescription: eventDescription,
 			HookName: hookName,
 			BindingType: AfterAll,
 			BindingContext: []BindingContext{afterAllBc},

@@ -12,6 +12,7 @@ import (
 
 // HookMetadata is metadata for addon-operator tasks
 type HookMetadata struct {
+	EventDescription string // event name for informative queue dump
 	HookName string
 	ModuleName string
 	BindingType BindingType
@@ -41,12 +42,18 @@ func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
 func (hm HookMetadata) GetDescription() string {
 	if hm.ModuleName == "" {
 		// global hook
-		return fmt.Sprintf("%s:%s", string(hm.BindingType), hm.HookName)
+		return fmt.Sprintf("%s:%s:%s", string(hm.BindingType), hm.HookName, hm.EventDescription)
 	} else {
-		osh := ""
-		if hm.OnStartupHooks {
-			osh = ":onStartupHooks"
+		if hm.HookName == "" {
+			// module run
+			osh := ""
+			if hm.OnStartupHooks {
+				osh = ":onStartupHooks"
+			}
+			return fmt.Sprintf("%s%s:%s", hm.ModuleName, osh, hm.EventDescription)
+		} else {
+			// module hook
+			return fmt.Sprintf("%s:%s:%s", string(hm.BindingType), hm.HookName, hm.EventDescription)
 		}
-		return fmt.Sprintf("%s:%s%s", string(hm.BindingType), hm.HookName, osh)
 	}
 }
