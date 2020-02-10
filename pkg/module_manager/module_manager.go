@@ -56,7 +56,7 @@ type ModuleManager interface {
 	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
 	DeleteModule(moduleName string, logLabels map[string]string) error
 	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error)
-	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (checksum string, err error)
+	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (beforeChecksum string, afterChecksum string, err error)
 	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
 	Retry()
 
@@ -778,14 +778,14 @@ func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels 
 	return module.Run(onStartup, logLabels, afterStartupCb)
 }
 
-func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, error) {
+func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, string, error) {
 	globalHook := mm.GetGlobalHook(hookName)
 
 	// ValuesLock.Lock()
 	//
-	oldValuesChecksum, err := mm.GlobalValues().Checksum()
+	beforeChecksum, err := mm.GlobalValues().Checksum()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	log.Debugf("RunGH: %s %s", hookName, binding)
@@ -807,25 +807,16 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 	}
 
 	if err := globalHook.Run(binding, bindingContext, logLabels); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	//	ValuesLock.Lock()
-	newValuesChecksum, err := mm.GlobalValues().Checksum()
+	afterChecksum, err := mm.GlobalValues().Checksum()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	if newValuesChecksum != oldValuesChecksum {
-		switch binding {
-		case Schedule, OnKubernetesEvent:
-			mm.globalValuesChanged <- true
-		//case AfterAll:
-		//	mm.globalValuesChanged <- true
-		}
-	}
-
-	return newValuesChecksum, nil
+	return beforeChecksum, afterChecksum, nil
 }
 
 func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {

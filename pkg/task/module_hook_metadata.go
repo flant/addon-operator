@@ -23,6 +23,7 @@ type HookMetadata struct {
 
 	LastAfterAllHook bool // True if task is a last hook in afterAll sequence
 	ValuesChecksum string // checksum of global values between first afterAll hook execution
+	ReloadAllOnValuesChanges bool // whether or not run DiscoverModules process if hook change global values
 }
 
 func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
