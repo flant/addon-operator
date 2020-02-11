@@ -631,8 +631,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				res.Status = "Success"
 			} else {
 				op.MetricStorage.SendCounter("global_hook_errors", 1.0, map[string]string{"hook": hookLabel})
-				t.IncrementFailureCount()
-				logEntry.Errorf("GlobalHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
+				logEntry.Errorf("GlobalHookRun failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 				res.Status = "Fail"
 			}
 		} else {
@@ -697,15 +696,8 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			hookLabel := path.Base(globalHook.Path)
 
 			op.MetricStorage.SendCounter("global_hook_errors", 1.0, map[string]string{"hook": hookLabel})
+			logEntry.Errorf("GlobalEnableKubernetesBindings failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			res.Status = "Fail"
-
-			//t.IncrementFailureCount()
-			//taskLogEntry.Errorf("GlobalHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
-			//
-			//delayTask := task.NewTaskDelay(FailedHookDelay)
-			//delayTask.Name = t.GetName()
-			//delayTask.Binding = t.GetBinding()
-			//TasksQueue.Push(delayTask)
 		} else {
 			// Push Synchronization tasks to queue head. Informers can be started now — their events will
 			// be added to the queue tail.
@@ -723,8 +715,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		tasks, err := op.RunDiscoverModulesState(t, t.GetLogLabels())
 		if err != nil {
 			op.MetricStorage.SendCounter("modules_discover_errors", 1.0, map[string]string{})
-			t.IncrementFailureCount()
-			logEntry.Errorf("DiscoverModulesState failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
+			logEntry.Errorf("DiscoverModulesState failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			res.Status = "Fail"
 		} else {
 			logEntry.Infof("DiscoverModulesState success")
@@ -791,8 +782,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		})
 		if err != nil {
 			op.MetricStorage.SendCounter("module_run_errors", 1.0, map[string]string{"module": hm.ModuleName})
-			t.IncrementFailureCount()
-			logEntry.Errorf("ModuleRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
+			logEntry.Errorf("ModuleRun failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			res.Status = "Fail"
 		} else {
 			logEntry.Infof("ModuleRun success")
@@ -821,8 +811,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		err := op.ModuleManager.DeleteModule(hm.ModuleName, t.GetLogLabels())
 		if err != nil {
 			op.MetricStorage.SendCounter("module_delete_errors", 1.0, map[string]string{"module": hm.ModuleName})
-			t.IncrementFailureCount()
-			logEntry.Errorf("ModuleDelete failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
+			logEntry.Errorf("ModuleDelete failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			res.Status = "Fail"
 		} else {
 			logEntry.Infof("ModuleDelete success")
@@ -848,7 +837,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				op.HelmResourcesManager.ResumeMonitor(hm.ModuleName)
 			} else {
 				op.MetricStorage.SendCounter("module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
-				logEntry.Errorf("ModuleHookRun failed, queue Delay task to retry. Failed count is %d. Error: %s", t.GetFailureCount(), err)
+				logEntry.Errorf("ModuleHookRun failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 				res.Status = "Fail"
 			}
 		} else {
@@ -864,7 +853,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 		err := helm.NewClient(t.GetLogLabels()).DeleteRelease(hm.ModuleName)
 		if err != nil {
-			logEntry.Errorf("ModulePurge failed, no retry. Error: %s", err)
+			logEntry.Warnf("ModulePurge failed, no retry. Error: %s", err)
 		} else {
 			logEntry.Infof("ModulePurge success")
 		}
@@ -873,7 +862,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 	case task.ModuleManagerRetry:
 		op.MetricStorage.SendCounter("modules_discover_errors", 1.0, map[string]string{})
 		op.ModuleManager.Retry()
-		logEntry.Infof("Queue Delay task immediately to wait for success module discovery")
+		logEntry.Infof("ModuleManagerRetry requested, now wait before run module discovery again")
 
 		res.Status = "Success"
 		res.DelayBeforeNextTask = queue.DelayOnFailedTask
