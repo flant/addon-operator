@@ -61,19 +61,19 @@ var Client HelmClient
 
 type helmClient struct {
 	KubeClient kube.KubernetesClient
-	LogEntry *log.Entry
+	LogEntry   *log.Entry
 }
 
 var _ HelmClient = &helmClient{}
 
-var NewClient = func(logLabels ... map[string]string) HelmClient {
+var NewClient = func(logLabels ...map[string]string) HelmClient {
 	logEntry := log.WithField("operator.component", "helm")
 	if len(logLabels) > 0 {
 		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
 	}
 
 	return &helmClient{
-		LogEntry: logEntry,
+		LogEntry:   logEntry,
 		KubeClient: clientFactoryInstance().KubeClient,
 	}
 }

@@ -16,20 +16,20 @@ import (
 )
 
 type HookExecutor struct {
-	Hook Hook
-	Context BindingContextList
-	ConfigValuesPath string
-	ValuesPath string
-	ContextPath string
+	Hook                  Hook
+	Context               BindingContextList
+	ConfigValuesPath      string
+	ValuesPath            string
+	ContextPath           string
 	ConfigValuesPatchPath string
-	ValuesPatchPath string
-	LogLabels map[string]string
+	ValuesPatchPath       string
+	LogLabels             map[string]string
 }
 
 func NewHookExecutor(h Hook, context BindingContextList) *HookExecutor {
 	return &HookExecutor{
-		Hook: h,
-		Context: context,
+		Hook:      h,
+		Context:   context,
 		LogLabels: map[string]string{},
 	}
 }
@@ -105,7 +105,7 @@ func (e *HookExecutor) Config() (configOutput []byte, err error) {
 
 	output, err := executor.Output(cmd)
 	if err != nil {
-		log.Debugf("Hook '%s' config failed: %v, output:\n%s",  e.Hook.GetName(), err, string(output))
+		log.Debugf("Hook '%s' config failed: %v, output:\n%s", e.Hook.GetName(), err, string(output))
 		return nil, err
 	}
 
@@ -113,4 +113,3 @@ func (e *HookExecutor) Config() (configOutput []byte, err error) {
 
 	return output, nil
 }
-
