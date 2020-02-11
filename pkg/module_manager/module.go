@@ -27,12 +27,12 @@ import (
 )
 
 type Module struct {
-	Name          string
-	Path          string
+	Name string
+	Path string
 	// module values from modules/values.yaml file
 	CommonStaticConfig *utils.ModuleConfig
 	// module values from modules/<module name>/values.yaml
-	StaticConfig  *utils.ModuleConfig
+	StaticConfig *utils.ModuleConfig
 
 	LastReleaseManifests []manifest.Manifest
 
@@ -59,7 +59,7 @@ func (m *Module) SafeName() string {
 func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error) {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"module": m.Name,
-		"queue": "main",
+		"queue":  "main",
 	})
 
 	if err := m.cleanup(); err != nil {
@@ -101,7 +101,7 @@ func (m *Module) Delete(logLabels map[string]string) error {
 	deleteLogLabels := utils.MergeLabels(logLabels,
 		map[string]string{
 			"module": m.Name,
-			"queue": "main",
+			"queue":  "main",
 		})
 	logEntry := log.WithFields(utils.LabelsToLogFields(deleteLogLabels))
 
@@ -131,7 +131,6 @@ func (m *Module) Delete(logLabels map[string]string) error {
 
 	return m.runHooksByBinding(AfterDeleteHelm, deleteLogLabels)
 }
-
 
 func (m *Module) cleanup() error {
 	chartExists, err := m.checkHelmChart()
@@ -303,7 +302,6 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 		}
 		bc.Metadata.BindingType = binding
 
-
 		err := moduleHook.Run(binding, []BindingContext{bc}, logLabels)
 		if err != nil {
 			return err
@@ -336,7 +334,6 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 		}
 		bc.Metadata.BindingType = binding
 
-
 		err := moduleHook.Run(binding, []BindingContext{bc}, logLabels)
 		if err != nil {
 			return false, err
@@ -354,7 +351,6 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 
 	return false, nil
 }
-
 
 // CONFIG_VALUES_PATH
 func (m *Module) prepareConfigValuesJsonFile() (string, error) {
@@ -561,7 +557,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 		logEntry.Errorf("Prepare CONFIG_VALUES_PATH file for '%s': %s", enabledScriptPath, err)
 		return false, err
 	}
-	defer func(){
+	defer func() {
 		if sh_app.DebugKeepTmpFiles == "yes" {
 			return
 		}
@@ -577,7 +573,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 		logEntry.Errorf("Prepare VALUES_PATH file for '%s': %s", enabledScriptPath, err)
 		return false, err
 	}
-	defer func(){
+	defer func() {
 		if sh_app.DebugKeepTmpFiles == "yes" {
 			return
 		}
@@ -593,7 +589,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 		logEntry.Errorf("Prepare MODULE_ENABLED_RESULT file for '%s': %s", enabledScriptPath, err)
 		return false, err
 	}
-	defer func(){
+	defer func() {
 		if sh_app.DebugKeepTmpFiles == "yes" {
 			return
 		}
@@ -735,7 +731,7 @@ func (m *Module) loadStaticValues() (err error) {
 	return nil
 }
 
-func (mm *moduleManager) loadCommonStaticValues() (error) {
+func (mm *moduleManager) loadCommonStaticValues() error {
 	valuesPath := filepath.Join(mm.ModulesDir, "values.yaml")
 	if _, err := os.Stat(valuesPath); os.IsNotExist(err) {
 		log.Debugf("No common static values file: %s", err)

@@ -3,6 +3,7 @@ package helm_resources_manager
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -18,33 +19,32 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-const monitorDelay = time.Second * 5
+const monitorDelayBase = time.Minute*4 + time.Second*30
 
 type ResourcesMonitor struct {
-	ctx context.Context
+	ctx    context.Context
 	cancel context.CancelFunc
 	paused bool
 
-	moduleName string
-	manifests []manifest.Manifest
+	moduleName       string
+	manifests        []manifest.Manifest
 	defaultNamespace string
 
 	kubeClient kube.KubernetesClient
-	logLabels map[string]string
-
+	logLabels  map[string]string
 
 	absentCb func(moduleName string, absent []manifest.Manifest, defaultNs string)
 }
 
 func NewResourcesMonitor() *ResourcesMonitor {
 	return &ResourcesMonitor{
-		paused: false,
+		paused:    false,
 		logLabels: make(map[string]string, 0),
 		manifests: make([]manifest.Manifest, 0),
 	}
 }
 
-func (r* ResourcesMonitor) WithContext(ctx context.Context) {
+func (r *ResourcesMonitor) WithContext(ctx context.Context) {
 	r.ctx, r.cancel = context.WithCancel(ctx)
 }
 
@@ -84,7 +84,9 @@ func (r *ResourcesMonitor) Start() {
 	logEntry := log.WithFields(utils.LabelsToLogFields(r.logLabels)).
 		WithField("operator.component", "HelmResourceMonitor")
 	go func() {
-		timer := time.NewTicker(monitorDelay)
+		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+		randSecondsDelay := time.Second * time.Duration(rnd.Int31n(60))
+		timer := time.NewTicker(monitorDelayBase + randSecondsDelay)
 
 		for {
 			select {
@@ -99,7 +101,7 @@ func (r *ResourcesMonitor) Start() {
 				}
 
 				if len(absent) > 0 {
-					logEntry.Debug("Absent resources detected",)
+					logEntry.Debug("Absent resources detected")
 					if r.absentCb != nil {
 						r.absentCb(r.moduleName, absent, r.defaultNamespace)
 					}
@@ -139,8 +141,8 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 		//log.Debugf("%s: GVR for kind '%s' is '%s'", ei.Monitor.Metadata.DebugName, ei.Monitor.Kind, ei.GroupVersionResource.String())
 
 		gvr := schema.GroupVersionResource{
-			Group: apiRes.Group,
-			Version: apiRes.Version,
+			Group:    apiRes.Group,
+			Version:  apiRes.Version,
 			Resource: apiRes.Name,
 		}
 		// Resources are filtered by metadata.name field. Object is considered absent if list is empty.
