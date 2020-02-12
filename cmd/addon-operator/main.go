@@ -54,8 +54,6 @@ func main() {
 		})
 	app.DefineStartCommandFlags(kpApp, startCmd)
 
-	//debug.DefineDebugCommand(kpApp)
-	// TODO add more debug flags for addon-operator here
 	debug.DefineDebugCommands(kpApp)
 	app.DefineDebugCommands(kpApp)
 
