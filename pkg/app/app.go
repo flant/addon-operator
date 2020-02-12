@@ -39,16 +39,6 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default(DefaultTempDir).
 		StringVar(&sh_app.TempDir)
 
-	cmd.Flag("kube-context", "The name of the kubeconfig context to use (can be set with $SHELL_OPERATOR_KUBE_CONTEXT).").
-		Envar("ADDON_OPERATOR_KUBE_CONTEXT").
-		Default(sh_app.KubeContext).
-		StringVar(&sh_app.KubeContext)
-
-	cmd.Flag("kube-config", "Path to the kubeconfig file (can be set with $SHELL_OPERATOR_KUBE_CONFIG).").
-		Envar("ADDON_OPERATOR_KUBE_CONFIG").
-		Default(sh_app.KubeConfig).
-		StringVar(&sh_app.KubeConfig)
-
 	cmd.Flag("namespace", "Namespace of addon-operator.").
 		Envar("ADDON_OPERATOR_NAMESPACE").
 		Required().
@@ -81,6 +71,7 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
 
+	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)
 	sh_app.DefineLoggingFlags(cmd)
 
