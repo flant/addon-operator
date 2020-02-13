@@ -1,5 +1,5 @@
 <p align="center">
-<img width="407" height="109" src="docs/logo-addon.png" alt="Addon-operator logo" />
+<img width="407" src="docs/logo-addon.png" alt="Addon-operator logo" />
 </p>
 
 <p align="center">
@@ -75,7 +75,7 @@ To experiment with modules, hooks and values we are prepared some [examples](/ex
 # What's next?
 - Find out more on [lifecycle](LIFECYCLE.md) of Addon-operator and how to use [modules](MODULES.md), [hooks](HOOKS.md) and [values](VALUES.md).
 - `/metrics` endpoint is implemented. See [METRICS](METRICS.md) for details.
-- Explore Shell-operator documentation, especialy [hooks](https://github.com/flant/shell-operator/blob/v1.0.0-beta.5/HOOKS.md) section.
+- Explore Shell-operator documentation, especially [hooks](https://github.com/flant/shell-operator/blob/v1.0.0-beta.5/HOOKS.md) section.
 - See how to tune [deploy settings](RUNNING.md).
 
 ## License
