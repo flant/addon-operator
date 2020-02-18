@@ -190,12 +190,12 @@ func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatc
 	return []ValuesPatch{CompactPatches(operations)}
 }
 
+// CompactPatches simplifies a patches tree — one path, one operation.
 func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
-	patchesTree := map[string]*ValuesPatchOperation{}
+	patchesTree := make(map[string][]*ValuesPatchOperation, 0)
 
 	for _, op := range operations {
-		patchesTree[op.Path] = op
-		// remove subpathes if got 'remove' operation
+		// remove previous operations for subpaths if got 'remove' operation for parent path
 		if op.Op == "remove" {
 			for subPath := range patchesTree {
 				if len(op.Path) < len(subPath) && strings.HasPrefix(subPath, op.Path+"/") {
@@ -204,54 +204,81 @@ func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
 			}
 		}
 
+		if _, ok := patchesTree[op.Path]; !ok {
+			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
+		}
+
+		// 'add' can be squashed to only one operation
+		if op.Op == "add" {
+			patchesTree[op.Path] = []*ValuesPatchOperation{op}
+		}
+
+		// 'remove' is squashed to 'remove' and 'add' for future Apply calls
+		if op.Op == "remove" {
+			// find most recent 'add' operation
+			hasPreviousAdd := false
+			for _, prevOp := range patchesTree[op.Path] {
+				if prevOp.Op == "add" {
+					patchesTree[op.Path] = []*ValuesPatchOperation{prevOp, op}
+					hasPreviousAdd = true
+				}
+			}
+
+			if !hasPreviousAdd {
+				// Something bad happens — a sequence contains a 'remove' operation without previous 'add' operation
+				// Append virtual 'add' operation to not fail future Apply calls.
+				patchesTree[op.Path] = []*ValuesPatchOperation{
+					{
+						Op:    "add",
+						Path:  op.Path,
+						Value: "guard-patch-for-successful-remove",
+					},
+					op,
+				}
+			}
+		}
 	}
 
+	// Sort paths for proper 'add' sequence
 	paths := []string{}
 	for path := range patchesTree {
 		paths = append(paths, path)
 	}
-
 	sort.Strings(paths)
 
 	newOps := []*ValuesPatchOperation{}
 	for _, path := range paths {
-		newOps = append(newOps, patchesTree[path])
+		for _, op := range patchesTree[path] {
+			newOps = append(newOps, op)
+		}
 	}
 
 	newValuesPatch := ValuesPatch{Operations: newOps}
 	return newValuesPatch
 }
 
+// ApplyValuesPatch applies a set of json patch operations to the values and returns a result
 func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, error) {
 	var err error
-	resValues := values
 
-	if resValues, err = ApplyJsonPatchToValues(resValues, valuesPatch.JsonPatch()); err != nil {
+	jsonDoc, err := json.Marshal(values)
+	if err != nil {
+		return nil, false, err
+	}
+
+	resJsonDoc, err := valuesPatch.Apply(jsonDoc)
+	if err != nil {
+		return nil, false, err
+	}
+
+	resValues := make(Values)
+	if err = json.Unmarshal(resJsonDoc, &resValues); err != nil {
 		return nil, false, err
 	}
 
 	valuesChanged := !reflect.DeepEqual(values, resValues)
 
 	return resValues, valuesChanged, nil
-}
-
-func ApplyJsonPatchToValues(values Values, patch jsonpatch.Patch) (Values, error) {
-	jsonDoc, err := json.Marshal(values)
-	if err != nil {
-		return nil, err
-	}
-
-	resJsonDoc, err := patch.Apply(jsonDoc)
-	if err != nil {
-		return nil, err
-	}
-
-	resValues := make(Values)
-	if err = json.Unmarshal(resJsonDoc, &resValues); err != nil {
-		return nil, err
-	}
-
-	return resValues, nil
 }
 
 func ValidateHookValuesPatch(valuesPatch ValuesPatch, acceptableKey string) error {
