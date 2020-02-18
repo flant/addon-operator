@@ -25,6 +25,7 @@ const (
 )
 
 type ValuesPatchType string
+
 const ConfigMapPatch ValuesPatchType = "CONFIG_MAP_PATCH"
 const MemoryValuesPatch ValuesPatchType = "MEMORY_VALUES_PATCH"
 
@@ -35,18 +36,25 @@ type ValuesPatch struct {
 	Operations []*ValuesPatchOperation
 }
 
-func (p *ValuesPatch) JsonPatch() jsonpatch.Patch {
+func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
 	data, err := json.Marshal(p.Operations)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
 	patch, err := jsonpatch.DecodePatch(data)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	return patch, nil
+}
 
-	return patch
+// Apply calls jsonpatch.Apply to mutate a JSON document according to the patch.
+func (p *ValuesPatch) Apply(doc []byte) ([]byte, error) {
+	patch, err := p.ToJsonPatch()
+	if err != nil {
+		return nil, err
+	}
+	return patch.Apply(doc)
 }
 
 type ValuesPatchOperation struct {
@@ -56,9 +64,10 @@ type ValuesPatchOperation struct {
 }
 
 func (op *ValuesPatchOperation) ToString() string {
-	data, err := json.Marshal(op)
+	data, err := json.Marshal(op.Value)
 	if err != nil {
-		panic(err)
+		// This should not happen, because ValuesPatchOperation is created with Unmarshal!
+		return fmt.Sprintf("{\"op\":\"%s\", \"path\":\"%s\", \"value-error\": \"%s\" }", op.Op, op.Path, err)
 	}
 	return string(data)
 }
@@ -318,22 +327,22 @@ func (v Values) DebugString() string {
 	return string(b)
 }
 
-// TODO used for Debugf messages, should be replaced with DebugString
-func ValuesToString(values Values) string {
-	valuesYaml, err := yaml.Marshal(&values)
-	if err != nil {
-		panic(fmt.Sprintf("Cannot dump data to YAML: \n%#v\n error: %s", values, err))
-	}
-	return string(valuesYaml)
-}
-
-
 func (v Values) Checksum() (string, error) {
 	valuesJson, err := json.Marshal(v)
 	if err != nil {
 		return "", err
 	}
 	return utils_checksum.CalculateChecksum(string(valuesJson)), nil
+}
+
+func (v Values) HasKey(key string) bool {
+	_, has := v[key]
+	return has
+}
+
+func (v Values) HasGlobal() bool {
+	_, has := v[GlobalValuesKey]
+	return has
 }
 
 func (v Values) Global() Values {
@@ -343,6 +352,19 @@ func (v Values) Global() Values {
 		newV, err := NewValues(data)
 		if err != nil {
 			log.Errorf("get global Values: %s", err)
+		}
+		return newV
+	}
+	return make(Values)
+}
+
+func (v Values) SectionByKey(key string) Values {
+	sectionValues, has := v[key]
+	if has {
+		data := map[string]interface{}{key: sectionValues}
+		newV, err := NewValues(data)
+		if err != nil {
+			log.Errorf("get section '%s' Values: %s", key, err)
 		}
 		return newV
 	}
@@ -368,6 +390,20 @@ func (v Values) AsString(format string) (string, error) {
 	return string(b), nil
 }
 
+// AsConfigMapData returns values as map that can be used as a 'data' field in the ConfigMap.
+func (v Values) AsConfigMapData() (map[string]string, error) {
+	res := make(map[string]string, 0)
+
+	for k, value := range v {
+		dump, err := yaml.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+		res[k] = string(dump)
+	}
+	return res, nil
+}
+
 func (v Values) JsonString() (string, error) {
 	return v.AsString("json")
 }
@@ -383,7 +419,6 @@ func (v Values) YamlString() (string, error) {
 func (v Values) YamlBytes() ([]byte, error) {
 	return v.AsBytes("yaml")
 }
-
 
 type ValuesLoader interface {
 	Read() (Values, error)

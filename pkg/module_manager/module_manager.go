@@ -51,7 +51,7 @@ type ModuleManager interface {
 	GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string
 
 	GlobalConfigValues() utils.Values
-	GlobalValues() utils.Values
+	GlobalValues() (utils.Values, error)
 
 	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
 	DeleteModule(moduleName string, logLabels map[string]string) error
@@ -781,7 +781,11 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 
 	// ValuesLock.Lock()
 	//
-	beforeChecksum, err := mm.GlobalValues().Checksum()
+	beforeValues, err := mm.GlobalValues()
+	if err != nil {
+		return "", "", err
+	}
+	beforeChecksum, err := beforeValues.Checksum()
 	if err != nil {
 		return "", "", err
 	}
@@ -809,7 +813,11 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 	}
 
 	//	ValuesLock.Lock()
-	afterChecksum, err := mm.GlobalValues().Checksum()
+	afterValues, err := mm.GlobalValues()
+	if err != nil {
+		return "", "", err
+	}
+	afterChecksum, err := afterValues.Checksum()
 	if err != nil {
 		return "", "", err
 	}
@@ -820,7 +828,11 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
 	moduleHook := mm.GetModuleHook(hookName)
 
-	oldValuesChecksum, err := moduleHook.values().Checksum()
+	values, err := moduleHook.Module.Values()
+	if err != nil {
+		return err
+	}
+	valuesChecksum, err := values.Checksum()
 	if err != nil {
 		return err
 	}
@@ -835,12 +847,16 @@ func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bin
 		return err
 	}
 
-	newValuesChecksum, err := moduleHook.values().Checksum()
+	newValues, err := moduleHook.Module.Values()
+	if err != nil {
+		return err
+	}
+	newValuesChecksum, err := newValues.Checksum()
 	if err != nil {
 		return err
 	}
 
-	if newValuesChecksum != oldValuesChecksum {
+	if newValuesChecksum != valuesChecksum {
 		switch binding {
 		case Schedule, OnKubernetesEvent:
 			mm.moduleValuesChanged <- moduleHook.Module.Name
@@ -859,7 +875,7 @@ func (mm *moduleManager) GlobalConfigValues() utils.Values {
 }
 
 // GlobalValues return current global values with applied patches
-func (mm *moduleManager) GlobalValues() utils.Values {
+func (mm *moduleManager) GlobalValues() (utils.Values, error) {
 	var err error
 
 	res := utils.MergeValues(
@@ -873,11 +889,11 @@ func (mm *moduleManager) GlobalValues() utils.Values {
 	for _, patch := range mm.globalDynamicValuesPatches {
 		res, _, err = utils.ApplyValuesPatch(res, patch)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) {

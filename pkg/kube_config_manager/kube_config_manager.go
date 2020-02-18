@@ -35,12 +35,12 @@ type KubeConfigManager interface {
 }
 
 type kubeConfigManager struct {
-	ctx context.Context
+	ctx    context.Context
 	cancel context.CancelFunc
 
-	KubeClient kube.KubernetesClient
-	Namespace string
-	ConfigMapName string
+	KubeClient                kube.KubernetesClient
+	Namespace                 string
+	ConfigMapName             string
 	ValuesChecksumsAnnotation string
 
 	initialConfig *Config
@@ -104,7 +104,10 @@ func (kcm *kubeConfigManager) saveGlobalKubeConfig(globalKubeConfig GlobalKubeCo
 
 		checksums[utils.GlobalValuesKey] = globalKubeConfig.Checksum
 
-		kcm.setValuesChecksums(obj, checksums)
+		err = kcm.setValuesChecksums(obj, checksums)
+		if err != nil {
+			return fmt.Errorf("update global values checksum in annotation: %s", err)
+		}
 
 		obj.Data = simpleMergeConfigMapData(obj.Data, globalKubeConfig.ConfigData)
 
@@ -121,7 +124,10 @@ func (kcm *kubeConfigManager) saveModuleKubeConfig(moduleKubeConfig ModuleKubeCo
 
 		checksums[moduleKubeConfig.ModuleName] = moduleKubeConfig.Checksum
 
-		kcm.setValuesChecksums(obj, checksums)
+		err = kcm.setValuesChecksums(obj, checksums)
+		if err != nil {
+			return fmt.Errorf("update module '%s' values checksum in annotation: %s", moduleKubeConfig.ModuleName, err)
+		}
 
 		obj.Data = simpleMergeConfigMapData(obj.Data, moduleKubeConfig.ConfigData)
 
@@ -185,7 +191,10 @@ func (kcm *kubeConfigManager) WithValuesChecksumsAnnotation(annotation string) {
 }
 
 func (kcm *kubeConfigManager) SetKubeGlobalValues(values utils.Values) error {
-	globalKubeConfig := GetGlobalKubeConfigFromValues(values)
+	globalKubeConfig, err := GetGlobalKubeConfigFromValues(values)
+	if err != nil {
+		return err
+	}
 
 	if globalKubeConfig != nil {
 		log.Debugf("Kube config manager: set kube global values:\n%s", values.DebugString())
@@ -200,7 +209,10 @@ func (kcm *kubeConfigManager) SetKubeGlobalValues(values utils.Values) error {
 }
 
 func (kcm *kubeConfigManager) SetKubeModuleValues(moduleName string, values utils.Values) error {
-	moduleKubeConfig := GetModuleKubeConfigFromValues(moduleName, values)
+	moduleKubeConfig, err := GetModuleKubeConfigFromValues(moduleName, values)
+	if err != nil {
+		return err
+	}
 
 	if moduleKubeConfig != nil {
 		log.Debugf("Kube config manager: set kube module values:\n%s", moduleKubeConfig.ModuleConfig.String())
@@ -330,17 +342,19 @@ func (kcm *kubeConfigManager) getValuesChecksums(cm *v1.ConfigMap) (map[string]s
 	return res, nil
 }
 
-func (kcm *kubeConfigManager) setValuesChecksums(cm *v1.ConfigMap, checksums map[string]string) {
+func (kcm *kubeConfigManager) setValuesChecksums(cm *v1.ConfigMap, checksums map[string]string) error {
 	data, err := json.Marshal(checksums)
 	if err != nil {
-		// nothing should go wrong
-		panic(err)
+		// this should not happen
+		return err
 	}
 
 	if cm.Annotations == nil {
 		cm.Annotations = make(map[string]string)
 	}
 	cm.Annotations[kcm.ValuesChecksumsAnnotation] = string(data)
+
+	return nil
 }
 
 // handleNewCm determine changes in kube config.

@@ -2,9 +2,6 @@ package kube_config_manager
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
-
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 
 	"github.com/flant/addon-operator/pkg/utils"
 )
@@ -15,24 +12,28 @@ type GlobalKubeConfig struct {
 	ConfigData map[string]string
 }
 
-func GetGlobalKubeConfigFromValues(values utils.Values) *GlobalKubeConfig {
-	globalValues, hasKey := values[utils.GlobalValuesKey]
-	if !hasKey {
-		return nil
+func GetGlobalKubeConfigFromValues(values utils.Values) (*GlobalKubeConfig, error) {
+	if !values.HasGlobal() {
+		return nil, nil
 	}
 
-	yamlData, err := yaml.Marshal(&globalValues)
+	globalValues := values.Global()
+
+	configData, err := globalValues.AsConfigMapData()
 	if err != nil {
-		panic(fmt.Sprintf("cannot dump yaml for global kube config: %s\nfailed values data: %#v", err, globalValues))
+		return nil, fmt.Errorf("cannot dump yaml for global kube config: %s. Failed values data: %#v", err, globalValues.DebugString())
 	}
 
-	// FIXME checksum is calculated over yaml representation, but other code
-	// uses json representation!
-	return &GlobalKubeConfig{
-		Values:     utils.Values{utils.GlobalValuesKey: globalValues},
-		Checksum:   utils_checksum.CalculateChecksum(string(yamlData)),
-		ConfigData: map[string]string{utils.GlobalValuesKey: string(yamlData)},
+	checksum, err := globalValues.Checksum()
+	if err != nil {
+		return nil, fmt.Errorf("global kube config checksum: %s", err)
 	}
+
+	return &GlobalKubeConfig{
+		Values:     globalValues,
+		Checksum:   checksum,
+		ConfigData: configData,
+	}, nil
 }
 
 func GetGlobalKubeConfigFromConfigData(configData map[string]string) (*GlobalKubeConfig, error) {
@@ -46,9 +47,14 @@ func GetGlobalKubeConfigFromConfigData(configData map[string]string) (*GlobalKub
 		return nil, fmt.Errorf("ConfigMap: bad yaml at key '%s': %s:\n%s", utils.GlobalValuesKey, err, string(yamlData))
 	}
 
+	checksum, err := values.Checksum()
+	if err != nil {
+		return nil, fmt.Errorf("ConfigMap: global kube config checksum: %s", err)
+	}
+
 	return &GlobalKubeConfig{
 		ConfigData: map[string]string{utils.GlobalValuesKey: yamlData},
 		Values:     values,
-		Checksum:   utils_checksum.CalculateChecksum(yamlData),
+		Checksum:   checksum,
 	}, nil
 }

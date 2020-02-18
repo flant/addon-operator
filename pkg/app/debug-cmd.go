@@ -14,7 +14,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalValuesCmd := globalCmd.Command("values", "Dump current global values.").
 		Action(func(c *kingpin.ParseContext) error {
-		dump, err := Global(sh_debug.DefaultClient()).Values(sh_debug.OutputFormat)
+			dump, err := Global(sh_debug.DefaultClient()).Values(sh_debug.OutputFormat)
 			if err != nil {
 				return err
 			}
@@ -27,7 +27,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalConfigCmd := globalCmd.Command("config", "Dump global config values.").
 		Action(func(c *kingpin.ParseContext) error {
-		dump, err := Global(sh_debug.DefaultClient()).Config(sh_debug.OutputFormat)
+			dump, err := Global(sh_debug.DefaultClient()).Config(sh_debug.OutputFormat)
 			if err != nil {
 				return err
 			}
@@ -56,7 +56,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	var moduleName string
 	moduleValuesCmd := moduleCmd.Command("values", "Dump module values by name.").
 		Action(func(c *kingpin.ParseContext) error {
-		dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Values(sh_debug.OutputFormat)
+			dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Values(sh_debug.OutputFormat)
 			if err != nil {
 				return err
 			}
@@ -82,6 +82,19 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	AddOutputJsonYamlFlag(moduleConfigCmd)
 	sh_app.DefineDebugUnixSocketFlag(moduleConfigCmd)
 
+	modulePatchesCmd := moduleCmd.Command("patches", "Dump module value patches by name.").
+		Action(func(c *kingpin.ParseContext) error {
+			dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Patches()
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(dump))
+			return nil
+		})
+	modulePatchesCmd.Arg("module_name", "").Required().StringVar(&moduleName)
+	// --debug-unix-socket <file>
+	sh_app.DefineDebugUnixSocketFlag(modulePatchesCmd)
+
 	moduleResourceMonitorCmd := moduleCmd.Command("resource-monitor", "Dump resource monitors.").
 		Action(func(c *kingpin.ParseContext) error {
 			out, err := Module(sh_debug.DefaultClient()).ResourceMonitor(sh_debug.OutputFormat)
@@ -95,16 +108,13 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	AddOutputJsonYamlFlag(moduleResourceMonitorCmd)
 	sh_app.DefineDebugUnixSocketFlag(moduleResourceMonitorCmd)
 
-
 }
-
 
 func AddOutputJsonYamlFlag(cmd *kingpin.CmdClause) {
 	cmd.Flag("output", "Output format: json|yaml.").Short('o').
 		Default("yaml").
 		EnumVar(&sh_debug.OutputFormat, "json", "yaml")
 }
-
 
 type GlobalRequest struct {
 	client *sh_debug.Client
@@ -124,10 +134,9 @@ func (gr *GlobalRequest) Config(format string) ([]byte, error) {
 	return gr.client.Get(url)
 }
 
-
 type ModuleRequest struct {
 	client *sh_debug.Client
-	name string
+	name   string
 }
 
 func Module(client *sh_debug.Client) *ModuleRequest {
@@ -151,6 +160,11 @@ func (mr *ModuleRequest) Name(name string) *ModuleRequest {
 
 func (mr *ModuleRequest) Values(format string) ([]byte, error) {
 	url := fmt.Sprintf("http://unix/module/%s/values.%s", mr.name, format)
+	return mr.client.Get(url)
+}
+
+func (mr *ModuleRequest) Patches() ([]byte, error) {
+	url := fmt.Sprintf("http://unix/module/%s/patches.json", mr.name)
 	return mr.client.Get(url)
 }
 

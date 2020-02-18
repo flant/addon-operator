@@ -14,19 +14,19 @@ import (
 	. "github.com/flant/addon-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	utils_data "github.com/flant/addon-operator/pkg/utils/data"
 )
 
 type GlobalHook struct {
 	*CommonHook
 	Config *GlobalHookConfig
 }
+
 var _ Hook = &GlobalHook{}
 
 func NewGlobalHook(name, path string) *GlobalHook {
 	res := &GlobalHook{
 		CommonHook: &CommonHook{},
-		Config: &GlobalHookConfig{},
+		Config:     &GlobalHookConfig{},
 	}
 	res.Name = name
 	res.Path = path
@@ -73,8 +73,6 @@ func (g *GlobalHook) Order(binding BindingType) float64 {
 type globalValuesMergeResult struct {
 	// Global values with the root "global" key.
 	Values utils.Values
-	// Global values under the root "global" key.
-	GlobalValues map[string]interface{}
 	// Original values patch argument.
 	ValuesPatch utils.ValuesPatch
 	// Whether values changed after applying patch.
@@ -82,31 +80,29 @@ type globalValuesMergeResult struct {
 }
 
 func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesPatch utils.ValuesPatch) (*globalValuesMergeResult, error) {
-	acceptableKey := "global"
 
-	if err := utils.ValidateHookValuesPatch(valuesPatch, acceptableKey); err != nil {
+	if err := utils.ValidateHookValuesPatch(valuesPatch, utils.GlobalValuesKey); err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}
 
-	newValuesRaw, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch)
+	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch)
 	if err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}
 
 	result := &globalValuesMergeResult{
-		Values:        utils.Values{acceptableKey: make(map[string]interface{})},
+		Values:        utils.Values{utils.GlobalValuesKey: make(map[string]interface{})},
 		ValuesChanged: valuesChanged,
 		ValuesPatch:   valuesPatch,
 	}
 
-	if globalValuesRaw, hasKey := newValuesRaw[acceptableKey]; hasKey {
-		globalValues, ok := globalValuesRaw.(map[string]interface{})
+	if newValues.HasGlobal() {
+		_, ok := newValues[utils.GlobalValuesKey].(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", acceptableKey, utils_data.YamlToString(globalValuesRaw))
+			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", utils.GlobalValuesKey, newValues.Global().DebugString())
 		}
 
-		result.Values[acceptableKey] = globalValues
-		result.GlobalValues = globalValues
+		result.Values = newValues.Global()
 	}
 
 	return result, nil
@@ -152,13 +148,21 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	valuesPatch, has := patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
-		valuesPatchResult, err := h.handleGlobalValuesPatch(h.moduleManager.GlobalValues(), *valuesPatch)
+		globalValues, err := h.moduleManager.GlobalValues()
+		if err != nil {
+			return fmt.Errorf("global hook '%s': global values before patch apply: %s", h.Name, err)
+		}
+		valuesPatchResult, err := h.handleGlobalValuesPatch(globalValues, *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': dynamic global values update error: %s", h.Name, err)
 		}
 		if valuesPatchResult.ValuesChanged {
 			h.moduleManager.globalDynamicValuesPatches = utils.AppendValuesPatch(h.moduleManager.globalDynamicValuesPatches, valuesPatchResult.ValuesPatch)
-			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, h.moduleManager.GlobalValues().DebugString())
+			newGlobalValues, err := h.moduleManager.GlobalValues()
+			if err != nil {
+				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)
+			}
+			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, newGlobalValues.DebugString())
 		}
 	}
 
@@ -218,7 +222,10 @@ func (h *GlobalHook) prepareConfigValuesJsonFile() (string, error) {
 
 // VALUES_PATH
 func (h *GlobalHook) prepareValuesJsonFile() (filePath string, err error) {
-	var values = h.moduleManager.GlobalValues()
+	values, err := h.moduleManager.GlobalValues()
+	if err != nil {
+		return "", nil
+	}
 	data, err := values.JsonBytes()
 	if err != nil {
 		return "", err

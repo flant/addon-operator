@@ -316,7 +316,11 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels map[string]string) (bool, error) {
 	moduleHooks := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
 
-	valuesChecksum, err := m.Values().Checksum()
+	values, err := m.Values()
+	if err != nil {
+		return false, err
+	}
+	valuesChecksum, err := values.Checksum()
 	if err != nil {
 		return false, err
 	}
@@ -340,7 +344,11 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 		}
 	}
 
-	newValuesChecksum, err := m.Values().Checksum()
+	newValues, err := m.Values()
+	if err != nil {
+		return false, err
+	}
+	newValuesChecksum, err := newValues.Checksum()
 	if err != nil {
 		return false, err
 	}
@@ -372,7 +380,12 @@ func (m *Module) prepareConfigValuesJsonFile() (string, error) {
 
 // values.yaml for helm
 func (m *Module) prepareValuesYamlFile() (string, error) {
-	data, err := m.Values().YamlBytes()
+	values, err := m.Values()
+	if err != nil {
+		return "", err
+	}
+
+	data, err := values.YamlBytes()
 	if err != nil {
 		return "", err
 	}
@@ -383,7 +396,7 @@ func (m *Module) prepareValuesYamlFile() (string, error) {
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s values:\n%s", m.Name, m.Values().DebugString())
+	log.Debugf("Prepared module %s values:\n%s", m.Name, values.DebugString())
 
 	return path, nil
 }
@@ -407,11 +420,19 @@ func (m *Module) prepareValuesJsonFileWith(values utils.Values) (string, error) 
 }
 
 func (m *Module) prepareValuesJsonFile() (string, error) {
-	return m.prepareValuesJsonFileWith(m.Values())
+	values, err := m.Values()
+	if err != nil {
+		return "", err
+	}
+	return m.prepareValuesJsonFileWith(values)
 }
 
 func (m *Module) prepareValuesJsonFileForEnabledScript(precedingEnabledModules []string) (string, error) {
-	return m.prepareValuesJsonFileWith(m.valuesForEnabledScript(precedingEnabledModules))
+	values, err := m.valuesForEnabledScript(precedingEnabledModules)
+	if err != nil {
+		return "", err
+	}
+	return m.prepareValuesJsonFileWith(values)
 }
 
 func (m *Module) checkHelmChart() (bool, error) {
@@ -447,7 +468,7 @@ func (m *Module) ConfigValues() utils.Values {
 // global section: static + kube + patches from hooks
 //
 // module section: static + kube + patches from hooks
-func (m *Module) constructValues() utils.Values {
+func (m *Module) constructValues() (utils.Values, error) {
 	var err error
 
 	res := utils.MergeValues(
@@ -472,40 +493,50 @@ func (m *Module) constructValues() utils.Values {
 
 			res, _, err = utils.ApplyValuesPatch(res, patch)
 			if err != nil {
-				panic(err)
+				return nil, fmt.Errorf("construct values, apply patch error: %s", err)
 			}
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 // valuesForEnabledScript returns merged values for enabled script.
 // There is enabledModules key in global section with previously enabled modules.
-func (m *Module) valuesForEnabledScript(precedingEnabledModules []string) utils.Values {
-	res := m.constructValues()
+func (m *Module) valuesForEnabledScript(precedingEnabledModules []string) (utils.Values, error) {
+	res, err := m.constructValues()
+	if err != nil {
+		return nil, err
+	}
 	res = utils.MergeValues(res, utils.Values{
 		"global": map[string]interface{}{
 			"enabledModules": precedingEnabledModules,
 		},
 	})
-	return res
+	return res, nil
 }
 
 // values returns merged values for hooks.
 // There is enabledModules key in global section with all enabled modules.
-func (m *Module) Values() utils.Values {
-	res := m.constructValues()
+func (m *Module) Values() (utils.Values, error) {
+	res, err := m.constructValues()
+	if err != nil {
+		return nil, err
+	}
 	res = utils.MergeValues(res, utils.Values{
 		"global": map[string]interface{}{
 			"enabledModules": m.moduleManager.enabledModulesInOrder,
 		},
 	})
-	return res
+	return res, nil
 }
 
 func (m *Module) ValuesKey() string {
 	return utils.ModuleNameToValuesKey(m.Name)
+}
+
+func (m *Module) ValuesPatches() []utils.ValuesPatch {
+	return m.moduleManager.modulesDynamicValuesPatches[m.Name]
 }
 
 func (m *Module) prepareModuleEnabledResultFile() (string, error) {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -12,7 +13,6 @@ import (
 	"github.com/evanphx/json-patch"
 	"github.com/stretchr/testify/assert"
 )
-
 
 func TestMergeValues(t *testing.T) {
 	expectations := []struct {
@@ -83,7 +83,6 @@ func TestModuleNameConversions(t *testing.T) {
 		}
 	}
 }
-
 
 // TODO поправить после изменения алгоритма compact
 func TestApplyPatch(t *testing.T) {
@@ -160,7 +159,6 @@ func TestApplyPatch(t *testing.T) {
 	}
 }
 
-
 func Test_ApplyRemove_NonExistent(t *testing.T) {
 	t.SkipNow()
 	patch1, _ := jsonpatch.DecodePatch([]byte(`[{"op":"remove", "path":"/test_key"}]`))
@@ -169,8 +167,8 @@ func Test_ApplyRemove_NonExistent(t *testing.T) {
 
 	expectNewDoc := []byte(`{"asd":"foof"}`)
 
-	newDoc, err :=  patch1.Apply(origDoc)
-	if err != nil{
+	newDoc, err := patch1.Apply(origDoc)
+	if err != nil {
 		t.Logf("patch Apply: %v", err)
 		t.FailNow()
 	}
@@ -187,8 +185,8 @@ func Test_Apply_Remove_ObjectAndArray(t *testing.T) {
 
 	expectNewDoc := []byte(`{"asd":"foof"}`)
 
-	newDoc, err :=  patch1.Apply(origDoc)
-	if err != nil{
+	newDoc, err := patch1.Apply(origDoc)
+	if err != nil {
 		t.Logf("patch Apply: %v", err)
 		t.FailNow()
 	}
@@ -196,7 +194,6 @@ func Test_Apply_Remove_ObjectAndArray(t *testing.T) {
 	assert.True(t, jsonpatch.Equal(newDoc, expectNewDoc), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 
 }
-
 
 // Replace non existent path is error!
 func Test_Apply_Replace_NonExistent(t *testing.T) {
@@ -209,8 +206,8 @@ func Test_Apply_Replace_NonExistent(t *testing.T) {
 
 	expectNewDoc := []byte(`{"asd":"foof"}`)
 
-	newDoc, err :=  patch1.Apply(origDoc)
-	if err != nil{
+	newDoc, err := patch1.Apply(origDoc)
+	if err != nil {
 		t.Logf("patch Apply: %v", err)
 		t.FailNow()
 	}
@@ -221,8 +218,8 @@ func Test_Apply_Replace_NonExistent(t *testing.T) {
 
 func Test_Apply_Add_WithNonExistentParent(t *testing.T) {
 	// Not working!
-//	patch1, _ := jsonpatch.DecodePatch([]byte(`
-//[{"op":"add", "path":"/level1/level2/test_key", "value":"qwe"}]`))
+	//	patch1, _ := jsonpatch.DecodePatch([]byte(`
+	//[{"op":"add", "path":"/level1/level2/test_key", "value":"qwe"}]`))
 
 	patch1, _ := jsonpatch.DecodePatch([]byte(`
 [
@@ -236,8 +233,8 @@ func Test_Apply_Add_WithNonExistentParent(t *testing.T) {
 
 	expectNewDoc := []byte(`{"bar":"foo", "level1":{"level2":{"test_key":"qwe"}}}`)
 
-	newDoc, err :=  patch1.Apply(origDoc)
-	if err != nil{
+	newDoc, err := patch1.Apply(origDoc)
+	if err != nil {
 		t.Logf("patch Apply: %v", err)
 		t.FailNow()
 	}
@@ -258,8 +255,8 @@ func Test_Apply_Add_NullObj_AddKey(t *testing.T) {
 
 	expectNewDoc := []byte(`{"test_obj":{"key3":"foo"}}`)
 
-	newDoc, err :=  patch1.Apply(origDoc)
-	if err != nil{
+	newDoc, err := patch1.Apply(origDoc)
+	if err != nil {
 		t.Logf("patch Apply: %v", err)
 		t.FailNow()
 	}
@@ -269,13 +266,13 @@ func Test_Apply_Add_NullObj_AddKey(t *testing.T) {
 
 func Test_Apply_MergePatch_Add_NullObj_AddKey(t *testing.T) {
 	// It is not working without adding parent keys!
-//	patch1, _ := jsonpatch.DecodePatch([]byte(`
-//[{"op":"add", "path":"/level1/level2/test_key", "value":"qwe"}]`))
+	//	patch1, _ := jsonpatch.DecodePatch([]byte(`
+	//[{"op":"add", "path":"/level1/level2/test_key", "value":"qwe"}]`))
 
 	//{"op":"add", "path":"/test_obj", "value":{}},
 	//{"op":"add", "path":"/test_obj/key1", "value":"foo"},
 	//{"op":"add", "path":"/test_obj/key2", "value":"bar"},
-//	{"op":"remove", "path":"/test_obj"},
+	//	{"op":"remove", "path":"/test_obj"},
 	//{"op":"add", "path":"/test_obj", "value":{}},
 	patch1 := []byte(`
 {"test_obj":{"key3":"foo"}, "remove":null}
@@ -286,7 +283,7 @@ func Test_Apply_MergePatch_Add_NullObj_AddKey(t *testing.T) {
 	expectNewDoc := []byte(`{"test_obj":{"key3":"foo"}}`)
 
 	newDoc, err := jsonpatch.MergePatch(origDoc, patch1)
-	if err != nil{
+	if err != nil {
 		t.Logf("patch Merge: %v", err)
 		t.FailNow()
 	}
@@ -312,7 +309,7 @@ func Test_Merge_Patches_By_Steps(t *testing.T) {
 
 	for i, patch := range patches {
 		newPatch, err = jsonpatch.MergeMergePatches(newPatch, []byte(patch))
-		if err != nil{
+		if err != nil {
 			t.Logf("merge patches: %v", err)
 			t.FailNow()
 		}
@@ -435,10 +432,10 @@ func Test_CompactPatches_Result(t *testing.T) {
 }
 
 func Test_CompactPatches_Apply(t *testing.T) {
-	tests := []struct{
-		name string
-		patches []string
-		input string
+	tests := []struct {
+		name     string
+		patches  []string
+		input    string
 		expected string
 	}{
 		{
@@ -539,8 +536,7 @@ func Test_CompactPatches_Apply(t *testing.T) {
 			for _, patch := range tt.patches {
 				vp, _ := ValuesPatchFromBytes([]byte(patch))
 				operations = append(operations, vp.Operations...)
-
-				patchedDoc, err := vp.JsonPatch().Apply([]byte(origPatchedDoc))
+				patchedDoc, err := vp.Apply([]byte(origPatchedDoc))
 				if !assert.NoError(t, err) {
 					t.Logf("%s should apply on %s", patch, origPatchedDoc)
 					t.FailNow()
@@ -550,12 +546,11 @@ func Test_CompactPatches_Apply(t *testing.T) {
 
 			assert.True(t, jsonpatch.Equal(origPatchedDoc, []byte(tt.expected)), "%s should be equal to %s", origPatchedDoc, tt.expected)
 
-
 			newPatch := CompactPatches(operations)
 			if !assert.NoError(t, err) {
 				t.FailNow()
 			}
-			patched, err := newPatch.JsonPatch().Apply([]byte(tt.input))
+			patched, err := newPatch.Apply([]byte(tt.input))
 			if assert.NoError(t, err) {
 				assert.True(t, jsonpatch.Equal(patched, []byte(tt.expected)), "%s should be equal to %s", patched, tt.expected)
 			}
@@ -587,29 +582,29 @@ moduleOne:
   - He
   - Li
 `)
-	mapInput := map[string]interface{} {
-		"global": map[string]string {
+	mapInput := map[string]interface{}{
+		"global": map[string]string{
 			"param1": "value1",
 			"param2": "value2",
- 		},
- 		"moduleOne": map[string]interface{} {
- 			"paramStr": "string",
- 			"paramNum": 123,
- 			"paramArr": []string {
- 				"H",
- 				"He",
- 				"Li",
+		},
+		"moduleOne": map[string]interface{}{
+			"paramStr": "string",
+			"paramNum": 123,
+			"paramArr": []string{
+				"H",
+				"He",
+				"Li",
 			},
 		},
 	}
 
 	expected := Values(map[string]interface{}{
-		"global": map[string]interface{} {
+		"global": map[string]interface{}{
 			"param1": "value1",
 			"param2": "value2",
 		},
-		"moduleOne": map[string]interface{} {
-			"paramArr": []interface{} {
+		"moduleOne": map[string]interface{}{
+			"paramArr": []interface{}{
 				"H",
 				"He",
 				"Li",
@@ -636,7 +631,6 @@ moduleOne:
 
 }
 
-
 func Test_Values_NewGlobalValues(t *testing.T) {
 	g := NewWithT(t)
 
@@ -650,8 +644,8 @@ paramArr:
 `
 
 	expected := Values(map[string]interface{}{
-		"global": map[string]interface{} {
-			"paramArr": []interface{} {
+		"global": map[string]interface{}{
+			"paramArr": []interface{}{
 				"H",
 				"He",
 				"Li",
