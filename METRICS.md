@@ -1,13 +1,13 @@
 # Addon-operator metrics
 
-Addon-operator implements Prometheus target at `/metrics` endpoint. Default port is `9650`.
+The Addon-operator implements Prometheus target at `/metrics` endpoint. Default port is `9650`.
 
-__addon_operator_module_hook_errors{module=”module-name”, hook="hook-name"}__
+__addon_operator_module_hook_errors{module="module-name", hook="hook-name"}__
 
 The counter of hooks’ execution errors. It only tracks errors of hooks with the disabled `allowFailure` (allowFailure: false).
 
 
-__addon_operator_module_hook_allowed_errors{module=”module-name”, hook="hook-name"}__
+__addon_operator_module_hook_allowed_errors{module="module-name", hook="hook-name"}__
 
 The counter of execution errors of module hooks for which execution errors are allowed (allowFailure: true).
 
@@ -23,7 +23,10 @@ The counter of execution errors of global hooks for which execution errors are a
 
 
 __addon_operator_module_discover_errors__
-A counter of errors during the [modules discover](LIFECYCLE.md#modules-discover) process. It increases every time when there are errors in the enabled-scripts running, configuration of module hooks, errors when viewing the helm releases or accessing the K8s API.
+A counter of errors during the [modules discover](LIFECYCLE.md#modules-discover) process. It increases in these cases:
+- an 'enabled' script is executed with an error
+- a module hook return an invalid configuration
+- a call to the Kubernetes API ends with an error (for example, retrieving helm releases).
 
 
 __addon_operator_module_run_errors{module=x}__
@@ -40,4 +43,3 @@ An indicator of a working queue length. This metric can be used to warn about st
 __addon_operator_live_ticks__
 
 A counter that increases every 10 seconds.
-
