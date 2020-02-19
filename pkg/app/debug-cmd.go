@@ -38,6 +38,18 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	AddOutputJsonYamlFlag(globalConfigCmd)
 	sh_app.DefineDebugUnixSocketFlag(globalConfigCmd)
 
+	globalPatchesCmd := globalCmd.Command("patches", "Dump global value patches.").
+		Action(func(c *kingpin.ParseContext) error {
+			dump, err := Global(sh_debug.DefaultClient()).Patches()
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(dump))
+			return nil
+		})
+	// --debug-unix-socket <file>
+	sh_app.DefineDebugUnixSocketFlag(globalPatchesCmd)
+
 	moduleCmd := sh_app.CommandWithDefaultUsageTemplate(kpApp, "module", "manage modules ant their values")
 
 	moduleListCmd := moduleCmd.Command("list", "List available modules and their enabled status.").
@@ -131,6 +143,11 @@ func (gr *GlobalRequest) Values(format string) ([]byte, error) {
 
 func (gr *GlobalRequest) Config(format string) ([]byte, error) {
 	url := fmt.Sprintf("http://unix/global/config.%s", format)
+	return gr.client.Get(url)
+}
+
+func (gr *GlobalRequest) Patches() ([]byte, error) {
+	url := fmt.Sprintf("http://unix/global/patches.json")
 	return gr.client.Get(url)
 }
 

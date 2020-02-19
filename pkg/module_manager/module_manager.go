@@ -52,6 +52,7 @@ type ModuleManager interface {
 
 	GlobalConfigValues() utils.Values
 	GlobalValues() (utils.Values, error)
+	GlobalValuesPatches() []utils.ValuesPatch
 
 	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
 	DeleteModule(moduleName string, logLabels map[string]string) error
@@ -894,6 +895,11 @@ func (mm *moduleManager) GlobalValues() (utils.Values, error) {
 	}
 
 	return res, nil
+}
+
+// GlobalValues return patches for global values
+func (mm *moduleManager) GlobalValuesPatches() []utils.ValuesPatch {
+	return mm.globalDynamicValuesPatches
 }
 
 func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) {
