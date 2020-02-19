@@ -25,6 +25,7 @@ const (
 )
 
 type ValuesPatchType string
+
 const ConfigMapPatch ValuesPatchType = "CONFIG_MAP_PATCH"
 const MemoryValuesPatch ValuesPatchType = "MEMORY_VALUES_PATCH"
 
@@ -35,18 +36,25 @@ type ValuesPatch struct {
 	Operations []*ValuesPatchOperation
 }
 
-func (p *ValuesPatch) JsonPatch() jsonpatch.Patch {
+func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
 	data, err := json.Marshal(p.Operations)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
 	patch, err := jsonpatch.DecodePatch(data)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	return patch, nil
+}
 
-	return patch
+// Apply calls jsonpatch.Apply to mutate a JSON document according to the patch.
+func (p *ValuesPatch) Apply(doc []byte) ([]byte, error) {
+	patch, err := p.ToJsonPatch()
+	if err != nil {
+		return nil, err
+	}
+	return patch.Apply(doc)
 }
 
 type ValuesPatchOperation struct {
@@ -56,9 +64,10 @@ type ValuesPatchOperation struct {
 }
 
 func (op *ValuesPatchOperation) ToString() string {
-	data, err := json.Marshal(op)
+	data, err := json.Marshal(op.Value)
 	if err != nil {
-		panic(err)
+		// This should not happen, because ValuesPatchOperation is created with Unmarshal!
+		return fmt.Sprintf("{\"op\":\"%s\", \"path\":\"%s\", \"value-error\": \"%s\" }", op.Op, op.Path, err)
 	}
 	return string(data)
 }
@@ -190,12 +199,12 @@ func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatc
 	return []ValuesPatch{CompactPatches(operations)}
 }
 
+// CompactPatches simplifies a patches tree — one path, one operation.
 func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
-	patchesTree := map[string]*ValuesPatchOperation{}
+	patchesTree := make(map[string][]*ValuesPatchOperation, 0)
 
 	for _, op := range operations {
-		patchesTree[op.Path] = op
-		// remove subpathes if got 'remove' operation
+		// remove previous operations for subpaths if got 'remove' operation for parent path
 		if op.Op == "remove" {
 			for subPath := range patchesTree {
 				if len(op.Path) < len(subPath) && strings.HasPrefix(subPath, op.Path+"/") {
@@ -204,54 +213,81 @@ func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
 			}
 		}
 
+		if _, ok := patchesTree[op.Path]; !ok {
+			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
+		}
+
+		// 'add' can be squashed to only one operation
+		if op.Op == "add" {
+			patchesTree[op.Path] = []*ValuesPatchOperation{op}
+		}
+
+		// 'remove' is squashed to 'remove' and 'add' for future Apply calls
+		if op.Op == "remove" {
+			// find most recent 'add' operation
+			hasPreviousAdd := false
+			for _, prevOp := range patchesTree[op.Path] {
+				if prevOp.Op == "add" {
+					patchesTree[op.Path] = []*ValuesPatchOperation{prevOp, op}
+					hasPreviousAdd = true
+				}
+			}
+
+			if !hasPreviousAdd {
+				// Something bad happens — a sequence contains a 'remove' operation without previous 'add' operation
+				// Append virtual 'add' operation to not fail future Apply calls.
+				patchesTree[op.Path] = []*ValuesPatchOperation{
+					{
+						Op:    "add",
+						Path:  op.Path,
+						Value: "guard-patch-for-successful-remove",
+					},
+					op,
+				}
+			}
+		}
 	}
 
+	// Sort paths for proper 'add' sequence
 	paths := []string{}
 	for path := range patchesTree {
 		paths = append(paths, path)
 	}
-
 	sort.Strings(paths)
 
 	newOps := []*ValuesPatchOperation{}
 	for _, path := range paths {
-		newOps = append(newOps, patchesTree[path])
+		for _, op := range patchesTree[path] {
+			newOps = append(newOps, op)
+		}
 	}
 
 	newValuesPatch := ValuesPatch{Operations: newOps}
 	return newValuesPatch
 }
 
+// ApplyValuesPatch applies a set of json patch operations to the values and returns a result
 func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, error) {
 	var err error
-	resValues := values
 
-	if resValues, err = ApplyJsonPatchToValues(resValues, valuesPatch.JsonPatch()); err != nil {
+	jsonDoc, err := json.Marshal(values)
+	if err != nil {
+		return nil, false, err
+	}
+
+	resJsonDoc, err := valuesPatch.Apply(jsonDoc)
+	if err != nil {
+		return nil, false, err
+	}
+
+	resValues := make(Values)
+	if err = json.Unmarshal(resJsonDoc, &resValues); err != nil {
 		return nil, false, err
 	}
 
 	valuesChanged := !reflect.DeepEqual(values, resValues)
 
 	return resValues, valuesChanged, nil
-}
-
-func ApplyJsonPatchToValues(values Values, patch jsonpatch.Patch) (Values, error) {
-	jsonDoc, err := json.Marshal(values)
-	if err != nil {
-		return nil, err
-	}
-
-	resJsonDoc, err := patch.Apply(jsonDoc)
-	if err != nil {
-		return nil, err
-	}
-
-	resValues := make(Values)
-	if err = json.Unmarshal(resJsonDoc, &resValues); err != nil {
-		return nil, err
-	}
-
-	return resValues, nil
 }
 
 func ValidateHookValuesPatch(valuesPatch ValuesPatch, acceptableKey string) error {
@@ -291,22 +327,22 @@ func (v Values) DebugString() string {
 	return string(b)
 }
 
-// TODO used for Debugf messages, should be replaced with DebugString
-func ValuesToString(values Values) string {
-	valuesYaml, err := yaml.Marshal(&values)
-	if err != nil {
-		panic(fmt.Sprintf("Cannot dump data to YAML: \n%#v\n error: %s", values, err))
-	}
-	return string(valuesYaml)
-}
-
-
 func (v Values) Checksum() (string, error) {
 	valuesJson, err := json.Marshal(v)
 	if err != nil {
 		return "", err
 	}
 	return utils_checksum.CalculateChecksum(string(valuesJson)), nil
+}
+
+func (v Values) HasKey(key string) bool {
+	_, has := v[key]
+	return has
+}
+
+func (v Values) HasGlobal() bool {
+	_, has := v[GlobalValuesKey]
+	return has
 }
 
 func (v Values) Global() Values {
@@ -316,6 +352,19 @@ func (v Values) Global() Values {
 		newV, err := NewValues(data)
 		if err != nil {
 			log.Errorf("get global Values: %s", err)
+		}
+		return newV
+	}
+	return make(Values)
+}
+
+func (v Values) SectionByKey(key string) Values {
+	sectionValues, has := v[key]
+	if has {
+		data := map[string]interface{}{key: sectionValues}
+		newV, err := NewValues(data)
+		if err != nil {
+			log.Errorf("get section '%s' Values: %s", key, err)
 		}
 		return newV
 	}
@@ -341,6 +390,20 @@ func (v Values) AsString(format string) (string, error) {
 	return string(b), nil
 }
 
+// AsConfigMapData returns values as map that can be used as a 'data' field in the ConfigMap.
+func (v Values) AsConfigMapData() (map[string]string, error) {
+	res := make(map[string]string, 0)
+
+	for k, value := range v {
+		dump, err := yaml.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+		res[k] = string(dump)
+	}
+	return res, nil
+}
+
 func (v Values) JsonString() (string, error) {
 	return v.AsString("json")
 }
@@ -356,7 +419,6 @@ func (v Values) YamlString() (string, error) {
 func (v Values) YamlBytes() ([]byte, error) {
 	return v.AsBytes("yaml")
 }
-
 
 type ValuesLoader interface {
 	Read() (Values, error)

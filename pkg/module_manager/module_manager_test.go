@@ -25,7 +25,6 @@ import (
 	"k8s.io/api/core/v1"
 )
 
-
 // initModuleManager is a test version of an Init method
 func initModuleManager(t *testing.T, mm *moduleManager, configPath string) {
 	rootDir := filepath.Join("testdata", configPath)
@@ -113,10 +112,10 @@ func Test_MainModuleManager_LoadValuesInInit(t *testing.T) {
 			"only_module_config",
 			"load_values__module_static_only",
 			func() {
-				modWithValues1Expected :=  utils.Values{
-				"withValues1": map[string]interface{}{
-					"a": 1.0, "b": 2.0, "c": 3.0,
-				},
+				modWithValues1Expected := utils.Values{
+					"withValues1": map[string]interface{}{
+						"a": 1.0, "b": 2.0, "c": 3.0,
+					},
 				}
 
 				modWithValues2Expected := utils.Values{
@@ -219,7 +218,6 @@ func Test_MainModuleManager_LoadValuesInInit(t *testing.T) {
 
 }
 
-
 func Test_MainModuleManager_Get_Module(t *testing.T) {
 	mm := NewMainModuleManager()
 
@@ -231,19 +229,18 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 	var module *Module
 	var err error
 
-
 	tests := []struct {
 		name       string
 		moduleName string
 		testFn     func()
-	} {
+	}{
 		{
 			"module_loaded_from_files",
 			"module",
 			func() {
 				expectedModule := &Module{
-					Name:          "module",
-					Path:          filepath.Join(mm.ModulesDir, "000-module"),
+					Name: "module",
+					Path: filepath.Join(mm.ModulesDir, "000-module"),
 					CommonStaticConfig: &utils.ModuleConfig{
 						ModuleName:       "module",
 						Values:           utils.Values{},
@@ -272,7 +269,7 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 		{
 			"direct_add_module_to_index",
 			"programmatic-module",
-			func(){
+			func() {
 				if assert.NoError(t, err) {
 					assert.Equal(t, programmaticModule, module)
 				}
@@ -478,7 +475,7 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
-	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -490,12 +487,12 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 	var moduleHooks []string
 	var err error
 
-	tests := []struct{
-		name string
-		moduleName string
+	tests := []struct {
+		name        string
+		moduleName  string
 		bindingType BindingType
-		testFn func()
-	} {
+		testFn      func()
+	}{
 		{
 			"sorted-hooks",
 			"after-helm-binding-hooks",
@@ -509,7 +506,6 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 					"107-after-helm-binding-hooks/hooks/c",
 					"107-after-helm-binding-hooks/hooks/a",
 				}
-
 
 				if assert.NoError(t, err) {
 					assert.Equal(t, expectedOrder, moduleHooks)
@@ -547,7 +543,6 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 	}
 }
 
-
 type MockKubeConfigManager struct {
 	kube_config_manager.KubeConfigManager
 }
@@ -565,7 +560,7 @@ func Test_MainModuleManager_RunModule(t *testing.T) {
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
 
-	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
 		return hc
 	}
 
@@ -599,8 +594,13 @@ func Test_MainModuleManager_RunModule(t *testing.T) {
 
 	module := mm.GetModule(moduleName)
 
-	if !reflect.DeepEqual(expectedModuleValues, module.Values()) {
-		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.Values())
+	values, err := module.Values()
+	if !assert.NoError(t, err) {
+		t.FailNow()
+	}
+
+	if !reflect.DeepEqual(expectedModuleValues, values) {
+		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, values)
 	}
 
 	assert.Equal(t, hc.DeleteSingleFailedRevisionExecuted, true, "helm.DeleteSingleFailedRevision must be executed!")
@@ -612,7 +612,7 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
 
-	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
 		return hc
 	}
 
@@ -644,8 +644,13 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 
 	module := mm.GetModule(moduleName)
 
-	if !reflect.DeepEqual(expectedModuleValues, module.Values()) {
-		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, module.Values())
+	values, err := module.Values()
+	if !assert.NoError(t, err) {
+		t.FailNow()
+	}
+
+	if !reflect.DeepEqual(expectedModuleValues, values) {
+		t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, values)
 	}
 
 	assert.Equal(t, hc.DeleteReleaseExecuted, true, "helm.DeleteRelease must be executed!")
@@ -654,7 +659,7 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 	// TODO hooks not found
 	t.SkipNow()
-	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -782,8 +787,13 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedModuleConfigValues, module.ConfigValues())
 			}
 
-			if !reflect.DeepEqual(expectation.expectedModuleValues, module.Values()) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedModuleValues, module.Values())
+			values, err := module.Values()
+			if !assert.NoError(t, err) {
+				t.FailNow()
+			}
+
+			if !reflect.DeepEqual(expectation.expectedModuleValues, values) {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedModuleValues, values)
 			}
 		})
 	}
@@ -962,7 +972,7 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
-	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -999,7 +1009,7 @@ func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
 }
 
 func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
-	helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -1095,12 +1105,15 @@ func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
 			mm.kubeGlobalConfigValues = expectation.kubeGlobalConfigValues
 			mm.globalDynamicValuesPatches = expectation.globalDynamicValuesPatches
 
-			_, err := mm.RunGlobalHook(expectation.hookName, BeforeHelm, []BindingContext{}, map[string]string{})
+			_, _, err := mm.RunGlobalHook(expectation.hookName, BeforeHelm, []BindingContext{}, map[string]string{})
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			var values = mm.GlobalValues()
+			values, err := mm.GlobalValues()
+			if !assert.NoError(t, err) {
+				t.FailNow()
+			}
 			if !reflect.DeepEqual(expectation.expectedConfigValues, values) {
 				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", spew.Sdump(expectation.expectedConfigValues), spew.Sdump(values))
 			}
@@ -1113,18 +1126,17 @@ func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
 	}
 }
 
-
 func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 	var mm *moduleManager
 	var modulesState *ModulesState
 	var err error
 
-	tests := []struct{
-		name string
-		configPath string
+	tests := []struct {
+		name         string
+		configPath   string
 		helmReleases []string
-		testFn func()
-	} {
+		testFn       func()
+	}{
 		{
 			"static_config_and_helm_releases",
 			"discover_modules_state__simple",
@@ -1168,13 +1180,12 @@ func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 		},
 	}
 
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			modulesState = nil
 			err = nil
 
-			helm.NewClient = func(logLabels ... map[string]string) helm.HelmClient {
+			helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
 				return &helm.MockHelmClient{
 					ReleaseNames: test.helmReleases,
 				}

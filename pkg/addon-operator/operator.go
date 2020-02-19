@@ -984,7 +984,11 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 		}
 		if i == len(afterAllHooks)-1 {
 			taskMetadata.LastAfterAllHook = true
-			taskMetadata.ValuesChecksum, err = op.ModuleManager.GlobalValues().Checksum()
+			globalValues, err := op.ModuleManager.GlobalValues()
+			if err != nil {
+				return nil, err
+			}
+			taskMetadata.ValuesChecksum, err = globalValues.Checksum()
 			if err != nil {
 				return nil, err
 			}
@@ -1033,11 +1037,18 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 		format := chi.URLParam(request, "format")
 
 		var values utils.Values
+		var err error
 		switch valType {
 		case "config":
 			values = op.ModuleManager.GlobalConfigValues()
 		case "values":
-			values = op.ModuleManager.GlobalValues()
+			values, err = op.ModuleManager.GlobalValues()
+		}
+
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			writer.Write([]byte(err.Error()))
+			return
 		}
 
 		outBytes, err := values.AsBytes(format)
@@ -1073,11 +1084,18 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 		}
 
 		var values utils.Values
+		var err error
 		switch valType {
 		case "config":
 			values = m.ConfigValues()
 		case "values":
-			values = m.Values()
+			values, err = m.Values()
+		}
+
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			writer.Write([]byte(err.Error()))
+			return
 		}
 
 		outBytes, err := values.AsBytes(format)
@@ -1087,6 +1105,26 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 			return
 		}
 		writer.Write(outBytes)
+	})
+
+	op.DebugServer.Router.Get("/module/{name}/patches.json", func(writer http.ResponseWriter, request *http.Request) {
+		modName := chi.URLParam(request, "name")
+
+		m := op.ModuleManager.GetModule(modName)
+		if m == nil {
+			writer.WriteHeader(http.StatusNotFound)
+			writer.Write([]byte("Module not found"))
+			return
+		}
+
+		jp := m.ValuesPatches()
+		data, err := json.Marshal(jp)
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			writer.Write([]byte(err.Error()))
+			return
+		}
+		writer.Write(data)
 	})
 
 	op.DebugServer.Router.Get("/module/resource-monitor.{format:(json|yaml)}", func(writer http.ResponseWriter, request *http.Request) {

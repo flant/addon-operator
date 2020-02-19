@@ -4,12 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
-
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
-
 	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 // TODO make a method of KubeConfig
@@ -47,28 +43,31 @@ type ModuleKubeConfig struct {
 }
 
 // TODO make a method of KubeConfig
-func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) *ModuleKubeConfig {
-	mc := utils.NewModuleConfig(moduleName)
-
-	moduleValues, hasKey := values[mc.ModuleConfigKey]
-	if !hasKey {
-		return nil
+func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) (*ModuleKubeConfig, error) {
+	if !values.HasKey(moduleName) {
+		return nil, nil
 	}
 
-	yamlData, err := yaml.Marshal(&moduleValues)
+	moduleValues := values.SectionByKey(moduleName)
+
+	configData, err := moduleValues.AsConfigMapData()
 	if err != nil {
-		panic(fmt.Sprintf("cannot dump yaml for module '%s' kube config: %s\nfailed values data: %#v", moduleName, err, moduleValues))
+		return nil, fmt.Errorf("cannot dump yaml for module '%s' kube config: %s. Failed values data: %s", moduleName, err, moduleValues.DebugString())
 	}
 
+	checksum, err := moduleValues.Checksum()
+	if err != nil {
+		return nil, fmt.Errorf("module '%s' kube config checksum: %s", moduleName, err)
+	}
 
 	return &ModuleKubeConfig{
 		ModuleConfig: utils.ModuleConfig{
 			ModuleName: moduleName,
-			Values:     utils.Values{mc.ModuleConfigKey: moduleValues},
+			Values:     moduleValues,
 		},
-		ConfigData: map[string]string{mc.ModuleConfigKey: string(yamlData)},
-		Checksum:   utils_checksum.CalculateChecksum(string(yamlData)),
-	}
+		ConfigData: configData,
+		Checksum:   checksum,
+	}, nil
 }
 
 // TODO make a method of KubeConfig
@@ -80,7 +79,7 @@ func ExtractModuleKubeConfig(moduleName string, configData map[string]string) (*
 	}
 	// NOTE this should never happen because of GetModulesNamesFromConfigData
 	if moduleConfig == nil {
-		panic("module kube config must exist!")
+		return nil, fmt.Errorf("possible bug!!! Kube config for module '%s' is not found in ConfigMap.data", moduleName)
 	}
 
 	return &ModuleKubeConfig{

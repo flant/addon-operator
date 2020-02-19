@@ -13,7 +13,6 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	utils_data "github.com/flant/addon-operator/pkg/utils/data"
 )
 
 type ModuleHook struct {
@@ -21,12 +20,13 @@ type ModuleHook struct {
 	Module *Module
 	Config *ModuleHookConfig
 }
+
 var _ Hook = &ModuleHook{}
 
 func NewModuleHook(name, path string) *ModuleHook {
 	res := &ModuleHook{
 		CommonHook: &CommonHook{},
-		Config: &ModuleHookConfig{},
+		Config:     &ModuleHookConfig{},
 	}
 	res.Name = name
 	res.Path = path
@@ -79,17 +79,13 @@ func (m *ModuleHook) Order(binding BindingType) float64 {
 	return 0.0
 }
 
-
 type moduleValuesMergeResult struct {
 	// global values with root ModuleValuesKey key
-	Values utils.Values
-	// global values under root ModuleValuesKey key
-	ModuleValues    map[string]interface{}
+	Values          utils.Values
 	ModuleValuesKey string
 	ValuesPatch     utils.ValuesPatch
 	ValuesChanged   bool
 }
-
 
 func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesPatch utils.ValuesPatch) (*moduleValuesMergeResult, error) {
 	moduleValuesKey := h.Module.ValuesKey()
@@ -98,7 +94,7 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", h.Module.Name, err)
 	}
 
-	newValuesRaw, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch)
+	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch)
 	if err != nil {
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", h.Module.Name, err)
 	}
@@ -110,13 +106,12 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 		ValuesPatch:     valuesPatch,
 	}
 
-	if moduleValuesRaw, hasKey := newValuesRaw[result.ModuleValuesKey]; hasKey {
-		moduleValues, ok := moduleValuesRaw.(map[string]interface{})
+	if newValues.HasKey(moduleValuesKey) {
+		_, ok := newValues[moduleValuesKey].(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", result.ModuleValuesKey, utils_data.YamlToString(moduleValuesRaw))
+			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", result.ModuleValuesKey, newValues.SectionByKey(moduleValuesKey).DebugString())
 		}
-		result.Values[result.ModuleValuesKey] = moduleValues
-		result.ModuleValues = moduleValues
+		result.Values = newValues.SectionByKey(moduleValuesKey)
 	}
 
 	return result, nil
@@ -124,9 +119,9 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 
 func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		"hook": h.Name,
+		"hook":      h.Name,
 		"hook.type": "module",
-		"binding": string(bindingType),
+		"binding":   string(bindingType),
 	})
 
 	// Convert context for version
@@ -146,7 +141,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	//h.moduleManager.ValuesLock.Lock()
 
 	configValuesPatch, has := patches[utils.ConfigMapPatch]
-	if has && configValuesPatch != nil{
+	if has && configValuesPatch != nil {
 		preparedConfigValues := utils.MergeValues(
 			utils.Values{h.Module.ValuesKey(): map[string]interface{}{}},
 			h.moduleManager.kubeModulesConfigValues[moduleName],
@@ -159,24 +154,32 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		if configValuesPatchResult.ValuesChanged {
 			err := h.moduleManager.kubeConfigManager.SetKubeModuleValues(moduleName, configValuesPatchResult.Values)
 			if err != nil {
-				log.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.Name, utils.ValuesToString(h.moduleManager.kubeModulesConfigValues[moduleName]))
+				log.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.Name, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.Name, err)
 			}
 
 			h.moduleManager.kubeModulesConfigValues[moduleName] = configValuesPatchResult.Values
-			log.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.Name, moduleName, utils.ValuesToString(h.moduleManager.kubeModulesConfigValues[moduleName]))
+			log.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.Name, moduleName, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
 		}
 	}
 
 	valuesPatch, has := patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
-		valuesPatchResult, err := h.handleModuleValuesPatch(h.values(), *valuesPatch)
+		currentValues, err := h.Module.Values()
+		if err != nil {
+			return fmt.Errorf("get module values before values patch: %s", err)
+		}
+		valuesPatchResult, err := h.handleModuleValuesPatch(currentValues, *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("module hook '%s': dynamic module values update error: %s", h.Name, err)
 		}
 		if valuesPatchResult.ValuesChanged {
 			h.moduleManager.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(h.moduleManager.modulesDynamicValuesPatches[moduleName], valuesPatchResult.ValuesPatch)
-			log.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.Name, moduleName, h.values().DebugString())
+			newValues, err := h.Module.Values()
+			if err != nil {
+				return fmt.Errorf("get module values after values patch: %s", err)
+			}
+			log.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.Name, moduleName, newValues.DebugString())
 		}
 	}
 
@@ -202,7 +205,7 @@ func (h *ModuleHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 		return
 	}
 
-	tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"], err= h.prepareConfigValuesJsonPatchFile()
+	tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"], err = h.prepareConfigValuesJsonPatchFile()
 	if err != nil {
 		return
 	}
@@ -213,15 +216,6 @@ func (h *ModuleHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 	}
 
 	return
-}
-
-
-func (h *ModuleHook) configValues() utils.Values {
-	return h.Module.ConfigValues()
-}
-
-func (h *ModuleHook) values() utils.Values {
-	return h.Module.Values()
 }
 
 func (h *ModuleHook) prepareValuesJsonFile() (string, error) {
@@ -246,7 +240,6 @@ func (h *ModuleHook) prepareBindingContextJsonFile(bindingContext []byte) (strin
 
 	return path, nil
 }
-
 
 func (h *ModuleHook) prepareConfigValuesJsonPatchFile() (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-config-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
