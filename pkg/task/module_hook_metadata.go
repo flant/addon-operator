@@ -13,17 +13,17 @@ import (
 // HookMetadata is metadata for addon-operator tasks
 type HookMetadata struct {
 	EventDescription string // event name for informative queue dump
-	HookName string
-	ModuleName string
-	BindingType BindingType
-	BindingContext []BindingContext
-	AllowFailure   bool //Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
+	HookName         string
+	ModuleName       string
+	BindingType      BindingType
+	BindingContext   []BindingContext
+	AllowFailure     bool //Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
 	OnStartupHooks bool // Execute onStartup and kubernetes@Synchronization hooks for module
 
-	LastAfterAllHook bool // True if task is a last hook in afterAll sequence
-	ValuesChecksum string // checksum of global values between first afterAll hook execution
-	ReloadAllOnValuesChanges bool // whether or not run DiscoverModules process if hook change global values
+	LastAfterAllHook         bool   // True if task is a last hook in afterAll sequence
+	ValuesChecksum           string // checksum of global values between first afterAll hook execution
+	ReloadAllOnValuesChanges bool   // whether or not run DiscoverModules process if hook change global values
 }
 
 func HookMetadataAccessor(t task.Task) (meta HookMetadata) {

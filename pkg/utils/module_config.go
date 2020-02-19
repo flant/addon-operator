@@ -13,13 +13,13 @@ var ModuleEnabled = true
 var ModuleDisabled = false
 
 type ModuleConfig struct {
-	ModuleName string
-	IsEnabled  *bool
-	Values     Values
-	IsUpdated  bool
-	ModuleConfigKey string
+	ModuleName       string
+	IsEnabled        *bool
+	Values           Values
+	IsUpdated        bool
+	ModuleConfigKey  string
 	ModuleEnabledKey string
-	RawConfig []string
+	RawConfig        []string
 }
 
 // String returns description of ModuleConfig values.
@@ -41,12 +41,12 @@ func (mc *ModuleConfig) GetEnabled() string {
 
 func NewModuleConfig(moduleName string) *ModuleConfig {
 	return &ModuleConfig{
-		ModuleName: moduleName,
-		IsEnabled:  nil,
-		Values:     make(Values),
-		ModuleConfigKey: ModuleNameToValuesKey(moduleName),
+		ModuleName:       moduleName,
+		IsEnabled:        nil,
+		Values:           make(Values),
+		ModuleConfigKey:  ModuleNameToValuesKey(moduleName),
 		ModuleEnabledKey: ModuleNameToValuesKey(moduleName) + "Enabled",
-		RawConfig: make([]string, 0),
+		RawConfig:        make([]string, 0),
 	}
 }
 

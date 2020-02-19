@@ -41,7 +41,7 @@ kubeLegoEnabled: "false"
 	kubeClient := kube.NewFakeKubernetesClient()
 	_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(&v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "addon-operator"},
-		Data: cmData,
+		Data:       cmData,
 	})
 
 	kcm := NewKubeConfigManager()
@@ -55,9 +55,9 @@ kubeLegoEnabled: "false"
 	}
 	config := kcm.InitialConfig()
 
-	tests := map[string] struct {
+	tests := map[string]struct {
 		isEnabled *bool
-		values utils.Values
+		values    utils.Values
 	}{
 		"global": {
 			nil,
@@ -106,7 +106,7 @@ kubeLegoEnabled: "false"
 	}
 
 	for name, expect := range tests {
-		t.Run(name, func(t *testing.T){
+		t.Run(name, func(t *testing.T) {
 			if name == "global" {
 				assert.Equal(t, expect.values, config.Values)
 			} else {
@@ -120,7 +120,6 @@ kubeLegoEnabled: "false"
 	}
 }
 
-
 func Test_SaveValuesToConfigMap(t *testing.T) {
 	kubeClient := kube.NewFakeKubernetesClient()
 
@@ -132,13 +131,13 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 	var err error
 	var cm *v1.ConfigMap
 
-	tests := []struct{
-		name string
+	tests := []struct {
+		name         string
 		globalValues *utils.Values
 		moduleValues *utils.Values
-		moduleName string
-		testFn func(global *utils.Values, module *utils.Values)
-	} {
+		moduleName   string
+		testFn       func(global *utils.Values, module *utils.Values)
+	}{
 		{
 			"scenario 1: first save with non existent ConfigMap",
 			&utils.Values{
@@ -198,8 +197,6 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 				// Check values in a 'global' key
 				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
 
-
-
 				savedGlobalValues, err := utils.NewGlobalValues(cm.Data["global"])
 				if assert.NoError(t, err, "ConfigMap should be created") {
 					assert.Equal(t, utils.Values{
@@ -256,4 +253,3 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 	}
 
 }
-

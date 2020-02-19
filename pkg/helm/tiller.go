@@ -16,12 +16,12 @@ const MaxHelmVersionWaits = 32
 
 // TillerOptions
 type TillerOptions struct {
-	Namespace string
-	HistoryMax int
-	ListenAddress string
-	ListenPort int32
+	Namespace          string
+	HistoryMax         int
+	ListenAddress      string
+	ListenPort         int32
 	ProbeListenAddress string
-	ProbeListenPort int32
+	ProbeListenPort    int32
 }
 
 // InitTillerProcess starts tiller as a subprocess. If tiller is exited, addon-operator also exits.
@@ -60,7 +60,7 @@ func InitTillerProcess(options TillerOptions) error {
 			logEntry.WithField("stdout", stdout).
 				WithField("stderr", stderr).
 				Warnf("Unable to get tiller version: %v", err)
-			time.Sleep(250*time.Millisecond)
+			time.Sleep(250 * time.Millisecond)
 		} else {
 			logEntry.WithField("stdout", stdout).
 				WithField("stderr", stderr).

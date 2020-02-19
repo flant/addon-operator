@@ -44,7 +44,7 @@ var _ HelmResourcesManager = &helmResourcesManager{}
 
 func NewHelmResourcesManager() HelmResourcesManager {
 	return &helmResourcesManager{
-		eventCh: make(chan AbsentResourcesEvent),
+		eventCh:  make(chan AbsentResourcesEvent),
 		monitors: make(map[string]*ResourcesMonitor),
 	}
 }

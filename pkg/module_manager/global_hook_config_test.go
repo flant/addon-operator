@@ -13,9 +13,9 @@ func Test_GlobalHook_Config_v0_v1(t *testing.T) {
 	var config *GlobalHookConfig
 
 	tests := []struct {
-		name string
-		hookName string
-		data string
+		name      string
+		hookName  string
+		data      string
 		assertion func()
 	}{
 		{

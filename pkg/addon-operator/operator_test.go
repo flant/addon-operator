@@ -12,7 +12,6 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 )
 
-
 // CreateOnStartupTasks fills a working queue with onStartup hooks.
 // TaskRunner should run all hooks and clean a queue.
 func Test_Operator_CreateOnStartupTasks_TaskRunner(t *testing.T) {
@@ -48,7 +47,7 @@ func Test_Operator_CreateOnStartupTasks_TaskRunner(t *testing.T) {
 		"hook-global-2": globalHook2,
 	}
 
-	var hookRun = struct{
+	var hookRun = struct {
 		hookGlobal1 bool
 		hookGlobal2 bool
 	}{}
@@ -57,7 +56,7 @@ func Test_Operator_CreateOnStartupTasks_TaskRunner(t *testing.T) {
 	ModuleManager = module_manager.NewModuleManagerMock(module_manager.ModuleManagerMockFns{
 		GetGlobalHooksInOrder: func(bindingType module_manager.BindingType) []string {
 			res := []string{}
-			for k := range globalHooksMock{
+			for k := range globalHooksMock {
 				res = append(res, k)
 			}
 			return res

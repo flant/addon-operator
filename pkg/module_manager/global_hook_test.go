@@ -14,9 +14,9 @@ func Test_GlobalHook_WithConfig(t *testing.T) {
 	var gh *GlobalHook
 	var err error
 
-	tests := []struct{
-		name string
-		config string
+	tests := []struct {
+		name     string
+		config   string
 		assertFn func()
 	}{
 		{

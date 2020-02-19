@@ -9,7 +9,7 @@ type MockHelmClient struct {
 	DeleteSingleFailedRevisionExecuted bool
 	UpgradeReleaseExecuted             bool
 	DeleteReleaseExecuted              bool
-	ReleaseNames []string
+	ReleaseNames                       []string
 }
 
 func (h *MockHelmClient) DeleteOldFailedRevisions(releaseName string) error {

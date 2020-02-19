@@ -15,8 +15,8 @@ func Test_FromYaml(t *testing.T) {
 	var err error
 
 	tests := []struct {
-		name string
-		yaml string
+		name     string
+		yaml     string
 		assertFn func()
 	}{
 		{
@@ -36,7 +36,7 @@ testModule:
 			`testModule: 1234`,
 			func() {
 				g.Expect(err).Should(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring("module config should be array or map"),"got unexpected error")
+				g.Expect(err.Error()).To(ContainSubstring("module config should be array or map"), "got unexpected error")
 			},
 		},
 		{
@@ -115,11 +115,11 @@ testModule:
 				g.Expect(config.Values).To(MatchAllKeys(Keys{
 					"testModule": MatchAllElements(arrayId, Elements{
 						"0": MatchAllKeys(Keys{
-							"a": Equal(1.0),
+							"a":  Equal(1.0),
 							"id": Ignore(),
 						}),
 						"1": MatchAllKeys(Keys{
-							"b": Equal(2.0),
+							"b":  Equal(2.0),
 							"id": Ignore(),
 						}),
 					}),
@@ -137,7 +137,6 @@ testModule:
 	}
 
 }
-
 
 func Test_LoadValues(t *testing.T) {
 	g := NewWithT(t)
@@ -165,7 +164,7 @@ testModule:
 testModuleEnabled: true
 `
 
-	configMapDataMapValues := map[string]string {
+	configMapDataMapValues := map[string]string{
 		"global": `asd: qwe`,
 		"test-module": `
 foo: bar
@@ -216,8 +215,8 @@ func Test_GetEnabled(t *testing.T) {
 	var config *ModuleConfig
 
 	tests := []struct {
-		name string
-		fn func()
+		name     string
+		fn       func()
 		expected string
 	}{
 		{

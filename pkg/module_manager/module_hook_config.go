@@ -22,8 +22,8 @@ type ModuleHookConfig struct {
 	ModuleV1 *ModuleHookConfigV0
 
 	// effective config values
-	BeforeHelm *BeforeHelmConfig
-	AfterHelm *AfterHelmConfig
+	BeforeHelm      *BeforeHelmConfig
+	AfterHelm       *AfterHelmConfig
 	AfterDeleteHelm *AfterDeleteHelmConfig
 }
 
@@ -43,13 +43,13 @@ type AfterDeleteHelmConfig struct {
 }
 
 type ModuleHookConfigV0 struct {
-	BeforeHelm interface{} `json:"beforeHelm"`
-	AfterHelm  interface{} `json:"afterHelm"`
-	AfterDeleteHelm  interface{} `json:"afterDeleteHelm"`
+	BeforeHelm      interface{} `json:"beforeHelm"`
+	AfterHelm       interface{} `json:"afterHelm"`
+	AfterDeleteHelm interface{} `json:"afterDeleteHelm"`
 }
 
 func GetModuleHookConfigSchema(version string) *spec.Schema {
-	globalHookVersion := "module-hook-"+version
+	globalHookVersion := "module-hook-" + version
 	if _, ok := config.Schemas[globalHookVersion]; !ok {
 		schema := config.Schemas[version]
 		switch version {
@@ -215,7 +215,6 @@ func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDele
 	res.Order = *floatValue
 	return res, nil
 }
-
 
 func (c *ModuleHookConfig) Bindings() []BindingType {
 	res := []BindingType{}
