@@ -23,7 +23,7 @@ type GlobalHookConfig struct {
 
 	// effective config values
 	BeforeAll *BeforeAllConfig
-	AfterAll *AfterAllConfig
+	AfterAll  *AfterAllConfig
 }
 
 type BeforeAllConfig struct {
@@ -42,7 +42,7 @@ type GlobalHookConfigV0 struct {
 }
 
 func GetGlobalHookConfigSchema(version string) *spec.Schema {
-	globalHookVersion := "global-hook-"+version
+	globalHookVersion := "global-hook-" + version
 	if _, ok := config.Schemas[globalHookVersion]; !ok {
 		schema := config.Schemas[version]
 		switch version {

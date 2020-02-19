@@ -109,7 +109,6 @@ func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
 	return
 }
 
-
 func (mm *moduleManager) RegisterGlobalHooks() error {
 	log.Debug("Search and register global hooks")
 

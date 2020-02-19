@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-
 // Problem: fake client do not support metadata.name filtering
 func Test_GetAbsentResources(t *testing.T) {
 	g := NewWithT(t)
@@ -55,7 +54,6 @@ metadata:
 	mgr := NewHelmResourcesManager()
 	mgr.WithKubeClient(fc.KubeClient)
 
-
 	absent, err := mgr.GetAbsentResources(chartResources, "default")
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(absent).To(HaveLen(0), "Should be no absent resources after creation")
@@ -70,7 +68,6 @@ metadata:
 	g.Expect(absent).To(HaveLen(2), "Absent resources should be detected after deletion")
 
 }
-
 
 func createResource(fc *fake.FakeCluster, ns, manifestYaml string) manifest.Manifest {
 	manifests, err := manifest.GetManifestListFromYamlDocuments(manifestYaml)

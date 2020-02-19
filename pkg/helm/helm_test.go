@@ -33,19 +33,18 @@ func Test_Logging(t *testing.T) {
 
 	logEntry1.Infof("asd again")
 
+	logEntry11.WithField("test", "helm11").Infof("helmm info")
 
-	logEntry11.WithField("test","helm11").Infof("helmm info")
-
-	fields1 := map[string]string {
-		"module": "mod1",
-		"hook": "hook2",
+	fields1 := map[string]string{
+		"module":    "mod1",
+		"hook":      "hook2",
 		"component": "main",
 	}
 	logEntry1F := logEntry1.WithFields(utils.LabelsToLogFields(fields1))
 	logEntry1F.Infof("top record")
 
-	fields2 := map[string]string {
-		"module":"mod2",
+	fields2 := map[string]string{
+		"module":   "mod2",
 		"event.id": "123",
 	}
 
@@ -54,7 +53,6 @@ func Test_Logging(t *testing.T) {
 	logEntry2F.Infof("nested record")
 	logEntry1F.Infof("new top record")
 	logEntry2F.Infof("new nested record")
-
 
 	logEntry2F.WithField("result", "qwe\nfoo\bqwe").Infof("record with multiline field")
 

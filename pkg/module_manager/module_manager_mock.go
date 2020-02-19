@@ -10,25 +10,24 @@ import (
 )
 
 type ModuleManagerMockFns struct {
-	Init func() error
-	Run func()
-	DiscoverModulesState func(logLabels map[string]string) (*ModulesState, error)
-	GetModule func(name string) (*Module, error)
+	Init                  func() error
+	Run                   func()
+	DiscoverModulesState  func(logLabels map[string]string) (*ModulesState, error)
+	GetModule             func(name string) (*Module, error)
 	GetModuleNamesInOrder func() []string
-	GetGlobalHook func(name string) (*GlobalHook, error)
-	GetModuleHook func(name string) (*ModuleHook, error)
+	GetGlobalHook         func(name string) (*GlobalHook, error)
+	GetModuleHook         func(name string) (*ModuleHook, error)
 	GetGlobalHooksInOrder func(bindingType BindingType) []string
 	GetModuleHooksInOrder func(moduleName string, bindingType BindingType) ([]string, error)
-	DeleteModule func(moduleName string, logLabels map[string]string) error
-	RunModule func(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error
-	RunGlobalHook func(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
-	RunModuleHook func(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
-	Retry func()
-	WithDirectories func(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
+	DeleteModule          func(moduleName string, logLabels map[string]string) error
+	RunModule             func(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) error
+	RunGlobalHook         func(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
+	RunModuleHook         func(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
+	Retry                 func()
+	WithDirectories       func(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
 	WithKubeConfigManager func(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
-	RegisterModuleHooks func(*Module, map[string]string) error
+	RegisterModuleHooks   func(*Module, map[string]string) error
 }
-
 
 func NewModuleManagerMock(fns ModuleManagerMockFns) ModuleManager {
 	return &ModuleManagerMock{

@@ -31,7 +31,7 @@ import (
 		}
 	}
 
- */
+*/
 
 // FilesFromRoot returns a map with path and array of files under it
 func FilesFromRoot(root string, filterFn func(dir string, name string, info os.FileInfo) bool) (files map[string]map[string]string, err error) {
@@ -63,8 +63,8 @@ func FilesFromRoot(root string, filterFn func(dir string, name string, info os.F
 			if err != nil {
 				return nil, err
 			}
-			for k,v := range symlinked {
-				newSymlinkedDirs[k]=v
+			for k, v := range symlinked {
+				newSymlinkedDirs[k] = v
 			}
 		}
 

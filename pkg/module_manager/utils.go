@@ -11,4 +11,3 @@ func CreateEmptyWritableFile(filePath string) error {
 	_ = file.Close()
 	return nil
 }
-
