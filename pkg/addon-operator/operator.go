@@ -195,7 +195,9 @@ func (op *AddonOperator) DefineEventHandlers() {
 					"hook.type": "module",
 					"queue":     info.QueueName,
 				})
-
+				if len(info.BindingContext) > 0 {
+					hookLabels["binding.name"] = info.BindingContext[0].Binding
+				}
 				newTask := sh_task.NewTask(task.GlobalHookRun).
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
@@ -212,11 +214,14 @@ func (op *AddonOperator) DefineEventHandlers() {
 			},
 			func(module *module_manager.Module, moduleHook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
 				hookLabels := utils.MergeLabels(logLabels, map[string]string{
+					"module":    module.Name,
 					"hook":      moduleHook.GetName(),
 					"hook.type": "module",
 					"queue":     info.QueueName,
 				})
-
+				if len(info.BindingContext) > 0 {
+					hookLabels["binding.name"] = info.BindingContext[0].Binding
+				}
 				newTask := sh_task.NewTask(task.ModuleHookRun).
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
@@ -256,7 +261,10 @@ func (op *AddonOperator) DefineEventHandlers() {
 					"hook.type": "global",
 					"queue":     info.QueueName,
 				})
-
+				if len(info.BindingContext) > 0 {
+					hookLabels["binding.name"] = info.BindingContext[0].Binding
+					hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
+				}
 				newTask := sh_task.NewTask(task.GlobalHookRun).
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
@@ -273,11 +281,15 @@ func (op *AddonOperator) DefineEventHandlers() {
 			},
 			func(module *module_manager.Module, moduleHook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
 				hookLabels := utils.MergeLabels(logLabels, map[string]string{
+					"module":    module.Name,
 					"hook":      moduleHook.GetName(),
 					"hook.type": "module",
 					"queue":     info.QueueName,
 				})
-
+				if len(info.BindingContext) > 0 {
+					hookLabels["binding.name"] = info.BindingContext[0].Binding
+					hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
+				}
 				newTask := sh_task.NewTask(task.ModuleHookRun).
 					WithLogLabels(hookLabels).
 					WithQueueName(info.QueueName).
@@ -636,6 +648,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			}
 		} else {
 			logEntry.Infof("GlobalHookRun success")
+			logEntry.Debugf("GlobalHookRun checksums: before=%s after=%s saved=%s", beforeChecksum, afterChecksum, hm.ValuesChecksum)
 			res.Status = "Success"
 
 			reloadAll := false
@@ -654,13 +667,32 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				}
 			case AfterAll:
 				// values are changed when afterAll hooks are executed
-				if afterChecksum != hm.ValuesChecksum {
+				if hm.LastAfterAllHook && afterChecksum != hm.ValuesChecksum {
 					reloadAll = true
 					eventDescription = "AfterAllHooksChangeGlobalValues"
 				}
 			}
 			if reloadAll {
 				op.HelmResourcesManager.StopMonitors()
+				// relabel
+				logLabels := t.GetLogLabels()
+				if hookLabel, ok := logLabels["hook"]; ok {
+					logLabels["event.triggered-by.hook"] = hookLabel
+					delete(logLabels, "hook")
+					delete(logLabels, "hook.type")
+				}
+				if label, ok := logLabels["binding"]; ok {
+					logLabels["event.triggered-by.binding"] = label
+					delete(logLabels, "binding")
+				}
+				if label, ok := logLabels["binding.name"]; ok {
+					logLabels["event.triggered-by.binding.name"] = label
+					delete(logLabels, "binding.name")
+				}
+				if label, ok := logLabels["watchEvent"]; ok {
+					logLabels["event.triggered-by.watchEvent"] = label
+					delete(logLabels, "watchEvent")
+				}
 				op.CreateReloadAllTasks(false, t.GetLogLabels(), eventDescription)
 			}
 		}
@@ -743,8 +775,14 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 			err := op.ModuleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
 				hookLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
-					"queue": info.QueueName,
+					"module":    hm.ModuleName,
+					"hook":      hook.GetName(),
+					"hook.type": "module",
+					"queue":     info.QueueName,
 				})
+				if len(info.BindingContext) > 0 {
+					hookLogLabels["binding.name"] = info.BindingContext[0].Binding
+				}
 				newTask := sh_task.NewTask(task.ModuleHookRun).
 					WithLogLabels(hookLogLabels).
 					WithQueueName(info.QueueName).
@@ -774,7 +812,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 					op.MetricStorage.SendCounter("module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 					return err
 				} else {
-					hookLogEntry.Infof("ModuleHookRun success")
+					hookLogEntry.Infof("ModuleHookRun success for Synchronization")
 				}
 			}
 			op.ModuleManager.StartModuleHooks(hm.ModuleName)
@@ -1058,6 +1096,17 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 			return
 		}
 		writer.Write(outBytes)
+	})
+
+	op.DebugServer.Router.Get("/global/patches.json", func(writer http.ResponseWriter, request *http.Request) {
+		jp := op.ModuleManager.GlobalValuesPatches()
+		data, err := json.Marshal(jp)
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			writer.Write([]byte(err.Error()))
+			return
+		}
+		writer.Write(data)
 	})
 
 	op.DebugServer.Router.Get("/module/list.{format:(json|yaml|text)}", func(writer http.ResponseWriter, request *http.Request) {
