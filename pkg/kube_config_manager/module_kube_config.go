@@ -44,11 +44,12 @@ type ModuleKubeConfig struct {
 
 // TODO make a method of KubeConfig
 func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) (*ModuleKubeConfig, error) {
-	if !values.HasKey(moduleName) {
+	valuesKey := utils.ModuleNameToValuesKey(moduleName)
+	if !values.HasKey(valuesKey) {
 		return nil, nil
 	}
 
-	moduleValues := values.SectionByKey(moduleName)
+	moduleValues := values.SectionByKey(valuesKey)
 
 	configData, err := moduleValues.AsConfigMapData()
 	if err != nil {

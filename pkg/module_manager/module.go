@@ -280,7 +280,7 @@ func (m *Module) ShouldRunHelmUpgrade(helmClient helm.HelmClient, releaseName st
 		return true, nil
 	}
 
-	logEntry.Debugf("helm release '%s': skip upgrade helm release", releaseName, checksum)
+	logEntry.Debugf("helm release '%s': skip upgrade helm release", releaseName)
 	return false, nil
 }
 
