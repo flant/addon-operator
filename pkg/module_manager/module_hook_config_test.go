@@ -33,6 +33,7 @@ func Test_ModuleHook_Config_v0_v1(t *testing.T) {
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(config.Schedules).To(HaveLen(1))
 				g.Expect(config.HasBinding(OnStartup)).To(BeTrue())
+				g.Expect(config.OnStartup.Order).To(Equal(10.0))
 				g.Expect(config.HasBinding(OnKubernetesEvent)).To(BeFalse())
 				// Check module specific bindings
 				g.Expect(config.HasBinding(BeforeHelm)).To(BeTrue())
@@ -41,6 +42,15 @@ func Test_ModuleHook_Config_v0_v1(t *testing.T) {
 				g.Expect(config.AfterHelm.Order).To(Equal(15.0))
 				g.Expect(config.HasBinding(AfterDeleteHelm)).To(BeTrue())
 				g.Expect(config.AfterDeleteHelm.Order).To(Equal(25.0))
+			},
+		},
+		{
+			"load v0 onStart",
+			"hook_v0",
+			`{"onStartup":10}`,
+			func() {
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(config.Bindings()).To(HaveLen(1))
 			},
 		},
 		{

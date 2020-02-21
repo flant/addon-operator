@@ -13,6 +13,7 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	corev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/flant/shell-operator/pkg/kube"
@@ -530,16 +531,18 @@ func (kcm *kubeConfigManager) handleCmDelete(obj *v1.ConfigMap) error {
 func (kcm *kubeConfigManager) Start() {
 	log.Debugf("Run kube config manager")
 
-	lw := cache.NewListWatchFromClient(
-		kcm.KubeClient.CoreV1().RESTClient(),
-		"configmaps",
-		kcm.Namespace,
-		fields.OneTermEqualSelector("metadata.name", kcm.ConfigMapName))
+	// define resyncPeriod for informer
+	resyncPeriod := time.Duration(5) * time.Minute
 
-	cmInformer := cache.NewSharedInformer(lw,
-		&v1.ConfigMap{},
-		time.Duration(15)*time.Second)
+	// define indexers for informer
+	indexers := cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}
 
+	// define tweakListOptions for informer
+	tweakListOptions := func(options *metav1.ListOptions) {
+		options.FieldSelector = fields.OneTermEqualSelector("metadata.name", kcm.ConfigMapName).String()
+	}
+
+	cmInformer := corev1.NewFilteredConfigMapInformer(kcm.KubeClient, kcm.Namespace, resyncPeriod, indexers, tweakListOptions)
 	cmInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			err := kcm.handleCmAdd(obj.(*v1.ConfigMap))
