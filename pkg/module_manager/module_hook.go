@@ -124,6 +124,9 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		"binding":   string(bindingType),
 	})
 
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry.Info("Module hook start")
+
 	// Convert context for version
 	versionedContextList := ConvertBindingContextList(h.Config.Version, context)
 
@@ -182,6 +185,8 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 			log.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.Name, moduleName, newValues.DebugString())
 		}
 	}
+
+	logEntry.Infof("Module hook success")
 
 	return nil
 }
