@@ -18,6 +18,7 @@ jobs:
         flavour:
           - ubuntu
           - alpine3.9
+          - alpine3.10
     runs-on: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v1
