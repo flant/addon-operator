@@ -265,7 +265,6 @@ jobs:
         run: |
           go test \
             -tags test \
-            -coverpkg=./... \
             -coverprofile=$COVERAGE_DIR/coverage.out  \
             -v \
             ./cmd/... ./pkg/...
