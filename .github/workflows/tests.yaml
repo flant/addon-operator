@@ -388,6 +388,7 @@ jobs:
         run: |
           du -ah coverage_reports
 
+          export COVERAGE_PREFIX=github.com/flant/addon-operator
           export COVERAGE_DIR=coverage_reports
           export GIT_BRANCH=${GITHUB_REF:11}
           export GIT_COMMIT_SHA=$GITHUB_SHA
