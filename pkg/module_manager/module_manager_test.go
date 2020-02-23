@@ -227,7 +227,6 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 	mm.allModulesByName["programmatic-module"] = programmaticModule
 
 	var module *Module
-	var err error
 
 	tests := []struct {
 		name       string
@@ -261,25 +260,21 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 					},
 					moduleManager: mm,
 				}
-				if assert.NoError(t, err) {
-					assert.Equal(t, expectedModule, module)
-				}
+				assert.Equal(t, expectedModule, module)
 			},
 		},
 		{
 			"direct_add_module_to_index",
 			"programmatic-module",
 			func() {
-				if assert.NoError(t, err) {
-					assert.Equal(t, programmaticModule, module)
-				}
+				assert.Equal(t, programmaticModule, module)
 			},
 		},
 		{
 			"error-on-non-existent-module",
 			"non-existent",
 			func() {
-				assert.Error(t, err)
+				assert.Nil(t, module)
 			},
 		},
 	}
@@ -287,7 +282,6 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			module = nil
-			err = nil
 			module = mm.GetModule(test.moduleName)
 			test.testFn()
 		})
@@ -485,7 +479,6 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 	_, _ = mm.DiscoverModulesState(map[string]string{})
 
 	var moduleHooks []string
-	var err error
 
 	tests := []struct {
 		name        string
@@ -507,9 +500,7 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 					"107-after-helm-binding-hooks/hooks/a",
 				}
 
-				if assert.NoError(t, err) {
-					assert.Equal(t, expectedOrder, moduleHooks)
-				}
+				assert.Equal(t, expectedOrder, moduleHooks)
 			},
 		},
 		{
@@ -517,9 +508,7 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 			"after-helm-binding-hooks",
 			BeforeHelm,
 			func() {
-				if assert.NoError(t, err) {
-					assert.Equal(t, []string{}, moduleHooks)
-				}
+				assert.Equal(t, []string{}, moduleHooks)
 			},
 		},
 		{
@@ -527,8 +516,7 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 			"after-helm-binding-hookssss",
 			BeforeHelm,
 			func() {
-				assert.Error(t, err)
-				assert.Nil(t, moduleHooks)
+				assert.Len(t, moduleHooks, 0)
 			},
 		},
 	}
@@ -536,7 +524,6 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			moduleHooks = nil
-			err = nil
 			moduleHooks = mm.GetModuleHooksInOrder(test.moduleName, test.bindingType)
 			test.testFn()
 		})
@@ -1105,22 +1092,22 @@ func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
 			mm.kubeGlobalConfigValues = expectation.kubeGlobalConfigValues
 			mm.globalDynamicValuesPatches = expectation.globalDynamicValuesPatches
 
-			_, _, err := mm.RunGlobalHook(expectation.hookName, BeforeHelm, []BindingContext{}, map[string]string{})
+			_, _, err := mm.RunGlobalHook(expectation.hookName, BeforeAll, []BindingContext{}, map[string]string{})
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			var configValues = mm.GlobalConfigValues()
+			if !reflect.DeepEqual(expectation.expectedConfigValues, configValues) {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", spew.Sdump(expectation.expectedConfigValues), spew.Sdump(configValues))
 			}
 
 			values, err := mm.GlobalValues()
 			if !assert.NoError(t, err) {
 				t.FailNow()
 			}
-			if !reflect.DeepEqual(expectation.expectedConfigValues, values) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", spew.Sdump(expectation.expectedConfigValues), spew.Sdump(values))
-			}
-
-			var configValues = mm.GlobalConfigValues()
-			if !reflect.DeepEqual(expectation.expectedValues, configValues) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", spew.Sdump(expectation.expectedValues), spew.Sdump(configValues))
+			if !reflect.DeepEqual(expectation.expectedValues, values) {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", spew.Sdump(expectation.expectedValues), spew.Sdump(values))
 			}
 		})
 	}

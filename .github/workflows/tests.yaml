@@ -1,0 +1,397 @@
+# every push to a branch : run unit tests.
+# push to master or label: run all tests and upload a coverage report.
+# Label ':robot: full tests' with id=1860105491
+name: Tests
+on:
+  push:
+    branches:
+  pull_request:
+    types: [labeled]
+jobs:
+  stub:
+    name: Empty job to prevent workflow fail
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.label.id != 1860105491 # not ':robot: full tests' label
+    steps:
+      - name: stub action
+        run: ": This job is used to prevent the workflow to fail when all other jobs are skipped."
+      - name: dump label event
+        run: cat $GITHUB_EVENT_PATH
+
+  unlabel:
+    name: Unlabel
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.label.id == 1860105491 # not ':robot: full tests' label
+    steps:
+      - uses: actions/github-script@0.3.0
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const eventLabelName = '${{github.event.label.name}}'
+            const response = await github.issues.listLabelsOnIssue({...context.issue})
+            for (const label of response.data) {
+              if (label.name === eventLabelName) {
+                github.issues.removeLabel({...context.issue, name: eventLabelName})
+                break
+              }
+            }
+
+  run_unit_tests:
+    name: Run unit tests
+    if: github.event_name == 'push' && github.event.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.12
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.12
+        id: go
+
+      - name: Check out addon-operator code
+        uses: actions/checkout@v1
+
+      - name: Checkout submodules
+        shell: bash
+        run: |
+          git submodule update --init --depth=1
+
+      # Restore go_modules.tar.gz from cache or download modules and pack them
+      # Then upload archive as artifact to use by other jobs.
+      # NOTE: cache action is limited to 400Mb artifacts and has a 2Gb space.
+      # As of February 2020, go_modules.tar.gz is 372Mb
+      - name: Cache go modules archive
+        id: go-modules-cache
+        uses: actions/cache@v1
+        with:
+          path: gomod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
+
+      - name: Download and pack Go modules
+        if: steps.go-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p gomod
+          go mod download
+          tar -czf gomod/go_modules.tar.gz -C $HOME/go/pkg/mod .
+          echo -n "Unpacked size is: " && du -sh $HOME/go/pkg/mod
+          echo -n "Packed size is: " && du -sh gomod/go_modules.tar.gz
+
+      - name: Unpack go modules
+        if: steps.go-modules-cache.outputs.cache-hit == 'true'
+        run: |
+          mkdir -p $HOME/go/pkg/mod && tar -xzf gomod/go_modules.tar.gz -C $HOME/go/pkg/mod
+
+      # Restore libjq-go-build directory from cache or build it, upload it as artifact for other jobs.
+      - name: Extract libjq-go.lock from shell-operator/go.mod
+        run: |
+          grep 'flant/libjq-go' shell-operator/go.mod > libjq-go.lock
+          cat libjq-go.lock
+
+      - name: Cache libjq libraries
+        id: libjq-cache
+        uses: actions/cache@v1
+        with:
+          path: libjq
+          key: ${{ runner.os }}-libjq-${{ hashFiles('libjq-go.lock') }}
+
+      - name: Build libjq libraries
+        if: steps.libjq-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git ca-certificates tree
+
+          git clone https://github.com/flant/libjq-go libjq-go
+          cd libjq-go
+          git submodule update --init
+          sudo ./scripts/install-libjq-dependencies-ubuntu.sh
+
+          ./scripts/build-libjq-static.sh ${GITHUB_WORKSPACE}/libjq-go ${GITHUB_WORKSPACE}/libjq
+
+          tree  ${GITHUB_WORKSPACE}/libjq
+
+      - name: Prepare environment
+        run: |
+          echo ::set-env name=CGO_ENABLED::1
+
+          CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/build/jq/include"
+          echo ::set-env name=CGO_CFLAGS::${CGO_CFLAGS}
+
+          CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/build/onig/lib -L$GITHUB_WORKSPACE/libjq/build/jq/lib"
+          echo ::set-env name=CGO_LDFLAGS::${CGO_LDFLAGS}
+
+          echo ::set-env name=GOOS::linux
+
+      - name: Run unit tests
+        run: |
+          go test \
+            -tags test \
+            -v \
+            ./cmd/... ./pkg/...
+
+  prepare_build_dependencies:
+    name: Download modules and build libjq
+    if: (github.event_name == 'push' && github.event.ref == 'refs/heads/master') || (github.event_name == 'pull_request' && github.event.label.id == 1860105491) # push to master or set ':robot: full tests' label
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.12
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.12
+        id: go
+
+      - name: Check out addon-operator code
+        uses: actions/checkout@v1
+
+      - name: Checkout submodules
+        shell: bash
+        run: |
+          git submodule update --init --depth=1
+
+      # Restore go_modules.tar.gz from cache or download modules and pack them
+      # Then upload archive as artifact to use by other jobs.
+      # NOTE: cache action is limited to 400Mb artifacts and has a 2Gb space.
+      # As of February 2020, go_modules.tar.gz is 372Mb
+      - name: Cache go modules archive
+        id: go-modules-cache
+        uses: actions/cache@v1
+        with:
+          path: gomod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
+
+      - name: Download and pack Go modules
+        if: steps.go-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p gomod
+          go mod download
+          tar -czf gomod/go_modules.tar.gz -C $HOME/go/pkg/mod .
+          echo -n "Unpacked size is: " && du -sh $HOME/go/pkg/mod
+          echo -n "Packed size is: " && du -sh gomod/go_modules.tar.gz
+        shell: bash
+
+      - name: Upload Go modules artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: go_modules
+          path: gomod/go_modules.tar.gz
+
+      # Restore libjq-go-build directory from cache or build it, upload it as artifact for other jobs.
+      - name: Extract libjq-go.lock from shell-operator/go.mod
+        run: |
+          grep 'flant/libjq-go' shell-operator/go.mod > libjq-go.lock
+          cat libjq-go.lock
+
+      - name: Cache libjq libraries
+        id: libjq-cache
+        uses: actions/cache@v1
+        with:
+          path: libjq
+          key: ${{ runner.os }}-libjq-${{ hashFiles('libjq-go.lock') }}
+
+      - name: Build libjq libraries
+        if: steps.libjq-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git ca-certificates tree
+
+          git clone https://github.com/flant/libjq-go libjq-go
+          cd libjq-go
+          git submodule update --init
+          sudo ./scripts/install-libjq-dependencies-ubuntu.sh
+
+          ./scripts/build-libjq-static.sh ${GITHUB_WORKSPACE}/libjq-go ${GITHUB_WORKSPACE}/libjq
+
+          tree  ${GITHUB_WORKSPACE}/libjq
+        shell: bash
+
+      - name: Upload libjq libraries
+        uses: actions/upload-artifact@master
+        with:
+          name: libjq
+          path: libjq
+
+  unit_tests:
+    name: Unit tests with coverage
+    if: (github.event_name == 'push' && github.event.ref == 'refs/heads/master') || (github.event_name == 'pull_request' && github.event.label.id == 1860105491) # push to master or set ':robot: full tests' label
+    needs: prepare_build_dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Set up Go 1.12
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.12
+        id: go
+
+      - name: Download go modules artifact
+        uses: actions/download-artifact@master
+        with:
+          name: go_modules
+          path: .
+
+      - name: Unpack go modules
+        run: mkdir -p $HOME/go/pkg/mod && tar -xzf go_modules.tar.gz -C $HOME/go/pkg/mod
+        shell: bash
+
+      - name: Download libjq artifact
+        uses: actions/download-artifact@master
+        with:
+          name: libjq
+          path: libjq
+
+      - name: Prepare environment
+        run: |
+          export COVERAGE_DIR=$GITHUB_WORKSPACE/coverage_reports/unit_tests/${{ matrix.os }}
+          mkdir -p $COVERAGE_DIR
+          echo ::set-env name=COVERAGE_DIR::$COVERAGE_DIR
+
+          echo ::set-env name=CGO_ENABLED::1
+
+          CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/build/jq/include"
+          echo ::set-env name=CGO_CFLAGS::${CGO_CFLAGS}
+
+          CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/build/onig/lib -L$GITHUB_WORKSPACE/libjq/build/jq/lib"
+          echo ::set-env name=CGO_LDFLAGS::${CGO_LDFLAGS}
+
+          echo ::set-env name=GOOS::linux
+
+        shell: bash
+
+      - name: Run unit tests
+        run: |
+          go test \
+            -tags test \
+            -coverpkg=./... \
+            -coverprofile=$COVERAGE_DIR/coverage.out  \
+            -v \
+            ./cmd/... ./pkg/...
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: coverage_reports
+          path: coverage_reports
+
+## No integration tests in addon-operator for now
+#  integration_tests:
+#    name: Integration tests
+#    if: (github.event_name == 'push' && github.event.ref == 'refs/heads/master') || (github.event_name == 'pull_request' && github.event.label.id == 1860105491) # push to master or set ':robot: full tests' label
+#    needs: prepare_build_dependencies
+#    strategy:
+#      fail-fast: true
+#      matrix:
+#        os: [ubuntu-latest]
+#        k8s_version: [1.13, 1.16]
+#    runs-on: ${{ matrix.os }}
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v1
+#
+#      - name: Checkout submodules
+#        shell: bash
+#        run: |
+#          git submodule update --init --depth=1
+#
+#      - name: Set up Go 1.12
+#        uses: actions/setup-go@v1
+#        with:
+#          go-version: 1.12
+#        id: go
+#
+#      - name: Download go modules artifact
+#        uses: actions/download-artifact@master
+#        with:
+#          name: go_modules
+#          path: .
+#
+#      - name: Unpack go modules
+#        run: mkdir -p $HOME/go/pkg/mod && tar -xzf go_modules.tar.gz -C $HOME/go/pkg/mod
+#        shell: bash
+#
+#      - name: Download libjq artifact
+#        uses: actions/download-artifact@master
+#        with:
+#          name: libjq
+#          path: libjq
+#
+#      - name: Prepare environment
+#        run: |
+#          # note that onsi/ginkgo is replaced by flant/ginkgo with fixes for combining coverage
+#          cd shell-operator
+#          go build github.com/onsi/ginkgo/ginkgo
+#          cd ..
+#          mv shell-operator/ginkgo .
+#
+#          ./ginkgo version
+#          echo ::set-env name=KIND_CLUSTER_VERSION::${{ matrix.k8s_version }}
+#
+#          export COVERAGE_DIR=$GITHUB_WORKSPACE/coverage_reports/integration_tests/${{ matrix.os }}-k8s-${{ matrix.k8s_version }}
+#          mkdir -p $COVERAGE_DIR
+#          echo ::set-env name=COVERAGE_DIR::$COVERAGE_DIR
+#
+#          echo ::set-env name=CGO_ENABLED::1
+#
+#          CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/build/jq/include"
+#          echo ::set-env name=CGO_CFLAGS::${CGO_CFLAGS}
+#
+#          CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/build/onig/lib -L$GITHUB_WORKSPACE/libjq/build/jq/lib"
+#          echo ::set-env name=CGO_LDFLAGS::${CGO_LDFLAGS}
+#
+#          echo ::set-env name=GOOS::linux
+#
+#      - name: Run integration tests
+#        run: |
+#          ./ginkgo \
+#            --tags 'integration test'  \
+#            --vet off \
+#            --race \
+#            --cover \
+#            --coverpkg=github.com/flant/addon-operator/pkg/...,github.com/flant/addon-operator/test/utils \
+#            --coverprofile=coverage.out \
+#            --outputdir=${COVERAGE_DIR} \
+#            -p \
+#            -r test/integration
+#
+#      - name: Upload coverage artifact
+#        uses: actions/upload-artifact@master
+#        with:
+#          name: coverage_reports
+#          path: coverage_reports
+
+
+  upload_coverage:
+    name: Upload coverage
+    if: (github.event_name == 'push' && github.event.ref == 'refs/heads/master') || (github.event_name == 'pull_request' && github.event.label.id == 1838578615) # push master or ':robot: run e2e matrix' label
+    needs:
+      - unit_tests
+      #- integration_tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Checkout submodules
+        shell: bash
+        run: |
+          git submodule update --init --depth=1
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@master
+        with:
+          name: coverage_reports
+          path: coverage_reports
+
+      - name: Upload report to codeclimate.com
+        run: |
+          du -ah coverage_reports
+
+          export COVERAGE_DIR=coverage_reports
+          export GIT_BRANCH=${GITHUB_REF:11}
+          export GIT_COMMIT_SHA=$GITHUB_SHA
+          ./shell-operator/scripts/ci/codeclimate_upload.sh
+        env:
+          CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
