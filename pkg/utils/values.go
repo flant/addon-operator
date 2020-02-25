@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"reflect"
 	"sort"
@@ -157,15 +159,80 @@ func MustValuesPatch(res *ValuesPatch, err error) *ValuesPatch {
 	return res
 }
 
+func JsonPatchFromReader(r io.Reader) (jsonpatch.Patch, error) {
+	var operations = make([]jsonpatch.Operation, 0)
+
+	dec := json.NewDecoder(r)
+	for {
+		var jsonStreamItem interface{}
+		if err := dec.Decode(&jsonStreamItem); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		switch v := jsonStreamItem.(type) {
+		case []interface{}:
+			for _, item := range v {
+				operation, err := DecodeJsonPatchOperation(item)
+				if err != nil {
+					return nil, err
+				}
+				operations = append(operations, operation)
+			}
+		case map[string]interface{}:
+			operation, err := DecodeJsonPatchOperation(v)
+			if err != nil {
+				return nil, err
+			}
+			operations = append(operations, operation)
+		}
+	}
+
+	return jsonpatch.Patch(operations), nil
+}
+
+func JsonPatchFromBytes(data []byte) (jsonpatch.Patch, error) {
+	return JsonPatchFromReader(bytes.NewReader(data))
+}
+func JsonPatchFromString(in string) (jsonpatch.Patch, error) {
+	return JsonPatchFromReader(strings.NewReader(in))
+}
+
+func DecodeJsonPatchOperation(v interface{}) (jsonpatch.Operation, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("marshal operation to bytes: %s", err)
+	}
+
+	var res jsonpatch.Operation
+	err = json.Unmarshal(data, &res)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal operation from bytes: %s", err)
+	}
+	return res, nil
+}
+
+// ValuesPatchFromBytes reads a JSON stream of json patches
+// and single operations from bytes and returns a ValuesPatch with
+// all json patch operations.
+// TODO do we need a separate ValuesPatchOperation type??
 func ValuesPatchFromBytes(data []byte) (*ValuesPatch, error) {
-	_, err := jsonpatch.DecodePatch(data)
+	// Get combined patch from bytes
+	patch, err := JsonPatchFromBytes(data)
 	if err != nil {
 		return nil, fmt.Errorf("bad json-patch data: %s\n%s", err, string(data))
 	}
 
+	// Convert combined patch to bytes
+	combined, err := json.Marshal(patch)
+	if err != nil {
+		return nil, fmt.Errorf("json patch marshal: %s\n%s", err, string(data))
+	}
+
 	var operations []*ValuesPatchOperation
-	if err := json.Unmarshal(data, &operations); err != nil {
-		return nil, fmt.Errorf("bad json-patch data: %s\n%s", err, string(data))
+	if err := json.Unmarshal(combined, &operations); err != nil {
+		return nil, fmt.Errorf("values patch operations: %s\n%s", err, string(data))
 	}
 
 	return &ValuesPatch{Operations: operations}, nil
