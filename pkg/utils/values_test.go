@@ -84,6 +84,39 @@ func TestModuleNameConversions(t *testing.T) {
 	}
 }
 
+func TestJsonPatch_Loading(t *testing.T) {
+	g := NewWithT(t)
+
+	input := `{"op":"add","path":"/key","value":"foobar"}
+ [{"op":"remove","path":"/key"},
+   {"op":"add","path":"/key","value":"bazzz"}]
+{"op":"remove","path":"/key2"}
+
+`
+
+	patch, err := JsonPatchFromString(input)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(patch).Should(HaveLen(4))
+
+}
+
+// ValuesPatchFromBytes should work with one valid json objects and with a stream of objects
+func TestValuesPatch_Loading(t *testing.T) {
+	g := NewWithT(t)
+
+	input := `{"op":"add","path":"/key","value":"foobar"}
+ [{"op":"remove","path":"/key"},
+   {"op":"add","path":"/key","value":"bazzz"}]
+{"op":"remove","path":"/key2"}
+
+`
+
+	vp, err := ValuesPatchFromBytes([]byte(input))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(vp.Operations).Should(HaveLen(4))
+
+}
+
 // TODO поправить после изменения алгоритма compact
 func TestApplyPatch(t *testing.T) {
 	t.SkipNow()
@@ -419,8 +452,9 @@ func Test_CompactPatches_Result(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// ValuesPatchFromBytes works with valid json object and with a stream of objects
 			valuesPatch, _ := ValuesPatchFromBytes([]byte("[" + strings.Join(tt.valuesPatchOperations, ", ") + "]"))
-			newValuesPatch, _ := ValuesPatchFromBytes([]byte("[" + strings.Join(tt.newValuesPatchOperations, ", ") + "]"))
+			newValuesPatch, _ := ValuesPatchFromBytes([]byte(strings.Join(tt.newValuesPatchOperations, "")))
 
 			newPatch := CompactValuesPatches([]ValuesPatch{*valuesPatch}, *newValuesPatch)
 			newPatchBytes, err := json.Marshal(newPatch[0].Operations)
