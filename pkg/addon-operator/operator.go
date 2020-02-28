@@ -160,6 +160,7 @@ func (op *AddonOperator) InitModuleManager() error {
 	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
 	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
 	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
+	op.ModuleManager.WithMetricStorage(op.MetricStorage)
 	err = op.ModuleManager.Init()
 	if err != nil {
 		return fmt.Errorf("init module manager: %s", err)

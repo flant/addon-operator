@@ -114,9 +114,25 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	globalHookExecutor := NewHookExecutor(h, versionedContextList)
 	globalHookExecutor.WithLogLabels(logLabels)
-	patches, err := globalHookExecutor.Run()
+	patches, metrics, err := globalHookExecutor.Run()
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)
+	}
+
+	// Apply metrics
+	for _, metricOp := range metrics {
+		labels := utils.MergeLabels(metricOp.Labels, map[string]string{
+			"hook": h.Name,
+		})
+		if metricOp.Add != nil {
+			h.moduleManager.metricStorage.SendCounterNoPrefix(metricOp.Name, *metricOp.Add, labels)
+			continue
+		}
+		if metricOp.Set != nil {
+			h.moduleManager.metricStorage.SendGaugeNoPrefix(metricOp.Name, *metricOp.Set, labels)
+			continue
+		}
+		return fmt.Errorf("no operation in metric from global hook, name=%s", metricOp.Name)
 	}
 
 	//h.moduleManager.ValuesLock.Lock()
@@ -198,6 +214,11 @@ func (h *GlobalHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 		return
 	}
 
+	tmpFiles["METRICS_PATH"], err = h.prepareMetricsFile()
+	if err != nil {
+		return
+	}
+
 	return
 }
 
@@ -268,6 +289,15 @@ func (h *GlobalHook) prepareConfigValuesJsonPatchFile() (string, error) {
 // VALUES_JSON_PATCH_PATH
 func (h *GlobalHook) prepareValuesJsonPatchFile() (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
+	if err := CreateEmptyWritableFile(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// METRICS_PATH
+func (h *GlobalHook) prepareMetricsFile() (string, error) {
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-metrics-%s.json", h.SafeName(), uuid.NewV4().String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
