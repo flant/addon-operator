@@ -23,6 +23,7 @@ type HookExecutor struct {
 	ContextPath           string
 	ConfigValuesPatchPath string
 	ValuesPatchPath       string
+	MetricsPath           string
 	LogLabels             map[string]string
 }
 
@@ -38,17 +39,17 @@ func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
 	e.LogLabels = logLabels
 }
 
-func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, err error) {
+func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, metrics []utils.MetricOperation, err error) {
 	patches = make(map[utils.ValuesPatchType]*utils.ValuesPatch)
 
 	bindingContextBytes, err := e.Context.Json()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	tmpFiles, err := e.Hook.PrepareTmpFilesForHookRun(bindingContextBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Remove tmp files after execution
 	defer func() {
@@ -65,6 +66,7 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 	}()
 	e.ConfigValuesPatchPath = tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
 	e.ValuesPatchPath = tmpFiles["VALUES_JSON_PATCH_PATH"]
+	e.MetricsPath = tmpFiles["METRICS_PATH"]
 
 	envs := []string{}
 	envs = append(envs, os.Environ()...)
@@ -77,20 +79,25 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 
 	err = executor.RunAndLogLines(cmd, e.LogLabels)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	patches[utils.ConfigMapPatch], err = utils.ValuesPatchFromFile(e.ConfigValuesPatchPath)
 	if err != nil {
-		return nil, fmt.Errorf("got bad json patch for config values: %s", err)
+		return nil, nil, fmt.Errorf("got bad json patch for config values: %s", err)
 	}
 
 	patches[utils.MemoryValuesPatch], err = utils.ValuesPatchFromFile(e.ValuesPatchPath)
 	if err != nil {
-		return nil, fmt.Errorf("got bad json patch for values: %s", err)
+		return nil, nil, fmt.Errorf("got bad json patch for values: %s", err)
 	}
 
-	return patches, nil
+	metrics, err = utils.MetricOperationsFromFile(e.MetricsPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("got bad metrics: %s", err)
+	}
+
+	return patches, metrics, nil
 }
 
 func (e *HookExecutor) Config() (configOutput []byte, err error) {

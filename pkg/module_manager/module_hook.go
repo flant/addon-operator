@@ -132,12 +132,29 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	moduleHookExecutor := NewHookExecutor(h, versionedContextList)
 	moduleHookExecutor.WithLogLabels(logLabels)
-	patches, err := moduleHookExecutor.Run()
+	patches, metrics, err := moduleHookExecutor.Run()
 	if err != nil {
 		return fmt.Errorf("module hook '%s' failed: %s", h.Name, err)
 	}
 
 	moduleName := h.Module.Name
+
+	// Apply metrics
+	for _, metricOp := range metrics {
+		labels := utils.MergeLabels(metricOp.Labels, map[string]string{
+			"hook":   h.Name,
+			"module": moduleName,
+		})
+		if metricOp.Add != nil {
+			h.moduleManager.metricStorage.SendCounterNoPrefix(metricOp.Name, *metricOp.Add, labels)
+			continue
+		}
+		if metricOp.Set != nil {
+			h.moduleManager.metricStorage.SendGaugeNoPrefix(metricOp.Name, *metricOp.Set, labels)
+			continue
+		}
+		return fmt.Errorf("no operation in metric from module hook, name=%s", metricOp.Name)
+	}
 
 	// ValuesLock.Lock()
 	// defer ValuesLock.UnLock()
@@ -220,6 +237,11 @@ func (h *ModuleHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 		return
 	}
 
+	tmpFiles["METRICS_PATH"], err = h.prepareMetricsFile()
+	if err != nil {
+		return
+	}
+
 	return
 }
 
@@ -246,6 +268,7 @@ func (h *ModuleHook) prepareBindingContextJsonFile(bindingContext []byte) (strin
 	return path, nil
 }
 
+// CONFIG_VALUES_JSON_PATCH_PATH
 func (h *ModuleHook) prepareConfigValuesJsonPatchFile() (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-config-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
@@ -254,8 +277,18 @@ func (h *ModuleHook) prepareConfigValuesJsonPatchFile() (string, error) {
 	return path, nil
 }
 
+// VALUES_JSON_PATCH_PATH
 func (h *ModuleHook) prepareValuesJsonPatchFile() (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
+	if err := CreateEmptyWritableFile(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// METRICS_PATH
+func (h *ModuleHook) prepareMetricsFile() (string, error) {
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-metrics-%s.json", h.SafeName(), uuid.NewV4().String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
