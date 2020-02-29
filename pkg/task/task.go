@@ -13,6 +13,7 @@ const (
 	DiscoverModulesState task.TaskType = "DiscoverModulesState"
 
 	GlobalHookEnableKubernetesBindings task.TaskType = "GlobalHookEnableKubernetesBindings"
+	GlobalHookEnableScheduleBindings   task.TaskType = "GlobalHookEnableScheduleBindings"
 	//ModuleHookEnableKubernetesBindings      task.TaskType = "ModuleHookEnableKubernetesBindings"
 
 	// Delete unknown helm release when no module in ModulesDir

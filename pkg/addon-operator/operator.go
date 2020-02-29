@@ -391,6 +391,28 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 			Infof("queue task %s", newTask.GetDescription())
 	}
 
+	schedHooks := op.ModuleManager.GetGlobalHooksInOrder(Schedule)
+	for _, hookName := range schedHooks {
+		hookLogLabels := utils.MergeLabels(onStartupLabels, map[string]string{
+			"hook":      hookName,
+			"hook.type": "global",
+			"queue":     "main",
+			"binding":   string(task.GlobalHookEnableScheduleBindings),
+		})
+
+		newTask := sh_task.NewTask(task.GlobalHookEnableScheduleBindings).
+			WithLogLabels(hookLogLabels).
+			WithQueueName("main").
+			WithMetadata(task.HookMetadata{
+				EventDescription: "PrepopulateMainQueue",
+				HookName:         hookName,
+			})
+		op.TaskQueues.GetMain().AddLast(newTask)
+
+		logEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
+			Infof("queue task %s", newTask.GetDescription())
+	}
+
 	// create tasks to enable kubernetes events for all global hooks with kubernetes bindings
 	kubeHooks := op.ModuleManager.GetGlobalHooksInOrder(OnKubernetesEvent)
 	for _, hookName := range kubeHooks {
@@ -714,6 +736,14 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			}
 		}
 
+	case task.GlobalHookEnableScheduleBindings:
+		taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
+		taskLogEntry.Infof("Global hook enable schedule bindings")
+		hm := task.HookMetadataAccessor(t)
+		globalHook := op.ModuleManager.GetGlobalHook(hm.HookName)
+		globalHook.HookController.EnableScheduleBindings()
+		res.Status = "Success"
+
 	case task.GlobalHookEnableKubernetesBindings:
 		taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
 		taskLogEntry.Infof("Global hook enable kubernetes bindings")
@@ -757,7 +787,6 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			taskLogEntry.Infof("Global hook enable kubernetes bindings success")
 
 			globalHook.HookController.StartMonitors()
-			globalHook.HookController.EnableScheduleBindings()
 
 			res.Status = "Success"
 			res.HeadTasks = hookRunTasks
