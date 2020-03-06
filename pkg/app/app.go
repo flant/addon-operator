@@ -20,7 +20,7 @@ var TillerListenAddress = "127.0.0.1"
 var TillerListenPort int32 = 44434
 var TillerProbeListenAddress = "127.0.0.1"
 var TillerProbeListenPort int32 = 44435
-var TillerMaxHistory = 0
+var TillerMaxHistory int32 = 0
 
 var Namespace = ""
 var ConfigMapName = "addon-operator"
@@ -65,6 +65,11 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_TILLER_PROBE_LISTEN_PORT").
 		Default(strconv.Itoa(int(TillerProbeListenPort))).
 		Int32Var(&TillerProbeListenPort)
+
+	cmd.Flag("tiller-max-history", "Tiller: limit the maximum number of revisions saved per release. Use 0 for no limit.").
+		Envar("TILLER_MAX_HISTORY").
+		Default(strconv.Itoa(int(TillerMaxHistory))).
+		Int32Var(&TillerMaxHistory)
 
 	cmd.Flag("config-map", "Name of a ConfigMap to store values.").
 		Envar("ADDON_OPERATOR_CONFIG_MAP").

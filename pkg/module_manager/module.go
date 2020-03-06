@@ -176,7 +176,10 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 
 	// Render templates to prevent excess helm runs.
 	helmClient := helm.NewClient(logLabels)
-	renderedManifests, err := helmClient.Render(m.Path, []string{valuesPath},
+	renderedManifests, err := helmClient.Render(
+		helmReleaseName,
+		m.Path,
+		[]string{valuesPath},
 		[]string{},
 		app.Namespace)
 	if err != nil {

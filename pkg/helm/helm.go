@@ -49,7 +49,7 @@ type HelmClient interface {
 	DeleteOldFailedRevisions(releaseName string) error
 	LastReleaseStatus(releaseName string) (string, string, error)
 	UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error
-	Render(chart string, valuesPaths []string, setValues []string, namespace string) (string, error)
+	Render(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) (string, error)
 	GetReleaseValues(releaseName string) (utils.Values, error)
 	DeleteRelease(releaseName string) error
 	ListReleases(labelSelector map[string]string) ([]string, error)
@@ -358,10 +358,16 @@ func (h *helmClient) ListReleasesNames(labelSelector map[string]string) ([]strin
 }
 
 // ListReleasesNames returns list of release names without suffixes ".v<release_number>"
-func (h *helmClient) Render(chart string, valuesPaths []string, setValues []string, namespace string) (string, error) {
+func (h *helmClient) Render(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) (string, error) {
 	args := make([]string, 0)
 	args = append(args, "template")
 	args = append(args, chart)
+
+	// Release name
+	if releaseName != "" {
+		args = append(args, "--name")
+		args = append(args, releaseName)
+	}
 
 	if namespace != "" {
 		args = append(args, "--namespace")

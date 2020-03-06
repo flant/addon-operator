@@ -17,7 +17,7 @@ const MaxHelmVersionWaits = 32
 // TillerOptions
 type TillerOptions struct {
 	Namespace          string
-	HistoryMax         int
+	HistoryMax         int32
 	ListenAddress      string
 	ListenPort         int32
 	ProbeListenAddress string
