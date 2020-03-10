@@ -171,8 +171,9 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 		logEntry.Debugf("Module hooks already registered")
 		return nil
 	}
-
 	logEntry.Debugf("Search and register hooks")
+
+	var registeredModuleHooks = make(map[BindingType][]*ModuleHook, 0)
 
 	hooks, err := SearchModuleHooks(module)
 	if err != nil {
@@ -215,14 +216,17 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 
 		// register module hook in indexes
 		for _, binding := range moduleHook.Config.Bindings() {
-			if mm.modulesHooksOrderByName[module.Name] == nil {
-				mm.modulesHooksOrderByName[module.Name] = make(map[BindingType][]*ModuleHook)
-			}
-			mm.modulesHooksOrderByName[module.Name][binding] = append(mm.modulesHooksOrderByName[module.Name][binding], moduleHook)
+			registeredModuleHooks[binding] = append(registeredModuleHooks[binding], moduleHook)
 		}
 
 		hookLogEntry.Infof("Module hook successfully run with --config. Register with bindings: %s", moduleHook.GetConfigDescription())
 	}
+
+	// Save registered hooks in mm.modulesHooksOrderByName
+	if mm.modulesHooksOrderByName[module.Name] == nil {
+		mm.modulesHooksOrderByName[module.Name] = make(map[BindingType][]*ModuleHook)
+	}
+	mm.modulesHooksOrderByName[module.Name] = registeredModuleHooks
 
 	return nil
 }
