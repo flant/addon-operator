@@ -437,13 +437,25 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 			Infof("queue task %s", newTask.GetDescription())
 	}
 
-	// Create "ReloadAll" set of tasks with onStartup flag to discover modules state for the first time.
-	op.CreateReloadAllTasks(true, onStartupLabels, "PrepopulateMainQueue")
+	// Create "ReloadAllModules" task with onStartup flag turned on to discover modules state for the first time.
+	logLabels := utils.MergeLabels(onStartupLabels, map[string]string{
+		"queue":   "main",
+		"binding": string(task.ReloadAllModules),
+	})
+	reloadAllModulesTask := sh_task.NewTask(task.ReloadAllModules).
+		WithLogLabels(logLabels).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription: "PrepopulateMainQueue",
+			OnStartupHooks:   true,
+		})
+	op.TaskQueues.GetMain().AddLast(reloadAllModulesTask)
 }
 
 // CreateReloadAllTasks
-func (op *AddonOperator) CreateReloadAllTasks(onStartup bool, logLabels map[string]string, eventDescription string) {
+func (op *AddonOperator) CreateReloadAllTasks(onStartup bool, logLabels map[string]string, eventDescription string) []sh_task.Task {
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	var tasks = make([]sh_task.Task, 0)
 
 	// Queue beforeAll global hooks.
 	beforeAllHooks := op.ModuleManager.GetGlobalHooksInOrder(BeforeAll)
@@ -477,7 +489,7 @@ func (op *AddonOperator) CreateReloadAllTasks(onStartup bool, logLabels map[stri
 				BindingContext:           []BindingContext{beforeAllBc},
 				ReloadAllOnValuesChanges: false,
 			})
-		op.TaskQueues.GetMain().AddLast(newTask)
+		tasks = append(tasks, newTask)
 
 		logEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
 			Infof("queue task %s", newTask.GetDescription())
@@ -495,9 +507,10 @@ func (op *AddonOperator) CreateReloadAllTasks(onStartup bool, logLabels map[stri
 			EventDescription: eventDescription,
 			OnStartupHooks:   onStartup,
 		})
-	op.TaskQueues.GetMain().AddLast(discoverTask)
+	tasks = append(tasks, discoverTask)
 	logEntry.WithFields(utils.LabelsToLogFields(discoverTask.LogLabels)).
 		Infof("queue task %s", discoverTask.GetDescription())
+	return tasks
 }
 
 // CreateQueues create all queues defined in hooks
@@ -583,8 +596,10 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						hasTask := QueueHasModuleRunTask(op.TaskQueues.GetMain(), moduleChange.Name)
 						if !hasTask {
 							logEntry.WithField("module", moduleChange.Name).Infof("module values are changed, queue ModuleRun task")
+							newLabels := utils.MergeLabels(logLabels)
+							newLabels["module"] = moduleChange.Name
 							newTask := sh_task.NewTask(task.ModuleRun).
-								WithLogLabels(logLabels).
+								WithLogLabels(newLabels).
 								WithQueueName("main").
 								WithMetadata(task.HookMetadata{
 									EventDescription: "ModuleValuesChanged",
@@ -607,7 +622,17 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					logEntry.Infof("queue tasks for ReloadAll: global config values are changed")
 					// Stop all resource monitors before run modules discovery.
 					op.HelmResourcesManager.StopMonitors()
-					op.CreateReloadAllTasks(false, logLabels, "GlobalConfigValuesChanged")
+
+					// Create "ReloadAllModules" task with onStartup flag turned off.
+					reloadAllModulesTask := sh_task.NewTask(task.ReloadAllModules).
+						WithLogLabels(logLabels).
+						WithQueueName("main").
+						WithMetadata(task.HookMetadata{
+							EventDescription: "GlobalConfigValuesChanged",
+							OnStartupHooks:   false,
+						})
+					op.TaskQueues.GetMain().AddLast(reloadAllModulesTask)
+
 					// TODO Check if this is needed?
 					// As module list may have changed, hook schedule index must be re-created.
 					//ScheduleHooksController.UpdateScheduleHooks()
@@ -670,6 +695,12 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		taskLogEntry.Infof("Global hook run")
 		hm := task.HookMetadataAccessor(t)
 
+		bcs := op.CombineBingingContextForHook(op.TaskQueues.GetByName(t.GetQueueName()), t)
+		if bcs != nil {
+			hm.BindingContext = bcs
+			t.UpdateMetadata(hm)
+		}
+
 		// TODO create metadata flag that indicate whether to add reload all task on values changes
 		beforeChecksum, afterChecksum, err := op.ModuleManager.RunGlobalHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
 		if err != nil {
@@ -697,13 +728,13 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			case Schedule:
 				if beforeChecksum != afterChecksum {
 					reloadAll = true
-					eventDescription = "ScheduleChangeGlobalValues"
+					eventDescription = fmt.Sprintf("ScheduleChangeGlobalValues(%s)", hm.GetHookName())
 				}
 			case OnKubernetesEvent:
 				// Ignore values changes from Synchronization runs
 				if hm.ReloadAllOnValuesChanges && beforeChecksum != afterChecksum {
 					reloadAll = true
-					eventDescription = "KubernetesChangeGlobalValues"
+					eventDescription = fmt.Sprintf("KubernetesChangeGlobalValues(%s)", hm.GetHookName())
 				}
 			case AfterAll:
 				// values are changed when afterAll hooks are executed
@@ -733,7 +764,15 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 					logLabels["event.triggered-by.watchEvent"] = label
 					delete(logLabels, "watchEvent")
 				}
-				op.CreateReloadAllTasks(false, t.GetLogLabels(), eventDescription)
+				// Put "ReloadAllModules" task with onStartup flag turned off to the end of the queue.
+				reloadAllModulesTask := sh_task.NewTask(task.ReloadAllModules).
+					WithLogLabels(t.GetLogLabels()).
+					WithQueueName("main").
+					WithMetadata(task.HookMetadata{
+						EventDescription: eventDescription,
+						OnStartupHooks:   false,
+					})
+				res.TailTasks = []sh_task.Task{reloadAllModulesTask}
 			}
 		}
 
@@ -751,7 +790,8 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		hm := task.HookMetadataAccessor(t)
 		globalHook := op.ModuleManager.GetGlobalHook(hm.HookName)
 
-		hookRunTasks := []sh_task.Task{}
+		var hookRunTasks = make([]sh_task.Task, 0)
+		var headTasks = make([]sh_task.Task, 0)
 
 		eventDescription := hm.EventDescription
 		if !strings.Contains(eventDescription, "HandleGlobalEnableKubernetesBindings") {
@@ -761,6 +801,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		newLogLabels := utils.MergeLabels(t.GetLogLabels())
 		delete(newLogLabels, "task.id")
 
+		// Note that Synchronization is always done in the queue where GlobalHookEnableKubernetesBindings is reside.
 		err := op.ModuleManager.HandleGlobalEnableKubernetesBindings(hm.HookName, func(hook *module_manager.GlobalHook, info controller.BindingExecutionInfo) {
 			newTask := sh_task.NewTask(task.GlobalHookRun).
 				WithLogLabels(newLogLabels).
@@ -773,7 +814,11 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 					AllowFailure:             info.AllowFailure,
 					ReloadAllOnValuesChanges: false, // Ignore global values changes
 				})
-			hookRunTasks = append(hookRunTasks, newTask)
+			if info.QueueName == t.GetQueueName() {
+				headTasks = append(headTasks, newTask)
+			} else {
+				hookRunTasks = append(hookRunTasks, newTask)
+			}
 		})
 
 		if err != nil {
@@ -788,11 +833,43 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			// be added to the queue tail.
 			taskLogEntry.Infof("Global hook enable kubernetes bindings success")
 
-			globalHook.HookController.StartMonitors()
+			for _, tsk := range hookRunTasks {
+				q := op.TaskQueues.GetByName(tsk.GetQueueName())
+				if q == nil {
+					log.Errorf("Queue %s is not created while run GlobalHookEnableKubernetesBindings task!", tsk.GetQueueName())
+				} else {
+					q.AddLast(tsk)
+				}
+			}
 
 			res.Status = "Success"
-			res.HeadTasks = hookRunTasks
+			res.HeadTasks = headTasks
+			res.AfterHandle = func() {
+				globalHook.HookController.StartMonitors()
+			}
+
 		}
+
+	case task.ReloadAllModules:
+		taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
+		taskLogEntry.Info("queue beforeAll and discoverModulesState tasks")
+		hm := task.HookMetadataAccessor(t)
+
+		// Remove next ReloadAllModules tasks
+		stopFilter := false
+		op.TaskQueues.GetByName(t.GetQueueName()).Filter(func(tsk sh_task.Task) bool {
+			// Ignore current task
+			if tsk.GetId() == t.GetId() {
+				return true
+			}
+			if tsk.GetType() != task.ReloadAllModules {
+				stopFilter = true
+			}
+			return stopFilter
+		})
+
+		res.Status = "Success"
+		res.AfterTasks = op.CreateReloadAllTasks(hm.OnStartupHooks, t.GetLogLabels(), hm.EventDescription)
 
 	case task.DiscoverModulesState:
 		taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
@@ -826,7 +903,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		valuesChanged, err := op.ModuleManager.RunModule(hm.ModuleName, hm.OnStartupHooks, t.GetLogLabels(), func() error {
 			// EnableKubernetesBindings and StartInformers for all kubernetes bindings
 			// after running all OnStartup hooks.
-			hookRunTasks := []sh_task.Task{}
+			syncQueue := queue.NewTasksQueue()
 
 			err := op.ModuleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
 				hookLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
@@ -849,20 +926,43 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 						BindingContext: info.BindingContext,
 						AllowFailure:   info.AllowFailure,
 					})
-
-				hookRunTasks = append(hookRunTasks, newTask)
+				// Put Synchronization to the proper queue
+				if info.QueueName == t.GetQueueName() {
+					syncQueue.AddLast(newTask)
+				} else {
+					q := op.TaskQueues.GetByName(info.QueueName)
+					if q == nil {
+						log.Errorf("Queue %s is not created when enable module hooks in ModuleRun task!", info.QueueName)
+					} else {
+						q.AddLast(newTask)
+					}
+				}
 				taskLogEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
 					Infof("queue task %s - Synchronization after onStartup", newTask.GetDescription())
 			})
 			if err != nil {
 				return err
 			}
+
 			// Run OnKubernetesEvent@Synchronization tasks immediately
-			for _, t := range hookRunTasks {
-				hookLogEntry := taskLogEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
+			for {
+				tsk := syncQueue.GetFirst()
+				if tsk == nil {
+					// no tasks left
+					break
+				}
+
+				hookLogEntry := taskLogEntry.WithFields(utils.LabelsToLogFields(tsk.GetLogLabels()))
 				hookLogEntry.Info("Module hook start with type Synchronization")
-				hm := task.HookMetadataAccessor(t)
-				err := op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
+				hm := task.HookMetadataAccessor(tsk)
+
+				bcs := op.CombineBingingContextForHook(syncQueue, tsk)
+				if bcs != nil {
+					hm.BindingContext = bcs
+					tsk.UpdateMetadata(hm)
+				}
+
+				err := op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, tsk.GetLogLabels())
 				if err != nil {
 					moduleHook := op.ModuleManager.GetModuleHook(hm.HookName)
 					hookLabel := path.Base(moduleHook.Path)
@@ -872,6 +972,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				} else {
 					hookLogEntry.Infof("Module hook success for Synchronization")
 				}
+				syncQueue.RemoveFirst()
 			}
 			op.ModuleManager.StartModuleHooks(hm.ModuleName)
 			return nil
@@ -924,6 +1025,12 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 		// Pause resources monitor
 		op.HelmResourcesManager.PauseMonitor(hm.ModuleName)
+
+		bcs := op.CombineBingingContextForHook(op.TaskQueues.GetByName(t.GetQueueName()), t)
+		if bcs != nil {
+			hm.BindingContext = bcs
+			t.UpdateMetadata(hm)
+		}
 
 		err := op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
 		if err != nil {
