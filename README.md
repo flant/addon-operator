@@ -63,7 +63,7 @@ If the global hook changes values in the global storage, then the Addon-operator
 
 # Installation
 
-You may use a prepared image [flant/addon-operator](https://hub.docker.com/r/flant/addon-operator) to install Addon-operator in a cluster. The image comprises a binary addon-operator file as well as several required tools: Helm, tiller, kubectl, jq, bash.
+You may use a prepared image [flant/addon-operator](https://hub.docker.com/r/flant/addon-operator) to install Addon-operator in a cluster. The image comprises a binary addon-operator file as well as several required tools: helm, tiller, kubectl, jq, bash.
 
 The installation incorporates the image building process with *files of modules and hooks*, applying the necessary RBAC rights and deploying the image in the cluster.
 

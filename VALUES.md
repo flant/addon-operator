@@ -4,7 +4,7 @@ The Addon-operator provides the storage for the values that will be passed to th
 
 The storage is a hash-like data structure. The `global` key contains all global values – they are passed to every hook and available to all Helm charts. Only global hooks may change global values.
 
-The other keys must match the [module's name](MODULES.md#module-structure) converted to camelCase. TODO: Each key stores the object with module values. These values are only available to hooks, `enabled` script of this module, and as its Helm chart. Only module hooks can change the values of the module.
+The other keys must match the [module's name](MODULES.md#module-structure) converted to camelCase. Each key stores the object with module values. These values are only available to hooks, `enabled` script of this module, and to its Helm chart. Only module hooks can change the values of the module.
 
 > **Note:** You cannot get the values of another module within the module hook. Shared values should be global values for now (#9).
 
