@@ -1,10 +1,10 @@
 # Values storage
 
-The Addon-operator provides the storage for the values that will be passed to the helm chart. You may find out more about the chart values concept in the helm documentation: [values files](https://helm.sh/docs/chart_template_guide/#values-files). Global and module hooks have access to the values in the storage and can change them.
+The Addon-operator provides the storage for the values that will be passed to the Helm chart. You may find out more about the chart values concept in the Helm documentation: [values files](https://helm.sh/docs/chart_template_guide/#values-files). Global and module hooks have access to the values in the storage and can change them.
 
-The storage is a hash-like data structure. The `global` key contains all global values – they are passed to every hook and available to all helm charts. Only global hooks may change global values.
+The storage is a hash-like data structure. The `global` key contains all global values – they are passed to every hook and available to all Helm charts. Only global hooks may change global values.
 
-The other keys must match the [module's names](MODULES.md#module-structure) in the form of camelCase. Each key stores the object with module values. These values are only available to the hooks and enabled script of this module as well as its Helm chart. Only module hooks can change the values of the module.
+The other keys must match the [module's name](MODULES.md#module-structure) converted to camelCase. Each key stores the object with module values. These values are only available to hooks, `enabled` script of this module, and to its Helm chart. Only module hooks can change the values of the module.
 
 > **Note:** You cannot get the values of another module within the module hook. Shared values should be global values for now (#9).
 
@@ -15,42 +15,42 @@ The values can be represented as:
 
 Structures and lists must be JSON-compatible since hooks receive values at runtime as JSON files (see [using values in hook](#using-values-in-hook)).
 
-> **Note:** each module has an additional key with `Enabled` suffix and boolean value for enable and disable the module; this key is handled by [modules discovery](LIFECYCLE.md#modules-discovery) process.
+> **Note:** each module has an additional key with `Enabled` suffix and a boolean value to enable or disable the module (e.g., `ingressNginxEnabled: false`). This key is handled by [modules discovery](LIFECYCLE.md#modules-discovery) process.
 
-# values.yaml
+## `values.yaml`
 
 On start-up, the Addon-operator loads values into storage from `values.yaml` files:
 
-- $MODULES_DIR/values.yaml
+- `$MODULES_DIR/values.yaml`
 - `values.yaml` files in modules directories — only the values from key with camelCase name of the module
 
-An example of global values in $MODULES_DIR/values.yaml:
+An example of global values in `$MODULES_DIR/values.yaml`:
 
-```
+```yaml
 global:
   param1: value1
   param2: value2
 simpleModule:
-  modParam1: 
+  modParam1: value3
 ```
 
-An example of module values in $MODULES_DIR/001-simple-module/values.yaml:
+An example of module values in `$MODULES_DIR/001-simple-module/values.yaml`:
 
-```
+```yaml
 simpleModule:
   modParam1: value1
   modParam2: value2
 ```
 
-# ConfigMap/addon-operator
+## ConfigMap/addon-operator
 
-There is a key `global` in the ConfigMap/addon-operator that contains global values and the keys with module values. The values are stored in these keys as the YAML-coded strings. Values in the ConfigMap/addon-operator override the values loaded from `values.yaml` files.
+There is a key `global` in the ConfigMap/addon-operator that contains global values and the keys with module values. The values are stored in these keys as the YAML encoded strings. Values in the ConfigMap/addon-operator override the values loaded from `values.yaml` files.
 
 The Addon-operator monitors changes in the ConfigMap/addon-operator and starts the 'reload all modules' process in case of global values changes or 'module run' process if only the module section is changed. See [LIFECYCLE](LIFECYCLE.md).
 
 An example of ConfigMap/addon-operator:
 
-```
+```yaml
 data:
   global: |                 # vertical bar is required here
     param1: newValue
@@ -60,74 +60,70 @@ data:
   anotherModule: "false"    # `false' value disables a module
 ```
 
-# Update values
+## Update values
 
-Hooks have the ability to update values in the storage. In order to do that a hook returns a [JSON Patch](http://jsonpatch.com/).
+Hooks can update values in the storage. To do that the hook returns a [JSON Patch](http://jsonpatch.com/).
 
-A hook can update values in the ConfigMap/addon-operator so that the updated values would be available after the restart of the Addon-operator (long-term update). For example, you may store generated passwords or certificates.
+A hook can update values in the ConfigMap/addon-operator so that the updated values would be available after restarting the Addon-operator (long-term update). For example, you may store generated passwords or certificates.
 
-Patch for a long-term update is returned via the $CONFIG_VALUES_JSON_PATCH_PATH file and after hook execution, the Addon-operator immediately applies this patch to the values in ConfigMap/addon-operator.
+Patch for a long-term update is returned via the `$CONFIG_VALUES_JSON_PATCH_PATH` file and after hook execution, the Addon-operator immediately applies this patch to the values in ConfigMap/addon-operator.
 
-Another option is to update values for a time while the Addon-operator process is running. For example, you may store the results of the discovery of cluster resources or parameters.
+Another option is to store updated values for a period while the Addon-operator process is running. For example, you may store the results of the discovery of cluster resources or parameters.
 
-Patch for temporary updates is returned via the $VALUES_JSON_PATCH_PATH file and remains in the Addon-operator memory.
+Patch for temporary updates is returned via the `$VALUES_JSON_PATCH_PATH` file and remains in the Addon-operator volatile memory.
 
-# Merged values
+## Merged values
 
-When the hook or `enabled` script should be executed, or helm chart is going to be installed, Addon-operator generates a merged set of values. This merged set combines:
-* global values from values.yaml files and ConfigMap/addon-operator;
-* module values from the values.yaml files and ConfigMap/addon-operator;
-* patches for the temporary update are applied.
+When the hook or `enabled` script is about to be executed, or a Helm chart is to be installed, the Addon-operator generates *a merged set of values*. This merged set combines:
 
-The merged values are passed as the temporary JSON file to hooks or `enabled` script and as the temporary values.yaml file to the helm installing the chart.
+- global values from `values.yaml` files and ConfigMap/addon-operator;
+- module values from the `values.yaml` files and ConfigMap/addon-operator;
+- patches for the temporary updates are applied.
 
-# Using values in the hook
+The merged values are passed as the temporary JSON file to hooks or `enabled` script and as the temporary `values.yaml` file to the `helm install`.
+
+## Using values in the hook
 
 When the hook is triggered by an event, the values are passed to it via JSON files. The hook can use environment variables to get paths of those files:
 
-$CONFIG_VALUES_PATH — this file contains values from the ConfigMap/addon-operator.
-
-$VALUES_PATH — this file contains merged values.
+- `$CONFIG_VALUES_PATH` — this file contains values from the ConfigMap/addon-operator.
+- `$VALUES_PATH` — this file contains merged values.
 
 For global hooks, only global values are available.
 
-For module hooks the global values and the module values are available. Also, the `enabledModules` field is added to the `global` values in the $VALUES_PATH file. It contains the list of all enabled modules in order of execution (see [module lifecycle](LIFECYCLE.md#module-lifecycle)).
+For module hooks the global values and the module values are available. Also, the `enabledModules` field is added to the `global` values in the `$VALUES_PATH` file. It contains the list of all enabled modules in the order of execution (see [module lifecycle](LIFECYCLE.md#module-lifecycle)).
 
 To change the values, the hook must return JSON patches via the result files. The hook can use environment variables to get paths of those files:
 
-$CONFIG_VALUES_JSON_PATCH_PATH — hook should write a patch for ConfigMap/addon-operator into this file.
+- `$CONFIG_VALUES_JSON_PATCH_PATH` — hook should write a patch for ConfigMap/addon-operator into this file.
+- `$VALUES_JSON_PATCH_PATH` — hook should write a patch for a temporary update of parameters into this file.
 
-$VALUES_JSON_PATCH_PATH — hook should write a patch for a temporary update of parameters into this file.
-
-# Using values in `enabled` scripts
+## Using the values in `enabled` scripts
 
 The `enabled` script works with values in the read-only mode. It receives values in JSON files. The script can use environment variables to get paths of those files:
 
-$CONFIG_VALUES_PATH — this file contains values from  ConfigMap/addon-operator.
+- `$CONFIG_VALUES_PATH` — this file contains values from ConfigMap/addon-operator.
+- `$VALUES_PATH` — this file contains merged values.
 
-$VALUES_PATH — this file contains merged values.
+The `enabledModules` field with the list of previously enabled modules is added to the `global` key in the `$VALUES_PATH` file.
 
-The `enabledModules` field with the list of previously enabled modules is added to the `global` key in the $VALUES_PATH file.
+## Using values in Helm charts
 
+Helm chart of the module has access to the merged values similar to the `$VALUES_PATH` but without `enabledModules` field.
 
-# Using values in helm charts
+The Helm template's variable `.Values` allows you to use values in the templates:
 
-Helm chart of the module has access to the merged values similar to the $VALUES_PATH but without `enabledModules` field.
-
-The helm's variable `.Values` allows you to use values in the templates:
-
-```
+```text
 {{ .Values.global.param1 }}
 
 {{ .Values.moduleName.modParam2 }}
 ```
 
-
-# Example
+## Example
 
 Let’s assume the following values are defined:
 
-```
+```shell
 $ cat modules/values.yaml:
 
 global:
@@ -151,7 +147,7 @@ data:
 
 The Addon-operator generates the following files with values:
 
-```
+```shell
 $ cat $CONFIG_VALUES_PATH
 
 {"global":{
@@ -167,15 +163,15 @@ $ cat $VALUES_PATH
     "param1":200,
     "param2": "YES"
 }, "someModule":{
-    "param1":"Long string", 
+    "param1":"Long string",
     "param2": "FOO"
 }}
 
 ```
 
-Let’s the hook adds a new value with the help of a JSON patch:
+A hook adds a new value with the help of a JSON patch:
 
-```
+```shell
 $ cat /modules/001-some-module/hooks/hook.sh
 
 #!/usr/bin/env bash
@@ -188,7 +184,7 @@ EOF
 
 Now the ConfigMap/addon-operator has the following content:
 
-```
+```shell
 data:
   global: |
     param1: 200
@@ -198,9 +194,9 @@ data:
     param3: "newValue"
 ```
 
-The next time the hook is executed, the Addon-operator would generate the following files with values:
+Next time the hook is executed, the Addon-operator would generate the following files with values:
 
-```
+```shell
 $ cat $CONFIG_VALUES_PATH
 
 {"global":{
@@ -224,4 +220,6 @@ $ cat $VALUES_PATH
 }}
 ```
 
-Helm chart template string `replicas: {{ .Values.global.param1 }}` would generate the string `replicas: 200`. As you can see, the value "100" from the values.yaml is replaced by "200" from the ConfigMap/addon-operator.
+Helm chart template
+```replicas: {{ .Values.global.param1 }}```
+would generate the string `replicas: 200`. As you can see, the value "100" from the values.yaml is replaced by "200" from the ConfigMap/addon-operator.
