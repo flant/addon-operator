@@ -53,10 +53,10 @@ func CalculateChecksumOfDirectory(dir string) (string, error) {
 	return res, nil
 }
 
-func CalculateChecksumOfPaths(pathes ...string) (string, error) {
+func CalculateChecksumOfPaths(paths ...string) (string, error) {
 	res := ""
 
-	for _, aPath := range pathes {
+	for _, aPath := range paths {
 		fileInfo, err := os.Stat(aPath)
 		if err != nil {
 			return "", err

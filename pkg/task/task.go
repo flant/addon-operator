@@ -10,6 +10,7 @@ const (
 	ModuleRun            task.TaskType = "ModuleRun"
 	ModuleHookRun        task.TaskType = "ModuleHookRun"
 	GlobalHookRun        task.TaskType = "GlobalHookRun"
+	ReloadAllModules     task.TaskType = "ReloadAllModules"
 	DiscoverModulesState task.TaskType = "DiscoverModulesState"
 
 	GlobalHookEnableKubernetesBindings task.TaskType = "GlobalHookEnableKubernetesBindings"

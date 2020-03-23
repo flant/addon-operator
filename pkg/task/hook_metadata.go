@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	"github.com/flant/shell-operator/pkg/hook/task_metadata"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/task"
 )
@@ -25,6 +26,10 @@ type HookMetadata struct {
 	ValuesChecksum           string // checksum of global values between first afterAll hook execution
 	ReloadAllOnValuesChanges bool   // whether or not run DiscoverModules process if hook change global values
 }
+
+var _ task_metadata.HookNameAccessor = HookMetadata{}
+var _ task_metadata.BindingContextAccessor = HookMetadata{}
+var _ task.MetadataDescriptable = HookMetadata{}
 
 func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
 	taskMeta := t.GetMetadata()
@@ -57,4 +62,12 @@ func (hm HookMetadata) GetDescription() string {
 			return fmt.Sprintf("%s:%s:%s", string(hm.BindingType), hm.HookName, hm.EventDescription)
 		}
 	}
+}
+
+func (m HookMetadata) GetHookName() string {
+	return m.HookName
+}
+
+func (m HookMetadata) GetBindingContext() []BindingContext {
+	return m.BindingContext
 }
