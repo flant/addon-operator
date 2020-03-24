@@ -56,6 +56,7 @@ github.com/evanphx/json-patch v4.5.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLi
 github.com/flant/ginkgo v1.11.1-0.20200206071017-2216da3b016c/go.mod h1:KdEqjYsxC3bj9qNcLCk9yxfJ1FWH5k1KU/xYgdVQkLc=
 github.com/flant/go-openapi-validate v0.19.4-0.20190926112101-38fbca4ac77f h1:HTLgtnIbx2CVK74aTk1D4XbOh6tOHsPShw7UPOJTQzM=
 github.com/flant/go-openapi-validate v0.19.4-0.20190926112101-38fbca4ac77f/go.mod h1:90Vh6jjkTn+OT1Eefm0ZixWNFjhtOH7vS9k0lo6zwJo=
+github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1 h1:Td8dghQcJWeCgI+EgD4C7hh1gRoVj+Ypfjf00uosdms=
 github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1/go.mod h1:8DJv2CVJQ6kGNpFW6eV9N3JviE1C85nY1c2z52x1Gk4=
 github.com/flant/libjq-go v1.0.1-0.20200205115921-27e93c18c17f h1:3tmztWJjf61sHfHYLSMi5TDdz5jtmcVqe43PSwsxNvE=
 github.com/flant/libjq-go v1.0.1-0.20200205115921-27e93c18c17f/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
@@ -73,6 +74,7 @@ github.com/flant/shell-operator v1.0.0-beta.8.0.20200313103024-cbe21d74fae0 h1:i
 github.com/flant/shell-operator v1.0.0-beta.8.0.20200313103024-cbe21d74fae0/go.mod h1:I+YUGSMKvCng0wwdOZTJ2tcYRAdvFkZ6awDpZ98utw0=
 github.com/flant/shell-operator v1.0.0-beta.8.0.20200318171053-23474d193e2e h1:pysuUfrCJHqShytPo9h2lcEVcY2od16Wp12DqlNtrCQ=
 github.com/flant/shell-operator v1.0.0-beta.8.0.20200318171053-23474d193e2e/go.mod h1:zorYh8bFCs9dUym8XwyD69IkVygzEmqBN7n1kKsygBQ=
+github.com/flant/shell-operator v1.0.0-beta.8.0.20200322083644-7ee05962e14e h1:nad8pdk/aZ8QidHJ5LrpuRQz/LZCmjWYwWw2J3A2oBw=
 github.com/flant/shell-operator v1.0.0-beta.8.0.20200322083644-7ee05962e14e/go.mod h1:zorYh8bFCs9dUym8XwyD69IkVygzEmqBN7n1kKsygBQ=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
