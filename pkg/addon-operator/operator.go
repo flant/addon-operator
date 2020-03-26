@@ -814,11 +814,11 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 					AllowFailure:             info.AllowFailure,
 					ReloadAllOnValuesChanges: false, // Ignore global values changes
 				})
-			if info.QueueName == t.GetQueueName() {
-				headTasks = append(headTasks, newTask)
-			} else {
-				hookRunTasks = append(hookRunTasks, newTask)
-			}
+			//if info.QueueName == t.GetQueueName() {
+			headTasks = append(headTasks, newTask)
+			//} else {
+			//	hookRunTasks = append(hookRunTasks, newTask)
+			//}
 		})
 
 		if err != nil {
@@ -927,16 +927,16 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 						AllowFailure:   info.AllowFailure,
 					})
 				// Put Synchronization to the proper queue
-				if info.QueueName == t.GetQueueName() {
-					syncQueue.AddLast(newTask)
-				} else {
-					q := op.TaskQueues.GetByName(info.QueueName)
-					if q == nil {
-						log.Errorf("Queue %s is not created when enable module hooks in ModuleRun task!", info.QueueName)
-					} else {
-						q.AddLast(newTask)
-					}
-				}
+				//if info.QueueName == t.GetQueueName() {
+				syncQueue.AddLast(newTask)
+				//} else {
+				//	q := op.TaskQueues.GetByName(info.QueueName)
+				//	if q == nil {
+				//		log.Errorf("Queue %s is not created when enable module hooks in ModuleRun task!", info.QueueName)
+				//	} else {
+				//		q.AddLast(newTask)
+				//	}
+				//}
 				taskLogEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
 					Infof("queue task %s - Synchronization after onStartup", newTask.GetDescription())
 			})
