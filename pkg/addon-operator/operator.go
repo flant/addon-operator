@@ -695,10 +695,13 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		taskLogEntry.Infof("Global hook run")
 		hm := task.HookMetadataAccessor(t)
 
-		bcs := op.CombineBingingContextForHook(op.TaskQueues.GetByName(t.GetQueueName()), t)
-		if bcs != nil {
-			hm.BindingContext = bcs
-			t.UpdateMetadata(hm)
+		taskHook := op.ModuleManager.GetGlobalHook(hm.HookName)
+		if taskHook.Config.Version == "v1" {
+			bcs := op.CombineBindingContextForHook(op.TaskQueues.GetByName(t.GetQueueName()), t)
+			if bcs != nil {
+				hm.BindingContext = bcs
+				t.UpdateMetadata(hm)
+			}
 		}
 
 		// TODO create metadata flag that indicate whether to add reload all task on values changes
@@ -956,10 +959,13 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				hookLogEntry.Info("Module hook start with type Synchronization")
 				hm := task.HookMetadataAccessor(tsk)
 
-				bcs := op.CombineBingingContextForHook(syncQueue, tsk)
-				if bcs != nil {
-					hm.BindingContext = bcs
-					tsk.UpdateMetadata(hm)
+				taskHook := op.ModuleManager.GetModuleHook(hm.HookName)
+				if taskHook.Config.Version == "v1" {
+					bcs := op.CombineBindingContextForHook(syncQueue, tsk)
+					if bcs != nil {
+						hm.BindingContext = bcs
+						tsk.UpdateMetadata(hm)
+					}
 				}
 
 				err := op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, tsk.GetLogLabels())
@@ -1026,10 +1032,13 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		// Pause resources monitor
 		op.HelmResourcesManager.PauseMonitor(hm.ModuleName)
 
-		bcs := op.CombineBingingContextForHook(op.TaskQueues.GetByName(t.GetQueueName()), t)
-		if bcs != nil {
-			hm.BindingContext = bcs
-			t.UpdateMetadata(hm)
+		taskHook := op.ModuleManager.GetModuleHook(hm.HookName)
+		if taskHook.Config.Version == "v1" {
+			bcs := op.CombineBindingContextForHook(op.TaskQueues.GetByName(t.GetQueueName()), t)
+			if bcs != nil {
+				hm.BindingContext = bcs
+				t.UpdateMetadata(hm)
+			}
 		}
 
 		err := op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
