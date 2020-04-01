@@ -9,9 +9,9 @@ RUN apt-get update && \
     apt-get install -y git ca-certificates && \
     git clone https://github.com/flant/libjq-go /libjq-go && \
     cd /libjq-go && \
-    git submodule update --init && \
+    git submodule update --init --recursive && \
     /libjq-go/scripts/install-libjq-dependencies-ubuntu.sh && \
-    /libjq-go/scripts/build-libjq-static.sh /libjq-go /out
+    /libjq-go/scripts/build-libjq-static.sh /libjq-go /libjq
 
 
 # build addon-operator binary linked with libjq
@@ -23,11 +23,11 @@ ADD go.mod go.sum /addon-operator/
 WORKDIR /addon-operator
 RUN go mod download
 
-COPY --from=libjq /out/build /build
+COPY --from=libjq /libjq /libjq
 ADD . /addon-operator
 WORKDIR /addon-operator
 
-RUN ./go-build.sh $appVersion
+RUN git submodule update --init --recursive && ./go-build.sh $appVersion
 
 
 # build final image

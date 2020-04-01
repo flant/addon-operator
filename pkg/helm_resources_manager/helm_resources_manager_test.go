@@ -18,7 +18,7 @@ func Test_GetAbsentResources(t *testing.T) {
 	defaultNs := "default"
 
 	// Create resources and store manifests
-	// TODO fix fake cluster for preffered resources and multiple apiVersions
+	// TODO fix fake cluster for preferred resources and multiple apiVersions
 	chartResources := []manifest.Manifest{
 		createResource(fc, defaultNs, `
 apiVersion: extensions/v1beta1

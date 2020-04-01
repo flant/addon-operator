@@ -683,7 +683,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 // TasksRunner handle tasks in queue.
 //
 // Task handler may delay task processing by pushing delay to the queue.
-// FIXME: For now, only one TaskRunner for a TasksQueue. There should be a lock between Peek and Pop to prevent Poping tasks by other TaskRunner for multiple queues.
+// FIXME: For now, only one TaskRunner for a TasksQueue. There should be a lock between Peek and Pop to prevent Popping tasks by other TaskRunner for multiple queues.
 func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 	var logEntry = log.WithField("operator.component", "taskRunner").
 		WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
