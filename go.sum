@@ -60,6 +60,8 @@ github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1 h1:Td
 github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1/go.mod h1:8DJv2CVJQ6kGNpFW6eV9N3JviE1C85nY1c2z52x1Gk4=
 github.com/flant/libjq-go v1.0.1-0.20200205115921-27e93c18c17f h1:3tmztWJjf61sHfHYLSMi5TDdz5jtmcVqe43PSwsxNvE=
 github.com/flant/libjq-go v1.0.1-0.20200205115921-27e93c18c17f/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
+github.com/flant/libjq-go v1.6.1-0.20200401092614-198670408da1 h1:pOPBJDB7PZz/SKa13mlR3bvkRJ0KWKRe6v+KZOObkKw=
+github.com/flant/libjq-go v1.6.1-0.20200401092614-198670408da1/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
 github.com/flant/shell-operator v1.0.0-beta.7.0.20200212144836-04e5d35edd9e h1:izyfBwGcWwz3tExPqvoaEQX9slaKNoapB0JnQvAtiAE=
 github.com/flant/shell-operator v1.0.0-beta.7.0.20200212144836-04e5d35edd9e/go.mod h1:2gRWBcUQHYT+OWaNvuUJ47m4zWyCi07ZqAj84OUgDzk=
 github.com/flant/shell-operator v1.0.0-beta.7.0.20200219194616-4b1b7ccd6da4 h1:LRNYv+1oMvhg+JPKFQigF4rUVNu3CDg6YS61aXhNX0M=
@@ -78,6 +80,8 @@ github.com/flant/shell-operator v1.0.0-beta.8.0.20200322083644-7ee05962e14e h1:n
 github.com/flant/shell-operator v1.0.0-beta.8.0.20200322083644-7ee05962e14e/go.mod h1:zorYh8bFCs9dUym8XwyD69IkVygzEmqBN7n1kKsygBQ=
 github.com/flant/shell-operator v1.0.0-beta.8.0.20200326182739-9a4c460fefca h1:2Hmz6QEbwCYe1QJBlXDYc8AXUM2SMdWwRAtGNCmwgcQ=
 github.com/flant/shell-operator v1.0.0-beta.8.0.20200326182739-9a4c460fefca/go.mod h1:zorYh8bFCs9dUym8XwyD69IkVygzEmqBN7n1kKsygBQ=
+github.com/flant/shell-operator v1.0.0-beta.8.0.20200401115948-49720f63e3f1 h1:adgEVl1Id+IITTc5W/M+WLwaMNH4fsJqbiX8ky/Gc80=
+github.com/flant/shell-operator v1.0.0-beta.8.0.20200401115948-49720f63e3f1/go.mod h1:Cf7KVE1Qy60dtA112nuOBo33Ef0xeoB2vil7iJULnEM=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
