@@ -139,21 +139,13 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	moduleName := h.Module.Name
 
-	// Apply metrics
-	for _, metricOp := range metrics {
-		labels := utils.MergeLabels(metricOp.Labels, map[string]string{
-			"hook":   h.Name,
-			"module": moduleName,
-		})
-		if metricOp.Add != nil {
-			h.moduleManager.metricStorage.SendCounterNoPrefix(metricOp.Name, *metricOp.Add, labels)
-			continue
-		}
-		if metricOp.Set != nil {
-			h.moduleManager.metricStorage.SendGaugeNoPrefix(metricOp.Name, *metricOp.Set, labels)
-			continue
-		}
-		return fmt.Errorf("no operation in metric from module hook, name=%s", metricOp.Name)
+	// Apply metric operations
+	err = h.moduleManager.metricStorage.SendBatch(metrics, map[string]string{
+		"hook":   h.Name,
+		"module": moduleName,
+	})
+	if err != nil {
+		return err
 	}
 
 	// ValuesLock.Lock()
