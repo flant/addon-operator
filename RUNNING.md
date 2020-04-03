@@ -104,6 +104,9 @@ addon-operator queue list [-o text|yaml|json]
 addon-operator global values [-o yaml|json]
     Dump current global values.
 
+addon-operator global patches
+    Dump current JSON patches for global values.
+
 addon-operator global config [-o yaml|json]
     Dump global config values.
 
@@ -112,6 +115,9 @@ addon-operator module list [-o text|yaml|json]
 
 addon-operator module values [-o yaml|json] <module_name>
     Dump module values by name.
+
+addon-operator module patches <module_name>
+    Dump JSON patches for module values by name.
 
 addon-operator module config [-o yaml|json] <module_name>
     Dump module config values by name.
