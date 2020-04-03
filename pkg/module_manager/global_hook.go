@@ -119,20 +119,12 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)
 	}
 
-	// Apply metrics
-	for _, metricOp := range metrics {
-		labels := utils.MergeLabels(metricOp.Labels, map[string]string{
-			"hook": h.Name,
-		})
-		if metricOp.Add != nil {
-			h.moduleManager.metricStorage.SendCounterNoPrefix(metricOp.Name, *metricOp.Add, labels)
-			continue
-		}
-		if metricOp.Set != nil {
-			h.moduleManager.metricStorage.SendGaugeNoPrefix(metricOp.Name, *metricOp.Set, labels)
-			continue
-		}
-		return fmt.Errorf("no operation in metric from global hook, name=%s", metricOp.Name)
+	// Apply metric operations
+	err = h.moduleManager.metricStorage.SendBatch(metrics, map[string]string{
+		"hook": h.Name,
+	})
+	if err != nil {
+		return err
 	}
 
 	//h.moduleManager.ValuesLock.Lock()
