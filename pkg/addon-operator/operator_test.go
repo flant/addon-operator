@@ -29,9 +29,7 @@ func Test_Operator_Startup(t *testing.T) {
 	op.WithKubernetesClient(kubeClient)
 	op.WithGlobalHooksDir("testdata/global_hooks")
 
-	var err error
-
-	err = op.Init()
+	var err = op.Init()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = op.InitModuleManager()

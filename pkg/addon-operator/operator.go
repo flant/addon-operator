@@ -566,8 +566,6 @@ func (op *AddonOperator) InitAndStartHookQueues() {
 			}
 		}
 	}
-
-	return
 }
 
 func (op *AddonOperator) StartModuleManagerEventHandler() {
@@ -1276,17 +1274,17 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(err.Error()))
+			_, _ = writer.Write([]byte(err.Error()))
 			return
 		}
 
 		outBytes, err := values.AsBytes(format)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(err.Error()))
+			_, _ = writer.Write([]byte(err.Error()))
 			return
 		}
-		writer.Write(outBytes)
+		_, _ = writer.Write(outBytes)
 	})
 
 	op.DebugServer.Router.Get("/global/patches.json", func(writer http.ResponseWriter, request *http.Request) {
@@ -1294,19 +1292,19 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 		data, err := json.Marshal(jp)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(err.Error()))
+			_, _ = writer.Write([]byte(err.Error()))
 			return
 		}
-		writer.Write(data)
+		_, _ = writer.Write(data)
 	})
 
 	op.DebugServer.Router.Get("/module/list.{format:(json|yaml|text)}", func(writer http.ResponseWriter, request *http.Request) {
 		format := chi.URLParam(request, "format")
 
-		fmt.Fprintf(writer, "Dump modules in %s format.\n", format)
+		_, _ = fmt.Fprintf(writer, "Dump modules in %s format.\n", format)
 
 		for _, mName := range op.ModuleManager.GetModuleNamesInOrder() {
-			fmt.Fprintf(writer, "%s \n", mName)
+			_, _ = fmt.Fprintf(writer, "%s \n", mName)
 		}
 
 	})
@@ -1319,7 +1317,7 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
 			writer.WriteHeader(http.StatusNotFound)
-			writer.Write([]byte("Module not found"))
+			_, _ = writer.Write([]byte("Module not found"))
 			return
 		}
 
@@ -1334,17 +1332,17 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(err.Error()))
+			_, _ = writer.Write([]byte(err.Error()))
 			return
 		}
 
 		outBytes, err := values.AsBytes(format)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(err.Error()))
+			_, _ = writer.Write([]byte(err.Error()))
 			return
 		}
-		writer.Write(outBytes)
+		_, _ = writer.Write(outBytes)
 	})
 
 	op.DebugServer.Router.Get("/module/{name}/patches.json", func(writer http.ResponseWriter, request *http.Request) {
@@ -1353,7 +1351,7 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
 			writer.WriteHeader(http.StatusNotFound)
-			writer.Write([]byte("Module not found"))
+			_, _ = writer.Write([]byte("Module not found"))
 			return
 		}
 
@@ -1361,10 +1359,10 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 		data, err := json.Marshal(jp)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(err.Error()))
+			_, _ = writer.Write([]byte(err.Error()))
 			return
 		}
-		writer.Write(data)
+		_, _ = writer.Write(data)
 	})
 
 	op.DebugServer.Router.Get("/module/resource-monitor.{format:(json|yaml)}", func(writer http.ResponseWriter, request *http.Request) {
@@ -1395,16 +1393,16 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 		}
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(writer, "Error: %s", err)
+			_, _ = fmt.Fprintf(writer, "Error: %s", err)
 		}
-		writer.Write(outBytes)
+		_, _ = writer.Write(outBytes)
 	})
 
 }
 
 func (op *AddonOperator) SetupHttpServerHandles() {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.Write([]byte(`<html>
+		_, _ = writer.Write([]byte(`<html>
     <head><title>Addon-operator</title></head>
     <body>
     <h1>Addon-operator</h1>

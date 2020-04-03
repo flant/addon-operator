@@ -35,7 +35,7 @@ import (
 
 // FilesFromRoot returns a map with path and array of files under it
 func FilesFromRoot(root string, filterFn func(dir string, name string, info os.FileInfo) bool) (files map[string]map[string]string, err error) {
-	files = make(map[string]map[string]string, 0)
+	files = make(map[string]map[string]string)
 
 	symlinkedDirs, err := WalkSymlinks(root, "", files, filterFn)
 	if err != nil {
@@ -69,9 +69,7 @@ func FilesFromRoot(root string, filterFn func(dir string, name string, info os.F
 		}
 
 		for k := range walkedSymlinks {
-			if _, has := newSymlinkedDirs[k]; has {
-				delete(newSymlinkedDirs, k)
-			}
+			delete(newSymlinkedDirs, k)
 		}
 
 		if len(newSymlinkedDirs) == 0 {
@@ -110,6 +108,11 @@ func WalkSymlinks(target string, linkName string, files map[string]map[string]st
 	symlinkedDirectories = map[string]string{}
 
 	err = filepath.Walk(target, func(foundPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			fmt.Printf("failure accessing a path '%s': %v\n", foundPath, err)
+			return err
+		}
+
 		if info.IsDir() {
 			return nil
 		}

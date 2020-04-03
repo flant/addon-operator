@@ -13,7 +13,7 @@ import (
 // GetModulesNamesFromConfigData returns all keys in kube config except global
 // modNameEnabled keys are also handled
 func GetModulesNamesFromConfigData(configData map[string]string) map[string]bool {
-	res := make(map[string]bool, 0)
+	res := make(map[string]bool)
 
 	for key := range configData {
 		if key == utils.GlobalValuesKey {
