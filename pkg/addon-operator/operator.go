@@ -636,7 +636,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					// TODO Check if this is needed?
 					// As module list may have changed, hook schedule index must be re-created.
 					//ScheduleHooksController.UpdateScheduleHooks()
-				case module_manager.AmbigousState:
+				case module_manager.AmbiguousState:
 					// It is the error in the module manager. The task must be added to
 					// the beginning of the queue so the module manager can restore its
 					// state before running other queue tasks

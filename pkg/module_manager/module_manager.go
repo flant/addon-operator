@@ -156,10 +156,10 @@ type moduleManager struct {
 	helm              helm.HelmClient
 	kubeConfigManager kube_config_manager.KubeConfigManager
 
-	// Saved values from ConfigMap to handle Ambigous state.
+	// Saved values from ConfigMap to handle Ambiguous state.
 	moduleConfigsUpdateBeforeAmbiguos kube_config_manager.ModuleConfigs
 	// Internal event: module manager needs to be restarted.
-	retryOnAmbigous chan bool
+	retryOnAmbiguous chan bool
 }
 
 var _ ModuleManager = &moduleManager{}
@@ -173,7 +173,7 @@ const (
 	// Global section is changed.
 	GlobalChanged EventType = "GLOBAL_CHANGED"
 	// Something wrong with module manager.
-	AmbigousState EventType = "AMBIGOUS_STATE"
+	AmbiguousState EventType = "AMBIGUOUS_STATE"
 )
 
 // ChangeType are types of module changes.
@@ -222,7 +222,7 @@ func NewMainModuleManager() *moduleManager {
 		kubeConfigManager: nil,
 
 		moduleConfigsUpdateBeforeAmbiguos: make(kube_config_manager.ModuleConfigs),
-		retryOnAmbigous:                   make(chan bool, 1),
+		retryOnAmbiguous:                  make(chan bool, 1),
 	}
 }
 
@@ -556,7 +556,7 @@ func (mm *moduleManager) Start() {
 					}
 				}
 
-			case <-mm.retryOnAmbigous:
+			case <-mm.retryOnAmbiguous:
 				if len(mm.moduleConfigsUpdateBeforeAmbiguos) != 0 {
 					log.Infof("MODULE_MANAGER_RUN Retry saved moduleConfigs: %v", mm.moduleConfigsUpdateBeforeAmbiguos)
 					kube_config_manager.ModuleConfigsUpdated <- mm.moduleConfigsUpdateBeforeAmbiguos
@@ -569,7 +569,7 @@ func (mm *moduleManager) Start() {
 }
 
 func (mm *moduleManager) Retry() {
-	mm.retryOnAmbigous <- true
+	mm.retryOnAmbiguous <- true
 }
 
 func (mm *moduleManager) Ch() chan Event {
