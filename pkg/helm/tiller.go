@@ -51,10 +51,10 @@ func InitTillerProcess(options TillerOptions) error {
 		return fmt.Errorf("start tiller subprocess: %v", err)
 	}
 
-	tillerWaitRetries := TillerWaitTimeout.Milliseconds() / ((TillerWaitTimeoutSeconds * time.Second).Milliseconds() + TillerWaitRetryDelay.Milliseconds())
+	tillerWaitRetries := int(TillerWaitTimeout / ((TillerWaitTimeoutSeconds * time.Second) + TillerWaitRetryDelay))
 
 	// Wait for success of "helm version"
-	var retries int64 = 0
+	retries := 0
 	for {
 		cliHelm := &helmClient{}
 		stdout, stderr, err := cliHelm.Cmd("version", "--tiller-connection-timeout", fmt.Sprintf("%d", TillerWaitTimeoutSeconds))
@@ -74,7 +74,7 @@ func InitTillerProcess(options TillerOptions) error {
 		}
 		retries += 1
 		if retries > tillerWaitRetries {
-			return fmt.Errorf("wait tiller timeout: wait more than %d", TillerWaitTimeout.String())
+			return fmt.Errorf("wait tiller timeout: wait more than %s", TillerWaitTimeout.String())
 		}
 	}
 
