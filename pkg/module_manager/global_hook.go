@@ -179,7 +179,7 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 
 // PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
 func (h *GlobalHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles map[string]string, err error) {
-	tmpFiles = make(map[string]string, 0)
+	tmpFiles = make(map[string]string)
 
 	tmpFiles["CONFIG_VALUES_PATH"], err = h.prepareConfigValuesJsonFile()
 	if err != nil {

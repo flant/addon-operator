@@ -39,7 +39,7 @@ type ResourcesMonitor struct {
 func NewResourcesMonitor() *ResourcesMonitor {
 	return &ResourcesMonitor{
 		paused:    false,
-		logLabels: make(map[string]string, 0),
+		logLabels: make(map[string]string),
 		manifests: make([]manifest.Manifest, 0),
 	}
 }

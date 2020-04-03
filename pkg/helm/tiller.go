@@ -98,19 +98,19 @@ func TillerHealthHandler(tillerProbeAddress string, tillerProbePort int32) func(
 		res, err := http.Get(tillerUrl)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(fmt.Sprintf("Error request tiller: %v", err)))
+			_, _ = writer.Write([]byte(fmt.Sprintf("Error request tiller: %v", err)))
 			return
 		}
 
 		tillerLivenessBody, err := ioutil.ReadAll(res.Body)
-		res.Body.Close()
+		_ = res.Body.Close()
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(fmt.Sprintf("Error reading tiller response: %v", err)))
+			_, _ = writer.Write([]byte(fmt.Sprintf("Error reading tiller response: %v", err)))
 			return
 		}
 
 		writer.WriteHeader(http.StatusOK)
-		writer.Write(tillerLivenessBody)
+		_, _ = writer.Write(tillerLivenessBody)
 	}
 }

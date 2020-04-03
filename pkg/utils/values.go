@@ -268,7 +268,7 @@ func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatc
 
 // CompactPatches simplifies a patches tree — one path, one operation.
 func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
-	patchesTree := make(map[string][]*ValuesPatchOperation, 0)
+	patchesTree := make(map[string][]*ValuesPatchOperation)
 
 	for _, op := range operations {
 		// remove previous operations for subpaths if got 'remove' operation for parent path
@@ -324,9 +324,7 @@ func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
 
 	newOps := []*ValuesPatchOperation{}
 	for _, path := range paths {
-		for _, op := range patchesTree[path] {
-			newOps = append(newOps, op)
-		}
+		newOps = append(newOps, patchesTree[path]...)
 	}
 
 	newValuesPatch := ValuesPatch{Operations: newOps}
@@ -459,7 +457,7 @@ func (v Values) AsString(format string) (string, error) {
 
 // AsConfigMapData returns values as map that can be used as a 'data' field in the ConfigMap.
 func (v Values) AsConfigMapData() (map[string]string, error) {
-	res := make(map[string]string, 0)
+	res := make(map[string]string)
 
 	for k, value := range v {
 		dump, err := yaml.Marshal(value)

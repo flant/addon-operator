@@ -14,7 +14,7 @@ func CalculateStringsChecksum(stringArr ...string) string {
 	hasher := md5.New()
 	sort.Strings(stringArr)
 	for _, value := range stringArr {
-		hasher.Write([]byte(value))
+		_, _ = hasher.Write([]byte(value))
 	}
 	return hex.EncodeToString(hasher.Sum(nil))
 }

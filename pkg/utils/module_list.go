@@ -9,7 +9,7 @@ import (
 func SortReverseByReference(in []string, ref []string) []string {
 	res := make([]string, 0)
 
-	inValues := make(map[string]bool, 0)
+	inValues := make(map[string]bool)
 	for _, v := range in {
 		inValues[v] = true
 	}
@@ -26,9 +26,7 @@ func SortReverseByReference(in []string, ref []string) []string {
 // SortReverse creates a copy of 'in' array and sort it in a reverse order.
 func SortReverse(in []string) []string {
 	res := make([]string, 0)
-	for _, v := range in {
-		res = append(res, v)
-	}
+	res = append(res, in...)
 	sort.Sort(sort.Reverse(sort.StringSlice(res)))
 
 	return res
@@ -38,7 +36,7 @@ func SortReverse(in []string) []string {
 func SortByReference(in []string, ref []string) []string {
 	res := make([]string, 0)
 
-	inValues := make(map[string]bool, 0)
+	inValues := make(map[string]bool)
 	for _, v := range in {
 		inValues[v] = true
 	}
@@ -54,7 +52,7 @@ func SortByReference(in []string, ref []string) []string {
 // ListSubtract creates a new array from 'src' array with items that are
 // not present in 'ignored' arrays.
 func ListSubtract(src []string, ignored ...[]string) (result []string) {
-	ignoredMap := make(map[string]bool, 0)
+	ignoredMap := make(map[string]bool)
 	for _, arr := range ignored {
 		for _, v := range arr {
 			ignoredMap[v] = true
@@ -100,7 +98,7 @@ func ListIntersection(arrs ...[]string) (result []string) {
 func ListFullyIn(arr []string, ref []string) bool {
 	res := true
 
-	m := make(map[string]bool, 0)
+	m := make(map[string]bool)
 	for _, v := range ref {
 		m[v] = true
 	}

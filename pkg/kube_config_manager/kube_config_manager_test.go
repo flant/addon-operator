@@ -302,11 +302,8 @@ param2: val2
 	wg.Add(1)
 
 	go func() {
-		select {
-		case newModuleConfigs = <-ModuleConfigsUpdated:
-			wg.Done()
-			return
-		}
+		newModuleConfigs = <-ModuleConfigsUpdated
+		wg.Done()
 	}()
 
 	// update cm

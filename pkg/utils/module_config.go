@@ -32,7 +32,7 @@ func (mc *ModuleConfig) GetEnabled() string {
 	switch {
 	case mc.IsEnabled == nil:
 		return "n/d"
-	case *mc.IsEnabled == true:
+	case *mc.IsEnabled:
 		return "true"
 	default:
 		return "false"

@@ -153,7 +153,6 @@ type moduleManager struct {
 	// This event leads to module discovery action.
 	globalValuesChanged chan bool
 
-	helm              helm.HelmClient
 	kubeConfigManager kube_config_manager.KubeConfigManager
 
 	// Saved values from ConfigMap to handle Ambiguous state.
@@ -355,7 +354,7 @@ func (mm *moduleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_ma
 
 	// Detect removed module sections for statically enabled modules.
 	// This removal should be handled like kube config update.
-	updateAfterRemoval := make(map[string]bool, 0)
+	updateAfterRemoval := make(map[string]bool)
 	for moduleName, module := range mm.allModulesByName {
 		_, hasKubeConfig := moduleConfigs[moduleName]
 		if !hasKubeConfig && mergeEnabled(module.CommonStaticConfig.IsEnabled, module.StaticConfig.IsEnabled) {
@@ -929,8 +928,6 @@ func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn
 			}
 		}
 	})
-
-	return
 }
 
 func (mm *moduleManager) HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*GlobalHook, controller.BindingExecutionInfo)) error {
@@ -979,8 +976,6 @@ func (mm *moduleManager) StartModuleHooks(moduleName string) {
 		mh := mm.GetModuleHook(hookName)
 		mh.HookController.EnableScheduleBindings()
 	}
-
-	return
 }
 
 func (mm *moduleManager) DisableModuleHooks(moduleName string) {
@@ -996,8 +991,6 @@ func (mm *moduleManager) DisableModuleHooks(moduleName string) {
 		mh := mm.GetModuleHook(hookName)
 		mh.HookController.DisableScheduleBindings()
 	}
-
-	return
 }
 
 //func (mm *moduleManager) EnableModuleScheduleBindings(moduleName) {
@@ -1052,8 +1045,6 @@ func (mm *moduleManager) LoopByBinding(binding BindingType, fn func(gh *GlobalHo
 		}
 
 	}
-
-	return
 }
 
 // mergeEnabled merges enabled flags. Enabled flag can be nil.

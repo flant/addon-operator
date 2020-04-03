@@ -58,6 +58,4 @@ func main() {
 	app.DefineDebugCommands(kpApp)
 
 	kingpin.MustParse(kpApp.Parse(os.Args[1:]))
-
-	return
 }
