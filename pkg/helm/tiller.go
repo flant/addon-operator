@@ -12,7 +12,9 @@ import (
 )
 
 const TillerPath = "tiller"
-const MaxHelmVersionWaits = 32
+const TillerWaitTimeoutSeconds = 2
+const TillerWaitRetryDelay = 250 * time.Millisecond
+const TillerWaitTimeout = 10 * time.Second // Should not be less than TillerWaitTimeoutSeconds + TillerWaitRetryDelay
 
 // TillerOptions
 type TillerOptions struct {
@@ -49,18 +51,20 @@ func InitTillerProcess(options TillerOptions) error {
 		return fmt.Errorf("start tiller subprocess: %v", err)
 	}
 
+	tillerWaitRetries := TillerWaitTimeout.Milliseconds() / ((TillerWaitTimeoutSeconds * time.Second).Milliseconds() + TillerWaitRetryDelay.Milliseconds())
+
 	// Wait for success of "helm version"
-	helmCounter := 0
+	var retries int64 = 0
 	for {
 		cliHelm := &helmClient{}
-		stdout, stderr, err := cliHelm.Cmd("version")
+		stdout, stderr, err := cliHelm.Cmd("version", "--tiller-connection-timeout", fmt.Sprintf("%d", TillerWaitTimeoutSeconds))
 
 		if err != nil {
 			// log stdout and stderr as fields. Json formatter will escape multilines.
 			logEntry.WithField("stdout", stdout).
 				WithField("stderr", stderr).
 				Warnf("Unable to get tiller version: %v", err)
-			time.Sleep(250 * time.Millisecond)
+			time.Sleep(TillerWaitRetryDelay)
 		} else {
 			logEntry.WithField("stdout", stdout).
 				WithField("stderr", stderr).
@@ -68,9 +72,9 @@ func InitTillerProcess(options TillerOptions) error {
 			logEntry.Infof("Tiller started and is available")
 			break
 		}
-		helmCounter += 1
-		if helmCounter > MaxHelmVersionWaits {
-			return fmt.Errorf("wait tiller timeout")
+		retries += 1
+		if retries > tillerWaitRetries {
+			return fmt.Errorf("wait tiller timeout: wait more than %d", TillerWaitTimeout.String())
 		}
 	}
 

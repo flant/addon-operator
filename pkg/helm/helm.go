@@ -119,7 +119,7 @@ func (h *helmClient) InitAndVersion() error {
 		return fmt.Errorf("helm init: %v\n%v %v", err, stdout, stderr)
 	}
 
-	stdout, stderr, err = h.Cmd("version", "--short")
+	stdout, stderr, err = h.Cmd("version", "--short", "--tiller-connection-timeout", fmt.Sprintf("%d", TillerWaitTimeoutSeconds))
 	if err != nil {
 		return fmt.Errorf("unable to get helm or tiller version: %v\n%v %v", err, stdout, stderr)
 	}
