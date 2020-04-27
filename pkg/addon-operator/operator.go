@@ -53,6 +53,10 @@ type AddonOperator struct {
 	ModuleManager module_manager.ModuleManager
 
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
+
+	// converge state
+	StartupConvergeStarted bool
+	StartupConvergeDone    bool
 }
 
 func NewAddonOperator() *AddonOperator {
@@ -450,6 +454,9 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 			OnStartupHooks:   true,
 		})
 	op.TaskQueues.GetMain().AddLast(reloadAllModulesTask)
+
+	// Converge tasks are in queue, set converge start flag.
+	op.StartupConvergeStarted = true
 }
 
 // CreateReloadAllTasks
@@ -1419,6 +1426,72 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	http.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
 		helm.TillerHealthHandler(app.TillerProbeListenAddress, app.TillerProbeListenPort)(writer, request)
 	})
+
+	http.HandleFunc("/ready", func(w http.ResponseWriter, request *http.Request) {
+		if !op.StartupConvergeDone {
+			hasConvergeTasks := op.MainQueueHasConvergeTasks()
+			if op.StartupConvergeStarted && !hasConvergeTasks {
+				op.StartupConvergeDone = true
+			}
+		}
+
+		if op.StartupConvergeDone {
+			w.WriteHeader(200)
+			_, _ = w.Write([]byte("Startup converge done.\n"))
+		} else {
+			w.WriteHeader(500)
+			_, _ = w.Write([]byte("Startup converge in progress\n"))
+		}
+	})
+
+	http.HandleFunc("/startup-converge-status", func(writer http.ResponseWriter, request *http.Request) {
+		hasConvergeTasks := op.MainQueueHasConvergeTasks()
+
+		statusLines := make([]string, 0)
+		if op.StartupConvergeDone {
+			statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
+			if hasConvergeTasks {
+				statusLines = append(statusLines, "CONVERGE_IN_PROGRESS")
+			} else {
+				statusLines = append(statusLines, "CONVERGE_WAIT_TASK")
+			}
+		} else {
+			if op.StartupConvergeStarted {
+				if hasConvergeTasks {
+					statusLines = append(statusLines, "STARTUP_CONVERGE_IN_PROGRESS")
+				} else {
+					op.StartupConvergeDone = true
+					statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
+				}
+			} else {
+				statusLines = append(statusLines, "STARTUP_CONVERGE_WAIT_TASKS")
+			}
+		}
+
+		_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
+	})
+}
+
+func (op *AddonOperator) MainQueueHasConvergeTasks() bool {
+	hasConvergeTasks := false
+	op.TaskQueues.GetMain().Iterate(func(t sh_task.Task) {
+		ttype := t.GetType()
+		switch ttype {
+		case task.ModuleRun, task.DiscoverModulesState, task.ModuleDelete, task.ModulePurge, task.ModuleManagerRetry, task.ReloadAllModules, task.GlobalHookEnableKubernetesBindings, task.GlobalHookEnableScheduleBindings:
+			hasConvergeTasks = true
+			return
+		}
+
+		hm := task.HookMetadataAccessor(t)
+		if ttype == task.GlobalHookRun {
+			switch hm.BindingType {
+			case BeforeAll, AfterAll:
+				hasConvergeTasks = true
+				return
+			}
+		}
+	})
+	return hasConvergeTasks
 }
 
 func DefaultOperator() *AddonOperator {
