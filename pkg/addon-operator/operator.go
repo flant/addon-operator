@@ -454,9 +454,6 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 			OnStartupHooks:   true,
 		})
 	op.TaskQueues.GetMain().AddLast(reloadAllModulesTask)
-
-	// Converge tasks are in queue, set converge start flag.
-	op.StartupConvergeStarted = true
 }
 
 // CreateReloadAllTasks
@@ -782,6 +779,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 					})
 				res.TailTasks = []sh_task.Task{reloadAllModulesTask}
 			}
+			res.AfterHandle = func() {
+				op.CheckConvergeStatus(t)
+			}
 		}
 
 	case task.GlobalHookEnableScheduleBindings:
@@ -791,6 +791,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		globalHook := op.ModuleManager.GetGlobalHook(hm.HookName)
 		globalHook.HookController.EnableScheduleBindings()
 		res.Status = "Success"
+		op.CheckConvergeStatus(t)
 
 	case task.GlobalHookEnableKubernetesBindings:
 		taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
@@ -854,6 +855,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			res.HeadTasks = headTasks
 			res.AfterHandle = func() {
 				globalHook.HookController.StartMonitors()
+				op.CheckConvergeStatus(t)
 			}
 
 		}
@@ -878,6 +880,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 		res.Status = "Success"
 		res.AfterTasks = op.CreateReloadAllTasks(hm.OnStartupHooks, t.GetLogLabels(), hm.EventDescription)
+		res.AfterHandle = func() {
+			op.CheckConvergeStatus(t)
+		}
 
 	case task.DiscoverModulesState:
 		taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
@@ -892,6 +897,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			taskLogEntry.Infof("Discover modules success")
 			res.Status = "Success"
 			res.AfterTasks = tasks
+			res.AfterHandle = func() {
+				op.CheckConvergeStatus(t)
+			}
 		}
 
 	case task.ModuleRun:
@@ -1013,6 +1021,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 					WithMetadata(hm)
 				res.AfterTasks = []sh_task.Task{newTask}
 			}
+			res.AfterHandle = func() {
+				op.CheckConvergeStatus(t)
+			}
 		}
 	case task.ModuleDelete:
 		taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
@@ -1028,6 +1039,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		} else {
 			taskLogEntry.Infof("Module delete success")
 			res.Status = "Success"
+			res.AfterHandle = func() {
+				op.CheckConvergeStatus(t)
+			}
 		}
 	case task.ModuleHookRun:
 		taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
@@ -1082,6 +1096,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			taskLogEntry.Infof("Module purge success")
 		}
 		res.Status = "Success"
+		res.AfterHandle = func() {
+			op.CheckConvergeStatus(t)
+		}
 
 	case task.ModuleManagerRetry:
 		taskLogEntry := logEntry.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
@@ -1428,13 +1445,6 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	})
 
 	http.HandleFunc("/ready", func(w http.ResponseWriter, request *http.Request) {
-		if !op.StartupConvergeDone {
-			hasConvergeTasks := op.MainQueueHasConvergeTasks()
-			if op.StartupConvergeStarted && !hasConvergeTasks {
-				op.StartupConvergeDone = true
-			}
-		}
-
 		if op.StartupConvergeDone {
 			w.WriteHeader(200)
 			_, _ = w.Write([]byte("Startup converge done.\n"))
@@ -1444,23 +1454,22 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 		}
 	})
 
-	http.HandleFunc("/startup-converge-status", func(writer http.ResponseWriter, request *http.Request) {
-		hasConvergeTasks := op.MainQueueHasConvergeTasks()
+	http.HandleFunc("/status/converge", func(writer http.ResponseWriter, request *http.Request) {
+		convergeTasks := op.MainQueueHasConvergeTasks()
 
 		statusLines := make([]string, 0)
 		if op.StartupConvergeDone {
 			statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
-			if hasConvergeTasks {
-				statusLines = append(statusLines, "CONVERGE_IN_PROGRESS")
+			if convergeTasks > 0 {
+				statusLines = append(statusLines, fmt.Sprintf("CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
 			} else {
 				statusLines = append(statusLines, "CONVERGE_WAIT_TASK")
 			}
 		} else {
 			if op.StartupConvergeStarted {
-				if hasConvergeTasks {
-					statusLines = append(statusLines, "STARTUP_CONVERGE_IN_PROGRESS")
+				if convergeTasks > 0 {
+					statusLines = append(statusLines, fmt.Sprintf("STARTUP_CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
 				} else {
-					op.StartupConvergeDone = true
 					statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
 				}
 			} else {
@@ -1472,13 +1481,13 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	})
 }
 
-func (op *AddonOperator) MainQueueHasConvergeTasks() bool {
-	hasConvergeTasks := false
+func (op *AddonOperator) MainQueueHasConvergeTasks() int {
+	convergeTasks := 0
 	op.TaskQueues.GetMain().Iterate(func(t sh_task.Task) {
 		ttype := t.GetType()
 		switch ttype {
 		case task.ModuleRun, task.DiscoverModulesState, task.ModuleDelete, task.ModulePurge, task.ModuleManagerRetry, task.ReloadAllModules, task.GlobalHookEnableKubernetesBindings, task.GlobalHookEnableScheduleBindings:
-			hasConvergeTasks = true
+			convergeTasks++
 			return
 		}
 
@@ -1486,12 +1495,34 @@ func (op *AddonOperator) MainQueueHasConvergeTasks() bool {
 		if ttype == task.GlobalHookRun {
 			switch hm.BindingType {
 			case BeforeAll, AfterAll:
-				hasConvergeTasks = true
+				convergeTasks++
 				return
 			}
 		}
 	})
-	return hasConvergeTasks
+
+	return convergeTasks
+}
+
+func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
+	convergeTasks := op.MainQueueHasConvergeTasks()
+
+	logEntry := log.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
+	logEntry.Infof("Queue 'main' contains %d converge tasks after handle '%s'", convergeTasks, string(t.GetType()))
+
+	// Trigger Started.
+	if convergeTasks > 0 && !op.StartupConvergeStarted {
+		logEntry.Infof("First converge is started.")
+		op.StartupConvergeStarted = true
+	}
+
+	// Trigger Done.
+	if !op.StartupConvergeDone && op.StartupConvergeStarted {
+		if convergeTasks == 0 {
+			logEntry.Infof("First converge is finished. Operator is ready now.")
+			op.StartupConvergeDone = true
+		}
+	}
 }
 
 func DefaultOperator() *AddonOperator {
