@@ -1441,7 +1441,7 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	http.Handle("/metrics", promhttp.Handler())
 
 	http.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
-		helm.TillerHealthHandler(app.TillerProbeListenAddress, app.TillerProbeListenPort)(writer, request)
+		helm.TillerHealthHandler()(writer, request)
 	})
 
 	http.HandleFunc("/ready", func(w http.ResponseWriter, request *http.Request) {

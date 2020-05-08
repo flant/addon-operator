@@ -83,14 +83,15 @@ func (h *helmClient) WithKubeClient(client kube.KubernetesClient) {
 }
 
 func (h *helmClient) TillerNamespace() string {
-	//return h.tillerNamespace
 	return app.Namespace
 }
 
 func (h *helmClient) CommandEnv() []string {
 	res := make([]string, 0)
 	res = append(res, fmt.Sprintf("TILLER_NAMESPACE=%s", app.Namespace))
-	res = append(res, fmt.Sprintf("HELM_HOST=%s", fmt.Sprintf("%s:%d", app.TillerListenAddress, app.TillerListenPort)))
+	if TillerConnectAddress != "" {
+		res = append(res, fmt.Sprintf("HELM_HOST=%s", TillerConnectAddress))
+	}
 	return res
 }
 

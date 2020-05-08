@@ -2,6 +2,7 @@ package helm
 
 import (
 	"fmt"
+	"net"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -233,4 +234,26 @@ func TestHelm(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected helm upgrade to fail, got no error from helm client")
 	}
+}
+
+func Test_PortsPair(t *testing.T) {
+	p1, p2, err := GetOpenPortsPair("127.0.0.1:12345", "127.0.0.1:54321")
+
+	if err != nil {
+		t.Errorf("Expect success ports pair, got error: %v", err)
+	}
+
+	l1, err := net.Listen("tcp", p1)
+	if err != nil {
+		t.Errorf("Should be able to listen on chosen port '%s': %v", p1, err)
+	}
+	defer l1.Close()
+
+	l2, err := net.Listen("tcp", p2)
+	if err != nil {
+		t.Errorf("Should be able to listen on chosen port '%s': %v", p2, err)
+	}
+	defer l2.Close()
+
+	t.Logf("GetOpenPortsPair return: '%s' '%s'\n", p1, p2)
 }
