@@ -1070,7 +1070,6 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				op.MetricStorage.SendCounter("module_hook_allowed_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 				taskLogEntry.Infof("Module hook failed, but allowed to fail. Error: %v", err)
 				res.Status = "Success"
-				op.HelmResourcesManager.ResumeMonitor(hm.ModuleName)
 			} else {
 				op.MetricStorage.SendCounter("module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
 				taskLogEntry.Errorf("Module hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
@@ -1080,8 +1079,8 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		} else {
 			taskLogEntry.Infof("Module hook success")
 			res.Status = "Success"
-			op.HelmResourcesManager.ResumeMonitor(hm.ModuleName)
 		}
+		op.HelmResourcesManager.ResumeMonitor(hm.ModuleName)
 
 	case task.ModulePurge:
 		// Purge is for unknown modules, so error is just ignored.
