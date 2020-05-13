@@ -163,9 +163,6 @@ func TillerHealthHandler() func(writer http.ResponseWriter, request *http.Reques
 // StartAndLogLines is a non-blocking version of RunAndLogLines in shell-operator/pkg/executor.
 func StartAndLogLines(cmd *exec.Cmd, logLabels map[string]string) error {
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
-	stdoutLogEntry := logEntry.WithField("output", "stdout")
-	stderrLogEntry := logEntry.WithField("output", "stderr")
-
 	logEntry.Debugf("Executing command '%s' in '%s' dir", strings.Join(cmd.Args, " "), cmd.Dir)
 
 	stdout, err := cmd.StdoutPipe()
@@ -187,14 +184,14 @@ func StartAndLogLines(cmd *exec.Cmd, logLabels map[string]string) error {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			stdoutLogEntry.Info(scanner.Text())
+			logEntry.Info(scanner.Text())
 		}
 	}()
 	// read and log stderr lines
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			stderrLogEntry.Info(scanner.Text())
+			logEntry.Info(scanner.Text())
 		}
 	}()
 	return nil
