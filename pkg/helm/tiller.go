@@ -184,14 +184,14 @@ func StartAndLogLines(cmd *exec.Cmd, logLabels map[string]string) error {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			logEntry.Info(scanner.Text())
+			logEntry.Infof("[tiller][stdout] %s", scanner.Text())
 		}
 	}()
 	// read and log stderr lines
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			logEntry.Info(scanner.Text())
+			logEntry.Infof("[tiller][stderr] %s", scanner.Text())
 		}
 	}()
 	return nil

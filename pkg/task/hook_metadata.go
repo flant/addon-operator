@@ -2,8 +2,8 @@ package task
 
 import (
 	"fmt"
-
 	log "github.com/sirupsen/logrus"
+	"strings"
 
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
@@ -25,6 +25,9 @@ type HookMetadata struct {
 	LastAfterAllHook         bool   // True if task is a last hook in afterAll sequence
 	ValuesChecksum           string // checksum of global values between first afterAll hook execution
 	ReloadAllOnValuesChanges bool   // whether or not run DiscoverModules process if hook change global values
+
+	KubernetesBindingId    string // Unique id for kubernetes bindings
+	WaitForSynchronization bool   // kubernetes.Synchronization task should be waited
 }
 
 var _ task_metadata.HookNameAccessor = HookMetadata{}
@@ -46,9 +49,18 @@ func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
 }
 
 func (hm HookMetadata) GetDescription() string {
+	bindings := []string{}
+	for _, bc := range hm.BindingContext {
+		bindings = append(bindings, bc.Binding)
+	}
+	bindingNames := ""
+	if len(bindings) > 0 {
+		bindingNames = ":" + strings.Join(bindings, ",")
+	}
+
 	if hm.ModuleName == "" {
 		// global hook
-		return fmt.Sprintf("%s:%s:%s", string(hm.BindingType), hm.HookName, hm.EventDescription)
+		return fmt.Sprintf("%s:%s%s:%s", string(hm.BindingType), hm.HookName, bindingNames, hm.EventDescription)
 	} else {
 		if hm.HookName == "" {
 			// module run
@@ -56,10 +68,10 @@ func (hm HookMetadata) GetDescription() string {
 			if hm.OnStartupHooks {
 				osh = ":onStartupHooks"
 			}
-			return fmt.Sprintf("%s%s:%s", hm.ModuleName, osh, hm.EventDescription)
+			return fmt.Sprintf("%s%s%s:%s", hm.ModuleName, osh, bindingNames, hm.EventDescription)
 		} else {
 			// module hook
-			return fmt.Sprintf("%s:%s:%s", string(hm.BindingType), hm.HookName, hm.EventDescription)
+			return fmt.Sprintf("%s:%s%s:%s", string(hm.BindingType), hm.HookName, bindingNames, hm.EventDescription)
 		}
 	}
 }

@@ -8,10 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/flant/addon-operator/pkg/helm_resources_manager"
-	"github.com/flant/shell-operator/pkg/hook/controller"
-	"github.com/flant/shell-operator/pkg/kube"
-	"github.com/flant/shell-operator/pkg/metrics_storage"
 	log "github.com/sirupsen/logrus"
 
 	// bindings constants and binding configs
@@ -20,11 +16,15 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 
+	"github.com/flant/shell-operator/pkg/hook/controller"
+	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	"github.com/flant/shell-operator/pkg/metrics_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
 )
@@ -36,6 +36,7 @@ type ModuleManager interface {
 	Start()
 	Ch() chan Event
 
+	// Dependencies
 	WithContext(ctx context.Context)
 	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
 	WithKubeEventManager(kube_events_manager.KubeEventsManager)
@@ -44,18 +45,20 @@ type ModuleManager interface {
 	WithHelmResourcesManager(manager helm_resources_manager.HelmResourcesManager)
 	WithMetricStorage(storage *metrics_storage.MetricStorage)
 
-	GetModule(name string) *Module
-	GetModuleNamesInOrder() []string
-	GetModuleHookNames(moduleName string) []string
-	GetGlobalHook(name string) *GlobalHook
-	GetModuleHook(name string) *ModuleHook
 	GetGlobalHooksInOrder(bindingType BindingType) []string
+	GetGlobalHook(name string) *GlobalHook
+
+	GetModuleNamesInOrder() []string
+	GetModule(name string) *Module
+	GetModuleHookNames(moduleName string) []string
+	GetModuleHook(name string) *ModuleHook
 	GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string
 
 	GlobalConfigValues() utils.Values
 	GlobalValues() (utils.Values, error)
 	GlobalValuesPatches() []utils.ValuesPatch
 
+	// Actions for tasks
 	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
 	DeleteModule(moduleName string, logLabels map[string]string) error
 	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error)
@@ -72,6 +75,13 @@ type ModuleManager interface {
 	//EnableScheduleBindings()
 	DisableModuleHooks(moduleName string)
 	HandleScheduleEvent(crontab string, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) error
+
+	GlobalSynchronizationNeeded() bool
+	GlobalSynchronizationDone() bool
+	SynchronizationQueued(id string)
+	SynchronizationDone(id string)
+
+	DumpState()
 }
 
 // ModulesState is a result of Discovery process, that determines which
@@ -112,10 +122,23 @@ type moduleManager struct {
 	// Ordered list of all modules names for ordered iterations of allModulesByName.
 	allModulesNamesInOrder []string
 
+	// TODO new layer of values for *Enabled values
+	// commonStaticEnabledValues utils.Values // modules/values.yaml
+	// kubeEnabledValues utils.Values // ConfigMap
+	// dynamicEnabledValues utils.Values // patches from global hooks
+	// scriptEnabledValues utils.Values // enabled script results
+
+	// onStartup+beforeAll
+	// dynamicEnabledValues utils.Values // patches from global hooks
+
+	// values::set "moduleNameEnabled" "\"true\""
+	// module::enable "module_kebab" "true"
+
 	// List of modules enabled by values.yaml or by kube config.
 	// This list is changed on ConfigMap updates.
 	enabledModulesByConfig []string
 
+	// TODO calculate from enabledValues
 	// Effective list of enabled modules after enabled script running.
 	// List is sorted by module name.
 	// This list is changed on ConfigMap changes.
@@ -129,6 +152,10 @@ type moduleManager struct {
 	// module hooks by module name and binding type ordered by name
 	// Note: one module hook can have several binding types.
 	modulesHooksOrderByName map[string]map[BindingType][]*ModuleHook
+
+	kubernetesBindingSynchronizationState map[string]*KubernetesBindingSynchronizationState
+
+	// VALUE STORAGES
 
 	// Values from modules/values.yaml file
 	commonStaticValues utils.Values
@@ -222,6 +249,8 @@ func NewMainModuleManager() *moduleManager {
 
 		moduleConfigsUpdateBeforeAmbiguos: make(kube_config_manager.ModuleConfigs),
 		retryOnAmbiguous:                  make(chan bool, 1),
+
+		kubernetesBindingSynchronizationState: make(map[string]*KubernetesBindingSynchronizationState),
 	}
 }
 
@@ -436,6 +465,7 @@ func (mm *moduleManager) calculateEnabledModulesByConfig(moduleConfigs kube_conf
 			isEnabled := mergeEnabled(module.CommonStaticConfig.IsEnabled,
 				module.StaticConfig.IsEnabled,
 				kubeConfig.IsEnabled)
+			// , mm.dynamicEnabled[moduleName])
 
 			if isEnabled {
 				enabled = append(enabled, moduleName)
@@ -780,7 +810,7 @@ func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels 
 	module := mm.GetModule(moduleName)
 
 	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
-	return module.Run(onStartup, logLabels, afterStartupCb)
+	return module.Run(logLabels)
 }
 
 func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, string, error) {
@@ -945,6 +975,12 @@ func (mm *moduleManager) HandleGlobalEnableKubernetesBindings(hookName string, c
 	return nil
 }
 
+/*
+
+mm.GetModule(moduleName).HandleEnableKubernetesBindings(createTaskFn)
+
+*/
+
 func (mm *moduleManager) HandleModuleEnableKubernetesBindings(moduleName string, createTaskFn func(*ModuleHook, controller.BindingExecutionInfo)) error {
 	kubeHooks := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
 
@@ -1044,6 +1080,54 @@ func (mm *moduleManager) LoopByBinding(binding BindingType, fn func(gh *GlobalHo
 			fn(nil, m, mh)
 		}
 
+	}
+}
+
+// GlobalSynchronizationNeeded is true if there is at least one global
+// kubernetes hook with executeHookOnSynchronization.
+func (mm *moduleManager) GlobalSynchronizationNeeded() bool {
+	for _, ghName := range mm.GetGlobalHooksInOrder(OnKubernetesEvent) {
+		gHook := mm.GetGlobalHook(ghName)
+		if gHook.SynchronizationNeeded() {
+			return true
+		}
+	}
+	return false
+}
+
+func (mm *moduleManager) GlobalSynchronizationDone() bool {
+	done := true
+	for _, state := range mm.kubernetesBindingSynchronizationState {
+		if !state.Done {
+			done = false
+		}
+	}
+	return done
+}
+
+func (mm *moduleManager) SynchronizationQueued(id string) {
+	var state *KubernetesBindingSynchronizationState
+	state, ok := mm.kubernetesBindingSynchronizationState[id]
+	if !ok {
+		state = &KubernetesBindingSynchronizationState{}
+		mm.kubernetesBindingSynchronizationState[id] = state
+	}
+	state.Queued = true
+}
+
+func (mm *moduleManager) SynchronizationDone(id string) {
+	var state *KubernetesBindingSynchronizationState
+	state, ok := mm.kubernetesBindingSynchronizationState[id]
+	if !ok {
+		state = &KubernetesBindingSynchronizationState{}
+		mm.kubernetesBindingSynchronizationState[id] = state
+	}
+	state.Done = true
+}
+
+func (mm *moduleManager) DumpState() {
+	for id, state := range mm.kubernetesBindingSynchronizationState {
+		log.Infof("%s: queue=%v done=%v", id, state.Queued, state.Done)
 	}
 }
 

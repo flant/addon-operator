@@ -36,6 +36,9 @@ type Module struct {
 
 	LastReleaseManifests []manifest.Manifest
 
+	// There was a successful Run() without values changes
+	IsReady bool
+
 	moduleManager *moduleManager
 }
 
@@ -54,9 +57,67 @@ func (m *Module) SafeName() string {
 	return sanitize.BaseName(m.Name)
 }
 
+// SynchronizationNeeded is true if module has at least one kubernetes hook
+// with executeHookOnSynchronization.
+func (m *Module) SynchronizationNeeded() bool {
+	for _, hookName := range m.moduleManager.GetModuleHookNames(m.Name) {
+		modHook := m.moduleManager.GetModuleHook(hookName)
+		if modHook.SynchronizationNeeded() {
+			return true
+		}
+	}
+	return false
+}
+
+// SynchronizationQueued is true if at least one hook has queued kubernetes.Synchronization binding.
+func (m *Module) SynchronizationQueued() bool {
+	queued := false
+	for _, hookName := range m.moduleManager.GetModuleHooksInOrder(m.Name, OnKubernetesEvent) {
+		modHook := m.moduleManager.GetModuleHook(hookName)
+		if modHook.SynchronizationQueued() {
+			queued = true
+		}
+	}
+	return queued
+}
+
+// SynchronizationDone is true if all kubernetes.Synchronization bindings in all hooks are done.
+func (m *Module) SynchronizationDone() bool {
+	done := true
+	for _, hookName := range m.moduleManager.GetModuleHooksInOrder(m.Name, OnKubernetesEvent) {
+		modHook := m.moduleManager.GetModuleHook(hookName)
+		if modHook.SynchronizationNeeded() && !modHook.SynchronizationDone() {
+			done = false
+		}
+	}
+	return done
+}
+
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
 // It is a handler of task MODULE_RUN
-func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error) {
+func (m *Module) RunOnStartup(logLabels map[string]string) error {
+	logLabels = utils.MergeLabels(logLabels, map[string]string{
+		"module": m.Name,
+		"queue":  "main",
+	})
+
+	if err := m.cleanup(); err != nil {
+		return err
+	}
+
+	// Hooks can delete release resources, so stop resources monitor before run hooks.
+	m.moduleManager.HelmResourcesManager.StopMonitor(m.Name)
+
+	if err := m.runHooksByBinding(OnStartup, logLabels); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
+// It is a handler of task MODULE_RUN
+func (m *Module) Run(logLabels map[string]string) (bool, error) {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"module": m.Name,
 		"queue":  "main",
@@ -68,16 +129,6 @@ func (m *Module) Run(onStartup bool, logLabels map[string]string, afterStartupCb
 
 	// Hooks can delete release resources, so stop resources monitor before run hooks.
 	m.moduleManager.HelmResourcesManager.StopMonitor(m.Name)
-
-	if onStartup {
-		if err := m.runHooksByBinding(OnStartup, logLabels); err != nil {
-			return false, err
-		}
-
-		if err := afterStartupCb(); err != nil {
-			return false, err
-		}
-	}
 
 	if err := m.runHooksByBinding(BeforeHelm, logLabels); err != nil {
 		return false, err
@@ -729,7 +780,7 @@ func (mm *moduleManager) RegisterModules() error {
 		mm.allModulesByName[module.Name] = module
 		mm.allModulesNamesInOrder = append(mm.allModulesNamesInOrder, module.Name)
 
-		logEntry.Infof("Module is registered")
+		logEntry.Infof("Module '%s' is registered", module.Name)
 	}
 
 	return nil
