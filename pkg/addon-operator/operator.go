@@ -1042,7 +1042,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 // - kubernetes.Synchronization hooks
 // - wait while all Synchronization tasks are done
 // - beforeHelm hooks
-// - intall or upgrade a Helm chart
+// - install or upgrade a Helm chart
 // - afterHelm hooks
 // ModuleRun is restarted if hook or chart is failed.
 // If ModuleRun is succeeded, then onStartup and kubernetes.Synchronization hooks will not run the next time.
@@ -1056,18 +1056,32 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	var moduleRunErr error
 	var valuesChanged = false
 
-	if hm.OnStartupHooks && (!module.SynchronizationNeeded() || (!module.SynchronizationQueued() && !module.SynchronizationDone())) {
-		logEntry.Info("Module run start 'StartupHooks' phase")
+	if hm.OnStartupHooks && !module.State.OnStartupDone {
+		logEntry.WithField("module.state", "startup").
+			Info("ModuleRun 'StartupHooks' phase")
 
 		// DiscoverModules registered all module hooks, so queues can be started now.
 		op.InitAndStartHookQueues()
 
 		// run onStartup hooks
 		moduleRunErr = module.RunOnStartup(t.GetLogLabels())
+		if moduleRunErr == nil {
+			module.State.OnStartupDone = true
+		}
+	}
+
+	// Phase 'Handle Synchronization tasks'
+
+	// Prevent tasks queueing and waiting if there is no kubernetes hooks with executeHookOnSynchronization
+	if module.State.OnStartupDone && !module.SynchronizationNeeded() {
+		module.State.SynchronizationTasksQueued = true
+		module.State.SynchronizationDone = true
 	}
 
 	// Queue Synchronization tasks if needed
-	if moduleRunErr == nil && module.SynchronizationNeeded() && !module.SynchronizationQueued() && !module.SynchronizationDone() {
+	if module.State.OnStartupDone && !module.State.SynchronizationDone && !module.State.SynchronizationTasksQueued {
+		logEntry.WithField("module.state", "synchronization").
+			Info("ModuleRun queue Synchronization tasks")
 		// EnableKubernetesBindings and StartInformers for all kubernetes bindings.
 		op.TaskQueues.NewNamedQueue(syncQueueName, op.TaskHandler)
 		syncSubQueue := op.TaskQueues.GetByName(syncQueueName)
@@ -1124,7 +1138,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			}
 		})
 		if err != nil {
-			// It is fail: cannot start monitors for kubernetes bindings.
+			// Fail to enable bindings: cannot start Kubernetes monitors.
 			moduleRunErr = err
 		} else {
 			// queue created tasks
@@ -1176,26 +1190,41 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			if len(mainSyncTasks) > 0 && !module.SynchronizationQueued() {
 				logEntry.Errorf("Possible bug!!! Synchronization is needed, %d tasks should be waited before run beforeHelm, but module has state 'Synchronization is not queued'", len(waitSyncTasks))
 			}
+
+			// Enter wait loop if there are tasks that should be waited
+			if len(mainSyncTasks)+len(waitSyncTasks) > 0 {
+				module.State.ShouldWaitForSynchronization = true
+			}
+			// prevent task queueing on next ModuleRun
+			module.State.SynchronizationTasksQueued = true
 		}
 	}
 
-	// Wait while all Synchronization task are done or skip of no kubernetes hooks in module.
-	if moduleRunErr == nil && module.SynchronizationNeeded() && module.SynchronizationQueued() && !module.SynchronizationDone() {
-		// Wait for all Synchronization hooks.
-
-		logEntry.Infof("ModuleRun state: onStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.OnStartupHooks, module.SynchronizationNeeded(), module.SynchronizationQueued(), module.SynchronizationDone())
+	// Wait while all Synchronization task are done. Set SynchronizationDone state when hooks are finished.
+	if moduleRunErr == nil && module.State.OnStartupDone && !module.State.SynchronizationDone && module.State.ShouldWaitForSynchronization {
+		if !module.State.WaitStarted {
+			log.WithField("module.state", "wait-for-synchronization").
+				Infof("ModuleRun wait for Synchronization")
+			module.State.WaitStarted = true
+		}
+		logEntry.Debugf("ModuleRun wait Synchronization state: onStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.OnStartupHooks, module.SynchronizationNeeded(), module.SynchronizationQueued(), module.SynchronizationDone())
 		for _, hName := range op.ModuleManager.GetModuleHooksInOrder(hm.ModuleName, OnKubernetesEvent) {
 			hook := op.ModuleManager.GetModuleHook(hName)
-			logEntry.Infof("  hook '%s': %d, %+v", hook.Name, len(hook.KubernetesBindingSynchronizationState), hook.KubernetesBindingSynchronizationState)
+			logEntry.Debugf("  hook '%s': %d, %+v", hook.Name, len(hook.KubernetesBindingSynchronizationState), hook.KubernetesBindingSynchronizationState)
 		}
 
-		logEntry.Info("Module run repeat")
-		res.Status = "Repeat"
-		return
+		if module.SynchronizationDone() {
+			module.State.SynchronizationDone = true
+		} else {
+			logEntry.Info("Module run repeat")
+			res.Status = "Repeat"
+			return
+		}
 	}
 
-	if moduleRunErr == nil && (!module.SynchronizationNeeded() || module.SynchronizationDone()) {
-		logEntry.Info("Module run start")
+	// Phase with helm hooks and helm chart.
+	if moduleRunErr == nil && module.State.OnStartupDone && module.State.SynchronizationDone {
+		logEntry.Info("ModuleRun 'Helm' phase")
 		// remove temporary queue
 		op.TaskQueues.Remove(syncQueueName)
 		// kubernetes Event
@@ -1206,13 +1235,15 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 	if moduleRunErr != nil {
 		op.MetricStorage.SendCounter("module_run_errors", 1.0, map[string]string{"module": hm.ModuleName})
-		logEntry.Errorf("Module run failed. Requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, moduleRunErr)
+		logEntry.WithField("module.state", "failed").
+			Errorf("ModuleRun failed. Requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, moduleRunErr)
 		t.UpdateFailureMessage(moduleRunErr.Error())
 		res.Status = "Fail"
 	} else {
 		res.Status = "Success"
-		logEntry.Infof("Module run success '%s'", hm.ModuleName)
 		if valuesChanged {
+			logEntry.WithField("module.state", "restart").
+				Infof("ModuleRun success, values changed, restart module")
 			// One of afterHelm hooks changes values, run ModuleRun again: copy task and unset RunOnStartupHooks.
 			hm.OnStartupHooks = false
 			eventDescription := hm.EventDescription
@@ -1228,6 +1259,8 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				WithMetadata(hm)
 			res.AfterTasks = []sh_task.Task{newTask}
 		} else {
+			logEntry.WithField("module.state", "ready").
+				Infof("ModuleRun success, module is ready")
 			module.IsReady = true
 		}
 	}

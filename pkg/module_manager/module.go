@@ -36,16 +36,30 @@ type Module struct {
 
 	LastReleaseManifests []manifest.Manifest
 
+	State *ModuleState
+
 	// There was a successful Run() without values changes
 	IsReady bool
 
 	moduleManager *moduleManager
 }
 
+type ModuleState struct {
+	//
+	OnStartupDone                bool
+	SynchronizationTasksQueued   bool
+	ShouldWaitForSynchronization bool
+	WaitStarted                  bool
+
+	// become true if no synchronization task is needed or when queued synchronization tasks are finished
+	SynchronizationDone bool
+}
+
 func NewModule(name, path string) *Module {
 	return &Module{
-		Name: name,
-		Path: path,
+		Name:  name,
+		Path:  path,
+		State: &ModuleState{},
 	}
 }
 
