@@ -1175,6 +1175,14 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				for _, tsk := range mainSyncTasks {
 					logEntry.WithFields(utils.LabelsToLogFields(tsk.GetLogLabels())).
 						Infof("queue task %s - Synchronization after onStartup", tsk.GetDescription())
+					thm := task.HookMetadataAccessor(tsk)
+					mHook := op.ModuleManager.GetModuleHook(thm.HookName)
+					// TODO move behind SynchronizationQueued(id string)
+					// State is created only for tasks that need waiting.
+					mHook.KubernetesBindingSynchronizationState[thm.KubernetesBindingId] = &module_manager.KubernetesBindingSynchronizationState{
+						Queued: true,
+						Done:   false,
+					}
 					syncSubQueue.AddLast(tsk)
 				}
 				logEntry.Infof("Queue '%s' started for module 'kubernetes.Synchronization' hooks", syncQueueName)
@@ -1203,7 +1211,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	// Wait while all Synchronization task are done. Set SynchronizationDone state when hooks are finished.
 	if moduleRunErr == nil && module.State.OnStartupDone && !module.State.SynchronizationDone && module.State.ShouldWaitForSynchronization {
 		if !module.State.WaitStarted {
-			log.WithField("module.state", "wait-for-synchronization").
+			logEntry.WithField("module.state", "wait-for-synchronization").
 				Infof("ModuleRun wait for Synchronization")
 			module.State.WaitStarted = true
 		}
