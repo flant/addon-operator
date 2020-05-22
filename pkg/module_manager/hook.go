@@ -28,10 +28,21 @@ type Hook interface {
 	Order(binding BindingType) float64
 }
 
+type KubernetesBindingSynchronizationState struct {
+	Queued bool
+	Done   bool
+}
+
+func (k *KubernetesBindingSynchronizationState) String() string {
+	return fmt.Sprintf("queue=%v done=%v", k.Queued, k.Done)
+}
+
 type CommonHook struct {
 	hook.Hook
 
 	moduleManager *moduleManager
+
+	KubernetesBindingSynchronizationState map[string]*KubernetesBindingSynchronizationState
 }
 
 func (c *CommonHook) WithModuleManager(moduleManager *moduleManager) {
@@ -44,6 +55,38 @@ func (h *CommonHook) GetName() string {
 
 func (h *CommonHook) GetPath() string {
 	return h.Path
+}
+
+// SynchronizationNeeded is true if there is binding with executeHookOnSynchronization.
+func (h *CommonHook) SynchronizationNeeded() bool {
+	for _, kubeBinding := range h.Config.OnKubernetesEvents {
+		if kubeBinding.ExecuteHookOnSynchronization {
+			return true
+		}
+	}
+	return false
+}
+
+// SynchronizationQueued is true if at least one KubernetesBindingSynchronizationState object has true for Queued.
+func (h *CommonHook) SynchronizationQueued() bool {
+	queued := false
+	for _, state := range h.KubernetesBindingSynchronizationState {
+		if state.Queued {
+			queued = true
+		}
+	}
+	return queued
+}
+
+// SynchronizationDone is true if all KubernetesBindingSynchronizationState objects has true for Done.
+func (h *CommonHook) SynchronizationDone() bool {
+	done := true
+	for _, state := range h.KubernetesBindingSynchronizationState {
+		if !state.Done {
+			done = false
+		}
+	}
+	return done
 }
 
 // SearchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
@@ -158,7 +201,7 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		}
 		mm.globalHooksByName[globalHook.Name] = globalHook
 
-		logEntry.Infof("Global hook successfully run with --config. Register with bindings: %s", globalHook.GetConfigDescription())
+		logEntry.Infof("Global hook '%s' successfully run with --config. Register with bindings: %s", globalHook.Name, globalHook.GetConfigDescription())
 	}
 
 	return nil

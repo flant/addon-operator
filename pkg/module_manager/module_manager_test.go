@@ -258,6 +258,7 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 						ModuleEnabledKey: "moduleEnabled",
 						RawConfig:        []string{},
 					},
+					State:         &ModuleState{},
 					moduleManager: mm,
 				}
 				assert.Equal(t, expectedModule, module)

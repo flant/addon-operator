@@ -25,8 +25,10 @@ var _ Hook = &GlobalHook{}
 
 func NewGlobalHook(name, path string) *GlobalHook {
 	res := &GlobalHook{
-		CommonHook: &CommonHook{},
-		Config:     &GlobalHookConfig{},
+		CommonHook: &CommonHook{
+			KubernetesBindingSynchronizationState: make(map[string]*KubernetesBindingSynchronizationState),
+		},
+		Config: &GlobalHookConfig{},
 	}
 	res.Name = name
 	res.Path = path

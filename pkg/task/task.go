@@ -13,8 +13,9 @@ const (
 	ReloadAllModules     task.TaskType = "ReloadAllModules"
 	DiscoverModulesState task.TaskType = "DiscoverModulesState"
 
-	GlobalHookEnableKubernetesBindings task.TaskType = "GlobalHookEnableKubernetesBindings"
-	GlobalHookEnableScheduleBindings   task.TaskType = "GlobalHookEnableScheduleBindings"
+	GlobalHookEnableKubernetesBindings      task.TaskType = "GlobalHookEnableKubernetesBindings"
+	GlobalHookWaitKubernetesSynchronization task.TaskType = "GlobalHookWaitKubernetesSynchronization"
+	GlobalHookEnableScheduleBindings        task.TaskType = "GlobalHookEnableScheduleBindings"
 	//ModuleHookEnableKubernetesBindings      task.TaskType = "ModuleHookEnableKubernetesBindings"
 
 	// Delete unknown helm release when no module in ModulesDir
