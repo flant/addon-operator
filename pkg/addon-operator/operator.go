@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/flant/shell-operator/pkg/executor"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -1767,9 +1766,6 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 		if convergeTasks == 0 {
 			logEntry.Infof("First converge is finished. Operator is ready now.")
 			op.StartupConvergeDone = true
-			// TODO remove after implementing a better locking
-			// Unlock zombie reaper
-			executor.ReapLocked = false
 		}
 	}
 }
