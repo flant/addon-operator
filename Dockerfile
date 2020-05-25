@@ -29,6 +29,7 @@ WORKDIR /addon-operator
 
 RUN git submodule update --init --recursive && ./go-build.sh $appVersion
 
+FROM krallin/ubuntu-tini:bionic AS tini
 
 # build final image
 FROM ubuntu:18.04
@@ -42,8 +43,9 @@ RUN apt-get update && \
     rm -f /helm.tgz && \
     helm init --client-only && \
     mkdir /hooks
+COPY --from=tini /usr/local/bin/tini /sbin/tini
 COPY --from=addon-operator /addon-operator/addon-operator /
 WORKDIR /
 ENV MODULES_DIR /modules
 ENV GLOBAL_HOOKS_DIR /global-hooks
-ENTRYPOINT ["/addon-operator"]
+ENTRYPOINT ["/sbin/tini", "--", "/addon-operator"]

@@ -26,7 +26,7 @@ RUN git submodule update --init --recursive && ./go-build.sh $appVersion
 
 # build final image
 FROM alpine:3.9
-RUN apk --no-cache add ca-certificates jq bash && \
+RUN apk --no-cache add ca-certificates jq bash tini && \
     wget https://storage.googleapis.com/kubernetes-release/release/v1.13.5/bin/linux/amd64/kubectl -O /bin/kubectl && \
     chmod +x /bin/kubectl && \
     wget https://storage.googleapis.com/kubernetes-helm/helm-v2.14.3-linux-amd64.tar.gz -O /helm.tgz && \
@@ -38,5 +38,5 @@ COPY --from=addon-operator /addon-operator/addon-operator /
 WORKDIR /
 ENV MODULES_DIR /modules
 ENV GLOBAL_HOOKS_DIR /global-hooks
-ENTRYPOINT ["/addon-operator"]
+ENTRYPOINT ["/sbin/tini", "--", "/addon-operator"]
 
