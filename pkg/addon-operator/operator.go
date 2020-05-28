@@ -1085,8 +1085,11 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				logEntry.Errorf("Possible bug!!! Synchronization is needed, %d tasks should be waited before run beforeHelm, but module has state 'Synchronization is not queued'", len(waitSyncTasks))
 			}
 
-			// Enter wait loop if there are tasks that should be waited
-			if len(mainSyncTasks)+len(waitSyncTasks) > 0 {
+			// Enter wait loop if there are tasks that should be waited.
+			// Synchronization is there are no tasks to wait.
+			if len(mainSyncTasks)+len(waitSyncTasks) == 0 {
+				module.State.SynchronizationDone = true
+			} else {
 				module.State.ShouldWaitForSynchronization = true
 			}
 			// prevent task queueing on next ModuleRun
