@@ -1848,6 +1848,11 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 	}
 }
 
+func (op *AddonOperator) Shutdown() {
+	op.KubeConfigManager.Stop()
+	op.ShellOperator.Shutdown()
+}
+
 func DefaultOperator() *AddonOperator {
 	operator := NewAddonOperator()
 	operator.WithContext(context.Background())
