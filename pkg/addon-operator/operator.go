@@ -1115,7 +1115,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			// remove temporary subqueue
 			op.TaskQueues.Remove(syncQueueName)
 		} else {
-			logEntry.Info("Module run repeat")
+			logEntry.Debugf("Module run repeat")
 			res.Status = "Repeat"
 			return
 		}

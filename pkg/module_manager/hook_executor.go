@@ -10,7 +10,7 @@ import (
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	"github.com/flant/shell-operator/pkg/metrics_storage"
+	metric_operation "github.com/flant/shell-operator/pkg/metrics_storage/operation"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -40,7 +40,7 @@ func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
 	e.LogLabels = logLabels
 }
 
-func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, metrics []metrics_storage.MetricOperation, err error) {
+func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, metrics []metric_operation.MetricOperation, err error) {
 	patches = make(map[utils.ValuesPatchType]*utils.ValuesPatch)
 
 	bindingContextBytes, err := e.Context.Json()
@@ -93,7 +93,7 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 		return nil, nil, fmt.Errorf("got bad json patch for values: %s", err)
 	}
 
-	metrics, err = metrics_storage.MetricOperationsFromFile(e.MetricsPath)
+	metrics, err = metric_operation.MetricOperationsFromFile(e.MetricsPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("got bad metrics: %s", err)
 	}
