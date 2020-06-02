@@ -968,10 +968,6 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	if module.State.OnStartupDone && !module.State.SynchronizationDone && !module.State.SynchronizationTasksQueued {
 		logEntry.WithField("module.state", "synchronization").
 			Info("ModuleRun queue Synchronization tasks")
-		// EnableKubernetesBindings and StartInformers for all kubernetes bindings.
-		op.TaskQueues.NewNamedQueue(syncQueueName, op.TaskHandler)
-		syncSubQueue := op.TaskQueues.GetByName(syncQueueName)
-
 		var mainSyncTasks = make([]sh_task.Task, 0)
 		var parallelSyncTasks = make([]sh_task.Task, 0)
 		var waitSyncTasks = make(map[string]sh_task.Task)
@@ -1058,6 +1054,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			}
 
 			if len(mainSyncTasks) > 0 {
+				// EnableKubernetesBindings and StartInformers for all kubernetes bindings.
+				op.TaskQueues.NewNamedQueue(syncQueueName, op.TaskHandler)
+				syncSubQueue := op.TaskQueues.GetByName(syncQueueName)
+
 				for _, tsk := range mainSyncTasks {
 					logEntry.WithFields(utils.LabelsToLogFields(tsk.GetLogLabels())).
 						Infof("queue task %s - Synchronization after onStartup", tsk.GetDescription())
@@ -1112,6 +1112,8 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 		if module.SynchronizationDone() {
 			module.State.SynchronizationDone = true
+			// remove temporary subqueue
+			op.TaskQueues.Remove(syncQueueName)
 		} else {
 			logEntry.Info("Module run repeat")
 			res.Status = "Repeat"
@@ -1119,13 +1121,16 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		}
 	}
 
+	// Start kubernetes monitors if Synchronization is done.
+	if module.State.SynchronizationDone && !module.State.MonitorsStarted {
+		// kubernetes Event
+		op.ModuleManager.StartModuleHooks(hm.ModuleName)
+		module.State.MonitorsStarted = true
+	}
+
 	// Phase with helm hooks and helm chart.
 	if moduleRunErr == nil && module.State.OnStartupDone && module.State.SynchronizationDone {
 		logEntry.Info("ModuleRun 'Helm' phase")
-		// remove temporary queue
-		op.TaskQueues.Remove(syncQueueName)
-		// kubernetes Event
-		op.ModuleManager.StartModuleHooks(hm.ModuleName)
 		// run beforeHelm, helm, afterHelm
 		valuesChanged, moduleRunErr = module.Run(t.GetLogLabels())
 	}

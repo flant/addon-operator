@@ -58,6 +58,9 @@ type ModuleState struct {
 
 	// become true if no synchronization task is needed or when queued synchronization tasks are finished
 	SynchronizationDone bool
+
+	// flag to prevent excess monitor starts
+	MonitorsStarted bool
 }
 
 func NewModule(name, path string) *Module {
