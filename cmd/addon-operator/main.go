@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
-	"os"
-
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
+	"os"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
@@ -42,7 +41,8 @@ func main() {
 
 			// Block action by waiting signals from OS.
 			utils_signal.WaitForProcessInterruption(func() {
-				operator.Stop()
+				operator.Shutdown()
+				os.Exit(1)
 			})
 
 			return nil

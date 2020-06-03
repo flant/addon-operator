@@ -17,6 +17,8 @@ type HelmResourcesManager interface {
 	WithDefaultNamespace(namespace string)
 	Stop()
 	StopMonitors()
+	PauseMonitors()
+	ResumeMonitors()
 	StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string)
 	HasMonitor(moduleName string) bool
 	StopMonitor(moduleName string)
@@ -100,6 +102,18 @@ func (hm *helmResourcesManager) absentResourcesCallback(moduleName string, absen
 func (hm *helmResourcesManager) StopMonitors() {
 	for moduleName := range hm.monitors {
 		hm.StopMonitor(moduleName)
+	}
+}
+
+func (hm *helmResourcesManager) PauseMonitors() {
+	for _, monitor := range hm.monitors {
+		monitor.Pause()
+	}
+}
+
+func (hm *helmResourcesManager) ResumeMonitors() {
+	for _, monitor := range hm.monitors {
+		monitor.Resume()
 	}
 }
 

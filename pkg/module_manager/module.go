@@ -1,14 +1,15 @@
 package module_manager
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/trace"
 	"strings"
 
-	"github.com/flant/shell-operator/pkg/utils/manifest"
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
@@ -16,10 +17,13 @@ import (
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
+	. "github.com/flant/shell-operator/pkg/utils/measure"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
+	"github.com/flant/shell-operator/pkg/metrics_storage"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+	"github.com/flant/shell-operator/pkg/utils/manifest"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -42,6 +46,7 @@ type Module struct {
 	IsReady bool
 
 	moduleManager *moduleManager
+	metricStorage *metrics_storage.MetricStorage
 }
 
 type ModuleState struct {
@@ -53,6 +58,9 @@ type ModuleState struct {
 
 	// become true if no synchronization task is needed or when queued synchronization tasks are finished
 	SynchronizationDone bool
+
+	// flag to prevent excess monitor starts
+	MonitorsStarted bool
 }
 
 func NewModule(name, path string) *Module {
@@ -65,6 +73,10 @@ func NewModule(name, path string) *Module {
 
 func (m *Module) WithModuleManager(moduleManager *moduleManager) {
 	m.moduleManager = moduleManager
+}
+
+func (m *Module) WithMetricStorage(mstor *metrics_storage.MetricStorage) {
+	m.metricStorage = mstor
 }
 
 func (m *Module) SafeName() string {
@@ -120,7 +132,7 @@ func (m *Module) RunOnStartup(logLabels map[string]string) error {
 	}
 
 	// Hooks can delete release resources, so stop resources monitor before run hooks.
-	m.moduleManager.HelmResourcesManager.StopMonitor(m.Name)
+	// m.moduleManager.HelmResourcesManager.PauseMonitor(m.Name)
 
 	if err := m.runHooksByBinding(OnStartup, logLabels); err != nil {
 		return err
@@ -132,6 +144,8 @@ func (m *Module) RunOnStartup(logLabels map[string]string) error {
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
 // It is a handler of task MODULE_RUN
 func (m *Module) Run(logLabels map[string]string) (bool, error) {
+	defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase")
+
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"module": m.Name,
 		"queue":  "main",
@@ -141,18 +155,29 @@ func (m *Module) Run(logLabels map[string]string) (bool, error) {
 		return false, err
 	}
 
-	// Hooks can delete release resources, so stop resources monitor before run hooks.
-	m.moduleManager.HelmResourcesManager.StopMonitor(m.Name)
+	// Hooks can delete release resources, so pause resources monitor before run hooks.
+	m.moduleManager.HelmResourcesManager.PauseMonitor(m.Name)
+	defer m.moduleManager.HelmResourcesManager.ResumeMonitor(m.Name)
 
-	if err := m.runHooksByBinding(BeforeHelm, logLabels); err != nil {
+	var err error
+
+	treg := trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-beforeHelm")
+	err = m.runHooksByBinding(BeforeHelm, logLabels)
+	treg.End()
+	if err != nil {
 		return false, err
 	}
 
-	if err := m.runHelmInstall(logLabels); err != nil {
+	treg = trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm")
+	err = m.runHelmInstall(logLabels)
+	treg.End()
+	if err != nil {
 		return false, err
 	}
 
+	treg = trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-afterHelm")
 	valuesChanged, err := m.runHooksByBindingAndCheckValues(AfterHelm, logLabels)
+	treg.End()
 	if err != nil {
 		return false, err
 	}
@@ -222,6 +247,14 @@ func (m *Module) cleanup() error {
 }
 
 func (m *Module) runHelmInstall(logLabels map[string]string) error {
+	metricLabels := map[string]string{
+		"module":     m.Name,
+		"activation": logLabels["event.type"],
+	}
+	defer MeasureTime(func(nanos Nanos) {
+		m.metricStorage.ObserveHistogram("module_helm_hist", nanos.Ms(), metricLabels)
+	})()
+
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	chartExists, err := m.checkHelmChart()
@@ -239,14 +272,29 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 		return err
 	}
 
-	// Render templates to prevent excess helm runs.
 	helmClient := helm.NewClient(logLabels)
-	renderedManifests, err := helmClient.Render(
-		helmReleaseName,
-		m.Path,
-		[]string{valuesPath},
-		[]string{},
-		app.Namespace)
+
+	// Render templates to prevent excess helm runs.
+	var renderedManifests string
+	func() {
+		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-render").End()
+
+		metricLabels := map[string]string{
+			"module":     m.Name,
+			"activation": logLabels["event.type"],
+			"operation":  "template",
+		}
+		defer MeasureTime(func(nanos Nanos) {
+			m.metricStorage.ObserveHistogram("helm_operation_hist", nanos.Ms(), metricLabels)
+		})()
+
+		renderedManifests, err = helmClient.Render(
+			helmReleaseName,
+			m.Path,
+			[]string{valuesPath},
+			[]string{},
+			app.Namespace)
+	}()
 	if err != nil {
 		return err
 	}
@@ -259,7 +307,21 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 	m.LastReleaseManifests = manifests
 
 	// Skip upgrades if nothing is changes
-	runUpgradeRelease, err := m.ShouldRunHelmUpgrade(helmClient, helmReleaseName, checksum, manifests, logLabels)
+	var runUpgradeRelease bool
+	func() {
+		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-check-upgrade").End()
+
+		metricLabels := map[string]string{
+			"module":     m.Name,
+			"activation": logLabels["event.type"],
+			"operation":  "check-upgrade",
+		}
+		defer MeasureTime(func(nanos Nanos) {
+			m.metricStorage.ObserveHistogram("helm_operation_hist", nanos.Ms(), metricLabels)
+		})()
+
+		runUpgradeRelease, err = m.ShouldRunHelmUpgrade(helmClient, helmReleaseName, checksum, manifests, logLabels)
+	}()
 	if err != nil {
 		return err
 	}
@@ -272,17 +334,33 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 		return nil
 	}
 
-	err = helmClient.UpgradeRelease(
-		helmReleaseName,
-		m.Path,
-		[]string{valuesPath},
-		[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
-		//helm.Client.TillerNamespace(),
-		app.Namespace,
-	)
+	// Run helm upgrade. Trace and measure its time.
+	func() {
+		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-upgrade").End()
+
+		metricLabels := map[string]string{
+			"module":     m.Name,
+			"activation": logLabels["event.type"],
+			"operation":  "upgrade",
+		}
+		defer MeasureTime(func(nanos Nanos) {
+			m.metricStorage.ObserveHistogram("helm_operation_hist", nanos.Ms(), metricLabels)
+		})()
+
+		err = helmClient.UpgradeRelease(
+			helmReleaseName,
+			m.Path,
+			[]string{valuesPath},
+			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
+			//helm.Client.TillerNamespace(),
+			app.Namespace,
+		)
+	}()
+
 	if err != nil {
 		return err
 	}
+
 	// Start monitor resources if release was successful
 	m.moduleManager.HelmResourcesManager.StartMonitor(m.Name, manifests, app.Namespace)
 
@@ -370,7 +448,20 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 		}
 		bc.Metadata.BindingType = binding
 
-		err := moduleHook.Run(binding, []BindingContext{bc}, logLabels)
+		metricLabels := map[string]string{
+			"module":     m.Name,
+			"hook":       moduleHook.Name,
+			"binding":    string(binding),
+			"activation": logLabels["event.type"],
+		}
+
+		var err error
+		func() {
+			defer MeasureTime(func(nanos Nanos) {
+				m.metricStorage.ObserveHistogram("module_hook_run_hist", nanos.Ms(), metricLabels)
+			})()
+			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels)
+		}()
 		if err != nil {
 			return err
 		}
@@ -406,7 +497,20 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 		}
 		bc.Metadata.BindingType = binding
 
-		err := moduleHook.Run(binding, []BindingContext{bc}, logLabels)
+		metricLabels := map[string]string{
+			"module":     m.Name,
+			"hook":       moduleHook.Name,
+			"binding":    string(binding),
+			"activation": logLabels["event.type"],
+		}
+
+		var err error
+		func() {
+			defer MeasureTime(func(nanos Nanos) {
+				m.metricStorage.ObserveHistogram("module_hook_run_hist", nanos.Ms(), metricLabels)
+			})()
+			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels)
+		}()
 		if err != nil {
 			return false, err
 		}
@@ -783,6 +887,7 @@ func (mm *moduleManager) RegisterModules() error {
 		logEntry := log.WithField("module", module.Name)
 
 		module.WithModuleManager(mm)
+		module.WithMetricStorage(mm.metricStorage)
 
 		// load static config from values.yaml
 		err := module.loadStaticValues()
