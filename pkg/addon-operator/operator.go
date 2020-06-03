@@ -1412,10 +1412,11 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 					OnStartupHooks:   false,
 				})
 			res.TailTasks = []sh_task.Task{reloadAllModulesTask}
-		} else {
-			// pause-resume all monitors is not working with parallel hooks.
-			//op.HelmResourcesManager.ResumeMonitors()
 		}
+		// TODO rethink helm monitors pause-resume. It is not working well with parallel hooks without locks. But locks will destroy parallelization.
+		//else {
+		//	op.HelmResourcesManager.ResumeMonitors()
+		//}
 	}
 
 	if res.Status == "Success" {
