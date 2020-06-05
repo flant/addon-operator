@@ -144,7 +144,7 @@ func (m *Module) RunOnStartup(logLabels map[string]string) error {
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
 // It is a handler of task MODULE_RUN
 func (m *Module) Run(logLabels map[string]string) (bool, error) {
-	defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase")
+	defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase").End()
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"module": m.Name,
@@ -188,6 +188,8 @@ func (m *Module) Run(logLabels map[string]string) (bool, error) {
 // Delete removes helm release if it exists and runs afterDeleteHelm hooks.
 // It is a handler for MODULE_DELETE task.
 func (m *Module) Delete(logLabels map[string]string) error {
+	defer trace.StartRegion(context.Background(), "ModuleDelete-HelmPhase").End()
+
 	deleteLogLabels := utils.MergeLabels(logLabels,
 		map[string]string{
 			"module": m.Name,
