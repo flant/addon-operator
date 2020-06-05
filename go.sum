@@ -62,6 +62,7 @@ github.com/flant/libjq-go v1.0.1-0.20200205115921-27e93c18c17f h1:3tmztWJjf61sHf
 github.com/flant/libjq-go v1.0.1-0.20200205115921-27e93c18c17f/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
 github.com/flant/libjq-go v1.6.1-0.20200401092614-198670408da1 h1:pOPBJDB7PZz/SKa13mlR3bvkRJ0KWKRe6v+KZOObkKw=
 github.com/flant/libjq-go v1.6.1-0.20200401092614-198670408da1/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
+github.com/flant/libjq-go v1.6.1/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
 github.com/flant/shell-operator v1.0.0-beta.7.0.20200212144836-04e5d35edd9e h1:izyfBwGcWwz3tExPqvoaEQX9slaKNoapB0JnQvAtiAE=
 github.com/flant/shell-operator v1.0.0-beta.7.0.20200212144836-04e5d35edd9e/go.mod h1:2gRWBcUQHYT+OWaNvuUJ47m4zWyCi07ZqAj84OUgDzk=
 github.com/flant/shell-operator v1.0.0-beta.7.0.20200219194616-4b1b7ccd6da4 h1:LRNYv+1oMvhg+JPKFQigF4rUVNu3CDg6YS61aXhNX0M=
@@ -99,6 +100,9 @@ github.com/flant/shell-operator v1.0.0-beta.10.0.20200602121156-2767ed85cd7d h1:
 github.com/flant/shell-operator v1.0.0-beta.10.0.20200602121156-2767ed85cd7d/go.mod h1:Cf7KVE1Qy60dtA112nuOBo33Ef0xeoB2vil7iJULnEM=
 github.com/flant/shell-operator v1.0.0-beta.10.0.20200602130536-4ce071046165 h1:0s4RSQ5ndONlPJgIySRda44X2OcwwGoN2AHDMnmiXOI=
 github.com/flant/shell-operator v1.0.0-beta.10.0.20200602130536-4ce071046165/go.mod h1:Cf7KVE1Qy60dtA112nuOBo33Ef0xeoB2vil7iJULnEM=
+github.com/flant/shell-operator v1.0.0-beta.10.0.20200602181144-b45a1c1db350 h1:AHhtsyYZwul/psnY5Nt0fifBb+HPo0FSLH+q+l55m8Q=
+github.com/flant/shell-operator v1.0.0-beta.10.0.20200602181144-b45a1c1db350/go.mod h1:Cf7KVE1Qy60dtA112nuOBo33Ef0xeoB2vil7iJULnEM=
+github.com/flant/shell-operator v1.0.0-beta.10.0.20200605114414-b093ff97d0d5/go.mod h1:de2ktWYFz7RbmO+TkBqHTIUOCF8CAXYZKCHqCx0luCE=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
