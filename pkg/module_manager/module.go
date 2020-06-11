@@ -832,7 +832,7 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 	if moduleEnabled {
 		result = "Enabled"
 	}
-	logEntry.Infof("Enabled script run successful, result: module %q", result)
+	logEntry.Infof("Enabled script run successful, result '%v', module '%s'", moduleEnabled, result)
 	return moduleEnabled, nil
 }
 

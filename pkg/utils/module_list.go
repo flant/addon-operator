@@ -94,6 +94,28 @@ func ListIntersection(arrs ...[]string) (result []string) {
 	return
 }
 
+// ListUnion creates a new array with unique items from all src arrays.
+func ListUnion(src []string, more ...[]string) []string {
+	m := make(map[string]struct{})
+	for _, v := range src {
+		m[v] = struct{}{}
+	}
+
+	for _, arr := range more {
+		for _, v := range arr {
+			m[v] = struct{}{}
+		}
+	}
+
+	res := make([]string, 0, len(m))
+
+	for k := range m {
+		res = append(res, k)
+	}
+
+	return res
+}
+
 // ListFullyIn returns whether all 'arr' items contains in `ref` array.
 func ListFullyIn(arr []string, ref []string) bool {
 	res := true

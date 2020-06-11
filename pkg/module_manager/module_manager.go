@@ -698,12 +698,11 @@ func (mm *moduleManager) DiscoverModulesState(logLabels map[string]string) (stat
 	// save enabled modules for future usages
 	mm.enabledModulesInOrder = enabledModules
 
-	// Calculate modules that has helm release and are disabled for now.
+	// Calculate disabled known modules that has helm release and/or was enabled.
 	// Sort them in reverse order for proper deletion.
-	// FIXME releasedModules do not contain enabled modules without helm chart.
 	state.ModulesToDisable = utils.ListSubtract(mm.allModulesNamesInOrder, enabledModules)
-	//state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, releasedModules)
-	state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, currentEnabledModules)
+	enabledAndReleased := utils.ListUnion(currentEnabledModules, releasedModules)
+	state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, enabledAndReleased)
 	// disable modules in reverse order
 	state.ModulesToDisable = utils.SortReverseByReference(state.ModulesToDisable, mm.allModulesNamesInOrder)
 
