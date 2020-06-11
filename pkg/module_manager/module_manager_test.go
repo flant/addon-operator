@@ -1142,12 +1142,12 @@ func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 			"discover_modules_state__with_enabled_scripts",
 			[]string{},
 			func() {
-				// if all modules are enabled by default, then beta should be disabled by script
+				// If all modules are enabled by default, then beta should be disabled by script.
 				assert.Equal(t, []string{"alpha", "gamma", "delta", "epsilon", "zeta", "eta"}, modulesState.EnabledModules)
 
-				// turn off alpha so gamma, delta and zeta should be disabled
-				// with the next call of DiscoverModulesState
-				mm.enabledModulesByConfig = []string{"beta", "gamma", "delta", "epsilon", "zeta", "eta"}
+				// Turn off alpha so gamma, delta and zeta should become disabled
+				// with the next call to DiscoverModulesState.
+				mm.dynamicEnabled["alpha"] = &utils.ModuleDisabled
 				modulesState, err = mm.DiscoverModulesState(map[string]string{})
 				assert.Equal(t, []string{"epsilon", "eta"}, modulesState.EnabledModules)
 			},

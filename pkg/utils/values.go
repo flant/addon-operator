@@ -364,13 +364,54 @@ func ValidateHookValuesPatch(valuesPatch ValuesPatch, acceptableKey string) erro
 		pathParts := strings.Split(op.Path, "/")
 		if len(pathParts) > 1 {
 			affectedKey := pathParts[1]
-			if affectedKey != acceptableKey {
-				return fmt.Errorf("unacceptable patch operation path '%s' (only '%s' accepted): '%s'", affectedKey, acceptableKey, op.ToString())
+			// patches for *Enabled keys are accepted from global hooks
+			if strings.HasSuffix(affectedKey, "Enabled") && acceptableKey == GlobalValuesKey {
+				continue
 			}
+			// patches for acceptableKey are allowed
+			if affectedKey == acceptableKey {
+				continue
+			}
+			// all other patches are denied
+			return fmt.Errorf("unacceptable patch operation for path '%s' (only '%s' accepted): '%s'", affectedKey, acceptableKey, op.ToString())
 		}
 	}
 
 	return nil
+}
+
+func FilterValuesPatch(valuesPatch ValuesPatch, rootPath string) ValuesPatch {
+	resOps := []*ValuesPatchOperation{}
+
+	for _, op := range valuesPatch.Operations {
+		pathParts := strings.Split(op.Path, "/")
+		if len(pathParts) > 1 {
+			// patches for acceptableKey are allowed
+			if pathParts[1] == rootPath {
+				resOps = append(resOps, op)
+			}
+		}
+	}
+
+	newValuesPatch := ValuesPatch{Operations: resOps}
+	return newValuesPatch
+}
+
+func EnabledFromValuesPatch(valuesPatch ValuesPatch) ValuesPatch {
+	resOps := []*ValuesPatchOperation{}
+
+	for _, op := range valuesPatch.Operations {
+		pathParts := strings.Split(op.Path, "/")
+		if len(pathParts) > 1 {
+			// patches for acceptableKey are allowed
+			if strings.HasSuffix(pathParts[1], "Enabled") {
+				resOps = append(resOps, op)
+			}
+		}
+	}
+
+	newValuesPatch := ValuesPatch{Operations: resOps}
+	return newValuesPatch
 }
 
 func MergeValues(values ...Values) Values {

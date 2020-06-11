@@ -1,12 +1,8 @@
 #!/bin/bash
 
 # dependency: gamma
-# dependency: epsilon
+# dependency: delta
 
-c=$(cat ${VALUES_PATH:-/dev/null} | jq .global.enabledModules[]  | grep -P '"gamma"|"epsilon"' | wc -l)
-if [ "$c" == "2" ] ; then
-  echo true > $MODULE_ENABLED_RESULT
-  exit 0
-fi
+# enabled if gamma and delta are enabled
 
-echo false > $MODULE_ENABLED_RESULT
+cat ${VALUES_PATH:-/dev/null} | jq '.global.enabledModules | any(in({"gamma":1,"delta":1}))' > $MODULE_ENABLED_RESULT

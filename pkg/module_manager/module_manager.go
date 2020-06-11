@@ -2,7 +2,9 @@ package module_manager
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	"reflect"
 	"sort"
 	"strings"
@@ -76,6 +78,9 @@ type ModuleManager interface {
 	DisableModuleHooks(moduleName string)
 	HandleScheduleEvent(crontab string, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) error
 
+	DynamicEnabledChecksum() string
+	ApplyEnabledPatch(enabledPatch utils.ValuesPatch) error
+
 	GlobalSynchronizationNeeded() bool
 	GlobalSynchronizationDone() bool
 	SynchronizationQueued(id string)
@@ -128,11 +133,9 @@ type moduleManager struct {
 	// dynamicEnabledValues utils.Values // patches from global hooks
 	// scriptEnabledValues utils.Values // enabled script results
 
-	// onStartup+beforeAll
-	// dynamicEnabledValues utils.Values // patches from global hooks
-
 	// values::set "moduleNameEnabled" "\"true\""
-	// module::enable "module_kebab" "true"
+	// module enable values from global hooks
+	dynamicEnabled map[string]*bool
 
 	// List of modules enabled by values.yaml or by kube config.
 	// This list is changed on ConfigMap updates.
@@ -233,6 +236,7 @@ func NewMainModuleManager() *moduleManager {
 		allModulesNamesInOrder:      make([]string, 0),
 		enabledModulesByConfig:      make([]string, 0),
 		enabledModulesInOrder:       make([]string, 0),
+		dynamicEnabled:              make(map[string]*bool),
 		globalHooksByName:           make(map[string]*GlobalHook),
 		globalHooksOrder:            make(map[BindingType][]*GlobalHook),
 		modulesHooksOrderByName:     make(map[string]map[BindingType][]*ModuleHook),
@@ -349,7 +353,8 @@ func (mm *moduleManager) handleNewKubeConfig(newConfig kube_config_manager.Confi
 	res.EnabledModulesByConfig, res.KubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(newConfig.ModuleConfigs)
 
 	for _, moduleConfig := range unknown {
-		logEntry.Warnf("Ignore kube config for absent module : \n%s",
+		logEntry.Warnf("Ignore ConfigMap section '%s' for absent module : \n%s",
+			moduleConfig.ModuleName,
 			moduleConfig.String(),
 		)
 	}
@@ -383,12 +388,17 @@ func (mm *moduleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_ma
 
 	// Detect removed module sections for statically enabled modules.
 	// This removal should be handled like kube config update.
-	updateAfterRemoval := make(map[string]bool)
+	updateOnSectionRemove := make(map[string]bool)
 	for moduleName, module := range mm.allModulesByName {
 		_, hasKubeConfig := moduleConfigs[moduleName]
-		if !hasKubeConfig && mergeEnabled(module.CommonStaticConfig.IsEnabled, module.StaticConfig.IsEnabled) {
-			if _, hasValues := mm.kubeModulesConfigValues[moduleName]; hasValues {
-				updateAfterRemoval[moduleName] = true
+		if !hasKubeConfig {
+			isEnabled := mergeEnabled(
+				module.CommonStaticConfig.IsEnabled,
+				module.StaticConfig.IsEnabled,
+				mm.dynamicEnabled[moduleName])
+			_, hasValues := mm.kubeModulesConfigValues[moduleName]
+			if isEnabled && hasValues {
+				updateOnSectionRemove[moduleName] = true
 			}
 		}
 	}
@@ -409,7 +419,7 @@ func (mm *moduleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_ma
 		// Enabled modules set is changed — return GlobalChanged event, that will
 		// create a Discover task, run enabled scripts again, init new module hooks,
 		// update mm.enabledModulesInOrder
-		logEntry.Debugf("enabledByConfig changed from %v to %v: generate GlobalChanged event", mm.enabledModulesByConfig, res.EnabledModulesByConfig)
+		logEntry.Debugf("enabled modules set changed from %v to %v: generate GlobalChanged event", mm.enabledModulesInOrder, res.EnabledModulesByConfig)
 		res.Events = append(res.Events, Event{Type: GlobalChanged})
 	} else {
 		// Enabled modules set is not changed, only values in configmap are changed.
@@ -433,7 +443,7 @@ func (mm *moduleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_ma
 			}
 
 			// Update module if kube config is removed
-			_, shouldUpdateAfterRemoval := updateAfterRemoval[name]
+			_, shouldUpdateAfterRemoval := updateOnSectionRemove[name]
 
 			if (hasKubeConfig && isUpdated) || shouldUpdateAfterRemoval {
 				moduleChanges = append(moduleChanges, ModuleChange{Name: name, ChangeType: Changed})
@@ -450,7 +460,8 @@ func (mm *moduleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_ma
 	return res, nil
 }
 
-// calculateEnabledModulesByConfig determine enable state for all modules by values.yaml and ConfigMap configuration.
+// calculateEnabledModulesByConfig determine enable state for all modules
+// by values.yaml, ConfigMap and dynamicEnable map.
 // Method returns list of enabled modules and their values. Also the map of disabled modules and a list of unknown
 // keys in a ConfigMap.
 //
@@ -459,29 +470,40 @@ func (mm *moduleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_ma
 func (mm *moduleManager) calculateEnabledModulesByConfig(moduleConfigs kube_config_manager.ModuleConfigs) (enabled []string, values map[string]utils.Values, unknown []utils.ModuleConfig) {
 	values = make(map[string]utils.Values)
 
+	log.Debugf("calculateEnabled: dynamicEnabled is %s", mm.DumpDynamicEnabled())
+
 	for moduleName, module := range mm.allModulesByName {
 		kubeConfig, hasKubeConfig := moduleConfigs[moduleName]
 		if hasKubeConfig {
-			isEnabled := mergeEnabled(module.CommonStaticConfig.IsEnabled,
+			isEnabled := mergeEnabled(
+				module.CommonStaticConfig.IsEnabled,
 				module.StaticConfig.IsEnabled,
-				kubeConfig.IsEnabled)
-			// , mm.dynamicEnabled[moduleName])
+				kubeConfig.IsEnabled,
+				mm.dynamicEnabled[moduleName])
 
 			if isEnabled {
 				enabled = append(enabled, moduleName)
 				values[moduleName] = kubeConfig.Values
 			}
-			log.Debugf("Module %s: static enabled %v, kubeConfig: enabled %v, updated %v",
+			log.Debugf("calculateEnabled: module '%s': static enabled %v, kubeConfig: enabled %v, updated %v, dynamic enabled: %v",
 				module.Name,
 				module.StaticConfig.GetEnabled(),
 				kubeConfig.IsEnabled,
-				kubeConfig.IsUpdated)
+				kubeConfig.IsUpdated,
+				mm.dynamicEnabled[moduleName])
 		} else {
-			isEnabled := mergeEnabled(module.CommonStaticConfig.IsEnabled, module.StaticConfig.IsEnabled)
+			isEnabled := mergeEnabled(
+				module.CommonStaticConfig.IsEnabled,
+				module.StaticConfig.IsEnabled,
+				mm.dynamicEnabled[moduleName])
+
 			if isEnabled {
 				enabled = append(enabled, moduleName)
 			}
-			log.Debugf("Module %s: static enabled %v, no kubeConfig", module.Name, module.StaticConfig.GetEnabled())
+			log.Debugf("calculateEnabled: module '%s': static enabled %v, no kubeConfig, dynamic enabled: %v",
+				module.Name,
+				module.StaticConfig.GetEnabled(),
+				mm.dynamicEnabled[moduleName])
 		}
 	}
 
@@ -565,23 +587,15 @@ func (mm *moduleManager) Start() {
 				// Сбросить запомненные перед ошибкой конфиги
 				mm.moduleConfigsUpdateBeforeAmbiguos = kube_config_manager.ModuleConfigs{}
 
-				handleRes, err := mm.handleNewKubeModuleConfigs(newModuleConfigs)
+				moduleUpdates, err := mm.handleNewKubeModuleConfigs(newModuleConfigs)
 				if err != nil {
 					mm.moduleConfigsUpdateBeforeAmbiguos = newModuleConfigs
-					modulesNames := make([]string, 0)
-					for _, newModuleConfig := range newModuleConfigs {
-						modulesNames = append(modulesNames, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
-					}
-					log.Errorf("Unable to handle update of ConfigMap for modules [%s]: %s", strings.Join(modulesNames, ", "), err)
+					log.Errorf("Unable to handle update of ConfigMap for modules [%s]: %s", strings.Join(newModuleConfigs.Names(), ", "), err)
 				}
-				if handleRes != nil {
-					err = mm.applyKubeUpdate(handleRes)
+				if moduleUpdates != nil {
+					err = mm.applyKubeUpdate(moduleUpdates)
 					if err != nil {
-						modulesNames := make([]string, 0)
-						for _, newModuleConfig := range newModuleConfigs {
-							modulesNames = append(modulesNames, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
-						}
-						log.Errorf("ConfigMap update cannot be applied to values for modules %s: %s", strings.Join(modulesNames, ", "), err)
+						log.Errorf("ConfigMap update cannot be applied to values for modules %s: %s", strings.Join(newModuleConfigs.Names(), ", "), err)
 					}
 				}
 
@@ -608,14 +622,31 @@ func (mm *moduleManager) Ch() chan Event {
 // DiscoverModulesState handles DiscoverModulesState event: it calculates new arrays of enabled modules,
 // modules that should be disabled and modules that should be purged.
 //
-// This method requires that mm.enabledModulesByConfig and mm.kubeModulesConfigValues are updated.
+// This method updates module state indices and values
+// - mm.enabledModulesByConfig
+// - mm.enabledModulesInOrder
+// - mm.kubeModulesConfigValues are updated.
 func (mm *moduleManager) DiscoverModulesState(logLabels map[string]string) (state *ModulesState, err error) {
 	discoverLogLabels := utils.MergeLabels(logLabels, map[string]string{
 		"operator.component": "moduleManager.discoverModulesState",
 	})
 	logEntry := log.WithFields(utils.LabelsToLogFields(discoverLogLabels))
 
-	logEntry.Debugf("DISCOVER state:\n"+
+	logEntry.Debugf("DISCOVER state current:\n"+
+		"    mm.enabledModulesByConfig: %v\n"+
+		"    mm.enabledModulesInOrder:  %v\n",
+		mm.enabledModulesByConfig,
+		mm.enabledModulesInOrder)
+
+	currentEnabledModules := mm.enabledModulesInOrder
+
+	updateEnabledModules, updateModuleValues, _ := mm.calculateEnabledModulesByConfig(mm.kubeConfigManager.CurrentConfig().ModuleConfigs)
+	updateEnabledModules = utils.SortByReference(updateEnabledModules, mm.allModulesNamesInOrder)
+
+	mm.enabledModulesByConfig = updateEnabledModules
+	mm.kubeModulesConfigValues = updateModuleValues
+
+	logEntry.Debugf("DISCOVER state updated:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
 		"    mm.enabledModulesInOrder:  %v\n",
 		mm.enabledModulesByConfig,
@@ -635,6 +666,7 @@ func (mm *moduleManager) DiscoverModulesState(logLabels map[string]string) (stat
 
 	// calculate unknown released modules to purge them in reverse order
 	state.ReleasedUnknownModules = utils.ListSubtract(releasedModules, mm.allModulesNamesInOrder)
+	// purge unknown modules in reverse order
 	state.ReleasedUnknownModules = utils.SortReverse(state.ReleasedUnknownModules)
 	if len(state.ReleasedUnknownModules) > 0 {
 		logEntry.Infof("found modules with releases: %s", state.ReleasedUnknownModules)
@@ -666,20 +698,24 @@ func (mm *moduleManager) DiscoverModulesState(logLabels map[string]string) (stat
 	// save enabled modules for future usages
 	mm.enabledModulesInOrder = enabledModules
 
-	// Calculate modules that has helm release and are disabled for now.
+	// Calculate disabled known modules that has helm release and/or was enabled.
 	// Sort them in reverse order for proper deletion.
 	state.ModulesToDisable = utils.ListSubtract(mm.allModulesNamesInOrder, enabledModules)
-	state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, releasedModules)
+	enabledAndReleased := utils.ListUnion(currentEnabledModules, releasedModules)
+	state.ModulesToDisable = utils.ListIntersection(state.ModulesToDisable, enabledAndReleased)
+	// disable modules in reverse order
 	state.ModulesToDisable = utils.SortReverseByReference(state.ModulesToDisable, mm.allModulesNamesInOrder)
 
 	logEntry.Debugf("DISCOVER state results:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
-		"    EnabledModules: %v\n"+
+		"    mm.enabledModulesInOrder: %v\n"+
+		"    releasedModules: %v\n"+
 		"    ReleasedUnknownModules: %v\n"+
 		"    ModulesToDisable: %v\n"+
 		"    NewlyEnabled: %v\n",
 		mm.enabledModulesByConfig,
 		mm.enabledModulesInOrder,
+		releasedModules,
 		state.ReleasedUnknownModules,
 		state.ModulesToDisable,
 		state.NewlyEnabledModules)
@@ -1081,6 +1117,64 @@ func (mm *moduleManager) LoopByBinding(binding BindingType, fn func(gh *GlobalHo
 		}
 
 	}
+}
+
+func (mm *moduleManager) ApplyEnabledPatch(enabledPatch utils.ValuesPatch) error {
+	newDynamicEnabled := map[string]*bool{}
+	for k, v := range mm.dynamicEnabled {
+		newDynamicEnabled[k] = v
+	}
+
+	for _, op := range enabledPatch.Operations {
+		// Extract module name from json patch: '"path": "/moduleNameEnabled"'
+		modName := strings.TrimSuffix(op.Path, "Enabled")
+		modName = strings.TrimPrefix(modName, "/")
+		modName = utils.ModuleNameFromValuesKey(modName)
+
+		switch op.Op {
+		case "add":
+			v, err := utils.ModuleEnabledValue(op.Value)
+			if err != nil {
+				return fmt.Errorf("apply enabled patch operation '%s' for %s: ", op.Op, op.Path)
+			}
+			log.Debugf("apply dynamic enable: module %s set to '%v'", modName, *v)
+			newDynamicEnabled[modName] = v
+		case "remove":
+			log.Debugf("apply dynamic enable: module %s removed from dynamic enable", modName)
+			delete(newDynamicEnabled, modName)
+		}
+	}
+
+	mm.dynamicEnabled = newDynamicEnabled
+
+	log.Infof("dynamic enabled after patch: %s", mm.DumpDynamicEnabled())
+
+	return nil
+}
+
+// DynamicEnabledChecksum returns checksum for dynamicEnabled map
+func (mm *moduleManager) DynamicEnabledChecksum() string {
+	jsonBytes, err := json.Marshal(mm.dynamicEnabled)
+	if err != nil {
+		log.Errorf("dynamicEnabled checksum calculate from '%s': %v", mm.DumpDynamicEnabled(), err)
+	}
+	return utils_checksum.CalculateChecksum(string(jsonBytes))
+}
+
+func (mm *moduleManager) DumpDynamicEnabled() string {
+	dump := "["
+	for k, v := range mm.dynamicEnabled {
+		enabled := "nil"
+		if v != nil {
+			if *v {
+				enabled = "true"
+			} else {
+				enabled = "false"
+			}
+		}
+		dump += fmt.Sprintf("%s(%s), ", k, enabled)
+	}
+	return dump + "]"
 }
 
 // GlobalSynchronizationNeeded is true if there is at least one global

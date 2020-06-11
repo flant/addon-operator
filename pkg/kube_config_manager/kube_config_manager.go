@@ -33,6 +33,7 @@ type KubeConfigManager interface {
 	Start()
 	Stop()
 	InitialConfig() *Config
+	CurrentConfig() *Config
 }
 
 type kubeConfigManager struct {
@@ -45,6 +46,7 @@ type kubeConfigManager struct {
 	ValuesChecksumsAnnotation string
 
 	initialConfig *Config
+	currentConfig *Config
 
 	GlobalValuesChecksum  string
 	ModulesValuesChecksum map[string]string
@@ -54,6 +56,14 @@ type kubeConfigManager struct {
 var _ KubeConfigManager = &kubeConfigManager{}
 
 type ModuleConfigs map[string]utils.ModuleConfig
+
+func (m ModuleConfigs) Names() []string {
+	names := make([]string, 0)
+	for _, newModuleConfig := range m {
+		names = append(names, fmt.Sprintf("'%s'", newModuleConfig.ModuleName))
+	}
+	return names
+}
 
 type Config struct {
 	Values        utils.Values
@@ -261,9 +271,14 @@ func (kcm *kubeConfigManager) InitialConfig() *Config {
 	return kcm.initialConfig
 }
 
+func (kcm *kubeConfigManager) CurrentConfig() *Config {
+	return kcm.currentConfig
+}
+
 func NewKubeConfigManager() KubeConfigManager {
 	kcm := &kubeConfigManager{}
 	kcm.initialConfig = NewConfig()
+	kcm.currentConfig = NewConfig()
 	return kcm
 }
 
@@ -303,6 +318,7 @@ func (kcm *kubeConfigManager) initConfig() error {
 	}
 
 	kcm.initialConfig = initialConfig
+	kcm.currentConfig = initialConfig
 	kcm.GlobalValuesChecksum = globalValuesChecksum
 	kcm.ModulesValuesChecksum = modulesValuesChecksum
 
@@ -414,6 +430,8 @@ func (kcm *kubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 		}
 
 		ConfigUpdated <- *newConfig
+
+		kcm.currentConfig = newConfig
 	} else {
 		actualModulesNames := GetModulesNamesFromConfigData(obj.Data)
 
@@ -455,6 +473,7 @@ func (kcm *kubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 				log.Debugf("%s", moduleConfig.String())
 			}
 			ModuleConfigsUpdated <- moduleConfigsActual
+			kcm.currentConfig.ModuleConfigs = moduleConfigsActual
 		}
 	}
 

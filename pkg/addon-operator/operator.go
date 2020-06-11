@@ -1339,7 +1339,13 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 
 	// TODO create metadata flag that indicate whether to add reload all task on values changes
 	//op.HelmResourcesManager.PauseMonitors()
+
+	dynamicEnabledChecksumBeforeHookRun := op.ModuleManager.DynamicEnabledChecksum()
+
 	beforeChecksum, afterChecksum, err := op.ModuleManager.RunGlobalHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
+
+	dynamicEnabledChecksumAfterHookRun := op.ModuleManager.DynamicEnabledChecksum()
+
 	if err != nil {
 		globalHook := op.ModuleManager.GetGlobalHook(hm.HookName)
 		hookLabel := path.Base(globalHook.Path)
@@ -1365,19 +1371,45 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		case Schedule:
 			if beforeChecksum != afterChecksum {
 				reloadAll = true
-				eventDescription = fmt.Sprintf("ScheduleChangeGlobalValues(%s)", hm.GetHookName())
+				eventDescription = fmt.Sprintf("Schedule-Change-GlobalValues(%s)", hm.GetHookName())
+			}
+			if dynamicEnabledChecksumBeforeHookRun != dynamicEnabledChecksumAfterHookRun {
+				reloadAll = true
+				if eventDescription == "" {
+					eventDescription = fmt.Sprintf("Schedule-Change-DynamicEnabled(%s)", hm.GetHookName())
+				} else {
+					eventDescription += "-And-DynamicEnabled"
+				}
 			}
 		case OnKubernetesEvent:
 			// Ignore values changes from Synchronization runs
 			if hm.ReloadAllOnValuesChanges && beforeChecksum != afterChecksum {
 				reloadAll = true
-				eventDescription = fmt.Sprintf("KubernetesChangeGlobalValues(%s)", hm.GetHookName())
+				eventDescription = fmt.Sprintf("Kubernetes-Change-GlobalValues(%s)", hm.GetHookName())
+			}
+			if dynamicEnabledChecksumBeforeHookRun != dynamicEnabledChecksumAfterHookRun {
+				reloadAll = true
+				if eventDescription == "" {
+					eventDescription = fmt.Sprintf("Kubernetes-Change-DynamicEnabled(%s)", hm.GetHookName())
+				} else {
+					eventDescription += "-And-DynamicEnabled"
+				}
 			}
 		case AfterAll:
 			// values are changed when afterAll hooks are executed
 			if hm.LastAfterAllHook && afterChecksum != hm.ValuesChecksum {
 				reloadAll = true
-				eventDescription = "AfterAllHooksChangeGlobalValues"
+				eventDescription = "AfterAll-Hooks-Change-GlobalValues"
+			}
+
+			// values are changed when afterAll hooks are executed
+			if hm.LastAfterAllHook && dynamicEnabledChecksumAfterHookRun != hm.DynamicEnabledChecksum {
+				reloadAll = true
+				if eventDescription == "" {
+					eventDescription = "AfterAll-Hooks-Change-DynamicEnabled"
+				} else {
+					eventDescription = eventDescription + "-And-DynamicEnabled"
+				}
 			}
 		}
 		// Queue ReloadAllModules task
@@ -1554,6 +1586,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 				return nil, err
 			}
 			taskMetadata.ValuesChecksum, err = globalValues.Checksum()
+			taskMetadata.DynamicEnabledChecksum = op.ModuleManager.DynamicEnabledChecksum()
 			if err != nil {
 				return nil, err
 			}
@@ -1642,7 +1675,7 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 	op.DebugServer.Router.Get("/module/list.{format:(json|yaml|text)}", func(writer http.ResponseWriter, request *http.Request) {
 		format := chi.URLParam(request, "format")
 
-		_, _ = fmt.Fprintf(writer, "Dump modules in %s format.\n", format)
+		_, _ = fmt.Fprintf(writer, "Dump enabled modules in %s format.\n", format)
 
 		for _, mName := range op.ModuleManager.GetModuleNamesInOrder() {
 			_, _ = fmt.Fprintf(writer, "%s \n", mName)

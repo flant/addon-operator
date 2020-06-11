@@ -87,6 +87,22 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}
 
+	// Apply patches to enabled modules
+	enabledPatch := utils.EnabledFromValuesPatch(valuesPatch)
+	if len(enabledPatch.Operations) != 0 {
+		err := h.moduleManager.ApplyEnabledPatch(enabledPatch)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Get patches for global section
+	globalValuesPatch := utils.FilterValuesPatch(valuesPatch, utils.GlobalValuesKey)
+	if len(globalValuesPatch.Operations) == 0 {
+		// No patches for 'global' section
+		return nil, nil
+	}
+
 	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch)
 	if err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
@@ -166,7 +182,9 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 		if err != nil {
 			return fmt.Errorf("global hook '%s': dynamic global values update error: %s", h.Name, err)
 		}
-		if valuesPatchResult.ValuesChanged {
+		// MemoryValuesPatch from global hook can contains patches for *Enabled keys
+		// and no patches for 'global' section — valuesPatchResult will be nil in this case.
+		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
 			h.moduleManager.globalDynamicValuesPatches = utils.AppendValuesPatch(h.moduleManager.globalDynamicValuesPatches, valuesPatchResult.ValuesPatch)
 			newGlobalValues, err := h.moduleManager.GlobalValues()
 			if err != nil {

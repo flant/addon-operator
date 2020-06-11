@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"sigs.k8s.io/yaml"
@@ -183,4 +184,23 @@ func (mc *ModuleConfig) FromConfigMapData(configData map[string]string) (*Module
 
 func (mc *ModuleConfig) Checksum() string {
 	return utils_checksum.CalculateChecksum(mc.RawConfig...)
+}
+
+func ModuleEnabledValue(i interface{}) (*bool, error) {
+	switch v := i.(type) {
+	case string:
+		switch strings.ToLower(v) {
+		case "true":
+			return &ModuleEnabled, nil
+		case "false":
+			return &ModuleDisabled, nil
+		}
+	case bool:
+		if v {
+			return &ModuleEnabled, nil
+		} else {
+			return &ModuleDisabled, nil
+		}
+	}
+	return nil, fmt.Errorf("unsupported module enabled value: %v", i)
 }

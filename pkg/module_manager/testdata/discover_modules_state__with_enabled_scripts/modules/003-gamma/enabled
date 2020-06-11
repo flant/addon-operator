@@ -2,10 +2,6 @@
 
 # dependency: alpha
 
-c=$(cat ${VALUES_PATH:-/dev/null} | jq .global.enabledModules[] | grep '"alpha"' | wc -l)
-if [ "$c" == "1" ] ; then
-  echo true > $MODULE_ENABLED_RESULT
-  exit 0
-fi
+# enabled if alpha is enabled
 
-echo false > $MODULE_ENABLED_RESULT
+cat ${VALUES_PATH:-/dev/null} | jq '.global.enabledModules | any(in({"alpha":1}))' > $MODULE_ENABLED_RESULT

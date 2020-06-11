@@ -186,6 +186,11 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		for _, kubeCfg := range globalHook.Config.OnKubernetesEvents {
 			kubeCfg.Monitor.Metadata.LogLabels["hook"] = globalHook.Name
 			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "global"
+			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
+				"hook":    globalHook.Name,
+				"binding": kubeCfg.BindingName,
+				"module":  "", // empty "module" label for label set consistency with module hooks
+			}
 		}
 
 		hookCtrl := controller.NewHookController()
@@ -248,6 +253,11 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 			kubeCfg.Monitor.Metadata.LogLabels["module"] = module.Name
 			kubeCfg.Monitor.Metadata.LogLabels["hook"] = moduleHook.Name
 			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "module"
+			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
+				"hook":    moduleHook.Name,
+				"binding": kubeCfg.BindingName,
+				"module":  module.Name,
+			}
 		}
 
 		hookCtrl := controller.NewHookController()
