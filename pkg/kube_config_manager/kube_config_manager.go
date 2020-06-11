@@ -45,9 +45,8 @@ type kubeConfigManager struct {
 	ConfigMapName             string
 	ValuesChecksumsAnnotation string
 
-	initialConfig       *Config
-	currentConfig       *Config
-	currentModuleConfig ModuleConfigs
+	initialConfig *Config
+	currentConfig *Config
 
 	GlobalValuesChecksum  string
 	ModulesValuesChecksum map[string]string

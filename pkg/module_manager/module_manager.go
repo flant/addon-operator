@@ -622,7 +622,7 @@ func (mm *moduleManager) Ch() chan Event {
 // DiscoverModulesState handles DiscoverModulesState event: it calculates new arrays of enabled modules,
 // modules that should be disabled and modules that should be purged.
 //
-// This method updates module state indicies and values
+// This method updates module state indices and values
 // - mm.enabledModulesByConfig
 // - mm.enabledModulesInOrder
 // - mm.kubeModulesConfigValues are updated.

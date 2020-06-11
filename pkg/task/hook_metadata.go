@@ -23,7 +23,7 @@ type HookMetadata struct {
 	OnStartupHooks bool // Execute onStartup and kubernetes@Synchronization hooks for module
 
 	ValuesChecksum           string // checksum of global values before first afterAll hook execution
-	DynamicEnabledChecksum   string // checksum of dynamicEnabled before firts afterAll hook execution
+	DynamicEnabledChecksum   string // checksum of dynamicEnabled before first afterAll hook execution
 	LastAfterAllHook         bool   // true if task is a last afterAll hook in sequence
 	ReloadAllOnValuesChanges bool   // whether or not run DiscoverModules process if hook change global values
 
