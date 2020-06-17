@@ -64,6 +64,7 @@ github.com/flant/libjq-go v1.6.1-0.20200401092614-198670408da1 h1:pOPBJDB7PZz/SK
 github.com/flant/libjq-go v1.6.1-0.20200401092614-198670408da1/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
 github.com/flant/libjq-go v1.6.1 h1:zEnucbRkoF3ytDWdK2GkS/iz6u7Hjd0LYPu/oEFaNJI=
 github.com/flant/libjq-go v1.6.1/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
+github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
 github.com/flant/shell-operator v1.0.0-beta.7.0.20200212144836-04e5d35edd9e h1:izyfBwGcWwz3tExPqvoaEQX9slaKNoapB0JnQvAtiAE=
 github.com/flant/shell-operator v1.0.0-beta.7.0.20200212144836-04e5d35edd9e/go.mod h1:2gRWBcUQHYT+OWaNvuUJ47m4zWyCi07ZqAj84OUgDzk=
 github.com/flant/shell-operator v1.0.0-beta.7.0.20200219194616-4b1b7ccd6da4 h1:LRNYv+1oMvhg+JPKFQigF4rUVNu3CDg6YS61aXhNX0M=
@@ -107,6 +108,7 @@ github.com/flant/shell-operator v1.0.0-beta.10.0.20200605114414-b093ff97d0d5 h1:
 github.com/flant/shell-operator v1.0.0-beta.10.0.20200605114414-b093ff97d0d5/go.mod h1:de2ktWYFz7RbmO+TkBqHTIUOCF8CAXYZKCHqCx0luCE=
 github.com/flant/shell-operator v1.0.0-beta.10.0.20200611102506-9a9f0ae49cd3 h1:nsZLq5IfPQk6cZY1KpoEKjfrmC1ApunMkik2YOH3fkA=
 github.com/flant/shell-operator v1.0.0-beta.10.0.20200611102506-9a9f0ae49cd3/go.mod h1:de2ktWYFz7RbmO+TkBqHTIUOCF8CAXYZKCHqCx0luCE=
+github.com/flant/shell-operator v1.0.0-beta.10.0.20200617112850-e76e65dd8165/go.mod h1:+a3IijbQpjr8zBudwk4Y4GkS1Hx+xUjaKr9Mx/H6Nsw=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
