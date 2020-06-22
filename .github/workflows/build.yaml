@@ -25,7 +25,7 @@ jobs:
       # Restore go_modules.tar.gz from cache or download modules and pack them
       # Then upload archive as artifact to use by other jobs.
       # NOTE: cache action is limited to 400Mb artifacts and has a 2Gb space.
-      # As of February 2020, go_modules.tar.gz is 372Mb
+      # As of June 2020, go_modules.tar.gz is ~389Mb
       - name: Cache go modules archive
         id: go-modules-cache
         uses: actions/cache@v1

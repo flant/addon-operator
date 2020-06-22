@@ -49,7 +49,7 @@ func Test_Operator_Startup(t *testing.T) {
 	g.Expect(hm.BindingType).To(Equal(OnStartup))
 
 	//
-	//	MetricsStorage = metrics_storage.Init()
+	//	MetricsStorage = metric_storage.Init()
 	//
 	//var globalHook1 = &module_manager.GlobalHook{
 	//	CommonHook: &module_manager.CommonHook{

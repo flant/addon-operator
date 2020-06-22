@@ -21,7 +21,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
-	"github.com/flant/shell-operator/pkg/metrics_storage"
+	"github.com/flant/shell-operator/pkg/metric_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 
 	"github.com/flant/addon-operator/pkg/app"
@@ -45,7 +45,7 @@ type ModuleManager interface {
 	WithScheduleManager(schedule_manager.ScheduleManager)
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
 	WithHelmResourcesManager(manager helm_resources_manager.HelmResourcesManager)
-	WithMetricStorage(storage *metrics_storage.MetricStorage)
+	WithMetricStorage(storage *metric_storage.MetricStorage)
 
 	GetGlobalHooksInOrder(bindingType BindingType) []string
 	GetGlobalHook(name string) *GlobalHook
@@ -119,7 +119,7 @@ type moduleManager struct {
 	kubeEventsManager    kube_events_manager.KubeEventsManager
 	scheduleManager      schedule_manager.ScheduleManager
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
-	metricStorage        *metrics_storage.MetricStorage
+	metricStorage        *metric_storage.MetricStorage
 
 	// Index of all modules in modules directory. Key is module name.
 	allModulesByName map[string]*Module
@@ -282,7 +282,7 @@ func (mm *moduleManager) WithHelmResourcesManager(manager helm_resources_manager
 	mm.HelmResourcesManager = manager
 }
 
-func (mm *moduleManager) WithMetricStorage(storage *metrics_storage.MetricStorage) {
+func (mm *moduleManager) WithMetricStorage(storage *metric_storage.MetricStorage) {
 	mm.metricStorage = storage
 }
 

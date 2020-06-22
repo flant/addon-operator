@@ -10,7 +10,7 @@ import (
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	metric_operation "github.com/flant/shell-operator/pkg/metrics_storage/operation"
+	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/utils"

@@ -242,3 +242,21 @@ func (c *ModuleHookConfig) HasBinding(binding BindingType) bool {
 	}
 	return false
 }
+
+func (c *ModuleHookConfig) BindingsCount() int {
+	res := 0
+
+	for _, binding := range []BindingType{OnStartup, BeforeHelm, AfterHelm, AfterDeleteHelm} {
+		if c.HasBinding(binding) {
+			res++
+		}
+	}
+
+	if c.HasBinding(Schedule) {
+		res += len(c.Schedules)
+	}
+	if c.HasBinding(OnKubernetesEvent) {
+		res += len(c.OnKubernetesEvents)
+	}
+	return res
+}
