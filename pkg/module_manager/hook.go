@@ -190,6 +190,8 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 				"hook":    globalHook.Name,
 				"binding": kubeCfg.BindingName,
 				"module":  "", // empty "module" label for label set consistency with module hooks
+				"queue":   kubeCfg.Queue,
+				"kind":    kubeCfg.Monitor.Kind,
 			}
 		}
 
@@ -207,6 +209,14 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		mm.globalHooksByName[globalHook.Name] = globalHook
 
 		logEntry.Infof("Global hook '%s' successfully run with --config. Register with bindings: %s", globalHook.Name, globalHook.GetConfigDescription())
+
+		mm.metricStorage.GaugeSet(
+			"{PREFIX}binding_count",
+			float64(globalHook.Config.BindingsCount()),
+			map[string]string{
+				"hook":   globalHook.Name,
+				"module": "", // empty "module" label for label set consistency with module hooks
+			})
 	}
 
 	return nil
@@ -257,6 +267,8 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 				"hook":    moduleHook.Name,
 				"binding": kubeCfg.BindingName,
 				"module":  module.Name,
+				"queue":   kubeCfg.Queue,
+				"kind":    kubeCfg.Monitor.Kind,
 			}
 		}
 
@@ -273,6 +285,14 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 		}
 
 		hookLogEntry.Infof("Module hook successfully run with --config. Register with bindings: %s", moduleHook.GetConfigDescription())
+
+		mm.metricStorage.GaugeSet(
+			"{PREFIX}binding_count",
+			float64(moduleHook.Config.BindingsCount()),
+			map[string]string{
+				"module": module.Name,
+				"hook":   moduleHook.Name,
+			})
 	}
 
 	// Save registered hooks in mm.modulesHooksOrderByName

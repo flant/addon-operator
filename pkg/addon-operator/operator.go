@@ -23,6 +23,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	"github.com/flant/shell-operator/pkg/metric_storage"
 	"github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -89,8 +90,24 @@ func (op *AddonOperator) Stop() {
 	}
 }
 
+// InitMetricStorage creates new MetricStorage instance in AddonOperator
+// if it is not initialized yet. Run it before Init() to override default
+// MetricStorage instance in shell-operator.
+func (op *AddonOperator) InitMetricStorage() {
+	if op.MetricStorage != nil {
+		return
+	}
+	// Metric storage.
+	metricStorage := metric_storage.NewMetricStorage()
+	metricStorage.WithContext(op.ctx)
+	metricStorage.WithPrefix(sh_app.PrometheusMetricsPrefix)
+	metricStorage.Start()
+	RegisterAddonOperatorMetrics(metricStorage)
+	op.MetricStorage = metricStorage
+}
+
 // InitModuleManager initialize objects for addon-operator.
-// This method should be run after Init().
+// This method should run after Init().
 //
 // Addon-operator settings:
 //
@@ -286,6 +303,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 						BindingType:              OnKubernetesEvent,
 						BindingContext:           info.BindingContext,
 						AllowFailure:             info.AllowFailure,
+						Binding:                  info.Binding,
 						ReloadAllOnValuesChanges: true,
 					})
 
@@ -310,6 +328,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 						EventDescription: "Kubernetes",
 						ModuleName:       module.Name,
 						HookName:         moduleHook.GetName(),
+						Binding:          info.Binding,
 						BindingType:      OnKubernetesEvent,
 						BindingContext:   info.BindingContext,
 						AllowFailure:     info.AllowFailure,
@@ -390,7 +409,7 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 				BindingContext:           []BindingContext{onStartupBindingContext},
 				ReloadAllOnValuesChanges: false,
 			})
-		op.TaskQueues.GetMain().AddLast(newTask)
+		op.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 
 		logEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
 			Infof("queue task %s", newTask.GetDescription())
@@ -412,7 +431,7 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 				EventDescription: "PrepopulateMainQueue",
 				HookName:         hookName,
 			})
-		op.TaskQueues.GetMain().AddLast(newTask)
+		op.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 
 		logEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
 			Infof("queue task %s", newTask.GetDescription())
@@ -436,7 +455,7 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 				EventDescription: "PrepopulateMainQueue",
 				HookName:         hookName,
 			})
-		op.TaskQueues.GetMain().AddLast(newTask)
+		op.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 
 		logEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
 			Infof("queue task %s", newTask.GetDescription())
@@ -453,7 +472,7 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 		WithMetadata(task.HookMetadata{
 			EventDescription: "PrepopulateMainQueue",
 		})
-	op.TaskQueues.GetMain().AddLast(waitTask)
+	op.TaskQueues.GetMain().AddLast(waitTask.WithQueuedAt(time.Now()))
 
 	logEntry.WithFields(utils.LabelsToLogFields(waitTask.LogLabels)).
 		Infof("queue task %s", waitTask.GetDescription())
@@ -470,7 +489,7 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 			EventDescription: "PrepopulateMainQueue",
 			OnStartupHooks:   true,
 		})
-	op.TaskQueues.GetMain().AddLast(reloadAllModulesTask)
+	op.TaskQueues.GetMain().AddLast(reloadAllModulesTask.WithQueuedAt(time.Now()))
 }
 
 // CreateReloadAllTasks
@@ -624,7 +643,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 									EventDescription: "ModuleValuesChanged",
 									ModuleName:       moduleChange.Name,
 								})
-							op.TaskQueues.GetMain().AddLast(newTask)
+							op.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 							logEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
 								Infof("queue task %s", newTask.GetDescription())
 						} else {
@@ -651,7 +670,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							EventDescription: "GlobalConfigValuesChanged",
 							OnStartupHooks:   false,
 						})
-					op.TaskQueues.GetMain().AddLast(reloadAllModulesTask)
+					op.TaskQueues.GetMain().AddLast(reloadAllModulesTask.WithQueuedAt(time.Now()))
 
 					// TODO Check if this is needed?
 					// As module list may have changed, hook schedule index must be re-created.
@@ -665,7 +684,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					newTask := sh_task.NewTask(task.ModuleManagerRetry).
 						WithLogLabels(logLabels).
 						WithQueueName("main")
-					op.TaskQueues.GetMain().AddFirst(newTask)
+					op.TaskQueues.GetMain().AddFirst(newTask.WithQueuedAt(time.Now()))
 					eventLogEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
 						Infof("queue task %s - module manager is in ambiguous state", newTask.GetDescription())
 				}
@@ -689,7 +708,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							EventDescription: "DetectAbsentHelmResources",
 							ModuleName:       absentResourcesEvent.ModuleName,
 						})
-					op.TaskQueues.GetMain().AddLast(newTask)
+					op.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 					eventLogEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
 						Infof("queue task %s - got %d absent module resources, queue ModuleRun task", newTask.GetDescription(), len(absentResourcesEvent.Absent))
 				} else {
@@ -707,6 +726,8 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 	}, t.GetLogLabels())
 	var taskLogEntry = log.WithFields(utils.LabelsToLogFields(taskLogLabels))
 	var res queue.TaskResult
+
+	op.UpdateWaitInQueueMetric(t)
 
 	switch t.GetType() {
 	case task.GlobalHookRun:
@@ -771,8 +792,13 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 		if err != nil {
 			hookLabel := path.Base(globalHook.Path)
-
-			op.MetricStorage.SendCounter("global_hook_errors", 1.0, map[string]string{"hook": hookLabel})
+			// TODO use separate metric, as in shell-operator?
+			op.MetricStorage.CounterAdd("{PREFIX}global_hook_errors_total", 1.0, map[string]string{
+				"hook":       hookLabel,
+				"binding":    "GlobalEnableKubernetesBindings",
+				"queue":      t.GetQueueName(),
+				"activation": "",
+			})
 			taskLogEntry.Errorf("Global hook enable kubernetes bindings failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
 			res.Status = "Fail"
@@ -792,7 +818,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 					taskLogEntry.Infof("queue task %s - Synchronization after onStartup, id=%s", tsk.GetDescription(), id)
 					taskLogEntry.Infof("Queue Synchorniozation '%s'", id)
 					op.ModuleManager.SynchronizationQueued(id)
-					q.AddLast(tsk)
+					q.AddLast(tsk.WithQueuedAt(time.Now()))
 				}
 			}
 
@@ -801,11 +827,14 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 				if q == nil {
 					log.Errorf("Queue %s is not created while run GlobalHookEnableKubernetesBindings task!", tsk.GetQueueName())
 				} else {
-					q.AddLast(tsk)
+					q.AddLast(tsk.WithQueuedAt(time.Now()))
 				}
 			}
 
 			res.Status = "Success"
+			for _, tsk := range mainSyncTasks {
+				tsk.WithQueuedAt(time.Now())
+			}
 			res.HeadTasks = mainSyncTasks
 			res.AfterHandle = func() {
 				globalHook.HookController.StartMonitors()
@@ -838,19 +867,26 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		})
 
 		res.Status = "Success"
-		res.AfterTasks = op.CreateReloadAllTasks(hm.OnStartupHooks, t.GetLogLabels(), hm.EventDescription)
+		reloadAllTasks := op.CreateReloadAllTasks(hm.OnStartupHooks, t.GetLogLabels(), hm.EventDescription)
+		for _, tsk := range reloadAllTasks {
+			tsk.WithQueuedAt(time.Now())
+		}
+		res.AfterTasks = reloadAllTasks
 
 	case task.DiscoverModulesState:
 		taskLogEntry.Info("Discover modules start")
 		tasks, err := op.RunDiscoverModulesState(t, t.GetLogLabels())
 		if err != nil {
-			op.MetricStorage.SendCounter("modules_discover_errors", 1.0, map[string]string{})
+			op.MetricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
 			taskLogEntry.Errorf("Discover modules failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
 			res.Status = "Fail"
 		} else {
 			taskLogEntry.Infof("Discover modules success")
 			res.Status = "Success"
+			for _, tsk := range tasks {
+				tsk.WithQueuedAt(time.Now())
+			}
 			res.AfterTasks = tasks
 		}
 
@@ -863,7 +899,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		taskLogEntry.Infof("Module delete '%s'", hm.ModuleName)
 		err := op.ModuleManager.DeleteModule(hm.ModuleName, t.GetLogLabels())
 		if err != nil {
-			op.MetricStorage.SendCounter("module_delete_errors", 1.0, map[string]string{"module": hm.ModuleName})
+			op.MetricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
 			taskLogEntry.Errorf("Module delete failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
 			res.Status = "Fail"
@@ -889,7 +925,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		res.Status = "Success"
 
 	case task.ModuleManagerRetry:
-		op.MetricStorage.SendCounter("modules_discover_errors", 1.0, map[string]string{})
+		op.MetricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
 		op.ModuleManager.Retry()
 		taskLogEntry.Infof("Module manager retry is requested, now wait before run module discovery again")
 
@@ -908,6 +944,50 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 	}
 
 	return res
+}
+
+// TODO pass queue name from handler, not from task
+func (op *AddonOperator) UpdateWaitInQueueMetric(t sh_task.Task) {
+	metricLabels := map[string]string{
+		"module":  "",
+		"hook":    "",
+		"binding": string(t.GetType()),
+		"queue":   t.GetQueueName(),
+	}
+
+	hm := task.HookMetadataAccessor(t)
+
+	switch t.GetType() {
+	case task.GlobalHookRun,
+		task.GlobalHookEnableScheduleBindings,
+		task.GlobalHookEnableKubernetesBindings,
+		task.GlobalHookWaitKubernetesSynchronization:
+		metricLabels["hook"] = hm.HookName
+
+	case task.ModuleRun,
+		task.ModuleDelete,
+		task.ModuleHookRun,
+		task.ModulePurge:
+		metricLabels["module"] = hm.ModuleName
+
+	case task.ReloadAllModules,
+		task.DiscoverModulesState,
+		task.ModuleManagerRetry:
+		// no action required
+	}
+
+	if t.GetType() == task.GlobalHookRun {
+		// set binding name instead of type
+		metricLabels["binding"] = hm.Binding
+	}
+	if t.GetType() == task.ModuleHookRun {
+		// set binding name instead of type
+		metricLabels["hook"] = hm.HookName
+		metricLabels["binding"] = hm.Binding
+	}
+
+	taskWaitTime := time.Since(t.GetQueuedAt()).Seconds()
+	op.MetricStorage.CounterAdd("{PREFIX}task_wait_in_queue_seconds_total", taskWaitTime, metricLabels)
 }
 
 // ModuleRun starts module: execute module hook and install a Helm chart.
@@ -932,8 +1012,8 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		"activation": labels["event.type"],
 	}
 
-	defer MeasureTime(func(nanos Nanos) {
-		op.MetricStorage.ObserveHistogram("module_run_hist", nanos.Ms(), metricLabels)
+	defer Duration(func(d time.Duration) {
+		op.MetricStorage.HistogramObserve("{PREFIX}module_run_seconds", d.Seconds(), metricLabels)
 	})()
 
 	var syncQueueName = fmt.Sprintf("main-subqueue-kubernetes-Synchronization-module-%s", hm.ModuleName)
@@ -1040,7 +1120,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 						Queued: true,
 						Done:   false,
 					}
-					q.AddLast(tsk)
+					q.AddLast(tsk.WithQueuedAt(time.Now()))
 				}
 			}
 
@@ -1049,7 +1129,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				if q == nil {
 					log.Errorf("Queue %s is not created while run GlobalHookEnableKubernetesBindings task!", tsk.GetQueueName())
 				} else {
-					q.AddLast(tsk)
+					q.AddLast(tsk.WithQueuedAt(time.Now()))
 				}
 			}
 
@@ -1069,7 +1149,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 						Queued: true,
 						Done:   false,
 					}
-					syncSubQueue.AddLast(tsk)
+					syncSubQueue.AddLast(tsk.WithQueuedAt(time.Now()))
 				}
 				logEntry.Infof("Queue '%s' started for module 'kubernetes.Synchronization' hooks", syncQueueName)
 				syncSubQueue.Start()
@@ -1136,7 +1216,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	}
 
 	if moduleRunErr != nil {
-		op.MetricStorage.SendCounter("module_run_errors", 1.0, map[string]string{"module": hm.ModuleName})
+		op.MetricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
 		logEntry.WithField("module.state", "failed").
 			Errorf("ModuleRun failed. Requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, moduleRunErr)
 		t.UpdateFailureMessage(moduleRunErr.Error())
@@ -1159,7 +1239,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				WithLogLabels(newLabels).
 				WithQueueName(t.GetQueueName()).
 				WithMetadata(hm)
-			res.AfterTasks = []sh_task.Task{newTask}
+			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
 		} else {
 			logEntry.WithField("module.state", "ready").
 				Infof("ModuleRun success, module is ready")
@@ -1181,11 +1261,12 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 		"module":     hm.ModuleName,
 		"hook":       hm.HookName,
 		"binding":    string(hm.BindingType),
+		"queue":      t.GetQueueName(),
 		"activation": labels["event.type"],
 	}
 
-	defer MeasureTime(func(nanos Nanos) {
-		op.MetricStorage.ObserveHistogram("module_hook_run_hist", nanos.Ms(), metricLabels)
+	defer Duration(func(d time.Duration) {
+		op.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)
 	})()
 
 	logEntry.Infof("Module hook start '%s'", hm.HookName)
@@ -1245,24 +1326,29 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 
 	err := op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
 
+	errors := 0.0
+	success := 0.0
+	allowed := 0.0
 	if err != nil {
-		hookLabel := path.Base(taskHook.Path)
-		moduleLabel := taskHook.Module.Name
-
 		if hm.AllowFailure {
-			op.MetricStorage.SendCounter("module_hook_allowed_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+			allowed = 1.0
 			logEntry.Infof("Module hook failed, but allowed to fail. Error: %v", err)
 			res.Status = "Success"
 		} else {
-			op.MetricStorage.SendCounter("module_hook_errors", 1.0, map[string]string{"module": moduleLabel, "hook": hookLabel})
+			errors = 1.0
 			logEntry.Errorf("Module hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
 			res.Status = "Fail"
 		}
 	} else {
+		success = 1.0
 		logEntry.Infof("Module hook success '%s'", hm.HookName)
 		res.Status = "Success"
 	}
+
+	op.MetricStorage.CounterAdd("{PREFIX}module_hook_allowed_errors_total", allowed, metricLabels)
+	op.MetricStorage.CounterAdd("{PREFIX}module_hook_errors_total", errors, metricLabels)
+	op.MetricStorage.CounterAdd("{PREFIX}module_hook_success_total", success, metricLabels)
 
 	if res.Status == "Success" {
 		if state, ok := taskHook.KubernetesBindingSynchronizationState[hm.KubernetesBindingId]; ok {
@@ -1283,11 +1369,12 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 	metricLabels := map[string]string{
 		"hook":       hm.HookName,
 		"binding":    string(hm.BindingType),
+		"queue":      t.GetQueueName(),
 		"activation": labels["event.type"],
 	}
 
-	defer MeasureTime(func(nanos Nanos) {
-		op.MetricStorage.ObserveHistogram("global_hook_run_hist", nanos.Ms(), metricLabels)
+	defer Duration(func(d time.Duration) {
+		op.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_seconds", d.Seconds(), metricLabels)
 	})()
 
 	logEntry.Infof("Global hook run")
@@ -1346,21 +1433,22 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 
 	dynamicEnabledChecksumAfterHookRun := op.ModuleManager.DynamicEnabledChecksum()
 
+	errors := 0.0
+	success := 0.0
+	allowed := 0.0
 	if err != nil {
-		globalHook := op.ModuleManager.GetGlobalHook(hm.HookName)
-		hookLabel := path.Base(globalHook.Path)
-
 		if hm.AllowFailure {
-			op.MetricStorage.SendCounter("global_hook_allowed_errors", 1.0, map[string]string{"hook": hookLabel})
+			allowed = 1.0
 			logEntry.Infof("Global hook failed, but allowed to fail. Error: %v", err)
 			res.Status = "Success"
 		} else {
-			op.MetricStorage.SendCounter("global_hook_errors", 1.0, map[string]string{"hook": hookLabel})
+			errors = 1.0
 			logEntry.Errorf("Global hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
 			res.Status = "Fail"
 		}
 	} else {
+		success = 1.0
 		logEntry.Infof("Global hook success '%s'", taskHook.Name)
 		logEntry.Debugf("GlobalHookRun checksums: before=%s after=%s saved=%s", beforeChecksum, afterChecksum, hm.ValuesChecksum)
 		res.Status = "Success"
@@ -1442,7 +1530,8 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 				WithMetadata(task.HookMetadata{
 					EventDescription: eventDescription,
 					OnStartupHooks:   false,
-				})
+				}).
+				WithQueuedAt(time.Now())
 			res.TailTasks = []sh_task.Task{reloadAllModulesTask}
 		}
 		// TODO rethink helm monitors pause-resume. It is not working well with parallel hooks without locks. But locks will destroy parallelization.
@@ -1450,6 +1539,10 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		//	op.HelmResourcesManager.ResumeMonitors()
 		//}
 	}
+
+	op.MetricStorage.CounterAdd("{PREFIX}global_hook_allowed_errors_total", allowed, metricLabels)
+	op.MetricStorage.CounterAdd("{PREFIX}global_hook_errors_total", errors, metricLabels)
+	op.MetricStorage.CounterAdd("{PREFIX}global_hook_success_total", success, metricLabels)
 
 	if res.Status == "Success" {
 		kubernetesBindingId := hm.KubernetesBindingId
@@ -1615,7 +1708,7 @@ func (op *AddonOperator) RunAddonOperatorMetrics() {
 	// Addon-operator live ticks.
 	go func() {
 		for {
-			op.MetricStorage.SendCounter("live_ticks", 1.0, map[string]string{})
+			op.MetricStorage.CounterAdd("{PREFIX}live_ticks", 1.0, map[string]string{})
 			time.Sleep(10 * time.Second)
 		}
 	}()
@@ -1625,7 +1718,7 @@ func (op *AddonOperator) RunAddonOperatorMetrics() {
 			// task queue length
 			op.TaskQueues.Iterate(func(queue *queue.TaskQueue) {
 				queueLen := float64(queue.Length())
-				op.MetricStorage.SendGauge("tasks_queue_length", queueLen, map[string]string{"queue": queue.Name})
+				op.MetricStorage.GaugeAdd("{PREFIX}tasks_queue_length", queueLen, map[string]string{"queue": queue.Name})
 			})
 			time.Sleep(5 * time.Second)
 		}
@@ -1879,9 +1972,9 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 			op.StartupConvergeDone = true
 		}
 		if op.ConvergeStarted != 0 {
-			convergeDurationMs := Nanos(time.Now().UnixNano() - op.ConvergeStarted).Ms()
-			op.MetricStorage.SendCounter("convergence_events_duration", convergeDurationMs, map[string]string{"activation": op.ConvergeActivation})
-			op.MetricStorage.SendCounter("convergence_events_count", 1, map[string]string{"activation": op.ConvergeActivation})
+			convergeSeconds := time.Duration(time.Now().UnixNano() - op.ConvergeStarted).Seconds()
+			op.MetricStorage.CounterAdd("{PREFIX}convergence_seconds", convergeSeconds, map[string]string{"activation": op.ConvergeActivation})
+			op.MetricStorage.CounterAdd("{PREFIX}convergence_total", 1.0, map[string]string{"activation": op.ConvergeActivation})
 			op.ConvergeStarted = 0
 		}
 	}
@@ -1907,26 +2000,14 @@ func InitAndStart(operator *AddonOperator) error {
 		return err
 	}
 
+	// Override shell-operator's metricStorage and register metrics specific for addon-operator.
+	operator.InitMetricStorage()
+
 	err = operator.Init()
 	if err != nil {
 		log.Errorf("INIT failed: %v", err)
 		return err
 	}
-
-	buckets_1msTo10s := []float64{
-		0.0,
-		1.0, 2.0, 5.0,
-		10.0, 20.0, 50.0,
-		100.0, 200.0, 500.0,
-		1000.0, 2000.0, 5000.0,
-		10000.0,
-	}
-
-	operator.MetricStorage.DefineHistogramBuckets("module_run_hist", buckets_1msTo10s)
-	operator.MetricStorage.DefineHistogramBuckets("module_hook_run_hist", buckets_1msTo10s)
-	operator.MetricStorage.DefineHistogramBuckets("global_hook_run_hist", buckets_1msTo10s)
-	operator.MetricStorage.DefineHistogramBuckets("module_helm_hist", buckets_1msTo10s)
-	operator.MetricStorage.DefineHistogramBuckets("helm_operation_hist", buckets_1msTo10s)
 
 	operator.ShellOperator.SetupDebugServerHandles()
 	operator.SetupDebugServerHandles()

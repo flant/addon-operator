@@ -16,6 +16,7 @@ type HookMetadata struct {
 	EventDescription string // event name for informative queue dump
 	HookName         string
 	ModuleName       string
+	Binding          string // binding name from configuration
 	BindingType      BindingType
 	BindingContext   []BindingContext
 	AllowFailure     bool //Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.

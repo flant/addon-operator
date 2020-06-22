@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime/trace"
 	"strings"
+	"time"
 
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
@@ -17,13 +18,13 @@ import (
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	. "github.com/flant/shell-operator/pkg/utils/measure"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
-	"github.com/flant/shell-operator/pkg/metrics_storage"
+	"github.com/flant/shell-operator/pkg/metric_storage"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/manifest"
+	"github.com/flant/shell-operator/pkg/utils/measure"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -46,7 +47,7 @@ type Module struct {
 	IsReady bool
 
 	moduleManager *moduleManager
-	metricStorage *metrics_storage.MetricStorage
+	metricStorage *metric_storage.MetricStorage
 }
 
 type ModuleState struct {
@@ -75,7 +76,7 @@ func (m *Module) WithModuleManager(moduleManager *moduleManager) {
 	m.moduleManager = moduleManager
 }
 
-func (m *Module) WithMetricStorage(mstor *metrics_storage.MetricStorage) {
+func (m *Module) WithMetricStorage(mstor *metric_storage.MetricStorage) {
 	m.metricStorage = mstor
 }
 
@@ -253,8 +254,8 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 		"module":     m.Name,
 		"activation": logLabels["event.type"],
 	}
-	defer MeasureTime(func(nanos Nanos) {
-		m.metricStorage.ObserveHistogram("module_helm_hist", nanos.Ms(), metricLabels)
+	defer measure.Duration(func(d time.Duration) {
+		m.metricStorage.HistogramObserve("{PREFIX}module_helm_seconds", d.Seconds(), metricLabels)
 	})()
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
@@ -286,8 +287,8 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 			"activation": logLabels["event.type"],
 			"operation":  "template",
 		}
-		defer MeasureTime(func(nanos Nanos) {
-			m.metricStorage.ObserveHistogram("helm_operation_hist", nanos.Ms(), metricLabels)
+		defer measure.Duration(func(d time.Duration) {
+			m.metricStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels)
 		})()
 
 		renderedManifests, err = helmClient.Render(
@@ -318,8 +319,8 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 			"activation": logLabels["event.type"],
 			"operation":  "check-upgrade",
 		}
-		defer MeasureTime(func(nanos Nanos) {
-			m.metricStorage.ObserveHistogram("helm_operation_hist", nanos.Ms(), metricLabels)
+		defer measure.Duration(func(d time.Duration) {
+			m.metricStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels)
 		})()
 
 		runUpgradeRelease, err = m.ShouldRunHelmUpgrade(helmClient, helmReleaseName, checksum, manifests, logLabels)
@@ -345,8 +346,8 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 			"activation": logLabels["event.type"],
 			"operation":  "upgrade",
 		}
-		defer MeasureTime(func(nanos Nanos) {
-			m.metricStorage.ObserveHistogram("helm_operation_hist", nanos.Ms(), metricLabels)
+		defer measure.Duration(func(d time.Duration) {
+			m.metricStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels)
 		})()
 
 		err = helmClient.UpgradeRelease(
@@ -454,13 +455,14 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 			"module":     m.Name,
 			"hook":       moduleHook.Name,
 			"binding":    string(binding),
+			"queue":      "main",
 			"activation": logLabels["event.type"],
 		}
 
 		var err error
 		func() {
-			defer MeasureTime(func(nanos Nanos) {
-				m.metricStorage.ObserveHistogram("module_hook_run_hist", nanos.Ms(), metricLabels)
+			defer measure.Duration(func(d time.Duration) {
+				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)
 			})()
 			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels)
 		}()
@@ -508,8 +510,8 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 
 		var err error
 		func() {
-			defer MeasureTime(func(nanos Nanos) {
-				m.metricStorage.ObserveHistogram("module_hook_run_hist", nanos.Ms(), metricLabels)
+			defer measure.Duration(func(d time.Duration) {
+				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)
 			})()
 			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels)
 		}()
