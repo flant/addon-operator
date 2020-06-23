@@ -801,6 +801,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			})
 			taskLogEntry.Errorf("Global hook enable kubernetes bindings failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
+			t.WithQueuedAt(time.Now())
 			res.Status = "Fail"
 		} else {
 			// Substitute current task with Synchronization tasks for the main queue.
@@ -846,6 +847,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		if op.ModuleManager.GlobalSynchronizationNeeded() && !op.ModuleManager.GlobalSynchronizationDone() {
 			// dump state
 			op.ModuleManager.DumpState()
+			t.WithQueuedAt(time.Now())
 			res.Status = "Repeat"
 		}
 
@@ -880,6 +882,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			op.MetricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
 			taskLogEntry.Errorf("Discover modules failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
+			t.WithQueuedAt(time.Now())
 			res.Status = "Fail"
 		} else {
 			taskLogEntry.Infof("Discover modules success")
@@ -902,6 +905,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			op.MetricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
 			taskLogEntry.Errorf("Module delete failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
+			t.WithQueuedAt(time.Now())
 			res.Status = "Fail"
 		} else {
 			taskLogEntry.Infof("Module delete success '%s'", hm.ModuleName)
@@ -1196,6 +1200,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			op.TaskQueues.Remove(syncQueueName)
 		} else {
 			logEntry.Debugf("Module run repeat")
+			t.WithQueuedAt(time.Now())
 			res.Status = "Repeat"
 			return
 		}
@@ -1220,6 +1225,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		logEntry.WithField("module.state", "failed").
 			Errorf("ModuleRun failed. Requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, moduleRunErr)
 		t.UpdateFailureMessage(moduleRunErr.Error())
+		t.WithQueuedAt(time.Now())
 		res.Status = "Fail"
 	} else {
 		res.Status = "Success"
@@ -1338,6 +1344,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 			errors = 1.0
 			logEntry.Errorf("Module hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
+			t.WithQueuedAt(time.Now())
 			res.Status = "Fail"
 		}
 	} else {
@@ -1445,6 +1452,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 			errors = 1.0
 			logEntry.Errorf("Global hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 			t.UpdateFailureMessage(err.Error())
+			t.WithQueuedAt(time.Now())
 			res.Status = "Fail"
 		}
 	} else {
