@@ -5,7 +5,7 @@ go 1.12
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.5.0+incompatible
-	github.com/flant/shell-operator v1.0.0-beta.10.0.20200622220952-375b8b6aa82c // branch: master
+	github.com/flant/shell-operator v1.0.0-beta.10.0.20200623092717-1482783cbf60 // branch: master
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.3
 	github.com/kennygrant/sanitize v1.2.4
