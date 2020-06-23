@@ -29,7 +29,7 @@ var buckets_1msTo10s = []float64{
 
 func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
 	// configuration metrics
-	metricStorage.RegisterCounter(
+	metricStorage.RegisterGauge(
 		"{PREFIX}binding_count",
 		map[string]string{
 			"module": "",
