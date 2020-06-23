@@ -1,0 +1,115 @@
+package addon_operator
+
+import (
+	"github.com/flant/shell-operator/pkg/metric_storage"
+	sh_op "github.com/flant/shell-operator/pkg/shell-operator"
+)
+
+func RegisterAddonOperatorMetrics(metricStorage *metric_storage.MetricStorage) {
+	sh_op.RegisterCommonMetrics(metricStorage)
+	sh_op.RegisterTaskQueueMetrics(metricStorage)
+	sh_op.RegisterKubeEventsManagerMetrics(metricStorage, map[string]string{
+		"module":  "",
+		"hook":    "",
+		"binding": "",
+		"queue":   "",
+		"kind":    "",
+	})
+	RegisterHookMetrics(metricStorage)
+}
+
+var buckets_1msTo10s = []float64{
+	0.0,
+	0.001, 0.002, 0.005, // 1,2,5 milliseconds
+	0.01, 0.02, 0.05, // 10,20,50 milliseconds
+	0.1, 0.2, 0.5, // 100,200,500 milliseconds
+	1, 2, 5, // 1,2,5 seconds
+	10, // 10 seconds
+}
+
+func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
+	// configuration metrics
+	metricStorage.RegisterCounter(
+		"{PREFIX}binding_count",
+		map[string]string{
+			"module": "",
+			"hook":   "",
+		})
+
+	// modules
+	metricStorage.RegisterCounter("{PREFIX}modules_discover_errors_total", map[string]string{})
+	metricStorage.RegisterCounter("{PREFIX}module_delete_errors_total", map[string]string{"module": ""})
+
+	// module
+	metricStorage.RegisterHistogramWithBuckets(
+		"{PREFIX}module_run_seconds",
+		map[string]string{
+			"module":     "",
+			"activation": "",
+		},
+		buckets_1msTo10s,
+	)
+	metricStorage.RegisterCounter("{PREFIX}module_run_errors_total", map[string]string{"module": ""})
+
+	moduleHookLabels := map[string]string{
+		"module":     "",
+		"hook":       "",
+		"binding":    "",
+		"queue":      "",
+		"activation": "",
+	}
+	metricStorage.RegisterHistogramWithBuckets(
+		"{PREFIX}module_hook_run_seconds",
+		moduleHookLabels,
+		buckets_1msTo10s)
+	metricStorage.RegisterCounter("{PREFIX}module_hook_allowed_errors_total", moduleHookLabels)
+	metricStorage.RegisterCounter("{PREFIX}module_hook_errors_total", moduleHookLabels)
+	metricStorage.RegisterCounter("{PREFIX}module_hook_success_total", moduleHookLabels)
+
+	// global hook running
+	globalHookLabels := map[string]string{
+		"hook":       "",
+		"binding":    "",
+		"queue":      "",
+		"activation": "",
+	}
+	metricStorage.RegisterHistogramWithBuckets(
+		"{PREFIX}global_hook_run_seconds",
+		globalHookLabels,
+		buckets_1msTo10s)
+	metricStorage.RegisterCounter("{PREFIX}global_hook_allowed_errors_total", globalHookLabels)
+	metricStorage.RegisterCounter("{PREFIX}global_hook_errors_total", globalHookLabels)
+	metricStorage.RegisterCounter("{PREFIX}global_hook_success_total", globalHookLabels)
+
+	// converge duration
+	metricStorage.RegisterCounter("{PREFIX}convergence_seconds", map[string]string{"activation": ""})
+	metricStorage.RegisterCounter("{PREFIX}convergence_total", map[string]string{"activation": ""})
+
+	// helm operations
+	metricStorage.RegisterHistogramWithBuckets(
+		"{PREFIX}module_helm_seconds",
+		map[string]string{
+			"module":     "",
+			"activation": "",
+		},
+		buckets_1msTo10s)
+	metricStorage.RegisterHistogramWithBuckets(
+		"{PREFIX}helm_operation_seconds",
+		map[string]string{
+			"module":     "",
+			"activation": "",
+			"operation":  "",
+		},
+		buckets_1msTo10s)
+
+	// task age
+	// hook_run task waiting time
+	metricStorage.RegisterCounter(
+		"{PREFIX}task_wait_in_queue_seconds_total",
+		map[string]string{
+			"module":  "",
+			"hook":    "",
+			"binding": "",
+			"queue":   "",
+		})
+}
