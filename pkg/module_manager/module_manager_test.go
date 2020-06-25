@@ -18,6 +18,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/kube"
@@ -470,7 +471,7 @@ func Test_MainModuleManager_Get_Module(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
-	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) client.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -548,7 +549,7 @@ func Test_MainModuleManager_RunModule(t *testing.T) {
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
 
-	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) client.HelmClient {
 		return hc
 	}
 
@@ -600,7 +601,7 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 	t.SkipNow()
 	hc := &helm.MockHelmClient{}
 
-	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) client.HelmClient {
 		return hc
 	}
 
@@ -647,7 +648,7 @@ func Test_MainModuleManager_DeleteModule(t *testing.T) {
 func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 	// TODO hooks not found
 	t.SkipNow()
-	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) client.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -960,7 +961,7 @@ func Test_MainModuleManager_RunModuleHook(t *testing.T) {
 //}
 
 func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
-	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) client.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -997,7 +998,7 @@ func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
 }
 
 func Test_MainModuleManager_Run_GlobalHook(t *testing.T) {
-	helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
+	helm.NewClient = func(logLabels ...map[string]string) client.HelmClient {
 		return &helm.MockHelmClient{}
 	}
 	mm := NewMainModuleManager()
@@ -1173,7 +1174,7 @@ func Test_MainModuleManager_DiscoverModulesState(t *testing.T) {
 			modulesState = nil
 			err = nil
 
-			helm.NewClient = func(logLabels ...map[string]string) helm.HelmClient {
+			helm.NewClient = func(logLabels ...map[string]string) client.HelmClient {
 				return &helm.MockHelmClient{
 					ReleaseNames: test.helmReleases,
 				}

@@ -2,21 +2,31 @@ package helm
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"sort"
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/utils"
 	log "github.com/sirupsen/logrus"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/rbac/v1beta1"
 
+	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/helm/client"
+	"github.com/flant/addon-operator/pkg/helm/helm2"
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/kube"
 )
+
+func TestMain(m *testing.M) {
+	app.Namespace = fmt.Sprintf("addon-operator-test-%06d", rand.Int31n(1000000))
+	os.Exit(m.Run())
+}
 
 func Test_Logging(t *testing.T) {
 	log.SetFormatter(&log.JSONFormatter{DisableTimestamp: true})
@@ -64,7 +74,7 @@ func getTestDirectoryPath(testName string) string {
 	return filepath.Join(filepath.Dir(testFile), "testdata", testName)
 }
 
-func shouldDeleteRelease(helm HelmClient, releaseName string) (err error) {
+func shouldDeleteRelease(helm client.HelmClient, releaseName string) (err error) {
 	err = helm.DeleteRelease(releaseName)
 	if err != nil {
 		return fmt.Errorf("Should delete existing release '%s' successfully, got error: %s", releaseName, err)
@@ -80,7 +90,7 @@ func shouldDeleteRelease(helm HelmClient, releaseName string) (err error) {
 	return nil
 }
 
-func releasesListShouldEqual(helm HelmClient, expectedList []string) (err error) {
+func releasesListShouldEqual(helm client.HelmClient, expectedList []string) (err error) {
 	releases, err := helm.ListReleasesNames(nil)
 	if err != nil {
 		return err
@@ -97,8 +107,8 @@ func releasesListShouldEqual(helm HelmClient, expectedList []string) (err error)
 	return nil
 }
 
-func shouldUpgradeRelease(helm HelmClient, releaseName string, chart string, valuesPaths []string) (err error) {
-	err = helm.UpgradeRelease(releaseName, chart, []string{}, []string{}, helm.TillerNamespace())
+func shouldUpgradeRelease(helm client.HelmClient, releaseName string, chart string, valuesPaths []string) (err error) {
+	err = helm.UpgradeRelease(releaseName, chart, []string{}, []string{}, app.Namespace)
 	if err != nil {
 		return fmt.Errorf("Cannot install test release: %s", err)
 	}
@@ -121,12 +131,12 @@ func TestHelm(t *testing.T) {
 	var isExists bool
 	var releases []string
 
-	helm := &helmClient{}
+	helm := &helm2.Helm2Client{}
 
 	kubeClient := kube.NewKubernetesClient()
 
 	testNs := &v1.Namespace{}
-	testNs.Name = helm.TillerNamespace()
+	testNs.Name = app.Namespace
 	_, err = kubeClient.CoreV1().Namespaces().Create(testNs)
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +144,7 @@ func TestHelm(t *testing.T) {
 
 	sa := &v1.ServiceAccount{}
 	sa.Name = "tiller"
-	_, err = kubeClient.CoreV1().ServiceAccounts(helm.TillerNamespace()).Create(sa)
+	_, err = kubeClient.CoreV1().ServiceAccounts(app.Namespace).Create(sa)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +158,7 @@ func TestHelm(t *testing.T) {
 			Verbs:     []string{"*"},
 		},
 	}
-	_, err = kubeClient.RbacV1beta1().Roles(helm.TillerNamespace()).Create(role)
+	_, err = kubeClient.RbacV1beta1().Roles(app.Namespace).Create(role)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,16 +169,16 @@ func TestHelm(t *testing.T) {
 	rb.RoleRef.Name = "tiller-role"
 	rb.RoleRef.APIGroup = "rbac.authorization.k8s.io"
 	rb.Subjects = []v1beta1.Subject{
-		v1beta1.Subject{Kind: "ServiceAccount", Name: "tiller", Namespace: helm.TillerNamespace()},
+		v1beta1.Subject{Kind: "ServiceAccount", Name: "tiller", Namespace: app.Namespace},
 	}
-	_, err = kubeClient.RbacV1beta1().RoleBindings(helm.TillerNamespace()).Create(rb)
+	_, err = kubeClient.RbacV1beta1().RoleBindings(app.Namespace).Create(rb)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	stdout, stderr, err = helm.Cmd("init", "--upgrade", "--wait", "--service-account", "tiller")
 	if err != nil {
-		t.Errorf("Cannot init test tiller in '%s' namespace: %s\n%s %s", helm.TillerNamespace(), err, stdout, stderr)
+		t.Errorf("Cannot init test tiller in '%s' namespace: %s\n%s %s", app.Namespace, err, stdout, stderr)
 	}
 
 	releases, err = helm.ListReleasesNames(nil)
@@ -230,14 +240,14 @@ func TestHelm(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = helm.UpgradeRelease("hello", "no-such-chart", []string{}, []string{}, helm.TillerNamespace())
+	err = helm.UpgradeRelease("hello", "no-such-chart", []string{}, []string{}, app.Namespace)
 	if err == nil {
 		t.Errorf("Expected helm upgrade to fail, got no error from helm client")
 	}
 }
 
 func Test_PortsPair(t *testing.T) {
-	p1, p2, err := GetOpenPortsPair("127.0.0.1:12345", "127.0.0.1:54321")
+	p1, p2, err := helm2.GetOpenPortsPair("127.0.0.1:12345", "127.0.0.1:54321")
 
 	if err != nil {
 		t.Errorf("Expect success ports pair, got error: %v", err)

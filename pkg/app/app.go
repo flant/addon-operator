@@ -2,6 +2,7 @@ package app
 
 import (
 	"strconv"
+	"time"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
 
@@ -21,6 +22,9 @@ var TillerListenPort int32 = 44434
 var TillerProbeListenAddress = "127.0.0.1"
 var TillerProbeListenPort int32 = 44435
 var TillerMaxHistory int32 = 0
+
+var Helm3HistoryMax int32 = 10
+var Helm3Timeout time.Duration = 5 * time.Minute
 
 var Namespace = ""
 var ConfigMapName = "addon-operator"
@@ -70,6 +74,16 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("TILLER_MAX_HISTORY").
 		Default(strconv.Itoa(int(TillerMaxHistory))).
 		Int32Var(&TillerMaxHistory)
+
+	cmd.Flag("helm-history-max", "Helm: limit the maximum number of revisions saved per release. Use 0 for no limit.").
+		Envar("HELM_HISTORY_MAX").
+		Default(strconv.Itoa(int(Helm3HistoryMax))).
+		Int32Var(&Helm3HistoryMax)
+
+	cmd.Flag("helm-timeout", "Helm: time to wait for any individual Kubernetes operation (like Jobs for hooks).").
+		Envar("HELM_TIMEOUT").
+		Default(Helm3Timeout.String()).
+		DurationVar(&Helm3Timeout)
 
 	cmd.Flag("config-map", "Name of a ConfigMap to store values.").
 		Envar("ADDON_OPERATOR_CONFIG_MAP").
