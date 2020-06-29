@@ -505,6 +505,7 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 			"module":     m.Name,
 			"hook":       moduleHook.Name,
 			"binding":    string(binding),
+			"queue":      "main", // AfterHelm,BeforeHelm hooks always handle in main queue
 			"activation": logLabels["event.type"],
 		}
 
