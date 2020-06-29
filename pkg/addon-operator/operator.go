@@ -1726,7 +1726,7 @@ func (op *AddonOperator) RunAddonOperatorMetrics() {
 			// task queue length
 			op.TaskQueues.Iterate(func(queue *queue.TaskQueue) {
 				queueLen := float64(queue.Length())
-				op.MetricStorage.GaugeAdd("{PREFIX}tasks_queue_length", queueLen, map[string]string{"queue": queue.Name})
+				op.MetricStorage.GaugeSet("{PREFIX}tasks_queue_length", queueLen, map[string]string{"queue": queue.Name})
 			})
 			time.Sleep(5 * time.Second)
 		}
