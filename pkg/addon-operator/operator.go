@@ -146,24 +146,12 @@ func (op *AddonOperator) InitModuleManager() error {
 	logEntry.Infof("Global hooks directory: %s", op.GlobalHooksDir)
 	logEntry.Infof("Modules directory: %s", op.ModulesDir)
 
-	// TODO make tiller cancelable
-	err = helm.InitTillerProcess(helm.TillerOptions{
-		Namespace:          app.Namespace,
-		HistoryMax:         app.TillerMaxHistory,
-		ListenAddress:      app.TillerListenAddress,
-		ListenPort:         app.TillerListenPort,
-		ProbeListenAddress: app.TillerProbeListenAddress,
-		ProbeListenPort:    app.TillerProbeListenPort,
-	})
-	if err != nil {
-		return fmt.Errorf("init tiller: %s", err)
-	}
+	logEntry.Infof("Addon-operator namespace: %s", app.Namespace)
 
-	// Initializing helm client
-	helm.WithKubeClient(op.KubeClient)
-	err = helm.NewClient().InitAndVersion()
+	// Initialize helm client, choose helm3 or helm2+tiller
+	err = helm.Init(op.KubeClient)
 	if err != nil {
-		return fmt.Errorf("init helm client: %s", err)
+		return err
 	}
 
 	// Initializing ConfigMap storage for values
@@ -710,9 +698,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						})
 					op.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 					eventLogEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
-						Infof("queue task %s - got %d absent module resources, queue ModuleRun task", newTask.GetDescription(), len(absentResourcesEvent.Absent))
+						Infof("queue task %s - got %d absent module resources", newTask.GetDescription(), len(absentResourcesEvent.Absent))
 				} else {
-					eventLogEntry.Infof("Got %d absent module resources, ModuleRun task exists", len(absentResourcesEvent.Absent))
+					eventLogEntry.Infof("Got %d absent module resources, ModuleRun task already queued", len(absentResourcesEvent.Absent))
 				}
 			}
 		}
@@ -1188,10 +1176,14 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				Infof("ModuleRun wait for Synchronization")
 			module.State.WaitStarted = true
 		}
-		logEntry.Debugf("ModuleRun wait Synchronization state: onStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.OnStartupHooks, module.SynchronizationNeeded(), module.SynchronizationQueued(), module.SynchronizationDone())
-		for _, hName := range op.ModuleManager.GetModuleHooksInOrder(hm.ModuleName, OnKubernetesEvent) {
-			hook := op.ModuleManager.GetModuleHook(hName)
-			logEntry.Debugf("  hook '%s': %d, %+v", hook.Name, len(hook.KubernetesBindingSynchronizationState), hook.KubernetesBindingSynchronizationState)
+
+		// Throttle debug messages: print hooks state every 5s
+		if time.Now().UnixNano()%5000000000 == 0 {
+			logEntry.Debugf("ModuleRun wait Synchronization state: onStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.OnStartupHooks, module.SynchronizationNeeded(), module.SynchronizationQueued(), module.SynchronizationDone())
+			for _, hName := range op.ModuleManager.GetModuleHooksInOrder(hm.ModuleName, OnKubernetesEvent) {
+				hook := op.ModuleManager.GetModuleHook(hName)
+				logEntry.Debugf("  hook '%s': %d, %+v", hook.Name, len(hook.KubernetesBindingSynchronizationState), hook.KubernetesBindingSynchronizationState)
+			}
 		}
 
 		if module.SynchronizationDone() {
@@ -1850,12 +1842,9 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 				dump[moduleName] = "No monitor"
 				continue
 			}
-			manifests := op.ModuleManager.GetModule(moduleName).LastReleaseManifests
-			info := []string{}
-			for _, m := range manifests {
-				info = append(info, m.Id())
-			}
-			dump[moduleName] = info
+
+			ids := op.HelmResourcesManager.GetMonitor(moduleName).ResourceIds()
+			dump[moduleName] = ids
 		}
 
 		var outBytes []byte
@@ -1892,7 +1881,11 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	http.Handle("/metrics", promhttp.Handler())
 
 	http.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
-		helm.TillerHealthHandler()(writer, request)
+		if helm.HealthzHandler == nil {
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
+		helm.HealthzHandler(writer, request)
 	})
 
 	http.HandleFunc("/ready", func(w http.ResponseWriter, request *http.Request) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"sort"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -168,4 +169,17 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 	}
 
 	return res, nil
+}
+
+func (r *ResourcesMonitor) ResourceIds() []string {
+	res := make([]string, 0)
+
+	for _, m := range r.manifests {
+		id := fmt.Sprintf("%s/%s/%s", m.Namespace(r.defaultNamespace), m.Kind(), m.Name())
+		res = append(res, id)
+	}
+
+	sort.Strings(res)
+
+	return res
 }

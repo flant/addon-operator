@@ -1,4 +1,4 @@
-package helm
+package helm2
 
 import (
 	"bufio"
@@ -96,7 +96,7 @@ func WaitTillerReady(addr string, logEntry *log.Entry) error {
 
 	retries := 0
 	for {
-		cliHelm := &helmClient{}
+		cliHelm := &Helm2Client{}
 		stdout, stderr, err := cliHelm.Cmd("version", "--tiller-connection-timeout", fmt.Sprintf("%d", TillerWaitTimeoutSeconds))
 
 		if err != nil {

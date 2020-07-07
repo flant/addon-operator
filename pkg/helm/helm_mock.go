@@ -2,10 +2,13 @@
 
 package helm
 
-import "github.com/flant/addon-operator/pkg/utils"
+import (
+	"github.com/flant/addon-operator/pkg/helm/client"
+	"github.com/flant/addon-operator/pkg/utils"
+)
 
 type MockHelmClient struct {
-	HelmClient
+	client.HelmClient
 	DeleteSingleFailedRevisionExecuted bool
 	UpgradeReleaseExecuted             bool
 	DeleteReleaseExecuted              bool
@@ -32,10 +35,6 @@ func (h *MockHelmClient) ListReleasesNames(_ map[string]string) ([]string, error
 
 func (h *MockHelmClient) CommandEnv() []string {
 	return []string{}
-}
-
-func (h *MockHelmClient) TillerNamespace() string {
-	return "addon-operator"
 }
 
 func (h *MockHelmClient) DeleteSingleFailedRevision(_ string) error {

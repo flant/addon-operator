@@ -25,6 +25,7 @@ type HelmResourcesManager interface {
 	PauseMonitor(moduleName string)
 	ResumeMonitor(moduleName string)
 	AbsentResources(moduleName string) ([]manifest.Manifest, error)
+	GetMonitor(moduleName string) *ResourcesMonitor
 	GetAbsentResources(templates []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error)
 	Ch() chan AbsentResourcesEvent
 }
@@ -74,6 +75,7 @@ func (hm *helmResourcesManager) Ch() chan AbsentResourcesEvent {
 }
 
 func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string) {
+	log.Debugf("Start helm resources monitor for '%s'", moduleName)
 	hm.StopMonitor(moduleName)
 
 	rm := NewResourcesMonitor()
@@ -146,6 +148,10 @@ func (hm *helmResourcesManager) AbsentResources(moduleName string) ([]manifest.M
 		return monitor.AbsentResources()
 	}
 	return nil, nil
+}
+
+func (hm *helmResourcesManager) GetMonitor(moduleName string) *ResourcesMonitor {
+	return hm.monitors[moduleName]
 }
 
 func (hm *helmResourcesManager) GetAbsentResources(manifests []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error) {

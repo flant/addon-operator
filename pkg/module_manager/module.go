@@ -28,6 +28,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
@@ -307,6 +308,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 	if err != nil {
 		return err
 	}
+	logEntry.Debugf("chart has %d resources", len(manifests))
 	m.LastReleaseManifests = manifests
 
 	// Skip upgrades if nothing is changes
@@ -355,7 +357,6 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 			m.Path,
 			[]string{valuesPath},
 			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
-			//helm.Client.TillerNamespace(),
 			app.Namespace,
 		)
 	}()
@@ -370,49 +371,51 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 	return nil
 }
 
-func (m *Module) ShouldRunHelmUpgrade(helmClient helm.HelmClient, releaseName string, checksum string, manifests []manifest.Manifest, logLabels map[string]string) (bool, error) {
+// ShouldRunHelmUpgrade tells if there is a case to run `helm upgrade`:
+//  - Helm chart in not installed yet.
+//  - Last release has FAILED status.
+//  - Checksum in release values not equals to checksum argument.
+//  - Some resources installed previously are missing.
+// If all these conditions aren't met, helm upgrade can be skipped.
+func (m *Module) ShouldRunHelmUpgrade(helmClient client.HelmClient, releaseName string, checksum string, manifests []manifest.Manifest, logLabels map[string]string) (bool, error) {
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
-	isReleaseExists, err := helmClient.IsReleaseExists(releaseName)
-	if err != nil {
-		return false, err
-	}
+	revision, status, err := helmClient.LastReleaseStatus(releaseName)
 
-	// Always run helm upgrade if there is no release
-	if !isReleaseExists {
-		logEntry.Debugf("helm release '%s' not exists: upgrade helm release", releaseName)
+	if revision == "0" {
+		logEntry.Debugf("helm release '%s' not exists: should run upgrade", releaseName)
 		return true, nil
 	}
 
-	_, status, err := helmClient.LastReleaseStatus(releaseName)
 	if err != nil {
 		return false, err
 	}
 
 	// Run helm upgrade if last release is failed
-	if status == "FAILED" {
-		logEntry.Debugf("helm release '%s' has FAILED status: upgrade helm release", releaseName)
+	if strings.ToLower(status) == "failed" {
+		logEntry.Debugf("helm release '%s' has FAILED status: should run upgrade", releaseName)
 		return true, nil
 	}
 
-	// Get values for a non failed release.
+	// Get values for a non-failed release.
 	releaseValues, err := helmClient.GetReleaseValues(releaseName)
 	if err != nil {
+		logEntry.Debugf("helm release '%s' get values error, no upgrade: %v", releaseName, err)
 		return false, err
 	}
 
 	// Run helm upgrade if there is no stored checksum
 	recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]
 	if !hasKey {
-		logEntry.Debugf("helm release '%s' has no saved checksum of values: upgrade helm release", releaseName)
+		logEntry.Debugf("helm release '%s' has no saved checksum of values: should run upgrade", releaseName)
 		return true, nil
 	}
 
 	// Calculate a checksum of current values and compare to a stored checksum.
-	// Run helm upgrade if checksum is changed
+	// Run helm upgrade if checksum is changed.
 	if recordedChecksumStr, ok := recordedChecksum.(string); ok {
 		if recordedChecksumStr != checksum {
-			logEntry.Debugf("helm release '%s' checksum '%s' is changed to '%s': upgrade helm release", releaseName, recordedChecksumStr, checksum)
+			logEntry.Debugf("helm release '%s' checksum '%s' is changed to '%s': should run upgrade", releaseName, recordedChecksumStr, checksum)
 			return true, nil
 		}
 	}
@@ -425,11 +428,11 @@ func (m *Module) ShouldRunHelmUpgrade(helmClient helm.HelmClient, releaseName st
 
 	// Run helm upgrade if there are absent resources
 	if len(absent) > 0 {
-		logEntry.Debugf("helm release '%s' has %d absent resources: upgrade helm release", releaseName, len(absent))
+		logEntry.Debugf("helm release '%s' has %d absent resources: should run upgrade", releaseName, len(absent))
 		return true, nil
 	}
 
-	logEntry.Debugf("helm release '%s': skip upgrade helm release", releaseName)
+	logEntry.Debugf("helm release '%s' is unchanged: skip release upgrade", releaseName)
 	return false, nil
 }
 
@@ -612,6 +615,7 @@ func (m *Module) prepareValuesJsonFileForEnabledScript(precedingEnabledModules [
 	return m.prepareValuesJsonFileWith(values)
 }
 
+// TODO run when module is registered and save bool value in Module’s field.
 func (m *Module) checkHelmChart() (bool, error) {
 	chartPath := filepath.Join(m.Path, "Chart.yaml")
 
