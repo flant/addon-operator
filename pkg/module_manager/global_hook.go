@@ -138,7 +138,7 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 	}
 
 	// Apply metric operations
-	err = h.moduleManager.metricStorage.SendBatch(metrics, map[string]string{
+	err = h.moduleManager.hookMetricStorage.SendBatch(metrics, map[string]string{
 		"hook": h.Name,
 	})
 	if err != nil {

@@ -60,6 +60,10 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_PROMETHEUS_METRICS_PREFIX").
 		Default(DefaultPrometheusMetricsPrefix).
 		StringVar(&sh_app.PrometheusMetricsPrefix)
+	cmd.Flag("hook-metrics-listen-port", "Port to use to serve hooks’ custom metrics to Prometheus. Can be set with $ADDON_OPERATOR_HOOK_METRICS_LISTEN_PORT. Equal to prometheus-listen-port if empty.").
+		Envar("ADDON_OPERATOR_HOOK_METRICS_LISTEN_PORT").
+		Default("").
+		StringVar(&sh_app.HookMetricsListenPort)
 
 	cmd.Flag("tiller-listen-port", "Listen port for tiller.").
 		Envar("ADDON_OPERATOR_TILLER_LISTEN_PORT").

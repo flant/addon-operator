@@ -174,6 +174,7 @@ func (op *AddonOperator) InitModuleManager() error {
 	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
 	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
 	op.ModuleManager.WithMetricStorage(op.MetricStorage)
+	op.ModuleManager.WithHookMetricStorage(op.HookMetricStorage)
 	err = op.ModuleManager.Init()
 	if err != nil {
 		return fmt.Errorf("init module manager: %s", err)
@@ -1993,16 +1994,20 @@ func DefaultOperator() *AddonOperator {
 }
 
 func InitAndStart(operator *AddonOperator) error {
-	operator.SetupHttpServerHandles()
-
-	err := operator.StartHttpServer(sh_app.ListenAddress, sh_app.ListenPort)
+	err := operator.StartHttpServer(sh_app.ListenAddress, sh_app.ListenPort, http.DefaultServeMux)
 	if err != nil {
 		log.Errorf("HTTP SERVER start failed: %v", err)
 		return err
 	}
-
 	// Override shell-operator's metricStorage and register metrics specific for addon-operator.
 	operator.InitMetricStorage()
+	operator.SetupHttpServerHandles()
+
+	err = operator.SetupHookMetricStorageAndServer()
+	if err != nil {
+		log.Errorf("HTTP SERVER for hook metrics start failed: %v", err)
+		return err
+	}
 
 	err = operator.Init()
 	if err != nil {
