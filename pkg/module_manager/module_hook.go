@@ -142,7 +142,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	moduleName := h.Module.Name
 
 	// Apply metric operations
-	err = h.moduleManager.metricStorage.SendBatch(metrics, map[string]string{
+	err = h.moduleManager.hookMetricStorage.SendBatch(metrics, map[string]string{
 		"hook":   h.Name,
 		"module": moduleName,
 	})

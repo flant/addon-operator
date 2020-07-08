@@ -46,6 +46,7 @@ type ModuleManager interface {
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
 	WithHelmResourcesManager(manager helm_resources_manager.HelmResourcesManager)
 	WithMetricStorage(storage *metric_storage.MetricStorage)
+	WithHookMetricStorage(storage *metric_storage.MetricStorage)
 
 	GetGlobalHooksInOrder(bindingType BindingType) []string
 	GetGlobalHook(name string) *GlobalHook
@@ -120,6 +121,7 @@ type moduleManager struct {
 	scheduleManager      schedule_manager.ScheduleManager
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	metricStorage        *metric_storage.MetricStorage
+	hookMetricStorage    *metric_storage.MetricStorage
 
 	// Index of all modules in modules directory. Key is module name.
 	allModulesByName map[string]*Module
@@ -284,6 +286,10 @@ func (mm *moduleManager) WithHelmResourcesManager(manager helm_resources_manager
 
 func (mm *moduleManager) WithMetricStorage(storage *metric_storage.MetricStorage) {
 	mm.metricStorage = storage
+}
+
+func (mm *moduleManager) WithHookMetricStorage(storage *metric_storage.MetricStorage) {
+	mm.hookMetricStorage = storage
 }
 
 func (mm *moduleManager) WithContext(ctx context.Context) {
