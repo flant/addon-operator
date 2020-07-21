@@ -271,7 +271,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 
 	helmReleaseName := m.generateHelmReleaseName()
 
-	valuesPath, err := m.prepareValuesYamlFile()
+	valuesPath, err := m.PrepareValuesYamlFile()
 	if err != nil {
 		return err
 	}
@@ -559,7 +559,7 @@ func (m *Module) prepareConfigValuesJsonFile() (string, error) {
 }
 
 // values.yaml for helm
-func (m *Module) prepareValuesYamlFile() (string, error) {
+func (m *Module) PrepareValuesYamlFile() (string, error) {
 	values, err := m.Values()
 	if err != nil {
 		return "", err

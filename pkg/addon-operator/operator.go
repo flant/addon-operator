@@ -1813,6 +1813,34 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 		_, _ = writer.Write(outBytes)
 	})
 
+	op.DebugServer.Router.Get("/module/{name}/render", func(writer http.ResponseWriter, request *http.Request) {
+		modName := chi.URLParam(request, "name")
+
+		m := op.ModuleManager.GetModule(modName)
+		if m == nil {
+			writer.WriteHeader(http.StatusNotFound)
+			_, _ = writer.Write([]byte("Module not found"))
+			return
+		}
+
+		valuesPath, err := m.PrepareValuesYamlFile()
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
+		}
+
+		helmCl := helm.NewClient()
+		output, err := helmCl.Render(m.Name, m.Path, []string{valuesPath}, nil, app.Namespace)
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
+		}
+
+		_, _ = writer.Write([]byte(output))
+	})
+
 	op.DebugServer.Router.Get("/module/{name}/patches.json", func(writer http.ResponseWriter, request *http.Request) {
 		modName := chi.URLParam(request, "name")
 
