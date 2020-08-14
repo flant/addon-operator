@@ -16,7 +16,7 @@ import (
 	"github.com/evanphx/json-patch"
 	"github.com/peterbourgon/mergemap"
 	"github.com/segmentio/go-camelcase"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
