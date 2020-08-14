@@ -10,9 +10,10 @@ import (
 
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
-	"github.com/flant/shell-operator/pkg/hook"
-
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/sdk"
+	"github.com/flant/addon-operator/sdk/registry"
+	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
@@ -20,10 +21,14 @@ import (
 type Hook interface {
 	WithModuleManager(moduleManager *moduleManager)
 	WithConfig(configOutput []byte) (err error)
+	WithGoConfig(config *sdk.HookConfig) (err error)
 	WithHookController(hookController controller.HookController)
 	GetHookController() controller.HookController
 	GetName() string
 	GetPath() string
+	GetGoHook() sdk.GoHook
+	GetValues() (utils.Values, error)
+	GetConfigValues() utils.Values
 	PrepareTmpFilesForHookRun(bindingContext []byte) (map[string]string, error)
 	Order(binding BindingType) float64
 }
@@ -43,10 +48,16 @@ type CommonHook struct {
 	moduleManager *moduleManager
 
 	KubernetesBindingSynchronizationState map[string]*KubernetesBindingSynchronizationState
+
+	GoHook sdk.GoHook
 }
 
 func (c *CommonHook) WithModuleManager(moduleManager *moduleManager) {
 	c.moduleManager = moduleManager
+}
+
+func (c *CommonHook) WithGoHook(h sdk.GoHook) {
+	c.GoHook = h
 }
 
 func (h *CommonHook) GetName() string {
@@ -55,6 +66,10 @@ func (h *CommonHook) GetName() string {
 
 func (h *CommonHook) GetPath() string {
 	return h.Path
+}
+
+func (h *CommonHook) GetGoHook() sdk.GoHook {
+	return h.GoHook
 }
 
 // SynchronizationNeeded is true if there is binding with executeHookOnSynchronization.
@@ -91,6 +106,30 @@ func (h *CommonHook) SynchronizationDone() bool {
 
 // SearchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
 func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
+	hooks = make([]*GlobalHook, 0)
+	shellHooks, err := SearchGlobalShellHooks(hooksDir)
+	if err != nil {
+		return nil, err
+	}
+	hooks = append(hooks, shellHooks...)
+
+	goHooks, err := SearchGlobalGoHooks()
+	if err != nil {
+		return nil, err
+	}
+	hooks = append(hooks, goHooks...)
+
+	sort.SliceStable(hooks, func(i, j int) bool {
+		return hooks[i].Path < hooks[j].Path
+	})
+
+	log.Debugf("Search global hooks: %d shell, %d golang", len(shellHooks), len(goHooks))
+
+	return hooks, nil
+}
+
+// SearchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
+func SearchGlobalShellHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -120,7 +159,47 @@ func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 	return
 }
 
+func SearchGlobalGoHooks() (hooks []*GlobalHook, err error) {
+	// find global hooks in go hooks registry
+	hooks = make([]*GlobalHook, 0)
+	goHooks := registry.Registry().Hooks()
+	for _, h := range goHooks {
+		m := h.Metadata()
+		if !m.Global {
+			continue
+		}
+
+		globalHook := NewGlobalHook(m.Name, m.Path)
+		globalHook.WithGoHook(h)
+		hooks = append(hooks, globalHook)
+	}
+
+	return hooks, nil
+}
+
 func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
+	hooks = make([]*ModuleHook, 0)
+
+	shellHooks, err := SearchModuleShellHooks(module)
+	if err != nil {
+		return nil, err
+	}
+	hooks = append(hooks, shellHooks...)
+
+	goHooks, err := SearchModuleGoHooks(module)
+	if err != nil {
+		return nil, err
+	}
+	hooks = append(hooks, goHooks...)
+
+	sort.SliceStable(hooks, func(i, j int) bool {
+		return hooks[i].Path < hooks[j].Path
+	})
+
+	return hooks, nil
+}
+
+func SearchModuleShellHooks(module *Module) (hooks []*ModuleHook, err error) {
 	hooksDir := filepath.Join(module.Path, "hooks")
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
@@ -152,6 +231,29 @@ func SearchModuleHooks(module *Module) (hooks []*ModuleHook, err error) {
 	return
 }
 
+func SearchModuleGoHooks(module *Module) (hooks []*ModuleHook, err error) {
+	// find module hooks in go hooks registry
+	hooks = make([]*ModuleHook, 0)
+	goHooks := registry.Registry().Hooks()
+	for _, h := range goHooks {
+		m := h.Metadata()
+		if !m.Module {
+			continue
+		}
+		if m.ModuleName != module.Name {
+			continue
+		}
+
+		moduleHook := NewModuleHook(m.Name, m.Path)
+		moduleHook.WithModule(module)
+		moduleHook.WithGoHook(h)
+
+		hooks = append(hooks, moduleHook)
+	}
+
+	return hooks, nil
+}
+
 func (mm *moduleManager) RegisterGlobalHooks() error {
 	log.Debug("Search and register global hooks")
 
@@ -168,16 +270,36 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		logEntry := log.WithField("hook", globalHook.Name).
 			WithField("hook.type", "global")
 
-		configOutput, err := NewHookExecutor(globalHook, nil).Config()
-		if err != nil {
-			logEntry.Errorf("Run --config: %s", err)
-			return fmt.Errorf("global hook --config run problem")
+		var yamlConfigBytes []byte
+		var goConfig *sdk.HookConfig
+
+		if globalHook.GoHook != nil {
+			goConfig = globalHook.GoHook.Config()
+			if goConfig.YamlConfig != "" {
+				yamlConfigBytes = []byte(goConfig.YamlConfig)
+			}
+		} else {
+			yamlConfigBytes, err = NewHookExecutor(globalHook, nil, "").Config()
+			if err != nil {
+				logEntry.Errorf("Run --config: %s", err)
+				return fmt.Errorf("global hook --config run problem")
+			}
 		}
 
-		err = globalHook.WithConfig(configOutput)
-		if err != nil {
-			logEntry.Errorf("Hook return bad config: %s", err)
-			return fmt.Errorf("global hook return bad config")
+		if len(yamlConfigBytes) > 0 {
+			err = globalHook.WithConfig(yamlConfigBytes)
+			if err != nil {
+				logEntry.Errorf("Hook return bad config: %s", err)
+				return fmt.Errorf("global hook return bad config")
+			}
+		} else {
+			if goConfig != nil {
+				err := globalHook.WithGoConfig(goConfig)
+				if err != nil {
+					logEntry.Errorf("Hook return bad config: %s", err)
+					return fmt.Errorf("global hook return bad config")
+				}
+			}
 		}
 
 		globalHook.WithModuleManager(mm)
@@ -244,16 +366,36 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 		hookLogEntry := logEntry.WithField("hook", moduleHook.Name).
 			WithField("hook.type", "module")
 
-		configOutput, err := NewHookExecutor(moduleHook, nil).Config()
-		if err != nil {
-			hookLogEntry.Errorf("Run --config: %s", err)
-			return fmt.Errorf("module hook --config run problem")
+		var yamlConfigBytes []byte
+		var goConfig *sdk.HookConfig
+
+		if moduleHook.GoHook != nil {
+			goConfig = moduleHook.GoHook.Config()
+			if goConfig.YamlConfig != "" {
+				yamlConfigBytes = []byte(goConfig.YamlConfig)
+			}
+		} else {
+			yamlConfigBytes, err = NewHookExecutor(moduleHook, nil, "").Config()
+			if err != nil {
+				hookLogEntry.Errorf("Run --config: %s", err)
+				return fmt.Errorf("module hook --config run problem")
+			}
 		}
 
-		err = moduleHook.WithConfig(configOutput)
-		if err != nil {
-			hookLogEntry.Errorf("Hook return bad config: %s", err)
-			return fmt.Errorf("module hook return bad config")
+		if len(yamlConfigBytes) > 0 {
+			err = moduleHook.WithConfig(yamlConfigBytes)
+			if err != nil {
+				hookLogEntry.Errorf("Hook return bad config: %s", err)
+				return fmt.Errorf("module hook return bad config")
+			}
+		} else {
+			if goConfig != nil {
+				err := moduleHook.WithGoConfig(goConfig)
+				if err != nil {
+					logEntry.Errorf("Hook return bad config: %s", err)
+					return fmt.Errorf("module hook return bad config")
+				}
+			}
 		}
 
 		moduleHook.WithModuleManager(mm)

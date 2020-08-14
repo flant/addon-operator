@@ -5,16 +5,19 @@ go 1.12
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.5.0+incompatible
-	github.com/flant/shell-operator v1.0.0-beta.10.0.20200708094531-126d47838bc0 // branch: master
+	github.com/flant/shell-operator v1.0.0-beta.11.0.20200814110804-eb5e60516b10 // branch: master
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.3
 	github.com/kennygrant/sanitize v1.2.4
+	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.9.0
 	github.com/peterbourgon/mergemap v0.0.0-20130613134717-e21c03b7a721
 	github.com/prometheus/client_golang v1.0.0
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.4.0
+	github.com/tidwall/gjson v1.3.4
+	github.com/tidwall/sjson v1.0.4
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
 	gopkg.in/yaml.v3 v3.0.0-20191120175047-4206685974f2

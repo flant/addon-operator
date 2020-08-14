@@ -38,6 +38,12 @@ type ValuesPatch struct {
 	Operations []*ValuesPatchOperation
 }
 
+func NewValuesPatch() *ValuesPatch {
+	return &ValuesPatch{
+		Operations: make([]*ValuesPatchOperation, 0),
+	}
+}
+
 func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
 	data, err := json.Marshal(p.Operations)
 	if err != nil {
@@ -57,6 +63,13 @@ func (p *ValuesPatch) Apply(doc []byte) ([]byte, error) {
 		return nil, err
 	}
 	return patch.Apply(doc)
+}
+
+func (p *ValuesPatch) MergeOperations(src *ValuesPatch) {
+	if src == nil {
+		return
+	}
+	p.Operations = append(p.Operations, src.Operations...)
 }
 
 type ValuesPatchOperation struct {
