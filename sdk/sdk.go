@@ -198,14 +198,12 @@ func (c *CommonGoHook) CommonMetadataFromRuntime() HookMetadata {
 	}
 
 	_, f, _, _ := runtime.Caller(1)
-	fmt.Printf("caller 1 file=%s\n", f)
 
 	matches := globalRe.FindStringSubmatch(f)
 	if matches != nil {
 		m.Global = true
 		m.Name = matches[3]
 		m.Path = matches[1]
-		//fmt.Printf("got global metadata: name=%s, path=%s\n", m.Name, m.Path)
 	} else {
 		matches = moduleRe.FindStringSubmatch(f)
 		if matches != nil {
@@ -216,7 +214,6 @@ func (c *CommonGoHook) CommonMetadataFromRuntime() HookMetadata {
 			if modNameMatches != nil {
 				m.ModuleName = modNameMatches[1]
 			}
-			//fmt.Printf("got module metadata: name=%s, path=%s, module=%s\n", m.Name, m.Path, m.ModuleName)
 		}
 	}
 
