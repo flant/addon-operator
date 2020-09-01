@@ -36,6 +36,10 @@ func Registry() HookRegistry {
 	return instance
 }
 
+func NewRegistry() HookRegistry {
+	return new(hookRegistry)
+}
+
 func (h *hookRegistry) Hooks() []GoHook {
 	return h.hooks
 }
