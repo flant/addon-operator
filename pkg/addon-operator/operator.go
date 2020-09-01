@@ -1524,7 +1524,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 				logLabels["event.triggered-by.watchEvent"] = label
 				delete(logLabels, "watchEvent")
 			}
-			// Put "ReloadAllModules" task with onStartup flag turned off to the end of the queue.
+			// Put "ReloadAllModules" task with onStartup flag turned off to the end of the 'main' queue.
 			reloadAllModulesTask := sh_task.NewTask(task.ReloadAllModules).
 				WithLogLabels(t.GetLogLabels()).
 				WithQueueName("main").
@@ -1533,7 +1533,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 					OnStartupHooks:   false,
 				}).
 				WithQueuedAt(time.Now())
-			res.TailTasks = []sh_task.Task{reloadAllModulesTask}
+			op.TaskQueues.GetMain().AddLast(reloadAllModulesTask.WithQueuedAt(time.Now()))
 		}
 		// TODO rethink helm monitors pause-resume. It is not working well with parallel hooks without locks. But locks will destroy parallelization.
 		//else {
