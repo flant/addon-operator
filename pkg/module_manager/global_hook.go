@@ -14,6 +14,7 @@ import (
 	. "github.com/flant/addon-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/sdk"
 )
 
 type GlobalHook struct {
@@ -40,6 +41,13 @@ func (g *GlobalHook) WithConfig(configOutput []byte) (err error) {
 	if err != nil {
 		return fmt.Errorf("load global hook '%s' config: %s\nhook --config output: %s", g.Name, err.Error(), configOutput)
 	}
+	// Make HookController and GetConfigDescription work.
+	g.Hook.Config = &g.Config.HookConfig
+	return nil
+}
+
+func (g *GlobalHook) WithGoConfig(config *sdk.HookConfig) (err error) {
+	g.Config = NewGlobalHookConfigFromGoConfig(config)
 	// Make HookController and GetConfigDescription work.
 	g.Hook.Config = &g.Config.HookConfig
 	return nil
@@ -128,9 +136,9 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 
 func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
 	// Convert context for version
-	versionedContextList := ConvertBindingContextList(h.Config.Version, context)
+	//versionedContextList := ConvertBindingContextList(h.Config.Version, context)
 
-	globalHookExecutor := NewHookExecutor(h, versionedContextList)
+	globalHookExecutor := NewHookExecutor(h, context, h.Config.Version)
 	globalHookExecutor.WithLogLabels(logLabels)
 	patches, metrics, err := globalHookExecutor.Run()
 	if err != nil {
@@ -160,7 +168,7 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 			return fmt.Errorf("global hook '%s': kube config global values update error: %s", h.Name, err)
 		}
 
-		if configValuesPatchResult.ValuesChanged {
+		if configValuesPatchResult != nil && configValuesPatchResult.ValuesChanged {
 			err := h.moduleManager.kubeConfigManager.SetKubeGlobalValues(configValuesPatchResult.Values)
 			if err != nil {
 				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
@@ -234,9 +242,13 @@ func (h *GlobalHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 	return
 }
 
+func (h *GlobalHook) GetConfigValues() utils.Values {
+	return h.moduleManager.GlobalConfigValues()
+}
+
 // CONFIG_VALUES_PATH
 func (h *GlobalHook) prepareConfigValuesJsonFile() (string, error) {
-	var configValues = h.moduleManager.GlobalConfigValues()
+	var configValues = h.GetConfigValues()
 	data, err := configValues.JsonBytes()
 	if err != nil {
 		return "", err
@@ -253,9 +265,13 @@ func (h *GlobalHook) prepareConfigValuesJsonFile() (string, error) {
 	return path, nil
 }
 
+func (h *GlobalHook) GetValues() (utils.Values, error) {
+	return h.moduleManager.GlobalValues()
+}
+
 // VALUES_PATH
 func (h *GlobalHook) prepareValuesJsonFile() (filePath string, err error) {
-	values, err := h.moduleManager.GlobalValues()
+	values, err := h.GetValues()
 	if err != nil {
 		return "", nil
 	}

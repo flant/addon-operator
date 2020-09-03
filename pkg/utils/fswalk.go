@@ -109,8 +109,7 @@ func WalkSymlinks(target string, linkName string, files map[string]map[string]st
 
 	err = filepath.Walk(target, func(foundPath string, info os.FileInfo, err error) error {
 		if err != nil {
-			fmt.Printf("failure accessing a path '%s': %v\n", foundPath, err)
-			return err
+			return fmt.Errorf("failure accessing a path '%s': %v\n", foundPath, err)
 		}
 
 		if info.IsDir() {

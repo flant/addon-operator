@@ -13,6 +13,7 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/sdk"
 )
 
 type ModuleHook struct {
@@ -44,6 +45,13 @@ func (m *ModuleHook) WithConfig(configOutput []byte) (err error) {
 	if err != nil {
 		return fmt.Errorf("load module hook '%s' config: %s\nhook --config output: %s", m.Name, err.Error(), configOutput)
 	}
+	// Make HookController and GetConfigDescription work.
+	m.Hook.Config = &m.Config.HookConfig
+	return nil
+}
+
+func (m *ModuleHook) WithGoConfig(config *sdk.HookConfig) (err error) {
+	m.Config = NewModuleHookConfigFromGoConfig(config)
 	// Make HookController and GetConfigDescription work.
 	m.Hook.Config = &m.Config.HookConfig
 	return nil
@@ -130,9 +138,9 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	logEntry.Info("Module hook start")
 
 	// Convert context for version
-	versionedContextList := ConvertBindingContextList(h.Config.Version, context)
+	//versionedContextList := ConvertBindingContextList(h.Config.Version, context)
 
-	moduleHookExecutor := NewHookExecutor(h, versionedContextList)
+	moduleHookExecutor := NewHookExecutor(h, context, h.Config.Version)
 	moduleHookExecutor.WithLogLabels(logLabels)
 	patches, metrics, err := moduleHookExecutor.Run()
 	if err != nil {
@@ -239,8 +247,16 @@ func (h *ModuleHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 	return
 }
 
+func (h *ModuleHook) GetConfigValues() utils.Values {
+	return h.Module.ConfigValues()
+}
+
 func (h *ModuleHook) prepareValuesJsonFile() (string, error) {
 	return h.Module.prepareValuesJsonFile()
+}
+
+func (h *ModuleHook) GetValues() (utils.Values, error) {
+	return h.Module.Values()
 }
 
 func (h *ModuleHook) prepareConfigValuesJsonFile() (string, error) {

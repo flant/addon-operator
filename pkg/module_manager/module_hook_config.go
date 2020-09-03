@@ -9,6 +9,7 @@ import (
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
+	"github.com/flant/addon-operator/sdk"
 	sh_op_hook "github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
 )
@@ -259,4 +260,30 @@ func (c *ModuleHookConfig) BindingsCount() int {
 		res += len(c.OnKubernetesEvents)
 	}
 	return res
+}
+
+func NewModuleHookConfigFromGoConfig(input *sdk.HookConfig) *ModuleHookConfig {
+	cfg := &ModuleHookConfig{
+		HookConfig: NewHookConfigFromGoConfig(input),
+	}
+
+	if input.OnBeforeHelm != nil {
+		cfg.BeforeHelm = &BeforeHelmConfig{}
+		cfg.BeforeHelm.BindingName = ContextBindingType[BeforeHelm]
+		cfg.BeforeHelm.Order = input.OnBeforeHelm.Order
+	}
+
+	if input.OnAfterHelm != nil {
+		cfg.AfterHelm = &AfterHelmConfig{}
+		cfg.AfterHelm.BindingName = ContextBindingType[AfterHelm]
+		cfg.AfterHelm.Order = input.OnAfterHelm.Order
+	}
+
+	if input.OnAfterDeleteHelm != nil {
+		cfg.AfterDeleteHelm = &AfterDeleteHelmConfig{}
+		cfg.AfterDeleteHelm.BindingName = ContextBindingType[AfterDeleteHelm]
+		cfg.AfterDeleteHelm.Order = input.OnAfterDeleteHelm.Order
+	}
+
+	return cfg
 }

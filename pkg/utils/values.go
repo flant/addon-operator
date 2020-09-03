@@ -16,7 +16,7 @@ import (
 	"github.com/evanphx/json-patch"
 	"github.com/peterbourgon/mergemap"
 	"github.com/segmentio/go-camelcase"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
@@ -38,6 +38,12 @@ type ValuesPatch struct {
 	Operations []*ValuesPatchOperation
 }
 
+func NewValuesPatch() *ValuesPatch {
+	return &ValuesPatch{
+		Operations: make([]*ValuesPatchOperation, 0),
+	}
+}
+
 func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
 	data, err := json.Marshal(p.Operations)
 	if err != nil {
@@ -57,6 +63,13 @@ func (p *ValuesPatch) Apply(doc []byte) ([]byte, error) {
 		return nil, err
 	}
 	return patch.Apply(doc)
+}
+
+func (p *ValuesPatch) MergeOperations(src *ValuesPatch) {
+	if src == nil {
+		return
+	}
+	p.Operations = append(p.Operations, src.Operations...)
 }
 
 type ValuesPatchOperation struct {
