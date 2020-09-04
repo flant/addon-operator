@@ -94,12 +94,18 @@ func (h *Helm3Client) Cmd(args ...string) (stdout string, stderr string, err err
 
 // InitAndVersion runs helm version command.
 func (h *Helm3Client) InitAndVersion() error {
-	stdout, stderr, err := h.Cmd("version", "--short")
+	stdout, stderr, err := h.Cmd("version", "--template='{{ .Client.SemVer }}'")
 	if err != nil {
 		return fmt.Errorf("unable to get helm version: %v\n%v %v", err, stdout, stderr)
 	}
+
 	stdout = strings.Join([]string{stdout, stderr}, "\n")
 	stdout = strings.ReplaceAll(stdout, "\n", " ")
+
+	if stdout[2:3] == "2" {
+		return fmt.Errorf("detected Helm2 client version")
+	}
+
 	log.Infof("Helm 3 version: %s", stdout)
 
 	return nil
