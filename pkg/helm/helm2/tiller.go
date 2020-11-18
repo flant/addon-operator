@@ -16,7 +16,8 @@ import (
 	"github.com/flant/shell-operator/pkg/utils/labels"
 )
 
-const TillerPath = "tiller"
+var TillerPath = "tiller"
+
 const TillerWaitTimeoutSeconds = 2
 const TillerWaitRetryDelay = 250 * time.Millisecond
 const TillerWaitTimeout = 10 * time.Second // Should not be less than TillerWaitTimeoutSeconds + TillerWaitRetryDelay

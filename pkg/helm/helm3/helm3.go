@@ -20,7 +20,7 @@ import (
 	"github.com/flant/shell-operator/pkg/kube"
 )
 
-const Helm3Path = "helm"
+var Helm3Path = "helm"
 
 type Helm3Options struct {
 	Namespace  string

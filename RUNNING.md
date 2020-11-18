@@ -69,7 +69,7 @@ dev_cluster_live_ticks 32
 **ADDON_OPERATOR_TILLER_LISTEN_PORT** — a port used for communication with helm (-listen flag). Default is 44435.
 **ADDON_OPERATOR_TILLER_PROBE_LISTEN_PORT** — a port used for Tiller probes (-probe-listen flag). Default is 44434.
 
-Tiller starts as a subprocess and listens on 127.0.01 address. Defaults are good, but if Addon-operator should start with `hostNetwork: true`, then these variables will come in handy.
+Tiller starts as a subprocess and listens on 127.0.0.1 address. Defaults are good, but if Addon-operator should start with `hostNetwork: true`, then these variables will come in handy.
 
 ### Kubernetes client settings
 
@@ -78,6 +78,18 @@ Tiller starts as a subprocess and listens on 127.0.01 address. Defaults are good
 **KUBE_CONTEXT** — a context name in a kubernetes client config (similar to a `--context` flag of a kubectl)
 
 **KUBE_CLIENT_QPS** and **KUBE_CLIENT_BURST** — qps and burst parameters to rate-limit requests to Kubernetes API server. Default qps is 5 and burst is 10 as in a [rest/config.go](https://github.com/kubernetes/client-go/blob/v0.17.0/rest/config.go#L44) file.
+
+### Helm settings
+
+Addon-operator expects that "helm" binary is available in $PATH. It detects Helm version at start by executing "helm --help" command. If this is not appropriate by some reasons, you can use these settings:
+
+**HELM_BIN_PATH** — a path to a Helm binary.
+
+**TILLER_BIN_PATH** — a path to a Tiller binary.
+
+**HELM2** — set to "yes" to disable auto-detection and explicitly enable compatibility with helm2.
+
+**HELM3** — set to "yes" to disable auto-detection and explicitly enable compatibility with helm3.
 
 ### Logging settings
 

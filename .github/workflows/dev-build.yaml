@@ -40,6 +40,8 @@ jobs:
             }
 
   build_dev_image:
+    env:
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     name: Dev image
     strategy:
       fail-fast: false
