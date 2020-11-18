@@ -20,6 +20,8 @@ jobs:
           - alpine3.10
           - alpine3.11
     runs-on: [ubuntu-latest]
+    env:
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
       - uses: actions/checkout@v1
 
