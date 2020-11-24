@@ -2,9 +2,7 @@ package global_hooks
 
 import "github.com/flant/addon-operator/sdk"
 
-func init() {
-	sdk.Register(&GoHook{})
-}
+var _ = sdk.Register(&GoHook{})
 
 type GoHook struct {
 	sdk.CommonGoHook

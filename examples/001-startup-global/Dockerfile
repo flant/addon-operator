@@ -1,3 +1,3 @@
-FROM flant/addon-operator:latest-alpine3.9
+FROM flant/addon-operator:latest
 ADD modules /modules
 ADD global-hooks /global-hooks
