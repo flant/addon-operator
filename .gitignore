@@ -13,7 +13,3 @@
 
 # binary produced by go build
 /addon-operator
-
-/docs
-/examples
-*.md
