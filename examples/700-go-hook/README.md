@@ -6,4 +6,8 @@ In order to run addon-operator with Go hooks you need to compile hooks in addon-
 
 ### run
 
-Sorry, no instructions yet.
+1. clone addon-operator repo
+2. Add paths with go hooks in register_go_hooks.go
+3. Add register_go_hooks.go to cmd/addon-operator
+4. Build image.
+

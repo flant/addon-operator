@@ -251,44 +251,60 @@ func (c *CommonGoHook) Run(input *HookInput) (*HookOutput, error) {
 		}
 		handler := func() BindingHandler {
 			if bc.Metadata.Group != "" {
-				h := c.HookConfig.GroupHandlers[bc.Metadata.Group]
-				if h != nil {
-					return h
+				if c.HookConfig.GroupHandlers != nil {
+					h := c.HookConfig.GroupHandlers[bc.Metadata.Group]
+					if h != nil {
+						return h
+					}
 				}
 				return c.HookConfig.MainHandler
 			}
 
+			h := c.HookConfig.MainHandler
 			switch bc.Metadata.BindingType {
 			case sh_hook_types.OnStartup:
-				return c.HookConfig.OnStartup.Handler
+				if c.HookConfig.OnStartup != nil {
+					h = c.HookConfig.OnStartup.Handler
+				}
 			case hook_types.BeforeAll:
-				return c.HookConfig.OnBeforeAll.Handler
+				if c.HookConfig.OnBeforeAll != nil {
+					h = c.HookConfig.OnBeforeAll.Handler
+				}
 			case hook_types.AfterAll:
-				return c.HookConfig.OnAfterAll.Handler
+				if c.HookConfig.OnAfterAll != nil {
+					h = c.HookConfig.OnAfterAll.Handler
+				}
 			case hook_types.BeforeHelm:
-				return c.HookConfig.OnBeforeHelm.Handler
+				if c.HookConfig.OnBeforeHelm != nil {
+					h = c.HookConfig.OnBeforeHelm.Handler
+				}
 			case hook_types.AfterHelm:
-				return c.HookConfig.OnAfterHelm.Handler
+				if c.HookConfig.OnAfterHelm != nil {
+					h = c.HookConfig.OnAfterHelm.Handler
+				}
 			case hook_types.AfterDeleteHelm:
-				return c.HookConfig.OnAfterDeleteHelm.Handler
+				if c.HookConfig.OnAfterDeleteHelm != nil {
+					h = c.HookConfig.OnAfterDeleteHelm.Handler
+				}
 			case sh_hook_types.Schedule:
 				for _, sc := range c.HookConfig.Schedule {
 					if sc.Name == bc.Binding {
-						return sc.Handler
+						h = sc.Handler
+						break
 					}
 				}
 			case sh_hook_types.OnKubernetesEvent:
+				// Find handler by name.
 				// TODO split to Synchronization and Event handlers?
 				for _, sc := range c.HookConfig.Kubernetes {
 					if sc.Name == bc.Binding {
-						return sc.Handler
+						h = sc.Handler
+						break
 					}
 				}
-			default:
-				return c.HookConfig.MainHandler
 			}
 
-			return nil
+			return h
 		}()
 
 		if handler == nil {

@@ -20,9 +20,7 @@ import (
 	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
-func init() {
-	sdk.Register(&GoHook{})
-}
+var _ = sdk.Register(&GoHook{})
 
 type GoHook struct {
 	sdk.CommonGoHook

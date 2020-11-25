@@ -1,2 +1,2 @@
-FROM flant/addon-operator:latest-alpine3.9
+FROM flant/addon-operator:latest
 ADD modules /modules
