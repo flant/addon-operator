@@ -292,7 +292,7 @@ func (h *Helm3Client) ListReleasesNames(labelSelector map[string]string) ([]stri
 	return uniqNames, nil
 }
 
-// ListReleasesNames returns list of release names without suffixes ".v<release_number>"
+// Render renders helm templates for chart
 func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) (string, error) {
 	args := make([]string, 0)
 	args = append(args, "template")
