@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm2"
@@ -24,6 +26,7 @@ func Init(client kube.KubernetesClient) error {
 	}
 
 	if helmVersion == "v3" {
+		log.Info("Helm 3 detected")
 		// Use helm3 client.
 		NewClient = helm3.NewClient
 		err = helm3.Init(&helm3.Helm3Options{
@@ -36,6 +39,7 @@ func Init(client kube.KubernetesClient) error {
 	}
 
 	if helmVersion == "v2" {
+		log.Info("Helm 2 detected, start Tiller")
 		// TODO make tiller cancelable
 		err = helm2.InitTillerProcess(helm2.TillerOptions{
 			Namespace:          app.Namespace,
