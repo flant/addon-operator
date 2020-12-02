@@ -2,7 +2,6 @@ package kube_config_manager
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -40,10 +39,9 @@ type kubeConfigManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	KubeClient                kube.KubernetesClient
-	Namespace                 string
-	ConfigMapName             string
-	ValuesChecksumsAnnotation string
+	KubeClient    kube.KubernetesClient
+	Namespace     string
+	ConfigMapName string
 
 	initialConfig *Config
 	currentConfig *Config
@@ -107,43 +105,29 @@ func (kcm *kubeConfigManager) WithKubeClient(client kube.KubernetesClient) {
 }
 
 func (kcm *kubeConfigManager) saveGlobalKubeConfig(globalKubeConfig GlobalKubeConfig) error {
-	return kcm.changeOrCreateKubeConfig(func(obj *v1.ConfigMap) error {
-		checksums, err := kcm.getValuesChecksums(obj)
-		if err != nil {
-			return err
-		}
-
-		checksums[utils.GlobalValuesKey] = globalKubeConfig.Checksum
-
-		err = kcm.setValuesChecksums(obj, checksums)
-		if err != nil {
-			return fmt.Errorf("update global values checksum in annotation: %s", err)
-		}
-
+	err := kcm.changeOrCreateKubeConfig(func(obj *v1.ConfigMap) error {
 		obj.Data = simpleMergeConfigMapData(obj.Data, globalKubeConfig.ConfigData)
-
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// If ConfigMap is updated, save checksum for global section.
+	kcm.GlobalValuesChecksum = globalKubeConfig.Checksum
+	return nil
 }
 
 func (kcm *kubeConfigManager) saveModuleKubeConfig(moduleKubeConfig ModuleKubeConfig) error {
-	return kcm.changeOrCreateKubeConfig(func(obj *v1.ConfigMap) error {
-		checksums, err := kcm.getValuesChecksums(obj)
-		if err != nil {
-			return err
-		}
-
-		checksums[moduleKubeConfig.ModuleName] = moduleKubeConfig.Checksum
-
-		err = kcm.setValuesChecksums(obj, checksums)
-		if err != nil {
-			return fmt.Errorf("update module '%s' values checksum in annotation: %s", moduleKubeConfig.ModuleName, err)
-		}
-
+	err := kcm.changeOrCreateKubeConfig(func(obj *v1.ConfigMap) error {
 		obj.Data = simpleMergeConfigMapData(obj.Data, moduleKubeConfig.ConfigData)
-
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// TODO add a mutex for this map? Config patch from hook can run in parallel with ConfigMap editing...
+	kcm.ModulesValuesChecksum[moduleKubeConfig.ModuleName] = moduleKubeConfig.Checksum
+	return nil
 }
 
 func (kcm *kubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func(*v1.ConfigMap) error) error {
@@ -197,8 +181,8 @@ func (kcm *kubeConfigManager) WithConfigMapName(configMap string) {
 	kcm.ConfigMapName = configMap
 }
 
-func (kcm *kubeConfigManager) WithValuesChecksumsAnnotation(annotation string) {
-	kcm.ValuesChecksumsAnnotation = annotation
+// No need in annotation anymore.
+func (kcm *kubeConfigManager) WithValuesChecksumsAnnotation(_ string) {
 }
 
 func (kcm *kubeConfigManager) SetKubeGlobalValues(values utils.Values) error {
@@ -276,10 +260,11 @@ func (kcm *kubeConfigManager) CurrentConfig() *Config {
 }
 
 func NewKubeConfigManager() KubeConfigManager {
-	kcm := &kubeConfigManager{}
-	kcm.initialConfig = NewConfig()
-	kcm.currentConfig = NewConfig()
-	return kcm
+	return &kubeConfigManager{
+		initialConfig:         NewConfig(),
+		currentConfig:         NewConfig(),
+		ModulesValuesChecksum: map[string]string{},
+	}
 }
 
 func (kcm *kubeConfigManager) initConfig() error {
@@ -344,36 +329,6 @@ func (kcm *kubeConfigManager) Init() error {
 	return nil
 }
 
-func (kcm *kubeConfigManager) getValuesChecksums(cm *v1.ConfigMap) (map[string]string, error) {
-	data, hasKey := cm.Annotations[kcm.ValuesChecksumsAnnotation]
-	if !hasKey {
-		return make(map[string]string), nil
-	}
-
-	var res map[string]string
-	err := json.Unmarshal([]byte(data), &res)
-	if err != nil {
-		return nil, fmt.Errorf("KUBE_CONFIG: cannot unmarshal json annotation '%s' in ConfigMap '%s': %s\n%s", kcm.ValuesChecksumsAnnotation, cm.Name, err, data)
-	}
-
-	return res, nil
-}
-
-func (kcm *kubeConfigManager) setValuesChecksums(cm *v1.ConfigMap, checksums map[string]string) error {
-	data, err := json.Marshal(checksums)
-	if err != nil {
-		// this should not happen
-		return err
-	}
-
-	if cm.Annotations == nil {
-		cm.Annotations = make(map[string]string)
-	}
-	cm.Annotations[kcm.ValuesChecksumsAnnotation] = string(data)
-
-	return nil
-}
-
 // handleNewCm determine changes in kube config.
 //
 // New Config is send over ConfigUpdate channel if global section is changed.
@@ -381,11 +336,6 @@ func (kcm *kubeConfigManager) setValuesChecksums(cm *v1.ConfigMap, checksums map
 // Array of actual ModuleConfig is send over ModuleConfigsUpdated channel
 // if module sections are changed or deleted.
 func (kcm *kubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
-	savedChecksums, err := kcm.getValuesChecksums(obj)
-	if err != nil {
-		return err
-	}
-
 	globalKubeConfig, err := GetGlobalKubeConfigFromConfigData(obj.Data)
 	if err != nil {
 		return err
@@ -393,7 +343,6 @@ func (kcm *kubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 
 	// if global values are changed or deleted then new config should be sent over ConfigUpdated channel
 	isGlobalUpdated := globalKubeConfig != nil &&
-		globalKubeConfig.Checksum != savedChecksums[utils.GlobalValuesKey] &&
 		globalKubeConfig.Checksum != kcm.GlobalValuesChecksum
 	isGlobalDeleted := globalKubeConfig == nil && kcm.GlobalValuesChecksum != ""
 
@@ -448,7 +397,7 @@ func (kcm *kubeConfigManager) handleNewCm(obj *v1.ConfigMap) error {
 				return err
 			}
 
-			if moduleKubeConfig.Checksum != savedChecksums[moduleName] && moduleKubeConfig.Checksum != kcm.ModulesValuesChecksum[moduleName] {
+			if moduleKubeConfig.Checksum != kcm.ModulesValuesChecksum[moduleName] {
 				kcm.ModulesValuesChecksum[moduleName] = moduleKubeConfig.Checksum
 				moduleKubeConfig.ModuleConfig.IsUpdated = true
 				updatedCount++
