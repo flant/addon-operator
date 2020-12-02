@@ -260,10 +260,11 @@ func (kcm *kubeConfigManager) CurrentConfig() *Config {
 }
 
 func NewKubeConfigManager() KubeConfigManager {
-	kcm := &kubeConfigManager{}
-	kcm.initialConfig = NewConfig()
-	kcm.currentConfig = NewConfig()
-	return kcm
+	return &kubeConfigManager{
+		initialConfig:         NewConfig(),
+		currentConfig:         NewConfig(),
+		ModulesValuesChecksum: map[string]string{},
+	}
 }
 
 func (kcm *kubeConfigManager) initConfig() error {

@@ -129,7 +129,7 @@ kubeLegoEnabled: "false"
 func Test_SaveValuesToConfigMap(t *testing.T) {
 	kubeClient := kube.NewFakeKubernetesClient()
 
-	kcm := &kubeConfigManager{}
+	kcm := NewKubeConfigManager()
 	kcm.WithKubeClient(kubeClient)
 	kcm.WithNamespace("default")
 	kcm.WithConfigMapName("addon-operator")
