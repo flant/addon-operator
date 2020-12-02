@@ -30,6 +30,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 type Module struct {
@@ -608,7 +609,7 @@ func (m *Module) prepareValuesJsonFile() (string, error) {
 }
 
 func (m *Module) prepareValuesJsonFileForEnabledScript(precedingEnabledModules []string) (string, error) {
-	values, err := m.valuesForEnabledScript(precedingEnabledModules)
+	values, err := m.ValuesForEnabledScript(precedingEnabledModules)
 	if err != nil {
 		return "", err
 	}
@@ -632,37 +633,56 @@ func (m *Module) generateHelmReleaseName() string {
 	return m.Name
 }
 
-// ConfigValues returns values from ConfigMap: global section and module section
+// ConfigValues returns values only from ConfigMap: global section and module section
 func (m *Module) ConfigValues() utils.Values {
 	return utils.MergeValues(
 		// global section
-		utils.Values{"global": map[string]interface{}{}},
-		m.moduleManager.kubeGlobalConfigValues,
+		m.moduleManager.GlobalConfigValues(),
 		// module section
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 	)
 }
 
-// constructValues returns effective values for module hook:
-//
-// global section: static + kube + patches from hooks
-//
-// module section: static + kube + patches from hooks
-func (m *Module) constructValues() (utils.Values, error) {
-	var err error
-
-	res := utils.MergeValues(
+// StaticAndConfigValues returns global values defined in
+// various values.yaml files and in a ConfigMap and module values
+// defined in various values.yaml files and in a ConfigMap.
+func (m *Module) StaticAndConfigValues() utils.Values {
+	return utils.MergeValues(
 		// global
-		utils.Values{"global": map[string]interface{}{}},
-		m.moduleManager.commonStaticValues.Global(),
-		m.moduleManager.kubeGlobalConfigValues,
-		// module
+		m.moduleManager.GlobalStaticAndConfigValues(),
+		// module static + ConfigMap
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		m.CommonStaticConfig.Values,
 		m.StaticConfig.Values,
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 	)
+}
+
+// StaticAndNewValues returns global values defined in
+// various values.yaml files and in a ConfigMap and module values
+// defined in various values.yaml files merged with newValues.
+func (m *Module) StaticAndNewValues(newValues utils.Values) utils.Values {
+	return utils.MergeValues(
+		// global
+		m.moduleManager.GlobalStaticAndConfigValues(),
+		// module static + ConfigMap
+		utils.Values{m.ValuesKey(): map[string]interface{}{}},
+		m.CommonStaticConfig.Values,
+		m.StaticConfig.Values,
+		newValues,
+	)
+}
+
+// Values returns effective values for module hook or helm chart:
+//
+// global section: static + kube + patches from hooks
+//
+// module section: static + kube + patches from hooks
+func (m *Module) Values() (utils.Values, error) {
+	var err error
+
+	res := m.StaticAndConfigValues()
 
 	for _, patches := range [][]utils.ValuesPatch{
 		m.moduleManager.globalDynamicValuesPatches,
@@ -671,7 +691,6 @@ func (m *Module) constructValues() (utils.Values, error) {
 		for _, patch := range patches {
 			// Invariant: do not store patches that does not apply
 			// Give user error for patches early, after patch receive
-
 			res, _, err = utils.ApplyValuesPatch(res, patch)
 			if err != nil {
 				return nil, fmt.Errorf("construct values, apply patch error: %s", err)
@@ -679,34 +698,24 @@ func (m *Module) constructValues() (utils.Values, error) {
 		}
 	}
 
+	res = utils.MergeValues(res, utils.Values{
+		"global": map[string]interface{}{
+			"enabledModules": m.moduleManager.enabledModulesInOrder,
+		},
+	})
 	return res, nil
 }
 
-// valuesForEnabledScript returns merged values for enabled script.
+// ValuesForEnabledScript returns effective values for enabled script.
 // There is enabledModules key in global section with previously enabled modules.
-func (m *Module) valuesForEnabledScript(precedingEnabledModules []string) (utils.Values, error) {
-	res, err := m.constructValues()
+func (m *Module) ValuesForEnabledScript(precedingEnabledModules []string) (utils.Values, error) {
+	res, err := m.Values()
 	if err != nil {
 		return nil, err
 	}
 	res = utils.MergeValues(res, utils.Values{
 		"global": map[string]interface{}{
 			"enabledModules": precedingEnabledModules,
-		},
-	})
-	return res, nil
-}
-
-// values returns merged values for hooks.
-// There is enabledModules key in global section with all enabled modules.
-func (m *Module) Values() (utils.Values, error) {
-	res, err := m.constructValues()
-	if err != nil {
-		return nil, err
-	}
-	res = utils.MergeValues(res, utils.Values{
-		"global": map[string]interface{}{
-			"enabledModules": m.moduleManager.enabledModulesInOrder,
 		},
 	})
 	return res, nil
@@ -907,6 +916,25 @@ func (mm *moduleManager) RegisterModules() error {
 
 		mm.allModulesByName[module.Name] = module
 		mm.allModulesNamesInOrder = append(mm.allModulesNamesInOrder, module.Name)
+
+		// Load validation schemas
+		openAPIPath := filepath.Join(module.Path, "openapi")
+		configBytes, valuesBytes, err := ReadOpenAPISchemas(openAPIPath)
+		if err != nil {
+			return fmt.Errorf("module '%s' read openAPI schemas: %v", module.Name, err)
+		}
+		if configBytes != nil {
+			err = validation.AddModuleValuesSchema(module.ValuesKey(), "config", configBytes)
+			if err != nil {
+				return fmt.Errorf("module '%s' parse config openAPI: %v", module.Name, err)
+			}
+		}
+		if valuesBytes != nil {
+			err = validation.AddModuleValuesSchema(module.ValuesKey(), "memory", valuesBytes)
+			if err != nil {
+				return fmt.Errorf("module '%s' parse config openAPI: %v", module.Name, err)
+			}
+		}
 
 		logEntry.Infof("Module '%s' is registered", module.Name)
 	}

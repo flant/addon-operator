@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/satori/go.uuid.v1"
 
@@ -14,6 +15,7 @@ import (
 	. "github.com/flant/addon-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
 )
 
@@ -89,19 +91,11 @@ type globalValuesMergeResult struct {
 	ValuesChanged bool
 }
 
+// handleGlobalValuesPatch do simple checks of patches and apply them to current values
 func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesPatch utils.ValuesPatch) (*globalValuesMergeResult, error) {
 
 	if err := utils.ValidateHookValuesPatch(valuesPatch, utils.GlobalValuesKey); err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
-	}
-
-	// Apply patches to enabled modules
-	enabledPatch := utils.EnabledFromValuesPatch(valuesPatch)
-	if len(enabledPatch.Operations) != 0 {
-		err := h.moduleManager.ApplyEnabledPatch(enabledPatch)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// Get patches for global section
@@ -111,7 +105,7 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 		return nil, nil
 	}
 
-	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch)
+	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, globalValuesPatch)
 	if err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}
@@ -119,7 +113,7 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 	result := &globalValuesMergeResult{
 		Values:        utils.Values{utils.GlobalValuesKey: make(map[string]interface{})},
 		ValuesChanged: valuesChanged,
-		ValuesPatch:   valuesPatch,
+		ValuesPatch:   globalValuesPatch,
 	}
 
 	if newValues.HasGlobal() {
@@ -134,11 +128,23 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 	return result, nil
 }
 
-func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
-	// Convert context for version
-	//versionedContextList := ConvertBindingContextList(h.Config.Version, context)
+// Apply patches to enabled modules
+func (h *GlobalHook) applyEnabledPatches(valuesPatch utils.ValuesPatch) error {
+	enabledPatch := utils.EnabledFromValuesPatch(valuesPatch)
+	if len(enabledPatch.Operations) != 0 {
+		err := h.moduleManager.ApplyEnabledPatch(enabledPatch)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	globalHookExecutor := NewHookExecutor(h, context, h.Config.Version)
+func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
+	// Convert bindingContext for version
+	//versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
+
+	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version)
 	globalHookExecutor.WithLogLabels(logLabels)
 	patches, metrics, err := globalHookExecutor.Run()
 	if err != nil {
@@ -169,6 +175,22 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 		}
 
 		if configValuesPatchResult != nil && configValuesPatchResult.ValuesChanged {
+			log.Debugf("Global hook '%s': validate global config values before update", h.Name)
+			// Validate merged static and new values.
+			mergedValues := h.moduleManager.GlobalStaticAndNewValues(configValuesPatchResult.Values)
+			validationErr := validation.ValidateGlobalConfigValues(mergedValues)
+			if validationErr != nil {
+				return multierror.Append(
+					fmt.Errorf("cannot apply config values patch for global values"),
+					validationErr,
+				)
+			}
+
+			err = h.applyEnabledPatches(*configValuesPatch)
+			if err != nil {
+				return fmt.Errorf("apply enabled patches from global config patch: %v", err)
+			}
+
 			err := h.moduleManager.kubeConfigManager.SetKubeGlobalValues(configValuesPatchResult.Values)
 			if err != nil {
 				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
@@ -190,10 +212,27 @@ func (h *GlobalHook) Run(bindingType BindingType, context []BindingContext, logL
 		if err != nil {
 			return fmt.Errorf("global hook '%s': dynamic global values update error: %s", h.Name, err)
 		}
+
 		// MemoryValuesPatch from global hook can contains patches for *Enabled keys
 		// and no patches for 'global' section — valuesPatchResult will be nil in this case.
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
-			h.moduleManager.globalDynamicValuesPatches = utils.AppendValuesPatch(h.moduleManager.globalDynamicValuesPatches, valuesPatchResult.ValuesPatch)
+			log.Debugf("Global hook '%s': validate global values before update", h.Name)
+			validationErr := validation.ValidateGlobalValues(valuesPatchResult.Values)
+			if validationErr != nil {
+				return multierror.Append(
+					fmt.Errorf("cannot apply values patch for global values"),
+					validationErr,
+				)
+			}
+
+			err = h.applyEnabledPatches(*valuesPatch)
+			if err != nil {
+				return fmt.Errorf("apply enabled patches from global values patch: %v", err)
+			}
+
+			h.moduleManager.globalDynamicValuesPatches = utils.AppendValuesPatch(
+				h.moduleManager.globalDynamicValuesPatches,
+				valuesPatchResult.ValuesPatch)
 			newGlobalValues, err := h.moduleManager.GlobalValues()
 			if err != nil {
 				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)

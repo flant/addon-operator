@@ -1608,8 +1608,8 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 		newLogLabels := utils.MergeLabels(logLabels)
 		newLogLabels["module"] = moduleName
 		delete(newLogLabels, "task.id")
-		// TODO may be only afterHelmDelete hooks should be initialized?
-		// Enable module hooks on startup to run afterHelmDelete hooks
+		// Register module hooks for deleted modules to able to
+		// run afterHelmDelete hooks on Addon-operator startup.
 		if hm.OnStartupHooks {
 			// error can be ignored, DiscoverModulesState should return existed modules
 			disabledModule := op.ModuleManager.GetModule(moduleName)

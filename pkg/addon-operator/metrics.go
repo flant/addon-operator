@@ -35,6 +35,8 @@ func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
 			"module": "",
 			"hook":   "",
 		})
+	// ConfigMap validation errors
+	metricStorage.RegisterCounter("{PREFIX}config_values_errors_total", map[string]string{})
 
 	// modules
 	metricStorage.RegisterCounter("{PREFIX}modules_discover_errors_total", map[string]string{})

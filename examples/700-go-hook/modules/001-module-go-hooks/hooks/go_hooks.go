@@ -28,7 +28,6 @@ type GoHook struct {
 }
 
 func (h *GoHook) Metadata() sdk.HookMetadata {
-	fmt.Printf("GoHook Metadata\n")
 	return sdk.HookMetadata{
 		Name:       "go_hook.go",
 		Path:       "001-module-go-hooks/hooks/go_hook.go",

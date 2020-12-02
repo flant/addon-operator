@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 	"reflect"
 	"sort"
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
 	// bindings constants and binding configs
@@ -23,12 +23,14 @@ import (
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 // TODO separate modules and hooks storage, values storage and actions
@@ -57,6 +59,8 @@ type ModuleManager interface {
 	GetModuleHook(name string) *ModuleHook
 	GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string
 
+	GlobalStaticAndConfigValues() utils.Values
+	GlobalStaticAndNewValues(newValues utils.Values) utils.Values
 	GlobalConfigValues() utils.Values
 	GlobalValues() (utils.Values, error)
 	GlobalValuesPatches() []utils.ValuesPatch
@@ -550,7 +554,42 @@ func (mm *moduleManager) Init() error {
 		log.Warnf("ConfigMap/%s has values for absent modules: %+v", app.ConfigMapName, unknownNames)
 	}
 
-	return nil
+	return mm.validateKubeConfig(mm.kubeConfigManager.CurrentConfig())
+}
+
+func (mm *moduleManager) validateKubeConfig(kubeConfig *kube_config_manager.Config) error {
+	// Validate global and module sections in ConfigMap merged with static values.
+	var validationErr error
+	globalErr := validation.ValidateGlobalConfigValues(mm.GlobalStaticAndNewValues(kubeConfig.Values))
+	if globalErr != nil {
+		validationErr = multierror.Append(
+			validationErr,
+			fmt.Errorf("'global' section in ConfigMap/%s is not valid", app.ConfigMapName),
+			globalErr,
+		)
+	}
+
+	for _, moduleName := range mm.enabledModulesByConfig {
+		mod := mm.allModulesByName[moduleName]
+		modCfg, has := kubeConfig.ModuleConfigs[moduleName]
+		if !has {
+			continue
+		}
+		moduleErr := validation.ValidateModuleConfigValues(mod.ValuesKey(), mod.StaticAndNewValues(modCfg.Values))
+		if moduleErr != nil {
+			validationErr = multierror.Append(
+				validationErr,
+				fmt.Errorf("'%s' module section in ConfigMap/%s is not valid", mod.ValuesKey(), app.ConfigMapName),
+				moduleErr,
+			)
+		}
+	}
+
+	if validationErr != nil {
+		mm.metricStorage.CounterAdd("{PREFIX}config_values_errors_total", 1.0, map[string]string{})
+	}
+
+	return validationErr
 }
 
 // Module manager loop
@@ -561,7 +600,7 @@ func (mm *moduleManager) Start() {
 		for {
 			select {
 			case <-mm.globalValuesChanged:
-				log.Debugf("MODULE_MANAGER_RUN global values")
+				log.Debugf("MODULE_MANAGER_RUN global values changed")
 				mm.EventCh <- Event{Type: GlobalChanged}
 
 			case moduleName := <-mm.moduleValuesChanged:
@@ -578,6 +617,13 @@ func (mm *moduleManager) Start() {
 				}
 
 			case newKubeConfig := <-kube_config_manager.ConfigUpdated:
+				// For simplicity, check the whole config.
+				err := mm.validateKubeConfig(mm.kubeConfigManager.CurrentConfig())
+				if err != nil {
+					log.Errorf("MODULE_MANAGER_RUN ConfigMap changed and is not valid, no ReloadAllModules: %v", err)
+					break
+				}
+
 				handleRes, err := mm.handleNewKubeConfig(newKubeConfig)
 				if err != nil {
 					log.Errorf("MODULE_MANAGER_RUN unable to handle kube config update: %s", err)
@@ -592,6 +638,13 @@ func (mm *moduleManager) Start() {
 			case newModuleConfigs := <-kube_config_manager.ModuleConfigsUpdated:
 				// Сбросить запомненные перед ошибкой конфиги
 				mm.moduleConfigsUpdateBeforeAmbiguos = kube_config_manager.ModuleConfigs{}
+
+				// For simplicity, check the whole config.
+				err := mm.validateKubeConfig(mm.kubeConfigManager.CurrentConfig())
+				if err != nil {
+					log.Errorf("MODULE_MANAGER_RUN ConfigMap changed and is not valid, no module restart: %v", err)
+					break
+				}
 
 				moduleUpdates, err := mm.handleNewKubeModuleConfigs(newModuleConfigs)
 				if err != nil {
@@ -945,11 +998,31 @@ func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bin
 	return nil
 }
 
-// GlobalConfigValues return global values defined in a ConfigMap
+// GlobalConfigValues return global values only from a ConfigMap.
 func (mm *moduleManager) GlobalConfigValues() utils.Values {
 	return utils.MergeValues(
 		utils.Values{"global": map[string]interface{}{}},
 		mm.kubeGlobalConfigValues,
+	)
+}
+
+// GlobalStaticAndConfigValues return global values defined in
+// various values.yaml files and in a ConfigMap
+func (mm *moduleManager) GlobalStaticAndConfigValues() utils.Values {
+	return utils.MergeValues(
+		utils.Values{"global": map[string]interface{}{}},
+		mm.commonStaticValues.Global(),
+		mm.kubeGlobalConfigValues,
+	)
+}
+
+// GlobalStaticAndNewValues return global values defined in
+// various values.yaml files merged with newValues
+func (mm *moduleManager) GlobalStaticAndNewValues(newValues utils.Values) utils.Values {
+	return utils.MergeValues(
+		utils.Values{"global": map[string]interface{}{}},
+		mm.commonStaticValues.Global(),
+		newValues,
 	)
 }
 

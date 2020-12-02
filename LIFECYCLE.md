@@ -163,7 +163,7 @@ Module `some-module` is explicitly disabled in `modules/values.yaml` but enabled
 
 Task queues are simple FIFO queues. The Addon-operator processes an event, creates a task and adds it to the particular named queue. Each named queue has a queue handler which runs the first task and proceeds to the next.
 
-Each task is processed until successful completion. In case of an error, the task is returned to the start of the queue and executed after a 5 seconds delay. When executing tasks for the `kubernetes` and `schedule` events, the queue handler ignores execution errors if the `allowFailure: true` flag is specified in the binding configuration.
+Each task is processed until successful completion. In case of an error, the task is returned to the start of the queue and executed with an exponentially growing delay (from 5s to 30s). When executing tasks for the `kubernetes` and `schedule` events, the queue handler ignores execution errors if the `allowFailure: true` flag is specified in the binding configuration.
 
 ## Queue monitoring
 
