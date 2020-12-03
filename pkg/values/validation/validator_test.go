@@ -24,6 +24,7 @@ moduleName:
   param1: val1
   param2: val2
 `))
+	g.Expect(err).ShouldNot(HaveOccurred())
 
 	var configOpenApi = `
 type: object
