@@ -136,7 +136,7 @@ func SearchGlobalShellHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 	}
 
 	hooksSubDir := filepath.Join(hooksDir, "hooks")
-	if _, err := os.Stat(hooksDir); !os.IsNotExist(err) {
+	if _, err := os.Stat(hooksSubDir); !os.IsNotExist(err) {
 		hooksDir = hooksSubDir
 	}
 	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir)

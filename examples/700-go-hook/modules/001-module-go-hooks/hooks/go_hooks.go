@@ -52,7 +52,7 @@ func (h *GoHook) Config() *sdk.HookConfig {
 				input.LogEntry.Infof("Hello from module 'hooks-only' golang hook 'go_hooks' beforeHelm!\n")
 				vs := values_store.NewValuesStoreFromValues(input.Values)
 
-				input.LogEntry.Info("go_hooks beforeHelm hook got values: %s", vs.GetAsYaml())
+				input.LogEntry.Infof("go_hooks beforeHelm hook got values: %s", vs.GetAsYaml())
 
 				return nil, nil
 			},
@@ -89,7 +89,7 @@ func (h *GoHook) Config() *sdk.HookConfig {
 
 					vs := values_store.NewValuesStoreFromValues(input.Values)
 
-					input.LogEntry.Info("go_hooks kube hook got values: %s", vs.GetAsYaml())
+					input.LogEntry.Infof("go_hooks kube hook got values: %s", vs.GetAsYaml())
 
 					return nil, nil
 				},
@@ -148,7 +148,7 @@ func (h *GoHook) SendMetrics(input *sdk.BindingInput) (*sdk.BindingOutput, error
 
 	vs := values_store.NewValuesStoreFromValues(input.Values)
 
-	input.LogEntry.Info("go_hooks schedule hook got values: %s", vs.GetAsYaml())
+	input.LogEntry.Infof("go_hooks schedule hook got values: %s", vs.GetAsYaml())
 
 	out := &sdk.BindingOutput{
 		Metrics: []operation.MetricOperation{},
@@ -165,7 +165,7 @@ func (h *GoHook) SendMetrics(input *sdk.BindingInput) (*sdk.BindingOutput, error
 			{
 				Op:    "add",
 				Path:  "/moduleGoHooks/time",
-				Value: fmt.Sprintf("%s", time.Now().Unix()),
+				Value: fmt.Sprintf("%d", time.Now().Unix()),
 			},
 		},
 	}
@@ -175,7 +175,7 @@ func (h *GoHook) SendMetrics(input *sdk.BindingInput) (*sdk.BindingOutput, error
 			{
 				Op:    "add",
 				Path:  "/moduleGoHooks/time_temp",
-				Value: fmt.Sprintf("%s", time.Now().Unix()),
+				Value: fmt.Sprintf("%d", time.Now().Unix()),
 			},
 		},
 	}
