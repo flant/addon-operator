@@ -160,8 +160,7 @@ func (gr *GlobalRequest) Config(format string) ([]byte, error) {
 }
 
 func (gr *GlobalRequest) Patches() ([]byte, error) {
-	url := fmt.Sprintf("http://unix/global/patches.json")
-	return gr.client.Get(url)
+	return gr.client.Get("http://unix/global/patches.json")
 }
 
 type ModuleRequest struct {
