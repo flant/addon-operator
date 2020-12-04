@@ -2,32 +2,33 @@ package validation
 
 import (
 	"fmt"
-	"github.com/flant/addon-operator/pkg/utils"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/validate"
 	"github.com/hashicorp/go-multierror"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 func ValidateGlobalConfigValues(values utils.Values) error {
-	return ValidateValues("global", "config", "", values)
+	return ValidateValues(GlobalSchema, ConfigValuesSchema, "", values)
 }
 
 func ValidateGlobalValues(values utils.Values) error {
-	return ValidateValues("global", "memory", "", values)
+	return ValidateValues(GlobalSchema, MemoryValuesSchema, "", values)
 }
 
 func ValidateModuleConfigValues(moduleName string, values utils.Values) error {
-	return ValidateValues("module", "config", moduleName, values)
+	return ValidateValues(ModuleSchema, ConfigValuesSchema, moduleName, values)
 }
 
 func ValidateModuleValues(moduleName string, values utils.Values) (multiErr error) {
-	return ValidateValues("module", "memory", moduleName, values)
+	return ValidateValues(ModuleSchema, MemoryValuesSchema, moduleName, values)
 }
 
-func ValidateValues(schemaType string, valuesType string, moduleName string, values utils.Values) error {
+func ValidateValues(schemaType SchemaType, valuesType SchemaType, moduleName string, values utils.Values) error {
 	var s *spec.Schema
 	var obj interface{}
 	var ok bool

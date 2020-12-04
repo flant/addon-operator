@@ -168,6 +168,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	if has && configValuesPatch != nil {
 		configValues := h.Module.ConfigValues()
 
+		// Apply patch to get intermediate updated values.
 		configValuesPatchResult, err := h.handleModuleValuesPatch(configValues, *configValuesPatch)
 		if err != nil {
 			return fmt.Errorf("module hook '%s': kube module config values update error: %s", h.Name, err)
@@ -202,6 +203,8 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		if err != nil {
 			return fmt.Errorf("get module values before values patch: %s", err)
 		}
+
+		// Apply patch to get intermediate updated values.
 		valuesPatchResult, err := h.handleModuleValuesPatch(currentValues, *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("module hook '%s': dynamic module values update error: %s", h.Name, err)

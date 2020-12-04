@@ -1,18 +1,12 @@
 package validation
 
 import (
-	"github.com/flant/addon-operator/pkg/utils"
 	"testing"
 
 	. "github.com/onsi/gomega"
-)
 
-//func prepareConfigObj(g *WithT, input string) *VersionedUntyped {
-//	vu := NewDefaultVersionedUntyped()
-//	err := vu.Load([]byte(input))
-//	g.Expect(err).ShouldNot(HaveOccurred())
-//	return vu
-//}
+	"github.com/flant/addon-operator/pkg/utils"
+)
 
 func Test_Validate_ModuleValues(t *testing.T) {
 	g := NewWithT(t)
@@ -47,14 +41,4 @@ properties:
 	mErr := ValidateModuleValues("moduleName", moduleValues)
 
 	g.Expect(mErr).ShouldNot(HaveOccurred())
-
-	//func() {
-	//	g.Expect(err).Should(HaveOccurred())
-	//	g.Expect(err).To(BeAssignableToTypeOf(&multierror.Error{}))
-	//	g.Expect(err.(*multierror.Error).Error()).Should(And(
-	//		ContainSubstring("configVrsion is a forbidden property"),
-	//		ContainSubstring("qwdqwd is a forbidden property"),
-	//		ContainSubstring("schedule must be of type array"),
-	//	))
-	//},
 }

@@ -169,6 +169,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			h.moduleManager.kubeGlobalConfigValues,
 		)
 
+		// Apply patch to get intermediate updated values.
 		configValuesPatchResult, err := h.handleGlobalValuesPatch(preparedConfigValues, *configValuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': kube config global values update error: %s", h.Name, err)
@@ -208,6 +209,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		if err != nil {
 			return fmt.Errorf("global hook '%s': global values before patch apply: %s", h.Name, err)
 		}
+
+		// Apply patch to get intermediate updated values.
 		valuesPatchResult, err := h.handleGlobalValuesPatch(globalValues, *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': dynamic global values update error: %s", h.Name, err)
