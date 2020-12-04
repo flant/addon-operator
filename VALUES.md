@@ -226,13 +226,13 @@ would generate the string `replicas: 200`. As you can see, the value "100" from 
 
 # Validation
 
-The addon-operator supports OpenAPI schemas for config values and values. These schemas should be stored in `$GLOBAL_HOOKS_DIR/openapi` directory for global values and in `$MODULES_DIR/<module-name>/openapi` directories for modules.
+The addon-operator supports OpenAPI schemas for config values and values. These schemas should be stored in the `$GLOBAL_HOOKS_DIR/openapi` directory for global values and in the `$MODULES_DIR/<module-name>/openapi` directories for modules.
 
 `config-values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap.
 
 `values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap with applied values patches.
 
-Validation occurs on startup, on ConfigMap changes and after hook executions.
+Validation occurs on startup, on ConfigMap changes, and after hook executions.
 
 ## Example
 
@@ -271,11 +271,11 @@ data:
 ...
 ```
 
-This ConfigMap has invalid 'global' values and addon-operator stops with error on startup.
+This ConfigMap has invalid 'global' values, and the addon-operator stops with an error on startup.
 
 Consider valid `ConfigMap/addon-operator` and this config patch from global hook:
 
-```
+```json
 [{"op":"add", "path":"/global/clusterHostname", "value":"{}"}]
 ```
 
