@@ -21,21 +21,6 @@ const (
 // Values stores values for modules or hooks by name.
 type Values map[string]interface{}
 
-//func (vl Values) Map() map[string]interface{} {
-//	res := map[string]interface{}{}
-//	for k, v := range vl {
-//		switch obj := v.(type) {
-//		case Values:
-//			res[k] = obj.Map()
-//		case *Values:
-//			res[k] = obj.Map()
-//		default:
-//			res[k] = v
-//		}
-//	}
-//	return res
-//}
-
 // ModuleNameToValuesKey returns camelCased name from kebab-cased (very-simple-module become verySimpleModule)
 func ModuleNameToValuesKey(moduleName string) string {
 	return camelcase.Camelcase(moduleName)
