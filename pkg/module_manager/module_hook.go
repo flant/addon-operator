@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/satori/go.uuid.v1"
 
@@ -13,6 +14,7 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
 )
 
@@ -164,16 +166,26 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	configValuesPatch, has := patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
-		preparedConfigValues := utils.MergeValues(
-			utils.Values{h.Module.ValuesKey(): map[string]interface{}{}},
-			h.moduleManager.kubeModulesConfigValues[moduleName],
-		)
+		configValues := h.Module.ConfigValues()
 
-		configValuesPatchResult, err := h.handleModuleValuesPatch(preparedConfigValues, *configValuesPatch)
+		// Apply patch to get intermediate updated values.
+		configValuesPatchResult, err := h.handleModuleValuesPatch(configValues, *configValuesPatch)
 		if err != nil {
 			return fmt.Errorf("module hook '%s': kube module config values update error: %s", h.Name, err)
 		}
+
 		if configValuesPatchResult.ValuesChanged {
+			log.Debugf("Module hook '%s': validate module config values before update", h.Name)
+			// Validate merged static and new values.
+			mergedValues := h.Module.StaticAndNewValues(configValuesPatchResult.Values)
+			validationErr := validation.ValidateModuleConfigValues(h.Module.ValuesKey(), mergedValues)
+			if validationErr != nil {
+				return multierror.Append(
+					fmt.Errorf("cannot apply config values patch for module values"),
+					validationErr,
+				)
+			}
+
 			err := h.moduleManager.kubeConfigManager.SetKubeModuleValues(moduleName, configValuesPatchResult.Values)
 			if err != nil {
 				log.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.Name, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
@@ -191,12 +203,27 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		if err != nil {
 			return fmt.Errorf("get module values before values patch: %s", err)
 		}
+
+		// Apply patch to get intermediate updated values.
 		valuesPatchResult, err := h.handleModuleValuesPatch(currentValues, *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("module hook '%s': dynamic module values update error: %s", h.Name, err)
 		}
 		if valuesPatchResult.ValuesChanged {
-			h.moduleManager.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(h.moduleManager.modulesDynamicValuesPatches[moduleName], valuesPatchResult.ValuesPatch)
+			log.Debugf("Module hook '%s': validate module values before update", h.Name)
+			// Validate schema for updated module values
+			validationErr := validation.ValidateModuleValues(h.Module.ValuesKey(), valuesPatchResult.Values)
+			if validationErr != nil {
+				return multierror.Append(
+					fmt.Errorf("cannot apply values patch for module values"),
+					validationErr,
+				)
+			}
+
+			// Save patch set if everything is ok.
+			h.moduleManager.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(
+				h.moduleManager.modulesDynamicValuesPatches[moduleName],
+				valuesPatchResult.ValuesPatch)
 			newValues, err := h.Module.Values()
 			if err != nil {
 				return fmt.Errorf("get module values after values patch: %s", err)

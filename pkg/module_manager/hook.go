@@ -11,6 +11,7 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
 	"github.com/flant/addon-operator/sdk/registry"
 	"github.com/flant/shell-operator/pkg/hook"
@@ -134,6 +135,10 @@ func SearchGlobalShellHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 		return nil, nil
 	}
 
+	hooksSubDir := filepath.Join(hooksDir, "hooks")
+	if _, err := os.Stat(hooksSubDir); !os.IsNotExist(err) {
+		hooksDir = hooksSubDir
+	}
 	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir)
 	if err != nil {
 		return nil, err
@@ -156,6 +161,8 @@ func SearchGlobalShellHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 		hooks = append(hooks, globalHook)
 	}
 
+	log.Infof("Registered %d global shell hooks from '%s'", len(hooks), hooksDir)
+
 	return
 }
 
@@ -173,6 +180,8 @@ func SearchGlobalGoHooks() (hooks []*GlobalHook, err error) {
 		globalHook.WithGoHook(h)
 		hooks = append(hooks, globalHook)
 	}
+
+	log.Infof("Registered %d global Go hooks", len(hooks))
 
 	return hooks, nil
 }
@@ -339,6 +348,25 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 				"hook":   globalHook.Name,
 				"module": "", // empty "module" label for label set consistency with module hooks
 			})
+	}
+
+	// Load validation schemas
+	openApiDir := filepath.Join(mm.GlobalHooksDir, "openapi")
+	configBytes, valuesBytes, err := ReadOpenAPISchemas(openApiDir)
+	if err != nil {
+		return fmt.Errorf("read global openAPI schemas: %v", err)
+	}
+	if configBytes != nil {
+		err = validation.AddGlobalValuesSchema("config", configBytes)
+		if err != nil {
+			return fmt.Errorf("parse global config openAPI: %v", err)
+		}
+	}
+	if valuesBytes != nil {
+		err = validation.AddGlobalValuesSchema("memory", valuesBytes)
+		if err != nil {
+			return fmt.Errorf("parse global values openAPI: %v", err)
+		}
 	}
 
 	return nil

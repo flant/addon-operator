@@ -136,7 +136,7 @@ func TillerHealthHandler() func(writer http.ResponseWriter, request *http.Reques
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if TillerProbeConnectAddress == "" {
 			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(fmt.Sprintf("Error request tiller: not started yet.")))
+			_, _ = writer.Write([]byte("Error request tiller: not started yet."))
 			return
 		}
 

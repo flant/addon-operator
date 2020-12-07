@@ -69,11 +69,13 @@ func Test_Logging(t *testing.T) {
 
 }
 
+//nolint:golint,unused
 func getTestDirectoryPath(testName string) string {
 	_, testFile, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(testFile), "testdata", testName)
 }
 
+//nolint:golint,unused
 func shouldDeleteRelease(helm client.HelmClient, releaseName string) (err error) {
 	err = helm.DeleteRelease(releaseName)
 	if err != nil {
@@ -90,6 +92,7 @@ func shouldDeleteRelease(helm client.HelmClient, releaseName string) (err error)
 	return nil
 }
 
+//nolint:golint,unused
 func releasesListShouldEqual(helm client.HelmClient, expectedList []string) (err error) {
 	releases, err := helm.ListReleasesNames(nil)
 	if err != nil {
@@ -107,6 +110,7 @@ func releasesListShouldEqual(helm client.HelmClient, expectedList []string) (err
 	return nil
 }
 
+//nolint:golint,unused
 func shouldUpgradeRelease(helm client.HelmClient, releaseName string, chart string, valuesPaths []string) (err error) {
 	err = helm.UpgradeRelease(releaseName, chart, []string{}, []string{}, app.Namespace)
 	if err != nil {

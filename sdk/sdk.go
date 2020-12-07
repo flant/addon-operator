@@ -315,14 +315,16 @@ func (c *CommonGoHook) Run(input *HookInput) (*HookOutput, error) {
 		if err != nil {
 			return nil, err
 		}
-		if bindingOut != nil && bindingOut.ConfigValuesPatches != nil {
-			out.ConfigValuesPatches.MergeOperations(bindingOut.ConfigValuesPatches)
-		}
-		if bindingOut != nil && bindingOut.MemoryValuesPatches != nil {
-			out.MemoryValuesPatches.MergeOperations(bindingOut.MemoryValuesPatches)
-		}
-		if bindingOut != nil && bindingOut.Metrics != nil {
-			out.Metrics = append(out.Metrics, bindingOut.Metrics...)
+		if bindingOut != nil {
+			if bindingOut.ConfigValuesPatches != nil {
+				out.ConfigValuesPatches.MergeOperations(bindingOut.ConfigValuesPatches)
+			}
+			if bindingOut.MemoryValuesPatches != nil {
+				out.MemoryValuesPatches.MergeOperations(bindingOut.MemoryValuesPatches)
+			}
+			if bindingOut.Metrics != nil {
+				out.Metrics = append(out.Metrics, bindingOut.Metrics...)
+			}
 		}
 	}
 

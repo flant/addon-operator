@@ -223,3 +223,60 @@ $ cat $VALUES_PATH
 Helm chart template
 ```replicas: {{ .Values.global.param1 }}```
 would generate the string `replicas: 200`. As you can see, the value "100" from the values.yaml is replaced by "200" from the ConfigMap/addon-operator.
+
+# Validation
+
+The addon-operator supports OpenAPI schemas for config values and values. These schemas should be stored in the `$GLOBAL_HOOKS_DIR/openapi` directory for global values and in the `$MODULES_DIR/<module-name>/openapi` directories for modules.
+
+`config-values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap.
+
+`values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap with applied values patches.
+
+Validation occurs on startup, on ConfigMap changes, and after hook executions.
+
+## Example
+
+```
+/global/openapi/config-values.yaml
+
+type: object
+additionalProperties: false
+required:
+  - project
+  - clusterName
+minProperties: 2
+properties:
+  project:
+    type: string
+  clusterName:
+    type: string
+  clusterHostname:
+    type: string
+  discovery:
+    type: object
+```
+
+This schema defines 2 required fields for 'global' values: `project` and `clusterName`. `clusterHostname` field is an optional string. `discovery` is an optional object with no restrictions on keys.
+
+Consider this `ConfigMap/addon-operator` content:
+
+```
+metadata:
+...
+data:
+  global: |
+    project: myProject
+  moduleOne: |
+    param1: value1
+...
+```
+
+This ConfigMap has invalid 'global' values, and the addon-operator stops with an error on startup.
+
+Consider valid `ConfigMap/addon-operator` and this config patch from global hook:
+
+```json
+[{"op":"add", "path":"/global/clusterHostname", "value":"{}"}]
+```
+
+This patch sets `clusterHostname` field in the 'global' section. It is not allowed because schema defines `clusterHostname` as a string. This situation is handled like a hook execution error, the hook stays in queue and restarts with exponential backoff (see [LIFECYCLE](LIFECYCLE.md#task-queues).
