@@ -4,7 +4,7 @@ The Addon-operator implements Prometheus target at `/metrics` endpoint. The defa
 
 * `addon_operator_binding_count{module="", hook=""}` — a gauge with bindings count for every hooks. Global hooks has empty "module" label.
 
-* `addon_operator_config_values_errors_total{}` — a counter of ConfigMap validation errors.
+* `addon_operator_config_values_errors_total{}` — a counter of ConfigMap validation errors after `kubectl edit`. See [validation](VALUES.md#validation).
 
 * `addon_operator_global_hook_run_seconds{hook="", binding="", activation="", queue=""}` — a histogram with hook execution times. "hook" label is a name of the hook, "binding" is a binding name from configuration, "queue" is a queue name where hook is queued and "activation" is an event that triggers hook execution.
 * `addon_operator_global_hook_run_errors_total{hook="", binding="", activation="", queue=""}` – this is the counter of hooks’ execution errors. It only tracks errors of hooks with the disabled `allowFailure` (i.e. respective key is omitted in the configuration or the `allowFailure: false` parameter is set). This metric has a "hook" label with the name of a failed hook.
