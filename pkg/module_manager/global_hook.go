@@ -187,11 +187,6 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				)
 			}
 
-			err = h.applyEnabledPatches(*configValuesPatch)
-			if err != nil {
-				return fmt.Errorf("apply enabled patches from global config patch: %v", err)
-			}
-
 			err := h.moduleManager.kubeConfigManager.SetKubeGlobalValues(configValuesPatchResult.Values)
 			if err != nil {
 				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
@@ -200,6 +195,11 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 
 			h.moduleManager.kubeGlobalConfigValues = configValuesPatchResult.Values
 			log.Debugf("Global hook '%s': kube config global values updated:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
+		}
+		// Apply patches for *Enabled keys.
+		err = h.applyEnabledPatches(*configValuesPatch)
+		if err != nil {
+			return fmt.Errorf("apply enabled patches from global config patch: %v", err)
 		}
 	}
 
@@ -228,11 +228,6 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				)
 			}
 
-			err = h.applyEnabledPatches(*valuesPatch)
-			if err != nil {
-				return fmt.Errorf("apply enabled patches from global values patch: %v", err)
-			}
-
 			h.moduleManager.globalDynamicValuesPatches = utils.AppendValuesPatch(
 				h.moduleManager.globalDynamicValuesPatches,
 				valuesPatchResult.ValuesPatch)
@@ -241,6 +236,11 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)
 			}
 			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, newGlobalValues.DebugString())
+		}
+		// Apply patches for *Enabled keys.
+		err = h.applyEnabledPatches(*valuesPatch)
+		if err != nil {
+			return fmt.Errorf("apply enabled patches from global values patch: %v", err)
 		}
 	}
 

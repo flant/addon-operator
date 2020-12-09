@@ -267,7 +267,7 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, err
 	return resValues, valuesChanged, nil
 }
 
-func ValidateHookValuesPatch(valuesPatch ValuesPatch, acceptableKey string) error {
+func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRoot string) error {
 	for _, op := range valuesPatch.Operations {
 		if op.Op == "replace" {
 			return fmt.Errorf("unsupported patch operation '%s': '%s'", op.Op, op.ToString())
@@ -276,16 +276,20 @@ func ValidateHookValuesPatch(valuesPatch ValuesPatch, acceptableKey string) erro
 		pathParts := strings.Split(op.Path, "/")
 		if len(pathParts) > 1 {
 			affectedKey := pathParts[1]
-			// patches for *Enabled keys are accepted from global hooks
-			if strings.HasSuffix(affectedKey, "Enabled") && acceptableKey == GlobalValuesKey {
+			// patches for permittedRoot are allowed
+			if affectedKey == permittedRoot {
 				continue
 			}
-			// patches for acceptableKey are allowed
-			if affectedKey == acceptableKey {
+			// patches for *Enabled keys are accepted from global hooks
+			if strings.HasSuffix(affectedKey, "Enabled") && permittedRoot == GlobalValuesKey {
 				continue
 			}
 			// all other patches are denied
-			return fmt.Errorf("unacceptable patch operation for path '%s' (only '%s' accepted): '%s'", affectedKey, acceptableKey, op.ToString())
+			permittedMessage := fmt.Sprintf("only '%s' accepted", permittedRoot)
+			if permittedRoot == GlobalValuesKey {
+				permittedMessage = fmt.Sprintf("only '%s' and '*Enabled' are permitted", permittedRoot)
+			}
+			return fmt.Errorf("unacceptable patch operation for path '%s' (%s): '%s'", affectedKey, permittedMessage, op.ToString())
 		}
 	}
 
