@@ -62,8 +62,8 @@ func Test_Config_GoHook(t *testing.T) {
 	bc := []BindingContext{}
 
 	e := NewHookExecutor(gh, bc, "v1")
-	p, m, err := e.Run()
+	res, err := e.Run()
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(p).ShouldNot(BeEmpty())
-	g.Expect(m).ShouldNot(BeEmpty())
+	g.Expect(res.Patches).ShouldNot(BeEmpty())
+	g.Expect(res.Metrics).ShouldNot(BeEmpty())
 }

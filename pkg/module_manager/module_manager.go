@@ -975,7 +975,15 @@ func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bin
 		bindingContext = moduleHook.HookController.UpdateSnapshots(bindingContext)
 	}
 
-	if err := moduleHook.Run(binding, bindingContext, logLabels); err != nil {
+	metricLabels := map[string]string{
+		"module":     moduleHook.Module.Name,
+		"hook":       moduleHook.Name,
+		"binding":    string(binding),
+		"queue":      logLabels["queue"],
+		"activation": logLabels["event.type"],
+	}
+
+	if err := moduleHook.Run(binding, bindingContext, logLabels, metricLabels); err != nil {
 		return err
 	}
 

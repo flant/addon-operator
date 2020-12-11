@@ -10,11 +10,17 @@ The Addon-operator implements Prometheus target at `/metrics` endpoint. The defa
 * `addon_operator_global_hook_run_errors_total{hook="", binding="", activation="", queue=""}` – this is the counter of hooks’ execution errors. It only tracks errors of hooks with the disabled `allowFailure` (i.e. respective key is omitted in the configuration or the `allowFailure: false` parameter is set). This metric has a "hook" label with the name of a failed hook.
 * `addon_operator_global_hook_run_allowed_errors_total{hook="", binding="", activation="", queue=""}` – this is the counter of hooks’ execution errors. It only tracks errors of hooks that are allowed to exit with an error (the parameter `allowFailure: true` is set in the configuration). The metric has a "hook" label with the name of a failed hook.
 * `addon_operator_global_hook_run_success_total{hook="", binding="", activation="", queue=""}` – this is the counter of hooks’ success execution. The metric has a "hook" label with the name of a succeeded hook.
+* `addon_operator_global_hook_run_sys_cpu_seconds{hook="", binding="", activation="", queue=""}` — a histogram with global hook system cpu seconds.
+* `addon_operator_global_hook_run_user_cpu_seconds{hook="", binding="", activation="", queue=""}` — a histogram with global hook user cpu seconds.
+* `addon_operator_global_hook_run_max_rss_bytes{hook="", binding="", activation="", queue=""}` — a gauge with global hook max rss usage in bytes.
 
 * `addon_operator_module_hook_run_seconds{module="", hook="", binding="", activation="", queue=""}` — a histogram with module hook execution times. "module" label is a name of the module, "hook" label is a name of the hook, "binding" is a binding name from configuration, "queue" is a queue name where hook is queued and "activation" is an event that triggers hook execution.
 * `addon_operator_module_hook_run_errors_total{module="", hook="", binding="", activation="", queue=""}` – this is the counter of hooks’ execution errors. It only tracks errors of hooks with the disabled `allowFailure` (i.e. respective key is omitted in the configuration or the `allowFailure: false` parameter is set). This metric has a "hook" label with the name of a failed hook.
 * `addon_operator_module_hook_run_allowed_errors_total{module="", hook="", binding="", activation="", queue=""}` – this is the counter of hooks’ execution errors. It only tracks errors of hooks that are allowed to exit with an error (the parameter `allowFailure: true` is set in the configuration). The metric has a "hook" label with the name of a failed hook.
 * `addon_operator_module_hook_run_success_total{module="", hook="", binding="", activation="", queue=""}` – this is the counter of hooks’ success execution. The metric has a "hook" label with the name of a succeeded hook.
+* `addon_operator_module_hook_run_sys_cpu_seconds{module="", hook="", binding="", activation="", queue=""}` — a histogram with module hook system cpu seconds.
+* `addon_operator_module_hook_run_user_cpu_seconds{module="", hook="", binding="", activation="", queue=""}` — a histogram with module hook user cpu seconds.
+* `addon_operator_module_hook_run_max_rss_bytes{module="", hook="", binding="", activation="", queue=""}` — a gauge with module hook max rss usage in bytes.
 
 * `addon_operator_module_discover_errors_total` – a counter of errors during the [modules discover](LIFECYCLE.md#modules-discover) process. It increases in these cases:
   * an 'enabled' script is executed with an error

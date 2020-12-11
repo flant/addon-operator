@@ -64,6 +64,15 @@ func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
 		"{PREFIX}module_hook_run_seconds",
 		moduleHookLabels,
 		buckets_1msTo10s)
+	metricStorage.RegisterHistogramWithBuckets(
+		"{PREFIX}module_hook_run_user_cpu_seconds",
+		moduleHookLabels,
+		buckets_1msTo10s)
+	metricStorage.RegisterHistogramWithBuckets(
+		"{PREFIX}module_hook_run_sys_cpu_seconds",
+		moduleHookLabels,
+		buckets_1msTo10s)
+	metricStorage.RegisterGauge("{PREFIX}module_hook_run_max_rss_bytes", moduleHookLabels)
 	metricStorage.RegisterCounter("{PREFIX}module_hook_allowed_errors_total", moduleHookLabels)
 	metricStorage.RegisterCounter("{PREFIX}module_hook_errors_total", moduleHookLabels)
 	metricStorage.RegisterCounter("{PREFIX}module_hook_success_total", moduleHookLabels)
@@ -79,6 +88,15 @@ func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
 		"{PREFIX}global_hook_run_seconds",
 		globalHookLabels,
 		buckets_1msTo10s)
+	metricStorage.RegisterHistogramWithBuckets(
+		"{PREFIX}global_hook_run_user_cpu_seconds",
+		globalHookLabels,
+		buckets_1msTo10s)
+	metricStorage.RegisterHistogramWithBuckets(
+		"{PREFIX}global_hook_run_sys_cpu_seconds",
+		globalHookLabels,
+		buckets_1msTo10s)
+	metricStorage.RegisterGauge("{PREFIX}global_hook_run_max_rss_bytes", globalHookLabels)
 	metricStorage.RegisterCounter("{PREFIX}global_hook_allowed_errors_total", globalHookLabels)
 	metricStorage.RegisterCounter("{PREFIX}global_hook_errors_total", globalHookLabels)
 	metricStorage.RegisterCounter("{PREFIX}global_hook_success_total", globalHookLabels)
