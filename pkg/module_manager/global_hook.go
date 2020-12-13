@@ -146,13 +146,25 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 
 	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version)
 	globalHookExecutor.WithLogLabels(logLabels)
-	patches, metrics, err := globalHookExecutor.Run()
+	hookResult, err := globalHookExecutor.Run()
+	if hookResult != nil && hookResult.Usage != nil {
+		metricLabels := map[string]string{
+			"hook":       h.Name,
+			"binding":    string(bindingType),
+			"queue":      logLabels["queue"],
+			"activation": logLabels["event.type"],
+		}
+		// usage metrics
+		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}global_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels)
+		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}global_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels)
+		h.moduleManager.metricStorage.GaugeSet("{PREFIX}global_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
+	}
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)
 	}
 
 	// Apply metric operations
-	err = h.moduleManager.hookMetricStorage.SendBatch(metrics, map[string]string{
+	err = h.moduleManager.hookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
 		"hook": h.Name,
 	})
 	if err != nil {
@@ -162,7 +174,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 	//h.moduleManager.ValuesLock.Lock()
 	//defer h.moduleManager.ValuesLock.Unlock()
 
-	configValuesPatch, has := patches[utils.ConfigMapPatch]
+	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
 		preparedConfigValues := utils.MergeValues(
 			utils.Values{"global": map[string]interface{}{}},
@@ -203,7 +215,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		}
 	}
 
-	valuesPatch, has := patches[utils.MemoryValuesPatch]
+	valuesPatch, has := hookResult.Patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
 		globalValues, err := h.moduleManager.GlobalValues()
 		if err != nil {

@@ -129,7 +129,7 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 	return result, nil
 }
 
-func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string) error {
+func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"hook":      h.Name,
 		"hook.type": "module",
@@ -144,7 +144,13 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	moduleHookExecutor := NewHookExecutor(h, context, h.Config.Version)
 	moduleHookExecutor.WithLogLabels(logLabels)
-	patches, metrics, err := moduleHookExecutor.Run()
+	hookResult, err := moduleHookExecutor.Run()
+	if hookResult != nil && hookResult.Usage != nil {
+		// usage metrics
+		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels)
+		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels)
+		h.moduleManager.metricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
+	}
 	if err != nil {
 		return fmt.Errorf("module hook '%s' failed: %s", h.Name, err)
 	}
@@ -152,7 +158,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	moduleName := h.Module.Name
 
 	// Apply metric operations
-	err = h.moduleManager.hookMetricStorage.SendBatch(metrics, map[string]string{
+	err = h.moduleManager.hookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
 		"hook":   h.Name,
 		"module": moduleName,
 	})
@@ -164,7 +170,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	// defer ValuesLock.UnLock()
 	//h.moduleManager.ValuesLock.Lock()
 
-	configValuesPatch, has := patches[utils.ConfigMapPatch]
+	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
 		configValues := h.Module.ConfigValues()
 
@@ -197,7 +203,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		}
 	}
 
-	valuesPatch, has := patches[utils.MemoryValuesPatch]
+	valuesPatch, has := hookResult.Patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
 		currentValues, err := h.Module.Values()
 		if err != nil {

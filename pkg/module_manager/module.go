@@ -459,7 +459,7 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 			"module":     m.Name,
 			"hook":       moduleHook.Name,
 			"binding":    string(binding),
-			"queue":      "main",
+			"queue":      "main", // AfterHelm,BeforeHelm hooks always handle in main queue
 			"activation": logLabels["event.type"],
 		}
 
@@ -468,7 +468,7 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 			defer measure.Duration(func(d time.Duration) {
 				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)
 			})()
-			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels)
+			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels, metricLabels)
 		}()
 		if err != nil {
 			return err
@@ -518,7 +518,7 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 			defer measure.Duration(func(d time.Duration) {
 				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)
 			})()
-			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels)
+			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels, metricLabels)
 		}()
 		if err != nil {
 			return false, err
@@ -833,7 +833,21 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 
 	cmd := executor.MakeCommand("", enabledScriptPath, []string{}, envs)
 
-	if err := executor.RunAndLogLines(cmd, logLabels); err != nil {
+	usage, err := executor.RunAndLogLines(cmd, logLabels)
+	if usage != nil {
+		// usage metrics
+		metricLabels := map[string]string{
+			"module":     m.Name,
+			"hook":       "enabled",
+			"binding":    "enabled",
+			"queue":      logLabels["queue"],
+			"activation": logLabels["event.type"],
+		}
+		m.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", usage.Sys.Seconds(), metricLabels)
+		m.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", usage.User.Seconds(), metricLabels)
+		m.moduleManager.metricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(usage.MaxRss)*1024, metricLabels)
+	}
+	if err != nil {
 		logEntry.Errorf("Fail to run enabled script '%s': %s", enabledScriptPath, err)
 		return false, err
 	}

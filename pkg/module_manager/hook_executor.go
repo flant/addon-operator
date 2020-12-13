@@ -43,22 +43,30 @@ func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
 	e.LogLabels = logLabels
 }
 
-func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, metrics []metric_operation.MetricOperation, err error) {
+type HookResult struct {
+	Usage   *executor.CmdUsage
+	Patches map[utils.ValuesPatchType]*utils.ValuesPatch
+	Metrics []metric_operation.MetricOperation
+}
+
+func (e *HookExecutor) Run() (result *HookResult, err error) {
 	if e.Hook.GetGoHook() != nil {
 		return e.RunGoHook()
 	}
 
-	patches = make(map[utils.ValuesPatchType]*utils.ValuesPatch)
+	result = &HookResult{
+		Patches: make(map[utils.ValuesPatchType]*utils.ValuesPatch),
+	}
 
 	versionedContextList := ConvertBindingContextList(e.ConfigVersion, e.Context)
 	bindingContextBytes, err := versionedContextList.Json()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	tmpFiles, err := e.Hook.PrepareTmpFilesForHookRun(bindingContextBytes)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// Remove tmp files after execution
 	defer func() {
@@ -86,30 +94,31 @@ func (e *HookExecutor) Run() (patches map[utils.ValuesPatchType]*utils.ValuesPat
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{}, envs)
 
-	err = executor.RunAndLogLines(cmd, e.LogLabels)
+	usage, err := executor.RunAndLogLines(cmd, e.LogLabels)
+	result.Usage = usage
 	if err != nil {
-		return nil, nil, err
+		return result, err
 	}
 
-	patches[utils.ConfigMapPatch], err = utils.ValuesPatchFromFile(e.ConfigValuesPatchPath)
+	result.Patches[utils.ConfigMapPatch], err = utils.ValuesPatchFromFile(e.ConfigValuesPatchPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("got bad json patch for config values: %s", err)
+		return result, fmt.Errorf("got bad json patch for config values: %s", err)
 	}
 
-	patches[utils.MemoryValuesPatch], err = utils.ValuesPatchFromFile(e.ValuesPatchPath)
+	result.Patches[utils.MemoryValuesPatch], err = utils.ValuesPatchFromFile(e.ValuesPatchPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("got bad json patch for values: %s", err)
+		return result, fmt.Errorf("got bad json patch for values: %s", err)
 	}
 
-	metrics, err = metric_operation.MetricOperationsFromFile(e.MetricsPath)
+	result.Metrics, err = metric_operation.MetricOperationsFromFile(e.MetricsPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("got bad metrics: %s", err)
+		return result, fmt.Errorf("got bad metrics: %s", err)
 	}
 
-	return patches, metrics, nil
+	return result, nil
 }
 
-func (e *HookExecutor) RunGoHook() (patches map[utils.ValuesPatchType]*utils.ValuesPatch, metrics []metric_operation.MetricOperation, err error) {
+func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 	goHook := e.Hook.GetGoHook()
 	if goHook == nil {
 		return
@@ -125,20 +134,23 @@ func (e *HookExecutor) RunGoHook() (patches map[utils.ValuesPatchType]*utils.Val
 	// Values are patched in-place, so an error can occur.
 	input.Values, err = e.Hook.GetValues()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	output, err := goHook.Run(input)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	patches = map[utils.ValuesPatchType]*utils.ValuesPatch{
-		utils.ConfigMapPatch:    output.ConfigValuesPatches,
-		utils.MemoryValuesPatch: output.MemoryValuesPatches,
+	result = &HookResult{
+		Patches: map[utils.ValuesPatchType]*utils.ValuesPatch{
+			utils.ConfigMapPatch:    output.ConfigValuesPatches,
+			utils.MemoryValuesPatch: output.MemoryValuesPatches,
+		},
+		Metrics: output.Metrics,
 	}
 
-	return patches, output.Metrics, output.Error
+	return result, output.Error
 }
 
 func (e *HookExecutor) Config() (configOutput []byte, err error) {
