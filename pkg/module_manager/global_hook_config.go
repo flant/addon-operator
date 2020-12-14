@@ -171,7 +171,7 @@ func (c *GlobalHookConfig) ConvertBeforeAll(value interface{}) (*BeforeAllConfig
 	}
 
 	res := &BeforeAllConfig{}
-	res.BindingName = ContextBindingType[BeforeAll]
+	res.BindingName = string(BeforeAll)
 	res.Order = *floatValue
 	return res, nil
 }
@@ -183,7 +183,7 @@ func (c *GlobalHookConfig) ConvertAfterAll(value interface{}) (*AfterAllConfig, 
 	}
 
 	res := &AfterAllConfig{}
-	res.BindingName = ContextBindingType[AfterAll]
+	res.BindingName = string(AfterAll)
 	res.Order = *floatValue
 	return res, nil
 }
@@ -238,13 +238,13 @@ func NewGlobalHookConfigFromGoConfig(input *sdk.HookConfig) *GlobalHookConfig {
 
 	if input.OnBeforeAll != nil {
 		cfg.BeforeAll = &BeforeAllConfig{}
-		cfg.BeforeAll.BindingName = ContextBindingType[BeforeAll]
+		cfg.BeforeAll.BindingName = string(BeforeAll)
 		cfg.BeforeAll.Order = input.OnBeforeAll.Order
 	}
 
 	if input.OnAfterAll != nil {
 		cfg.AfterAll = &AfterAllConfig{}
-		cfg.AfterAll.BindingName = ContextBindingType[AfterAll]
+		cfg.AfterAll.BindingName = string(AfterAll)
 		cfg.AfterAll.Order = input.OnAfterAll.Order
 	}
 
@@ -260,7 +260,7 @@ func NewHookConfigFromGoConfig(input *sdk.HookConfig) hook.HookConfig {
 
 	if input.OnStartup != nil {
 		c.OnStartup = &OnStartupConfig{}
-		c.OnStartup.BindingName = ContextBindingType[OnStartup]
+		c.OnStartup.BindingName = string(OnStartup)
 		c.OnStartup.Order = input.OnStartup.Order
 	}
 

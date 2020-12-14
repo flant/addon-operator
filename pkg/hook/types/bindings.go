@@ -13,12 +13,3 @@ const (
 	BeforeAll       BindingType = "beforeAll"
 	AfterAll        BindingType = "afterAll"
 )
-
-func init() {
-	// Add reverse index for additional binding types
-	ContextBindingType[BeforeHelm] = "beforeHelm"
-	ContextBindingType[AfterHelm] = "afterHelm"
-	ContextBindingType[AfterDeleteHelm] = "afterDeleteHelm"
-	ContextBindingType[BeforeAll] = "beforeAll"
-	ContextBindingType[AfterAll] = "afterAll"
-}

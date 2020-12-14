@@ -188,7 +188,7 @@ func (c *ModuleHookConfig) ConvertBeforeHelm(value interface{}) (*BeforeHelmConf
 	}
 
 	res := &BeforeHelmConfig{}
-	res.BindingName = ContextBindingType[BeforeHelm]
+	res.BindingName = string(BeforeHelm)
 	res.Order = *floatValue
 	return res, nil
 }
@@ -200,7 +200,7 @@ func (c *ModuleHookConfig) ConvertAfterHelm(value interface{}) (*AfterHelmConfig
 	}
 
 	res := &AfterHelmConfig{}
-	res.BindingName = ContextBindingType[AfterHelm]
+	res.BindingName = string(AfterHelm)
 	res.Order = *floatValue
 	return res, nil
 }
@@ -212,7 +212,7 @@ func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDele
 	}
 
 	res := &AfterDeleteHelmConfig{}
-	res.BindingName = ContextBindingType[AfterDeleteHelm]
+	res.BindingName = string(AfterDeleteHelm)
 	res.Order = *floatValue
 	return res, nil
 }
@@ -269,19 +269,19 @@ func NewModuleHookConfigFromGoConfig(input *sdk.HookConfig) *ModuleHookConfig {
 
 	if input.OnBeforeHelm != nil {
 		cfg.BeforeHelm = &BeforeHelmConfig{}
-		cfg.BeforeHelm.BindingName = ContextBindingType[BeforeHelm]
+		cfg.BeforeHelm.BindingName = string(BeforeHelm)
 		cfg.BeforeHelm.Order = input.OnBeforeHelm.Order
 	}
 
 	if input.OnAfterHelm != nil {
 		cfg.AfterHelm = &AfterHelmConfig{}
-		cfg.AfterHelm.BindingName = ContextBindingType[AfterHelm]
+		cfg.AfterHelm.BindingName = string(AfterHelm)
 		cfg.AfterHelm.Order = input.OnAfterHelm.Order
 	}
 
 	if input.OnAfterDeleteHelm != nil {
 		cfg.AfterDeleteHelm = &AfterDeleteHelmConfig{}
-		cfg.AfterDeleteHelm.BindingName = ContextBindingType[AfterDeleteHelm]
+		cfg.AfterDeleteHelm.BindingName = string(AfterDeleteHelm)
 		cfg.AfterDeleteHelm.Order = input.OnAfterDeleteHelm.Order
 	}
 
