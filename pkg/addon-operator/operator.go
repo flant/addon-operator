@@ -620,7 +620,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					logEntry := eventLogEntry.WithFields(utils.LabelsToLogFields(logLabels))
 					for _, moduleChange := range moduleEvent.ModulesChanges {
 						// Do not add ModuleRun task if it is already queued.
-						hasTask := QueueHasModuleRunTask(op.TaskQueues.GetMain(), moduleChange.Name)
+						hasTask := QueueHasPendingModuleRunTask(op.TaskQueues.GetMain(), moduleChange.Name)
 						if !hasTask {
 							logEntry.WithField("module", moduleChange.Name).Infof("module values are changed, queue ModuleRun task")
 							newLabels := utils.MergeLabels(logLabels)
@@ -688,7 +688,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				//eventLogEntry.Debugf("Got %d absent resources from module", len(absentResourcesEvent.Absent))
 
 				// Do not add ModuleRun task if it is already queued.
-				hasTask := QueueHasModuleRunTask(op.TaskQueues.GetMain(), absentResourcesEvent.ModuleName)
+				hasTask := QueueHasPendingModuleRunTask(op.TaskQueues.GetMain(), absentResourcesEvent.ModuleName)
 				if !hasTask {
 					newTask := sh_task.NewTask(task.ModuleRun).
 						WithLogLabels(logLabels).
@@ -2056,16 +2056,23 @@ func InitAndStart(operator *AddonOperator) error {
 	return nil
 }
 
-func QueueHasModuleRunTask(q *queue.TaskQueue, moduleName string) bool {
+// QueueHasPendingModuleRunTask returns true if queue has pending tasks
+// with the type "ModuleRun" related to the module "moduleName".
+func QueueHasPendingModuleRunTask(q *queue.TaskQueue, moduleName string) bool {
 	hasTask := false
-	q.Filter(func(t sh_task.Task) bool {
-		if t.GetType() == task.ModuleRun {
-			hm := task.HookMetadataAccessor(t)
-			if hm.ModuleName == moduleName {
-				hasTask = true
-			}
+	firstTask := true
+
+	q.Iterate(func(t sh_task.Task) {
+		// Skip the first task in the queue as it can be executed already, i.e. "not pending".
+		if firstTask {
+			firstTask = false
+			return
 		}
-		return true
+
+		if t.GetType() == task.ModuleRun && task.HookMetadataAccessor(t).ModuleName == moduleName {
+			hasTask = true
+		}
 	})
+
 	return hasTask
 }
