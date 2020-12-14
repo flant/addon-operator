@@ -446,7 +446,7 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
 
 		bc := BindingContext{
-			Binding: ContextBindingType[binding],
+			Binding: string(binding),
 		}
 		// Update kubernetes snapshots just before execute a hook
 		if binding == BeforeHelm || binding == AfterHelm || binding == AfterDeleteHelm {
@@ -496,7 +496,7 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
 
 		bc := BindingContext{
-			Binding: ContextBindingType[binding],
+			Binding: string(binding),
 		}
 		// Update kubernetes snapshots just before execute a hook
 		if binding == BeforeHelm || binding == AfterHelm || binding == AfterDeleteHelm {

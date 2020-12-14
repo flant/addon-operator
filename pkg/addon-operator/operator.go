@@ -197,7 +197,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 	op.ManagerEventsHandler.WithScheduleEventHandler(func(crontab string) []sh_task.Task {
 		logLabels := map[string]string{
 			"event.id": uuid.NewV4().String(),
-			"binding":  ContextBindingType[Schedule],
+			"binding":  string(Schedule),
 		}
 		logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 		logEntry.Debugf("Create tasks for 'schedule' event '%s'", crontab)
@@ -265,7 +265,7 @@ func (op *AddonOperator) DefineEventHandlers() {
 	op.ManagerEventsHandler.WithKubeEventHandler(func(kubeEvent types.KubeEvent) []sh_task.Task {
 		logLabels := map[string]string{
 			"event.id": uuid.NewV4().String(),
-			"binding":  ContextBindingType[OnKubernetesEvent],
+			"binding":  string(OnKubernetesEvent),
 		}
 		logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 		logEntry.Debugf("Create tasks for 'kubernetes' event '%s'", kubeEvent.String())
@@ -499,11 +499,11 @@ func (op *AddonOperator) CreateReloadAllTasks(onStartup bool, logLabels map[stri
 		// remove task.id — it is set by NewTask
 		delete(hookLogLabels, "task.id")
 
-		// bc := module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: module_manager.ContextBindingType[module_manager.BeforeAll]}}
+		// bc := module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: stringmodule_manager.BeforeAll)}}
 		// bc.KubernetesSnapshots := ModuleManager.GetGlobalHook(hookName).HookController.KubernetesSnapshots()
 
 		beforeAllBc := BindingContext{
-			Binding: ContextBindingType[BeforeAll],
+			Binding: string(BeforeAll),
 		}
 		beforeAllBc.Metadata.BindingType = BeforeAll
 		beforeAllBc.Metadata.IncludeAllSnapshots = true
@@ -1662,7 +1662,7 @@ func (op *AddonOperator) RunDiscoverModulesState(discoverTask sh_task.Task, logL
 		delete(hookLogLabels, "task.id")
 
 		afterAllBc := BindingContext{
-			Binding: ContextBindingType[AfterAll],
+			Binding: string(AfterAll),
 		}
 		afterAllBc.Metadata.BindingType = AfterAll
 		afterAllBc.Metadata.IncludeAllSnapshots = true
