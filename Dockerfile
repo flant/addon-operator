@@ -1,17 +1,11 @@
-# build libjq
-FROM alpine:3.12 AS libjq
-RUN apk --no-cache add git ca-certificates && \
-    git clone https://github.com/flant/libjq-go /libjq-go && \
-    cd /libjq-go && \
-    git submodule update --init --recursive && \
-    /libjq-go/scripts/install-libjq-dependencies-alpine.sh && \
-    /libjq-go/scripts/build-libjq-static.sh /libjq-go /libjq
+# Prebuilt libjq.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} flant/jq:b6be13d5-musl as libjq
 
+# Go builder.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.15-alpine3.12 AS builder
 
-# build addon-operator binary linked with libjq
-FROM golang:1.15-alpine3.12 AS addon-operator
 ARG appVersion=latest
-RUN apk --no-cache add git ca-certificates gcc libc-dev
+RUN apk --no-cache add git ca-certificates gcc musl-dev
 
 # Cache-friendly download of go dependencies.
 ADD go.mod go.sum /app/
@@ -22,22 +16,35 @@ COPY --from=libjq /libjq /libjq
 ADD . /app
 WORKDIR /app
 
-RUN git submodule update --init --recursive && ./go-build.sh $appVersion
-
+RUN git submodule update --init --recursive && \
+    shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
+    CGO_ENABLED=1 \
+    CGO_CFLAGS="-I/libjq/include" \
+    CGO_LDFLAGS="-L/libjq/lib" \
+    GOOS=linux \
+    go build -ldflags="-linkmode external -extldflags '-static' -s -w -X 'github.com/flant/shell-operator/pkg/app.Version=$shellOpVer' -X 'github.com/flant/addon-operator/pkg/app.Version=$appVersion'" \
+             -tags='release' \
+             -o addon-operator \
+             ./cmd/addon-operator
 
 # build final image
-FROM alpine:3.12
-RUN apk --no-cache add ca-certificates jq bash tini && \
-    wget https://storage.googleapis.com/kubernetes-release/release/v1.19.4/bin/linux/amd64/kubectl -O /bin/kubectl && \
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.12
+
+# kubectl url has no variant (v7)
+# helm url has dashes and no variant (v7)
+RUN apk --no-cache add ca-certificates jq bash sed tini && \
+    kubectlArch=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\/v7//') && \
+    wget https://storage.googleapis.com/kubernetes-release/release/v1.19.4/bin/${kubectlArch}/kubectl -O /bin/kubectl && \
     chmod +x /bin/kubectl && \
-    wget https://get.helm.sh/helm-v3.4.1-linux-amd64.tar.gz -O /helm.tgz && \
-    tar -z -x -C /bin -f /helm.tgz --strip-components=1 linux-amd64/helm && \
-    rm -f /helm.tgz && \
-    mkdir /hooks
-COPY --from=addon-operator /app/addon-operator /
-COPY --from=addon-operator /app/shell-operator/frameworks /
+    helmArch=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g;s/-v7//') && \
+    wget https://get.helm.sh/helm-v3.4.1-${helmArch}.tar.gz -O /helm.tgz && \
+    tar -z -x -C /bin -f /helm.tgz --strip-components=1 ${helmArch}/helm && \
+    rm -f /helm.tgz
+
+COPY --from=builder /app/addon-operator /
+COPY --from=builder /app/shell-operator/frameworks/shell/ /framework/shell/
 WORKDIR /
+
 ENV MODULES_DIR /modules
 ENV GLOBAL_HOOKS_DIR /global-hooks
 ENTRYPOINT ["/sbin/tini", "--", "/addon-operator"]
-
