@@ -23,15 +23,24 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.label.id == 1860105491 # not ':robot: full tests' label
     steps:
-      - uses: actions/github-script@0.3.0
+      - uses: actions/github-script@v3
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const eventLabelName = '${{github.event.label.name}}'
-            const response = await github.issues.listLabelsOnIssue({...context.issue})
+            const response = await github.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            })
             for (const label of response.data) {
               if (label.name === eventLabelName) {
-                github.issues.removeLabel({...context.issue, name: eventLabelName})
+                github.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  name: eventLabelName
+                })
                 break
               }
             }
@@ -40,17 +49,15 @@ jobs:
     name: Run unit tests
     if: github.event_name == 'push' && github.event.ref != 'refs/heads/master'
     runs-on: ubuntu-latest
-    env:
-      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
-      - name: Set up Go 1.12
-        uses: actions/setup-go@v1
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v2
         with:
-          go-version: 1.12
+          go-version: 1.15
         id: go
 
       - name: Check out addon-operator code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
 
       - name: Checkout submodules
         shell: bash
@@ -63,7 +70,7 @@ jobs:
       # As of June 2020, go_modules.tar.gz is ~389Mb
       - name: Cache go modules archive
         id: go-modules-cache
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.3
         with:
           path: gomod
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod') }}
@@ -84,47 +91,17 @@ jobs:
         run: |
           mkdir -p $HOME/go/pkg/mod && tar -xzf gomod/go_modules.tar.gz -C $HOME/go/pkg/mod
 
-      # Restore libjq-go-build directory from cache or build it, upload it as artifact for other jobs.
-      - name: Extract libjq-go.lock from shell-operator/go.mod
+      - name: Download prebuilt libjq static libraries
         run: |
-          grep 'flant/libjq-go' shell-operator/go.mod | tee libjq-go.lock
-
-      - name: Cache libjq libraries
-        id: libjq-cache
-        uses: actions/cache@v1
-        with:
-          path: libjq
-          key: ${{ runner.os }}-libjq-${{ hashFiles('libjq-go.lock') }}
-
-      - name: Build libjq libraries
-        if: steps.libjq-cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git ca-certificates tree
-
-          git clone https://github.com/flant/libjq-go libjq-go
-          cd libjq-go
-          git submodule update --init --recursive
-          sudo ./scripts/install-libjq-dependencies-ubuntu.sh
-
-          ./scripts/build-libjq-static.sh ${GITHUB_WORKSPACE}/libjq-go ${GITHUB_WORKSPACE}/libjq
-
-          tree  ${GITHUB_WORKSPACE}/libjq
-
-      - name: Prepare environment
-        run: |
-          echo ::set-env name=CGO_ENABLED::1
-
-          CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/include"
-          echo ::set-env name=CGO_CFLAGS::${CGO_CFLAGS}
-
-          CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/lib"
-          echo ::set-env name=CGO_LDFLAGS::${CGO_LDFLAGS}
-
-          echo ::set-env name=GOOS::linux
+          curl -sSfL https://github.com/flant/libjq-go/releases/download/jq-b6be13d5-0/libjq-glibc-amd64.tgz | tar zxf -
 
       - name: Run unit tests
         run: |
+          export CGO_ENABLED=1
+          export CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/include"
+          export CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/lib"
+          export GOOS=linux
+
           go test \
             -tags test \
             -v \
@@ -134,17 +111,15 @@ jobs:
     name: Download modules and build libjq
     if: (github.event_name == 'push' && github.event.ref == 'refs/heads/master') || (github.event_name == 'pull_request' && github.event.label.id == 1860105491) # push to master or set ':robot: full tests' label
     runs-on: ubuntu-latest
-    env:
-      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
-      - name: Set up Go 1.12
-        uses: actions/setup-go@v1
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v2
         with:
-          go-version: 1.12
+          go-version: 1.15
         id: go
 
       - name: Check out addon-operator code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
 
       - name: Checkout submodules
         shell: bash
@@ -157,7 +132,7 @@ jobs:
       # As of June 2020, go_modules.tar.gz is ~389Mb
       - name: Cache go modules archive
         id: go-modules-cache
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.3
         with:
           path: gomod
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod') }}
@@ -175,63 +150,28 @@ jobs:
         shell: bash
 
       - name: Upload Go modules artifact
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v2
         with:
           name: go_modules
           path: gomod/go_modules.tar.gz
-
-      # Restore libjq-go-build directory from cache or build it, upload it as artifact for other jobs.
-      - name: Extract libjq-go.lock from go.mod
-        run: |
-          grep 'flant/libjq-go' shell-operator/go.mod | tee libjq-go.lock
-
-      - name: Cache libjq libraries
-        id: libjq-cache
-        uses: actions/cache@v1
-        with:
-          path: libjq
-          key: ${{ runner.os }}-libjq-${{ hashFiles('libjq-go.lock') }}
-
-      - name: Build libjq libraries
-        if: steps.libjq-cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git ca-certificates tree
-
-          git clone https://github.com/flant/libjq-go libjq-go
-          cd libjq-go
-          git submodule update --init --recursive
-          sudo ./scripts/install-libjq-dependencies-ubuntu.sh
-
-          ./scripts/build-libjq-static.sh ${GITHUB_WORKSPACE}/libjq-go ${GITHUB_WORKSPACE}/libjq
-
-          tree  ${GITHUB_WORKSPACE}/libjq
-
-      - name: Upload libjq libraries
-        uses: actions/upload-artifact@master
-        with:
-          name: libjq
-          path: libjq
 
   unit_tests:
     name: Unit tests with coverage
     if: (github.event_name == 'push' && github.event.ref == 'refs/heads/master') || (github.event_name == 'pull_request' && github.event.label.id == 1860105491) # push to master or set ':robot: full tests' label
     needs: prepare_build_dependencies
     runs-on: ubuntu-latest
-    env:
-      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
       - name: Checkout code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
 
-      - name: Set up Go 1.12
-        uses: actions/setup-go@v1
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v2
         with:
-          go-version: 1.12
+          go-version: 1.15
         id: go
 
       - name: Download go modules artifact
-        uses: actions/download-artifact@master
+        uses: actions/download-artifact@v2
         with:
           name: go_modules
           path: .
@@ -240,32 +180,20 @@ jobs:
         run: mkdir -p $HOME/go/pkg/mod && tar -xzf go_modules.tar.gz -C $HOME/go/pkg/mod
         shell: bash
 
-      - name: Download libjq artifact
-        uses: actions/download-artifact@master
-        with:
-          name: libjq
-          path: libjq
-
-      - name: Prepare environment
+      - name: Download prebuilt libjq static libraries
         run: |
-          export COVERAGE_DIR=$GITHUB_WORKSPACE/coverage_reports/unit_tests/${{ matrix.os }}
-          mkdir -p $COVERAGE_DIR
-          echo ::set-env name=COVERAGE_DIR::$COVERAGE_DIR
-
-          echo ::set-env name=CGO_ENABLED::1
-
-          CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/include"
-          echo ::set-env name=CGO_CFLAGS::${CGO_CFLAGS}
-
-          CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/lib"
-          echo ::set-env name=CGO_LDFLAGS::${CGO_LDFLAGS}
-
-          echo ::set-env name=GOOS::linux
-
-        shell: bash
+          curl -sSfL https://github.com/flant/libjq-go/releases/download/jq-b6be13d5-0/libjq-glibc-amd64.tgz | tar zxf -
 
       - name: Run unit tests
         run: |
+          export COVERAGE_DIR=$GITHUB_WORKSPACE/coverage_reports/unit_tests/${{ matrix.os }}
+          mkdir -p $COVERAGE_DIR
+
+          export CGO_ENABLED=1
+          export CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/include"
+          export CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/lib"
+          export GOOS=linux
+
           go test \
             -tags test \
             -coverprofile=$COVERAGE_DIR/coverage.out  \
@@ -273,7 +201,7 @@ jobs:
             ./cmd/... ./pkg/...
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v2
         with:
           name: coverage_reports
           path: coverage_reports
@@ -374,7 +302,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
 
       - name: Checkout submodules
         shell: bash
@@ -382,7 +310,7 @@ jobs:
           git submodule update --init --depth=1
 
       - name: Download coverage artifact
-        uses: actions/download-artifact@master
+        uses: actions/download-artifact@v2
         with:
           name: coverage_reports
           path: coverage_reports
