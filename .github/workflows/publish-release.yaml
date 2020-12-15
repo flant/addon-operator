@@ -22,11 +22,13 @@ jobs:
       - name: Prepare environment
         run: |
           : Setup FINAL_IMAGE_NAME and APP_VERSION for image build
-          imageTag=${GITHUB_REF#refs/tags/}
-          APP_VERSION=${imageTag}
-          FINAL_IMAGE_NAME="${IMAGE_REPO}:${imageTag}"
+          gitTag=${GITHUB_REF#refs/tags/}
+          APP_VERSION=${gitTag}
+          FINAL_IMAGE_NAME="${IMAGE_REPO}:${gitTag}"
+
           echo "APP_VERSION=${APP_VERSION}" >> ${GITHUB_ENV}
           echo "FINAL_IMAGE_NAME=${FINAL_IMAGE_NAME}" >> ${GITHUB_ENV}
+
           echo "========================================="
           echo "APP_VERSION        = $APP_VERSION"
           echo "FINAL_IMAGE_NAME   = $FINAL_IMAGE_NAME"

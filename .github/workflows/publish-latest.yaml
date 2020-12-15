@@ -11,7 +11,7 @@ env:
 
 jobs:
   publish_release_images:
-    name: Release
+    name: Publish latest
     runs-on: [ubuntu-latest]
     steps:
       - name: Check branch
