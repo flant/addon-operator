@@ -10,6 +10,7 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube"
 	sh_task "github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
 
 	"github.com/flant/addon-operator/pkg/task"
 )
@@ -47,92 +48,70 @@ func Test_Operator_Startup(t *testing.T) {
 	head = op.TaskQueues.GetMain().RemoveFirst()
 	hm = task.HookMetadataAccessor(head)
 	g.Expect(hm.BindingType).To(Equal(OnStartup))
+}
 
-	//
-	//	MetricsStorage = metric_storage.Init()
-	//
-	//var globalHook1 = &module_manager.GlobalHook{
-	//	CommonHook: &module_manager.CommonHook{
-	//		Hook: hook2.Hook{
-	//			Name: "hook-global-1",
-	//		},
-	//	},
-	//	Config: &module_manager.GlobalHookConfig{
-	//		HookConfig: hook2.HookConfig{
-	//			OnStartup: &OnStartupConfig{
-	//				Order: 10,
-	//			},
-	//		},
-	//	},
-	//}
-	//
-	//var globalHook2 = &module_manager.GlobalHook{
-	//	CommonHook: &module_manager.CommonHook{
-	//		Hook: hook2.Hook{
-	//			Name: "hook-global-2",
-	//		},
-	//	},
-	//	Config: &module_manager.GlobalHookConfig{
-	//		HookConfig: hook2.HookConfig{
-	//			OnStartup: &OnStartupConfig{
-	//				Order: 10,
-	//			},
-	//		},
-	//	},
-	//}
-	//
-	//var globalHooksMock = map[string]*module_manager.GlobalHook{
-	//	"hook-global-1": globalHook1,
-	//	"hook-global-2": globalHook2,
-	//}
-	//
-	//var hookRun = struct {
-	//	hookGlobal1 bool
-	//	hookGlobal2 bool
-	//}{}
-	//
-	//// Mock ModuleManager
-	//moduleManager := module_manager.NewMainModuleManager()
-	//
-	////module_manager.ModuleManagerMockFns{
-	////	GetGlobalHooksInOrder: func(bindingType module_manager.BindingType) []string {
-	////		res := []string{}
-	////		for k := range globalHooksMock {
-	////			res = append(res, k)
-	////		}
-	////		return res
-	////	},
-	////	GetGlobalHook: func(name string) (hook *module_manager.GlobalHook, e error) {
-	////		return globalHooksMock[name], nil
-	////	},
-	////	RunGlobalHook: func(hookName string, binding module_manager.BindingType, bindingContext []module_manager.BindingContext) error {
-	////		switch hookName {
-	////		case "hook-global-1":
-	////			hookRun.hookGlobal1 = true
-	////		case "hook-global-2":
-	////			hookRun.hookGlobal2 = true
-	////		}
-	////		return nil
-	////	},
-	////})
-	//
-	//// Fill a queue with OnStartup global hooks
-	//TasksQueue = task.NewTasksQueue()
-	//TasksQueue.ChangesEnable(true)
-	//
-	//// Add StartupTasks
-	//CreateOnStartupTasks()
-	//
-	//expectedCount := len(ModuleManager.GetGlobalHooksInOrder(module_manager.OnStartup))
-	//assert.Equal(t, expectedCount, TasksQueue.Length(), "queue length is not equal to count of global 'OnStartup' hooks")
-	//
-	//// add stop task
-	//stopTask := task.NewTask(task.Stop, "stop runner")
-	//TasksQueue.Add(stopTask)
-	//
-	//TasksRunner()
-	//
-	//assert.True(t, hookRun.hookGlobal1)
-	//assert.True(t, hookRun.hookGlobal2)
-	//assert.Equalf(t, 0, TasksQueue.Length(), "%d tasks remain in queue after TasksRunner", TasksQueue.Length())
+func Test_Operator_QueueHasPendingModuleRunTask(t *testing.T) {
+	g := NewWithT(t)
+
+	tests := []struct {
+		name   string
+		result bool
+		queue  func() *queue.TaskQueue
+	}{
+		{
+			name:   "Normal",
+			result: true,
+			queue: func() *queue.TaskQueue {
+				q := queue.NewTasksQueue()
+
+				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "test"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
+				return q
+			}},
+		{
+			name:   "First task",
+			result: false,
+			queue: func() *queue.TaskQueue {
+				q := queue.NewTasksQueue()
+
+				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "test"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
+
+				Task = &sh_task.BaseTask{Type: task.GlobalHookRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+				return q
+			}},
+		{
+			name:   "No module run",
+			result: false,
+			queue: func() *queue.TaskQueue {
+				q := queue.NewTasksQueue()
+
+				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleHookRun, Id: "test"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+				return q
+			}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := QueueHasPendingModuleRunTask(tt.queue(), "test")
+			g.Expect(result).To(Equal(tt.result))
+		})
+	}
 }
