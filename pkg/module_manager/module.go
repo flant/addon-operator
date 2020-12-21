@@ -276,6 +276,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 	if err != nil {
 		return err
 	}
+	defer os.Remove(valuesPath)
 
 	helmClient := helm.NewClient(logLabels)
 

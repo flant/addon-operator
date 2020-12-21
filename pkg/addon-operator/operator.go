@@ -1829,6 +1829,7 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 			_, _ = writer.Write([]byte(err.Error()))
 			return
 		}
+		defer os.Remove(valuesPath)
 
 		helmCl := helm.NewClient()
 		output, err := helmCl.Render(m.Name, m.Path, []string{valuesPath}, nil, app.Namespace)
