@@ -35,7 +35,19 @@ var ModuleSchemasCache = map[string]map[SchemaType]*spec.Schema{}
 // GetGlobalValuesSchema returns ready-to-use schema for global values.
 // schemaType is "config" of "memory"
 func GetGlobalValuesSchema(schemaType SchemaType) *spec.Schema {
-	return GlobalSchemasCache[schemaType]
+	s, ok := GlobalSchemasCache[schemaType]
+	if !ok {
+		return nil
+	}
+
+	if schemaType == ConfigValuesSchema {
+		return s
+	}
+
+	// try to extend MemoryValuesSchema
+	parent := GetGlobalValuesSchema(ConfigValuesSchema)
+
+	return Extend(s, parent)
 }
 
 // GetModuleValuesSchema returns ready-to-use schema for module values.
@@ -45,7 +57,19 @@ func GetModuleValuesSchema(moduleName string, schemaType SchemaType) *spec.Schem
 		return nil
 	}
 
-	return ModuleSchemasCache[moduleName][schemaType]
+	s, ok := ModuleSchemasCache[moduleName][schemaType]
+	if !ok {
+		return nil
+	}
+
+	if schemaType == ConfigValuesSchema {
+		return s
+	}
+
+	// try to extend MemoryValuesSchema
+	parent := GetModuleValuesSchema(moduleName, ConfigValuesSchema)
+
+	return Extend(s, parent)
 }
 
 // schemaType is "config" of "memory"

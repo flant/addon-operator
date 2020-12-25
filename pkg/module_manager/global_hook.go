@@ -82,7 +82,7 @@ func (g *GlobalHook) Order(binding BindingType) float64 {
 	return 0.0
 }
 
-type globalValuesMergeResult struct {
+type globalValuesPatchResult struct {
 	// Global values with the root "global" key.
 	Values utils.Values
 	// Original values patch argument.
@@ -91,8 +91,8 @@ type globalValuesMergeResult struct {
 	ValuesChanged bool
 }
 
-// handleGlobalValuesPatch do simple checks of patches and apply them to current values
-func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesPatch utils.ValuesPatch) (*globalValuesMergeResult, error) {
+// handleGlobalValuesPatch do simple checks of patches and apply them to passed Values.
+func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesPatch utils.ValuesPatch) (*globalValuesPatchResult, error) {
 
 	if err := utils.ValidateHookValuesPatch(valuesPatch, utils.GlobalValuesKey); err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
@@ -110,7 +110,7 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}
 
-	result := &globalValuesMergeResult{
+	result := &globalValuesPatchResult{
 		Values:        utils.Values{utils.GlobalValuesKey: make(map[string]interface{})},
 		ValuesChanged: valuesChanged,
 		ValuesPatch:   globalValuesPatch,
