@@ -224,20 +224,21 @@ Helm chart template
 ```replicas: {{ .Values.global.param1 }}```
 would generate the string `replicas: 200`. As you can see, the value "100" from the values.yaml is replaced by "200" from the ConfigMap/addon-operator.
 
+
 # Validation
 
 The addon-operator supports OpenAPI schemas for config values and values. These schemas should be stored in the `$GLOBAL_HOOKS_DIR/openapi` directory for global values and in the `$MODULES_DIR/<module-name>/openapi` directories for modules.
 
-`config-values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap.
+`openapi/config-values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap.
 
-`values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap with applied values patches.
+`openapi/values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap with applied values patches.
 
 Validation occurs on startup, on ConfigMap changes, and after hook executions.
 
 ## Example
 
-```
-/global/openapi/config-values.yaml
+```yaml
+# /global/openapi/config-values.yaml
 
 type: object
 additionalProperties: false
@@ -260,7 +261,7 @@ This schema defines 2 required fields for 'global' values: `project` and `cluste
 
 Consider this `ConfigMap/addon-operator` content:
 
-```
+```yaml
 metadata:
 ...
 data:
@@ -280,3 +281,108 @@ Consider valid `ConfigMap/addon-operator` and this config patch from global hook
 ```
 
 This patch sets `clusterHostname` field in the 'global' section. It is not allowed because schema defines `clusterHostname` as a string. This situation is handled like a hook execution error, the hook stays in queue and restarts with exponential backoff (see [LIFECYCLE](LIFECYCLE.md#task-queues).
+
+## Extending
+
+Values are config values with applied patches, so schema in values.yaml should contain duplicates of properties from config-values.yaml schema. There is a technique with `allOf` to reduce duplicates: [1](https://github.com/json-schema-org/json-schema-spec/issues/348) [2](https://github.com/json-schema-org/json-schema-spec/issues/348), but it will not eliminate duplicates when `additionalProperties: false`. To overcome this problem, we implement custom property `x-extend` for values.yaml schema.
+
+If values.yaml schema contains `x-extend` field, shell-operator extends fields in values.yaml schema with fields from config-values.yaml schema:
+- definitions
+- required
+- properties
+- patternProperties
+- title
+- description
+
+Also, "x-*" properties copied from config-values.yaml schema.
+
+### Example
+
+Consider these OpenAPI schemas:
+
+```yaml
+# /global/openapi/config-values.yaml
+
+type: object
+additionalProperties: false
+required:
+  - project
+  - clusterName
+properties:
+  project:
+    type: string
+  clusterName:
+    type: string
+  clusterHostname:
+    type: string
+```
+
+```yaml
+# /global/openapi/values.yaml
+
+x-extend:
+  schema: config-values.yaml
+type: object
+additionalProperties: false
+required:
+  - discovery
+  - param1
+properties:
+  discovery:
+    type: object
+  param1:
+    type: string
+```
+
+The addon-operator will validate values with this effective schema:
+
+```yaml
+# effective schema for values
+
+type: object
+additionalProperties: false
+required:
+  - project
+  - clusterName
+  - discovery
+  - param1
+properties:
+  project:
+    type: string
+  clusterName:
+    type: string
+  clusterHostname:
+    type: string
+  discovery:
+    type: object
+  param1:
+    type: string
+```
+
+## Defaults
+
+The addon-operator respects `default` key in schemas and apply defaults when merge values.
+
+### Example
+
+Consider this schema for global values:
+
+```yaml
+# /global/openapi/values.yaml
+
+x-extend:
+  schema: config-values.yaml
+type: object
+additionalProperties: false
+required:
+  - param1
+properties:
+  discovery:
+    type: object
+    default:
+      {}
+  param1:
+    type: string
+```
+
+The addon-operator will add `discovery` with empty object to values if no `discovery` key is present in the ConfigMap, `modules/values.yaml` or in patches.

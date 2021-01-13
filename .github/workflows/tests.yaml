@@ -104,7 +104,6 @@ jobs:
 
           go test \
             -tags test \
-            -v \
             ./cmd/... ./pkg/...
 
   prepare_build_dependencies:

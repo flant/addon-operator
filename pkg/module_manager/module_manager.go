@@ -1017,20 +1017,22 @@ func (mm *moduleManager) GlobalConfigValues() utils.Values {
 // GlobalStaticAndConfigValues return global values defined in
 // various values.yaml files and in a ConfigMap
 func (mm *moduleManager) GlobalStaticAndConfigValues() utils.Values {
-	return utils.MergeValues(
+	return MergeLayers(
 		utils.Values{"global": map[string]interface{}{}},
 		mm.commonStaticValues.Global(),
 		mm.kubeGlobalConfigValues,
+		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
 	)
 }
 
 // GlobalStaticAndNewValues return global values defined in
 // various values.yaml files merged with newValues
 func (mm *moduleManager) GlobalStaticAndNewValues(newValues utils.Values) utils.Values {
-	return utils.MergeValues(
+	return MergeLayers(
 		utils.Values{"global": map[string]interface{}{}},
 		mm.commonStaticValues.Global(),
 		newValues,
+		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
 	)
 }
 
@@ -1038,10 +1040,13 @@ func (mm *moduleManager) GlobalStaticAndNewValues(newValues utils.Values) utils.
 func (mm *moduleManager) GlobalValues() (utils.Values, error) {
 	var err error
 
-	res := utils.MergeValues(
+	res := MergeLayers(
 		utils.Values{"global": map[string]interface{}{}},
 		mm.commonStaticValues.Global(),
+		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
 		mm.kubeGlobalConfigValues,
+		// Apply defaults before patches.
+		&ApplyDefaultsForGlobal{validation.MemoryValuesSchema},
 	)
 
 	// Invariant: do not store patches that does not apply
