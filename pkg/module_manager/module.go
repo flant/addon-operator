@@ -634,7 +634,9 @@ func (m *Module) generateHelmReleaseName() string {
 	return m.Name
 }
 
-// ConfigValues returns values only from ConfigMap: global section and module section
+// ConfigValues returns config values from ConfigMap:
+// - global section + default
+// - module section + default
 func (m *Module) ConfigValues() utils.Values {
 	return utils.MergeValues(
 		// global section
@@ -645,17 +647,22 @@ func (m *Module) ConfigValues() utils.Values {
 	)
 }
 
-// StaticAndConfigValues returns global values defined in
+// StaticAndConfigValues returns global common static values defined in
 // various values.yaml files and in a ConfigMap and module values
 // defined in various values.yaml files and in a ConfigMap.
 func (m *Module) StaticAndConfigValues() utils.Values {
-	return utils.MergeValues(
-		// global
+	return MergeLayers(
+		// global static and config values
 		m.moduleManager.GlobalStaticAndConfigValues(),
 		// module static + ConfigMap
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		m.CommonStaticConfig.Values,
 		m.StaticConfig.Values,
+		// Apply config values defaults before ConfigMap overrides.
+		&ApplyDefaultsForModule{
+			m.Name,
+			validation.ConfigValuesSchema,
+		},
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 	)
 }
@@ -664,26 +671,38 @@ func (m *Module) StaticAndConfigValues() utils.Values {
 // various values.yaml files and in a ConfigMap and module values
 // defined in various values.yaml files merged with newValues.
 func (m *Module) StaticAndNewValues(newValues utils.Values) utils.Values {
-	return utils.MergeValues(
-		// global
+	return MergeLayers(
+		// global static and config values
 		m.moduleManager.GlobalStaticAndConfigValues(),
 		// module static + ConfigMap
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		m.CommonStaticConfig.Values,
 		m.StaticConfig.Values,
+		// Apply config values defaults before overrides.
+		&ApplyDefaultsForModule{
+			m.Name,
+			validation.ConfigValuesSchema,
+		},
 		newValues,
 	)
 }
 
 // Values returns effective values for module hook or helm chart:
 //
-// global section: static + kube + patches from hooks
+// global section: static + config + defaults + patches from hooks
 //
-// module section: static + kube + patches from hooks
+// module section: static + config + defaults + patches from hooks
 func (m *Module) Values() (utils.Values, error) {
 	var err error
 
-	res := m.StaticAndConfigValues()
+	// Apply module values defaults before applying patches.
+	res := MergeLayers(
+		m.StaticAndConfigValues(),
+		&ApplyDefaultsForModule{
+			m.Name,
+			validation.MemoryValuesSchema,
+		},
+	)
 
 	for _, patches := range [][]utils.ValuesPatch{
 		m.moduleManager.globalDynamicValuesPatches,
@@ -699,11 +718,15 @@ func (m *Module) Values() (utils.Values, error) {
 		}
 	}
 
-	res = utils.MergeValues(res, utils.Values{
-		"global": map[string]interface{}{
-			"enabledModules": m.moduleManager.enabledModulesInOrder,
-		},
-	})
+	// Add enabledModules array.
+	res = MergeLayers(
+		res,
+		utils.Values{
+			"global": map[string]interface{}{
+				"enabledModules": m.moduleManager.enabledModulesInOrder,
+			}},
+	)
+
 	return res, nil
 }
 
@@ -714,11 +737,13 @@ func (m *Module) ValuesForEnabledScript(precedingEnabledModules []string) (utils
 	if err != nil {
 		return nil, err
 	}
-	res = utils.MergeValues(res, utils.Values{
-		"global": map[string]interface{}{
-			"enabledModules": precedingEnabledModules,
-		},
-	})
+	res = MergeLayers(
+		res,
+		utils.Values{
+			"global": map[string]interface{}{
+				"enabledModules": precedingEnabledModules,
+			}},
+	)
 	return res, nil
 }
 
