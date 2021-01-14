@@ -1020,8 +1020,9 @@ func (mm *moduleManager) GlobalStaticAndConfigValues() utils.Values {
 	return MergeLayers(
 		utils.Values{"global": map[string]interface{}{}},
 		mm.commonStaticValues.Global(),
-		mm.kubeGlobalConfigValues,
+		// Apply config values defaults before ConfigMap overrides.
 		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
+		mm.kubeGlobalConfigValues,
 	)
 }
 
@@ -1031,8 +1032,9 @@ func (mm *moduleManager) GlobalStaticAndNewValues(newValues utils.Values) utils.
 	return MergeLayers(
 		utils.Values{"global": map[string]interface{}{}},
 		mm.commonStaticValues.Global(),
-		newValues,
+		// Apply config values defaults before overrides.
 		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
+		newValues,
 	)
 }
 
@@ -1043,9 +1045,10 @@ func (mm *moduleManager) GlobalValues() (utils.Values, error) {
 	res := MergeLayers(
 		utils.Values{"global": map[string]interface{}{}},
 		mm.commonStaticValues.Global(),
+		// Apply config values defaults before ConfigMap overrides.
 		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
 		mm.kubeGlobalConfigValues,
-		// Apply defaults before patches.
+		// Apply dynamic values defaults before patches.
 		&ApplyDefaultsForGlobal{validation.MemoryValuesSchema},
 	)
 
