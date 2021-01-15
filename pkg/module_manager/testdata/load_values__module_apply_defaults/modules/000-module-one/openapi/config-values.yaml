@@ -1,0 +1,11 @@
+type: object
+additionalProperties: false
+properties:
+  logLevel:
+    type: string
+  nodeSelector:
+    type: object
+  tolerations:
+    type: array
+    items:
+      type: object

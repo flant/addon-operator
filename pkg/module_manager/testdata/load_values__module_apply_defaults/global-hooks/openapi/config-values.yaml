@@ -1,0 +1,15 @@
+type: object
+additionalProperties: false
+properties:
+  prometheus:
+    type: string
+  grafana:
+    type: string
+    default: "grafana"
+  init:
+    type: object
+    default: {}
+    properties:
+      azaza:
+        type: string
+        default: "qwe"

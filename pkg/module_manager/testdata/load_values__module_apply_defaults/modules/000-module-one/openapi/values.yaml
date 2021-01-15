@@ -1,0 +1,19 @@
+x-extend:
+  schema: config-values.yaml
+type: object
+additionalProperties: false
+properties:
+  internal:
+    type: object
+    default: {}
+    additionalProperties: false
+    required:
+    - param2
+    properties:
+      param1:
+        type: string
+        default: "unknown"
+      param2:
+        type: string
+      param3:
+        type: string

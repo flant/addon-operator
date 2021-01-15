@@ -14,20 +14,24 @@ func (a *ApplyDefaultsForGlobal) Transform(values utils.Values) utils.Values {
 	if s == nil {
 		return values
 	}
-	validation.ApplyDefaults(values, s)
+	if values.HasGlobal() {
+		validation.ApplyDefaults(values[utils.GlobalValuesKey], s)
+	}
 	return values
 }
 
 type ApplyDefaultsForModule struct {
-	ModuleName string
-	SchemaType validation.SchemaType
+	ModuleValuesKey string
+	SchemaType      validation.SchemaType
 }
 
 func (a *ApplyDefaultsForModule) Transform(values utils.Values) utils.Values {
-	s := validation.GetModuleValuesSchema(a.ModuleName, a.SchemaType)
+	s := validation.GetModuleValuesSchema(a.ModuleValuesKey, a.SchemaType)
 	if s == nil {
 		return values
 	}
-	validation.ApplyDefaults(values, s)
+	if values.HasKey(a.ModuleValuesKey) {
+		validation.ApplyDefaults(values[a.ModuleValuesKey], s)
+	}
 	return values
 }
