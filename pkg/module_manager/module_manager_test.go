@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/go-openapi/spec"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
@@ -22,6 +23,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/shell-operator/pkg/kube"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
@@ -38,6 +40,10 @@ func initModuleManager(t *testing.T, mm *moduleManager, configPath string) {
 	}
 
 	mm.WithDirectories(filepath.Join(rootDir, "modules"), filepath.Join(rootDir, "global-hooks"), tempDir)
+
+	// FIXME store validation caches in struct.
+	validation.GlobalSchemasCache = map[validation.SchemaType]*spec.Schema{}
+	validation.ModuleSchemasCache = map[string]map[validation.SchemaType]*spec.Schema{}
 
 	if err := mm.RegisterModules(); err != nil {
 		t.Fatal(err)
@@ -220,9 +226,7 @@ func Test_MainModuleManager_LoadValuesInInit(t *testing.T) {
 }
 
 func Test_MainModuleManager_LoadValues_ApplyDefaults(t *testing.T) {
-	var mm *moduleManager
-
-	mm = NewMainModuleManager()
+	mm := NewMainModuleManager()
 
 	initModuleManager(t, mm, "load_values__module_apply_defaults")
 
