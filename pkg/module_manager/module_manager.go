@@ -1006,13 +1006,11 @@ func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bin
 	return nil
 }
 
-// GlobalConfigValues return global values only from a ConfigMap.
+// GlobalConfigValues return raw global values only from a ConfigMap.
 func (mm *moduleManager) GlobalConfigValues() utils.Values {
 	return MergeLayers(
 		// Init global section.
 		utils.Values{"global": map[string]interface{}{}},
-		// Apply config values defaults before ConfigMap overrides.
-		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
 		// Merge overrides from ConfigMap.
 		mm.kubeGlobalConfigValues,
 	)

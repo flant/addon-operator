@@ -233,7 +233,7 @@ The addon-operator supports OpenAPI schemas for config values and values. These 
 
 `openapi/values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap with applied values patches.
 
-Validation occurs on startup, on ConfigMap changes, and after hook executions.
+Validation occurs on startup, on ConfigMap changes, and after hook executions. If validation fails after hook execution, hook is restarted. If validation fails on startup, the addon-operator stops. If validation fails on ConfigMap changes, error is logged and no new tasks are queued.
 
 ## Example
 

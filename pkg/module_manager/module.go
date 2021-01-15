@@ -634,20 +634,15 @@ func (m *Module) generateHelmReleaseName() string {
 	return m.Name
 }
 
-// ConfigValues returns config values from ConfigMap:
-// - global section + default
-// - module section + default
+// ConfigValues returns raw values from ConfigMap:
+// - global section
+// - module section
 func (m *Module) ConfigValues() utils.Values {
 	return MergeLayers(
 		// Global values from ConfigMap with defaults from schema.
 		m.moduleManager.GlobalConfigValues(),
 		// Init module section.
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
-		// Apply config values defaults before ConfigMap overrides.
-		&ApplyDefaultsForModule{
-			m.ValuesKey(),
-			validation.ConfigValuesSchema,
-		},
 		// Merge overrides from ConfigMap.
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 	)
