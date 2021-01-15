@@ -555,7 +555,7 @@ func (m *Module) prepareConfigValuesJsonFile() (string, error) {
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s config values:\n%s", m.Name, m.ConfigValues().DebugString())
+	log.Debugf("Prepared module %s hook config values:\n%s", m.Name, m.ConfigValues().DebugString())
 
 	return path, nil
 }
@@ -578,7 +578,7 @@ func (m *Module) PrepareValuesYamlFile() (string, error) {
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s values:\n%s", m.Name, values.DebugString())
+	log.Debugf("Prepared module %s helm values:\n%s", m.Name, values.DebugString())
 
 	return path, nil
 }
@@ -596,7 +596,7 @@ func (m *Module) prepareValuesJsonFileWith(values utils.Values) (string, error) 
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s values:\n%s", m.Name, values.DebugString())
+	log.Debugf("Prepared module %s hook values:\n%s", m.Name, values.DebugString())
 
 	return path, nil
 }
@@ -638,11 +638,17 @@ func (m *Module) generateHelmReleaseName() string {
 // - global section + default
 // - module section + default
 func (m *Module) ConfigValues() utils.Values {
-	return utils.MergeValues(
-		// global section
+	return MergeLayers(
+		// Global values from ConfigMap with defaults from schema.
 		m.moduleManager.GlobalConfigValues(),
-		// module section
+		// Init module section.
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
+		// Apply config values defaults before ConfigMap overrides.
+		&ApplyDefaultsForModule{
+			m.ValuesKey(),
+			validation.ConfigValuesSchema,
+		},
+		// Merge overrides from ConfigMap.
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 	)
 }
@@ -652,17 +658,19 @@ func (m *Module) ConfigValues() utils.Values {
 // defined in various values.yaml files and in a ConfigMap.
 func (m *Module) StaticAndConfigValues() utils.Values {
 	return MergeLayers(
-		// global static and config values
+		// Global values from values.yaml and ConfigMap with defaults from schema.
 		m.moduleManager.GlobalStaticAndConfigValues(),
-		// module static + ConfigMap
+		// Init module section.
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
+		// Merge static values from various values.yaml files.
 		m.CommonStaticConfig.Values,
 		m.StaticConfig.Values,
 		// Apply config values defaults before ConfigMap overrides.
 		&ApplyDefaultsForModule{
-			m.Name,
+			m.ValuesKey(),
 			validation.ConfigValuesSchema,
 		},
+		// Merge overrides from ConfigMap.
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 	)
 }
@@ -672,17 +680,19 @@ func (m *Module) StaticAndConfigValues() utils.Values {
 // defined in various values.yaml files merged with newValues.
 func (m *Module) StaticAndNewValues(newValues utils.Values) utils.Values {
 	return MergeLayers(
-		// global static and config values
+		// Global values from values.yaml and ConfigMap with defaults from schema.
 		m.moduleManager.GlobalStaticAndConfigValues(),
-		// module static + ConfigMap
+		// Init module section.
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
+		// Merge static values from various values.yaml files.
 		m.CommonStaticConfig.Values,
 		m.StaticConfig.Values,
 		// Apply config values defaults before overrides.
 		&ApplyDefaultsForModule{
-			m.Name,
+			m.ValuesKey(),
 			validation.ConfigValuesSchema,
 		},
+		// Merge overrides from newValues.
 		newValues,
 	)
 }
@@ -695,36 +705,49 @@ func (m *Module) StaticAndNewValues(newValues utils.Values) utils.Values {
 func (m *Module) Values() (utils.Values, error) {
 	var err error
 
-	// Apply module values defaults before applying patches.
+	globalValues, err := m.moduleManager.GlobalValues()
+	if err != nil {
+		return nil, fmt.Errorf("construct module values: %s", err)
+	}
+
+	// Apply global and module values defaults before applying patches.
 	res := MergeLayers(
-		m.StaticAndConfigValues(),
+		// Global values with patches and defaults.
+		globalValues,
+		// Init module section.
+		utils.Values{m.ValuesKey(): map[string]interface{}{}},
+		// Merge static values from various values.yaml files.
+		m.CommonStaticConfig.Values,
+		m.StaticConfig.Values,
+		// Apply config values defaults before ConfigMap overrides.
 		&ApplyDefaultsForModule{
-			m.Name,
+			m.ValuesKey(),
+			validation.ConfigValuesSchema,
+		},
+		// Merge overrides from ConfigMap.
+		m.moduleManager.kubeModulesConfigValues[m.Name],
+		// Apply dynamic values defaults before patches.
+		&ApplyDefaultsForModule{
+			m.ValuesKey(),
 			validation.MemoryValuesSchema,
 		},
 	)
 
-	for _, patches := range [][]utils.ValuesPatch{
-		m.moduleManager.globalDynamicValuesPatches,
-		m.moduleManager.modulesDynamicValuesPatches[m.Name],
-	} {
-		for _, patch := range patches {
-			// Invariant: do not store patches that does not apply
-			// Give user error for patches early, after patch receive
-			res, _, err = utils.ApplyValuesPatch(res, patch)
-			if err != nil {
-				return nil, fmt.Errorf("construct values, apply patch error: %s", err)
-			}
+	for _, patch := range m.moduleManager.modulesDynamicValuesPatches[m.Name] {
+		// Invariant: do not store patches that does not apply
+		// Give user error for patches early, after patch receive
+		res, _, err = utils.ApplyValuesPatch(res, patch)
+		if err != nil {
+			return nil, fmt.Errorf("construct module values: apply module patch error: %s", err)
 		}
 	}
 
 	// Add enabledModules array.
 	res = MergeLayers(
 		res,
-		utils.Values{
-			"global": map[string]interface{}{
-				"enabledModules": m.moduleManager.enabledModulesInOrder,
-			}},
+		utils.Values{"global": map[string]interface{}{
+			"enabledModules": m.moduleManager.enabledModulesInOrder,
+		}},
 	)
 
 	return res, nil
@@ -747,6 +770,7 @@ func (m *Module) ValuesForEnabledScript(precedingEnabledModules []string) (utils
 	return res, nil
 }
 
+// TODO Transform to a field.
 func (m *Module) ValuesKey() string {
 	return utils.ModuleNameToValuesKey(m.Name)
 }

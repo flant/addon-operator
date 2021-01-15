@@ -1,0 +1,8 @@
+x-extend:
+  schema: config-values.yaml
+type: object
+additionalProperties: false
+properties:
+  discovery:
+    type: object
+    default: {}

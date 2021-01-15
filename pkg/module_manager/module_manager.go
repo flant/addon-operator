@@ -1008,8 +1008,12 @@ func (mm *moduleManager) RunModuleHook(hookName string, binding BindingType, bin
 
 // GlobalConfigValues return global values only from a ConfigMap.
 func (mm *moduleManager) GlobalConfigValues() utils.Values {
-	return utils.MergeValues(
+	return MergeLayers(
+		// Init global section.
 		utils.Values{"global": map[string]interface{}{}},
+		// Apply config values defaults before ConfigMap overrides.
+		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
+		// Merge overrides from ConfigMap.
 		mm.kubeGlobalConfigValues,
 	)
 }
@@ -1018,10 +1022,13 @@ func (mm *moduleManager) GlobalConfigValues() utils.Values {
 // various values.yaml files and in a ConfigMap
 func (mm *moduleManager) GlobalStaticAndConfigValues() utils.Values {
 	return MergeLayers(
+		// Init global section.
 		utils.Values{"global": map[string]interface{}{}},
+		// Merge static values from modules/values.yaml.
 		mm.commonStaticValues.Global(),
 		// Apply config values defaults before ConfigMap overrides.
 		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
+		// Merge overrides from ConfigMap.
 		mm.kubeGlobalConfigValues,
 	)
 }
@@ -1030,10 +1037,13 @@ func (mm *moduleManager) GlobalStaticAndConfigValues() utils.Values {
 // various values.yaml files merged with newValues
 func (mm *moduleManager) GlobalStaticAndNewValues(newValues utils.Values) utils.Values {
 	return MergeLayers(
+		// Init global section.
 		utils.Values{"global": map[string]interface{}{}},
+		// Merge static values from modules/values.yaml.
 		mm.commonStaticValues.Global(),
 		// Apply config values defaults before overrides.
 		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
+		// Merge overrides from newValues.
 		newValues,
 	)
 }
@@ -1043,10 +1053,13 @@ func (mm *moduleManager) GlobalValues() (utils.Values, error) {
 	var err error
 
 	res := MergeLayers(
+		// Init global section.
 		utils.Values{"global": map[string]interface{}{}},
+		// Merge static values from modules/values.yaml.
 		mm.commonStaticValues.Global(),
 		// Apply config values defaults before ConfigMap overrides.
 		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
+		// Merge overrides from ConfigMap.
 		mm.kubeGlobalConfigValues,
 		// Apply dynamic values defaults before patches.
 		&ApplyDefaultsForGlobal{validation.MemoryValuesSchema},
@@ -1057,7 +1070,7 @@ func (mm *moduleManager) GlobalValues() (utils.Values, error) {
 	for _, patch := range mm.globalDynamicValuesPatches {
 		res, _, err = utils.ApplyValuesPatch(res, patch)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("apply global patch error: %s", err)
 		}
 	}
 

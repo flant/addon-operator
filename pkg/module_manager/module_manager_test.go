@@ -10,6 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
@@ -23,7 +24,6 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/kube"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
-	"k8s.io/api/core/v1"
 )
 
 // initModuleManager is a test version of an Init method
@@ -217,6 +217,60 @@ func Test_MainModuleManager_LoadValuesInInit(t *testing.T) {
 		})
 	}
 
+}
+
+func Test_MainModuleManager_LoadValues_ApplyDefaults(t *testing.T) {
+	var mm *moduleManager
+
+	mm = NewMainModuleManager()
+
+	initModuleManager(t, mm, "load_values__module_apply_defaults")
+
+	//assert.Len(t, mm.commonStaticValues, 1)
+	//assert.Len(t, mm.commonStaticValues.Global(), 1)
+	assert.Len(t, mm.allModulesByName, 1)
+
+	assert.Contains(t, mm.allModulesByName, "module-one")
+
+	modOne := mm.allModulesByName["module-one"]
+	assert.NotNil(t, modOne.CommonStaticConfig)
+	assert.NotNil(t, modOne.StaticConfig)
+	assert.Equal(t, "module-one", modOne.CommonStaticConfig.ModuleName)
+	assert.Equal(t, "module-one", modOne.StaticConfig.ModuleName)
+	assert.Equal(t, "moduleOne", modOne.CommonStaticConfig.ModuleConfigKey)
+	assert.Equal(t, "moduleOneEnabled", modOne.CommonStaticConfig.ModuleEnabledKey)
+
+	// module-one is not enabled in any of values.yaml
+	assert.Nil(t, modOne.CommonStaticConfig.IsEnabled)
+	assert.Nil(t, modOne.StaticConfig.IsEnabled)
+
+	assert.Contains(t, mm.kubeModulesConfigValues, "module-one")
+
+	vals, err := modOne.Values()
+	assert.Nil(t, err)
+
+	assert.Contains(t, vals, modOne.ValuesKey())
+	modVals := vals[modOne.ValuesKey()].(map[string]interface{})
+	assert.Contains(t, modVals, "internal")
+	internalVals := modVals["internal"].(map[string]interface{})
+	assert.Contains(t, internalVals, "param1")
+	unk := internalVals["param1"].(string)
+	assert.Equal(t, "unknown", unk)
+
+	// Also check global defaults
+	assert.Contains(t, vals, utils.GlobalValuesKey)
+	globVals := vals[utils.GlobalValuesKey].(map[string]interface{})
+	assert.Contains(t, globVals, "grafana")
+	graf := globVals["grafana"].(string)
+	assert.Equal(t, "grafana", graf)
+
+	// 'azaza' field from modules/values.yaml.
+	assert.Contains(t, globVals, "init")
+	initVals := globVals["init"].(map[string]interface{})
+	assert.Contains(t, initVals, "azaza")
+
+	// 'discovery' field default from values.yaml schema.
+	assert.Contains(t, globVals, "discovery")
 }
 
 func Test_MainModuleManager_Get_Module(t *testing.T) {
