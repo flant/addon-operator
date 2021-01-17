@@ -12,29 +12,43 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-func ValidateGlobalConfigValues(values utils.Values) error {
-	return ValidateValues(GlobalSchema, ConfigValuesSchema, "", values)
+type ValuesValidator struct {
+	SchemaStorage *SchemaStorage
 }
 
-func ValidateGlobalValues(values utils.Values) error {
-	return ValidateValues(GlobalSchema, MemoryValuesSchema, "", values)
+func NewValuesValidator() *ValuesValidator {
+	return &ValuesValidator{
+		SchemaStorage: NewSchemaStorage(),
+	}
 }
 
-func ValidateModuleConfigValues(moduleName string, values utils.Values) error {
-	return ValidateValues(ModuleSchema, ConfigValuesSchema, moduleName, values)
+func (v *ValuesValidator) ValidateGlobalConfigValues(values utils.Values) error {
+	return v.ValidateValues(GlobalSchema, ConfigValuesSchema, "", values)
 }
 
-func ValidateModuleValues(moduleName string, values utils.Values) (multiErr error) {
-	return ValidateValues(ModuleSchema, MemoryValuesSchema, moduleName, values)
+func (v *ValuesValidator) ValidateGlobalValues(values utils.Values) error {
+	return v.ValidateValues(GlobalSchema, ValuesSchema, "", values)
 }
 
-func ValidateValues(schemaType SchemaType, valuesType SchemaType, moduleName string, values utils.Values) error {
+func (v *ValuesValidator) ValidateModuleConfigValues(moduleName string, values utils.Values) error {
+	return v.ValidateValues(ModuleSchema, ConfigValuesSchema, moduleName, values)
+}
+
+func (v *ValuesValidator) ValidateModuleValues(moduleName string, values utils.Values) (multiErr error) {
+	return v.ValidateValues(ModuleSchema, ValuesSchema, moduleName, values)
+}
+
+func (v *ValuesValidator) ValidateModuleHelmValues(moduleName string, values utils.Values) (multiErr error) {
+	return v.ValidateValues(ModuleSchema, HelmValuesSchema, moduleName, values)
+}
+
+func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType SchemaType, moduleName string, values utils.Values) error {
 	var s *spec.Schema
 	var obj interface{}
 	var ok bool
 	var rootName string
 	if schemaType == "global" {
-		s = GetGlobalValuesSchema(valuesType)
+		s = v.SchemaStorage.GlobalValuesSchema(valuesType)
 		if s == nil {
 			log.Debugf("schema for %s '%s' values is not found", schemaType, valuesType)
 			return nil
@@ -45,7 +59,7 @@ func ValidateValues(schemaType SchemaType, valuesType SchemaType, moduleName str
 		}
 		rootName = utils.GlobalValuesKey
 	} else {
-		s = GetModuleValuesSchema(moduleName, valuesType)
+		s = v.SchemaStorage.ModuleValuesSchema(moduleName, valuesType)
 		if s == nil {
 			log.Debugf("module '%s': schema for '%s' values is not found", moduleName, valuesType)
 			return nil

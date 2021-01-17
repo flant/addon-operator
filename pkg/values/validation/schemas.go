@@ -6,6 +6,8 @@ import (
 
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/swag"
+
+	"github.com/flant/addon-operator/pkg/values/validation/schema"
 )
 
 /**
@@ -26,77 +28,63 @@ const (
 	GlobalSchema       SchemaType = "global"
 	ModuleSchema       SchemaType = "module"
 	ConfigValuesSchema SchemaType = "config"
-	MemoryValuesSchema SchemaType = "memory"
+	ValuesSchema       SchemaType = "values"
+	HelmValuesSchema   SchemaType = "helm"
 )
 
-var GlobalSchemasCache = map[SchemaType]*spec.Schema{}
-var ModuleSchemasCache = map[string]map[SchemaType]*spec.Schema{}
+type SchemaStorage struct {
+	GlobalSchemas map[SchemaType]*spec.Schema
+	ModuleSchemas map[string]map[SchemaType]*spec.Schema
+}
+
+func NewSchemaStorage() *SchemaStorage {
+	return &SchemaStorage{
+		GlobalSchemas: map[SchemaType]*spec.Schema{},
+		ModuleSchemas: map[string]map[SchemaType]*spec.Schema{},
+	}
+}
 
 // GetGlobalValuesSchema returns ready-to-use schema for global values.
-// schemaType is "config" of "memory"
-func GetGlobalValuesSchema(schemaType SchemaType) *spec.Schema {
-	s, ok := GlobalSchemasCache[schemaType]
-	if !ok {
-		return nil
-	}
-
-	if schemaType == ConfigValuesSchema {
-		return s
-	}
-
-	// try to extend MemoryValuesSchema
-	parent := GetGlobalValuesSchema(ConfigValuesSchema)
-
-	return Extend(s, parent)
+// schemaType is "config", "values" or "helm"
+func (st *SchemaStorage) GlobalValuesSchema(schemaType SchemaType) *spec.Schema {
+	return st.GlobalSchemas[schemaType]
 }
 
 // GetModuleValuesSchema returns ready-to-use schema for module values.
-// schemaType is "config" of "memory"
-func GetModuleValuesSchema(moduleName string, schemaType SchemaType) *spec.Schema {
-	if _, ok := ModuleSchemasCache[moduleName]; !ok {
+// schemaType is "config" of "values"
+func (st *SchemaStorage) ModuleValuesSchema(moduleName string, schemaType SchemaType) *spec.Schema {
+	if _, ok := st.ModuleSchemas[moduleName]; !ok {
 		return nil
 	}
-
-	s, ok := ModuleSchemasCache[moduleName][schemaType]
-	if !ok {
-		return nil
-	}
-
-	if schemaType == ConfigValuesSchema {
-		return s
-	}
-
-	// try to extend MemoryValuesSchema
-	parent := GetModuleValuesSchema(moduleName, ConfigValuesSchema)
-
-	return Extend(s, parent)
+	return st.ModuleSchemas[moduleName][schemaType]
 }
 
-// schemaType is "config" of "memory"
-func AddGlobalValuesSchema(schemaType SchemaType, openApiContent []byte) error {
-	schemaObj, err := loadSchema(openApiContent)
+// AddGlobalValuesSchemas prepares and stores three schemas: config, config+values, config+values+required.
+func (st *SchemaStorage) AddGlobalValuesSchemas(configBytes, valuesBytes []byte) error {
+	schemas, err := PrepareSchemas(configBytes, valuesBytes)
 	if err != nil {
-		return fmt.Errorf("load global '%s' schema: %s", schemaType, err)
+		return fmt.Errorf("prepare global schemas: %s", err)
 	}
-	GlobalSchemasCache[schemaType] = schemaObj
+	st.GlobalSchemas = schemas
 	return nil
 }
 
 // schemaType is "config" of "memory"
-func AddModuleValuesSchema(moduleName string, schemaType SchemaType, openApiContent []byte) error {
-	schemaObj, err := loadSchema(openApiContent)
+func (st *SchemaStorage) AddModuleValuesSchemas(moduleName string, configBytes, valuesBytes []byte) error {
+	schemas, err := PrepareSchemas(configBytes, valuesBytes)
 	if err != nil {
-		return fmt.Errorf("load global '%s' schema: %s", schemaType, err)
+		return fmt.Errorf("prepare module '%s' schemas: %s", moduleName, err)
 	}
-	if _, ok := ModuleSchemasCache[moduleName]; !ok {
-		ModuleSchemasCache[moduleName] = map[SchemaType]*spec.Schema{}
+
+	if _, ok := st.ModuleSchemas[moduleName]; !ok {
+		st.ModuleSchemas[moduleName] = map[SchemaType]*spec.Schema{}
 	}
-	ModuleSchemasCache[moduleName][schemaType] = schemaObj
+	st.ModuleSchemas[moduleName] = schemas
 	return nil
 }
 
-// saveSchema returns spec.Schema object loaded from yaml in Schemas map.
-func loadSchema(openApiContent []byte) (*spec.Schema, error) {
+// loadSchema returns spec.Schema object loaded from yaml bytes.
+func LoadSchemaFromBytes(openApiContent []byte) (*spec.Schema, error) {
 	yml, err := swag.BytesToYAMLDoc(openApiContent)
 	if err != nil {
 		return nil, fmt.Errorf("yaml unmarshal: %v", err)
@@ -118,4 +106,40 @@ func loadSchema(openApiContent []byte) (*spec.Schema, error) {
 	}
 
 	return s, nil
+}
+
+func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*spec.Schema, err error) {
+	var res = make(map[SchemaType]*spec.Schema)
+	if configBytes != nil {
+		schemaObj, err := LoadSchemaFromBytes(configBytes)
+		if err != nil {
+			return nil, fmt.Errorf("load global '%s' schema: %s", ConfigValuesSchema, err)
+		}
+		res[ConfigValuesSchema] = schema.TransformSchema(
+			schemaObj,
+			&schema.AdditionalPropertiesTransformer{},
+		)
+	}
+
+	if valuesBytes != nil {
+		schemaObj, err := LoadSchemaFromBytes(valuesBytes)
+		if err != nil {
+			return nil, fmt.Errorf("load global '%s' schema: %s", ValuesSchema, err)
+		}
+		res[ValuesSchema] = schema.TransformSchema(
+			schemaObj,
+			&schema.ExtendTransformer{Parent: res[ConfigValuesSchema]},
+			&schema.AdditionalPropertiesTransformer{},
+		)
+
+		res[HelmValuesSchema] = schema.TransformSchema(
+			schemaObj,
+			// Copy values schema
+			&schema.CopyTransformer{},
+			// Transform x-required-for-helm
+			&schema.RequiredForHelmTransformer{},
+		)
+	}
+
+	return res, nil
 }

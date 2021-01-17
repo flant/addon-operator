@@ -23,7 +23,7 @@ func CreateEmptyWritableFile(filePath string) error {
 //  /global/openapi/values.yaml
 //  /modules/XXXX/openapi/config-values.yaml
 //  /modules/XXXX/openapi/values.yaml
-func ReadOpenAPISchemas(openApiDir string) (configSchemaBytes, valuesSchemaBytes []byte, err error) {
+func ReadOpenAPIFiles(openApiDir string) (configSchemaBytes, valuesSchemaBytes []byte, err error) {
 	log.Debugf("Check openAPI schemas in '%s'", openApiDir)
 	if openApiDir == "" {
 		return nil, nil, nil

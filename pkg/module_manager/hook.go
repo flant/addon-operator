@@ -11,7 +11,6 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
 	"github.com/flant/addon-operator/sdk/registry"
 	"github.com/flant/shell-operator/pkg/hook"
@@ -352,21 +351,14 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 
 	// Load validation schemas
 	openApiDir := filepath.Join(mm.GlobalHooksDir, "openapi")
-	configBytes, valuesBytes, err := ReadOpenAPISchemas(openApiDir)
+	configBytes, valuesBytes, err := ReadOpenAPIFiles(openApiDir)
 	if err != nil {
 		return fmt.Errorf("read global openAPI schemas: %v", err)
 	}
-	if configBytes != nil {
-		err = validation.AddGlobalValuesSchema("config", configBytes)
-		if err != nil {
-			return fmt.Errorf("parse global config openAPI: %v", err)
-		}
-	}
-	if valuesBytes != nil {
-		err = validation.AddGlobalValuesSchema("memory", valuesBytes)
-		if err != nil {
-			return fmt.Errorf("parse global values openAPI: %v", err)
-		}
+
+	err = mm.ValuesValidator.SchemaStorage.AddGlobalValuesSchemas(configBytes, valuesBytes)
+	if err != nil {
+		return fmt.Errorf("add global schemas: %v", err)
 	}
 
 	return nil

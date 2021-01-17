@@ -15,7 +15,6 @@ import (
 	. "github.com/flant/addon-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
 )
 
@@ -191,7 +190,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			log.Debugf("Global hook '%s': validate global config values before update", h.Name)
 			// Validate merged static and new values.
 			mergedValues := h.moduleManager.GlobalStaticAndNewValues(configValuesPatchResult.Values)
-			validationErr := validation.ValidateGlobalConfigValues(mergedValues)
+			validationErr := h.moduleManager.ValuesValidator.ValidateGlobalConfigValues(mergedValues)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply config values patch for global values"),
@@ -232,7 +231,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		// and no patches for 'global' section — valuesPatchResult will be nil in this case.
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
 			log.Debugf("Global hook '%s': validate global values before update", h.Name)
-			validationErr := validation.ValidateGlobalValues(valuesPatchResult.Values)
+			validationErr := h.moduleManager.ValuesValidator.ValidateGlobalValues(valuesPatchResult.Values)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply values patch for global values"),

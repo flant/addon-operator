@@ -126,6 +126,7 @@ type moduleManager struct {
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	metricStorage        *metric_storage.MetricStorage
 	hookMetricStorage    *metric_storage.MetricStorage
+	ValuesValidator      *validation.ValuesValidator
 
 	// Index of all modules in modules directory. Key is module name.
 	allModulesByName map[string]*Module
@@ -237,6 +238,8 @@ func NewMainModuleManager() *moduleManager {
 	return &moduleManager{
 		EventCh:    make(chan Event),
 		ValuesLock: sync.Mutex{},
+
+		ValuesValidator: validation.NewValuesValidator(),
 
 		allModulesByName:            make(map[string]*Module),
 		allModulesNamesInOrder:      make([]string, 0),
@@ -560,7 +563,7 @@ func (mm *moduleManager) Init() error {
 func (mm *moduleManager) validateKubeConfig(kubeConfig *kube_config_manager.Config) error {
 	// Validate global and module sections in ConfigMap merged with static values.
 	var validationErr error
-	globalErr := validation.ValidateGlobalConfigValues(mm.GlobalStaticAndNewValues(kubeConfig.Values))
+	globalErr := mm.ValuesValidator.ValidateGlobalConfigValues(mm.GlobalStaticAndNewValues(kubeConfig.Values))
 	if globalErr != nil {
 		validationErr = multierror.Append(
 			validationErr,
@@ -575,7 +578,7 @@ func (mm *moduleManager) validateKubeConfig(kubeConfig *kube_config_manager.Conf
 		if !has {
 			continue
 		}
-		moduleErr := validation.ValidateModuleConfigValues(mod.ValuesKey(), mod.StaticAndNewValues(modCfg.Values))
+		moduleErr := mm.ValuesValidator.ValidateModuleConfigValues(mod.ValuesKey(), mod.StaticAndNewValues(modCfg.Values))
 		if moduleErr != nil {
 			validationErr = multierror.Append(
 				validationErr,
@@ -1025,7 +1028,7 @@ func (mm *moduleManager) GlobalStaticAndConfigValues() utils.Values {
 		// Merge static values from modules/values.yaml.
 		mm.commonStaticValues.Global(),
 		// Apply config values defaults before ConfigMap overrides.
-		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
+		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema, mm.ValuesValidator},
 		// Merge overrides from ConfigMap.
 		mm.kubeGlobalConfigValues,
 	)
@@ -1040,7 +1043,7 @@ func (mm *moduleManager) GlobalStaticAndNewValues(newValues utils.Values) utils.
 		// Merge static values from modules/values.yaml.
 		mm.commonStaticValues.Global(),
 		// Apply config values defaults before overrides.
-		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
+		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema, mm.ValuesValidator},
 		// Merge overrides from newValues.
 		newValues,
 	)
@@ -1056,11 +1059,11 @@ func (mm *moduleManager) GlobalValues() (utils.Values, error) {
 		// Merge static values from modules/values.yaml.
 		mm.commonStaticValues.Global(),
 		// Apply config values defaults before ConfigMap overrides.
-		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema},
+		&ApplyDefaultsForGlobal{validation.ConfigValuesSchema, mm.ValuesValidator},
 		// Merge overrides from ConfigMap.
 		mm.kubeGlobalConfigValues,
 		// Apply dynamic values defaults before patches.
-		&ApplyDefaultsForGlobal{validation.MemoryValuesSchema},
+		&ApplyDefaultsForGlobal{validation.ValuesSchema, mm.ValuesValidator},
 	)
 
 	// Invariant: do not store patches that does not apply
