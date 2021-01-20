@@ -227,13 +227,15 @@ would generate the string `replicas: 200`. As you can see, the value "100" from 
 
 # Validation
 
-The addon-operator supports OpenAPI schemas for config values and values. These schemas should be stored in the `$GLOBAL_HOOKS_DIR/openapi` directory for global values and in the `$MODULES_DIR/<module-name>/openapi` directories for modules.
+The addon-operator supports OpenAPI schemas for config values and for effective values. These schemas should be stored in the `$GLOBAL_HOOKS_DIR/openapi` directory for global values and in the `$MODULES_DIR/<module-name>/openapi` directories for modules.
 
 `openapi/config-values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap.
 
 `openapi/values.yaml` is a schema for values merged from values.yaml, modules/values.yaml and the ConfigMap with applied values patches.
 
 Validation occurs on startup, on ConfigMap changes, and after hook executions. If validation fails after hook execution, hook is restarted. If validation fails on startup, the addon-operator stops. If validation fails on ConfigMap changes, error is logged and no new tasks are queued.
+
+> Note: Unlike the default behavior, the addon-operator sets `additionalProperties: false` if `additionalProperties` is not set.
 
 ## Example
 
@@ -386,3 +388,56 @@ properties:
 ```
 
 The addon-operator will add `discovery` with empty object to values if no `discovery` key is present in the ConfigMap, `modules/values.yaml` or in patches.
+
+## Required fields
+
+There is a problem with `required` fields defined in `openapi/values.yaml`: values for Helm can be constructed by multiple hooks. Different hooks return different portions of `required` fields and validation will fail on hook execution. To define a contract for Helm values in this situation, the addon-operator implements `x-required-for-helm` to define required values for Helm. Values are checked before helm execution with `x-required-for-helm` array merged with `required`.
+
+### Example
+
+Suppose we have two hooks: one hook prepares a `param1` value and the second hook prepares a `param2` value. Helm required both fields, but we can't require both fields after each hook execution. `x-required-for-helm` to the rescue:
+
+```yaml
+# /global/openapi/values.yaml
+
+type: object
+x-required-for-helm:
+  - param1
+  - param2
+properties:
+  param1:
+    type: string
+  param2:
+    type: string
+```
+
+The addon-operator will validate values *after each hook execution* with this effective schema:
+
+```yaml
+# effective schema for values
+
+type: object
+additionalProperties: false
+properties:
+  param1:
+    type: string
+  param2:
+    type: string
+```
+
+The addon-operator will validate values *before Helm execution* with this effective schema:
+
+```yaml
+# effective schema for values
+
+type: object
+additionalProperties: false
+required:
+  - param1
+  - param2
+properties:
+  param1:
+    type: string
+  param2:
+    type: string
+```
