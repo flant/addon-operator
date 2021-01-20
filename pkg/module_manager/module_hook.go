@@ -14,7 +14,6 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
 )
 
@@ -184,7 +183,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 			log.Debugf("Module hook '%s': validate module config values before update", h.Name)
 			// Validate merged static and new values.
 			mergedValues := h.Module.StaticAndNewValues(configValuesPatchResult.Values)
-			validationErr := validation.ValidateModuleConfigValues(h.Module.ValuesKey(), mergedValues)
+			validationErr := h.moduleManager.ValuesValidator.ValidateModuleConfigValues(h.Module.ValuesKey(), mergedValues)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply config values patch for module values"),
@@ -218,7 +217,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		if valuesPatchResult.ValuesChanged {
 			log.Debugf("Module hook '%s': validate module values before update", h.Name)
 			// Validate schema for updated module values
-			validationErr := validation.ValidateModuleValues(h.Module.ValuesKey(), valuesPatchResult.Values)
+			validationErr := h.moduleManager.ValuesValidator.ValidateModuleValues(h.Module.ValuesKey(), valuesPatchResult.Values)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply values patch for module values"),

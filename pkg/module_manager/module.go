@@ -270,6 +270,11 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 		}
 	}
 
+	err = m.checkHelmValues()
+	if err != nil {
+		return fmt.Errorf("check helm values: %v", err)
+	}
+
 	helmReleaseName := m.generateHelmReleaseName()
 
 	valuesPath, err := m.PrepareValuesYamlFile()
@@ -627,6 +632,16 @@ func (m *Module) checkHelmChart() (bool, error) {
 	return true, nil
 }
 
+// checkHelmValues returns error if there is a wrong patch or values are not satisfied
+// a Helm values contract defined by schemas in 'openapi' directory.
+func (m *Module) checkHelmValues() error {
+	values, err := m.Values()
+	if err != nil {
+		return err
+	}
+	return m.moduleManager.ValuesValidator.ValidateModuleHelmValues(m.ValuesKey(), values)
+}
+
 // generateHelmReleaseName returns a string that can be used as a helm release name.
 //
 // TODO Now it returns just a module name. Should it be cleaned from special symbols?
@@ -634,20 +649,15 @@ func (m *Module) generateHelmReleaseName() string {
 	return m.Name
 }
 
-// ConfigValues returns config values from ConfigMap:
-// - global section + default
-// - module section + default
+// ConfigValues returns raw values from ConfigMap:
+// - global section
+// - module section
 func (m *Module) ConfigValues() utils.Values {
 	return MergeLayers(
 		// Global values from ConfigMap with defaults from schema.
 		m.moduleManager.GlobalConfigValues(),
 		// Init module section.
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
-		// Apply config values defaults before ConfigMap overrides.
-		&ApplyDefaultsForModule{
-			m.ValuesKey(),
-			validation.ConfigValuesSchema,
-		},
 		// Merge overrides from ConfigMap.
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 	)
@@ -669,6 +679,7 @@ func (m *Module) StaticAndConfigValues() utils.Values {
 		&ApplyDefaultsForModule{
 			m.ValuesKey(),
 			validation.ConfigValuesSchema,
+			m.moduleManager.ValuesValidator,
 		},
 		// Merge overrides from ConfigMap.
 		m.moduleManager.kubeModulesConfigValues[m.Name],
@@ -691,6 +702,7 @@ func (m *Module) StaticAndNewValues(newValues utils.Values) utils.Values {
 		&ApplyDefaultsForModule{
 			m.ValuesKey(),
 			validation.ConfigValuesSchema,
+			m.moduleManager.ValuesValidator,
 		},
 		// Merge overrides from newValues.
 		newValues,
@@ -723,13 +735,15 @@ func (m *Module) Values() (utils.Values, error) {
 		&ApplyDefaultsForModule{
 			m.ValuesKey(),
 			validation.ConfigValuesSchema,
+			m.moduleManager.ValuesValidator,
 		},
 		// Merge overrides from ConfigMap.
 		m.moduleManager.kubeModulesConfigValues[m.Name],
 		// Apply dynamic values defaults before patches.
 		&ApplyDefaultsForModule{
 			m.ValuesKey(),
-			validation.MemoryValuesSchema,
+			validation.ValuesSchema,
+			m.moduleManager.ValuesValidator,
 		},
 	)
 
@@ -983,21 +997,18 @@ func (mm *moduleManager) RegisterModules() error {
 
 		// Load validation schemas
 		openAPIPath := filepath.Join(module.Path, "openapi")
-		configBytes, valuesBytes, err := ReadOpenAPISchemas(openAPIPath)
+		configBytes, valuesBytes, err := ReadOpenAPIFiles(openAPIPath)
 		if err != nil {
 			return fmt.Errorf("module '%s' read openAPI schemas: %v", module.Name, err)
 		}
-		if configBytes != nil {
-			err = validation.AddModuleValuesSchema(module.ValuesKey(), "config", configBytes)
-			if err != nil {
-				return fmt.Errorf("module '%s' parse config openAPI: %v", module.Name, err)
-			}
-		}
-		if valuesBytes != nil {
-			err = validation.AddModuleValuesSchema(module.ValuesKey(), "memory", valuesBytes)
-			if err != nil {
-				return fmt.Errorf("module '%s' parse config openAPI: %v", module.Name, err)
-			}
+
+		err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
+			module.ValuesKey(),
+			configBytes,
+			valuesBytes,
+		)
+		if err != nil {
+			return fmt.Errorf("add module '%s' schemas: %v", module.Name, err)
 		}
 
 		logEntry.Infof("Module '%s' is registered", module.Name)

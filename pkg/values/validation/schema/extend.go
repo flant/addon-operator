@@ -1,7 +1,8 @@
-package validation
+package schema
 
 import (
 	"encoding/json"
+
 	"github.com/go-openapi/spec"
 )
 
@@ -11,8 +12,12 @@ type ExtendSettings struct {
 	Schema *string `json:"schema,omitempty"`
 }
 
-func Extend(s *spec.Schema, parent *spec.Schema) *spec.Schema {
-	if parent == nil {
+type ExtendTransformer struct {
+	Parent *spec.Schema
+}
+
+func (t *ExtendTransformer) Transform(s *spec.Schema) *spec.Schema {
+	if t.Parent == nil {
 		return s
 	}
 
@@ -24,13 +29,13 @@ func Extend(s *spec.Schema, parent *spec.Schema) *spec.Schema {
 
 	// TODO check extendSettings.Schema. No need to do it for now.
 
-	s.Definitions = mergeDefinitions(s, parent)
-	s.Extensions = mergeExtensions(s, parent)
-	s.Required = mergeRequired(s, parent)
-	s.Properties = mergeProperties(s, parent)
-	s.PatternProperties = mergePatternProperties(s, parent)
-	s.Title = mergeTitle(s, parent)
-	s.Description = mergeDescription(s, parent)
+	s.Definitions = mergeDefinitions(s, t.Parent)
+	s.Extensions = mergeExtensions(s, t.Parent)
+	s.Required = mergeRequired(s, t.Parent)
+	s.Properties = mergeProperties(s, t.Parent)
+	s.PatternProperties = mergePatternProperties(s, t.Parent)
+	s.Title = mergeTitle(s, t.Parent)
+	s.Description = mergeDescription(s, t.Parent)
 
 	return s
 }

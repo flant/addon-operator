@@ -6,11 +6,12 @@ import (
 )
 
 type ApplyDefaultsForGlobal struct {
-	SchemaType validation.SchemaType
+	SchemaType      validation.SchemaType
+	ValuesValidator *validation.ValuesValidator
 }
 
 func (a *ApplyDefaultsForGlobal) Transform(values utils.Values) utils.Values {
-	s := validation.GetGlobalValuesSchema(a.SchemaType)
+	s := a.ValuesValidator.SchemaStorage.GlobalValuesSchema(a.SchemaType)
 	if s == nil {
 		return values
 	}
@@ -23,10 +24,11 @@ func (a *ApplyDefaultsForGlobal) Transform(values utils.Values) utils.Values {
 type ApplyDefaultsForModule struct {
 	ModuleValuesKey string
 	SchemaType      validation.SchemaType
+	ValuesValidator *validation.ValuesValidator
 }
 
 func (a *ApplyDefaultsForModule) Transform(values utils.Values) utils.Values {
-	s := validation.GetModuleValuesSchema(a.ModuleValuesKey, a.SchemaType)
+	s := a.ValuesValidator.SchemaStorage.ModuleValuesSchema(a.ModuleValuesKey, a.SchemaType)
 	if s == nil {
 		return values
 	}

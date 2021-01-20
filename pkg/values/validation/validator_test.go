@@ -20,7 +20,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var configOpenApi = `
+	var configSchemaYaml = `
 type: object
 additionalProperties: false
 required:
@@ -34,12 +34,12 @@ properties:
   param2:
     type: string
 `
-	err = AddModuleValuesSchema("moduleName", "config", []byte(configOpenApi))
+	v := NewValuesValidator()
 
+	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := ValidateModuleConfigValues("moduleName", moduleValues)
-
+	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 }
 
@@ -49,13 +49,13 @@ func Test_Validate_with_defaults(t *testing.T) {
 	var err error
 	var moduleValues utils.Values
 	moduleValues, err = utils.NewValuesFromBytes([]byte(`
-moduleName1:
+moduleName:
   param1: val1
   param2: {}
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var configOpenApi = `
+	var configSchemaYaml = `
 type: object
 additionalProperties: false
 required:
@@ -73,11 +73,11 @@ properties:
       aq:
         type: string
 `
-	err = AddModuleValuesSchema("moduleName1", "config", []byte(configOpenApi))
+	v := NewValuesValidator()
 
+	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := ValidateModuleConfigValues("moduleName1", moduleValues)
-
+	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 }

@@ -23,7 +23,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var configOpenApi = `
+	var configSchemaYaml = `
 type: object
 additionalProperties: false
 required:
@@ -60,15 +60,17 @@ properties:
           param1:
             type: string
 `
-	err = AddModuleValuesSchema("moduleName", "config", []byte(configOpenApi))
 
+	v := NewValuesValidator()
+
+	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := ValidateModuleConfigValues("moduleName", moduleValues)
+	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
 
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 
-	s := GetModuleValuesSchema("moduleName", "config")
+	s := v.SchemaStorage.ModuleValuesSchema("moduleName", ConfigValuesSchema)
 
 	changed := ApplyDefaults(moduleValues["moduleName"], s)
 
@@ -105,7 +107,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var configOpenApi = `
+	var configSchemaYaml = `
 type: object
 additionalProperties: false
 required:
@@ -143,11 +145,15 @@ properties:
             default: ololo
 `
 
-	err = AddModuleValuesSchema("moduleName", "config", []byte(configOpenApi))
+	v := NewValuesValidator()
 
+	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	s := GetModuleValuesSchema("moduleName", "config")
+	//mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
+	//g.Expect(mErr).ShouldNot(HaveOccurred())
+
+	s := v.SchemaStorage.ModuleValuesSchema("moduleName", ConfigValuesSchema)
 
 	changed := ApplyDefaults(moduleValues["moduleName"], s)
 

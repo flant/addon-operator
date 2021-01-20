@@ -13,7 +13,9 @@ func Test_Validate_Extended(t *testing.T) {
 
 	var err error
 
-	var configOpenApi = `
+	v := NewValuesValidator()
+
+	var configValuesYaml = `
 type: object
 additionalProperties: false
 required:
@@ -27,11 +29,7 @@ properties:
   param2:
     type: string
 `
-	err = AddModuleValuesSchema("moduleName", ConfigValuesSchema, []byte(configOpenApi))
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	var memoryOpenApi = `
+	var valuesYaml = `
 x-extend:
   schema: "config-values.yaml"
 type: object
@@ -45,7 +43,8 @@ properties:
     enum:
     - val1
 `
-	err = AddModuleValuesSchema("moduleName", MemoryValuesSchema, []byte(memoryOpenApi))
+
+	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configValuesYaml), []byte(valuesYaml))
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -58,7 +57,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := ValidateModuleValues("moduleName", moduleValues)
+	mErr := v.ValidateModuleValues("moduleName", moduleValues)
 
 	g.Expect(mErr).Should(HaveOccurred())
 
@@ -69,7 +68,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr = ValidateModuleValues("moduleName", moduleValues)
+	mErr = v.ValidateModuleValues("moduleName", moduleValues)
 
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 }
