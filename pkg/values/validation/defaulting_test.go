@@ -125,6 +125,12 @@ properties:
     default:
       internal: 
         azaza: qweqwe
+    properties:
+      internal:
+        type: object
+        properties:
+          azaza:
+            type: string
   paramObjDeep:
     type: object
     default: {}
