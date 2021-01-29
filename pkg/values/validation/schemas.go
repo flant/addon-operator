@@ -134,7 +134,7 @@ func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*sp
 
 		res[HelmValuesSchema] = schema.TransformSchema(
 			schemaObj,
-			// Copy values schema
+			// Copy schema object.
 			&schema.CopyTransformer{},
 			// Transform x-required-for-helm
 			&schema.RequiredForHelmTransformer{},
