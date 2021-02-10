@@ -8,6 +8,16 @@ The other keys must match the [module's name](MODULES.md#module-structure) conve
 
 > **Note:** You cannot get the values of another module within the module hook. Shared values should be global values for now (#9).
 
+Hook receives values via files on execution. These schemas can help you understand the flow of values for a global hook and for a module hook:
+
+<p align="center">
+<img width="407" src="docs/module_values_flow.png" alt="Flow of values for module hook" />
+</p>
+
+<p align="center">
+<img width="407" src="docs/global_values_flow.png" alt="Flow of values for global hook" />
+</p>
+
 The values can be represented as:
 
 - a structure (including empty structure)
