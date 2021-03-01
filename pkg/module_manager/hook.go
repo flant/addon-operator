@@ -23,7 +23,6 @@ type Hook interface {
 	WithConfig(configOutput []byte) (err error)
 	WithGoConfig(config *sdk.HookConfig) (err error)
 	WithHookController(hookController controller.HookController)
-	GetHookController() controller.HookController
 	GetName() string
 	GetPath() string
 	GetGoHook() sdk.GoHook
