@@ -10,13 +10,12 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/sdk"
-	sh_op_hook "github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
 )
 
 // ModuleHookConfig is a structure with versioned hook configuration
 type ModuleHookConfig struct {
-	sh_op_hook.HookConfig
+	config.HookConfig
 
 	// versioned raw config values
 	ModuleV0 *ModuleHookConfigV0
@@ -182,7 +181,7 @@ func (c *ModuleHookConfig) ConvertAndCheckV1() (err error) {
 }
 
 func (c *ModuleHookConfig) ConvertBeforeHelm(value interface{}) (*BeforeHelmConfig, error) {
-	floatValue, err := sh_op_hook.ConvertFloatForBinding(value, "beforeHelm")
+	floatValue, err := config.ConvertFloatForBinding(value, "beforeHelm")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}
@@ -194,7 +193,7 @@ func (c *ModuleHookConfig) ConvertBeforeHelm(value interface{}) (*BeforeHelmConf
 }
 
 func (c *ModuleHookConfig) ConvertAfterHelm(value interface{}) (*AfterHelmConfig, error) {
-	floatValue, err := sh_op_hook.ConvertFloatForBinding(value, "afterHelm")
+	floatValue, err := config.ConvertFloatForBinding(value, "afterHelm")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}
@@ -206,7 +205,7 @@ func (c *ModuleHookConfig) ConvertAfterHelm(value interface{}) (*AfterHelmConfig
 }
 
 func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDeleteHelmConfig, error) {
-	floatValue, err := sh_op_hook.ConvertFloatForBinding(value, "afterDeleteHelm")
+	floatValue, err := config.ConvertFloatForBinding(value, "afterDeleteHelm")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}

@@ -10,7 +10,6 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/sdk"
-	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/schedule_manager/types"
@@ -18,7 +17,7 @@ import (
 
 // GlobalHookConfig is a structure with versioned hook configuration
 type GlobalHookConfig struct {
-	hook.HookConfig
+	config.HookConfig
 
 	// versioned raw config values
 	GlobalV0 *GlobalHookConfigV0
@@ -165,7 +164,7 @@ func (c *GlobalHookConfig) ConvertAndCheckV1() (err error) {
 }
 
 func (c *GlobalHookConfig) ConvertBeforeAll(value interface{}) (*BeforeAllConfig, error) {
-	floatValue, err := hook.ConvertFloatForBinding(value, "beforeAll")
+	floatValue, err := config.ConvertFloatForBinding(value, "beforeAll")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}
@@ -177,7 +176,7 @@ func (c *GlobalHookConfig) ConvertBeforeAll(value interface{}) (*BeforeAllConfig
 }
 
 func (c *GlobalHookConfig) ConvertAfterAll(value interface{}) (*AfterAllConfig, error) {
-	floatValue, err := hook.ConvertFloatForBinding(value, "afterAll")
+	floatValue, err := config.ConvertFloatForBinding(value, "afterAll")
 	if err != nil || floatValue == nil {
 		return nil, err
 	}
@@ -251,8 +250,8 @@ func NewGlobalHookConfigFromGoConfig(input *sdk.HookConfig) *GlobalHookConfig {
 	return cfg
 }
 
-func NewHookConfigFromGoConfig(input *sdk.HookConfig) hook.HookConfig {
-	c := &hook.HookConfig{
+func NewHookConfigFromGoConfig(input *sdk.HookConfig) config.HookConfig {
+	c := &config.HookConfig{
 		Version:            "v1",
 		Schedules:          []ScheduleConfig{},
 		OnKubernetesEvents: []OnKubernetesEventConfig{},
@@ -273,8 +272,8 @@ func NewHookConfigFromGoConfig(input *sdk.HookConfig) hook.HookConfig {
 		//}
 
 		monitor := &kube_events_manager.MonitorConfig{}
-		monitor.Metadata.DebugName = c.MonitorDebugName(kubeCfg.Name, i)
-		monitor.Metadata.MonitorId = c.MonitorConfigId()
+		monitor.Metadata.DebugName = config.MonitorDebugName(kubeCfg.Name, i)
+		monitor.Metadata.MonitorId = config.MonitorConfigID()
 		monitor.Metadata.LogLabels = map[string]string{}
 		monitor.Metadata.MetricLabels = map[string]string{}
 		//monitor.WithMode(kubeCfg.Mode)
@@ -349,7 +348,7 @@ func NewHookConfigFromGoConfig(input *sdk.HookConfig) hook.HookConfig {
 		res.AllowFailure = inSch.AllowFailure
 		res.ScheduleEntry = types.ScheduleEntry{
 			Crontab: inSch.Crontab,
-			Id:      c.ScheduleId(),
+			Id:      config.ScheduleID(),
 		}
 		res.IncludeSnapshotsFrom = inSch.IncludeSnapshotsFrom
 
@@ -382,7 +381,7 @@ func NewHookConfigFromGoConfig(input *sdk.HookConfig) hook.HookConfig {
 	newKubeEvents := make([]OnKubernetesEventConfig, 0)
 	for _, cfg := range c.OnKubernetesEvents {
 		if snapshots, ok := groupSnapshots[cfg.Group]; ok {
-			cfg.IncludeSnapshotsFrom = hook.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
+			cfg.IncludeSnapshotsFrom = config.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
 		}
 		newKubeEvents = append(newKubeEvents, cfg)
 	}
@@ -390,7 +389,7 @@ func NewHookConfigFromGoConfig(input *sdk.HookConfig) hook.HookConfig {
 	newSchedules := make([]ScheduleConfig, 0)
 	for _, cfg := range c.Schedules {
 		if snapshots, ok := groupSnapshots[cfg.Group]; ok {
-			cfg.IncludeSnapshotsFrom = hook.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
+			cfg.IncludeSnapshotsFrom = config.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
 		}
 		newSchedules = append(newSchedules, cfg)
 	}
