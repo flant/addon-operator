@@ -14,6 +14,7 @@ import (
 	kblabels "k8s.io/apimachinery/pkg/labels"
 	k8syaml "sigs.k8s.io/yaml"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -282,6 +283,9 @@ func (h *Helm3Client) ListReleasesNames(labelSelector map[string]string) ([]stri
 			uniqNamesMap[releaseName] = struct{}{}
 		}
 	}
+
+	// Do not return ignored release.
+	delete(uniqNamesMap, app.HelmIgnoreRelease)
 
 	uniqNames := make([]string, 0)
 	for name := range uniqNamesMap {

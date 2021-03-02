@@ -1256,6 +1256,16 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	hm := task.HookMetadataAccessor(t)
 	taskHook := op.ModuleManager.GetModuleHook(hm.HookName)
 
+	err := taskHook.RateLimitWait(context.Background())
+	if err != nil {
+		// This could happen when the Context is
+		// canceled, or the expected wait time exceeds the Context's Deadline.
+		// The best we can do without proper context usage is to repeat the task.
+		return queue.TaskResult{
+			Status: "Repeat",
+		}
+	}
+
 	metricLabels := map[string]string{
 		"module":     hm.ModuleName,
 		"hook":       hm.HookName,
@@ -1323,7 +1333,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 		defer op.HelmResourcesManager.ResumeMonitor(hm.ModuleName)
 	}
 
-	err := op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
+	err = op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
 
 	errors := 0.0
 	success := 0.0
@@ -1365,6 +1375,16 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 
 	hm := task.HookMetadataAccessor(t)
 	taskHook := op.ModuleManager.GetGlobalHook(hm.HookName)
+
+	err := taskHook.RateLimitWait(context.Background())
+	if err != nil {
+		// This could happen when the Context is
+		// canceled, or the expected wait time exceeds the Context's Deadline.
+		// The best we can do without proper context usage is to repeat the task.
+		return queue.TaskResult{
+			Status: "Repeat",
+		}
+	}
 
 	metricLabels := map[string]string{
 		"hook":       hm.HookName,

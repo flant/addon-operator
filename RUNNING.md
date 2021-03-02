@@ -91,6 +91,14 @@ Addon-operator expects that "helm" binary is available in $PATH. It detects Helm
 
 **HELM3** — set to "yes" to disable auto-detection and explicitly enable compatibility with helm3.
 
+**HELM_IGNORE_RELEASE** — a name of the release that should not be treated as the module's release. Prevent self-destruction when addon-operator release is stored in the same namespace as releases for modules.
+
+```
+env:
+- name: HELM_IGNORE_RELEASE
+  value: {{ .Release.Name }}
+```
+
 ### Logging settings
 
 **LOG_TYPE** — Logging formatter type: `json`, `text` or `color`.

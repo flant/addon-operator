@@ -38,12 +38,11 @@ During execution, a module hook receives global values and module values. Module
 
 ### onStartup
 
-Example JSON syntax:
+Example:
 
-```json
-{
-  "onStartup": ORDER
-}
+```yaml
+configVersion: v1
+onStartup: ORDER
 ```
 
 Parameters:
@@ -52,12 +51,11 @@ Parameters:
 
 ### beforeAll
 
-Example JSON syntax:
+Example:
 
-```json
-{
-  "beforeAll": ORDER
-}
+```yaml
+configVersion: v1
+beforeAll: ORDER
 ```
 
 Parameters:
@@ -66,12 +64,11 @@ Parameters:
 
 ### afterAll
 
-Example JSON syntax:
+Example:
 
-```json
-{
-  "afterAll": ORDER
-}
+```yaml
+configVersion: v1
+afterAll: ORDER
 ```
 
 Parameters:
@@ -80,12 +77,11 @@ Parameters:
 
 ### beforeHelm
 
-Example JSON syntax:
+Example:
 
-```json
-{
-  "beforeHelm": ORDER
-}
+```yaml
+configVersion: v1
+beforeHelm: ORDER
 ```
 
 Parameters:
@@ -94,12 +90,11 @@ Parameters:
 
 ### afterHelm
 
-Example JSON syntax:
+Example:
 
-```json
-{
-  "afterHelm": ORDER
-}
+```yaml
+configVersion: v1
+afterHelm: ORDER
 ```
 
 Parameters:
@@ -108,12 +103,11 @@ Parameters:
 
 ### afterDeleteHelm
 
-Example JSON syntax:
+Example:
 
-```json
-{
-  "afterDeleteHelm": ORDER
-}
+```yaml
+configVersion: v1
+afterDeleteHelm: ORDER
 ```
 
 Parameters:
@@ -165,15 +159,17 @@ kubernetes:
 
 This hook will be executed *before* updating the Helm release with this binding context:
 
-```json
-[{"binding":"beforeAll",
-"snapshots":{
-  "monitor-pods":[
+```yaml
+[{"binding": "beforeAll",
+"snapshots": {
+  "monitor-pods": [
     {
-      "object":{
-        "kind":"Pod,
+      "object": {
+        "kind": "Pod",
         "apiVersion": "v1",
-        "metadata":{ "name":"pod-1r62e3", "namespace":"default", ...},
+        "metadata": {
+          "name":"pod-1r62e3",
+          "namespace":"default", ...},
         ...
       },
       "filterResult": {
@@ -188,3 +184,7 @@ This hook will be executed *before* updating the Helm release with this binding 
 }
 }]
 ```
+
+### Execution rate
+
+Hook configuration has a `settings` section with parameters `executionMinPeriod` and `executionBurst`. These parameters are used to throttle hook executions and wait for more events in the queue. See section [execution rate](https://github.com/flant/shell-operator/blob/master/HOOKS.md#execution-rate) from the Shell-operator.
