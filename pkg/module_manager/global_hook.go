@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/satori/go.uuid.v1"
+	uuid "gopkg.in/satori/go.uuid.v1"
 
 	"github.com/flant/shell-operator/pkg/hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -172,6 +173,19 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		return err
 	}
 
+	if len(hookResult.KubernetesPatchBytes) > 0 {
+		var specs []object_patch.OperationSpec
+		specs, err = h.moduleManager.KubeObjectPatcher.ParseSpecs(hookResult.KubernetesPatchBytes)
+		if err != nil {
+			return err
+		}
+
+		err = h.moduleManager.KubeObjectPatcher.GenerateFromJSONAndExecuteOperations(specs)
+		if err != nil {
+			return err
+		}
+	}
+
 	//h.moduleManager.ValuesLock.Lock()
 	//defer h.moduleManager.ValuesLock.Unlock()
 
@@ -294,6 +308,11 @@ func (h *GlobalHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 		return
 	}
 
+	tmpFiles["KUBERNETES_PATCH_PATH"], err = h.prepareKubernetesPatchFile()
+	if err != nil {
+		return
+	}
+
 	return
 }
 
@@ -381,6 +400,15 @@ func (h *GlobalHook) prepareValuesJsonPatchFile() (string, error) {
 // METRICS_PATH
 func (h *GlobalHook) prepareMetricsFile() (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-metrics-%s.json", h.SafeName(), uuid.NewV4().String()))
+	if err := CreateEmptyWritableFile(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// KUBERNETES PATCH PAH
+func (h *GlobalHook) prepareKubernetesPatchFile() (string, error) {
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s-object-patch-%s", h.SafeName(), uuid.NewV4().String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}

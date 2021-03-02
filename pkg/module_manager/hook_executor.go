@@ -2,6 +2,7 @@ package module_manager
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -27,6 +28,7 @@ type HookExecutor struct {
 	ConfigValuesPatchPath string
 	ValuesPatchPath       string
 	MetricsPath           string
+	KubernetesPatchPath   string
 	LogLabels             map[string]string
 }
 
@@ -44,9 +46,10 @@ func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
 }
 
 type HookResult struct {
-	Usage   *executor.CmdUsage
-	Patches map[utils.ValuesPatchType]*utils.ValuesPatch
-	Metrics []metric_operation.MetricOperation
+	Usage                *executor.CmdUsage
+	Patches              map[utils.ValuesPatchType]*utils.ValuesPatch
+	Metrics              []metric_operation.MetricOperation
+	KubernetesPatchBytes []byte
 }
 
 func (e *HookExecutor) Run() (result *HookResult, err error) {
@@ -84,6 +87,7 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 	e.ConfigValuesPatchPath = tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
 	e.ValuesPatchPath = tmpFiles["VALUES_JSON_PATCH_PATH"]
 	e.MetricsPath = tmpFiles["METRICS_PATH"]
+	e.KubernetesPatchPath = tmpFiles["KUBERNETES_PATCH_PATH"]
 
 	envs := []string{}
 	envs = append(envs, os.Environ()...)
@@ -113,6 +117,11 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 	result.Metrics, err = metric_operation.MetricOperationsFromFile(e.MetricsPath)
 	if err != nil {
 		return result, fmt.Errorf("got bad metrics: %s", err)
+	}
+
+	result.KubernetesPatchBytes, err = ioutil.ReadFile(e.KubernetesPatchPath)
+	if err != nil {
+		return result, fmt.Errorf("can't read kubernetes patch file: %s", err)
 	}
 
 	return result, nil

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
@@ -121,6 +122,7 @@ type moduleManager struct {
 	EventCh chan Event
 
 	KubeClient           kube.KubernetesClient
+	KubeObjectPatcher    *object_patch.ObjectPatcher
 	kubeEventsManager    kube_events_manager.KubeEventsManager
 	scheduleManager      schedule_manager.ScheduleManager
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
