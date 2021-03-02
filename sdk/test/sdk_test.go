@@ -3,15 +3,13 @@ package test
 import (
 	"testing"
 
-	// Define Register func and Registry object.
-	"github.com/flant/addon-operator/sdk/registry"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/sdk"
 
 	// Register hooks
 	_ "github.com/flant/addon-operator/sdk/test/simple_operator/global-hooks"
 	_ "github.com/flant/addon-operator/sdk/test/simple_operator/modules/001-module-one/hooks"
 	_ "github.com/flant/addon-operator/sdk/test/simple_operator/modules/002-module-two/hooks/level1/sublevel"
-
-	"github.com/flant/addon-operator/sdk"
 
 	. "github.com/onsi/gomega"
 )
@@ -19,15 +17,15 @@ import (
 func Test_HookMetadata_from_runtime(t *testing.T) {
 	g := NewWithT(t)
 
-	hookList := registry.Registry().Hooks()
+	hookList := sdk.Registry().Hooks()
 
 	g.Expect(len(hookList)).Should(Equal(3))
 
-	hooks := map[string]sdk.HookMetadata{}
+	hooks := map[string]go_hook.HookMetadata{}
 
 	for _, h := range hookList {
 		hm := h.Metadata()
-		hooks[hm.Name] = hm
+		hooks[hm.Name] = *hm
 	}
 
 	hm, ok := hooks["go-hook.go"]

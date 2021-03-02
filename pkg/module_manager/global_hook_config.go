@@ -1,18 +1,28 @@
 package module_manager
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
+	types2 "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/go-openapi/spec"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
-	"github.com/flant/addon-operator/sdk"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/schedule_manager/types"
+)
+
+const (
+	defaultHookGroupName = "main"
+	defaultHookQueueName = "main"
 )
 
 // GlobalHookConfig is a structure with versioned hook configuration
@@ -230,9 +240,14 @@ func (c *GlobalHookConfig) BindingsCount() int {
 	return res
 }
 
-func NewGlobalHookConfigFromGoConfig(input *sdk.HookConfig) *GlobalHookConfig {
+func NewGlobalHookConfigFromGoConfig(input *go_hook.HookConfig) (*GlobalHookConfig, error) {
+	hookConfig, err := NewHookConfigFromGoConfig(input)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &GlobalHookConfig{
-		HookConfig: NewHookConfigFromGoConfig(input),
+		HookConfig: hookConfig,
 	}
 
 	if input.OnBeforeAll != nil {
@@ -247,11 +262,11 @@ func NewGlobalHookConfigFromGoConfig(input *sdk.HookConfig) *GlobalHookConfig {
 		cfg.AfterAll.Order = input.OnAfterAll.Order
 	}
 
-	return cfg
+	return cfg, nil
 }
 
-func NewHookConfigFromGoConfig(input *sdk.HookConfig) config.HookConfig {
-	c := &config.HookConfig{
+func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, error) {
+	c := config.HookConfig{
 		Version:            "v1",
 		Schedules:          []ScheduleConfig{},
 		OnKubernetesEvents: []OnKubernetesEventConfig{},
@@ -283,38 +298,37 @@ func NewHookConfigFromGoConfig(input *sdk.HookConfig) config.HookConfig {
 		monitor.WithFieldSelector(kubeCfg.FieldSelector)
 		monitor.WithNamespaceSelector(kubeCfg.NamespaceSelector)
 		monitor.WithLabelSelector(kubeCfg.LabelSelector)
-		monitor.JqFilter = kubeCfg.JqFilter
-		monitor.FilterFunc = kubeCfg.FilterFunc
-		// executeHookOnEvent is a priority
-		if kubeCfg.ExecuteHookOnEvents != nil {
-			monitor.WithEventTypes(kubeCfg.ExecuteHookOnEvents)
+		if kubeCfg.Filterable == nil {
+			return config.HookConfig{}, errors.New(`"Filterable" in KubernetesConfig cannot be nil`)
+		}
+		monitor.FilterFunc = func(unstructured *unstructured.Unstructured) (interface{}, error) {
+			return kubeCfg.Filterable.ApplyFilter(unstructured)
+		}
+		if go_hook.BoolDeref(kubeCfg.ExecuteHookOnEvents, true) {
+			monitor.WithEventTypes(nil)
+		} else {
+			monitor.WithEventTypes([]types2.WatchEventType{})
 		}
 
 		kubeConfig := OnKubernetesEventConfig{}
 		kubeConfig.Monitor = monitor
-		kubeConfig.AllowFailure = kubeCfg.AllowFailure
+		kubeConfig.AllowFailure = input.AllowFailure
 		if kubeCfg.Name == "" {
-			kubeConfig.BindingName = string(OnKubernetesEvent)
-		} else {
-			kubeConfig.BindingName = kubeCfg.Name
+			return c, spew.Errorf(`"name" is a required field in binding: %v`, kubeCfg)
 		}
-		kubeConfig.IncludeSnapshotsFrom = kubeCfg.IncludeSnapshotsFrom
-		if kubeCfg.Queue == "" {
-			kubeConfig.Queue = "main"
+		kubeConfig.BindingName = kubeCfg.Name
+		if input.Queue == "" {
+			kubeConfig.Queue = defaultHookQueueName
 		} else {
-			kubeConfig.Queue = kubeCfg.Queue
+			kubeConfig.Queue = input.Queue
 		}
-		kubeConfig.Group = kubeCfg.Group
+		kubeConfig.Group = defaultHookGroupName
 
-		// ExecuteHookOnSynchronization is enabled by default.
-		kubeConfig.ExecuteHookOnSynchronization = kubeCfg.ExecuteHookOnSynchronization
+		kubeConfig.ExecuteHookOnSynchronization = go_hook.BoolDeref(kubeCfg.ExecuteHookOnSynchronization, true)
+		kubeConfig.WaitForSynchronization = go_hook.BoolDeref(kubeCfg.WaitForSynchronization, true)
 
-		// WaitForSynchronization is enabled by default. It can be disabled only for named queues.
-		kubeConfig.WaitForSynchronization = kubeCfg.WaitForSynchronization
-
-		// KeepFullObjectsInMemory is enabled by default.
-		kubeConfig.KeepFullObjectsInMemory = kubeCfg.KeepFullObjectsInMemory
-		kubeConfig.Monitor.KeepFullObjectsInMemory = kubeConfig.KeepFullObjectsInMemory
+		kubeConfig.KeepFullObjectsInMemory = false
+		kubeConfig.Monitor.KeepFullObjectsInMemory = false
 
 		c.OnKubernetesEvents = append(c.OnKubernetesEvents, kubeConfig)
 	}
@@ -339,25 +353,23 @@ func NewHookConfigFromGoConfig(input *sdk.HookConfig) config.HookConfig {
 
 		res := ScheduleConfig{}
 
-		if inSch.Name != "" {
-			res.BindingName = inSch.Name
-		} else {
-			res.BindingName = string(Schedule)
+		if inSch.Name == "" {
+			return c, spew.Errorf(`"name" is a required field in binding: %v`, inSch)
 		}
+		res.BindingName = inSch.Name
 
-		res.AllowFailure = inSch.AllowFailure
+		res.AllowFailure = input.AllowFailure
 		res.ScheduleEntry = types.ScheduleEntry{
 			Crontab: inSch.Crontab,
 			Id:      config.ScheduleID(),
 		}
-		res.IncludeSnapshotsFrom = inSch.IncludeSnapshotsFrom
 
-		if inSch.Queue == "" {
+		if input.Queue == "" {
 			res.Queue = "main"
 		} else {
-			res.Queue = inSch.Queue
+			res.Queue = input.Queue
 		}
-		res.Group = inSch.Group
+		res.Group = "main"
 
 		//schedule, err := c.ConvertScheduleV1(rawSchedule)
 		//if err != nil {
@@ -397,5 +409,5 @@ func NewHookConfigFromGoConfig(input *sdk.HookConfig) config.HookConfig {
 
 	/*** END Copy Paste ***/
 
-	return *c
+	return c, nil
 }
