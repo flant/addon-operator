@@ -7,7 +7,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
-	. "github.com/flant/shell-operator/pkg/hook/types"
+	shOpTypes "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/sdk"
 	"github.com/flant/shell-operator/pkg/hook/config"
@@ -28,17 +28,17 @@ type ModuleHookConfig struct {
 }
 
 type BeforeHelmConfig struct {
-	CommonBindingConfig
+	shOpTypes.CommonBindingConfig
 	Order float64
 }
 
 type AfterHelmConfig struct {
-	CommonBindingConfig
+	shOpTypes.CommonBindingConfig
 	Order float64
 }
 
 type AfterDeleteHelmConfig struct {
-	CommonBindingConfig
+	shOpTypes.CommonBindingConfig
 	Order float64
 }
 
@@ -216,10 +216,10 @@ func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDele
 	return res, nil
 }
 
-func (c *ModuleHookConfig) Bindings() []BindingType {
-	res := []BindingType{}
+func (c *ModuleHookConfig) Bindings() []shOpTypes.BindingType {
+	res := []shOpTypes.BindingType{}
 
-	for _, binding := range []BindingType{OnStartup, Schedule, OnKubernetesEvent, BeforeHelm, AfterHelm, AfterDeleteHelm} {
+	for _, binding := range []shOpTypes.BindingType{shOpTypes.OnStartup, shOpTypes.Schedule, shOpTypes.OnKubernetesEvent, BeforeHelm, AfterHelm, AfterDeleteHelm} {
 		if c.HasBinding(binding) {
 			res = append(res, binding)
 		}
@@ -228,7 +228,7 @@ func (c *ModuleHookConfig) Bindings() []BindingType {
 	return res
 }
 
-func (c *ModuleHookConfig) HasBinding(binding BindingType) bool {
+func (c *ModuleHookConfig) HasBinding(binding shOpTypes.BindingType) bool {
 	if c.HookConfig.HasBinding(binding) {
 		return true
 	}
@@ -246,16 +246,16 @@ func (c *ModuleHookConfig) HasBinding(binding BindingType) bool {
 func (c *ModuleHookConfig) BindingsCount() int {
 	res := 0
 
-	for _, binding := range []BindingType{OnStartup, BeforeHelm, AfterHelm, AfterDeleteHelm} {
+	for _, binding := range []shOpTypes.BindingType{shOpTypes.OnStartup, BeforeHelm, AfterHelm, AfterDeleteHelm} {
 		if c.HasBinding(binding) {
 			res++
 		}
 	}
 
-	if c.HasBinding(Schedule) {
+	if c.HasBinding(shOpTypes.Schedule) {
 		res += len(c.Schedules)
 	}
-	if c.HasBinding(OnKubernetesEvent) {
+	if c.HasBinding(shOpTypes.OnKubernetesEvent) {
 		res += len(c.OnKubernetesEvents)
 	}
 	return res
