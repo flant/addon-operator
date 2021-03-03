@@ -158,7 +158,6 @@ func (op *AddonOperator) InitModuleManager() error {
 	// Initializing ConfigMap storage for values
 	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager()
 	op.KubeConfigManager.WithKubeClient(op.KubeClient)
-	op.ObjectPatcher = object_patch.NewObjectPatcher(op.KubeClient)
 	op.KubeConfigManager.WithContext(op.ctx)
 	op.KubeConfigManager.WithNamespace(app.Namespace)
 	op.KubeConfigManager.WithConfigMapName(app.ConfigMapName)
@@ -175,6 +174,7 @@ func (op *AddonOperator) InitModuleManager() error {
 	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
 	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
 	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
+	op.ModuleManager.WithKubeObjectPatcher(object_patch.NewObjectPatcher(op.KubeClient))
 	op.ModuleManager.WithMetricStorage(op.MetricStorage)
 	op.ModuleManager.WithHookMetricStorage(op.HookMetricStorage)
 	err = op.ModuleManager.Init()

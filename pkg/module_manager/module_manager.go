@@ -45,6 +45,7 @@ type ModuleManager interface {
 	WithContext(ctx context.Context)
 	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
 	WithKubeEventManager(kube_events_manager.KubeEventsManager)
+	WithKubeObjectPatcher(*object_patch.ObjectPatcher)
 	WithScheduleManager(schedule_manager.ScheduleManager)
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
 	WithHelmResourcesManager(manager helm_resources_manager.HelmResourcesManager)
@@ -283,6 +284,10 @@ func (mm *moduleManager) WithKubeConfigManager(kubeConfigManager kube_config_man
 
 func (mm *moduleManager) WithKubeEventManager(mgr kube_events_manager.KubeEventsManager) {
 	mm.kubeEventsManager = mgr
+}
+
+func (mm *moduleManager) WithKubeObjectPatcher(patcher *object_patch.ObjectPatcher) {
+	mm.KubeObjectPatcher = patcher
 }
 
 func (mm *moduleManager) WithScheduleManager(mgr schedule_manager.ScheduleManager) {
