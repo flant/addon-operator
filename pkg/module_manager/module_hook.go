@@ -160,15 +160,6 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	moduleName := h.Module.Name
 
-	// Apply metric operations
-	err = h.moduleManager.hookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
-		"hook":   h.Name,
-		"module": moduleName,
-	})
-	if err != nil {
-		return err
-	}
-
 	if len(hookResult.KubernetesPatchBytes) > 0 {
 		var specs []object_patch.OperationSpec
 		specs, err = h.moduleManager.KubeObjectPatcher.ParseSpecs(hookResult.KubernetesPatchBytes)
@@ -180,6 +171,15 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		if err != nil {
 			return err
 		}
+	}
+
+	// Apply metric operations
+	err = h.moduleManager.hookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
+		"hook":   h.Name,
+		"module": moduleName,
+	})
+	if err != nil {
+		return err
 	}
 
 	// ValuesLock.Lock()
