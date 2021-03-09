@@ -406,7 +406,7 @@ func (h *GlobalHook) prepareMetricsFile() (string, error) {
 	return path, nil
 }
 
-// KUBERNETES PATCH PAH
+// KUBERNETES PATCH PATH
 func (h *GlobalHook) prepareKubernetesPatchFile() (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s-object-patch-%s", h.SafeName(), uuid.NewV4().String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
