@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
@@ -161,13 +160,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	moduleName := h.Module.Name
 
 	if len(hookResult.KubernetesPatchBytes) > 0 {
-		var specs []object_patch.OperationSpec
-		specs, err = h.moduleManager.KubeObjectPatcher.ParseSpecs(hookResult.KubernetesPatchBytes)
-		if err != nil {
-			return err
-		}
-
-		err = h.moduleManager.KubeObjectPatcher.GenerateFromJSONAndExecuteOperations(specs)
+		err = h.moduleManager.KubeObjectPatcher.GenerateFromJSONAndExecuteOperations(hookResult.KubernetesPatchBytes)
 		if err != nil {
 			return err
 		}
