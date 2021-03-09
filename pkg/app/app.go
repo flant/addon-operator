@@ -25,6 +25,7 @@ var TillerMaxHistory int32 = 0
 
 var Helm3HistoryMax int32 = 10
 var Helm3Timeout time.Duration = 5 * time.Minute
+var HelmIgnoreRelease = ""
 
 var Namespace = ""
 var ConfigMapName = "addon-operator"
@@ -88,6 +89,10 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("HELM_TIMEOUT").
 		Default(Helm3Timeout.String()).
 		DurationVar(&Helm3Timeout)
+
+	cmd.Flag("helm-ignore-release", "Helm3+: do not count release as a module release.").
+		Envar("HELM_IGNORE_RELEASE").
+		StringVar(&HelmIgnoreRelease)
 
 	cmd.Flag("config-map", "Name of a ConfigMap to store values.").
 		Envar("ADDON_OPERATOR_CONFIG_MAP").

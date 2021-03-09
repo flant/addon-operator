@@ -446,10 +446,19 @@ func (m *Module) ShouldRunHelmUpgrade(helmClient client.HelmClient, releaseName 
 // runHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
 // sets KubernetesSnapshots and runs the hook.
 func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]string) error {
+	var err error
 	moduleHooks := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
 
 	for _, moduleHookName := range moduleHooks {
 		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
+
+		err = moduleHook.RateLimitWait(context.Background())
+		if err != nil {
+			// This could happen when the Context is
+			// canceled, or the expected wait time exceeds the Context's Deadline.
+			// The best we can do without proper context usage is to repeat the task.
+			return err
+		}
 
 		bc := BindingContext{
 			Binding: string(binding),
@@ -469,7 +478,6 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 			"activation": logLabels["event.type"],
 		}
 
-		var err error
 		func() {
 			defer measure.Duration(func(d time.Duration) {
 				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)
@@ -487,6 +495,7 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 // runHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
 // sets KubernetesSnapshots and runs the hook. If values are changed after hooks execution, return true.
 func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels map[string]string) (bool, error) {
+	var err error
 	moduleHooks := m.moduleManager.GetModuleHooksInOrder(m.Name, binding)
 
 	values, err := m.Values()
@@ -500,6 +509,14 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 
 	for _, moduleHookName := range moduleHooks {
 		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
+
+		err = moduleHook.RateLimitWait(context.Background())
+		if err != nil {
+			// This could happen when the Context is
+			// canceled, or the expected wait time exceeds the Context's Deadline.
+			// The best we can do without proper context usage is to repeat the task.
+			return false, err
+		}
 
 		bc := BindingContext{
 			Binding: string(binding),
@@ -519,7 +536,6 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 			"activation": logLabels["event.type"],
 		}
 
-		var err error
 		func() {
 			defer measure.Duration(func(d time.Duration) {
 				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)

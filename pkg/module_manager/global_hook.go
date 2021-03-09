@@ -9,11 +9,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/satori/go.uuid.v1"
 
+	"github.com/flant/shell-operator/pkg/hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
-
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/sdk"
 )
@@ -44,6 +44,8 @@ func (g *GlobalHook) WithConfig(configOutput []byte) (err error) {
 	}
 	// Make HookController and GetConfigDescription work.
 	g.Hook.Config = &g.Config.HookConfig
+	g.Hook.RateLimiter = hook.CreateRateLimiter(g.Hook.Config)
+
 	return nil
 }
 
