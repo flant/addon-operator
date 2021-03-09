@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
@@ -13,6 +12,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/utils"

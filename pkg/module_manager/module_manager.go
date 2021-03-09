@@ -9,18 +9,19 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
-	// bindings constants and binding configs
-	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 
+	// bindings constants and binding configs
+	. "github.com/flant/addon-operator/pkg/hook/types"
+
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"

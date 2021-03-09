@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -174,7 +173,7 @@ func (op *AddonOperator) InitModuleManager() error {
 	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
 	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
 	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
-	op.ModuleManager.WithKubeObjectPatcher(object_patch.NewObjectPatcher(op.KubeClient))
+	op.ModuleManager.WithKubeObjectPatcher(op.ObjectPatcher)
 	op.ModuleManager.WithMetricStorage(op.MetricStorage)
 	op.ModuleManager.WithHookMetricStorage(op.HookMetricStorage)
 	err = op.ModuleManager.Init()
