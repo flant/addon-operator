@@ -75,15 +75,8 @@ github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1 h1:Td
 github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1/go.mod h1:8DJv2CVJQ6kGNpFW6eV9N3JviE1C85nY1c2z52x1Gk4=
 github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a h1:PlStPekqPtTSWDDKFlwgETsT1OiXD1gZtRHcNxAs1lc=
 github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
-github.com/flant/shell-operator v1.0.0-rc.2 h1:a7qjZiq6cPz8icx7vVoa44HV+5Zno5LPX/8FT+PqsiM=
-github.com/flant/shell-operator v1.0.0-rc.2/go.mod h1:pq8wYfmaG5UT5MocnNZUzVMFw/n93kay+pYNyHOj+C0=
-github.com/flant/shell-operator v1.0.0-rc.2.0.20210301093335-489eb49059db h1:fHjzdMOOyVKhtNVLHB7iy/2V4xdG1wySHyJTrcTx/eE=
-github.com/flant/shell-operator v1.0.0-rc.2.0.20210301093335-489eb49059db/go.mod h1:SYvDlbFLsn128jWnVU3nqW1iqCRTn+QCzjjJgkWfllM=
-github.com/flant/shell-operator v1.0.0-rc.2.0.20210302075139-437ffd66fadd h1:NW1AHaQAIakEekiV6HSxQu0wyS/ceSSjg7Tk1216vTY=
-github.com/flant/shell-operator v1.0.0-rc.2.0.20210302075139-437ffd66fadd/go.mod h1:SYvDlbFLsn128jWnVU3nqW1iqCRTn+QCzjjJgkWfllM=
-github.com/flant/shell-operator v1.0.0-rc.2.0.20210304192910-4b9d0df35834 h1:zBg/TNuV95MhU3kpeqOgdQ3zZebN8hc69jcHLT6F2eI=
-github.com/flant/shell-operator v1.0.0-rc.2.0.20210304192910-4b9d0df35834/go.mod h1:SYvDlbFLsn128jWnVU3nqW1iqCRTn+QCzjjJgkWfllM=
-github.com/flant/shell-operator v1.0.0-rc.2.0.20210309122030-e12b710ba118/go.mod h1:SYvDlbFLsn128jWnVU3nqW1iqCRTn+QCzjjJgkWfllM=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210309133328-81e5d893a769 h1:ujRGBwVHji/8eNwXOW4VxAKd7KO8g/uSf3aDgOhMMq0=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210309133328-81e5d893a769/go.mod h1:RHkdgTcyRh/B3imV4O13xH7rmDazd6V5RZ8E3hVq8BM=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
@@ -327,8 +320,6 @@ github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijb
 github.com/vektah/gqlparser v1.1.2/go.mod h1:1ycwN7Ij5njmMkPPAOaRFY4rET2Enx7IkVv3vaXspKw=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
-github.com/zuzzas/shell-operator v1.0.0-beta.3.0.20210302200743-90b3ba7cad1d h1:zwxUL22VtswJptvv0MKKKn+BcXln54o3S7Pe0i61r4o=
-github.com/zuzzas/shell-operator v1.0.0-beta.3.0.20210302200743-90b3ba7cad1d/go.mod h1:R3lOzd7BVN0802OFuZj0ZVw6zg8e399cbk2bfu/N8tw=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738/go.mod h1:dnLIgRNXwCJa5e+c6mIZCrds/GIG4ncV9HhK5PX7jPg=
 go.mongodb.org/mongo-driver v1.0.3/go.mod h1:u7ryQJ+DOzQmeO7zB6MHyr8jkEQvC8vH7qLUO4lqsUM=
