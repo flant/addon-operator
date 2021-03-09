@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	log "github.com/sirupsen/logrus"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
@@ -49,7 +50,7 @@ type HookResult struct {
 	Usage                *executor.CmdUsage
 	Patches              map[utils.ValuesPatchType]*utils.ValuesPatch
 	Metrics              []metric_operation.MetricOperation
-	KubernetesPatchBytes []byte
+	KubernetesPatchBytes []object_patch.OperationSpec
 }
 
 func (e *HookExecutor) Run() (result *HookResult, err error) {
@@ -119,9 +120,14 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 		return result, fmt.Errorf("got bad metrics: %s", err)
 	}
 
-	result.KubernetesPatchBytes, err = ioutil.ReadFile(e.KubernetesPatchPath)
+	kubernetesPatchBytes, err := ioutil.ReadFile(e.KubernetesPatchPath)
 	if err != nil {
 		return result, fmt.Errorf("can't read kubernetes patch file: %s", err)
+	}
+
+	result.KubernetesPatchBytes, err = object_patch.ParseSpecs(kubernetesPatchBytes)
+	if err != nil {
+		return nil, err
 	}
 
 	return result, nil

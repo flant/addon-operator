@@ -12,7 +12,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -174,13 +173,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 	}
 
 	if len(hookResult.KubernetesPatchBytes) > 0 {
-		var specs []object_patch.OperationSpec
-		specs, err = h.moduleManager.KubeObjectPatcher.ParseSpecs(hookResult.KubernetesPatchBytes)
-		if err != nil {
-			return err
-		}
-
-		err = h.moduleManager.KubeObjectPatcher.GenerateFromJSONAndExecuteOperations(specs)
+		err = h.moduleManager.KubeObjectPatcher.GenerateFromJSONAndExecuteOperations(hookResult.KubernetesPatchBytes)
 		if err != nil {
 			return err
 		}
