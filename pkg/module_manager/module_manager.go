@@ -12,14 +12,16 @@ import (
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
-	// bindings constants and binding configs
-	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 
+	// bindings constants and binding configs
+	. "github.com/flant/addon-operator/pkg/hook/types"
+
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
@@ -44,6 +46,7 @@ type ModuleManager interface {
 	WithContext(ctx context.Context)
 	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
 	WithKubeEventManager(kube_events_manager.KubeEventsManager)
+	WithKubeObjectPatcher(*object_patch.ObjectPatcher)
 	WithScheduleManager(schedule_manager.ScheduleManager)
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager) ModuleManager
 	WithHelmResourcesManager(manager helm_resources_manager.HelmResourcesManager)
@@ -121,6 +124,7 @@ type moduleManager struct {
 	EventCh chan Event
 
 	KubeClient           kube.KubernetesClient
+	KubeObjectPatcher    *object_patch.ObjectPatcher
 	kubeEventsManager    kube_events_manager.KubeEventsManager
 	scheduleManager      schedule_manager.ScheduleManager
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
@@ -281,6 +285,10 @@ func (mm *moduleManager) WithKubeConfigManager(kubeConfigManager kube_config_man
 
 func (mm *moduleManager) WithKubeEventManager(mgr kube_events_manager.KubeEventsManager) {
 	mm.kubeEventsManager = mgr
+}
+
+func (mm *moduleManager) WithKubeObjectPatcher(patcher *object_patch.ObjectPatcher) {
+	mm.KubeObjectPatcher = patcher
 }
 
 func (mm *moduleManager) WithScheduleManager(mgr schedule_manager.ScheduleManager) {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/satori/go.uuid.v1"
+	uuid "gopkg.in/satori/go.uuid.v1"
 
 	"github.com/flant/shell-operator/pkg/hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -159,6 +159,13 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	moduleName := h.Module.Name
 
+	if len(hookResult.KubernetesPatchBytes) > 0 {
+		err = h.moduleManager.KubeObjectPatcher.GenerateFromJSONAndExecuteOperations(hookResult.KubernetesPatchBytes)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Apply metric operations
 	err = h.moduleManager.hookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
 		"hook":   h.Name,
@@ -279,6 +286,11 @@ func (h *ModuleHook) PrepareTmpFilesForHookRun(bindingContext []byte) (tmpFiles 
 		return
 	}
 
+	tmpFiles["KUBERNETES_PATCH_PATH"], err = h.prepareKubernetesPatchFile()
+	if err != nil {
+		return
+	}
+
 	return
 }
 
@@ -334,6 +346,15 @@ func (h *ModuleHook) prepareValuesJsonPatchFile() (string, error) {
 // METRICS_PATH
 func (h *ModuleHook) prepareMetricsFile() (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-metrics-%s.json", h.SafeName(), uuid.NewV4().String()))
+	if err := CreateEmptyWritableFile(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// KUBERNETES PATCH PATH
+func (h *ModuleHook) prepareKubernetesPatchFile() (string, error) {
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s-object-patch-%s", h.SafeName(), uuid.NewV4().String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}

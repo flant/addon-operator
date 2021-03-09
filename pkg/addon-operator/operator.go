@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/satori/go.uuid.v1"
+	uuid "gopkg.in/satori/go.uuid.v1"
 	"sigs.k8s.io/yaml"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
@@ -24,7 +24,7 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/flant/shell-operator/pkg/metric_storage"
-	"github.com/flant/shell-operator/pkg/shell-operator"
+	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	. "github.com/flant/shell-operator/pkg/utils/measure"
@@ -173,6 +173,7 @@ func (op *AddonOperator) InitModuleManager() error {
 	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
 	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
 	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
+	op.ModuleManager.WithKubeObjectPatcher(op.ObjectPatcher)
 	op.ModuleManager.WithMetricStorage(op.MetricStorage)
 	op.ModuleManager.WithHookMetricStorage(op.HookMetricStorage)
 	err = op.ModuleManager.Init()

@@ -2,9 +2,11 @@ package module_manager
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	log "github.com/sirupsen/logrus"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
@@ -27,6 +29,7 @@ type HookExecutor struct {
 	ConfigValuesPatchPath string
 	ValuesPatchPath       string
 	MetricsPath           string
+	KubernetesPatchPath   string
 	LogLabels             map[string]string
 }
 
@@ -44,9 +47,10 @@ func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
 }
 
 type HookResult struct {
-	Usage   *executor.CmdUsage
-	Patches map[utils.ValuesPatchType]*utils.ValuesPatch
-	Metrics []metric_operation.MetricOperation
+	Usage                *executor.CmdUsage
+	Patches              map[utils.ValuesPatchType]*utils.ValuesPatch
+	Metrics              []metric_operation.MetricOperation
+	KubernetesPatchBytes []object_patch.OperationSpec
 }
 
 func (e *HookExecutor) Run() (result *HookResult, err error) {
@@ -84,6 +88,7 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 	e.ConfigValuesPatchPath = tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
 	e.ValuesPatchPath = tmpFiles["VALUES_JSON_PATCH_PATH"]
 	e.MetricsPath = tmpFiles["METRICS_PATH"]
+	e.KubernetesPatchPath = tmpFiles["KUBERNETES_PATCH_PATH"]
 
 	envs := []string{}
 	envs = append(envs, os.Environ()...)
@@ -113,6 +118,16 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 	result.Metrics, err = metric_operation.MetricOperationsFromFile(e.MetricsPath)
 	if err != nil {
 		return result, fmt.Errorf("got bad metrics: %s", err)
+	}
+
+	kubernetesPatchBytes, err := ioutil.ReadFile(e.KubernetesPatchPath)
+	if err != nil {
+		return result, fmt.Errorf("can't read kubernetes patch file: %s", err)
+	}
+
+	result.KubernetesPatchBytes, err = object_patch.ParseSpecs(kubernetesPatchBytes)
+	if err != nil {
+		return nil, err
 	}
 
 	return result, nil
