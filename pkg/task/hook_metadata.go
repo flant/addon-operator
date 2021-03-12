@@ -28,12 +28,15 @@ type HookMetadata struct {
 	LastAfterAllHook         bool   // true if task is a last afterAll hook in sequence
 	ReloadAllOnValuesChanges bool   // whether or not run DiscoverModules process if hook change global values
 
-	KubernetesBindingId    string // Unique id for kubernetes bindings
-	WaitForSynchronization bool   // kubernetes.Synchronization task should be waited
+	KubernetesBindingId      string   // Unique id for kubernetes bindings
+	WaitForSynchronization   bool     // kubernetes.Synchronization task should be waited
+	MonitorIDs               []string // an array of monitor IDs to unlock Kubernetes events after Synchronization.
+	ExecuteOnSynchronization bool     // A flag to skip hook execution in Synchronization tasks.
 }
 
 var _ task_metadata.HookNameAccessor = HookMetadata{}
 var _ task_metadata.BindingContextAccessor = HookMetadata{}
+var _ task_metadata.MonitorIDAccessor = HookMetadata{}
 var _ task.MetadataDescriptable = HookMetadata{}
 
 func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
@@ -78,10 +81,14 @@ func (hm HookMetadata) GetDescription() string {
 	}
 }
 
-func (m HookMetadata) GetHookName() string {
-	return m.HookName
+func (hm HookMetadata) GetHookName() string {
+	return hm.HookName
 }
 
-func (m HookMetadata) GetBindingContext() []BindingContext {
-	return m.BindingContext
+func (hm HookMetadata) GetBindingContext() []BindingContext {
+	return hm.BindingContext
+}
+
+func (hm HookMetadata) GetMonitorIDs() []string {
+	return hm.MonitorIDs
 }

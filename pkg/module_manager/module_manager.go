@@ -1153,13 +1153,6 @@ func (mm *moduleManager) HandleModuleEnableKubernetesBindings(moduleName string,
 }
 
 func (mm *moduleManager) StartModuleHooks(moduleName string) {
-	kubeHooks := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
-
-	for _, hookName := range kubeHooks {
-		mh := mm.GetModuleHook(hookName)
-		mh.HookController.StartMonitors()
-	}
-
 	schHooks := mm.GetModuleHooksInOrder(moduleName, Schedule)
 	for _, hookName := range schHooks {
 		mh := mm.GetModuleHook(hookName)
