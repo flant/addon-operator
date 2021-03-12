@@ -99,6 +99,10 @@ env:
   value: {{ .Release.Name }}
 ```
 
+**HELM_MONITOR_KUBE_CLIENT_QPS** — QPS for a rate limiter of a kubernetes client for Helm resources monitor.
+
+**HELM_MONITOR_KUBE_CLIENT_BURST** — Burst for a rate limiter of a kubernetes client for Helm resources monitor.
+
 ### Logging settings
 
 **LOG_TYPE** — Logging formatter type: `json`, `text` or `color`.

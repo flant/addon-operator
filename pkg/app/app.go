@@ -26,6 +26,10 @@ var TillerMaxHistory int32 = 0
 var Helm3HistoryMax int32 = 10
 var Helm3Timeout time.Duration = 5 * time.Minute
 var HelmIgnoreRelease = ""
+var HelmMonitorKubeClientQpsDefault = "5" // DefaultQPS from k8s.io/client-go/rest/config.go
+var HelmMonitorKubeClientQps float32
+var HelmMonitorKubeClientBurstDefault = "10" // DefaultBurst from k8s.io/client-go/rest/config.go
+var HelmMonitorKubeClientBurst int
 
 var Namespace = ""
 var ConfigMapName = "addon-operator"
@@ -93,6 +97,16 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 	cmd.Flag("helm-ignore-release", "Helm3+: do not count release as a module release.").
 		Envar("HELM_IGNORE_RELEASE").
 		StringVar(&HelmIgnoreRelease)
+
+	// Rate limit settings for kube client used by Helm resources monitor.
+	cmd.Flag("helm-monitor-kube-client-qps", "QPS for a rate limiter of a kubernetes client for Helm resources monitor. Can be set with $HELM_MONITOR_KUBE_CLIENT_QPS.").
+		Envar("HELM_MONITOR_KUBE_CLIENT_QPS").
+		Default(HelmMonitorKubeClientQpsDefault).
+		Float32Var(&HelmMonitorKubeClientQps)
+	cmd.Flag("helm-monitor-kube-client-burst", "Burst for a rate limiter of a kubernetes client for Helm resources monitor. Can be set with $HELM_MONITOR_KUBE_CLIENT_BURST.").
+		Envar("HELM_MONITOR_KUBE_CLIENT_BURST").
+		Default(HelmMonitorKubeClientBurstDefault).
+		IntVar(&HelmMonitorKubeClientBurst)
 
 	cmd.Flag("config-map", "Name of a ConfigMap to store values.").
 		Envar("ADDON_OPERATOR_CONFIG_MAP").
