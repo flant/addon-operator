@@ -28,6 +28,7 @@ func NewValuesPatch() *ValuesPatch {
 	}
 }
 
+// ToJsonPatch returns a jsonpatch.Patch with all operations.
 func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
 	data, err := json.Marshal(p.Operations)
 	if err != nil {
@@ -40,13 +41,45 @@ func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
 	return patch, nil
 }
 
-// Apply calls jsonpatch.Apply to mutate a JSON document according to the patch.
-func (p *ValuesPatch) Apply(doc []byte) ([]byte, error) {
+// ApplyStrict calls jsonpatch.Apply to transform a JSON document according to the patch.
+//
+// 'remove' operation errors are not ignored.
+func (p *ValuesPatch) ApplyStrict(doc []byte) ([]byte, error) {
 	patch, err := p.ToJsonPatch()
 	if err != nil {
 		return nil, err
 	}
 	return patch.Apply(doc)
+}
+
+// Apply calls jsonpatch.Apply to transform an input JSON document.
+//
+// jsonpatch.Patch is created for each operation to ignore
+// errors from 'remove' operations.
+func (p *ValuesPatch) Apply(doc []byte) ([]byte, error) {
+	for _, op := range p.Operations {
+		patch, err := op.ToJsonPatch()
+		if err != nil {
+			return nil, err
+		}
+		newDoc, err := patch.Apply(doc)
+		// Ignore errors for remove operation.
+		if err != nil && op.Op == "remove" {
+			errStr := err.Error()
+			if strings.HasPrefix(errStr, "error in remove for path:") {
+				continue
+			}
+			if strings.HasPrefix(errStr, "remove operation does not apply: doc is missing path") {
+				continue
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		doc = newDoc
+	}
+
+	return doc, nil
 }
 
 func (p *ValuesPatch) MergeOperations(src *ValuesPatch) {
@@ -57,8 +90,8 @@ func (p *ValuesPatch) MergeOperations(src *ValuesPatch) {
 }
 
 type ValuesPatchOperation struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
+	Op    string      `json:"op,omitempty"`
+	Path  string      `json:"path,omitempty"`
 	Value interface{} `json:"value,omitempty"`
 }
 
@@ -69,6 +102,15 @@ func (op *ValuesPatchOperation) ToString() string {
 		return fmt.Sprintf("{\"op\":\"%s\", \"path\":\"%s\", \"value-error\": \"%s\" }", op.Op, op.Path, err)
 	}
 	return string(data)
+}
+
+// ToJsonPatch returns a jsonpatch.Patch with one operation.
+func (op *ValuesPatchOperation) ToJsonPatch() (jsonpatch.Patch, error) {
+	opBytes, err := json.Marshal([]*ValuesPatchOperation{op})
+	if err != nil {
+		return nil, err
+	}
+	return jsonpatch.DecodePatch(opBytes)
 }
 
 func JsonPatchFromReader(r io.Reader) (jsonpatch.Patch, error) {
@@ -243,8 +285,12 @@ func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
 	return newValuesPatch
 }
 
+type ApplyPatchOptions string
+
+const Strict ApplyPatchOptions = "strict"
+
 // ApplyValuesPatch applies a set of json patch operations to the values and returns a result
-func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, error) {
+func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, options ...ApplyPatchOptions) (Values, bool, error) {
 	var err error
 
 	jsonDoc, err := json.Marshal(values)
@@ -252,7 +298,12 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, err
 		return nil, false, err
 	}
 
-	resJsonDoc, err := valuesPatch.Apply(jsonDoc)
+	var resJsonDoc []byte
+	if len(options) > 0 && options[0] == Strict {
+		resJsonDoc, err = valuesPatch.ApplyStrict(jsonDoc)
+	} else {
+		resJsonDoc, err = valuesPatch.Apply(jsonDoc)
+	}
 	if err != nil {
 		return nil, false, err
 	}
@@ -267,7 +318,7 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, err
 	return resValues, valuesChanged, nil
 }
 
-func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRoot string) error {
+func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRootKey string) error {
 	for _, op := range valuesPatch.Operations {
 		if op.Op == "replace" {
 			return fmt.Errorf("unsupported patch operation '%s': '%s'", op.Op, op.ToString())
@@ -275,21 +326,21 @@ func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRoot string) erro
 
 		pathParts := strings.Split(op.Path, "/")
 		if len(pathParts) > 1 {
-			affectedKey := pathParts[1]
+			rootKey := pathParts[1]
 			// patches for permittedRoot are allowed
-			if affectedKey == permittedRoot {
+			if rootKey == permittedRootKey {
 				continue
 			}
 			// patches for *Enabled keys are accepted from global hooks
-			if strings.HasSuffix(affectedKey, "Enabled") && permittedRoot == GlobalValuesKey {
+			if strings.HasSuffix(rootKey, "Enabled") && permittedRootKey == GlobalValuesKey {
 				continue
 			}
 			// all other patches are denied
-			permittedMessage := fmt.Sprintf("only '%s' accepted", permittedRoot)
-			if permittedRoot == GlobalValuesKey {
-				permittedMessage = fmt.Sprintf("only '%s' and '*Enabled' are permitted", permittedRoot)
+			permittedMessage := fmt.Sprintf("only '%s' accepted", permittedRootKey)
+			if permittedRootKey == GlobalValuesKey {
+				permittedMessage = fmt.Sprintf("only '%s' and '*Enabled' are permitted", permittedRootKey)
 			}
-			return fmt.Errorf("unacceptable patch operation for path '%s' (%s): '%s'", affectedKey, permittedMessage, op.ToString())
+			return fmt.Errorf("unacceptable patch operation for path '%s' (%s): '%s'", rootKey, permittedMessage, op.ToString())
 		}
 	}
 
