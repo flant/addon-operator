@@ -77,6 +77,17 @@ github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a h1:PlStPekqPtTSWD
 github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
 github.com/flant/shell-operator v1.0.0-rc.2.0.20210309133328-81e5d893a769 h1:ujRGBwVHji/8eNwXOW4VxAKd7KO8g/uSf3aDgOhMMq0=
 github.com/flant/shell-operator v1.0.0-rc.2.0.20210309133328-81e5d893a769/go.mod h1:RHkdgTcyRh/B3imV4O13xH7rmDazd6V5RZ8E3hVq8BM=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210315102948-b95c438c9e8e h1:tSlEXuTki+Y8MPzKQuaUSBvE+0wGDNy9v8tcHWoAXQY=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210315102948-b95c438c9e8e/go.mod h1:RHkdgTcyRh/B3imV4O13xH7rmDazd6V5RZ8E3hVq8BM=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210315135322-261d8a02ac22 h1:S1TE1K3nl8IDq1KglTnFhENbT1RUVyyRDuUJdpPN9Gs=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210315135322-261d8a02ac22/go.mod h1:RHkdgTcyRh/B3imV4O13xH7rmDazd6V5RZ8E3hVq8BM=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210315155737-7ce44d36b99a h1:E76x4m0qx/oDOnpG1t5bRrM5AVMvo6Xvjyv1qKE6CN8=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210315155737-7ce44d36b99a/go.mod h1:RHkdgTcyRh/B3imV4O13xH7rmDazd6V5RZ8E3hVq8BM=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210315161737-9b8bc507cc35 h1:YmUsPjBJqBQbdiLAsDcdTar8qewbrEhGBdnKVhzvPH4=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210315161737-9b8bc507cc35/go.mod h1:RHkdgTcyRh/B3imV4O13xH7rmDazd6V5RZ8E3hVq8BM=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210316142428-b7663563347c h1:bs8PJJkoOH427kIZb0hmpUHbo23Lx0zBJEAcxfZD61g=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210316142428-b7663563347c/go.mod h1:RHkdgTcyRh/B3imV4O13xH7rmDazd6V5RZ8E3hVq8BM=
+github.com/flant/shell-operator v1.0.0-rc.2.0.20210316171155-954e8339d8c3/go.mod h1:RHkdgTcyRh/B3imV4O13xH7rmDazd6V5RZ8E3hVq8BM=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
