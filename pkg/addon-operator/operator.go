@@ -22,6 +22,7 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
@@ -183,12 +184,23 @@ func (op *AddonOperator) InitModuleManager() error {
 
 	op.DefineEventHandlers()
 
-	// Init helm resources manager
+	// Helm resources monitor.
+	// Use separate client-go instance.
+	helmMonitorKubeClient := kube.NewKubernetesClient()
+	helmMonitorKubeClient.WithContextName(sh_app.KubeContext)
+	helmMonitorKubeClient.WithConfigPath(sh_app.KubeConfig)
+	helmMonitorKubeClient.WithRateLimiterSettings(app.HelmMonitorKubeClientQps, app.HelmMonitorKubeClientBurst)
+	helmMonitorKubeClient.WithMetricStorage(op.MetricStorage)
+	err = helmMonitorKubeClient.Init()
+	if err != nil {
+		log.Errorf("MAIN Fatal: initialize kube client for helm: %s\n", err)
+		return err
+	}
+	// Init helm resources manager.
 	op.HelmResourcesManager = helm_resources_manager.NewHelmResourcesManager()
 	op.HelmResourcesManager.WithContext(op.ctx)
-	op.HelmResourcesManager.WithKubeClient(op.KubeClient)
+	op.HelmResourcesManager.WithKubeClient(helmMonitorKubeClient)
 	op.HelmResourcesManager.WithDefaultNamespace(app.Namespace)
-
 	op.ModuleManager.WithHelmResourcesManager(op.HelmResourcesManager)
 
 	return nil
