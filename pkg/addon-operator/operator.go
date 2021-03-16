@@ -63,6 +63,8 @@ type AddonOperator struct {
 	StartupConvergeDone    bool
 	ConvergeStarted        int64
 	ConvergeActivation     string
+
+	HelmMonitorKubeClientMetricLabels map[string]string
 }
 
 func NewAddonOperator() *AddonOperator {
@@ -185,13 +187,8 @@ func (op *AddonOperator) InitModuleManager() error {
 	op.DefineEventHandlers()
 
 	// Helm resources monitor.
-	// Use separate client-go instance.
-	helmMonitorKubeClient := kube.NewKubernetesClient()
-	helmMonitorKubeClient.WithContextName(sh_app.KubeContext)
-	helmMonitorKubeClient.WithConfigPath(sh_app.KubeConfig)
-	helmMonitorKubeClient.WithRateLimiterSettings(app.HelmMonitorKubeClientQps, app.HelmMonitorKubeClientBurst)
-	helmMonitorKubeClient.WithMetricStorage(op.MetricStorage)
-	err = helmMonitorKubeClient.Init()
+	// Use separate client-go instance. (Metrics are registered when 'main' client is initialized).
+	helmMonitorKubeClient, err := op.InitHelmMonitorKubeClient()
 	if err != nil {
 		log.Errorf("MAIN Fatal: initialize kube client for helm: %s\n", err)
 		return err
@@ -2069,6 +2066,19 @@ func InitAndStart(operator *AddonOperator) error {
 	if err != nil {
 		log.Errorf("HTTP SERVER for hook metrics start failed: %v", err)
 		return err
+	}
+
+	// Create a default 'main' Kubernetes client if not initialized externally.
+	// Register metrics for kubernetes client with the default custom label "component".
+	if operator.KubeClient == nil {
+		// Register metrics for client-go.
+		kube.RegisterKubernetesClientMetrics(operator.MetricStorage, operator.GetMainKubeClientMetricLabels())
+		// Initialize 'main' Kubernetes client.
+		operator.KubeClient, err = operator.InitMainKubeClient()
+		if err != nil {
+			log.Errorf("MAIN Fatal: initialize kube client for hooks: %s\n", err)
+			return err
+		}
 	}
 
 	err = operator.Init()
