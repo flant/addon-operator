@@ -851,11 +851,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			t.WithQueuedAt(time.Now())
 			res.Status = "Repeat"
 		} else {
-			taskLogEntry.Infof("Global hooks enable kubernetes events")
-			//op.ModuleManager.GlobalEnableKubernetesEvents()
-			//hm := task.HookMetadataAccessor(t)
-			//globalHook := op.ModuleManager.GetGlobalHook(hm.HookName)
-			//globalHook.HookController.EnableKubernetesEvents()
+			taskLogEntry.Infof("Global 'Synchronization' is done")
 		}
 
 	case task.ReloadAllModules:
@@ -1300,7 +1296,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 		op.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)
 	})()
 
-	isSynchronization := hm.BindingType == OnKubernetesEvent && hm.BindingContext[0].Type == types.TypeSynchronization
+	isSynchronization := hm.IsSynchronization()
 	shouldRunHook := true
 	if isSynchronization {
 		// There were no Synchronization for v0 hooks, skip hook execution.
@@ -1453,7 +1449,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		op.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_seconds", d.Seconds(), metricLabels)
 	})()
 
-	isSynchronization := hm.BindingType == OnKubernetesEvent && hm.BindingContext[0].Type == types.TypeSynchronization
+	isSynchronization := hm.IsSynchronization()
 	shouldRunHook := true
 	if isSynchronization {
 		// There were no Synchronization for v0 hooks, skip hook execution.

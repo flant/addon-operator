@@ -5,7 +5,7 @@ go 1.12
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.9.0+incompatible
-	github.com/flant/shell-operator v1.0.0-rc.2.0.20210312082814-474da3366f0c // branch: master
+	github.com/flant/shell-operator v1.0.0-rc.2.0.20210317131220-020ac6f87d1b // branch: fix_fresh_objects_on_synchronization_retries
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-openapi/strfmt v0.19.3

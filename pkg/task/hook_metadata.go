@@ -11,7 +11,7 @@ import (
 	"github.com/flant/shell-operator/pkg/task"
 )
 
-// HookMetadata is metadata for addon-operator tasks
+// HookMetadata is a metadata for addon-operator tasks
 type HookMetadata struct {
 	EventDescription string // event name for informative queue dump
 	HookName         string
@@ -91,4 +91,8 @@ func (hm HookMetadata) GetBindingContext() []BindingContext {
 
 func (hm HookMetadata) GetMonitorIDs() []string {
 	return hm.MonitorIDs
+}
+
+func (hm HookMetadata) IsSynchronization() bool {
+	return len(hm.BindingContext) > 0 && hm.BindingContext[0].IsSynchronization()
 }
