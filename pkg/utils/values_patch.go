@@ -215,35 +215,56 @@ func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatc
 	for _, patch := range valuesPatches {
 		operations = append(operations, patch.Operations...)
 	}
-	operations = append(operations, newValuesPatch.Operations...)
+	//operations = append(operations, newValuesPatch.Operations...)
 
-	return []ValuesPatch{CompactPatches(operations)}
+	return []ValuesPatch{CompactPatches(operations, newValuesPatch.Operations)}
 }
 
 // CompactPatches simplifies a patches tree — one path, one operation.
-func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
+func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*ValuesPatchOperation) ValuesPatch {
 	patchesTree := make(map[string][]*ValuesPatchOperation)
 
-	for _, op := range operations {
-		// remove previous operations for subpaths if got 'remove' operation for parent path
+	// Fill tree from existed operations.
+	for _, op := range existedOperations {
+		if _, ok := patchesTree[op.Path]; !ok {
+			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
+		}
+		patchesTree[op.Path] = append(patchesTree[op.Path], op)
+	}
+
+	for _, op := range newOperations {
+		// Remove previous operations for subpaths if there is new operation for the parent path
 		if op.Op == "remove" {
 			for subPath := range patchesTree {
-				if len(op.Path) < len(subPath) && strings.HasPrefix(subPath, op.Path+"/") {
+				if len(subPath) > len(op.Path) && strings.HasPrefix(subPath, op.Path+"/") {
 					delete(patchesTree, subPath)
 				}
 			}
 		}
 
+		// Prepare array for path.
 		if _, ok := patchesTree[op.Path]; !ok {
 			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
 		}
 
-		// 'add' can be squashed to only one operation
+		// Store only one last 'add' operation for the same path.
 		if op.Op == "add" {
 			patchesTree[op.Path] = []*ValuesPatchOperation{op}
+			// Value can contain an object. This value will create new subpaths on Apply and
+			// other new patches may depends on these subpathes! Consider this patch set:
+			// {"op":"app", "path":"/obj/settings", "value":{"parent_1":{}} }
+			// {"op":"app", "path":"/obj/settings/parent_1/field1", "value":"foo"}
+			// {"op":"app", "path":"/obj/settings/parent_1/field2", "value":"bar"}
+			// The next patch set may reset /obj/settings in this manner:
+			// {"op":"app", "path":"/obj/settings", "value":{} }
+			// The result is this:
+			// {"op":"app", "path":"/obj/settings", "value":{} }
+			// {"op":"app", "path":"/obj/settings/parent_1/field1", "value":"foo"}
+			// {"op":"app", "path":"/obj/settings/parent_1/field2", "value":"bar"}
+			// There is a problem: /obj/settings/parent_1/field1 and /obj/settings/parent_1/field2 are not actual now.
 		}
 
-		// 'remove' is squashed to 'remove' and 'add' for future Apply calls
+		// 'remove' is replaced with 'add' and 'remove' for future Apply calls.
 		if op.Op == "remove" {
 			// find most recent 'add' operation
 			hasPreviousAdd := false
@@ -256,7 +277,7 @@ func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
 
 			if !hasPreviousAdd {
 				// Something bad happens — a sequence contains a 'remove' operation without previous 'add' operation
-				// Append virtual 'add' operation to not fail future Apply calls.
+				// Append a fake 'add' operation to not fail future Apply calls.
 				patchesTree[op.Path] = []*ValuesPatchOperation{
 					{
 						Op:    "add",

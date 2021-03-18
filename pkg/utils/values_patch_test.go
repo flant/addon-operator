@@ -455,7 +455,7 @@ func Test_CompactPatches_Apply(t *testing.T) {
 
 			assert.True(t, jsonpatch.Equal(origPatchedDoc, []byte(tt.expected)), "%s should be equal to %s", origPatchedDoc, tt.expected)
 
-			newPatch := CompactPatches(operations)
+			newPatch := CompactPatches(nil, operations)
 			if !assert.NoError(t, err) {
 				t.FailNow()
 			}
