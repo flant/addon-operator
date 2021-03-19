@@ -244,14 +244,14 @@ func Test_CompactPatches_Result(t *testing.T) {
 			`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
 		},
 		{
-			"add+remove",
+			"add+remove == remove",
 			[]string{
 				`{"op":"add", "path":"/test_key", "value":"foo"}`,
 			},
 			[]string{
 				`{"op":"remove", "path":"/test_key"}`,
 			},
-			`[{"op":"add", "path":"/test_key", "value":"foo"},{"op":"remove", "path":"/test_key"}]`,
+			`[{"op":"remove", "path":"/test_key"}]`,
 		},
 		{
 			"add+remove+add == add",
@@ -275,7 +275,7 @@ func Test_CompactPatches_Result(t *testing.T) {
 			`[{"op":"add", "path":"/test_key", "value":"foo"}, {"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
 		},
 		{
-			"add_1+add_2+remove_1 == add_1+add_2+remove_1",
+			"add_1+add_2+remove_1 == add_2+remove_1",
 			[]string{
 				`{"op":"add", "path":"/test_key", "value":"foo"}`,
 				`{"op":"add", "path":"/test_key_2", "value": "qwe"}`,
@@ -283,10 +283,10 @@ func Test_CompactPatches_Result(t *testing.T) {
 			[]string{
 				`{"op":"remove", "path":"/test_key"}`,
 			},
-			`[{"op":"add", "path":"/test_key", "value":"foo"},{"op":"remove", "path":"/test_key"}, {"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
+			`[{"op":"remove", "path":"/test_key"}, {"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
 		},
 		{
-			"add object + remove parent == add parent + remove parent",
+			"add object + remove parent == remove parent",
 			[]string{
 				`{"op":"add", "path":"/test_obj", "value":{}}`,
 				`{"op":"add", "path":"/test_obj/key1", "value":"foo"}`,
@@ -295,32 +295,34 @@ func Test_CompactPatches_Result(t *testing.T) {
 			[]string{
 				`{"op":"remove", "path":"/test_obj"}`,
 			},
-			`[{"op":"add", "path":"/test_obj", "value":{}},{"op":"remove", "path":"/test_obj"}]`,
+			`[{"op":"remove", "path":"/test_obj"}]`,
 		},
 		{
 			"add parent with keys + remove parent + add new object == add new object",
 			[]string{
 				`{"op":"add", "path":"/test_obj", "value":{}}`,
 				`{"op":"add", "path":"/test_obj/key1", "value":"foo"}`,
+			},
+			[]string{
 				`{"op":"add", "path":"/test_obj/key2", "value":"bar"}`,
 				`{"op":"remove", "path":"/test_obj"}`,
 				`{"op":"add", "path":"/test_obj", "value":{}}`,
 				`{"op":"add", "path":"/test_obj/key3", "value":"foo"}`,
 			},
-			nil,
 			`[{"op":"add", "path":"/test_obj", "value":{}},{"op":"add", "path":"/test_obj/key3", "value":"foo"}]`,
 		},
 		{
-			"add parent + remove parent + add new object == add new object",
+			"add parent with keys + remove parent + add new array == add new array",
 			[]string{
 				`{"op":"add", "path":"/test_obj", "value":{}}`,
 				`{"op":"add", "path":"/test_obj/key1", "value":"foo"}`,
+			},
+			[]string{
 				`{"op":"add", "path":"/test_obj/key2", "value":"bar"}`,
 				`{"op":"remove", "path":"/test_obj"}`,
 				`{"op":"add", "path":"/test_obj", "value":[]}`,
 				`{"op":"add", "path":"/test_obj/0", "value":"0"}`,
 			},
-			nil,
 			`[{"op":"add", "path":"/test_obj", "value":[]},{"op":"add", "path":"/test_obj/0", "value":"0"}]`,
 		},
 	}
@@ -465,6 +467,29 @@ func Test_CompactPatches_Apply(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_CompactPatches_add_empty_object(t *testing.T) {
+	valuesPatchOperations := []string{
+		`{"op":"add", "path":"/test_obj", "value":{"parent_1":{"key":"val"}, "parent_2":{"key":"val"}}}`,
+		`{"op":"add", "path":"/test_obj/parent_1/key1", "value":"foo"}`,
+		`{"op":"add", "path":"/test_obj/parent_2/key1", "value":"foo"}`,
+	}
+	newValuesPatchOperations := []string{
+		`{"op":"add", "path":"/test_obj", "value":{}}`,
+	}
+
+	expected := `[{"op":"add", "path":"/test_obj", "value":{}}]`
+
+	valuesPatch, _ := ValuesPatchFromBytes([]byte("[" + strings.Join(valuesPatchOperations, ", ") + "]"))
+	newValuesPatch, _ := ValuesPatchFromBytes([]byte(strings.Join(newValuesPatchOperations, "")))
+
+	newPatch := CompactValuesPatches([]ValuesPatch{*valuesPatch}, *newValuesPatch)
+	newPatchBytes, err := json.Marshal(newPatch[0].Operations)
+	if assert.NoError(t, err) {
+		assert.True(t, jsonpatch.Equal(newPatchBytes, []byte(expected)), "%s should be equal to %s", newPatchBytes, expected)
+	}
+
 }
 
 /**

@@ -43,7 +43,8 @@ func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
 
 // ApplyStrict calls jsonpatch.Apply to transform a JSON document according to the patch.
 //
-// 'remove' operation errors are not ignored.
+// - "remove" operation errors are not ignored.
+// - absent paths are not ignored.
 func (p *ValuesPatch) ApplyStrict(doc []byte) ([]byte, error) {
 	patch, err := p.ToJsonPatch()
 	if err != nil {
@@ -54,8 +55,7 @@ func (p *ValuesPatch) ApplyStrict(doc []byte) ([]byte, error) {
 
 // Apply calls jsonpatch.Apply to transform an input JSON document.
 //
-// jsonpatch.Patch is created for each operation to ignore
-// errors from 'remove' operations.
+// - errors from "remove" operations are ignored.
 func (p *ValuesPatch) Apply(doc []byte) ([]byte, error) {
 	for _, op := range p.Operations {
 		patch, err := op.ToJsonPatch()
@@ -215,16 +215,16 @@ func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatc
 	for _, patch := range valuesPatches {
 		operations = append(operations, patch.Operations...)
 	}
-	//operations = append(operations, newValuesPatch.Operations...)
 
 	return []ValuesPatch{CompactPatches(operations, newValuesPatch.Operations)}
 }
 
-// CompactPatches simplifies a patches tree — one path, one operation.
+// CompactPatches modifies an array of existed patch operations according to the new array
+// of patch operations. The rule is: only last operation for the path should be stored.
 func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*ValuesPatchOperation) ValuesPatch {
 	patchesTree := make(map[string][]*ValuesPatchOperation)
 
-	// Fill tree from existed operations.
+	// Fill the map with paths from existed operations.
 	for _, op := range existedOperations {
 		if _, ok := patchesTree[op.Path]; !ok {
 			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
@@ -233,8 +233,26 @@ func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*
 	}
 
 	for _, op := range newOperations {
-		// Remove previous operations for subpaths if there is new operation for the parent path
-		if op.Op == "remove" {
+		// Remove previous operations for subpaths if there is a new operation for the parent path.
+		// Subpaths removing is obvious for the "remove" operation, but not for the "add" operation.
+		// This value in the "add" operation may create new subpaths and
+		// other new patches may depends on these subpaths.
+		// Consider this operations:
+		// {"op":"app", "path":"/obj/settings", "value":{"parent_1":{}} }
+		// {"op":"app", "path":"/obj/settings/parent_1/field1", "value":"foo"}
+		// {"op":"app", "path":"/obj/settings/parent_1/field2", "value":"bar"}
+		// The next operations from the hook may reset /obj/settings in this manner:
+		// {"op":"app", "path":"/obj/settings", "value":{} }
+		// The result without subpaths removing will be this:
+		// {"op":"app", "path":"/obj/settings", "value":{} }
+		// {"op":"app", "path":"/obj/settings/parent_1/field1", "value":"foo"}
+		// {"op":"app", "path":"/obj/settings/parent_1/field2", "value":"bar"}
+		// There are two problems here:
+		// 1. /obj/settings/parent_1/field1 and /obj/settings/parent_1/field2
+		//    were not in the latest operations from the hooks. These subpaths are not actual.
+		// 2. There is no operation for "parent_1" node! Apply will fail.
+		// Subpaths removing is the solution for this problems.
+		if op.Op == "remove" || op.Op == "add" {
 			for subPath := range patchesTree {
 				if len(subPath) > len(op.Path) && strings.HasPrefix(subPath, op.Path+"/") {
 					delete(patchesTree, subPath)
@@ -242,52 +260,13 @@ func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*
 			}
 		}
 
-		// Prepare array for path.
+		// Prepare array for the path.
 		if _, ok := patchesTree[op.Path]; !ok {
 			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
 		}
 
-		// Store only one last 'add' operation for the same path.
-		if op.Op == "add" {
-			patchesTree[op.Path] = []*ValuesPatchOperation{op}
-			// Value can contain an object. This value will create new subpaths on Apply and
-			// other new patches may depends on these subpathes! Consider this patch set:
-			// {"op":"app", "path":"/obj/settings", "value":{"parent_1":{}} }
-			// {"op":"app", "path":"/obj/settings/parent_1/field1", "value":"foo"}
-			// {"op":"app", "path":"/obj/settings/parent_1/field2", "value":"bar"}
-			// The next patch set may reset /obj/settings in this manner:
-			// {"op":"app", "path":"/obj/settings", "value":{} }
-			// The result is this:
-			// {"op":"app", "path":"/obj/settings", "value":{} }
-			// {"op":"app", "path":"/obj/settings/parent_1/field1", "value":"foo"}
-			// {"op":"app", "path":"/obj/settings/parent_1/field2", "value":"bar"}
-			// There is a problem: /obj/settings/parent_1/field1 and /obj/settings/parent_1/field2 are not actual now.
-		}
-
-		// 'remove' is replaced with 'add' and 'remove' for future Apply calls.
-		if op.Op == "remove" {
-			// find most recent 'add' operation
-			hasPreviousAdd := false
-			for _, prevOp := range patchesTree[op.Path] {
-				if prevOp.Op == "add" {
-					patchesTree[op.Path] = []*ValuesPatchOperation{prevOp, op}
-					hasPreviousAdd = true
-				}
-			}
-
-			if !hasPreviousAdd {
-				// Something bad happens — a sequence contains a 'remove' operation without previous 'add' operation
-				// Append a fake 'add' operation to not fail future Apply calls.
-				patchesTree[op.Path] = []*ValuesPatchOperation{
-					{
-						Op:    "add",
-						Path:  op.Path,
-						Value: "guard-patch-for-successful-remove",
-					},
-					op,
-				}
-			}
-		}
+		// Only one last operation is stored for the same path.
+		patchesTree[op.Path] = []*ValuesPatchOperation{op}
 	}
 
 	// Sort paths for proper 'add' sequence
