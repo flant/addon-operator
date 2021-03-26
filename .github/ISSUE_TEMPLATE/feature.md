@@ -1,6 +1,6 @@
 ---
 name: 🚀 Feature request
-about: Suggest an idea for Shell-operator
+about: Suggest an idea for Addon-operator
 ---
 <!--
   Thank you for sending a feature request!
