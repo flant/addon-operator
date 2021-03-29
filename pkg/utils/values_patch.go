@@ -56,22 +56,17 @@ func (p *ValuesPatch) ApplyStrict(doc []byte) ([]byte, error) {
 // Apply calls jsonpatch.Apply to transform an input JSON document.
 //
 // - errors from "remove" operations are ignored.
-func (p *ValuesPatch) Apply(doc []byte) ([]byte, error) {
+func (p *ValuesPatch) ApplyIgnoreNonExistentPaths(doc []byte) ([]byte, error) {
 	for _, op := range p.Operations {
 		patch, err := op.ToJsonPatch()
 		if err != nil {
 			return nil, err
 		}
 		newDoc, err := patch.Apply(doc)
+
 		// Ignore errors for remove operation.
-		if err != nil && op.Op == "remove" {
-			errStr := err.Error()
-			if strings.HasPrefix(errStr, "error in remove for path:") {
-				continue
-			}
-			if strings.HasPrefix(errStr, "remove operation does not apply: doc is missing path") {
-				continue
-			}
+		if op.Op == "remove" && IsNonExistentPathError(err) {
+			continue
 		}
 		if err != nil {
 			return nil, err
@@ -285,12 +280,13 @@ func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*
 	return newValuesPatch
 }
 
-type ApplyPatchOptions string
+type ApplyPatchMode string
 
-const Strict ApplyPatchOptions = "strict"
+const Strict ApplyPatchMode = "strict"
+const IgnoreNonExistentPaths ApplyPatchMode = "ignore-non-existent-paths"
 
 // ApplyValuesPatch applies a set of json patch operations to the values and returns a result
-func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, options ...ApplyPatchOptions) (Values, bool, error) {
+func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values, bool, error) {
 	var err error
 
 	jsonDoc, err := json.Marshal(values)
@@ -298,18 +294,19 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, options ...ApplyPa
 		return nil, false, err
 	}
 
-	var resJsonDoc []byte
-	if len(options) > 0 && options[0] == Strict {
-		resJsonDoc, err = valuesPatch.ApplyStrict(jsonDoc)
-	} else {
-		resJsonDoc, err = valuesPatch.Apply(jsonDoc)
+	var resJSONDoc []byte
+	switch mode {
+	case Strict:
+		resJSONDoc, err = valuesPatch.ApplyStrict(jsonDoc)
+	case IgnoreNonExistentPaths:
+		resJSONDoc, err = valuesPatch.ApplyIgnoreNonExistentPaths(jsonDoc)
 	}
 	if err != nil {
 		return nil, false, err
 	}
 
 	resValues := make(Values)
-	if err = json.Unmarshal(resJsonDoc, &resValues); err != nil {
+	if err = json.Unmarshal(resJSONDoc, &resValues); err != nil {
 		return nil, false, err
 	}
 
@@ -387,4 +384,22 @@ func MustValuesPatch(res *ValuesPatch, err error) *ValuesPatch {
 		panic(err)
 	}
 	return res
+}
+
+// Error messages to distinguish non-typed errors from the 'json-patch' library.
+const NonExistentPathErrorMsg = "error in remove for path:"
+const MissingPathErrorMsg = "remove operation does not apply: doc is missing path"
+
+func IsNonExistentPathError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	if strings.HasPrefix(errStr, NonExistentPathErrorMsg) {
+		return true
+	}
+	if strings.HasPrefix(errStr, MissingPathErrorMsg) {
+		return true
+	}
+	return false
 }

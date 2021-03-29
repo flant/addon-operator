@@ -139,7 +139,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			newValues, changed, err := ApplyValuesPatch(tt.values, tt.operations)
+			newValues, changed, err := ApplyValuesPatch(tt.values, tt.operations, IgnoreNonExistentPaths)
 
 			if err != nil {
 				t.Errorf("ApplyValuesPatch error: %s", err)
@@ -447,7 +447,7 @@ func Test_CompactPatches_Apply(t *testing.T) {
 			for _, patch := range tt.patches {
 				vp, _ := ValuesPatchFromBytes([]byte(patch))
 				operations = append(operations, vp.Operations...)
-				patchedDoc, err := vp.Apply([]byte(origPatchedDoc))
+				patchedDoc, err := vp.ApplyIgnoreNonExistentPaths([]byte(origPatchedDoc))
 				if !assert.NoError(t, err) {
 					t.Logf("%s should apply on %s", patch, origPatchedDoc)
 					t.FailNow()
@@ -461,7 +461,7 @@ func Test_CompactPatches_Apply(t *testing.T) {
 			if !assert.NoError(t, err) {
 				t.FailNow()
 			}
-			patched, err := newPatch.Apply([]byte(tt.input))
+			patched, err := newPatch.ApplyIgnoreNonExistentPaths([]byte(tt.input))
 			if assert.NoError(t, err) {
 				assert.True(t, jsonpatch.Equal(patched, []byte(tt.expected)), "%s should be equal to %s", patched, tt.expected)
 			}
@@ -515,31 +515,35 @@ func Test_jsonpatch_Remove_NonExistent_IsError(t *testing.T) {
 	patch1, _ := jsonpatch.DecodePatch(rootKeyPatch)
 	_, err := patch1.Apply(origDoc)
 	g.Expect(err).Should(HaveOccurred(), "jsonpatch Apply should return error")
-	rootKeyPrefix := "error in remove for path:"
-	g.Expect(err.Error()).Should(HavePrefix(rootKeyPrefix), "jsonpatch apply should return error with prefix '%s'", rootKeyPrefix)
+	// Assert the message from the 'json-patch' library.
+	rootKeyPrefix := NonExistentPathErrorMsg
+	g.Expect(err.Error()).Should(HavePrefix(rootKeyPrefix), "json-patch Apply should return error with prefix '%s'. Consider checking source code if it fails after upgrade.", rootKeyPrefix)
+	g.Expect(IsNonExistentPathError(err)).Should(BeTrue())
 
 	// 2. Key with parents.
 	patch2, _ := jsonpatch.DecodePatch(withParentsPatch)
 	_, err = patch2.Apply(origDoc)
 	g.Expect(err).Should(HaveOccurred(), "jsonpatch Apply should return error")
-	withParentsPrefix := "remove operation does not apply: doc is missing path"
-	g.Expect(err.Error()).Should(HavePrefix(withParentsPrefix), "jsonpatch apply should return error with prefix '%s'", withParentsPrefix)
+	// Assert the message from the 'json-patch' library.
+	withParentsPrefix := MissingPathErrorMsg
+	g.Expect(err.Error()).Should(HavePrefix(withParentsPrefix), "json-patch Apply should return error with prefix '%s'. Consider checking source code if it fails after upgrade.", withParentsPrefix)
+	g.Expect(IsNonExistentPathError(err)).Should(BeTrue())
 
 	// Values' Apply should not return error on missing path.
 
 	// 1. Root key.
 	vp1, _ := ValuesPatchFromBytes(rootKeyPatch)
-	_, err = vp1.Apply(origDoc)
+	_, err = vp1.ApplyIgnoreNonExistentPaths(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "values_patch Apply should not return error")
 
 	// 2. Key with parents.
 	vp2, _ := ValuesPatchFromBytes(withParentsPatch)
-	_, err = vp2.Apply(origDoc)
+	_, err = vp2.ApplyIgnoreNonExistentPaths(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "values_patch Apply should not return error")
 
 	// 3. No path in operation.
 	vp3, _ := ValuesPatchFromBytes([]byte(`[{"op":"remove"}]`))
-	_, err = vp3.Apply(origDoc)
+	_, err = vp3.ApplyIgnoreNonExistentPaths(origDoc)
 	g.Expect(err).Should(HaveOccurred(), "values_patch Apply should return error on invalid path")
 }
 
@@ -570,9 +574,9 @@ func Test_jsonpatch_Remove_ObjectAndArray(t *testing.T) {
 // in the target object are currently being accepted; ultimately becoming
 // an "add" operation on the target object. This is incorrect per the specification.
 //
-// 11.2020 the PR was merged but then reverted in https://github.com/evanphx/json-patch/pull/111
-//
-// The fix is in v5 now. So this test should work with v5.
+// 11.2020 the PR was merged in v4 but then reverted in https://github.com/evanphx/json-patch/pull/11
+// 03.2020 The fix is in json-patch v5 now.
+// TODO Remove SkipNow after migrating to v5.
 func Test_jsonpatch_Replace_NonExistent_IsError(t *testing.T) {
 	t.SkipNow()
 	g := NewWithT(t)
