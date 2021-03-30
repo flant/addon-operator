@@ -1077,7 +1077,7 @@ func (mm *moduleManager) GlobalValues() (utils.Values, error) {
 	// Invariant: do not store patches that does not apply
 	// Give user error for patches early, after patch receive
 	for _, patch := range mm.globalDynamicValuesPatches {
-		res, _, err = utils.ApplyValuesPatch(res, patch)
+		res, _, err = utils.ApplyValuesPatch(res, patch, utils.IgnoreNonExistentPaths)
 		if err != nil {
 			return nil, fmt.Errorf("apply global patch error: %s", err)
 		}

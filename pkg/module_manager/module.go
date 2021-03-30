@@ -766,7 +766,7 @@ func (m *Module) Values() (utils.Values, error) {
 	for _, patch := range m.moduleManager.modulesDynamicValuesPatches[m.Name] {
 		// Invariant: do not store patches that does not apply
 		// Give user error for patches early, after patch receive
-		res, _, err = utils.ApplyValuesPatch(res, patch)
+		res, _, err = utils.ApplyValuesPatch(res, patch, utils.IgnoreNonExistentPaths)
 		if err != nil {
 			return nil, fmt.Errorf("construct module values: apply module patch error: %s", err)
 		}

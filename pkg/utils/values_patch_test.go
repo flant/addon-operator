@@ -19,7 +19,6 @@ func Test_JsonPatchFromString(t *testing.T) {
  [{"op":"remove","path":"/key"},
    {"op":"add","path":"/key","value":"bazzz"}]
 {"op":"remove","path":"/key2"}
-
 `
 
 	patch, err := JsonPatchFromString(input)
@@ -45,24 +44,22 @@ func Test_ValuesPatchFromBytes(t *testing.T) {
 
 }
 
-// TODO поправить после изменения алгоритма compact
-func Test_Apply_Patch(t *testing.T) {
-	t.SkipNow()
-	expectations := []struct {
-		testName              string
+func Test_ApplyValuesPatch(t *testing.T) {
+	tests := []struct {
+		name                  string
 		operations            ValuesPatch
 		values                Values
 		expectedValues        Values
 		expectedValuesChanged bool
 	}{
 		{
-			"path",
+			"add",
 			ValuesPatch{
 				[]*ValuesPatchOperation{
 					{
-						"add",
-						"/test_key_3",
-						"baz",
+						Op:    "add",
+						Path:  "/test_key_3",
+						Value: "baz",
 					},
 				},
 			},
@@ -78,13 +75,13 @@ func Test_Apply_Patch(t *testing.T) {
 			true,
 		},
 		{
-			"path",
+			"remove",
 			ValuesPatch{
 				[]*ValuesPatchOperation{
 					{
-						"remove",
-						"/test_key_3",
-						"baz",
+						Op:    "remove",
+						Path:  "/test_key_3",
+						Value: "baz",
 					},
 				},
 			},
@@ -98,23 +95,132 @@ func Test_Apply_Patch(t *testing.T) {
 			},
 			false,
 		},
+		{
+			"add+remove+add+remove+add",
+			ValuesPatch{
+				[]*ValuesPatchOperation{
+					{
+						Op:    "add",
+						Path:  "/test_key_3",
+						Value: "baz",
+					},
+					{
+						Op:   "remove",
+						Path: "/test_key_3",
+					},
+					{
+						Op:    "add",
+						Path:  "/test_key_3",
+						Value: "baz",
+					},
+					{
+						Op:   "remove",
+						Path: "/test-parent/test_key_nonexist",
+					},
+					{
+						Op:    "add",
+						Path:  "/test_key_3",
+						Value: "baz",
+					},
+				},
+			},
+			Values{
+				"test_key_1": "foo",
+				"test_key_2": "bar",
+			},
+			Values{
+				"test_key_1": "foo",
+				"test_key_2": "bar",
+				"test_key_3": "baz",
+			},
+			true,
+		},
 	}
 
-	for _, expectation := range expectations {
-		t.Run(expectation.testName, func(t *testing.T) {
-			newValues, changed, err := ApplyValuesPatch(expectation.values, expectation.operations)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newValues, changed, err := ApplyValuesPatch(tt.values, tt.operations, IgnoreNonExistentPaths)
 
 			if err != nil {
 				t.Errorf("ApplyValuesPatch error: %s", err)
 				return
 			}
 
-			if !reflect.DeepEqual(expectation.expectedValues, newValues) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedValues, newValues)
+			if !reflect.DeepEqual(tt.expectedValues, newValues) {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", tt.expectedValues, newValues)
 			}
 
-			if changed != expectation.expectedValuesChanged {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedValuesChanged, changed)
+			if changed != tt.expectedValuesChanged {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", tt.expectedValuesChanged, changed)
+			}
+		})
+	}
+}
+
+func Test_ApplyValuesPatch_Strict(t *testing.T) {
+	tests := []struct {
+		name       string
+		operations ValuesPatch
+		values     Values
+	}{
+		{
+			"remove",
+			ValuesPatch{
+				[]*ValuesPatchOperation{
+					{
+						Op:    "remove",
+						Path:  "/test_key_3",
+						Value: "baz",
+					},
+				},
+			},
+			Values{
+				"test_key_1": "foo",
+				"test_key_2": "bar",
+			},
+		},
+		{
+			"add+remove+add+remove+add",
+			ValuesPatch{
+				[]*ValuesPatchOperation{
+					{
+						Op:    "add",
+						Path:  "/test_key_3",
+						Value: "baz",
+					},
+					{
+						Op:   "remove",
+						Path: "/test_key_3",
+					},
+					{
+						Op:    "add",
+						Path:  "/test_key_3",
+						Value: "baz",
+					},
+					{
+						Op:   "remove",
+						Path: "/test-parent/test_key_nonexist",
+					},
+					{
+						Op:    "add",
+						Path:  "/test_key_3",
+						Value: "baz",
+					},
+				},
+			},
+			Values{
+				"test_key_1": "foo",
+				"test_key_2": "bar",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := ApplyValuesPatch(tt.values, tt.operations, Strict)
+
+			if err == nil {
+				t.Errorf("ApplyValuesPatch in Strict mode should return error (%s)", tt.name)
 			}
 		})
 	}
@@ -138,14 +244,14 @@ func Test_CompactPatches_Result(t *testing.T) {
 			`[{"op":"add", "path":"/test_key", "value":"foo"}]`,
 		},
 		{
-			"add+remove",
+			"add+remove == remove",
 			[]string{
 				`{"op":"add", "path":"/test_key", "value":"foo"}`,
 			},
 			[]string{
 				`{"op":"remove", "path":"/test_key"}`,
 			},
-			`[{"op":"add", "path":"/test_key", "value":"foo"},{"op":"remove", "path":"/test_key"}]`,
+			`[{"op":"remove", "path":"/test_key"}]`,
 		},
 		{
 			"add+remove+add == add",
@@ -169,7 +275,7 @@ func Test_CompactPatches_Result(t *testing.T) {
 			`[{"op":"add", "path":"/test_key", "value":"foo"}, {"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
 		},
 		{
-			"add_1+add_2+remove_1 == add_1+add_2+remove_1",
+			"add_1+add_2+remove_1 == add_2+remove_1",
 			[]string{
 				`{"op":"add", "path":"/test_key", "value":"foo"}`,
 				`{"op":"add", "path":"/test_key_2", "value": "qwe"}`,
@@ -177,10 +283,10 @@ func Test_CompactPatches_Result(t *testing.T) {
 			[]string{
 				`{"op":"remove", "path":"/test_key"}`,
 			},
-			`[{"op":"add", "path":"/test_key", "value":"foo"},{"op":"remove", "path":"/test_key"}, {"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
+			`[{"op":"remove", "path":"/test_key"}, {"op":"add", "path":"/test_key_2", "value": "qwe"}]`,
 		},
 		{
-			"add object + remove parent == add parent + remove parent",
+			"add object + remove parent == remove parent",
 			[]string{
 				`{"op":"add", "path":"/test_obj", "value":{}}`,
 				`{"op":"add", "path":"/test_obj/key1", "value":"foo"}`,
@@ -189,32 +295,34 @@ func Test_CompactPatches_Result(t *testing.T) {
 			[]string{
 				`{"op":"remove", "path":"/test_obj"}`,
 			},
-			`[{"op":"add", "path":"/test_obj", "value":{}},{"op":"remove", "path":"/test_obj"}]`,
+			`[{"op":"remove", "path":"/test_obj"}]`,
 		},
 		{
 			"add parent with keys + remove parent + add new object == add new object",
 			[]string{
 				`{"op":"add", "path":"/test_obj", "value":{}}`,
 				`{"op":"add", "path":"/test_obj/key1", "value":"foo"}`,
+			},
+			[]string{
 				`{"op":"add", "path":"/test_obj/key2", "value":"bar"}`,
 				`{"op":"remove", "path":"/test_obj"}`,
 				`{"op":"add", "path":"/test_obj", "value":{}}`,
 				`{"op":"add", "path":"/test_obj/key3", "value":"foo"}`,
 			},
-			nil,
 			`[{"op":"add", "path":"/test_obj", "value":{}},{"op":"add", "path":"/test_obj/key3", "value":"foo"}]`,
 		},
 		{
-			"add parent + remove parent + add new object == add new object",
+			"add parent with keys + remove parent + add new array == add new array",
 			[]string{
 				`{"op":"add", "path":"/test_obj", "value":{}}`,
 				`{"op":"add", "path":"/test_obj/key1", "value":"foo"}`,
+			},
+			[]string{
 				`{"op":"add", "path":"/test_obj/key2", "value":"bar"}`,
 				`{"op":"remove", "path":"/test_obj"}`,
 				`{"op":"add", "path":"/test_obj", "value":[]}`,
 				`{"op":"add", "path":"/test_obj/0", "value":"0"}`,
 			},
-			nil,
 			`[{"op":"add", "path":"/test_obj", "value":[]},{"op":"add", "path":"/test_obj/0", "value":"0"}]`,
 		},
 	}
@@ -339,7 +447,7 @@ func Test_CompactPatches_Apply(t *testing.T) {
 			for _, patch := range tt.patches {
 				vp, _ := ValuesPatchFromBytes([]byte(patch))
 				operations = append(operations, vp.Operations...)
-				patchedDoc, err := vp.Apply([]byte(origPatchedDoc))
+				patchedDoc, err := vp.ApplyIgnoreNonExistentPaths([]byte(origPatchedDoc))
 				if !assert.NoError(t, err) {
 					t.Logf("%s should apply on %s", patch, origPatchedDoc)
 					t.FailNow()
@@ -349,11 +457,11 @@ func Test_CompactPatches_Apply(t *testing.T) {
 
 			assert.True(t, jsonpatch.Equal(origPatchedDoc, []byte(tt.expected)), "%s should be equal to %s", origPatchedDoc, tt.expected)
 
-			newPatch := CompactPatches(operations)
+			newPatch := CompactPatches(nil, operations)
 			if !assert.NoError(t, err) {
 				t.FailNow()
 			}
-			patched, err := newPatch.Apply([]byte(tt.input))
+			patched, err := newPatch.ApplyIgnoreNonExistentPaths([]byte(tt.input))
 			if assert.NoError(t, err) {
 				assert.True(t, jsonpatch.Equal(patched, []byte(tt.expected)), "%s should be equal to %s", patched, tt.expected)
 			}
@@ -361,20 +469,82 @@ func Test_CompactPatches_Apply(t *testing.T) {
 	}
 }
 
+func Test_CompactPatches_add_empty_object(t *testing.T) {
+	valuesPatchOperations := []string{
+		`{"op":"add", "path":"/test_obj", "value":{"parent_1":{"key":"val"}, "parent_2":{"key":"val"}}}`,
+		`{"op":"add", "path":"/test_obj/parent_1/key1", "value":"foo"}`,
+		`{"op":"add", "path":"/test_obj/parent_2/key1", "value":"foo"}`,
+	}
+	newValuesPatchOperations := []string{
+		`{"op":"add", "path":"/test_obj", "value":{}}`,
+	}
+
+	expected := `[{"op":"add", "path":"/test_obj", "value":{}}]`
+
+	valuesPatch, _ := ValuesPatchFromBytes([]byte("[" + strings.Join(valuesPatchOperations, ", ") + "]"))
+	newValuesPatch, _ := ValuesPatchFromBytes([]byte(strings.Join(newValuesPatchOperations, "")))
+
+	newPatch := CompactValuesPatches([]ValuesPatch{*valuesPatch}, *newValuesPatch)
+	newPatchBytes, err := json.Marshal(newPatch[0].Operations)
+	if assert.NoError(t, err) {
+		assert.True(t, jsonpatch.Equal(newPatchBytes, []byte(expected)), "%s should be equal to %s", newPatchBytes, expected)
+	}
+
+}
+
 /**
  *  jsonpatch playground
  */
 
-// Applying op:remove to non-existent path should give error.
+// 'remove' operation on non-existent path should return error.
 func Test_jsonpatch_Remove_NonExistent_IsError(t *testing.T) {
 	g := NewWithT(t)
 
-	patch1, _ := jsonpatch.DecodePatch([]byte(`[{"op":"remove", "path":"/test_key"}]`))
+	// Apply method in jsonpatch library should return error when
+	// remove nonexistent path. Errors are different for root keys
+	// and for keys with parents.
+	// ValuesPatch.Apply method detects these errors to ignore them.
+	// Here are asserts to detect changed error messages
+	// in future versions of jsonpath library.
 
-	origDoc := []byte(`{"asd":"foof"}`)
+	origDoc := []byte(`{"foo":"bar"}`)
+	rootKeyPatch := []byte(`[{"op":"remove", "path":"/test_key"}]`)
+	withParentsPatch := []byte(`[{"op":"remove", "path":"/test_parent/test_sub/test_key"}]`)
 
+	// 1. Root key.
+	patch1, _ := jsonpatch.DecodePatch(rootKeyPatch)
 	_, err := patch1.Apply(origDoc)
-	g.Expect(err).Should(HaveOccurred(), "patch apply")
+	g.Expect(err).Should(HaveOccurred(), "jsonpatch Apply should return error")
+	// Assert the message from the 'json-patch' library.
+	rootKeyPrefix := NonExistentPathErrorMsg
+	g.Expect(err.Error()).Should(HavePrefix(rootKeyPrefix), "json-patch Apply should return error with prefix '%s'. Consider checking source code if it fails after upgrade.", rootKeyPrefix)
+	g.Expect(IsNonExistentPathError(err)).Should(BeTrue())
+
+	// 2. Key with parents.
+	patch2, _ := jsonpatch.DecodePatch(withParentsPatch)
+	_, err = patch2.Apply(origDoc)
+	g.Expect(err).Should(HaveOccurred(), "jsonpatch Apply should return error")
+	// Assert the message from the 'json-patch' library.
+	withParentsPrefix := MissingPathErrorMsg
+	g.Expect(err.Error()).Should(HavePrefix(withParentsPrefix), "json-patch Apply should return error with prefix '%s'. Consider checking source code if it fails after upgrade.", withParentsPrefix)
+	g.Expect(IsNonExistentPathError(err)).Should(BeTrue())
+
+	// Values' Apply should not return error on missing path.
+
+	// 1. Root key.
+	vp1, _ := ValuesPatchFromBytes(rootKeyPatch)
+	_, err = vp1.ApplyIgnoreNonExistentPaths(origDoc)
+	g.Expect(err).ShouldNot(HaveOccurred(), "values_patch Apply should not return error")
+
+	// 2. Key with parents.
+	vp2, _ := ValuesPatchFromBytes(withParentsPatch)
+	_, err = vp2.ApplyIgnoreNonExistentPaths(origDoc)
+	g.Expect(err).ShouldNot(HaveOccurred(), "values_patch Apply should not return error")
+
+	// 3. No path in operation.
+	vp3, _ := ValuesPatchFromBytes([]byte(`[{"op":"remove"}]`))
+	_, err = vp3.ApplyIgnoreNonExistentPaths(origDoc)
+	g.Expect(err).Should(HaveOccurred(), "values_patch Apply should return error on invalid path")
 }
 
 // op:remove should remove object value and array value
@@ -399,26 +569,46 @@ func Test_jsonpatch_Remove_ObjectAndArray(t *testing.T) {
 	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }
 
-// Applying op:replace of non-existent path is error!
-// 11.2020: https://github.com/evanphx/json-patch/pull/85 fix it, but 4.9.0 version has no patch.
+// https://github.com/evanphx/json-patch/pull/85
+// A "replace" patch operation referencing a key that does not exist
+// in the target object are currently being accepted; ultimately becoming
+// an "add" operation on the target object. This is incorrect per the specification.
+//
+// 11.2020 the PR was merged in v4 but then reverted in https://github.com/evanphx/json-patch/pull/11
+// 03.2020 The fix is in json-patch v5 now.
+// TODO Remove SkipNow after migrating to v5.
 func Test_jsonpatch_Replace_NonExistent_IsError(t *testing.T) {
-	t.SkipNow() // Test is no working as expected
+	t.SkipNow()
 	g := NewWithT(t)
 
-	origDoc := []byte(`{"asd":"foof"}`)
+	origDoc := []byte(`{"foo":"bar"}`)
 
 	patch1, _ := jsonpatch.DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
 
-	expectNewDoc := []byte(`{"asd":"foof"}`)
+	expectNewDoc := []byte(`{"foo":"bar"}`)
 
 	newDoc, err := patch1.Apply(origDoc)
-	g.Expect(err).Should(HaveOccurred(), "patch apply")
+	g.Expect(err).Should(HaveOccurred(), "replace operation should ")
+	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+}
+
+func Test_jsonpatch_Replace_NonExistent_v4_9_0_behaviour_is_incorrect(t *testing.T) {
+	g := NewWithT(t)
+
+	origDoc := []byte(`{"foo":"bar"}`)
+
+	patch1, _ := jsonpatch.DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
+
+	expectNewDoc := []byte(`{"foo":"bar", "test_key":"qwe"}`)
+
+	newDoc, err := patch1.Apply(origDoc)
+	g.Expect(err).ShouldNot(HaveOccurred(), "replace operation should ")
 	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }
 
 // Applying op:add of path with non-existent parents should give error.
 // No auto instantiating!
-func Test_jsonpatch_Add_WithNonExistentParent(t *testing.T) {
+func Test_jsonpatch_Add_WithNonExistentParent_is_error(t *testing.T) {
 	g := NewWithT(t)
 
 	patch1, _ := jsonpatch.DecodePatch([]byte(`
@@ -553,48 +743,4 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch 4 apply")
 
 	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
-}
-
-// test of a MergePatch operation
-func Test_jsonpatch_MergePatch_Add_NullObj_AddKey(t *testing.T) {
-	g := NewWithT(t)
-
-	origDoc := []byte(`{"test_obj":"foo"}`)
-
-	patch1 := []byte(`
-{"test_obj":{"key3":"foo"}, "remove":null}
-`)
-
-	expectNewDoc := []byte(`{"test_obj":{"key3":"foo"}}`)
-
-	newDoc, err := jsonpatch.MergePatch(origDoc, patch1)
-
-	g.Expect(err).ShouldNot(HaveOccurred(), "patch apply")
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
-}
-
-// A failed try to merge rfc6902 JSON patches with MergeMergePatches.
-func Test_jsonpatch_Merge_Patches_By_Steps(t *testing.T) {
-	t.SkipNow()
-
-	patches := []string{
-		`[{"op":"remove", "path":"/test_key"}]`,
-		`[{"op":"add", "path":"/test_key", "value":333}]`,
-		`[{"op":"add", "path":"/foo", "value":"bar"}]`,
-		`[{"op":"remove", "path":"/test_key"}]`,
-		`[{"op":"add", "path":"/foo", "value":"zoo"}]`,
-	}
-
-	newPatch := []byte(`[]`)
-	var err error
-
-	for i, patch := range patches {
-		newPatch, err = jsonpatch.MergeMergePatches(newPatch, []byte(patch))
-		if err != nil {
-			t.Logf("merge patches: %v", err)
-			t.FailNow()
-		}
-		t.Logf("%d.  %s", i, patch)
-		t.Logf(" == %s", newPatch)
-	}
 }

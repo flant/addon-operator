@@ -28,6 +28,7 @@ func NewValuesPatch() *ValuesPatch {
 	}
 }
 
+// ToJsonPatch returns a jsonpatch.Patch with all operations.
 func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
 	data, err := json.Marshal(p.Operations)
 	if err != nil {
@@ -40,13 +41,40 @@ func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
 	return patch, nil
 }
 
-// Apply calls jsonpatch.Apply to mutate a JSON document according to the patch.
-func (p *ValuesPatch) Apply(doc []byte) ([]byte, error) {
+// ApplyStrict calls jsonpatch.Apply to transform a JSON document according to the patch.
+//
+// - "remove" operation errors are not ignored.
+// - absent paths are not ignored.
+func (p *ValuesPatch) ApplyStrict(doc []byte) ([]byte, error) {
 	patch, err := p.ToJsonPatch()
 	if err != nil {
 		return nil, err
 	}
 	return patch.Apply(doc)
+}
+
+// Apply calls jsonpatch.Apply to transform an input JSON document.
+//
+// - errors from "remove" operations are ignored.
+func (p *ValuesPatch) ApplyIgnoreNonExistentPaths(doc []byte) ([]byte, error) {
+	for _, op := range p.Operations {
+		patch, err := op.ToJsonPatch()
+		if err != nil {
+			return nil, err
+		}
+		newDoc, err := patch.Apply(doc)
+
+		// Ignore errors for remove operation.
+		if op.Op == "remove" && IsNonExistentPathError(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		doc = newDoc
+	}
+
+	return doc, nil
 }
 
 func (p *ValuesPatch) MergeOperations(src *ValuesPatch) {
@@ -57,8 +85,8 @@ func (p *ValuesPatch) MergeOperations(src *ValuesPatch) {
 }
 
 type ValuesPatchOperation struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
+	Op    string      `json:"op,omitempty"`
+	Path  string      `json:"path,omitempty"`
 	Value interface{} `json:"value,omitempty"`
 }
 
@@ -69,6 +97,15 @@ func (op *ValuesPatchOperation) ToString() string {
 		return fmt.Sprintf("{\"op\":\"%s\", \"path\":\"%s\", \"value-error\": \"%s\" }", op.Op, op.Path, err)
 	}
 	return string(data)
+}
+
+// ToJsonPatch returns a jsonpatch.Patch with one operation.
+func (op *ValuesPatchOperation) ToJsonPatch() (jsonpatch.Patch, error) {
+	opBytes, err := json.Marshal([]*ValuesPatchOperation{op})
+	if err != nil {
+		return nil, err
+	}
+	return jsonpatch.DecodePatch(opBytes)
 }
 
 func JsonPatchFromReader(r io.Reader) (jsonpatch.Patch, error) {
@@ -173,58 +210,58 @@ func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatc
 	for _, patch := range valuesPatches {
 		operations = append(operations, patch.Operations...)
 	}
-	operations = append(operations, newValuesPatch.Operations...)
 
-	return []ValuesPatch{CompactPatches(operations)}
+	return []ValuesPatch{CompactPatches(operations, newValuesPatch.Operations)}
 }
 
-// CompactPatches simplifies a patches tree — one path, one operation.
-func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
+// CompactPatches modifies an array of existed patch operations according to the new array
+// of patch operations. The rule is: only last operation for the path should be stored.
+func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*ValuesPatchOperation) ValuesPatch {
 	patchesTree := make(map[string][]*ValuesPatchOperation)
 
-	for _, op := range operations {
-		// remove previous operations for subpaths if got 'remove' operation for parent path
-		if op.Op == "remove" {
+	// Fill the map with paths from existed operations.
+	for _, op := range existedOperations {
+		if _, ok := patchesTree[op.Path]; !ok {
+			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
+		}
+		patchesTree[op.Path] = append(patchesTree[op.Path], op)
+	}
+
+	for _, op := range newOperations {
+		// Remove previous operations for subpaths if there is a new operation for the parent path.
+		// Subpaths removing is obvious for the "remove" operation, but not for the "add" operation.
+		// This value in the "add" operation may create new subpaths and
+		// other new patches may depends on these subpaths.
+		// Consider this operations:
+		// {"op":"app", "path":"/obj/settings", "value":{"parent_1":{}} }
+		// {"op":"app", "path":"/obj/settings/parent_1/field1", "value":"foo"}
+		// {"op":"app", "path":"/obj/settings/parent_1/field2", "value":"bar"}
+		// The next operations from the hook may reset /obj/settings in this manner:
+		// {"op":"app", "path":"/obj/settings", "value":{} }
+		// The result without subpaths removing will be this:
+		// {"op":"app", "path":"/obj/settings", "value":{} }
+		// {"op":"app", "path":"/obj/settings/parent_1/field1", "value":"foo"}
+		// {"op":"app", "path":"/obj/settings/parent_1/field2", "value":"bar"}
+		// There are two problems here:
+		// 1. /obj/settings/parent_1/field1 and /obj/settings/parent_1/field2
+		//    were not in the latest operations from the hooks. These subpaths are not actual.
+		// 2. There is no operation for "parent_1" node! Apply will fail.
+		// Subpaths removing is the solution for this problems.
+		if op.Op == "remove" || op.Op == "add" {
 			for subPath := range patchesTree {
-				if len(op.Path) < len(subPath) && strings.HasPrefix(subPath, op.Path+"/") {
+				if len(subPath) > len(op.Path) && strings.HasPrefix(subPath, op.Path+"/") {
 					delete(patchesTree, subPath)
 				}
 			}
 		}
 
+		// Prepare array for the path.
 		if _, ok := patchesTree[op.Path]; !ok {
 			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
 		}
 
-		// 'add' can be squashed to only one operation
-		if op.Op == "add" {
-			patchesTree[op.Path] = []*ValuesPatchOperation{op}
-		}
-
-		// 'remove' is squashed to 'remove' and 'add' for future Apply calls
-		if op.Op == "remove" {
-			// find most recent 'add' operation
-			hasPreviousAdd := false
-			for _, prevOp := range patchesTree[op.Path] {
-				if prevOp.Op == "add" {
-					patchesTree[op.Path] = []*ValuesPatchOperation{prevOp, op}
-					hasPreviousAdd = true
-				}
-			}
-
-			if !hasPreviousAdd {
-				// Something bad happens — a sequence contains a 'remove' operation without previous 'add' operation
-				// Append virtual 'add' operation to not fail future Apply calls.
-				patchesTree[op.Path] = []*ValuesPatchOperation{
-					{
-						Op:    "add",
-						Path:  op.Path,
-						Value: "guard-patch-for-successful-remove",
-					},
-					op,
-				}
-			}
-		}
+		// Only one last operation is stored for the same path.
+		patchesTree[op.Path] = []*ValuesPatchOperation{op}
 	}
 
 	// Sort paths for proper 'add' sequence
@@ -243,8 +280,13 @@ func CompactPatches(operations []*ValuesPatchOperation) ValuesPatch {
 	return newValuesPatch
 }
 
+type ApplyPatchMode string
+
+const Strict ApplyPatchMode = "strict"
+const IgnoreNonExistentPaths ApplyPatchMode = "ignore-non-existent-paths"
+
 // ApplyValuesPatch applies a set of json patch operations to the values and returns a result
-func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, error) {
+func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values, bool, error) {
 	var err error
 
 	jsonDoc, err := json.Marshal(values)
@@ -252,13 +294,19 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, err
 		return nil, false, err
 	}
 
-	resJsonDoc, err := valuesPatch.Apply(jsonDoc)
+	var resJSONDoc []byte
+	switch mode {
+	case Strict:
+		resJSONDoc, err = valuesPatch.ApplyStrict(jsonDoc)
+	case IgnoreNonExistentPaths:
+		resJSONDoc, err = valuesPatch.ApplyIgnoreNonExistentPaths(jsonDoc)
+	}
 	if err != nil {
 		return nil, false, err
 	}
 
 	resValues := make(Values)
-	if err = json.Unmarshal(resJsonDoc, &resValues); err != nil {
+	if err = json.Unmarshal(resJSONDoc, &resValues); err != nil {
 		return nil, false, err
 	}
 
@@ -267,7 +315,7 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch) (Values, bool, err
 	return resValues, valuesChanged, nil
 }
 
-func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRoot string) error {
+func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRootKey string) error {
 	for _, op := range valuesPatch.Operations {
 		if op.Op == "replace" {
 			return fmt.Errorf("unsupported patch operation '%s': '%s'", op.Op, op.ToString())
@@ -275,21 +323,21 @@ func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRoot string) erro
 
 		pathParts := strings.Split(op.Path, "/")
 		if len(pathParts) > 1 {
-			affectedKey := pathParts[1]
+			rootKey := pathParts[1]
 			// patches for permittedRoot are allowed
-			if affectedKey == permittedRoot {
+			if rootKey == permittedRootKey {
 				continue
 			}
 			// patches for *Enabled keys are accepted from global hooks
-			if strings.HasSuffix(affectedKey, "Enabled") && permittedRoot == GlobalValuesKey {
+			if strings.HasSuffix(rootKey, "Enabled") && permittedRootKey == GlobalValuesKey {
 				continue
 			}
 			// all other patches are denied
-			permittedMessage := fmt.Sprintf("only '%s' accepted", permittedRoot)
-			if permittedRoot == GlobalValuesKey {
-				permittedMessage = fmt.Sprintf("only '%s' and '*Enabled' are permitted", permittedRoot)
+			permittedMessage := fmt.Sprintf("only '%s' accepted", permittedRootKey)
+			if permittedRootKey == GlobalValuesKey {
+				permittedMessage = fmt.Sprintf("only '%s' and '*Enabled' are permitted", permittedRootKey)
 			}
-			return fmt.Errorf("unacceptable patch operation for path '%s' (%s): '%s'", affectedKey, permittedMessage, op.ToString())
+			return fmt.Errorf("unacceptable patch operation for path '%s' (%s): '%s'", rootKey, permittedMessage, op.ToString())
 		}
 	}
 
@@ -336,4 +384,22 @@ func MustValuesPatch(res *ValuesPatch, err error) *ValuesPatch {
 		panic(err)
 	}
 	return res
+}
+
+// Error messages to distinguish non-typed errors from the 'json-patch' library.
+const NonExistentPathErrorMsg = "error in remove for path:"
+const MissingPathErrorMsg = "remove operation does not apply: doc is missing path"
+
+func IsNonExistentPathError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	if strings.HasPrefix(errStr, NonExistentPathErrorMsg) {
+		return true
+	}
+	if strings.HasPrefix(errStr, MissingPathErrorMsg) {
+		return true
+	}
+	return false
 }
