@@ -6,30 +6,31 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/flant/addon-operator/sdk"
 	log "github.com/sirupsen/logrus"
 
-	. "github.com/flant/shell-operator/pkg/hook/types"
+	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 
-	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/sdk"
-	"github.com/flant/addon-operator/sdk/registry"
 	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type Hook interface {
 	WithModuleManager(moduleManager *moduleManager)
 	WithConfig(configOutput []byte) (err error)
-	WithGoConfig(config *sdk.HookConfig) (err error)
+	WithGoConfig(config *go_hook.HookConfig) (err error)
 	WithHookController(hookController controller.HookController)
 	GetName() string
 	GetPath() string
-	GetGoHook() sdk.GoHook
+	GetGoHook() go_hook.GoHook
 	GetValues() (utils.Values, error)
 	GetConfigValues() utils.Values
 	PrepareTmpFilesForHookRun(bindingContext []byte) (map[string]string, error)
-	Order(binding BindingType) float64
+	Order(binding sh_op_types.BindingType) float64
 }
 
 type KubernetesBindingSynchronizationState struct {
@@ -48,14 +49,14 @@ type CommonHook struct {
 
 	KubernetesBindingSynchronizationState map[string]*KubernetesBindingSynchronizationState
 
-	GoHook sdk.GoHook
+	GoHook go_hook.GoHook
 }
 
 func (c *CommonHook) WithModuleManager(moduleManager *moduleManager) {
 	c.moduleManager = moduleManager
 }
 
-func (c *CommonHook) WithGoHook(h sdk.GoHook) {
+func (c *CommonHook) WithGoHook(h go_hook.GoHook) {
 	c.GoHook = h
 }
 
@@ -67,7 +68,7 @@ func (h *CommonHook) GetPath() string {
 	return h.Path
 }
 
-func (h *CommonHook) GetGoHook() sdk.GoHook {
+func (h *CommonHook) GetGoHook() go_hook.GoHook {
 	return h.GoHook
 }
 
@@ -167,7 +168,7 @@ func SearchGlobalShellHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 func SearchGlobalGoHooks() (hooks []*GlobalHook, err error) {
 	// find global hooks in go hooks registry
 	hooks = make([]*GlobalHook, 0)
-	goHooks := registry.Registry().Hooks()
+	goHooks := sdk.Registry().Hooks()
 	for _, h := range goHooks {
 		m := h.Metadata()
 		if !m.Global {
@@ -241,7 +242,7 @@ func SearchModuleShellHooks(module *Module) (hooks []*ModuleHook, err error) {
 func SearchModuleGoHooks(module *Module) (hooks []*ModuleHook, err error) {
 	// find module hooks in go hooks registry
 	hooks = make([]*ModuleHook, 0)
-	goHooks := registry.Registry().Hooks()
+	goHooks := sdk.Registry().Hooks()
 	for _, h := range goHooks {
 		m := h.Metadata()
 		if !m.Module {
@@ -264,7 +265,7 @@ func SearchModuleGoHooks(module *Module) (hooks []*ModuleHook, err error) {
 func (mm *moduleManager) RegisterGlobalHooks() error {
 	log.Debug("Search and register global hooks")
 
-	mm.globalHooksOrder = make(map[BindingType][]*GlobalHook)
+	mm.globalHooksOrder = make(map[sh_op_types.BindingType][]*GlobalHook)
 	mm.globalHooksByName = make(map[string]*GlobalHook)
 
 	hooks, err := SearchGlobalHooks(mm.GlobalHooksDir)
@@ -278,15 +279,12 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 			WithField("hook.type", "global")
 
 		var yamlConfigBytes []byte
-		var goConfig *sdk.HookConfig
+		var goConfig *go_hook.HookConfig
 
 		if globalHook.GoHook != nil {
 			goConfig = globalHook.GoHook.Config()
-			if goConfig.YamlConfig != "" {
-				yamlConfigBytes = []byte(goConfig.YamlConfig)
-			}
 		} else {
-			yamlConfigBytes, err = NewHookExecutor(globalHook, nil, "").Config()
+			yamlConfigBytes, err = NewHookExecutor(globalHook, nil, "", mm.KubeObjectPatcher).Config()
 			if err != nil {
 				logEntry.Errorf("Run --config: %s", err)
 				return fmt.Errorf("global hook --config run problem")
@@ -372,7 +370,7 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 	}
 	logEntry.Debugf("Search and register hooks")
 
-	var registeredModuleHooks = make(map[BindingType][]*ModuleHook)
+	var registeredModuleHooks = make(map[sh_op_types.BindingType][]*ModuleHook)
 
 	hooks, err := SearchModuleHooks(module)
 	if err != nil {
@@ -386,15 +384,12 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 			WithField("hook.type", "module")
 
 		var yamlConfigBytes []byte
-		var goConfig *sdk.HookConfig
+		var goConfig *go_hook.HookConfig
 
 		if moduleHook.GoHook != nil {
 			goConfig = moduleHook.GoHook.Config()
-			if goConfig.YamlConfig != "" {
-				yamlConfigBytes = []byte(goConfig.YamlConfig)
-			}
 		} else {
-			yamlConfigBytes, err = NewHookExecutor(moduleHook, nil, "").Config()
+			yamlConfigBytes, err = NewHookExecutor(moduleHook, nil, "", mm.KubeObjectPatcher).Config()
 			if err != nil {
 				hookLogEntry.Errorf("Run --config: %s", err)
 				return fmt.Errorf("module hook --config run problem")
@@ -408,7 +403,7 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 				return fmt.Errorf("module hook return bad config")
 			}
 		} else {
-			if goConfig != nil {
+			if moduleHook.GoHook != nil {
 				err := moduleHook.WithGoConfig(goConfig)
 				if err != nil {
 					logEntry.Errorf("Hook return bad config: %s", err)
@@ -458,7 +453,7 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 
 	// Save registered hooks in mm.modulesHooksOrderByName
 	if mm.modulesHooksOrderByName[module.Name] == nil {
-		mm.modulesHooksOrderByName[module.Name] = make(map[BindingType][]*ModuleHook)
+		mm.modulesHooksOrderByName[module.Name] = make(map[sh_op_types.BindingType][]*ModuleHook)
 	}
 	mm.modulesHooksOrderByName[module.Name] = registeredModuleHooks
 

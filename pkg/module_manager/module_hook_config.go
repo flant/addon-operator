@@ -6,10 +6,11 @@ import (
 	"github.com/go-openapi/spec"
 	"sigs.k8s.io/yaml"
 
-	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
-	"github.com/flant/addon-operator/sdk"
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+
 	"github.com/flant/shell-operator/pkg/hook/config"
 )
 
@@ -261,9 +262,14 @@ func (c *ModuleHookConfig) BindingsCount() int {
 	return res
 }
 
-func NewModuleHookConfigFromGoConfig(input *sdk.HookConfig) *ModuleHookConfig {
+func NewModuleHookConfigFromGoConfig(input *go_hook.HookConfig) (*ModuleHookConfig, error) {
+	hookConfig, err := NewHookConfigFromGoConfig(input)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &ModuleHookConfig{
-		HookConfig: NewHookConfigFromGoConfig(input),
+		HookConfig: hookConfig,
 	}
 
 	if input.OnBeforeHelm != nil {
@@ -284,5 +290,5 @@ func NewModuleHookConfigFromGoConfig(input *sdk.HookConfig) *ModuleHookConfig {
 		cfg.AfterDeleteHelm.Order = input.OnAfterDeleteHelm.Order
 	}
 
-	return cfg
+	return cfg, nil
 }

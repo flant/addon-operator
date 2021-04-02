@@ -13,9 +13,10 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/sdk"
 )
 
 type ModuleHook struct {
@@ -54,8 +55,12 @@ func (m *ModuleHook) WithConfig(configOutput []byte) (err error) {
 	return nil
 }
 
-func (m *ModuleHook) WithGoConfig(config *sdk.HookConfig) (err error) {
-	m.Config = NewModuleHookConfigFromGoConfig(config)
+func (m *ModuleHook) WithGoConfig(config *go_hook.HookConfig) (err error) {
+	m.Config, err = NewModuleHookConfigFromGoConfig(config)
+	if err != nil {
+		return err
+	}
+
 	// Make HookController and GetConfigDescription work.
 	m.Hook.Config = &m.Config.HookConfig
 	return nil
@@ -145,7 +150,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	// Convert context for version
 	//versionedContextList := ConvertBindingContextList(h.Config.Version, context)
 
-	moduleHookExecutor := NewHookExecutor(h, context, h.Config.Version)
+	moduleHookExecutor := NewHookExecutor(h, context, h.Config.Version, h.moduleManager.KubeObjectPatcher)
 	moduleHookExecutor.WithLogLabels(logLabels)
 	hookResult, err := moduleHookExecutor.Run()
 	if hookResult != nil && hookResult.Usage != nil {

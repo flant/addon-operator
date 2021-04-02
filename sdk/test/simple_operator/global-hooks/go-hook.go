@@ -1,23 +1,14 @@
 package global_hooks
 
-import "github.com/flant/addon-operator/sdk"
+import (
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/sdk"
+)
 
 func init() {
-	sdk.Register(&GoHook{})
+	sdk.RegisterFunc(&go_hook.HookConfig{}, main)
 }
 
-type GoHook struct {
-	sdk.CommonGoHook
-}
-
-func (h *GoHook) Metadata() sdk.HookMetadata {
-	return h.CommonMetadataFromRuntime()
-}
-
-func (h *GoHook) Config() *sdk.HookConfig {
-	return h.CommonGoHook.Config(&sdk.HookConfig{
-		YamlConfig: `
-configVersion: v1
-`,
-	})
+func main(_ *go_hook.HookInput) error {
+	return nil
 }

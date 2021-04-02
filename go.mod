@@ -1,11 +1,12 @@
 module github.com/flant/addon-operator
 
-go 1.12
+go 1.15
 
 require (
+	github.com/Jeffail/gabs v1.4.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.9.0+incompatible
-	github.com/flant/shell-operator v1.0.0-rc.2.0.20210318171436-f4a0b109c0e3 // branch: master
+	github.com/flant/shell-operator v1.0.1-0.20210402061915-a583609302e9 // branch: master
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-openapi/strfmt v0.19.3
@@ -18,12 +19,15 @@ require (
 	github.com/prometheus/client_golang v1.0.0
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.4.2
-	github.com/stretchr/testify v1.4.0
-	github.com/tidwall/gjson v1.3.4
-	github.com/tidwall/sjson v1.0.4
+	github.com/stretchr/testify v1.6.1
+	github.com/tidwall/gjson v1.6.3
+	github.com/tidwall/match v1.0.2 // indirect
+	github.com/tidwall/sjson v1.1.2
+	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
+	golang.org/x/text v0.3.5 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
-	gopkg.in/yaml.v3 v3.0.0-20191120175047-4206685974f2
+	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
 	k8s.io/api v0.17.0
 	k8s.io/apimachinery v0.17.0
 	k8s.io/client-go v0.17.0
@@ -31,5 +35,3 @@ require (
 )
 
 replace github.com/go-openapi/validate => github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1 // branch: fix_in_body_0_19_7
-
-//replace github.com/flant/shell-operator => ../shell-operator

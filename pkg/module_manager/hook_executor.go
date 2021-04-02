@@ -15,8 +15,8 @@ import (
 	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 
 	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/sdk"
 )
 
 type HookExecutor struct {
@@ -29,16 +29,18 @@ type HookExecutor struct {
 	ConfigValuesPatchPath string
 	ValuesPatchPath       string
 	MetricsPath           string
+	ObjectPatcher         *object_patch.ObjectPatcher
 	KubernetesPatchPath   string
 	LogLabels             map[string]string
 }
 
-func NewHookExecutor(h Hook, context []BindingContext, configVersion string) *HookExecutor {
+func NewHookExecutor(h Hook, context []BindingContext, configVersion string, objectPatcher *object_patch.ObjectPatcher) *HookExecutor {
 	return &HookExecutor{
 		Hook:          h,
 		Context:       context,
 		ConfigVersion: configVersion,
 		LogLabels:     map[string]string{},
+		ObjectPatcher: objectPatcher,
 	}
 }
 
@@ -55,7 +57,7 @@ type HookResult struct {
 
 func (e *HookExecutor) Run() (result *HookResult, err error) {
 	if e.Hook.GetGoHook() != nil {
-		return e.RunGoHook()
+		return e.RunGoHook(e.ObjectPatcher)
 	}
 
 	result = &HookResult{
@@ -133,39 +135,64 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 	return result, nil
 }
 
-func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
+func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (result *HookResult, err error) {
 	goHook := e.Hook.GetGoHook()
 	if goHook == nil {
 		return
 	}
 
-	// prepare hook input
-	input := &sdk.HookInput{
-		BindingContexts: e.Context,
-		ConfigValues:    e.Hook.GetConfigValues(),
-		LogLabels:       e.LogLabels,
-	}
-
 	// Values are patched in-place, so an error can occur.
-	input.Values, err = e.Hook.GetValues()
+	values, err := e.Hook.GetValues()
 	if err != nil {
 		return nil, err
 	}
 
-	output, err := goHook.Run(input)
+	patchableValues, err := go_hook.NewPatchableValues(values)
+	if err != nil {
+		return nil, err
+	}
+
+	patchableConfigValues, err := go_hook.NewPatchableValues(e.Hook.GetConfigValues())
+	if err != nil {
+		return nil, err
+	}
+
+	metrics := new([]metric_operation.MetricOperation)
+
+	logEntry := log.WithFields(utils.LabelsToLogFields(e.LogLabels)).
+		WithField("output", "gohook")
+
+	var formattedSnapshots = make(go_hook.Snapshots, len(e.Context))
+	for _, context := range e.Context {
+		for snapBindingName, snaps := range context.Snapshots {
+			for _, snapshot := range snaps {
+				goSnapshot := snapshot.FilterResult
+				formattedSnapshots[snapBindingName] = append(formattedSnapshots[snapBindingName], goSnapshot)
+			}
+		}
+	}
+
+	err = goHook.Run(&go_hook.HookInput{
+		Snapshots:     formattedSnapshots,
+		Values:        patchableValues,
+		ConfigValues:  patchableConfigValues,
+		ObjectPatcher: objectPatcher,
+		LogEntry:      logEntry,
+		Metrics:       metrics,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	result = &HookResult{
 		Patches: map[utils.ValuesPatchType]*utils.ValuesPatch{
-			utils.ConfigMapPatch:    output.ConfigValuesPatches,
-			utils.MemoryValuesPatch: output.MemoryValuesPatches,
+			utils.MemoryValuesPatch: {Operations: patchableValues.GetPatches()},
+			utils.ConfigMapPatch:    {Operations: patchableConfigValues.GetPatches()},
 		},
-		Metrics: output.Metrics,
+		Metrics: *metrics,
 	}
 
-	return result, output.Error
+	return result, nil
 }
 
 func (e *HookExecutor) Config() (configOutput []byte, err error) {
