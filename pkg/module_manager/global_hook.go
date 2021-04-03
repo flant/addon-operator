@@ -58,6 +58,7 @@ func (g *GlobalHook) WithGoConfig(config *go_hook.HookConfig) (err error) {
 
 	// Make HookController and GetConfigDescription work.
 	g.Hook.Config = &g.Config.HookConfig
+	g.Hook.RateLimiter = hook.CreateRateLimiter(g.Hook.Config)
 	return nil
 }
 

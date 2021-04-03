@@ -10,7 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
@@ -24,6 +24,8 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/kube"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+
+	_ "github.com/flant/addon-operator/pkg/module_manager/test/go_hooks/global-hooks"
 )
 
 // initModuleManager is a test version of an Init method
@@ -1032,6 +1034,7 @@ func Test_MainModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
 				"000-before-all-binding-hooks/b",
 				"000-before-all-binding-hooks/c",
 				"000-before-all-binding-hooks/a",
+				"simple.go",
 			},
 		},
 		{

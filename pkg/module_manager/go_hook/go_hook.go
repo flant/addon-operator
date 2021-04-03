@@ -10,7 +10,6 @@ import (
 )
 
 type GoHook interface {
-	Metadata() *HookMetadata
 	Config() *HookConfig
 	Run(input *HookInput) error
 }

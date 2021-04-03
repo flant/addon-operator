@@ -59,15 +59,6 @@ func (h *GoHook) Config() *go_hook.HookConfig {
 	}
 }
 
-func (h *GoHook) Metadata() *go_hook.HookMetadata {
-	return &go_hook.HookMetadata{
-		Name:       "go_hook.go",
-		Path:       "001-module-go-hooks/hooks/go_hook.go",
-		Module:     true,
-		ModuleName: "module-go-hooks",
-	}
-}
-
 func (h *GoHook) Run(input *go_hook.HookInput) error {
 	for _, o := range input.Snapshots["pods"] {
 		podSpec := o.(*podSpecFilteredObj)
