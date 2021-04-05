@@ -24,7 +24,7 @@ func Test_HookMetadata_from_runtime(t *testing.T) {
 	hooks := map[string]go_hook.HookMetadata{}
 
 	for _, h := range hookList {
-		hm := h.Metadata()
+		hm := h.Metadata
 		hooks[hm.Name] = *hm
 	}
 

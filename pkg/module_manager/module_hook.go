@@ -63,6 +63,7 @@ func (m *ModuleHook) WithGoConfig(config *go_hook.HookConfig) (err error) {
 
 	// Make HookController and GetConfigDescription work.
 	m.Hook.Config = &m.Config.HookConfig
+	m.Hook.RateLimiter = hook.CreateRateLimiter(m.Hook.Config)
 	return nil
 }
 

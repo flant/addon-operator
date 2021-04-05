@@ -170,13 +170,13 @@ func SearchGlobalGoHooks() (hooks []*GlobalHook, err error) {
 	hooks = make([]*GlobalHook, 0)
 	goHooks := sdk.Registry().Hooks()
 	for _, h := range goHooks {
-		m := h.Metadata()
+		m := h.Metadata
 		if !m.Global {
 			continue
 		}
 
 		globalHook := NewGlobalHook(m.Name, m.Path)
-		globalHook.WithGoHook(h)
+		globalHook.WithGoHook(h.Hook)
 		hooks = append(hooks, globalHook)
 	}
 
@@ -244,7 +244,7 @@ func SearchModuleGoHooks(module *Module) (hooks []*ModuleHook, err error) {
 	hooks = make([]*ModuleHook, 0)
 	goHooks := sdk.Registry().Hooks()
 	for _, h := range goHooks {
-		m := h.Metadata()
+		m := h.Metadata
 		if !m.Module {
 			continue
 		}
@@ -254,7 +254,7 @@ func SearchModuleGoHooks(module *Module) (hooks []*ModuleHook, err error) {
 
 		moduleHook := NewModuleHook(m.Name, m.Path)
 		moduleHook.WithModule(module)
-		moduleHook.WithGoHook(h)
+		moduleHook.WithGoHook(h.Hook)
 
 		hooks = append(hooks, moduleHook)
 	}
