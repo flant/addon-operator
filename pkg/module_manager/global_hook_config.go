@@ -301,8 +301,9 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		if kubeCfg.Filterable == nil {
 			return config.HookConfig{}, errors.New(`"Filterable" in KubernetesConfig cannot be nil`)
 		}
-		monitor.FilterFunc = func(unstructured *unstructured.Unstructured) (interface{}, error) {
-			return kubeCfg.Filterable.ApplyFilter(unstructured)
+		filterable := kubeCfg.Filterable
+		monitor.FilterFunc = func(obj *unstructured.Unstructured) (interface{}, error) {
+			return filterable.ApplyFilter(obj)
 		}
 		if go_hook.BoolDeref(kubeCfg.ExecuteHookOnEvents, true) {
 			monitor.WithEventTypes(nil)
