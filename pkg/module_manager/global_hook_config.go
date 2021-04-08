@@ -298,12 +298,12 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		monitor.WithFieldSelector(kubeCfg.FieldSelector)
 		monitor.WithNamespaceSelector(kubeCfg.NamespaceSelector)
 		monitor.WithLabelSelector(kubeCfg.LabelSelector)
-		if kubeCfg.Filterable == nil {
-			return config.HookConfig{}, errors.New(`"Filterable" in KubernetesConfig cannot be nil`)
+		if kubeCfg.FilterFunc == nil {
+			return config.HookConfig{}, errors.New(`"FilterFunc" in KubernetesConfig cannot be nil`)
 		}
-		filterable := kubeCfg.Filterable
+		filterFunc := kubeCfg.FilterFunc
 		monitor.FilterFunc = func(obj *unstructured.Unstructured) (interface{}, error) {
-			return filterable.ApplyFilter(obj)
+			return filterFunc(obj)
 		}
 		if go_hook.BoolDeref(kubeCfg.ExecuteHookOnEvents, true) {
 			monitor.WithEventTypes(nil)

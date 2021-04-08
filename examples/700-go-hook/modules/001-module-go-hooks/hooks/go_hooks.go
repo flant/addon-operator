@@ -12,13 +12,38 @@ import (
 	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
-var _ = sdk.Register(&GoHook{})
+var _ = sdk.RegisterFunc(&go_hook.HookConfig{
+	OnStartup: &go_hook.OrderedConfig{
+		Order: 10,
+	},
+
+	OnBeforeHelm: &go_hook.OrderedConfig{
+		Order: 10,
+	},
+
+	Kubernetes: []go_hook.KubernetesConfig{
+		{
+			Name:                         "pods",
+			ApiVersion:                   "v1",
+			Kind:                         "Pods",
+			FilterFunc:                   ObjFilter,
+			ExecuteHookOnSynchronization: go_hook.Bool(true),
+		},
+	},
+
+	Schedule: []go_hook.ScheduleConfig{
+		{
+			Name:    "metrics",
+			Crontab: "*/5 * * * * *",
+		},
+	},
+}, run)
 
 type podSpecFilteredObj v1.PodSpec
 
-func (ps *podSpecFilteredObj) ApplyFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
+func ObjFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
 	pod := &v1.Pod{}
-	err := go_hook.ConvertUnstructured(obj, pod)
+	err := sdk.FromUnstructured(obj, pod)
 	if err != nil {
 		return nil, err
 	}
@@ -28,38 +53,7 @@ func (ps *podSpecFilteredObj) ApplyFilter(obj *unstructured.Unstructured) (go_ho
 	return &podSpec, nil
 }
 
-type GoHook struct{}
-
-func (h *GoHook) Config() *go_hook.HookConfig {
-	return &go_hook.HookConfig{
-		OnStartup: &go_hook.OrderedConfig{
-			Order: 10,
-		},
-
-		OnBeforeHelm: &go_hook.OrderedConfig{
-			Order: 10,
-		},
-
-		Kubernetes: []go_hook.KubernetesConfig{
-			{
-				Name:                         "pods",
-				ApiVersion:                   "v1",
-				Kind:                         "Pods",
-				Filterable:                   &podSpecFilteredObj{},
-				ExecuteHookOnSynchronization: go_hook.Bool(true),
-			},
-		},
-
-		Schedule: []go_hook.ScheduleConfig{
-			{
-				Name:    "metrics",
-				Crontab: "*/5 * * * * *",
-			},
-		},
-	}
-}
-
-func (h *GoHook) Run(input *go_hook.HookInput) error {
+func run(input *go_hook.HookInput) error {
 	for _, o := range input.Snapshots["pods"] {
 		podSpec := o.(*podSpecFilteredObj)
 		input.LogEntry.Infof("Got podSpec: %+v", podSpec)

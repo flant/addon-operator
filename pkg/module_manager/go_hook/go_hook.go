@@ -6,7 +6,6 @@ import (
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 type GoHook interface {
@@ -66,15 +65,7 @@ type ScheduleConfig struct {
 	Crontab string
 }
 
-type Filterable interface {
-	ApplyFilter(*unstructured.Unstructured) (FilterResult, error)
-}
-
-func ConvertUnstructured(obj *unstructured.Unstructured, target interface{}) error {
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.UnstructuredContent(), target)
-
-	return err
-}
+type FilterFunc func(*unstructured.Unstructured) (FilterResult, error)
 
 type KubernetesConfig struct {
 	Name                         string
@@ -87,7 +78,7 @@ type KubernetesConfig struct {
 	ExecuteHookOnEvents          *bool
 	ExecuteHookOnSynchronization *bool
 	WaitForSynchronization       *bool
-	Filterable                   Filterable
+	FilterFunc                   FilterFunc
 }
 
 type OrderedConfig struct {
