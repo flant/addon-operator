@@ -6,18 +6,11 @@ import (
 	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
-var _ = sdk.Register(&Simple{})
+var _ = sdk.RegisterFunc(&go_hook.HookConfig{
+	OnAfterAll: &go_hook.OrderedConfig{Order: 5},
+}, run)
 
-type Simple struct {
-}
-
-func (s *Simple) Config() *go_hook.HookConfig {
-	return &go_hook.HookConfig{
-		OnAfterAll: &go_hook.OrderedConfig{Order: 5},
-	}
-}
-
-func (s *Simple) Run(input *go_hook.HookInput) error {
+func run(input *go_hook.HookInput) error {
 	input.Values.Set("test", "test")
 	*input.Metrics = append(*input.Metrics, operation.MetricOperation{Name: "test"})
 

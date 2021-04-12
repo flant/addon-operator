@@ -22,19 +22,8 @@ var moduleRe = regexp.MustCompile(`/modules/(([^/]+)/hooks/([^/]+/)*([^/]+))$`)
 // TODO: This regexp should be changed. We shouldn't force users to name modules with a number prefix.
 var moduleNameRe = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
 
-var _ = initRegistry()
-
-func initRegistry() bool {
-	Register = func(h go_hook.GoHook) bool {
-		Registry().Add(h)
-		return true
-	}
-
-	RegisterFunc = func(config *go_hook.HookConfig, reconcileFunc reconcileFunc) bool {
-		Registry().Add(newCommonGoHook(config, reconcileFunc))
-		return true
-	}
-
+var RegisterFunc = func(config *go_hook.HookConfig, reconcileFunc reconcileFunc) bool {
+	Registry().Add(newCommonGoHook(config, reconcileFunc))
 	return true
 }
 
