@@ -17,10 +17,13 @@ func Test_Config_GoHook(t *testing.T) {
 
 	moduleManager := NewMainModuleManager()
 
+	expectedGoHookName := "simple.go"
+	expectedGoHookPath := "/global-hooks/simple.go"
+
 	var goHook go_hook.GoHook
-	gh := NewGlobalHook("simple.go", "simple.go")
+	gh := NewGlobalHook(expectedGoHookName, expectedGoHookPath)
 	for _, hookWithMeta := range sdk.Registry().Hooks() {
-		if hookWithMeta.Metadata.Name == "simple.go" && hookWithMeta.Metadata.Path == "simple.go" {
+		if hookWithMeta.Metadata.Name == expectedGoHookName && hookWithMeta.Metadata.Path == expectedGoHookPath {
 			goHook = hookWithMeta.Hook
 			break
 		}

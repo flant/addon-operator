@@ -9,15 +9,15 @@ import (
 )
 
 // /path/.../global-hooks/a/b/c/Hook-name.go
-// $1 - Hook path
-// $3 - Hook name
-var globalRe = regexp.MustCompile(`/global[\/\-]hooks/(([^/]+/)*([^/]+))$`)
+// $1 - Hook path for sorting (/global/hooks/subdir/v1-hook-onstartup.go)
+// $2 - Hook name for identification (subdir/v1-hook-onstartup.go)
+var globalRe = regexp.MustCompile(`(/global[\/\-]hooks/(([^/]+/)*([^/]+)))$`)
 
 // /path/.../modules/module-name/hooks/a/b/c/Hook-name.go
-// $1 - Hook path
-// $2 - module name
-// $4 - Hook name
-var moduleRe = regexp.MustCompile(`/modules/(([^/]+)/hooks/([^/]+/)*([^/]+))$`)
+// $1 - Hook path for sorting (/modules/002-helm-and-hooks/hooks/subdir/some_hook)
+// $2 - Hook name for identification (002-helm-and-hooks/hooks/subdir/some_hook)
+// $3 - Path element with module name (002-helm-and-hooks)
+var moduleRe = regexp.MustCompile(`(/modules/(([^/]+)/hooks/([^/]+/)*([^/]+)))$`)
 
 // TODO: This regexp should be changed. We shouldn't force users to name modules with a number prefix.
 var moduleNameRe = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
@@ -70,7 +70,7 @@ func (h *HookRegistry) Add(hook go_hook.GoHook) {
 		matches := globalRe.FindStringSubmatch(frame.File)
 		if matches != nil {
 			hookMeta.Global = true
-			hookMeta.Name = matches[3]
+			hookMeta.Name = matches[2]
 			hookMeta.Path = matches[1]
 			break
 		}
@@ -78,9 +78,9 @@ func (h *HookRegistry) Add(hook go_hook.GoHook) {
 		matches = moduleRe.FindStringSubmatch(frame.File)
 		if matches != nil {
 			hookMeta.Module = true
-			hookMeta.Name = matches[4]
+			hookMeta.Name = matches[2]
 			hookMeta.Path = matches[1]
-			modNameMatches := moduleNameRe.FindStringSubmatch(matches[2])
+			modNameMatches := moduleNameRe.FindStringSubmatch(matches[3])
 			if modNameMatches != nil {
 				hookMeta.ModuleName = modNameMatches[1]
 			}
