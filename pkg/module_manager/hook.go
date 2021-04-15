@@ -272,7 +272,10 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 	if err != nil {
 		return err
 	}
-	log.Debugf("Found %d global hooks", len(hooks))
+	log.Debugf("Found %d global hooks:", len(hooks))
+	for _, h := range hooks {
+		log.Debugf("  GlobalHook: Name=%s, Path=%s", h.Name, h.Path)
+	}
 
 	for _, globalHook := range hooks {
 		logEntry := log.WithField("hook", globalHook.Name).
@@ -378,6 +381,9 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 		return err
 	}
 	logEntry.Debugf("Found %d hooks", len(hooks))
+	for _, h := range hooks {
+		logEntry.Debugf("  ModuleHook: Name=%s, Path=%s", h.Name, h.Path)
+	}
 
 	for _, moduleHook := range hooks {
 		hookLogEntry := logEntry.WithField("hook", moduleHook.Name).

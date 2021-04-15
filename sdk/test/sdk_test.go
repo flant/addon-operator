@@ -32,19 +32,19 @@ func Test_HookMetadata_from_runtime(t *testing.T) {
 	g.Expect(ok).To(BeTrue(), "global go-hook.go should be registered")
 	g.Expect(hm.Global).To(BeTrue())
 	g.Expect(hm.Module).To(BeFalse())
-	g.Expect(hm.Path).To(Equal("go-hook.go"))
+	g.Expect(hm.Path).To(Equal("/global-hooks/go-hook.go"))
 
-	hm, ok = hooks["module-one-hook.go"]
+	hm, ok = hooks["001-module-one/hooks/module-one-hook.go"]
 	g.Expect(ok).To(BeTrue(), "module-one-hook.go should be registered")
 	g.Expect(hm.Global).To(BeFalse())
 	g.Expect(hm.Module).To(BeTrue())
 	g.Expect(hm.ModuleName).To(Equal("module-one"))
-	g.Expect(hm.Path).To(Equal("001-module-one/hooks/module-one-hook.go"))
+	g.Expect(hm.Path).To(Equal("/modules/001-module-one/hooks/module-one-hook.go"))
 
-	hm, ok = hooks["sub-sub-hook.go"]
+	hm, ok = hooks["002-module-two/hooks/level1/sublevel/sub-sub-hook.go"]
 	g.Expect(ok).To(BeTrue(), "sub-sub-hook.go should be registered")
 	g.Expect(hm.Global).To(BeFalse())
 	g.Expect(hm.Module).To(BeTrue())
 	g.Expect(hm.ModuleName).To(Equal("module-two"))
-	g.Expect(hm.Path).To(Equal("002-module-two/hooks/level1/sublevel/sub-sub-hook.go"))
+	g.Expect(hm.Path).To(Equal("/modules/002-module-two/hooks/level1/sublevel/sub-sub-hook.go"))
 }
