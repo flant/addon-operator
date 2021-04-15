@@ -557,13 +557,6 @@ func Test_MainModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 				}
 
 				assert.Equal(t, expectedOrder, moduleHooks)
-
-				for mod := range mm.allModulesByName {
-					for _, modHookName := range mm.GetModuleHookNames(mod) {
-						h := mm.GetModuleHook(modHookName)
-						fmt.Printf("module '%s' hook '%s': hook.Name: '%s', hook.Path:'%s'\n", mod, modHookName, h.Name, h.Path)
-					}
-				}
 			},
 		},
 		{
