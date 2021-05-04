@@ -1,25 +1,27 @@
 package go_hook
 
 import (
+	"encoding/json"
 	"strings"
 
-	"github.com/Jeffail/gabs"
+	"github.com/tidwall/gjson"
 
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type PatchableValues struct {
-	Values          *gabs.Container
+	Values          *gjson.Result
 	patchOperations []*utils.ValuesPatchOperation
 }
 
 func NewPatchableValues(values map[string]interface{}) (*PatchableValues, error) {
-	gabsContainer, err := gabs.Consume(values)
+	data, err := json.Marshal(values)
 	if err != nil {
 		return nil, err
 	}
+	res := gjson.ParseBytes(data)
 
-	return &PatchableValues{Values: gabsContainer}, nil
+	return &PatchableValues{Values: &res}, nil
 }
 
 func (p *PatchableValues) Set(path string, value interface{}) {
