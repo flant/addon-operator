@@ -2,6 +2,7 @@ package go_hook
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -44,9 +45,19 @@ func (p *PatchableValues) GetRaw(path string) interface{} {
 	return p.values.Get(path).Value()
 }
 
-// Exists returns is value existence flag
+// Exists checks whether a path exists
 func (p *PatchableValues) Exists(path string) bool {
 	return p.values.Get(path).Exists()
+}
+
+// ArrayCount counts the number of elements in a JSON array at a path
+func (p *PatchableValues) ArrayCount(path string) (int, error) {
+	v := p.values.Get(path)
+	if !v.IsArray() {
+		return 0, fmt.Errorf("value at %q path is not an array", path)
+	}
+
+	return len(v.Array()), nil
 }
 
 func (p *PatchableValues) Set(path string, value interface{}) {
