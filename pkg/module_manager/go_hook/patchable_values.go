@@ -1,25 +1,63 @@
 package go_hook
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 
-	"github.com/Jeffail/gabs"
+	"github.com/tidwall/gjson"
 
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type PatchableValues struct {
-	Values          *gabs.Container
+	values          *gjson.Result
 	patchOperations []*utils.ValuesPatchOperation
 }
 
 func NewPatchableValues(values map[string]interface{}) (*PatchableValues, error) {
-	gabsContainer, err := gabs.Consume(values)
+	data, err := json.Marshal(values)
 	if err != nil {
 		return nil, err
 	}
+	res := gjson.ParseBytes(data)
 
-	return &PatchableValues{Values: gabsContainer}, nil
+	return &PatchableValues{values: &res}, nil
+}
+
+// Get value from patchable. It could be null value
+func (p *PatchableValues) Get(path string) gjson.Result {
+	return p.values.Get(path)
+}
+
+// GetOk returns value and `exists` flag
+func (p *PatchableValues) GetOk(path string) (gjson.Result, bool) {
+	v := p.values.Get(path)
+	if v.Exists() {
+		return v, true
+	}
+
+	return v, false
+}
+
+// GetRaw get empty interface
+func (p *PatchableValues) GetRaw(path string) interface{} {
+	return p.values.Get(path).Value()
+}
+
+// Exists checks whether a path exists
+func (p *PatchableValues) Exists(path string) bool {
+	return p.values.Get(path).Exists()
+}
+
+// ArrayCount counts the number of elements in a JSON array at a path
+func (p *PatchableValues) ArrayCount(path string) (int, error) {
+	v := p.values.Get(path)
+	if !v.IsArray() {
+		return 0, fmt.Errorf("value at %q path is not an array", path)
+	}
+
+	return len(v.Array()), nil
 }
 
 func (p *PatchableValues) Set(path string, value interface{}) {

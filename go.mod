@@ -3,7 +3,6 @@ module github.com/flant/addon-operator
 go 1.15
 
 require (
-	github.com/Jeffail/gabs v1.4.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.9.0+incompatible
 	github.com/flant/shell-operator v1.0.1-0.20210414105437-3aac020fdda5 // branch: master
@@ -20,9 +19,8 @@ require (
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.6.1
-	github.com/tidwall/gjson v1.6.3
-	github.com/tidwall/match v1.0.2 // indirect
-	github.com/tidwall/sjson v1.1.2
+	github.com/tidwall/gjson v1.7.5
+	github.com/tidwall/sjson v1.1.6
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
 	golang.org/x/text v0.3.5 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
