@@ -57,7 +57,7 @@ jobs:
         id: go
 
       - name: Check out addon-operator code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout submodules
         shell: bash
@@ -118,7 +118,7 @@ jobs:
         id: go
 
       - name: Check out addon-operator code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout submodules
         shell: bash
@@ -161,7 +161,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
 
       - name: Set up Go 1.15
         uses: actions/setup-go@v2
@@ -301,7 +301,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout submodules
         shell: bash
