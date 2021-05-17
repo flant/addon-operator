@@ -272,6 +272,13 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		OnKubernetesEvents: []OnKubernetesEventConfig{},
 	}
 
+	if input.Settings != nil {
+		c.Settings = &Settings{
+			ExecutionMinInterval: input.Settings.ExecutionMinInterval,
+			ExecutionBurst:       input.Settings.ExecutionBurst,
+		}
+	}
+
 	if input.OnStartup != nil {
 		c.OnStartup = &OnStartupConfig{}
 		c.OnStartup.BindingName = string(OnStartup)

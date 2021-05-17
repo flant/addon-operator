@@ -1,6 +1,8 @@
 package go_hook
 
 import (
+	"time"
+
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 	"github.com/sirupsen/logrus"
@@ -58,6 +60,12 @@ type HookConfig struct {
 	OnAfterAll        *OrderedConfig
 	AllowFailure      bool
 	Queue             string
+	Settings          *HookConfigSettings
+}
+
+type HookConfigSettings struct {
+	ExecutionMinInterval time.Duration
+	ExecutionBurst       int
 }
 
 type ScheduleConfig struct {
