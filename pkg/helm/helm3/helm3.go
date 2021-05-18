@@ -2,6 +2,7 @@ package helm3
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -270,7 +271,7 @@ func (h *Helm3Client) ListReleasesNames(labelSelector map[string]string) ([]stri
 
 	list, err := h.KubeClient.CoreV1().
 		Secrets(h.Namespace).
-		List(metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
+		List(context.TODO(), metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
 		h.LogEntry.Debugf("helm: list of releases ConfigMaps failed: %s", err)
 		return nil, err

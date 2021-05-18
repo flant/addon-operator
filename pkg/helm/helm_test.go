@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	log "github.com/sirupsen/logrus"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/rbac/v1beta1"
@@ -141,14 +143,14 @@ func TestHelm(t *testing.T) {
 
 	testNs := &v1.Namespace{}
 	testNs.Name = app.Namespace
-	_, err = kubeClient.CoreV1().Namespaces().Create(testNs)
+	_, err = kubeClient.CoreV1().Namespaces().Create(context.TODO(), testNs, v12.CreateOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	sa := &v1.ServiceAccount{}
 	sa.Name = "tiller"
-	_, err = kubeClient.CoreV1().ServiceAccounts(app.Namespace).Create(sa)
+	_, err = kubeClient.CoreV1().ServiceAccounts(app.Namespace).Create(context.TODO(), sa, v12.CreateOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +164,7 @@ func TestHelm(t *testing.T) {
 			Verbs:     []string{"*"},
 		},
 	}
-	_, err = kubeClient.RbacV1beta1().Roles(app.Namespace).Create(role)
+	_, err = kubeClient.RbacV1beta1().Roles(app.Namespace).Create(context.TODO(), role, v12.CreateOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +177,7 @@ func TestHelm(t *testing.T) {
 	rb.Subjects = []v1beta1.Subject{
 		v1beta1.Subject{Kind: "ServiceAccount", Name: "tiller", Namespace: app.Namespace},
 	}
-	_, err = kubeClient.RbacV1beta1().RoleBindings(app.Namespace).Create(rb)
+	_, err = kubeClient.RbacV1beta1().RoleBindings(app.Namespace).Create(context.TODO(), rb, v12.CreateOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

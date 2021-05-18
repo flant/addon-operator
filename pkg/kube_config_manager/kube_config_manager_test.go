@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/flant/shell-operator/pkg/kube"
@@ -45,10 +45,10 @@ kubeLegoEnabled: "false"
 	_ = yaml.Unmarshal([]byte(cmDataText), cmData)
 
 	kubeClient := kube.NewFakeKubernetesClient()
-	_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(&v1.ConfigMap{
+	_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "addon-operator"},
 		Data:       cmData,
-	})
+	}, metav1.CreateOptions{})
 
 	kcm := NewKubeConfigManager()
 	kcm.WithKubeClient(kubeClient)
@@ -247,7 +247,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 			}
 
 			// Check that ConfigMap is created or exists
-			cm, err = kubeClient.CoreV1().ConfigMaps("default").Get("addon-operator", metav1.GetOptions{})
+			cm, err = kubeClient.CoreV1().ConfigMaps("default").Get(context.TODO(), "addon-operator", metav1.GetOptions{})
 			if assert.NoError(t, err, "ConfigMap should exist after SetKubeGlobalValues") {
 				assert.NotNil(t, cm, "ConfigMap should not be nil")
 			} else {
@@ -280,7 +280,7 @@ param2: val2
 `,
 	}
 
-	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(cm)
+	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
 
 	kcm := NewKubeConfigManager()
@@ -311,7 +311,7 @@ param2: val2
 modParam1: val1
 modParam2: val2
 `
-	_, err = kubeClient.CoreV1().ConfigMaps("default").Update(cm)
+	_, err = kubeClient.CoreV1().ConfigMaps("default").Update(context.TODO(), cm, metav1.UpdateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
 
 	wg.Wait()
@@ -338,7 +338,7 @@ param2: val2
 `,
 	}
 
-	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(cm)
+	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
 
 	kcm := NewKubeConfigManager()
@@ -367,7 +367,7 @@ moduleLongName:
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Check that values are updated in ConfigMap
-	cm, err = kubeClient.CoreV1().ConfigMaps("default").Get(app.ConfigMapName, metav1.GetOptions{})
+	cm, err = kubeClient.CoreV1().ConfigMaps("default").Get(context.TODO(), app.ConfigMapName, metav1.GetOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap get")
 
 	g.Expect(cm.Data).Should(HaveLen(2))

@@ -9,7 +9,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -155,9 +155,9 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 
 		if apiRes.Namespaced {
 			ns := m.Namespace(r.defaultNamespace)
-			objList, err = r.kubeClient.Dynamic().Resource(gvr).Namespace(ns).List(listOptions)
+			objList, err = r.kubeClient.Dynamic().Resource(gvr).Namespace(ns).List(context.TODO(), listOptions)
 		} else {
-			objList, err = r.kubeClient.Dynamic().Resource(gvr).List(listOptions)
+			objList, err = r.kubeClient.Dynamic().Resource(gvr).List(context.TODO(), listOptions)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("Fetch list for helm resource %s: %s", m.Id(), err)

@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	corev1 "k8s.io/client-go/informers/core/v1"
@@ -148,7 +148,7 @@ func (kcm *kubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func(*v1
 			return err
 		}
 
-		_, err := kcm.KubeClient.CoreV1().ConfigMaps(kcm.Namespace).Update(obj)
+		_, err := kcm.KubeClient.CoreV1().ConfigMaps(kcm.Namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 		if err != nil {
 			return err
 		}
@@ -164,7 +164,7 @@ func (kcm *kubeConfigManager) changeOrCreateKubeConfig(configChangeFunc func(*v1
 			return err
 		}
 
-		_, err := kcm.KubeClient.CoreV1().ConfigMaps(kcm.Namespace).Create(obj)
+		_, err := kcm.KubeClient.CoreV1().ConfigMaps(kcm.Namespace).Create(context.TODO(), obj, metav1.CreateOptions{})
 		if err != nil {
 			return err
 		}
@@ -224,7 +224,7 @@ func (kcm *kubeConfigManager) SetKubeModuleValues(moduleName string, values util
 func (kcm *kubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 	list, err := kcm.KubeClient.CoreV1().
 		ConfigMaps(kcm.Namespace).
-		List(metav1.ListOptions{})
+		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +239,7 @@ func (kcm *kubeConfigManager) getConfigMap() (*v1.ConfigMap, error) {
 	if objExists {
 		obj, err := kcm.KubeClient.CoreV1().
 			ConfigMaps(kcm.Namespace).
-			Get(kcm.ConfigMapName, metav1.GetOptions{})
+			Get(context.TODO(), kcm.ConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}

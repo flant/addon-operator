@@ -11,6 +11,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
@@ -61,7 +62,7 @@ func initModuleManager(t *testing.T, mm *moduleManager, configPath string) {
 		_ = yaml.Unmarshal(cmDataBytes, &cmObj)
 
 		kubeClient := kube.NewFakeKubernetesClient()
-		_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(cmObj)
+		_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cmObj, v12.CreateOptions{})
 
 		KubeConfigManager := kube_config_manager.NewKubeConfigManager()
 		KubeConfigManager.WithKubeClient(kubeClient)

@@ -13,7 +13,7 @@ import (
 func Test_GetAbsentResources(t *testing.T) {
 	g := NewWithT(t)
 
-	fc := fake.NewFakeCluster()
+	fc := fake.NewFakeCluster("")
 
 	defaultNs := "default"
 
