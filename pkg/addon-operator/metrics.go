@@ -43,7 +43,7 @@ func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
 	metricStorage.RegisterCounter("{PREFIX}module_delete_errors_total", map[string]string{"module": ""})
 
 	// module
-	metricStorage.RegisterHistogramWithBuckets(
+	metricStorage.RegisterHistogram(
 		"{PREFIX}module_run_seconds",
 		map[string]string{
 			"module":     "",
@@ -60,15 +60,15 @@ func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
 		"queue":      "",
 		"activation": "",
 	}
-	metricStorage.RegisterHistogramWithBuckets(
+	metricStorage.RegisterHistogram(
 		"{PREFIX}module_hook_run_seconds",
 		moduleHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogramWithBuckets(
+	metricStorage.RegisterHistogram(
 		"{PREFIX}module_hook_run_user_cpu_seconds",
 		moduleHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogramWithBuckets(
+	metricStorage.RegisterHistogram(
 		"{PREFIX}module_hook_run_sys_cpu_seconds",
 		moduleHookLabels,
 		buckets_1msTo10s)
@@ -84,15 +84,15 @@ func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
 		"queue":      "",
 		"activation": "",
 	}
-	metricStorage.RegisterHistogramWithBuckets(
+	metricStorage.RegisterHistogram(
 		"{PREFIX}global_hook_run_seconds",
 		globalHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogramWithBuckets(
+	metricStorage.RegisterHistogram(
 		"{PREFIX}global_hook_run_user_cpu_seconds",
 		globalHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogramWithBuckets(
+	metricStorage.RegisterHistogram(
 		"{PREFIX}global_hook_run_sys_cpu_seconds",
 		globalHookLabels,
 		buckets_1msTo10s)
@@ -106,14 +106,14 @@ func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
 	metricStorage.RegisterCounter("{PREFIX}convergence_total", map[string]string{"activation": ""})
 
 	// helm operations
-	metricStorage.RegisterHistogramWithBuckets(
+	metricStorage.RegisterHistogram(
 		"{PREFIX}module_helm_seconds",
 		map[string]string{
 			"module":     "",
 			"activation": "",
 		},
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogramWithBuckets(
+	metricStorage.RegisterHistogram(
 		"{PREFIX}helm_operation_seconds",
 		map[string]string{
 			"module":     "",

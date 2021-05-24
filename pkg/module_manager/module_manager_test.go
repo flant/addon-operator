@@ -62,7 +62,7 @@ func initModuleManager(t *testing.T, mm *moduleManager, configPath string) {
 		var cmObj = new(v1.ConfigMap)
 		_ = yaml.Unmarshal(cmDataBytes, &cmObj)
 
-		kubeClient := kube.NewFakeKubernetesClient()
+		kubeClient := kube.NewFakeKubernetesClient(nil)
 		_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cmObj, metav1.CreateOptions{})
 
 		KubeConfigManager := kube_config_manager.NewKubeConfigManager()

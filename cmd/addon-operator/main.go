@@ -11,7 +11,7 @@ import (
 	"github.com/flant/shell-operator/pkg/debug"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
-	"github.com/flant/addon-operator/pkg/addon-operator"
+	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
 )
 
