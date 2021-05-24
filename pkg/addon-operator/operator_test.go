@@ -22,7 +22,7 @@ func Test_Operator_Startup(t *testing.T) {
 	t.SkipNow()
 	g := NewWithT(t)
 
-	kubeClient := kube.NewFakeKubernetesClient()
+	kubeClient := kube.NewFakeKubernetesClient(nil)
 
 	sh_app.DebugUnixSocket = "testdata/debug.socket"
 	op := NewAddonOperator()

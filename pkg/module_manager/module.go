@@ -257,7 +257,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 		"activation": logLabels["event.type"],
 	}
 	defer measure.Duration(func(d time.Duration) {
-		m.metricStorage.HistogramObserve("{PREFIX}module_helm_seconds", d.Seconds(), metricLabels)
+		m.metricStorage.HistogramObserve("{PREFIX}module_helm_seconds", d.Seconds(), metricLabels, nil)
 	})()
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
@@ -296,7 +296,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 			"operation":  "template",
 		}
 		defer measure.Duration(func(d time.Duration) {
-			m.metricStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels)
+			m.metricStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
 		})()
 
 		renderedManifests, err = helmClient.Render(
@@ -329,7 +329,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 			"operation":  "check-upgrade",
 		}
 		defer measure.Duration(func(d time.Duration) {
-			m.metricStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels)
+			m.metricStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
 		})()
 
 		runUpgradeRelease, err = m.ShouldRunHelmUpgrade(helmClient, helmReleaseName, checksum, manifests, logLabels)
@@ -356,7 +356,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 			"operation":  "upgrade",
 		}
 		defer measure.Duration(func(d time.Duration) {
-			m.metricStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels)
+			m.metricStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
 		})()
 
 		err = helmClient.UpgradeRelease(
@@ -480,7 +480,7 @@ func (m *Module) runHooksByBinding(binding BindingType, logLabels map[string]str
 
 		func() {
 			defer measure.Duration(func(d time.Duration) {
-				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)
+				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels, nil)
 			})()
 			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels, metricLabels)
 		}()
@@ -538,7 +538,7 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 
 		func() {
 			defer measure.Duration(func(d time.Duration) {
-				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels)
+				m.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels, nil)
 			})()
 			err = moduleHook.Run(binding, []BindingContext{bc}, logLabels, metricLabels)
 		}()
@@ -923,8 +923,8 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 			"queue":      logLabels["queue"],
 			"activation": logLabels["event.type"],
 		}
-		m.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", usage.Sys.Seconds(), metricLabels)
-		m.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", usage.User.Seconds(), metricLabels)
+		m.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", usage.Sys.Seconds(), metricLabels, nil)
+		m.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", usage.User.Seconds(), metricLabels, nil)
 		m.moduleManager.metricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(usage.MaxRss)*1024, metricLabels)
 	}
 	if err != nil {

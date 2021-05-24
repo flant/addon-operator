@@ -44,7 +44,7 @@ kubeLegoEnabled: "false"
 	cmData := map[string]string{}
 	_ = yaml.Unmarshal([]byte(cmDataText), cmData)
 
-	kubeClient := kube.NewFakeKubernetesClient()
+	kubeClient := kube.NewFakeKubernetesClient(nil)
 	_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "addon-operator"},
 		Data:       cmData,
@@ -127,7 +127,7 @@ kubeLegoEnabled: "false"
 }
 
 func Test_SaveValuesToConfigMap(t *testing.T) {
-	kubeClient := kube.NewFakeKubernetesClient()
+	kubeClient := kube.NewFakeKubernetesClient(nil)
 
 	kcm := NewKubeConfigManager()
 	kcm.WithKubeClient(kubeClient)
@@ -265,7 +265,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 func TestKubeConfigManager_ModuleConfigsUpdated_chan(t *testing.T) {
 	g := NewWithT(t)
 
-	kubeClient := kube.NewFakeKubernetesClient()
+	kubeClient := kube.NewFakeKubernetesClient(nil)
 
 	cm := &v1.ConfigMap{}
 	cm.SetNamespace("default")
@@ -323,7 +323,7 @@ modParam2: val2
 func TestKubeConfigManager_SetKubeModuleValues(t *testing.T) {
 	g := NewWithT(t)
 
-	kubeClient := kube.NewFakeKubernetesClient()
+	kubeClient := kube.NewFakeKubernetesClient(nil)
 
 	cm := &v1.ConfigMap{}
 	cm.SetNamespace("default")
