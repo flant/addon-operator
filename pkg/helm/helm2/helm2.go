@@ -2,6 +2,7 @@ package helm2
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -173,7 +174,7 @@ func (h *Helm2Client) DeleteOldFailedRevisions(releaseName string) error {
 
 		err := h.KubeClient.CoreV1().
 			ConfigMaps(h.Namespace).
-			Delete(cmName, &metav1.DeleteOptions{})
+			Delete(context.TODO(), cmName, metav1.DeleteOptions{})
 
 		if err != nil {
 			return err
@@ -292,7 +293,7 @@ func (h *Helm2Client) ListReleases(labelSelector map[string]string) ([]string, e
 
 	cmList, err := h.KubeClient.CoreV1().
 		ConfigMaps(h.Namespace).
-		List(metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
+		List(context.TODO(), metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
 		h.LogEntry.Debugf("helm: list of releases ConfigMaps failed: %s", err)
 		return nil, err

@@ -13,7 +13,7 @@ import (
 func Test_GetAbsentResources(t *testing.T) {
 	g := NewWithT(t)
 
-	fc := fake.NewFakeCluster()
+	fc := fake.NewFakeCluster("")
 
 	defaultNs := "default"
 
@@ -21,7 +21,7 @@ func Test_GetAbsentResources(t *testing.T) {
 	// TODO fix fake cluster for preferred resources and multiple apiVersions
 	chartResources := []manifest.Manifest{
 		createResource(fc, defaultNs, `
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend

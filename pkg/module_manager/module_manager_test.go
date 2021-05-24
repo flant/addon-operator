@@ -11,11 +11,8 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
-
-	. "github.com/flant/addon-operator/pkg/hook/types"
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -24,6 +21,11 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/kube"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+
+	. "github.com/flant/addon-operator/pkg/hook/types"
+
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
 
 	_ "github.com/flant/addon-operator/pkg/module_manager/test/go_hooks/global-hooks"
 )
@@ -61,7 +63,7 @@ func initModuleManager(t *testing.T, mm *moduleManager, configPath string) {
 		_ = yaml.Unmarshal(cmDataBytes, &cmObj)
 
 		kubeClient := kube.NewFakeKubernetesClient()
-		_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(cmObj)
+		_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cmObj, metav1.CreateOptions{})
 
 		KubeConfigManager := kube_config_manager.NewKubeConfigManager()
 		KubeConfigManager.WithKubeClient(kubeClient)
