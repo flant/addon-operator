@@ -71,6 +71,11 @@ func (p *PatchableValues) Set(path string, value interface{}) {
 }
 
 func (p *PatchableValues) Remove(path string) {
+	if !p.Exists(path) {
+		// return if path not exists
+		return
+	}
+
 	op := &utils.ValuesPatchOperation{
 		Op:   "remove",
 		Path: convertDotFilePathToSlashPath(path),
