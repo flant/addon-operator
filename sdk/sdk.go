@@ -27,11 +27,11 @@ func (h *commonGoHook) Run(input *go_hook.HookInput) error {
 	return h.reconcileFunc(input)
 }
 
-func ToUnstructured(obj runtime.Object) (*unstructured.Unstructured, error) {
+func ToUnstructured(obj interface{}) (*unstructured.Unstructured, error) {
 	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	return &unstructured.Unstructured{Object: content}, err
 }
 
-func FromUnstructured(unstructuredObj *unstructured.Unstructured, obj runtime.Object) error {
+func FromUnstructured(unstructuredObj *unstructured.Unstructured, obj interface{}) error {
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.UnstructuredContent(), obj)
 }
