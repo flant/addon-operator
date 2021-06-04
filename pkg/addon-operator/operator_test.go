@@ -6,9 +6,9 @@ import (
 
 	. "github.com/onsi/gomega"
 
+	klient "github.com/flant/kube-client/client"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 
@@ -22,7 +22,7 @@ func Test_Operator_Startup(t *testing.T) {
 	t.SkipNow()
 	g := NewWithT(t)
 
-	kubeClient := kube.NewFakeKubernetesClient(nil)
+	kubeClient := klient.NewFake(nil)
 
 	sh_app.DebugUnixSocket = "testdata/debug.socket"
 	op := NewAddonOperator()

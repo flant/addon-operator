@@ -7,15 +7,14 @@ import (
 	"sort"
 	"time"
 
+	klient "github.com/flant/kube-client/client"
+	"github.com/flant/kube-client/manifest"
 	log "github.com/sirupsen/logrus"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/flant/shell-operator/pkg/kube"
-	"github.com/flant/shell-operator/pkg/utils/manifest"
 
 	"github.com/flant/addon-operator/pkg/utils"
 )
@@ -31,7 +30,7 @@ type ResourcesMonitor struct {
 	manifests        []manifest.Manifest
 	defaultNamespace string
 
-	kubeClient kube.KubernetesClient
+	kubeClient klient.Client
 	logLabels  map[string]string
 
 	absentCb func(moduleName string, absent []manifest.Manifest, defaultNs string)
@@ -55,7 +54,7 @@ func (r *ResourcesMonitor) Stop() {
 	}
 }
 
-func (r *ResourcesMonitor) WithKubeClient(client kube.KubernetesClient) {
+func (r *ResourcesMonitor) WithKubeClient(client klient.Client) {
 	r.kubeClient = client
 }
 

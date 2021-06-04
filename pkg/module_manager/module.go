@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flant/kube-client/manifest"
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
@@ -23,7 +24,6 @@ import (
 	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
-	"github.com/flant/shell-operator/pkg/utils/manifest"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 
 	"github.com/flant/addon-operator/pkg/app"
@@ -311,7 +311,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 	}
 	checksum := utils.CalculateStringsChecksum(renderedManifests)
 
-	manifests, err := manifest.GetManifestListFromYamlDocuments(renderedManifests)
+	manifests, err := manifest.ListFromYamlDocs(renderedManifests)
 	if err != nil {
 		return err
 	}

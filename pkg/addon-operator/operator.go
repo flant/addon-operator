@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	klient "github.com/flant/kube-client/client"
 	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -22,7 +23,6 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
@@ -2149,7 +2149,7 @@ func InitAndStart(operator *AddonOperator) error {
 	// Register metrics for kubernetes client with the default custom label "component".
 	if operator.KubeClient == nil {
 		// Register metrics for client-go.
-		kube.RegisterKubernetesClientMetrics(operator.MetricStorage, operator.GetMainKubeClientMetricLabels())
+		klient.RegisterKubernetesClientMetrics(operator.MetricStorage, operator.GetMainKubeClientMetricLabels())
 		// Initialize 'main' Kubernetes client.
 		operator.KubeClient, err = operator.InitMainKubeClient()
 		if err != nil {

@@ -1,6 +1,6 @@
 package types
 
-import "github.com/flant/shell-operator/pkg/utils/manifest"
+import "github.com/flant/kube-client/manifest"
 
 type AbsentResourcesEvent struct {
 	ModuleName string
