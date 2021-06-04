@@ -2,8 +2,8 @@ package addon_operator
 
 import (
 	"github.com/flant/addon-operator/pkg/app"
+	klient "github.com/flant/kube-client/client"
 	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/kube"
 )
 
 // Important! These labels should be consistent with similar labels in ShellOperator!
@@ -17,8 +17,8 @@ func (op *AddonOperator) GetHelmMonitorKubeClientMetricLabels() map[string]strin
 }
 
 // InitHelmMonitorKubeClient initializes a Kubernetes client for helm monitor.
-func (op *AddonOperator) InitHelmMonitorKubeClient() (kube.KubernetesClient, error) {
-	client := kube.NewKubernetesClient()
+func (op *AddonOperator) InitHelmMonitorKubeClient() (klient.Client, error) {
+	client := klient.New()
 	client.WithContextName(sh_app.KubeContext)
 	client.WithConfigPath(sh_app.KubeConfig)
 	client.WithRateLimiterSettings(app.HelmMonitorKubeClientQps, app.HelmMonitorKubeClientBurst)

@@ -2,6 +2,7 @@ package kube_config_manager
 
 import (
 	"context"
+	klient "github.com/flant/kube-client/client"
 	"sync"
 	"testing"
 
@@ -12,8 +13,6 @@ import (
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/flant/shell-operator/pkg/kube"
 
 	"github.com/flant/addon-operator/pkg/utils"
 )
@@ -44,7 +43,7 @@ kubeLegoEnabled: "false"
 	cmData := map[string]string{}
 	_ = yaml.Unmarshal([]byte(cmDataText), cmData)
 
-	kubeClient := kube.NewFakeKubernetesClient(nil)
+	kubeClient := klient.NewFake(nil)
 	_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "addon-operator"},
 		Data:       cmData,
@@ -127,7 +126,7 @@ kubeLegoEnabled: "false"
 }
 
 func Test_SaveValuesToConfigMap(t *testing.T) {
-	kubeClient := kube.NewFakeKubernetesClient(nil)
+	kubeClient := klient.NewFake(nil)
 
 	kcm := NewKubeConfigManager()
 	kcm.WithKubeClient(kubeClient)
@@ -265,7 +264,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 func TestKubeConfigManager_ModuleConfigsUpdated_chan(t *testing.T) {
 	g := NewWithT(t)
 
-	kubeClient := kube.NewFakeKubernetesClient(nil)
+	kubeClient := klient.NewFake(nil)
 
 	cm := &v1.ConfigMap{}
 	cm.SetNamespace("default")
@@ -323,7 +322,7 @@ modParam2: val2
 func TestKubeConfigManager_SetKubeModuleValues(t *testing.T) {
 	g := NewWithT(t)
 
-	kubeClient := kube.NewFakeKubernetesClient(nil)
+	kubeClient := klient.NewFake(nil)
 
 	cm := &v1.ConfigMap{}
 	cm.SetNamespace("default")

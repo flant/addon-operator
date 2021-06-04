@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	klient "github.com/flant/kube-client/client"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
@@ -19,7 +20,6 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
-	"github.com/flant/shell-operator/pkg/kube"
 )
 
 var Helm3Path = "helm"
@@ -28,7 +28,7 @@ type Helm3Options struct {
 	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
-	KubeClient kube.KubernetesClient
+	KubeClient klient.Client
 }
 
 var Options *Helm3Options
@@ -47,7 +47,7 @@ func Init(options *Helm3Options) error {
 }
 
 type Helm3Client struct {
-	KubeClient kube.KubernetesClient
+	KubeClient klient.Client
 	LogEntry   *log.Entry
 	Namespace  string
 }
@@ -67,7 +67,7 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	}
 }
 
-func (h *Helm3Client) WithKubeClient(client kube.KubernetesClient) {
+func (h *Helm3Client) WithKubeClient(client klient.Client) {
 	h.KubeClient = client
 }
 

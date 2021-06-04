@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/flant/shell-operator/pkg/kube/fake"
-	"github.com/flant/shell-operator/pkg/utils/manifest"
+	"github.com/flant/kube-client/fake"
+	"github.com/flant/kube-client/manifest"
 	. "github.com/onsi/gomega"
 )
 
@@ -53,7 +53,7 @@ metadata:
 	g.Expect(chartResources[3].Namespace(defaultNs)).To(Equal("ns2"))
 
 	mgr := NewHelmResourcesManager()
-	mgr.WithKubeClient(fc.KubeClient)
+	mgr.WithKubeClient(fc.Client)
 
 	absent, err := mgr.GetAbsentResources(chartResources, "default")
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -70,8 +70,8 @@ metadata:
 
 }
 
-func createResource(fc *fake.FakeCluster, ns, manifestYaml string) manifest.Manifest {
-	manifests, err := manifest.GetManifestListFromYamlDocuments(manifestYaml)
+func createResource(fc *fake.Cluster, ns, manifestYaml string) manifest.Manifest {
+	manifests, err := manifest.ListFromYamlDocs(manifestYaml)
 	if err != nil {
 		panic(err)
 	}

@@ -3,17 +3,16 @@ package helm_resources_manager
 import (
 	"context"
 
+	klient "github.com/flant/kube-client/client"
+	"github.com/flant/kube-client/manifest"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/flant/shell-operator/pkg/kube"
-	"github.com/flant/shell-operator/pkg/utils/manifest"
 
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 )
 
 type HelmResourcesManager interface {
 	WithContext(ctx context.Context)
-	WithKubeClient(client kube.KubernetesClient)
+	WithKubeClient(client klient.Client)
 	WithDefaultNamespace(namespace string)
 	Stop()
 	StopMonitors()
@@ -36,7 +35,7 @@ type helmResourcesManager struct {
 
 	Namespace string
 
-	kubeClient kube.KubernetesClient
+	kubeClient klient.Client
 
 	monitors map[string]*ResourcesMonitor
 
@@ -52,7 +51,7 @@ func NewHelmResourcesManager() HelmResourcesManager {
 	}
 }
 
-func (hm *helmResourcesManager) WithKubeClient(client kube.KubernetesClient) {
+func (hm *helmResourcesManager) WithKubeClient(client klient.Client) {
 	hm.kubeClient = client
 }
 

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"testing"
 
+	klient "github.com/flant/kube-client/client"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm2"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/shell-operator/pkg/kube"
 )
 
 func TestMain(m *testing.M) {
@@ -139,7 +139,7 @@ func TestHelm(t *testing.T) {
 
 	helm := &helm2.Helm2Client{}
 
-	kubeClient := kube.NewKubernetesClient()
+	kubeClient := klient.NewFake(nil)
 
 	testNs := &v1.Namespace{}
 	testNs.Name = app.Namespace

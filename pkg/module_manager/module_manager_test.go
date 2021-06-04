@@ -19,7 +19,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/shell-operator/pkg/kube"
+	klient "github.com/flant/kube-client/client"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
@@ -62,7 +62,7 @@ func initModuleManager(t *testing.T, mm *moduleManager, configPath string) {
 		var cmObj = new(v1.ConfigMap)
 		_ = yaml.Unmarshal(cmDataBytes, &cmObj)
 
-		kubeClient := kube.NewFakeKubernetesClient(nil)
+		kubeClient := klient.NewFake(nil)
 		_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cmObj, metav1.CreateOptions{})
 
 		KubeConfigManager := kube_config_manager.NewKubeConfigManager()
