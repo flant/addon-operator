@@ -60,6 +60,14 @@ type HookInput struct {
 	MetricsCollector MetricsCollector
 	ObjectPatcher    ObjectPatcher
 	LogEntry         *logrus.Entry
+	BindingActions   *[]BindingAction
+}
+
+type BindingAction struct {
+	Name       string // binding name
+	Action     string // Disable / UpdateKind
+	Kind       string
+	ApiVersion string
 }
 
 type HookConfig struct {

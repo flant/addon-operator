@@ -54,6 +54,7 @@ type HookResult struct {
 	Patches              map[utils.ValuesPatchType]*utils.ValuesPatch
 	Metrics              []metric_operation.MetricOperation
 	KubernetesPatchBytes []object_patch.OperationSpec
+	BindingActions       []go_hook.BindingAction
 }
 
 func (e *HookExecutor) Run() (result *HookResult, err error) {
@@ -158,6 +159,8 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 		return nil, err
 	}
 
+	bindingActions := new([]go_hook.BindingAction)
+
 	logEntry := log.WithFields(utils.LabelsToLogFields(e.LogLabels)).
 		WithField("output", "gohook")
 
@@ -180,6 +183,7 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 		ObjectPatcher:    objectPatcher,
 		LogEntry:         logEntry,
 		MetricsCollector: metricsCollector,
+		BindingActions:   bindingActions,
 	})
 	if err != nil {
 		return nil, err
@@ -190,7 +194,8 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 			utils.MemoryValuesPatch: {Operations: patchableValues.GetPatches()},
 			utils.ConfigMapPatch:    {Operations: patchableConfigValues.GetPatches()},
 		},
-		Metrics: metricsCollector.CollectedMetrics(),
+		Metrics:        metricsCollector.CollectedMetrics(),
+		BindingActions: *bindingActions,
 	}
 
 	return result, nil

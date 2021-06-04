@@ -182,6 +182,14 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		return err
 	}
 
+	// Apply binding actions. (Only Go hook for now).
+	if h.GoHook != nil {
+		err = h.moduleManager.ApplyBindingActions(h, hookResult.BindingActions)
+		if err != nil {
+			return err
+		}
+	}
+
 	// ValuesLock.Lock()
 	// defer ValuesLock.UnLock()
 	//h.moduleManager.ValuesLock.Lock()
