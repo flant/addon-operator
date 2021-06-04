@@ -2149,6 +2149,7 @@ func InitAndStart(operator *AddonOperator) error {
 	// Register metrics for kubernetes client with the default custom label "component".
 	if operator.KubeClient == nil {
 		// Register metrics for client-go.
+		//nolint:staticcheck
 		klient.RegisterKubernetesClientMetrics(operator.MetricStorage, operator.GetMainKubeClientMetricLabels())
 		// Initialize 'main' Kubernetes client.
 		operator.KubeClient, err = operator.InitMainKubeClient()
