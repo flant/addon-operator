@@ -17,7 +17,7 @@ jobs:
     name: Release
     runs-on: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v2.3.4
 
       - name: Prepare environment
         run: |
@@ -35,7 +35,7 @@ jobs:
           echo "========================================="
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v1.1.0
         with:
           platforms: "${{ env.QEMU_PLATFORMS }}"
 
@@ -46,7 +46,7 @@ jobs:
           version: latest
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v1.9.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASS }}
