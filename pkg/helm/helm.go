@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"net/http"
 
+	klient "github.com/flant/kube-client/client"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm2"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
-	"github.com/flant/shell-operator/pkg/kube"
 )
 
 var NewClient = func(logLabels ...map[string]string) client.HelmClient {
@@ -19,7 +19,7 @@ var NewClient = func(logLabels ...map[string]string) client.HelmClient {
 
 var HealthzHandler func(writer http.ResponseWriter, request *http.Request)
 
-func Init(client kube.KubernetesClient) error {
+func Init(client klient.Client) error {
 	helmVersion, err := DetectHelmVersion()
 	if err != nil {
 		return err

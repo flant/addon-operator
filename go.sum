@@ -100,8 +100,12 @@ github.com/evanphx/json-patch/v5 v5.1.0/go.mod h1:G79N1coSVB93tBe7j6PhzjmR3/2Vvl
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1 h1:Td8dghQcJWeCgI+EgD4C7hh1gRoVj+Ypfjf00uosdms=
 github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1/go.mod h1:8DJv2CVJQ6kGNpFW6eV9N3JviE1C85nY1c2z52x1Gk4=
+github.com/flant/kube-client v0.0.6 h1:cHFMf7xGtJOgg+KBuPcA+7q+M7IJRSgf2pHVStv2aj0=
+github.com/flant/kube-client v0.0.6/go.mod h1:pVKIewJQ5oaBiE6AlTaWAUkd0548DEiyvkqkLaby3Zg=
 github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a h1:PlStPekqPtTSWDDKFlwgETsT1OiXD1gZtRHcNxAs1lc=
 github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
+github.com/flant/shell-operator v0.0.0-20210531110705-3c2c19fc6876 h1:+VB8hFT2lCeF0CX8S5W8Fl/+CObY99JBYNwnjb0Ybyc=
+github.com/flant/shell-operator v0.0.0-20210531110705-3c2c19fc6876/go.mod h1:CXtErAgCVxazWxjUUFndVwvFj3KRLLvkTd36jnGu+IM=
 github.com/flant/shell-operator v1.0.2-0.20210524145531-147332b951de h1:I7gKBC/hd9Dg4OkiLX68Va9rqbnIb+WeYasonpdD0dg=
 github.com/flant/shell-operator v1.0.2-0.20210524145531-147332b951de/go.mod h1:F6DVCTDydZiu9JtcCWzfdit3pQyDz2Rcy5UmOy9sQXk=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=

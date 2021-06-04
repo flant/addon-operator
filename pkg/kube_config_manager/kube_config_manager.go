@@ -6,23 +6,21 @@ import (
 	"os"
 	"time"
 
+	klient "github.com/flant/kube-client/client"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	corev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/flant/shell-operator/pkg/kube"
-
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type KubeConfigManager interface {
 	WithContext(ctx context.Context)
-	WithKubeClient(client kube.KubernetesClient)
+	WithKubeClient(client klient.Client)
 	WithNamespace(namespace string)
 	WithConfigMapName(configMap string)
 	WithValuesChecksumsAnnotation(annotation string)
@@ -39,7 +37,7 @@ type kubeConfigManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	KubeClient    kube.KubernetesClient
+	KubeClient    klient.Client
 	Namespace     string
 	ConfigMapName string
 
@@ -100,7 +98,7 @@ func (kcm *kubeConfigManager) Stop() {
 	}
 }
 
-func (kcm *kubeConfigManager) WithKubeClient(client kube.KubernetesClient) {
+func (kcm *kubeConfigManager) WithKubeClient(client klient.Client) {
 	kcm.KubeClient = client
 }
 
