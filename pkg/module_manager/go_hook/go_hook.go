@@ -28,6 +28,13 @@ type ObjectPatcher interface {
 	DeleteObjectNonCascading(apiVersion, kind, namespace, name, subresource string) error
 }
 
+type MetricsCollector interface {
+	Add(name string, value float64)
+	Set(name string, value float64)
+
+	CollectedMetrics() []operation.MetricOperation
+}
+
 type HookMetadata struct {
 	Name       string
 	Path       string
@@ -41,12 +48,12 @@ type FilterResult interface{}
 type Snapshots map[string][]FilterResult
 
 type HookInput struct {
-	Snapshots     Snapshots
-	Values        *PatchableValues
-	ConfigValues  *PatchableValues
-	Metrics       *[]operation.MetricOperation
-	ObjectPatcher ObjectPatcher
-	LogEntry      *logrus.Entry
+	Snapshots        Snapshots
+	Values           *PatchableValues
+	ConfigValues     *PatchableValues
+	MetricsCollector MetricsCollector
+	ObjectPatcher    ObjectPatcher
+	LogEntry         *logrus.Entry
 }
 
 type HookConfig struct {

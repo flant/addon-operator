@@ -92,7 +92,7 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 	e.MetricsPath = tmpFiles["METRICS_PATH"]
 	e.KubernetesPatchPath = tmpFiles["KUBERNETES_PATCH_PATH"]
 
-	envs := []string{}
+	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
@@ -157,8 +157,6 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 		return nil, err
 	}
 
-	metrics := new([]metric_operation.MetricOperation)
-
 	logEntry := log.WithFields(utils.LabelsToLogFields(e.LogLabels)).
 		WithField("output", "gohook")
 
@@ -172,13 +170,15 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 		}
 	}
 
+	metricStorage := go_hook.NewMetricsCollector()
+
 	err = goHook.Run(&go_hook.HookInput{
-		Snapshots:     formattedSnapshots,
-		Values:        patchableValues,
-		ConfigValues:  patchableConfigValues,
-		ObjectPatcher: objectPatcher,
-		LogEntry:      logEntry,
-		Metrics:       metrics,
+		Snapshots:        formattedSnapshots,
+		Values:           patchableValues,
+		ConfigValues:     patchableConfigValues,
+		ObjectPatcher:    objectPatcher,
+		LogEntry:         logEntry,
+		MetricsCollector: metricStorage,
 	})
 	if err != nil {
 		return nil, err
@@ -189,7 +189,7 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 			utils.MemoryValuesPatch: {Operations: patchableValues.GetPatches()},
 			utils.ConfigMapPatch:    {Operations: patchableConfigValues.GetPatches()},
 		},
-		Metrics: *metrics,
+		Metrics: metricStorage.CollectedMetrics(),
 	}
 
 	return result, nil
@@ -201,7 +201,7 @@ func (e *HookExecutor) Config() (configOutput []byte, err error) {
 		return nil, nil
 	}
 
-	envs := []string{}
+	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
 	envs = append(envs, helm.NewClient().CommandEnv()...)
 

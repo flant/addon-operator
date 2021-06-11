@@ -8,8 +8,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/sdk"
-
-	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 var _ = sdk.RegisterFunc(&go_hook.HookConfig{
@@ -62,11 +60,7 @@ func run(input *go_hook.HookInput) error {
 	input.LogEntry.Infof("Hello from on_kube.pods2! I have %d snapshots\n",
 		len(input.Snapshots))
 
-	v := 1.0
-	*input.Metrics = append(*input.Metrics, operation.MetricOperation{
-		Name: "addon_go_hooks_total",
-		Add:  &v,
-	})
+	input.MetricsCollector.Add("addon_go_hooks_total", 1.0)
 
 	input.ConfigValues.Set("moduleGoHooks.time", time.Now().Unix())
 	input.Values.Set("moduleGoHooks.timeTemp", time.Now().Unix())
