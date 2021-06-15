@@ -11,7 +11,7 @@ var _ = sdk.RegisterFunc(&go_hook.HookConfig{
 
 func run(input *go_hook.HookInput) error {
 	input.Values.Set("test", "test")
-	input.MetricsCollector.Set("test", 1.0)
+	input.MetricsCollector.Set("test", 1.0, nil)
 
 	return nil
 }

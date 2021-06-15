@@ -16,6 +16,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
@@ -170,7 +171,7 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 		}
 	}
 
-	metricStorage := go_hook.NewMetricsCollector()
+	metricStorage := metrics.NewMetricsCollector(e.Hook.GetName())
 
 	err = goHook.Run(&go_hook.HookInput{
 		Snapshots:        formattedSnapshots,
