@@ -60,7 +60,7 @@ func run(input *go_hook.HookInput) error {
 	input.LogEntry.Infof("Hello from on_kube.pods2! I have %d snapshots\n",
 		len(input.Snapshots))
 
-	input.MetricsCollector.Add("addon_go_hooks_total", 1.0)
+	input.MetricsCollector.Add("addon_go_hooks_total", 1.0, nil)
 
 	input.ConfigValues.Set("moduleGoHooks.time", time.Now().Unix())
 	input.Values.Set("moduleGoHooks.timeTemp", time.Now().Unix())

@@ -11,7 +11,7 @@ type inMemoryMetricsCollector struct {
 	metrics []operation.MetricOperation
 }
 
-func NewMetricsCollector(defaultGroup string) *inMemoryMetricsCollector {
+func NewCollector(defaultGroup string) *inMemoryMetricsCollector {
 	return &inMemoryMetricsCollector{defaultGroup: defaultGroup, metrics: make([]operation.MetricOperation, 0)}
 }
 

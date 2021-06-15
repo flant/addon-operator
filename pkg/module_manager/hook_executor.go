@@ -171,7 +171,7 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 		}
 	}
 
-	metricStorage := metrics.NewMetricsCollector(e.Hook.GetName())
+	metricsCollector := metrics.NewCollector(e.Hook.GetName())
 
 	err = goHook.Run(&go_hook.HookInput{
 		Snapshots:        formattedSnapshots,
@@ -179,7 +179,7 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 		ConfigValues:     patchableConfigValues,
 		ObjectPatcher:    objectPatcher,
 		LogEntry:         logEntry,
-		MetricsCollector: metricStorage,
+		MetricsCollector: metricsCollector,
 	})
 	if err != nil {
 		return nil, err
@@ -190,7 +190,7 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 			utils.MemoryValuesPatch: {Operations: patchableValues.GetPatches()},
 			utils.ConfigMapPatch:    {Operations: patchableConfigValues.GetPatches()},
 		},
-		Metrics: metricStorage.CollectedMetrics(),
+		Metrics: metricsCollector.CollectedMetrics(),
 	}
 
 	return result, nil
