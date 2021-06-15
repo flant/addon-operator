@@ -26,11 +26,14 @@ func (dms *inMemoryMetricsCollector) Add(name string, value float64, labels map[
 		opt(opts)
 	}
 
+	pvalue := pointer.Float64Ptr(value)
+
 	dms.metrics = append(dms.metrics, operation.MetricOperation{
 		Name:   name,
 		Group:  opts.group,
-		Add:    pointer.Float64Ptr(value),
 		Action: "add",
+		Add:    pvalue,
+		Value:  pvalue,
 		Labels: labels,
 	})
 }
@@ -42,11 +45,14 @@ func (dms *inMemoryMetricsCollector) Set(name string, value float64, labels map[
 		opt(opts)
 	}
 
+	pvalue := pointer.Float64Ptr(value)
+
 	dms.metrics = append(dms.metrics, operation.MetricOperation{
 		Name:   name,
 		Group:  opts.group,
-		Set:    pointer.Float64Ptr(value),
+		Set:    pvalue,
 		Action: "set",
+		Value:  pvalue,
 		Labels: labels,
 	})
 }
