@@ -31,11 +31,11 @@ type ObjectPatcher interface {
 
 // MetricsCollector collects metric's records for exporting them as a batch
 type MetricsCollector interface {
-	// Inc increments specified Counter metric
+	// Inc increments the specified Counter metric
 	Inc(name string, labels map[string]string, opts ...metrics.Option)
-	// Add adds custom value for Counter metric
+	// Add adds custom value for the specified Counter metric
 	Add(name string, value float64, labels map[string]string, opts ...metrics.Option)
-	// Set specifies custom value for Gauge metric
+	// Set specifies the custom value for the Gauge metric
 	Set(name string, value float64, labels map[string]string, opts ...metrics.Option)
 	// Expire marks metric's group as expired
 	Expire(group string)
