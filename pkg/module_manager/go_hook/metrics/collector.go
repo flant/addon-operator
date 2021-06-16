@@ -11,14 +11,17 @@ type inMemoryMetricsCollector struct {
 	metrics []operation.MetricOperation
 }
 
+// NewCollector creates new metrics collector
 func NewCollector(defaultGroup string) *inMemoryMetricsCollector {
 	return &inMemoryMetricsCollector{defaultGroup: defaultGroup, metrics: make([]operation.MetricOperation, 0)}
 }
 
+// Inc increments specified Counter metric
 func (dms *inMemoryMetricsCollector) Inc(name string, labels map[string]string, opts ...Option) {
 	dms.Add(name, 1, labels, opts...)
 }
 
+// Add adds custom value for Counter metric
 func (dms *inMemoryMetricsCollector) Add(name string, value float64, labels map[string]string, options ...Option) {
 	opts := dms.defaultMetricsOptions()
 
@@ -35,6 +38,7 @@ func (dms *inMemoryMetricsCollector) Add(name string, value float64, labels map[
 	})
 }
 
+// Set specifies custom value for Gauge metric
 func (dms *inMemoryMetricsCollector) Set(name string, value float64, labels map[string]string, options ...Option) {
 	opts := dms.defaultMetricsOptions()
 
@@ -51,6 +55,7 @@ func (dms *inMemoryMetricsCollector) Set(name string, value float64, labels map[
 	})
 }
 
+// Expire marks metric's group as expired
 func (dms *inMemoryMetricsCollector) Expire(group string) {
 	if group == "" {
 		group = dms.defaultGroup
@@ -74,6 +79,7 @@ type metricsOptions struct {
 	group string
 }
 
+// Option set options for metrics collector
 type Option func(options *metricsOptions)
 
 // WithGroup pass group for metric
