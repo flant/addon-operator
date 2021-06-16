@@ -31,6 +31,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 )
@@ -1333,6 +1334,42 @@ func (mm *moduleManager) DumpState() {
 	for id, state := range mm.kubernetesBindingSynchronizationState {
 		log.Infof("%s: queue=%v done=%v", id, state.Queued, state.Done)
 	}
+}
+
+func (mm *moduleManager) ApplyBindingActions(moduleHook *ModuleHook, bindingActions []go_hook.BindingAction) error {
+	for _, action := range bindingActions {
+		bindingIdx := -1
+		for i, binding := range moduleHook.Config.OnKubernetesEvents {
+			if binding.BindingName == action.Name {
+				bindingIdx = i
+			}
+		}
+		if bindingIdx == -1 {
+			continue
+		}
+
+		monitorCfg := moduleHook.Config.OnKubernetesEvents[bindingIdx].Monitor
+		switch strings.ToLower(action.Action) {
+		case "disable":
+			// Empty kind - "null" monitor.
+			monitorCfg.Kind = ""
+			monitorCfg.ApiVersion = ""
+			monitorCfg.Metadata.MetricLabels["kind"] = ""
+		case "updatekind":
+			monitorCfg.Kind = action.Kind
+			monitorCfg.ApiVersion = action.ApiVersion
+			monitorCfg.Metadata.MetricLabels["kind"] = action.Kind
+		default:
+			continue
+		}
+
+		// Recreate monitor. Synchronization phase is ignored, kubernetes events are allowed.
+		err := moduleHook.HookController.UpdateMonitor(monitorCfg.Metadata.MonitorId, action.Kind, action.ApiVersion)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // mergeEnabled merges enabled flags. Enabled flag can be nil.
