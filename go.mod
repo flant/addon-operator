@@ -30,6 +30,7 @@ require (
 	k8s.io/api v0.19.11
 	k8s.io/apimachinery v0.20.5
 	k8s.io/client-go v0.19.11
+	k8s.io/utils v0.0.0-20200729134348-d5654de09c73
 	sigs.k8s.io/yaml v1.2.0
 )
 

@@ -4,10 +4,11 @@ import (
 	"time"
 
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 )
 
 type GoHook interface {
@@ -28,6 +29,18 @@ type ObjectPatcher interface {
 	DeleteObjectNonCascading(apiVersion, kind, namespace, name, subresource string) error
 }
 
+// MetricsCollector collects metric's records for exporting them as a batch
+type MetricsCollector interface {
+	// Inc increments the specified Counter metric
+	Inc(name string, labels map[string]string, opts ...metrics.Option)
+	// Add adds custom value for the specified Counter metric
+	Add(name string, value float64, labels map[string]string, opts ...metrics.Option)
+	// Set specifies the custom value for the Gauge metric
+	Set(name string, value float64, labels map[string]string, opts ...metrics.Option)
+	// Expire marks metric's group as expired
+	Expire(group string)
+}
+
 type HookMetadata struct {
 	Name       string
 	Path       string
@@ -41,12 +54,12 @@ type FilterResult interface{}
 type Snapshots map[string][]FilterResult
 
 type HookInput struct {
-	Snapshots     Snapshots
-	Values        *PatchableValues
-	ConfigValues  *PatchableValues
-	Metrics       *[]operation.MetricOperation
-	ObjectPatcher ObjectPatcher
-	LogEntry      *logrus.Entry
+	Snapshots        Snapshots
+	Values           *PatchableValues
+	ConfigValues     *PatchableValues
+	MetricsCollector MetricsCollector
+	ObjectPatcher    ObjectPatcher
+	LogEntry         *logrus.Entry
 }
 
 type HookConfig struct {
