@@ -59,7 +59,7 @@ type HookResult struct {
 
 func (e *HookExecutor) Run() (result *HookResult, err error) {
 	if e.Hook.GetGoHook() != nil {
-		return e.RunGoHook(e.ObjectPatcher)
+		return e.RunGoHook()
 	}
 
 	result = &HookResult{
@@ -137,7 +137,7 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 	return result, nil
 }
 
-func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (result *HookResult, err error) {
+func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 	goHook := e.Hook.GetGoHook()
 	if goHook == nil {
 		return
@@ -175,12 +175,13 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 	}
 
 	metricsCollector := metrics.NewCollector(e.Hook.GetName())
+	specGenerator := object_patch.NewSpecGenerator()
 
 	err = goHook.Run(&go_hook.HookInput{
 		Snapshots:        formattedSnapshots,
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
-		ObjectPatcher:    objectPatcher,
+		ObjectPatcher:    specGenerator,
 		LogEntry:         logEntry,
 		MetricsCollector: metricsCollector,
 		BindingActions:   bindingActions,
@@ -194,7 +195,8 @@ func (e *HookExecutor) RunGoHook(objectPatcher *object_patch.ObjectPatcher) (res
 			utils.MemoryValuesPatch: {Operations: patchableValues.GetPatches()},
 			utils.ConfigMapPatch:    {Operations: patchableConfigValues.GetPatches()},
 		},
-		Metrics:        metricsCollector.CollectedMetrics(),
+		Metrics:              metricsCollector.CollectedMetrics(),
+		KubernetesPatchBytes: specGenerator.Operations(),
 		BindingActions: *bindingActions,
 	}
 
