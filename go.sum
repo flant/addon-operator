@@ -102,6 +102,8 @@ github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a h1:PlStPekqPtTSWD
 github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
 github.com/flant/shell-operator v1.0.2-0.20210616113051-ce9efb77afd5 h1:3xkfX1XWrZRSoCXO5mZWWShTuK/5AqVcljWZjcQuUKc=
 github.com/flant/shell-operator v1.0.2-0.20210616113051-ce9efb77afd5/go.mod h1:CXtErAgCVxazWxjUUFndVwvFj3KRLLvkTd36jnGu+IM=
+github.com/flant/shell-operator v1.0.2-0.20210616114328-e391b7366955 h1:iW2t++JMBF8FsPsl0LOdWof8UU4Jb7qOIDVFQ9DAE6w=
+github.com/flant/shell-operator v1.0.2-0.20210616114328-e391b7366955/go.mod h1:CXtErAgCVxazWxjUUFndVwvFj3KRLLvkTd36jnGu+IM=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/fsnotify/fsnotify v1.4.9 h1:hsms1Qyu0jgnwNXIxa+/V/PDsU6CfLf6CNO8H7IWoS4=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
