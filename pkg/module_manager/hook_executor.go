@@ -175,13 +175,13 @@ func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 	}
 
 	metricsCollector := metrics.NewCollector(e.Hook.GetName())
-	specGenerator := object_patch.NewSpecGenerator()
+	patchCollector := object_patch.NewPatchCollector()
 
 	err = goHook.Run(&go_hook.HookInput{
 		Snapshots:        formattedSnapshots,
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
-		ObjectPatcher:    specGenerator,
+		ObjectPatcher:    patchCollector,
 		LogEntry:         logEntry,
 		MetricsCollector: metricsCollector,
 		BindingActions:   bindingActions,
@@ -196,7 +196,7 @@ func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 			utils.ConfigMapPatch:    {Operations: patchableConfigValues.GetPatches()},
 		},
 		Metrics:              metricsCollector.CollectedMetrics(),
-		KubernetesPatchBytes: specGenerator.Operations(),
+		KubernetesPatchBytes: patchCollector.Operations(),
 		BindingActions: *bindingActions,
 	}
 
