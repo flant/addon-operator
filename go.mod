@@ -19,7 +19,7 @@ require (
 	github.com/prometheus/client_golang v1.7.1
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.6.0
-	github.com/stretchr/testify v1.6.1
+	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.7.5
 	github.com/tidwall/sjson v1.1.6
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
