@@ -197,7 +197,7 @@ func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 		},
 		Metrics:              metricsCollector.CollectedMetrics(),
 		KubernetesPatchBytes: patchCollector.Operations(),
-		BindingActions: *bindingActions,
+		BindingActions:       *bindingActions,
 	}
 
 	return result, nil
