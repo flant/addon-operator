@@ -14,7 +14,7 @@ require (
 	github.com/go-openapi/validate v0.19.7
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/kennygrant/sanitize v1.2.4
-	github.com/onsi/gomega v1.9.0
+	github.com/onsi/gomega v1.14.0
 	github.com/peterbourgon/mergemap v0.0.0-20130613134717-e21c03b7a721
 	github.com/prometheus/client_golang v1.7.1
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
@@ -22,8 +22,6 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.7.5
 	github.com/tidwall/sjson v1.1.6
-	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
-	golang.org/x/text v0.3.5 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
