@@ -166,8 +166,8 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	moduleName := h.Module.Name
 
-	if len(hookResult.KubernetesPatchBytes) > 0 {
-		err = h.moduleManager.KubeObjectPatcher.GenerateFromJSONAndExecuteOperations(hookResult.KubernetesPatchBytes)
+	if len(hookResult.ObjectPatcherOperations) > 0 {
+		err = h.moduleManager.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
 		if err != nil {
 			return err
 		}

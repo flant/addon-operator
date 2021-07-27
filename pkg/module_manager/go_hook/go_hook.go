@@ -3,6 +3,7 @@ package go_hook
 import (
 	"time"
 
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,17 +17,29 @@ type GoHook interface {
 	Run(input *HookInput) error
 }
 
-type ObjectPatcher interface {
-	CreateObject(object *unstructured.Unstructured, subresource string) error
-	CreateOrUpdateObject(object *unstructured.Unstructured, subresource string) error
-	FilterObject(filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error),
-		apiVersion, kind, namespace, name, subresource string) error
-	JQPatchObject(jqPatch, apiVersion, kind, namespace, name, subresource string) error
-	MergePatchObject(mergePatch []byte, apiVersion, kind, namespace, name, subresource string) error
-	JSONPatchObject(jsonPatch []byte, apiVersion, kind, namespace, name, subresource string) error
-	DeleteObject(apiVersion, kind, namespace, name, subresource string) error
-	DeleteObjectInBackground(apiVersion, kind, namespace, name, subresource string) error
-	DeleteObjectNonCascading(apiVersion, kind, namespace, name, subresource string) error
+type PatchCollector interface {
+	// Create
+	// TODO add options
+	Create(object interface{}, options ...object_patch.OperationOption)
+	// Delete
+	// TODO add options
+	Delete(apiVersion, kind, namespace, name string, options ...object_patch.OperationOption)
+	// MergePatch
+	MergePatch(mergePatch interface{}, apiVersion, kind, namespace, name string, options ...object_patch.OperationOption)
+	// JSONPatch
+	JSONPatch(jsonPatch interface{}, apiVersion, kind, namespace, name string, options ...object_patch.OperationOption)
+	// Filter
+	Filter(filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error), apiVersion, kind, namespace, name string, options ...object_patch.OperationOption)
+	//CreateObject(object *unstructured.Unstructured, subresource string) error
+	//CreateOrUpdateObject(object *unstructured.Unstructured, subresource string) error
+	//FilterObject(filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error),
+	//	apiVersion, kind, namespace, name, subresource string) error
+	//JQPatchObject(jqPatch, apiVersion, kind, namespace, name, subresource string) error
+	//MergePatchObject(mergePatch []byte, apiVersion, kind, namespace, name, subresource string) error
+	//JSONPatchObject(jsonPatch []byte, apiVersion, kind, namespace, name, subresource string) error
+	//DeleteObject(apiVersion, kind, namespace, name, subresource string) error
+	//DeleteObjectInBackground(apiVersion, kind, namespace, name, subresource string) error
+	//DeleteObjectNonCascading(apiVersion, kind, namespace, name, subresource string) error
 }
 
 // MetricsCollector collects metric's records for exporting them as a batch
@@ -58,7 +71,7 @@ type HookInput struct {
 	Values           *PatchableValues
 	ConfigValues     *PatchableValues
 	MetricsCollector MetricsCollector
-	ObjectPatcher    ObjectPatcher
+	PatchCollector   PatchCollector
 	LogEntry         *logrus.Entry
 	BindingActions   *[]BindingAction
 }
