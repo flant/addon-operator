@@ -53,7 +53,7 @@ type HookResult struct {
 	Usage                   *executor.CmdUsage
 	Patches                 map[utils.ValuesPatchType]*utils.ValuesPatch
 	Metrics                 []metric_operation.MetricOperation
-	ObjectPatcherOperations []*object_patch.Operation
+	ObjectPatcherOperations []object_patch.Operation
 	BindingActions          []go_hook.BindingAction
 }
 

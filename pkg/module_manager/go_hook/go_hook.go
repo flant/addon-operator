@@ -17,31 +17,6 @@ type GoHook interface {
 	Run(input *HookInput) error
 }
 
-type PatchCollector interface {
-	// Create
-	// TODO add options
-	Create(object interface{}, options ...object_patch.OperationOption)
-	// Delete
-	// TODO add options
-	Delete(apiVersion, kind, namespace, name string, options ...object_patch.OperationOption)
-	// MergePatch
-	MergePatch(mergePatch interface{}, apiVersion, kind, namespace, name string, options ...object_patch.OperationOption)
-	// JSONPatch
-	JSONPatch(jsonPatch interface{}, apiVersion, kind, namespace, name string, options ...object_patch.OperationOption)
-	// Filter
-	Filter(filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error), apiVersion, kind, namespace, name string, options ...object_patch.OperationOption)
-	//CreateObject(object *unstructured.Unstructured, subresource string) error
-	//CreateOrUpdateObject(object *unstructured.Unstructured, subresource string) error
-	//FilterObject(filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error),
-	//	apiVersion, kind, namespace, name, subresource string) error
-	//JQPatchObject(jqPatch, apiVersion, kind, namespace, name, subresource string) error
-	//MergePatchObject(mergePatch []byte, apiVersion, kind, namespace, name, subresource string) error
-	//JSONPatchObject(jsonPatch []byte, apiVersion, kind, namespace, name, subresource string) error
-	//DeleteObject(apiVersion, kind, namespace, name, subresource string) error
-	//DeleteObjectInBackground(apiVersion, kind, namespace, name, subresource string) error
-	//DeleteObjectNonCascading(apiVersion, kind, namespace, name, subresource string) error
-}
-
 // MetricsCollector collects metric's records for exporting them as a batch
 type MetricsCollector interface {
 	// Inc increments the specified Counter metric
@@ -71,7 +46,7 @@ type HookInput struct {
 	Values           *PatchableValues
 	ConfigValues     *PatchableValues
 	MetricsCollector MetricsCollector
-	PatchCollector   PatchCollector
+	PatchCollector   *object_patch.PatchCollector
 	LogEntry         *logrus.Entry
 	BindingActions   *[]BindingAction
 }

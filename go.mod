@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.9.0+incompatible
 	github.com/flant/kube-client v0.0.6
-	github.com/flant/shell-operator v1.0.2-0.20210726195935-c006f061671e // branch: ref_object_patcher
+	github.com/flant/shell-operator v1.0.2-0.20210727190740-4214534d29c8 // branch: ref_object_patcher
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-openapi/strfmt v0.19.3
@@ -37,3 +37,5 @@ require (
 replace github.com/go-openapi/validate => github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1 // branch: fix_in_body_0_19_7
 
 replace k8s.io/apimachinery => k8s.io/apimachinery v0.19.11
+
+//replace github.com/flant/shell-operator => ../shell-operator
