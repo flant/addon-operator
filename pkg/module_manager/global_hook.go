@@ -179,8 +179,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		return err
 	}
 
-	if len(hookResult.KubernetesPatchBytes) > 0 {
-		err = h.moduleManager.KubeObjectPatcher.GenerateFromJSONAndExecuteOperations(hookResult.KubernetesPatchBytes)
+	if len(hookResult.ObjectPatcherOperations) > 0 {
+		err = h.moduleManager.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
 		if err != nil {
 			return err
 		}

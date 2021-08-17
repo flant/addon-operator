@@ -50,11 +50,11 @@ func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
 }
 
 type HookResult struct {
-	Usage                *executor.CmdUsage
-	Patches              map[utils.ValuesPatchType]*utils.ValuesPatch
-	Metrics              []metric_operation.MetricOperation
-	KubernetesPatchBytes []object_patch.OperationSpec
-	BindingActions       []go_hook.BindingAction
+	Usage                   *executor.CmdUsage
+	Patches                 map[utils.ValuesPatchType]*utils.ValuesPatch
+	Metrics                 []metric_operation.MetricOperation
+	ObjectPatcherOperations []object_patch.Operation
+	BindingActions          []go_hook.BindingAction
 }
 
 func (e *HookExecutor) Run() (result *HookResult, err error) {
@@ -129,7 +129,7 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 		return result, fmt.Errorf("can't read kubernetes patch file: %s", err)
 	}
 
-	result.KubernetesPatchBytes, err = object_patch.ParseSpecs(kubernetesPatchBytes)
+	result.ObjectPatcherOperations, err = object_patch.ParseOperations(kubernetesPatchBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 		Snapshots:        formattedSnapshots,
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
-		ObjectPatcher:    patchCollector,
+		PatchCollector:   patchCollector,
 		LogEntry:         logEntry,
 		MetricsCollector: metricsCollector,
 		BindingActions:   bindingActions,
@@ -195,9 +195,9 @@ func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 			utils.MemoryValuesPatch: {Operations: patchableValues.GetPatches()},
 			utils.ConfigMapPatch:    {Operations: patchableConfigValues.GetPatches()},
 		},
-		Metrics:              metricsCollector.CollectedMetrics(),
-		KubernetesPatchBytes: patchCollector.Operations(),
-		BindingActions:       *bindingActions,
+		Metrics:                 metricsCollector.CollectedMetrics(),
+		ObjectPatcherOperations: patchCollector.Operations(),
+		BindingActions:          *bindingActions,
 	}
 
 	return result, nil
