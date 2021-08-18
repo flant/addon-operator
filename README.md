@@ -8,7 +8,7 @@
 <a href="https://t.me/kubeoperator"><img src="https://img.shields.io/badge/telegram-RU%20chat-179cde.svg?logo=telegram" alt="Telegram chat RU"/></a>
 </p>
 
-**Addon-operator** combines Helm charts with hooks and values storage to transform charts into smart modules that configure themselves and respond to changes in the cluster.
+**Addon-operator** combines Helm charts with hooks and values storage to transform charts into smart modules that configure themselves and respond to changes in the cluster. It is a sister project for [shell-operator](https://github.com/flant/shell-operator) and is actively used in [Deckhouse Kubernetes Platform](https://github.com/deckhouse/deckhouse) to implement its modules.
 
 **Contents**
 
@@ -17,6 +17,7 @@
   * [Hooks and Helm values](#hooks-and-helm-values)
   * [Modules](#modules)
 * [Installation](#installation)
+  * [Examples](#examples)
 * [What's next?](#whats-next)
 * [Community](#community)
 * [License](#license)
@@ -78,13 +79,19 @@ You may use a prepared image [flant/addon-operator](https://hub.docker.com/r/fla
 
 The installation incorporates the image building process with *files of modules and hooks*, applying the necessary RBAC rights and deploying the image in the cluster.
 
+## Examples
+
 To experiment with modules, hooks, and values we've prepared some [examples](/examples).
+
+[Deckhouse Kubernetes Platform](https://deckhouse.io/) was an initial reason to create addon-operator, thus [its modules](https://github.com/deckhouse/deckhouse/tree/main/modules) might become a vital source of inspiration for implementing your own modules.
+
+Sharing your examples of using addon-operator is much appreciated. Please, use the [relevant Discussions section](https://github.com/flant/addon-operator/discussions/categories/show-and-tell) for that.
 
 # What's next?
 
 - Find out more on [lifecycle](LIFECYCLE.md) of addon-operator and how to use [modules](MODULES.md), [hooks](HOOKS.md) and [values](VALUES.md).
 - See [METRICS](METRICS.md) on how to monitor addon-operator.
-- Explore [shell-operator](https://github.com/flant/shell-operator) documentation, especially [hooks](https://github.com/flant/shell-operator/blob/master/HOOKS.md) section.
+- Explore [shell-operator](https://github.com/flant/shell-operator) documentation, especially its [hooks](https://github.com/flant/shell-operator/blob/master/HOOKS.md) section.
 - Discover how to tune [deploy settings](RUNNING.md).
 
 # Community
