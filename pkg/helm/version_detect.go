@@ -2,11 +2,12 @@ package helm
 
 import (
 	"fmt"
-	"github.com/flant/addon-operator/pkg/helm/helm2"
-	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"os"
 	"os/exec"
 	"regexp"
+
+	"github.com/flant/addon-operator/pkg/helm/helm2"
+	"github.com/flant/addon-operator/pkg/helm/helm3"
 )
 
 const DefaultHelmBinPath = "helm"
@@ -31,6 +32,10 @@ func DetectHelmVersion() (string, error) {
 
 	if os.Getenv("HELM2") == "yes" {
 		return "v2", nil
+	}
+
+	if os.Getenv("HELM3LIB") == "yes" {
+		return "v3lib", nil
 	}
 
 	// No environments, try to autodetect via execution `helm --help` command.

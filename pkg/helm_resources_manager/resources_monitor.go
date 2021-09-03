@@ -130,6 +130,9 @@ func (r *ResourcesMonitor) Resume() {
 func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 	res := make([]manifest.Manifest, 0)
 
+	// TODO: конкурентно вызывать листы
+	// итерировать наличие ресурса в памяти
+
 	for _, m := range r.manifests {
 		// Get GVR
 		//log.Debugf("%s: discover GVR for apiVersion '%s' kind '%s'...", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind)
