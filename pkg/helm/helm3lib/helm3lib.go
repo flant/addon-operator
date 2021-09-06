@@ -10,13 +10,13 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
