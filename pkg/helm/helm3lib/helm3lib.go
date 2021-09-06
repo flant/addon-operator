@@ -281,6 +281,21 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
+	opts := chartutil.ReleaseOptions{
+		Name:      releaseName,
+		Revision:  1,
+		IsUpgrade: true,
+		IsInstall: false,
+	}
+	if namespace != "" {
+		opts.Namespace = namespace
+	}
+
+	renderedValues, err := chartutil.ToRenderValues(chart, resultValues, opts, actionConfig.Capabilities)
+	if err != nil {
+		return "", err
+	}
+
 	inst := action.NewInstall(actionConfig)
 	inst.DryRun = true
 	if namespace != "" {
@@ -291,7 +306,7 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	inst.Replace = true
 	inst.IsUpgrade = true
 
-	rs, err := inst.Run(chart, resultValues)
+	rs, err := inst.Run(chart, renderedValues)
 	if err != nil {
 		return "", err
 	}
