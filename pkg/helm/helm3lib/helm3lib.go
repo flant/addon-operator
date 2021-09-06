@@ -276,6 +276,8 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	}
 
 	fmt.Println("HVONGIH", actionConfig)
+	fmt.Println("RES VALUES", resultValues)
+	fmt.Println(resultValues.YAML())
 
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
