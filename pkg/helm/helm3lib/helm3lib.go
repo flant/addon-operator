@@ -41,7 +41,6 @@ type LibClient struct {
 	KubeClient klient.Client
 	LogEntry   *log.Entry
 	Namespace  string
-	Config     *action.Configuration
 }
 
 type Options struct {
@@ -53,6 +52,7 @@ type Options struct {
 
 var _ client.HelmClient = &LibClient{}
 var options *Options
+var actionConfig *action.Configuration
 
 func NewClient(logLabels ...map[string]string) client.HelmClient {
 	logEntry := log.WithField("operator.component", "helm3lib")
@@ -64,7 +64,6 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 		LogEntry:   logEntry,
 		KubeClient: options.KubeClient,
 		Namespace:  options.Namespace,
-		Config:     nil,
 	}
 }
 
@@ -85,16 +84,16 @@ func (h *LibClient) WithKubeClient(client klient.Client) {
 
 // InitAndVersion runs helm version command.
 func (h *LibClient) InitAndVersion() error {
-	actionConfig := new(action.Configuration)
+	ac := new(action.Configuration)
 
 	env := cli.New()
 
-	err := actionConfig.Init(env.RESTClientGetter(), options.Namespace, "secrets", h.LogEntry.Debugf)
+	err := ac.Init(env.RESTClientGetter(), options.Namespace, "secrets", h.LogEntry.Debugf)
 	if err != nil {
 		return err
 	}
 
-	h.Config = actionConfig
+	actionConfig = ac
 
 	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
 
@@ -118,7 +117,7 @@ func (h *LibClient) DeleteOldFailedRevisions(releaseName string) error {
 //   REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
 //   1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
 func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
-	release, err := h.Config.Releases.Last(releaseName)
+	release, err := actionConfig.Releases.Last(releaseName)
 	if err != nil {
 		return "", "", err
 	}
@@ -128,7 +127,7 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, stat
 
 func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
 
-	upg := action.NewUpgrade(h.Config)
+	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
 	}
@@ -175,14 +174,14 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 }
 
 func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
-	gv := action.NewGetValues(h.Config)
+	gv := action.NewGetValues(actionConfig)
 	return gv.Run(releaseName)
 }
 
 func (h *LibClient) DeleteRelease(releaseName string) error {
 	h.LogEntry.Debugf("helm release '%s': execute helm uninstall", releaseName)
 
-	un := action.NewUninstall(h.Config)
+	un := action.NewUninstall(actionConfig)
 	_, err := un.Run(releaseName)
 	if err != nil {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n", releaseName, err)
@@ -276,11 +275,11 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
-	fmt.Println("HVONGIH", h.Config)
+	fmt.Println("HVONGIH", actionConfig)
 
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
-	inst := action.NewInstall(h.Config)
+	inst := action.NewInstall(actionConfig)
 	inst.DryRun = true
 	if namespace != "" {
 		inst.Namespace = namespace
