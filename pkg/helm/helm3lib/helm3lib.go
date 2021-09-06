@@ -86,6 +86,7 @@ func (h *LibClient) CommandEnv() []string {
 
 // InitAndVersion runs helm version command.
 func (h *LibClient) InitAndVersion() error {
+	log.Info("Init and version")
 	actionConfig := new(action.Configuration)
 
 	env := cli.New()
