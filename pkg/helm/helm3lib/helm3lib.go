@@ -3,12 +3,14 @@ package helm3lib
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -255,12 +257,21 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 
 	for _, vp := range valuesPaths {
 		fmt.Println("VALUES PATH", vp)
-		values, err := chartutil.ReadValuesFile(vp)
+		data, err := ioutil.ReadFile(vp)
 		if err != nil {
 			return "", err
 		}
+		var v chartutil.Values
+		err = yaml.Unmarshal(data, &v)
+		if err != nil {
+			return "", err
+		}
+		// values, err := chartutil.ReadValuesFile(vp)
+		// if err != nil {
+		// 	return "", err
+		// }
 
-		resultValues = chartutil.CoalesceTables(resultValues, values)
+		resultValues = chartutil.CoalesceTables(resultValues, v)
 	}
 
 	if len(setValues) > 0 {
@@ -291,10 +302,10 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 		opts.Namespace = namespace
 	}
 
-	renderedValues, err := chartutil.ToRenderValues(chart, resultValues, opts, actionConfig.Capabilities)
-	if err != nil {
-		return "", err
-	}
+	// renderedValues, err := chartutil.ToRenderValues(chart, resultValues, opts, actionConfig.Capabilities)
+	// if err != nil {
+	// 	return "", err
+	// }
 
 	inst := action.NewInstall(actionConfig)
 	inst.DryRun = true
@@ -306,7 +317,7 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	inst.Replace = true
 	inst.IsUpgrade = true
 
-	rs, err := inst.Run(chart, renderedValues["Values"].(chartutil.Values))
+	rs, err := inst.Run(chart, resultValues)
 	if err != nil {
 		return "", err
 	}
