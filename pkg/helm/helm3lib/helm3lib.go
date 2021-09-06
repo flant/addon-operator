@@ -23,19 +23,12 @@ import (
 	klient "github.com/flant/kube-client/client"
 )
 
-type Options struct {
-	Namespace  string
-	HistoryMax int32
-	Timeout    time.Duration
-	KubeClient klient.Client
-}
-
 // Init runs
-func Init(options *Options) error {
+func Init(opts *Options) error {
 	hc := &LibClient{
 		LogEntry: log.WithField("operator.component", "helm3lib"),
-		options:  options,
 	}
+	options = opts
 	err := hc.InitAndVersion()
 	if err != nil {
 		return err
@@ -45,12 +38,21 @@ func Init(options *Options) error {
 
 // Library use client
 type LibClient struct {
-	LogEntry *log.Entry
-	Config   *action.Configuration
-	options  *Options
+	KubeClient klient.Client
+	LogEntry   *log.Entry
+	Namespace  string
+	Config     *action.Configuration
+}
+
+type Options struct {
+	Namespace  string
+	HistoryMax int32
+	Timeout    time.Duration
+	KubeClient klient.Client
 }
 
 var _ client.HelmClient = &LibClient{}
+var options *Options
 
 func NewClient(logLabels ...map[string]string) client.HelmClient {
 	logEntry := log.WithField("operator.component", "helm3lib")
@@ -59,8 +61,10 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	}
 
 	return &LibClient{
-		LogEntry: logEntry,
-		Config:   nil,
+		LogEntry:   logEntry,
+		KubeClient: options.KubeClient,
+		Namespace:  options.Namespace,
+		Config:     nil,
 	}
 }
 
@@ -75,13 +79,17 @@ func (h *LibClient) CommandEnv() []string {
 	return res
 }
 
+func (h *LibClient) WithKubeClient(client klient.Client) {
+	h.KubeClient = client
+}
+
 // InitAndVersion runs helm version command.
 func (h *LibClient) InitAndVersion() error {
 	actionConfig := new(action.Configuration)
 
 	env := cli.New()
 
-	err := actionConfig.Init(env.RESTClientGetter(), h.options.Namespace, "secrets", h.LogEntry.Debugf)
+	err := actionConfig.Init(env.RESTClientGetter(), options.Namespace, "secrets", h.LogEntry.Debugf)
 	if err != nil {
 		return err
 	}
@@ -126,8 +134,8 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	upg.Install = true
-	upg.MaxHistory = int(h.options.HistoryMax)
-	upg.Timeout = h.options.Timeout
+	upg.MaxHistory = int(options.HistoryMax)
+	upg.Timeout = options.Timeout
 
 	chart, err := loader.Load(chartName)
 	if err != nil {
@@ -209,8 +217,8 @@ func (h *LibClient) ListReleasesNames(labelSelector map[string]string) ([]string
 	}
 	labelsSet["owner"] = "helm"
 
-	list, err := h.options.KubeClient.CoreV1().
-		Secrets(h.options.Namespace).
+	list, err := h.KubeClient.CoreV1().
+		Secrets(h.Namespace).
 		List(context.TODO(), metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
 		h.LogEntry.Debugf("helm: list of releases ConfigMaps failed: %s", err)
