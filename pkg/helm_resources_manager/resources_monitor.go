@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"sync"
 	"time"
 
 	klient "github.com/flant/kube-client/client"
@@ -132,18 +133,25 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	concurrency := make(chan struct{}, 5)
 	defer close(concurrency)
 
 	resC := make(chan gvrManifestResult)
 	defer close(resC)
 
+	var wg sync.WaitGroup
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	for nsgvr, manifests := range gvrMap {
-		go r.checkGVRManifests(ctx, nsgvr, manifests, resC, concurrency)
+		wg.Add(1)
+		go r.checkGVRManifests(ctx, &wg, nsgvr, manifests, resC, concurrency)
 	}
+	go func() {
+		wg.Wait()
+		close(resC)
+	}()
 
 	for res := range resC {
 		if res.err != nil {
@@ -210,7 +218,8 @@ type gvrManifestResult struct {
 	err       error
 }
 
-func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, nsgvr namespacedGVR, manifests []manifest.Manifest, resC chan gvrManifestResult, concurrency chan struct{}) {
+func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitGroup, nsgvr namespacedGVR, manifests []manifest.Manifest, resC chan gvrManifestResult, concurrency chan struct{}) {
+	defer wg.Done()
 	concurrency <- struct{}{}
 	defer func() {
 		<-concurrency
