@@ -255,6 +255,7 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	var resultValues chartutil.Values
 
 	for _, vp := range valuesPaths {
+		fmt.Println("VALUES PATH", vp)
 		values, err := chartutil.ReadValuesFile(vp)
 		if err != nil {
 			return "", err
@@ -264,6 +265,7 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	}
 
 	if len(setValues) > 0 {
+		fmt.Println("SET VAL", setValues)
 		m := make(map[string]interface{})
 		for _, sv := range setValues {
 			arr := strings.Split(sv, "=")
@@ -274,10 +276,7 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
-	opts := chartutil.ReleaseOptions{}
-	if namespace != "" {
-		opts.Namespace = namespace
-	}
+	fmt.Println("HVONGIH", h.Config)
 
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
@@ -289,6 +288,7 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	inst.ReleaseName = releaseName
 	inst.UseReleaseName = true
 	inst.Replace = true
+	inst.IsUpgrade = true
 
 	rs, err := inst.Run(chart, resultValues)
 	if err != nil {
