@@ -30,7 +30,7 @@ func Init(client klient.Client) error {
 	case "v3lib":
 		log.Info("Helm3Lib detected")
 		NewClient = helm3lib.NewClient
-		err = helm3lib.Init(helm3lib.Options{
+		err = helm3lib.Init(&helm3lib.Options{
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,

@@ -31,13 +31,11 @@ type Options struct {
 }
 
 // Init runs
-func Init(options Options) error {
+func Init(options *Options) error {
 	hc := &LibClient{
 		LogEntry: log.WithField("operator.component", "helm3lib"),
+		options:  options,
 	}
-	hc.options = options
-	hc.Namespace = options.Namespace
-	hc.KubeClient = options.KubeClient
 	err := hc.InitAndVersion()
 	if err != nil {
 		return err
@@ -47,14 +45,12 @@ func Init(options Options) error {
 
 // Library use client
 type LibClient struct {
-	KubeClient klient.Client
-	LogEntry   *log.Entry
-	Namespace  string
-	Config     *action.Configuration
-	options    Options
+	LogEntry *log.Entry
+	Config   *action.Configuration
+	options  *Options
 }
 
-// var _ client.HelmClient = &LibClient{}
+var _ client.HelmClient = &LibClient{}
 
 func NewClient(logLabels ...map[string]string) client.HelmClient {
 	logEntry := log.WithField("operator.component", "helm3lib")
@@ -65,12 +61,7 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	return &LibClient{
 		LogEntry: logEntry,
 		Config:   nil,
-		options:  Options{},
 	}
-}
-
-func (h *LibClient) WithKubeClient(client klient.Client) {
-	h.KubeClient = client
 }
 
 // Cmd starts Helm with specified arguments.
@@ -86,7 +77,6 @@ func (h *LibClient) CommandEnv() []string {
 
 // InitAndVersion runs helm version command.
 func (h *LibClient) InitAndVersion() error {
-	log.Info("Init and version")
 	actionConfig := new(action.Configuration)
 
 	env := cli.New()
@@ -97,9 +87,6 @@ func (h *LibClient) InitAndVersion() error {
 	}
 
 	h.Config = actionConfig
-
-	log.Info("new version here")
-	fmt.Println(chartutil.DefaultCapabilities)
 
 	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
 
@@ -222,8 +209,8 @@ func (h *LibClient) ListReleasesNames(labelSelector map[string]string) ([]string
 	}
 	labelsSet["owner"] = "helm"
 
-	list, err := h.KubeClient.CoreV1().
-		Secrets(h.Namespace).
+	list, err := h.options.KubeClient.CoreV1().
+		Secrets(h.options.Namespace).
 		List(context.TODO(), metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
 		h.LogEntry.Debugf("helm: list of releases ConfigMaps failed: %s", err)
