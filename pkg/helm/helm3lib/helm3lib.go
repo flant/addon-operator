@@ -90,14 +90,14 @@ func (h *LibClient) InitAndVersion() error {
 
 	env := cli.New()
 
-	err := actionConfig.Init(env.RESTClientGetter(), h.options.Namespace, "secrets", func(_ string, _ ...interface{}) {})
+	err := actionConfig.Init(env.RESTClientGetter(), h.options.Namespace, "secrets", h.LogEntry.Debugf)
 	if err != nil {
 		return err
 	}
 
 	h.Config = actionConfig
 
-	log.Infof("Helm 3 version: %s", actionConfig.Capabilities.HelmVersion.Version)
+	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
 
 	return nil
 }
