@@ -137,7 +137,6 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 	defer close(concurrency)
 
 	resC := make(chan gvrManifestResult)
-	defer close(resC)
 
 	var wg sync.WaitGroup
 
