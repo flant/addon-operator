@@ -306,7 +306,7 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	inst.Replace = true
 	inst.IsUpgrade = true
 
-	rs, err := inst.Run(chart, renderedValues)
+	rs, err := inst.Run(chart, renderedValues["Values"].(map[string]interface{}))
 	if err != nil {
 		return "", err
 	}
