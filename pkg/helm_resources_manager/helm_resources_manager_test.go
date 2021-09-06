@@ -66,8 +66,7 @@ metadata:
 
 	absent, err = mgr.GetAbsentResources(chartResources, "default")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(absent).To(HaveLen(2), "Absent resources should be detected after deletion")
-
+	g.Expect(absent).To(HaveLen(1), "Absent resources should be detected after deletion")
 }
 
 func createResource(fc *fake.Cluster, ns, manifestYaml string) manifest.Manifest {
