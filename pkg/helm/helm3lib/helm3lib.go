@@ -157,7 +157,9 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chartName, namespace)
 	histClient := action.NewHistory(actionConfig)
 	histClient.Max = 1
+	fmt.Println("BEFORE UPGRADE")
 	if _, err := histClient.Run(releaseName); err == driver.ErrReleaseNotFound {
+		fmt.Println("RELEAST NOT FOUND")
 		instClient := action.NewInstall(actionConfig)
 		if namespace != "" {
 			instClient.Namespace = namespace
@@ -297,7 +299,9 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 		return "", err
 	}
 
-	h.LogEntry.Infof("Render helm templates for chart '%s' in namespace '%s' was successful", chartName, namespace)
+	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
+
+	fmt.Println("RMANI", rs.Manifest)
 
 	return rs.Manifest, nil
 }
