@@ -8,6 +8,7 @@ exclude github.com/googleapis/gnostic v0.5.3
 exclude github.com/googleapis/gnostic v0.5.2
 exclude github.com/googleapis/gnostic v0.5.1
 exclude github.com/googleapis/gnostic v0.5.0
+exclude github.com/googleapis/gnostic v0.4.2
 
 require (
 	github.com/davecgh/go-spew v1.1.1
