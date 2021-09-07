@@ -2,6 +2,8 @@ module github.com/flant/addon-operator
 
 go 1.15
 
+exclude github.com/googleapis/gnostic v0.5.5
+
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.9.0+incompatible
