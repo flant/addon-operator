@@ -37,7 +37,3 @@ require (
 replace github.com/go-openapi/validate => github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1 // branch: fix_in_body_0_19_7
 
 replace k8s.io/apimachinery => k8s.io/apimachinery v0.19.11
-
-replace k8s.io/api => k8s.io/api v0.19.11
-
-replace k8s.io/client-go => k8s.io/client-go v0.19.11
