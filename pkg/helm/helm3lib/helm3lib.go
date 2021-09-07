@@ -97,7 +97,7 @@ func (h *LibClient) InitAndVersion() error {
 
 	actionConfig = ac
 
-	log.Infof("Helm 3 version: %s", "v3.2.4")
+	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
 
 	return nil
 }
