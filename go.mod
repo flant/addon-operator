@@ -18,7 +18,7 @@ require (
 	github.com/peterbourgon/mergemap v0.0.0-20130613134717-e21c03b7a721
 	github.com/prometheus/client_golang v1.7.1
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
-	github.com/sirupsen/logrus v1.7.0
+	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.7.5
 	github.com/tidwall/sjson v1.1.6
@@ -27,7 +27,7 @@ require (
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
-	helm.sh/helm/v3 v3.4.2
+	helm.sh/helm/v3 v3.2.4
 	k8s.io/api v0.19.11
 	k8s.io/apimachinery v0.20.5
 	k8s.io/client-go v0.19.11
