@@ -121,6 +121,8 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, stat
 }
 
 func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
+	fmt.Println("NEW UPGRADE")
+
 	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
@@ -303,8 +305,6 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	}
 
 	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
-
-	fmt.Println("RMANI", rs.Manifest)
 
 	return rs.Manifest, nil
 }

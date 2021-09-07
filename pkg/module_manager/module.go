@@ -389,6 +389,8 @@ func (m *Module) ShouldRunHelmUpgrade(helmClient client.HelmClient, releaseName 
 
 	revision, status, err := helmClient.LastReleaseStatus(releaseName)
 
+	fmt.Println("LAST RELEASE", revision, status, err)
+
 	if revision == "0" {
 		logEntry.Debugf("helm release '%s' not exists: should run upgrade", releaseName)
 		return true, nil
