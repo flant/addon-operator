@@ -3,6 +3,11 @@ module github.com/flant/addon-operator
 go 1.15
 
 exclude github.com/googleapis/gnostic v0.5.5
+exclude github.com/googleapis/gnostic v0.5.4
+exclude github.com/googleapis/gnostic v0.5.3
+exclude github.com/googleapis/gnostic v0.5.2
+exclude github.com/googleapis/gnostic v0.5.1
+exclude github.com/googleapis/gnostic v0.5.0
 
 require (
 	github.com/davecgh/go-spew v1.1.1
