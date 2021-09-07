@@ -39,4 +39,5 @@ replace github.com/go-openapi/validate => github.com/flant/go-openapi-validate v
 replace k8s.io/apimachinery => k8s.io/apimachinery v0.19.11
 
 replace k8s.io/cli-runtime => k8s.io/cli-runtime v0.19.11
+
 replace k8s.io/kubectl => k8s.io/kubectl v0.19.11
