@@ -256,7 +256,6 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	var resultValues chartutil.Values
 
 	for _, vp := range valuesPaths {
-		fmt.Println("VALUES PATH", vp)
 		data, err := ioutil.ReadFile(vp)
 		if err != nil {
 			return "", err
@@ -275,7 +274,6 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	}
 
 	if len(setValues) > 0 {
-		fmt.Println("SET VAL", setValues)
 		m := make(map[string]interface{})
 		for _, sv := range setValues {
 			arr := strings.Split(sv, "=")
@@ -285,10 +283,6 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 		}
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
-
-	fmt.Println("HVONGIH", actionConfig)
-	fmt.Println("RES VALUES", resultValues)
-	fmt.Println(resultValues.YAML())
 
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
