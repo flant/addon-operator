@@ -111,6 +111,9 @@ func (h *LibClient) DeleteOldFailedRevisions(releaseName string) error {
 func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
 	release, err := actionConfig.Releases.Last(releaseName)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "no revision for release") {
+			return "0", "", fmt.Errorf("release '%s' not found\n", releaseName)
+		}
 		return "", "", err
 	}
 
