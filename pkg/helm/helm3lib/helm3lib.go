@@ -13,6 +13,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/storage/driver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
 
@@ -154,6 +155,22 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chartName, namespace)
+	histClient := action.NewHistory(actionConfig)
+	histClient.Max = 1
+	if _, err := histClient.Run(releaseName); err == driver.ErrReleaseNotFound {
+		instClient := action.NewInstall(actionConfig)
+		if namespace != "" {
+			instClient.Namespace = namespace
+		}
+		instClient.Timeout = options.Timeout
+		instClient.ReleaseName = releaseName
+		instClient.UseReleaseName = true
+
+		_, err = instClient.Run(chart, resultValues)
+
+		return err
+	}
+
 	_, err = upg.Run(releaseName, chart, resultValues)
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s\n", err)
