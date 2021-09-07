@@ -274,14 +274,13 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	inst.ReleaseName = releaseName
 	inst.UseReleaseName = true
 	inst.Replace = true // Skip the name check
-	inst.ClientOnly = true
 
 	rs, err := inst.Run(chart, resultValues)
 	if err != nil {
 		return "", err
 	}
 
-	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
+	h.LogEntry.Infof("Render helm templates for chart '%s' in namespace '%s' was successful", chartName, namespace)
 
 	return rs.Manifest, nil
 }
