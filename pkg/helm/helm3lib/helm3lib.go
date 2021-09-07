@@ -3,7 +3,6 @@ package helm3lib
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,7 +15,6 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
@@ -31,7 +29,7 @@ func Init(opts *Options) error {
 		LogEntry: log.WithField("operator.component", "helm3lib"),
 	}
 	options = opts
-	err := hc.InitAndVersion()
+	err := hc.initAndVersion()
 	if err != nil {
 		return err
 	}
@@ -69,12 +67,6 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	}
 }
 
-// Cmd starts Helm with specified arguments.
-// Sets the TILLER_NAMESPACE environment variable before starting, because Addon-operator works with its own Tiller.
-func (h *LibClient) Cmd(args ...string) (stdout string, stderr string, err error) {
-	return "", "", fmt.Errorf("cmd is not implemented for helm lib")
-}
-
 func (h *LibClient) CommandEnv() []string {
 	res := make([]string, 0)
 	return res
@@ -84,8 +76,8 @@ func (h *LibClient) WithKubeClient(client klient.Client) {
 	h.KubeClient = client
 }
 
-// InitAndVersion runs helm version command.
-func (h *LibClient) InitAndVersion() error {
+// initAndVersion runs helm version command.
+func (h *LibClient) initAndVersion() error {
 	ac := new(action.Configuration)
 
 	env := cli.New()
@@ -115,9 +107,6 @@ func (h *LibClient) DeleteOldFailedRevisions(releaseName string) error {
 }
 
 // LastReleaseStatus returns last known revision for release and its status
-//   Example helm history output:
-//   REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
-//   1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
 func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
 	release, err := actionConfig.Releases.Last(releaseName)
 	if err != nil {
@@ -128,7 +117,6 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, stat
 }
 
 func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
-
 	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
@@ -256,21 +244,12 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	var resultValues chartutil.Values
 
 	for _, vp := range valuesPaths {
-		data, err := ioutil.ReadFile(vp)
+		values, err := chartutil.ReadValuesFile(vp)
 		if err != nil {
 			return "", err
 		}
-		var v chartutil.Values
-		err = yaml.Unmarshal(data, &v)
-		if err != nil {
-			return "", err
-		}
-		// values, err := chartutil.ReadValuesFile(vp)
-		// if err != nil {
-		// 	return "", err
-		// }
 
-		resultValues = chartutil.CoalesceTables(resultValues, v)
+		resultValues = chartutil.CoalesceTables(resultValues, values)
 	}
 
 	if len(setValues) > 0 {
@@ -286,30 +265,16 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
-	opts := chartutil.ReleaseOptions{
-		Name:      releaseName,
-		Revision:  1,
-		IsUpgrade: true,
-		IsInstall: false,
-	}
-	if namespace != "" {
-		opts.Namespace = namespace
-	}
-
-	// renderedValues, err := chartutil.ToRenderValues(chart, resultValues, opts, actionConfig.Capabilities)
-	// if err != nil {
-	// 	return "", err
-	// }
-
 	inst := action.NewInstall(actionConfig)
 	inst.DryRun = true
+
 	if namespace != "" {
 		inst.Namespace = namespace
 	}
 	inst.ReleaseName = releaseName
 	inst.UseReleaseName = true
-	inst.Replace = true
-	inst.IsUpgrade = true
+	inst.Replace = true // Skip the name check
+	inst.ClientOnly = true
 
 	rs, err := inst.Run(chart, resultValues)
 	if err != nil {

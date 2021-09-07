@@ -34,7 +34,7 @@ func Init(options *Helm2Options) error {
 	hc := &Helm2Client{
 		LogEntry: log.WithField("operator.component", "helm"),
 	}
-	err := hc.InitAndVersion()
+	err := hc.initAndVersion()
 	if err != nil {
 		return err
 	}
@@ -94,8 +94,8 @@ func (h *Helm2Client) Cmd(args ...string) (stdout string, stderr string, err err
 	return
 }
 
-// InitAndVersion runs helm init and helm version commands
-func (h *Helm2Client) InitAndVersion() error {
+// initAndVersion runs helm init and helm version commands
+func (h *Helm2Client) initAndVersion() error {
 	stdout, stderr, err := h.Cmd("init", "--client-only")
 	if err != nil {
 		return fmt.Errorf("helm init: %v\n%v %v", err, stdout, stderr)
