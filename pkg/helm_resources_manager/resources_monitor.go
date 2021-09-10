@@ -134,7 +134,6 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 	}
 
 	concurrency := make(chan struct{}, 5)
-	defer close(concurrency)
 
 	resC := make(chan gvrManifestResult)
 
@@ -219,6 +218,7 @@ type gvrManifestResult struct {
 
 func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitGroup, nsgvr namespacedGVR, manifests []manifest.Manifest, resC chan gvrManifestResult, concurrency chan struct{}) {
 	defer wg.Done()
+
 	concurrency <- struct{}{}
 	defer func() {
 		<-concurrency
@@ -228,6 +228,7 @@ func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitG
 	if ctx.Err() != nil {
 		return
 	}
+
 	existingObjs, err := r.listResources(ctx, nsgvr)
 	if err != nil {
 		resC <- gvrManifestResult{
