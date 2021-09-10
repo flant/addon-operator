@@ -25,15 +25,18 @@ require (
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
-	helm.sh/helm/v3 v3.4.2
-	k8s.io/api v0.19.11
+	helm.sh/helm/v3 v3.5.1
+	k8s.io/api v0.20.5
 	k8s.io/apimachinery v0.20.5
-	k8s.io/client-go v0.19.11
-	k8s.io/utils v0.0.0-20200729134348-d5654de09c73
+	k8s.io/client-go v0.20.5
+	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/yaml v1.2.0
 )
 
 replace github.com/go-openapi/validate => github.com/flant/go-openapi-validate v0.19.4-0.20200313141509-0c0fba4d39e1 // branch: fix_in_body_0_19_7
 
-replace k8s.io/apimachinery => k8s.io/apimachinery v0.19.11
+// Due to Helm3 lib problems
+replace k8s.io/client-go => k8s.io/client-go v0.19.11
+
+replace k8s.io/api => k8s.io/api v0.19.11
