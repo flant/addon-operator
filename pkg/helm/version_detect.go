@@ -1,7 +1,6 @@
 package helm
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -43,7 +42,8 @@ func DetectHelmVersion() (string, error) {
 	cmd := exec.Command(helmPath, "--help")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("execute helm --help: %v\n%s", err, string(out))
+		// no helm3 binary found, rollback to library
+		return "v3lib", nil
 	}
 	tillerRe := regexp.MustCompile(`tiller`)
 	tillerLoc := tillerRe.FindIndex(out)
@@ -52,5 +52,5 @@ func DetectHelmVersion() (string, error) {
 	}
 
 	// TODO helm4 detection?
-	return "v3", nil
+	return "v3lib", nil
 }

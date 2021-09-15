@@ -13,7 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/flant/addon-operator/pkg/utils"
@@ -191,7 +190,7 @@ func (r *ResourcesMonitor) buildGVRMap() (map[namespacedGVR][]manifest.Manifest,
 		}
 		ns := m.Namespace(r.defaultNamespace)
 		if !apiRes.Namespaced {
-			ns = "_global_"
+			ns = ""
 		}
 		nsgvr := namespacedGVR{
 			Namespace: ns,
@@ -250,13 +249,7 @@ func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitG
 
 // list all objects in ns and return names of all existent objects
 func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvr namespacedGVR) (map[string]struct{}, error) {
-	var objList *unstructured.UnstructuredList
-	var err error
-	if nsgvr.Namespace == "_global_" {
-		objList, err = r.kubeClient.Dynamic().Resource(nsgvr.GVR).List(ctx, v1.ListOptions{})
-	} else {
-		objList, err = r.kubeClient.Dynamic().Resource(nsgvr.GVR).Namespace(nsgvr.Namespace).List(ctx, v1.ListOptions{})
-	}
+	objList, err := r.kubeClient.Dynamic().Resource(nsgvr.GVR).Namespace(nsgvr.Namespace).List(ctx, v1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("fetch list for helm resource %s in ns: %s failed: %s", nsgvr.GVR, nsgvr.Namespace, err)
 	}
