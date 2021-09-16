@@ -4,8 +4,6 @@ import "github.com/flant/addon-operator/pkg/utils"
 
 type HelmClient interface {
 	CommandEnv() []string
-	Cmd(args ...string) (string, string, error)
-	InitAndVersion() error
 	DeleteSingleFailedRevision(releaseName string) error
 	DeleteOldFailedRevisions(releaseName string) error
 	LastReleaseStatus(releaseName string) (string, string, error)

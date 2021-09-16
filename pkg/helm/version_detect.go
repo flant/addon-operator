@@ -1,12 +1,12 @@
 package helm
 
 import (
-	"fmt"
-	"github.com/flant/addon-operator/pkg/helm/helm2"
-	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"os"
 	"os/exec"
 	"regexp"
+
+	"github.com/flant/addon-operator/pkg/helm/helm2"
+	"github.com/flant/addon-operator/pkg/helm/helm3"
 )
 
 const DefaultHelmBinPath = "helm"
@@ -33,12 +33,17 @@ func DetectHelmVersion() (string, error) {
 		return "v2", nil
 	}
 
+	if os.Getenv("HELM3LIB") == "yes" {
+		return "v3lib", nil
+	}
+
 	// No environments, try to autodetect via execution `helm --help` command.
 	// Helm3 has no mentions of "tiller" in help output.
 	cmd := exec.Command(helmPath, "--help")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("execute helm --help: %v\n%s", err, string(out))
+		// no helm3 binary found, rollback to library
+		return "v3lib", nil
 	}
 	tillerRe := regexp.MustCompile(`tiller`)
 	tillerLoc := tillerRe.FindIndex(out)

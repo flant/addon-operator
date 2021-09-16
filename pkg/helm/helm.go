@@ -11,6 +11,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm2"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
+	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 )
 
 var NewClient = func(logLabels ...map[string]string) client.HelmClient {
@@ -25,7 +26,19 @@ func Init(client klient.Client) error {
 		return err
 	}
 
-	if helmVersion == "v3" {
+	switch helmVersion {
+	case "v3lib":
+		log.Info("Helm3Lib detected")
+		NewClient = helm3lib.NewClient
+		err = helm3lib.Init(&helm3lib.Options{
+			Namespace:  app.Namespace,
+			HistoryMax: app.Helm3HistoryMax,
+			Timeout:    app.Helm3Timeout,
+			KubeClient: client,
+		})
+		return err
+
+	case "v3":
 		log.Info("Helm 3 detected")
 		// Use helm3 client.
 		NewClient = helm3.NewClient
@@ -36,9 +49,8 @@ func Init(client klient.Client) error {
 			KubeClient: client,
 		})
 		return err
-	}
 
-	if helmVersion == "v2" {
+	case "v2":
 		log.Info("Helm 2 detected, start Tiller")
 		// TODO make tiller cancelable
 		err = helm2.InitTillerProcess(helm2.TillerOptions{

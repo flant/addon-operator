@@ -38,7 +38,7 @@ func Init(options *Helm3Options) error {
 	hc := &Helm3Client{
 		LogEntry: log.WithField("operator.component", "helm"),
 	}
-	err := hc.InitAndVersion()
+	err := hc.initAndVersion()
 	if err != nil {
 		return err
 	}
@@ -76,9 +76,9 @@ func (h *Helm3Client) CommandEnv() []string {
 	return res
 }
 
-// Cmd starts Helm with specified arguments.
+// cmd starts Helm with specified arguments.
 // Sets the TILLER_NAMESPACE environment variable before starting, because Addon-operator works with its own Tiller.
-func (h *Helm3Client) Cmd(args ...string) (stdout string, stderr string, err error) {
+func (h *Helm3Client) cmd(args ...string) (stdout string, stderr string, err error) {
 	cmd := exec.Command(Helm3Path, args...)
 	cmd.Env = append(os.Environ(), h.CommandEnv()...)
 
@@ -94,9 +94,9 @@ func (h *Helm3Client) Cmd(args ...string) (stdout string, stderr string, err err
 	return
 }
 
-// InitAndVersion runs helm version command.
-func (h *Helm3Client) InitAndVersion() error {
-	stdout, stderr, err := h.Cmd("version", "--short")
+// initAndVersion runs helm version command.
+func (h *Helm3Client) initAndVersion() error {
+	stdout, stderr, err := h.cmd("version", "--short")
 	if err != nil {
 		return fmt.Errorf("unable to get helm version: %v\n%v %v", err, stdout, stderr)
 	}
@@ -124,7 +124,7 @@ func (h *Helm3Client) DeleteOldFailedRevisions(releaseName string) error {
 //   REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
 //   1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
 func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
-	stdout, stderr, err := h.Cmd("history", releaseName, "--max", "1", "--output", "yaml")
+	stdout, stderr, err := h.cmd("history", releaseName, "--max", "1", "--output", "yaml")
 
 	if err != nil {
 		errLine := strings.Split(stderr, "\n")[0]
@@ -191,7 +191,7 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 	}
 
 	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chart, namespace)
-	stdout, stderr, err := h.Cmd(args...)
+	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
 	}
@@ -212,7 +212,7 @@ func (h *Helm3Client) GetReleaseValues(releaseName string) (utils.Values, error)
 	args = append(args, "--output")
 	args = append(args, "yaml")
 
-	stdout, stderr, err := h.Cmd(args...)
+	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get values of helm release %s: %s\n%s %s", releaseName, err, stdout, stderr)
 	}
@@ -235,7 +235,7 @@ func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
 	args = append(args, "--namespace")
 	args = append(args, h.Namespace)
 
-	stdout, stderr, err := h.Cmd(args...)
+	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n%v %v", releaseName, err, stdout, stderr)
 	}
@@ -320,7 +320,7 @@ func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []str
 	}
 
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chart, namespace)
-	stdout, stderr, err := h.Cmd(args...)
+	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return "", fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
 	}

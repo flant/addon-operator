@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"sync"
 	"time"
 
 	klient "github.com/flant/kube-client/client"
@@ -12,8 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/flant/addon-operator/pkg/utils"
@@ -128,46 +127,139 @@ func (r *ResourcesMonitor) Resume() {
 }
 
 func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
-	res := make([]manifest.Manifest, 0)
+	gvrMap, err := r.buildGVRMap()
+	if err != nil {
+		return nil, err
+	}
+
+	concurrency := make(chan struct{}, 5)
+
+	resC := make(chan gvrManifestResult)
+
+	var wg sync.WaitGroup
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for nsgvr, manifests := range gvrMap {
+		wg.Add(1)
+		go r.checkGVRManifests(ctx, &wg, nsgvr, manifests, resC, concurrency)
+	}
+	go func() {
+		wg.Wait()
+		close(resC)
+	}()
+
+	for res := range resC {
+		if res.err != nil {
+			return nil, res.err
+		}
+
+		// return on the first absent resource, don't wait for all
+		if res.hasAbsent {
+			return []manifest.Manifest{res.manifest}, nil
+		}
+	}
+
+	return nil, nil
+}
+
+type namespacedGVR struct {
+	Namespace string
+	GVR       schema.GroupVersionResource
+}
+
+// create gvr
+func (r *ResourcesMonitor) buildGVRMap() (map[namespacedGVR][]manifest.Manifest, error) {
+	gvrMap := make(map[namespacedGVR][]manifest.Manifest)
 
 	for _, m := range r.manifests {
 		// Get GVR
-		//log.Debugf("%s: discover GVR for apiVersion '%s' kind '%s'...", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind)
+		// log.Debugf("%s: discover GVR for apiVersion '%s' kind '%s'...", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind)
 		apiRes, err := r.kubeClient.APIResource(m.ApiVersion(), m.Kind())
 		if err != nil {
-			//log.Errorf("%s: Cannot get GroupVersionResource info for apiVersion '%s' kind '%s' from api-server. Possibly CRD is not created before informers are started. Error was: %v", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind, err)
+			// log.Errorf("%s: Cannot get GroupVersionResource info for apiVersion '%s' kind '%s' from api-server. Possibly CRD is not created before informers are started. Error was: %v", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind, err)
 			return nil, err
 		}
-		//log.Debugf("%s: GVR for kind '%s' is '%s'", ei.Monitor.Metadata.DebugName, ei.Monitor.Kind, ei.GroupVersionResource.String())
+		// log.Debugf("%s: GVR for kind '%s' is '%s'", ei.Monitor.Metadata.DebugName, ei.Monitor.Kind, ei.GroupVersionResource.String())
 
 		gvr := schema.GroupVersionResource{
 			Group:    apiRes.Group,
 			Version:  apiRes.Version,
 			Resource: apiRes.Name,
 		}
-		// Resources are filtered by metadata.name field. Object is considered absent if list is empty.
-		listOptions := v1.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector("metadata.name", m.Name()).String(),
+		ns := m.Namespace(r.defaultNamespace)
+		if !apiRes.Namespaced {
+			ns = ""
+		}
+		nsgvr := namespacedGVR{
+			Namespace: ns,
+			GVR:       gvr,
 		}
 
-		var objList *unstructured.UnstructuredList
-
-		if apiRes.Namespaced {
-			ns := m.Namespace(r.defaultNamespace)
-			objList, err = r.kubeClient.Dynamic().Resource(gvr).Namespace(ns).List(context.TODO(), listOptions)
+		ex, ok := gvrMap[nsgvr]
+		if ok {
+			ex = append(ex, m)
+			gvrMap[nsgvr] = ex
 		} else {
-			objList, err = r.kubeClient.Dynamic().Resource(gvr).List(context.TODO(), listOptions)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("Fetch list for helm resource %s: %s", m.Id(), err)
-		}
-
-		if len(objList.Items) == 0 {
-			res = append(res, m)
+			gvrMap[nsgvr] = []manifest.Manifest{m}
 		}
 	}
 
-	return res, nil
+	return gvrMap, nil
+}
+
+type gvrManifestResult struct {
+	hasAbsent bool
+	manifest  manifest.Manifest
+	err       error
+}
+
+func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitGroup, nsgvr namespacedGVR, manifests []manifest.Manifest, resC chan gvrManifestResult, concurrency chan struct{}) {
+	defer wg.Done()
+
+	concurrency <- struct{}{}
+	defer func() {
+		<-concurrency
+	}()
+
+	// if context is cancelled - return
+	if ctx.Err() != nil {
+		return
+	}
+
+	existingObjs, err := r.listResources(ctx, nsgvr)
+	if err != nil {
+		resC <- gvrManifestResult{
+			err: err,
+		}
+		return
+	}
+
+	for _, mf := range manifests {
+		if _, ok := existingObjs[mf.Name()]; !ok {
+			resC <- gvrManifestResult{
+				hasAbsent: true,
+				manifest:  mf,
+			}
+			return
+		}
+	}
+}
+
+// list all objects in ns and return names of all existent objects
+func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvr namespacedGVR) (map[string]struct{}, error) {
+	objList, err := r.kubeClient.Dynamic().Resource(nsgvr.GVR).Namespace(nsgvr.Namespace).List(ctx, v1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("fetch list for helm resource %s in ns: %s failed: %s", nsgvr.GVR, nsgvr.Namespace, err)
+	}
+
+	existingObjs := make(map[string]struct{})
+	for _, eo := range objList.Items {
+		existingObjs[eo.GetName()] = struct{}{}
+	}
+
+	return existingObjs, nil
 }
 
 func (r *ResourcesMonitor) ResourceIds() []string {
