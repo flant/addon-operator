@@ -52,5 +52,5 @@ func DetectHelmVersion() (string, error) {
 	}
 
 	// TODO helm4 detection?
-	return "v3lib", nil
+	return "v3", nil
 }
