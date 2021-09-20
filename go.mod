@@ -16,7 +16,7 @@ require (
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/gomega v1.16.0
 	github.com/peterbourgon/mergemap v0.0.0-20130613134717-e21c03b7a721
-	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_golang v1.11.0
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.7.0
