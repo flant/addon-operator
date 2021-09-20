@@ -20,8 +20,8 @@ require (
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.7.5
-	github.com/tidwall/sjson v1.1.6
+	github.com/tidwall/gjson v1.9.1
+	github.com/tidwall/sjson v1.2.2
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
