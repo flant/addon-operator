@@ -11,7 +11,7 @@ require (
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-openapi/strfmt v0.19.3
 	github.com/go-openapi/swag v0.19.5
-	github.com/go-openapi/validate v0.19.7
+	github.com/go-openapi/validate v0.20.2
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/gomega v1.16.0
