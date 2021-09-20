@@ -197,13 +197,7 @@ func (r *ResourcesMonitor) buildGVRMap() (map[namespacedGVR][]manifest.Manifest,
 			GVR:       gvr,
 		}
 
-		ex, ok := gvrMap[nsgvr]
-		if ok {
-			ex = append(ex, m)
-			gvrMap[nsgvr] = ex
-		} else {
-			gvrMap[nsgvr] = []manifest.Manifest{m}
-		}
+		gvrMap[nsgvr] = append(gvrMap[nsgvr], m)
 	}
 
 	return gvrMap, nil
@@ -215,7 +209,7 @@ type gvrManifestResult struct {
 	err       error
 }
 
-func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitGroup, nsgvr namespacedGVR, manifests []manifest.Manifest, resC chan gvrManifestResult, concurrency chan struct{}) {
+func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitGroup, nsgvr namespacedGVR, manifests []manifest.Manifest, resC chan<- gvrManifestResult, concurrency chan struct{}) {
 	defer wg.Done()
 
 	concurrency <- struct{}{}
