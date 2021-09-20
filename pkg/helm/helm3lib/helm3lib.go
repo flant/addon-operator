@@ -30,11 +30,7 @@ func Init(opts *Options) error {
 		LogEntry: log.WithField("operator.component", "helm3lib"),
 	}
 	options = opts
-	err := hc.initAndVersion()
-	if err != nil {
-		return err
-	}
-	return nil
+	return hc.initAndVersion()
 }
 
 // Library use client
@@ -111,6 +107,11 @@ func (h *LibClient) DeleteOldFailedRevisions(releaseName string) error {
 func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
 	release, err := actionConfig.Releases.Last(releaseName)
 	if err != nil {
+		// in the Last(x) function we have the condition:
+		// 	if len(h) == 0 {
+		//		return nil, errors.Errorf("no revision for release %q", name)
+		//	}
+		// that's why we also check string representation
 		if err == driver.ErrReleaseNotFound || strings.HasPrefix(err.Error(), "no revision for release") {
 			return "0", "", fmt.Errorf("release '%s' not found\n", releaseName)
 		}
@@ -175,6 +176,9 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		return err
 	}
 	if len(lr) > 0 {
+		// https://github.com/fluxcd/helm-controller/issues/149
+		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
+		// and hints to fix it. In the future releases of helm they will handle sudden shutdown
 		if lr[0].Info.Status.IsPending() {
 			rb := action.NewRollback(actionConfig)
 			_ = rb.Run(lr[0].Name)
@@ -209,13 +213,13 @@ func (h *LibClient) DeleteRelease(releaseName string) error {
 
 func (h *LibClient) IsReleaseExists(releaseName string) (bool, error) {
 	revision, _, err := h.LastReleaseStatus(releaseName)
-	if err != nil && revision == "0" {
-		return false, nil
-	} else if err != nil {
-		return false, err
+	if err == nil {
+		return true, nil
 	}
-
-	return true, nil
+	if revision == "0" {
+		return false, nil
+	}
+	return false, err
 }
 
 // ListReleases returns all known releases as strings — "<release_name>.v<release_number>"
@@ -237,7 +241,7 @@ func (h *LibClient) ListReleasesNames(labelSelector map[string]string) ([]string
 		Secrets(h.Namespace).
 		List(context.TODO(), metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
 	if err != nil {
-		h.LogEntry.Debugf("helm: list of releases ConfigMaps failed: %s", err)
+		h.LogEntry.Debugf("helm: list of release Secrets failed: %s", err)
 		return nil, err
 	}
 
