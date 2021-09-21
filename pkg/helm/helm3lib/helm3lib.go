@@ -180,8 +180,14 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
 		// and hints to fix it. In the future releases of helm they will handle sudden shutdown
 		if lr[0].Info.Status.IsPending() {
-			rb := action.NewRollback(actionConfig)
-			_ = rb.Run(lr[0].Name)
+			if lr[0].Version == 1 {
+				rb := action.NewUninstall(actionConfig)
+				rb.KeepHistory = false
+				_, _ = rb.Run(lr[0].Name)
+			} else {
+				rb := action.NewRollback(actionConfig)
+				_ = rb.Run(lr[0].Name)
+			}
 		}
 	}
 
