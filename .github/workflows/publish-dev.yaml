@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.label.id == 1860106347 # ':robot: build dev images' label
     steps:
-      - uses: actions/github-script@v4.1
+      - uses: actions/github-script@v5
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
