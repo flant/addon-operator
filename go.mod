@@ -8,9 +8,9 @@ require (
 	github.com/flant/kube-client v0.0.6
 	github.com/flant/shell-operator v1.0.4-0.20211013151103-bfe409c85564 // branch: master
 	github.com/go-chi/chi v4.0.3+incompatible
-	github.com/go-openapi/spec v0.19.8
+	github.com/go-openapi/spec v0.20.4
 	github.com/go-openapi/strfmt v0.19.5
-	github.com/go-openapi/swag v0.19.9
+	github.com/go-openapi/swag v0.19.15
 	github.com/go-openapi/validate v0.19.12
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
