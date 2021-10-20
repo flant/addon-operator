@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/flant/kube-client/klogtologrus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -13,6 +14,7 @@ import (
 
 	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/utils/stdliblogtologrus"
 )
 
 func main() {
@@ -20,6 +22,12 @@ func main() {
 
 	// override usage template to reveal additional commands with information about start command
 	kpApp.UsageTemplate(sh_app.OperatorUsageTemplate(app.AppName))
+
+	kpApp.Action(func(c *kingpin.ParseContext) error {
+		klogtologrus.InitAdapter(sh_app.DebugKubernetesAPI)
+		stdliblogtologrus.InitAdapter()
+		return nil
+	})
 
 	// print version
 	kpApp.Command("version", "Show version.").Action(func(c *kingpin.ParseContext) error {
