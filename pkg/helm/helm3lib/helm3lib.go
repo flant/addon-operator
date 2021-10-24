@@ -179,14 +179,25 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		// https://github.com/fluxcd/helm-controller/issues/149
 		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
 		// and hints to fix it. In the future releases of helm they will handle sudden shutdown
-		if lr[0].Info.Status.IsPending() {
-			if lr[0].Version == 1 {
+		latestRelease := lr[0]
+		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
+		if latestRelease.Info.Status.IsPending() {
+			h.LogEntry.Infof("Release: %s, revision: %d is pending", nsReleaseName, latestRelease.Version)
+			if latestRelease.Version == 1 {
 				rb := action.NewUninstall(actionConfig)
 				rb.KeepHistory = false
-				_, _ = rb.Run(lr[0].Name)
+				_, err = rb.Run(latestRelease.Name)
+				if err != nil {
+					h.LogEntry.Warnf("Failed to uninstall pending release %s: %s", nsReleaseName, err)
+				}
 			} else {
 				rb := action.NewRollback(actionConfig)
-				_ = rb.Run(lr[0].Name)
+				rb.Version = latestRelease.Version - 1
+				rb.Force = true
+				err = rb.Run(latestRelease.Name)
+				if err != nil {
+					h.LogEntry.Warnf("Failed to rollback pending release %s: %s", nsReleaseName, err)
+				}
 			}
 		}
 	}
