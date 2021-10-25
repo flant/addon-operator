@@ -183,7 +183,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
 		if latestRelease.Info.Status.IsPending() {
 			h.LogEntry.Infof("Release: %s, revision: %d is pending", nsReleaseName, latestRelease.Version)
-			if latestRelease.Version == 1 {
+			if latestRelease.Version == 1 || options.HistoryMax == 1 {
 				rb := action.NewUninstall(actionConfig)
 				rb.KeepHistory = false
 				_, err = rb.Run(latestRelease.Name)
