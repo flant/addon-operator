@@ -13,6 +13,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
@@ -159,9 +160,8 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chartName, namespace)
-	h.LogEntry.Infof("222222")
 	histClient := action.NewHistory(actionConfig)
-	histClient.Max = 1
+	histClient.Max = 2
 	lr, err := histClient.Run(releaseName)
 	h.LogEntry.Infof("Run hist client: %d, %s", len(lr), err)
 	if err == driver.ErrReleaseNotFound {
@@ -184,9 +184,10 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		// https://github.com/fluxcd/helm-controller/issues/149
 		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
 		// and hints to fix it. In the future releases of helm they will handle sudden shutdown
+		releaseutil.Reverse(lr, releaseutil.SortByRevision)
 		latestRelease := lr[0]
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
-		h.LogEntry.Infof("Latest release %s with status %s", nsReleaseName, latestRelease.Info.Status)
+		h.LogEntry.Infof("Latest release %s: revision: %d with status %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
 		h.LogEntry.Infof("Latest release status is pending: %v", latestRelease.Info.Status.IsPending())
 		if latestRelease.Info.Status.IsPending() {
 			h.LogEntry.Infof("Release: %s, revision: %d is pending", nsReleaseName, latestRelease.Version)
