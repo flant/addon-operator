@@ -175,11 +175,9 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		instClient.UseReleaseName = true
 
 		_, err = instClient.Run(chart, resultValues)
-		h.LogEntry.Infof("we are here: %s", err)
-
 		return err
 	}
-	h.LogEntry.Infof("Old releases found: %d", len(releases))
+	h.LogEntry.Infof("%d old releases found", len(releases))
 	if len(releases) > 0 {
 		// https://github.com/fluxcd/helm-controller/issues/149
 		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
@@ -187,7 +185,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		releaseutil.Reverse(releases, releaseutil.SortByRevision)
 		latestRelease := releases[0]
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
-		h.LogEntry.Infof("Latest release %s: revision: %d with status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
+		h.LogEntry.Infof("Latest release '%s': revision: %d has status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
 		if latestRelease.Info.Status.IsPending() {
 			err := h.rollbackLatestRelease(releases)
 			if err != nil {
@@ -209,6 +207,8 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
 	latestRelease := releases[0]
 	nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
 
+	h.LogEntry.Infof("Trying to rollback '%s'", nsReleaseName)
+
 	if latestRelease.Version == 1 || options.HistoryMax == 1 || len(releases) == 1 {
 		rb := action.NewUninstall(actionConfig)
 		rb.KeepHistory = false
@@ -218,7 +218,7 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
 			return err
 		}
 	} else {
-		var previousVersion int
+		var previousVersion = latestRelease.Version - 1
 		for i := 1; i < len(releases); i++ {
 			if !releases[i].Info.Status.IsPending() {
 				previousVersion = releases[i].Version
@@ -234,6 +234,9 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
 			return err
 		}
 	}
+
+	h.LogEntry.Infof("Rollback '%s' successful", nsReleaseName)
+
 	return nil
 }
 
