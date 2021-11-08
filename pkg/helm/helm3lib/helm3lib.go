@@ -175,12 +175,15 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 
 		return err
 	}
+	h.LogEntry.Infof("Old releases found: %d", len(lr))
 	if len(lr) > 0 {
 		// https://github.com/fluxcd/helm-controller/issues/149
 		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
 		// and hints to fix it. In the future releases of helm they will handle sudden shutdown
 		latestRelease := lr[0]
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
+		h.LogEntry.Infof("Latest release %s with status %s", nsReleaseName, latestRelease.Info.Status)
+		h.LogEntry.Infof("Latest release status is pending: %v", latestRelease.Info.Status.IsPending())
 		if latestRelease.Info.Status.IsPending() {
 			h.LogEntry.Infof("Release: %s, revision: %d is pending", nsReleaseName, latestRelease.Version)
 			if latestRelease.Version == 1 || options.HistoryMax == 1 {
