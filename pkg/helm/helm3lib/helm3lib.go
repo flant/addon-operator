@@ -162,7 +162,9 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	histClient := action.NewHistory(actionConfig)
 	histClient.Max = 1
 	lr, err := histClient.Run(releaseName)
+	h.LogEntry.Infof("Run hist client: %d, %s", len(lr), err)
 	if err == driver.ErrReleaseNotFound {
+		h.LogEntry.Infof("release not found, makine install")
 		instClient := action.NewInstall(actionConfig)
 		if namespace != "" {
 			instClient.Namespace = namespace
@@ -172,6 +174,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		instClient.UseReleaseName = true
 
 		_, err = instClient.Run(chart, resultValues)
+		h.LogEntry.Infof("we are here: %s", err)
 
 		return err
 	}
