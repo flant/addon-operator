@@ -13,6 +13,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -161,11 +162,10 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 
 	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chartName, namespace)
 	histClient := action.NewHistory(actionConfig)
-	histClient.Max = 2
-	lr, err := histClient.Run(releaseName)
-	h.LogEntry.Infof("Run hist client: %d, %s", len(lr), err)
+	// Max is not working!!! Sort the final of releases by your own
+	// histClient.Max = 1
+	releases, err := histClient.Run(releaseName)
 	if err == driver.ErrReleaseNotFound {
-		h.LogEntry.Infof("release not found, makine install")
 		instClient := action.NewInstall(actionConfig)
 		if namespace != "" {
 			instClient.Namespace = namespace
@@ -179,33 +179,19 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 
 		return err
 	}
-	h.LogEntry.Infof("Old releases found: %d", len(lr))
-	if len(lr) > 0 {
+	h.LogEntry.Infof("Old releases found: %d", len(releases))
+	if len(releases) > 0 {
 		// https://github.com/fluxcd/helm-controller/issues/149
 		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
 		// and hints to fix it. In the future releases of helm they will handle sudden shutdown
-		releaseutil.Reverse(lr, releaseutil.SortByRevision)
-		latestRelease := lr[0]
+		releaseutil.Reverse(releases, releaseutil.SortByRevision)
+		latestRelease := releases[0]
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
-		h.LogEntry.Infof("Latest release %s: revision: %d with status %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
-		h.LogEntry.Infof("Latest release status is pending: %v", latestRelease.Info.Status.IsPending())
+		h.LogEntry.Infof("Latest release %s: revision: %d with status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
 		if latestRelease.Info.Status.IsPending() {
-			h.LogEntry.Infof("Release: %s, revision: %d is pending", nsReleaseName, latestRelease.Version)
-			if latestRelease.Version == 1 || options.HistoryMax == 1 {
-				rb := action.NewUninstall(actionConfig)
-				rb.KeepHistory = false
-				_, err = rb.Run(latestRelease.Name)
-				if err != nil {
-					h.LogEntry.Warnf("Failed to uninstall pending release %s: %s", nsReleaseName, err)
-				}
-			} else {
-				rb := action.NewRollback(actionConfig)
-				rb.Version = latestRelease.Version - 1
-				rb.Force = true
-				err = rb.Run(latestRelease.Name)
-				if err != nil {
-					h.LogEntry.Warnf("Failed to rollback pending release %s: %s", nsReleaseName, err)
-				}
+			err := h.rollbackLatestRelease(releases)
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -216,6 +202,38 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	}
 	h.LogEntry.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful", releaseName, chartName, namespace)
 
+	return nil
+}
+
+func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
+	latestRelease := releases[0]
+	nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
+
+	if latestRelease.Version == 1 || options.HistoryMax == 1 || len(releases) == 1 {
+		rb := action.NewUninstall(actionConfig)
+		rb.KeepHistory = false
+		_, err := rb.Run(latestRelease.Name)
+		if err != nil {
+			h.LogEntry.Warnf("Failed to uninstall pending release %s: %s", nsReleaseName, err)
+			return err
+		}
+	} else {
+		var previousVersion int
+		for i := 1; i < len(releases); i++ {
+			if !releases[i].Info.Status.IsPending() {
+				previousVersion = releases[i].Version
+				break
+			}
+		}
+		rb := action.NewRollback(actionConfig)
+		rb.Version = previousVersion
+		rb.Force = true
+		err := rb.Run(latestRelease.Name)
+		if err != nil {
+			h.LogEntry.Warnf("Failed to rollback pending release %s: %s", nsReleaseName, err)
+			return err
+		}
+	}
 	return nil
 }
 
