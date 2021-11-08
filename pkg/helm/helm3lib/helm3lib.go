@@ -13,6 +13,8 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
@@ -160,8 +162,9 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 
 	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chartName, namespace)
 	histClient := action.NewHistory(actionConfig)
-	histClient.Max = 1
-	lr, err := histClient.Run(releaseName)
+	// Max is not working!!! Sort the final of releases by your own
+	// histClient.Max = 1
+	releases, err := histClient.Run(releaseName)
 	if err == driver.ErrReleaseNotFound {
 		instClient := action.NewInstall(actionConfig)
 		if namespace != "" {
@@ -172,32 +175,21 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		instClient.UseReleaseName = true
 
 		_, err = instClient.Run(chart, resultValues)
-
 		return err
 	}
-	if len(lr) > 0 {
+	h.LogEntry.Infof("%d old releases found", len(releases))
+	if len(releases) > 0 {
 		// https://github.com/fluxcd/helm-controller/issues/149
 		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
 		// and hints to fix it. In the future releases of helm they will handle sudden shutdown
-		latestRelease := lr[0]
+		releaseutil.Reverse(releases, releaseutil.SortByRevision)
+		latestRelease := releases[0]
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
+		h.LogEntry.Infof("Latest release '%s': revision: %d has status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
 		if latestRelease.Info.Status.IsPending() {
-			h.LogEntry.Infof("Release: %s, revision: %d is pending", nsReleaseName, latestRelease.Version)
-			if latestRelease.Version == 1 || options.HistoryMax == 1 {
-				rb := action.NewUninstall(actionConfig)
-				rb.KeepHistory = false
-				_, err = rb.Run(latestRelease.Name)
-				if err != nil {
-					h.LogEntry.Warnf("Failed to uninstall pending release %s: %s", nsReleaseName, err)
-				}
-			} else {
-				rb := action.NewRollback(actionConfig)
-				rb.Version = latestRelease.Version - 1
-				rb.Force = true
-				err = rb.Run(latestRelease.Name)
-				if err != nil {
-					h.LogEntry.Warnf("Failed to rollback pending release %s: %s", nsReleaseName, err)
-				}
+			err := h.rollbackLatestRelease(releases)
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -207,6 +199,43 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		return fmt.Errorf("helm upgrade failed: %s\n", err)
 	}
 	h.LogEntry.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful", releaseName, chartName, namespace)
+
+	return nil
+}
+
+func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
+	latestRelease := releases[0]
+	nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
+
+	h.LogEntry.Infof("Trying to rollback '%s'", nsReleaseName)
+
+	if latestRelease.Version == 1 || options.HistoryMax == 1 || len(releases) == 1 {
+		rb := action.NewUninstall(actionConfig)
+		rb.KeepHistory = false
+		_, err := rb.Run(latestRelease.Name)
+		if err != nil {
+			h.LogEntry.Warnf("Failed to uninstall pending release %s: %s", nsReleaseName, err)
+			return err
+		}
+	} else {
+		var previousVersion = latestRelease.Version - 1
+		for i := 1; i < len(releases); i++ {
+			if !releases[i].Info.Status.IsPending() {
+				previousVersion = releases[i].Version
+				break
+			}
+		}
+		rb := action.NewRollback(actionConfig)
+		rb.Version = previousVersion
+		rb.Force = true
+		err := rb.Run(latestRelease.Name)
+		if err != nil {
+			h.LogEntry.Warnf("Failed to rollback pending release %s: %s", nsReleaseName, err)
+			return err
+		}
+	}
+
+	h.LogEntry.Infof("Rollback '%s' successful", nsReleaseName)
 
 	return nil
 }
