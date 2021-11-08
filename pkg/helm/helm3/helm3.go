@@ -190,7 +190,7 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 		args = append(args, setValue)
 	}
 
-	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chart, namespace)
+	h.LogEntry.Infof("Running helm upgrade for releazzzzzzzzzz '%s' with chart '%s' in namespace '%s' ...", releaseName, chart, namespace)
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)

@@ -159,6 +159,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chartName, namespace)
+	h.LogEntry.Infof("222222")
 	histClient := action.NewHistory(actionConfig)
 	histClient.Max = 1
 	lr, err := histClient.Run(releaseName)
