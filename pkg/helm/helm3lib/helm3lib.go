@@ -212,6 +212,7 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 		_, err := rb.Run(latestRelease.Name)
 		if err != nil {
 			h.LogEntry.Warnf("Failed to uninstall pending release %s: %s", nsReleaseName, err)
+			return
 		}
 	} else {
 		var previousVersion = latestRelease.Version - 1
@@ -227,6 +228,7 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 		err := rb.Run(latestRelease.Name)
 		if err != nil {
 			h.LogEntry.Warnf("Failed to rollback pending release %s: %s", nsReleaseName, err)
+			return
 		}
 	}
 
