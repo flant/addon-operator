@@ -187,10 +187,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
 		h.LogEntry.Infof("Latest release '%s': revision: %d has status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
 		if latestRelease.Info.Status.IsPending() {
-			err := h.rollbackLatestRelease(releases)
-			if err != nil {
-				return err
-			}
+			h.rollbackLatestRelease(releases)
 		}
 	}
 
@@ -203,7 +200,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	return nil
 }
 
-func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
+func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 	latestRelease := releases[0]
 	nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
 
@@ -215,7 +212,7 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
 		_, err := rb.Run(latestRelease.Name)
 		if err != nil {
 			h.LogEntry.Warnf("Failed to uninstall pending release %s: %s", nsReleaseName, err)
-			return err
+			return
 		}
 	} else {
 		var previousVersion = latestRelease.Version - 1
@@ -227,17 +224,15 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
 		}
 		rb := action.NewRollback(actionConfig)
 		rb.Version = previousVersion
-		rb.Force = true
+		rb.CleanupOnFail = true
 		err := rb.Run(latestRelease.Name)
 		if err != nil {
 			h.LogEntry.Warnf("Failed to rollback pending release %s: %s", nsReleaseName, err)
-			return err
+			return
 		}
 	}
 
 	h.LogEntry.Infof("Rollback '%s' successful", nsReleaseName)
-
-	return nil
 }
 
 func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
