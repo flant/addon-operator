@@ -22,7 +22,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.9.1
 	github.com/tidwall/sjson v1.2.2
-	go.uber.org/goleak v1.1.12 // indirect
+	go.uber.org/goleak v1.1.12
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
