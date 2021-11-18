@@ -7,10 +7,14 @@ import (
 	"github.com/flant/kube-client/fake"
 	"github.com/flant/kube-client/manifest"
 	. "github.com/onsi/gomega"
+	"go.uber.org/goleak"
 )
 
 // Problem: fake client do not support metadata.name filtering
 func Test_GetAbsentResources(t *testing.T) {
+	// klog has some leak, but it's not our code
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("k8s.io/klog/v2.(*loggingT).flushDaemon"))
+
 	g := NewWithT(t)
 
 	fc := fake.NewFakeCluster("")
