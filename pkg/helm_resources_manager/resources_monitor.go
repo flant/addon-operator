@@ -134,7 +134,7 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 
 	concurrency := make(chan struct{}, 5)
 
-	resC := make(chan gvrManifestResult)
+	resC := make(chan gvrManifestResult, len(gvrMap))
 
 	var wg sync.WaitGroup
 
