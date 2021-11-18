@@ -134,6 +134,9 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 
 	concurrency := make(chan struct{}, 5)
 
+	// don't use non-buffered channel here
+	// range on line 156 will ready one message from channel and quit but other goroutines will wait for channel
+	// in 'chan send' status and stuck forever. Also GC will not grab the channel because it has wait functions
 	resC := make(chan gvrManifestResult, len(gvrMap))
 
 	var wg sync.WaitGroup
