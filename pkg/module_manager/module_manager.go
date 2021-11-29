@@ -245,8 +245,8 @@ type Event struct {
 // NewMainModuleManager returns new MainModuleManager
 func NewMainModuleManager() *moduleManager {
 	return &moduleManager{
-		EventCh:    make(chan Event),
-		ValuesLock: sync.Mutex{},
+		EventCh:              make(chan Event),
+		ValuesOperationsLock: sync.Mutex{},
 
 		ValuesValidator: validation.NewValuesValidator(),
 
