@@ -26,7 +26,7 @@ jobs:
       # As of June 2020, go_modules.tar.gz is ~389Mb
       - name: Cache go modules archive
         id: go-modules-cache
-        uses: actions/cache@v2.1.6
+        uses: actions/cache@v2.1.7
         with:
           path: gomod
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod') }}
