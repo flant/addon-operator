@@ -190,10 +190,6 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		}
 	}
 
-	// ValuesLock.Lock()
-	// defer ValuesLock.UnLock()
-	//h.moduleManager.ValuesLock.Lock()
-
 	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
 		configValues := h.Module.ConfigValues()
@@ -222,7 +218,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.Name, err)
 			}
 
-			h.moduleManager.kubeModulesConfigValues[moduleName] = configValuesPatchResult.Values
+			h.moduleManager.UpdateModuleConfigValues(moduleName, configValuesPatchResult.Values)
 			log.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.Name, moduleName, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
 		}
 	}
@@ -251,9 +247,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 			}
 
 			// Save patch set if everything is ok.
-			h.moduleManager.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(
-				h.moduleManager.modulesDynamicValuesPatches[moduleName],
-				valuesPatchResult.ValuesPatch)
+			h.moduleManager.UpdateModuleDynamicValuesPatches(moduleName, valuesPatchResult.ValuesPatch)
 			newValues, err := h.Module.Values()
 			if err != nil {
 				return fmt.Errorf("get module values after values patch: %s", err)
