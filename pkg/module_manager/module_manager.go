@@ -119,8 +119,6 @@ type moduleManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	ValuesOperationsLock sync.Mutex
-
 	// Directories
 	ModulesDir     string
 	GlobalHooksDir string
@@ -178,6 +176,9 @@ type moduleManager struct {
 
 	// Values from modules/values.yaml file
 	commonStaticValues utils.Values
+
+	// A lock to synchronize access to *ConfigValues and *DynamicValuesPatches fields.
+	valuesLayersLock sync.Mutex
 
 	// global values from ConfigMap
 	kubeGlobalConfigValues utils.Values
@@ -245,8 +246,8 @@ type Event struct {
 // NewMainModuleManager returns new MainModuleManager
 func NewMainModuleManager() *moduleManager {
 	return &moduleManager{
-		EventCh:              make(chan Event),
-		ValuesOperationsLock: sync.Mutex{},
+		EventCh:          make(chan Event),
+		valuesLayersLock: sync.Mutex{},
 
 		ValuesValidator: validation.NewValuesValidator(),
 
@@ -1095,16 +1096,16 @@ func (mm *moduleManager) GlobalValuesPatches() []utils.ValuesPatch {
 
 // UpdateGlobalConfigValues sets updated global config values.
 func (mm *moduleManager) UpdateGlobalConfigValues(configValues utils.Values) {
-	mm.ValuesOperationsLock.Lock()
-	defer mm.ValuesOperationsLock.Unlock()
+	mm.valuesLayersLock.Lock()
+	defer mm.valuesLayersLock.Unlock()
 
 	mm.kubeGlobalConfigValues = configValues
 }
 
 // UpdateGlobalDynamicValuesPatches appends patches for global dynamic values.
 func (mm *moduleManager) UpdateGlobalDynamicValuesPatches(valuesPatch utils.ValuesPatch) {
-	mm.ValuesOperationsLock.Lock()
-	defer mm.ValuesOperationsLock.Unlock()
+	mm.valuesLayersLock.Lock()
+	defer mm.valuesLayersLock.Unlock()
 
 	mm.globalDynamicValuesPatches = utils.AppendValuesPatch(
 		mm.globalDynamicValuesPatches,
@@ -1113,15 +1114,15 @@ func (mm *moduleManager) UpdateGlobalDynamicValuesPatches(valuesPatch utils.Valu
 
 // UpdateModuleConfigValues sets updated config values for module.
 func (mm *moduleManager) UpdateModuleConfigValues(moduleName string, configValues utils.Values) {
-	mm.ValuesOperationsLock.Lock()
-	defer mm.ValuesOperationsLock.Unlock()
+	mm.valuesLayersLock.Lock()
+	defer mm.valuesLayersLock.Unlock()
 	mm.kubeModulesConfigValues[moduleName] = configValues
 }
 
 // UpdateModuleDynamicValuesPatches appends patches for dynamic values for module.
 func (mm *moduleManager) UpdateModuleDynamicValuesPatches(moduleName string, valuesPatch utils.ValuesPatch) {
-	mm.ValuesOperationsLock.Lock()
-	defer mm.ValuesOperationsLock.Unlock()
+	mm.valuesLayersLock.Lock()
+	defer mm.valuesLayersLock.Unlock()
 
 	mm.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(
 		mm.modulesDynamicValuesPatches[moduleName],
