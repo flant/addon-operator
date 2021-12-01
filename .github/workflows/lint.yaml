@@ -18,7 +18,7 @@ jobs:
         id: go
 
       - name: Check out addon-operator code
-        uses: actions/checkout@v2.3.4
+        uses: actions/checkout@v2.4.0
 
       # Restore go_modules.tar.gz from cache or download modules and pack them
       # Then upload archive as artifact to use by other jobs.
@@ -26,7 +26,7 @@ jobs:
       # As of June 2020, go_modules.tar.gz is ~389Mb
       - name: Cache go modules archive
         id: go-modules-cache
-        uses: actions/cache@v2.1.6
+        uses: actions/cache@v2.1.7
         with:
           path: gomod
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod') }}

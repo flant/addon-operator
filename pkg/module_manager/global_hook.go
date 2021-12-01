@@ -186,9 +186,6 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		}
 	}
 
-	//h.moduleManager.ValuesLock.Lock()
-	//defer h.moduleManager.ValuesLock.Unlock()
-
 	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
 		preparedConfigValues := utils.MergeValues(
@@ -220,7 +217,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
 			}
 
-			h.moduleManager.kubeGlobalConfigValues = configValuesPatchResult.Values
+			h.moduleManager.UpdateGlobalConfigValues(configValuesPatchResult.Values)
 			log.Debugf("Global hook '%s': kube config global values updated:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
 		}
 		// Apply patches for *Enabled keys.
@@ -255,9 +252,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				)
 			}
 
-			h.moduleManager.globalDynamicValuesPatches = utils.AppendValuesPatch(
-				h.moduleManager.globalDynamicValuesPatches,
-				valuesPatchResult.ValuesPatch)
+			h.moduleManager.UpdateGlobalDynamicValuesPatches(valuesPatchResult.ValuesPatch)
 			newGlobalValues, err := h.moduleManager.GlobalValues()
 			if err != nil {
 				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)

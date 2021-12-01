@@ -852,7 +852,6 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 		return false, fmt.Errorf("non-executable enable script")
 	}
 
-	// ValuesLock.Lock()
 	configValuesPath, err := m.prepareConfigValuesJsonFile()
 	if err != nil {
 		logEntry.Errorf("Prepare CONFIG_VALUES_PATH file for '%s': %s", enabledScriptPath, err)
@@ -902,8 +901,6 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 	}()
 
 	logEntry.Debugf("Execute enabled script '%s', preceding modules: %v", enabledScriptPath, precedingEnabledModules)
-
-	// ValuesLock.UnLock()
 
 	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
