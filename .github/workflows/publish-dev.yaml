@@ -1,48 +1,49 @@
 # Build flant/addon-operator-dev images from pull requests
 # and push to hub.docker.com when PR is labeled
-# with label ":robot: build dev images" (id=1860106347)
+# with label "publish/image/dev"
 name: Publish dev images
 on:
   pull_request:
     types: [labeled]
 env:
-  GO111MODULE: on
   QEMU_PLATFORMS: arm64,arm
-  BUILDX_PLATFORMS: "linux/amd64,linux/arm64,linux/arm/v7"
+  BUILDX_PLATFORMS: "linux/amd64"
   IMAGE_REPO: flant/addon-operator-dev
 
 jobs:
-  stub:
-    name: Empty job to prevent workflow fail
+  check_label:
+    name: Check and remove label
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.label.id != 1860106347 # not ':robot: build dev images' label
-    steps:
-      - name: stub action
-        run: ": This job is used to prevent the workflow to fail when all other jobs are skipped."
-
-  unlabel:
-    name: Unlabel
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.label.id == 1860106347 # ':robot: build dev images' label
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
     steps:
       - uses: actions/github-script@v5
+        id: check
         with:
           script: |
+            const labelName = context.payload.label.name;
+            if (labelName !== 'publish/image/dev') {
+              return console.log(`Ignore label '${labelName}': do not run 'publish dev image'.`);
+            }
+            console.log(`Detect label '${labelName}': remove it and run 'publish dev image'.`);
+            core.setOutput('should_run', 'true');
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                name: context.payload.label.name,
+                name: labelName,
               });
             } catch (e) {
               console.log(`Error occurred while remove label. Possibly label is already removed. Ignore '${typeof e}' error.`);
             }
 
   build_dev_image:
-    name: Dev image
+    name: Build and publish
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.label.id == 1860106347 # ':robot: build dev images' label
+    needs:
+      - check_label
+    if: needs.check_label.outputs.should_run == 'true'
     steps:
       - uses: actions/checkout@v2.4.0
 
@@ -93,4 +94,4 @@ jobs:
             echo "Inspect image for platform=${platform}"
             docker run --rm --platform ${platform} --entrypoint sh $FINAL_IMAGE_NAME@${digest} -c \
               'apk add file > /dev/null; file /bin/kubectl; file /bin/busybox; file /addon-operator; file /bin/helm'
-          done <<< $(docker buildx imagetools inspect $FINAL_IMAGE_NAME --raw | jq '.manifests[] | .digest + " " + .platform.os +"/"+.platform.architecture' -r)
+          done <<< $(docker buildx imagetools inspect $FINAL_IMAGE_NAME --raw | jq '.manifests//[{"digest":.config.digest, "platform":{"os":"linux","architecture":"amd64"}}] | .[] | .digest + " " + .platform.os +"/"+.platform.architecture' -r)

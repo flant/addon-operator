@@ -25,24 +25,17 @@ jobs:
         id: go-modules-cache
         uses: actions/cache@v2.1.7
         with:
-          path: gomod
-          key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod') }}
+          path: |
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod', 'go.sum') }}
           restore-keys: |
             ${{ runner.os }}-gomod-
 
-      - name: Download and pack Go modules
+      - name: Download Go modules
         if: steps.go-modules-cache.outputs.cache-hit != 'true'
         run: |
-          mkdir -p gomod
           go mod download
-          tar -czf gomod/go_modules.tar.gz -C $HOME/go/pkg/mod .
-          echo -n "Unpacked size is: " && du -sh $HOME/go/pkg/mod
-          echo -n "Packed size is: " && du -sh gomod/go_modules.tar.gz
-
-      - name: Unpack go modules
-        if: steps.go-modules-cache.outputs.cache-hit == 'true'
-        run: |
-          mkdir -p $HOME/go/pkg/mod && tar -xzf gomod/go_modules.tar.gz -C $HOME/go/pkg/mod
+          echo -n "GO modules size is: " && du -sh $HOME/go/pkg/mod
 
       - name: Download prebuilt libjq static libraries
         run: |

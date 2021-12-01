@@ -1,10 +1,11 @@
+# TODO Rework to run when pull_request is merged. Use label 'skip/publish/latest' or analyze changes to determine if latest image is not needed.
+
 # Build flant/addon-operator:latest image
 # and push to hub.docker.com
 # when manual action is run.
 name: Publish latest images
 on: workflow_dispatch
 env:
-  GO111MODULE: on
   QEMU_PLATFORMS: arm64,arm
   BUILDX_PLATFORMS: "linux/amd64,linux/arm64,linux/arm/v7"
   IMAGE_REPO: flant/addon-operator
@@ -16,8 +17,8 @@ jobs:
     steps:
       - name: Check branch
         run: |
-          if [[ ${GITHUB_REF} != "refs/heads/master" ]] ; then
-            echo "::error Publish latest available only on master branch"
+          if [[ ${GITHUB_REF} != "refs/heads/main" ]] ; then
+            echo "::error Publish latest available only for main branch"
             exit 1
           fi
 
