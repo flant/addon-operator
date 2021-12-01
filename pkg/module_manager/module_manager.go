@@ -68,6 +68,10 @@ type ModuleManager interface {
 	GlobalConfigValues() utils.Values
 	GlobalValues() (utils.Values, error)
 	GlobalValuesPatches() []utils.ValuesPatch
+	UpdateGlobalConfigValues(configValues utils.Values)
+	UpdateGlobalDynamicValuesPatches(valuesPatch utils.ValuesPatch)
+	UpdateModuleConfigValues(moduleName string, configValues utils.Values)
+	UpdateModuleDynamicValuesPatches(moduleName string, valuesPatch utils.ValuesPatch)
 
 	// Actions for tasks
 	DiscoverModulesState(logLabels map[string]string) (*ModulesState, error)
@@ -114,8 +118,6 @@ type ModulesState struct {
 type moduleManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-
-	ValuesLock sync.Mutex
 
 	// Directories
 	ModulesDir     string
@@ -174,6 +176,9 @@ type moduleManager struct {
 
 	// Values from modules/values.yaml file
 	commonStaticValues utils.Values
+
+	// A lock to synchronize access to *ConfigValues and *DynamicValuesPatches fields.
+	valuesLayersLock sync.Mutex
 
 	// global values from ConfigMap
 	kubeGlobalConfigValues utils.Values
@@ -241,8 +246,8 @@ type Event struct {
 // NewMainModuleManager returns new MainModuleManager
 func NewMainModuleManager() *moduleManager {
 	return &moduleManager{
-		EventCh:    make(chan Event),
-		ValuesLock: sync.Mutex{},
+		EventCh:          make(chan Event),
+		valuesLayersLock: sync.Mutex{},
 
 		ValuesValidator: validation.NewValuesValidator(),
 
@@ -923,8 +928,6 @@ func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels 
 func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, string, error) {
 	globalHook := mm.GetGlobalHook(hookName)
 
-	// ValuesLock.Lock()
-	//
 	beforeValues, err := mm.GlobalValues()
 	if err != nil {
 		return "", "", err
@@ -956,7 +959,6 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 		return "", "", err
 	}
 
-	//	ValuesLock.Lock()
 	afterValues, err := mm.GlobalValues()
 	if err != nil {
 		return "", "", err
@@ -1090,6 +1092,41 @@ func (mm *moduleManager) GlobalValues() (utils.Values, error) {
 // GlobalValues return patches for global values
 func (mm *moduleManager) GlobalValuesPatches() []utils.ValuesPatch {
 	return mm.globalDynamicValuesPatches
+}
+
+// UpdateGlobalConfigValues sets updated global config values.
+func (mm *moduleManager) UpdateGlobalConfigValues(configValues utils.Values) {
+	mm.valuesLayersLock.Lock()
+	defer mm.valuesLayersLock.Unlock()
+
+	mm.kubeGlobalConfigValues = configValues
+}
+
+// UpdateGlobalDynamicValuesPatches appends patches for global dynamic values.
+func (mm *moduleManager) UpdateGlobalDynamicValuesPatches(valuesPatch utils.ValuesPatch) {
+	mm.valuesLayersLock.Lock()
+	defer mm.valuesLayersLock.Unlock()
+
+	mm.globalDynamicValuesPatches = utils.AppendValuesPatch(
+		mm.globalDynamicValuesPatches,
+		valuesPatch)
+}
+
+// UpdateModuleConfigValues sets updated config values for module.
+func (mm *moduleManager) UpdateModuleConfigValues(moduleName string, configValues utils.Values) {
+	mm.valuesLayersLock.Lock()
+	defer mm.valuesLayersLock.Unlock()
+	mm.kubeModulesConfigValues[moduleName] = configValues
+}
+
+// UpdateModuleDynamicValuesPatches appends patches for dynamic values for module.
+func (mm *moduleManager) UpdateModuleDynamicValuesPatches(moduleName string, valuesPatch utils.ValuesPatch) {
+	mm.valuesLayersLock.Lock()
+	defer mm.valuesLayersLock.Unlock()
+
+	mm.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(
+		mm.modulesDynamicValuesPatches[moduleName],
+		valuesPatch)
 }
 
 func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) {
