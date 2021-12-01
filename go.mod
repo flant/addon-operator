@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/flant/kube-client v0.0.6
-	github.com/flant/shell-operator v1.0.5-0.20211111121017-d58c0cd7a595 // branch: master
+	github.com/flant/shell-operator v1.0.5 // 2021-12-01
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
@@ -14,7 +14,7 @@ require (
 	github.com/go-openapi/validate v0.19.12
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
-	github.com/onsi/gomega v1.16.0
+	github.com/onsi/gomega v1.17.0
 	github.com/peterbourgon/mergemap v0.0.0-20130613134717-e21c03b7a721
 	github.com/prometheus/client_golang v1.11.0
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
