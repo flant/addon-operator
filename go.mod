@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/flant/kube-client v0.0.6
-	github.com/flant/shell-operator v1.0.5-0.20211111121017-d58c0cd7a595 // branch: master
+	github.com/flant/shell-operator v1.0.5 // 2021-12-01
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
@@ -20,8 +20,8 @@ require (
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.9.1
-	github.com/tidwall/sjson v1.2.2
+	github.com/tidwall/gjson v1.10.2
+	github.com/tidwall/sjson v1.2.3
 	go.uber.org/goleak v1.1.12
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
