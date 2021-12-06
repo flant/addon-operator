@@ -41,18 +41,15 @@ type Module struct {
 	// module values from modules/<module name>/values.yaml
 	StaticConfig *utils.ModuleConfig
 
-	LastReleaseManifests []manifest.Manifest
-
 	State *ModuleState
-
-	// There was a successful Run() without values changes
-	IsReady bool
 
 	moduleManager *moduleManager
 	metricStorage *metric_storage.MetricStorage
 }
 
 type ModuleState struct {
+	Enabled bool
+
 	//
 	OnStartupDone                bool
 	SynchronizationTasksQueued   bool
@@ -122,13 +119,15 @@ func (m *Module) SynchronizationDone() bool {
 	return done
 }
 
-// Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
+// Run is a phase of module lifecycle that runs onStartup hooks.
 // It is a handler of task MODULE_RUN
 func (m *Module) RunOnStartup(logLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"module": m.Name,
 		"queue":  "main",
 	})
+
+	m.State.Enabled = true
 
 	if err := m.cleanup(); err != nil {
 		return err
@@ -203,9 +202,8 @@ func (m *Module) Delete(logLabels map[string]string) error {
 	// Stop resources monitor before deleting release
 	m.moduleManager.HelmResourcesManager.StopMonitor(m.Name)
 
-	// Если есть chart, но нет релиза — warning
-	// если нет чарта — молча перейти к хукам
-	// если есть и chart и релиз — удалить
+	// Module has chart, but there is no release -> log a warning.
+	// Module has chart and release -> execute helm delete.
 	chartExists, _ := m.checkHelmChart()
 	if chartExists {
 		releaseExists, err := helm.NewClient(deleteLogLabels).IsReleaseExists(m.generateHelmReleaseName())
@@ -224,7 +222,14 @@ func (m *Module) Delete(logLabels map[string]string) error {
 		}
 	}
 
-	return m.runHooksByBinding(AfterDeleteHelm, deleteLogLabels)
+	err := m.runHooksByBinding(AfterDeleteHelm, deleteLogLabels)
+	if err != nil {
+		return err
+	}
+
+	// Cleanup state.
+	m.State = &ModuleState{}
+	return nil
 }
 
 func (m *Module) cleanup() error {
@@ -316,7 +321,6 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 		return err
 	}
 	logEntry.Debugf("chart has %d resources", len(manifests))
-	m.LastReleaseManifests = manifests
 
 	// Skip upgrades if nothing is changes
 	var runUpgradeRelease bool
