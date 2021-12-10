@@ -1,5 +1,5 @@
 <p align="center">
-<img width="407" src="docs/logo-addon.png" alt="Addon-operator logo" />
+<img src="docs/logo-addon-operator-small.png" alt="addon-operator logo" />
 </p>
 
 <p align="center">
