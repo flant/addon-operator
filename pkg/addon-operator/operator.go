@@ -607,6 +607,39 @@ func (op *AddonOperator) InitAndStartHookQueues() {
 	}
 }
 
+func (op *AddonOperator) DrainModuleQueues(modName string) {
+	drainQueue := func(queueName string) {
+		if queueName == "main" {
+			return
+		}
+		q := op.TaskQueues.GetByName(queueName)
+		if q == nil {
+			return
+		}
+
+		// Remove all tasks.
+		q.Filter(func(_ sh_task.Task) bool {
+			return false
+		})
+	}
+
+	schHooks := op.ModuleManager.GetModuleHooksInOrder(modName, Schedule)
+	for _, hookName := range schHooks {
+		h := op.ModuleManager.GetModuleHook(hookName)
+		for _, hookBinding := range h.Config.Schedules {
+			drainQueue(hookBinding.Queue)
+		}
+	}
+
+	kubeHooks := op.ModuleManager.GetModuleHooksInOrder(modName, OnKubernetesEvent)
+	for _, hookName := range kubeHooks {
+		h := op.ModuleManager.GetModuleHook(hookName)
+		for _, hookBinding := range h.Config.OnKubernetesEvents {
+			drainQueue(hookBinding.Queue)
+		}
+	}
+}
+
 func (op *AddonOperator) StartModuleManagerEventHandler() {
 	go func() {
 		for {
@@ -903,6 +936,8 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		// TODO wait while module's tasks in other queues are done.
 		hm := task.HookMetadataAccessor(t)
 		taskLogEntry.Infof("Module delete '%s'", hm.ModuleName)
+		// Remove all hooks from parallel queues.
+		op.DrainModuleQueues(hm.ModuleName)
 		err := op.ModuleManager.DeleteModule(hm.ModuleName, t.GetLogLabels())
 		if err != nil {
 			op.MetricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
@@ -1027,6 +1062,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	var moduleRunErr error
 	var valuesChanged = false
 
+	// First module run on operator startup or when module is enabled.
 	if hm.OnStartupHooks && !module.State.OnStartupDone {
 		treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
 		logEntry.WithField("module.state", "startup").
@@ -1260,7 +1296,6 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		} else {
 			logEntry.WithField("module.state", "ready").
 				Infof("ModuleRun success, module is ready")
-			module.IsReady = true
 		}
 	}
 	return
@@ -1273,6 +1308,12 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 
 	hm := task.HookMetadataAccessor(t)
 	taskHook := op.ModuleManager.GetModuleHook(hm.HookName)
+
+	// Prevent hook running in parallel queue if module is disabled in "main" queue.
+	if !taskHook.Module.State.Enabled {
+		res.Status = "Success"
+		return
+	}
 
 	err := taskHook.RateLimitWait(context.Background())
 	if err != nil {
