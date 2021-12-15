@@ -1,8 +1,9 @@
 # every push to a branch: build a binary
 name: Build
 on:
-  push:
-    branches:
+  pull_request:
+    types: [opened, synchronize]
+
 jobs:
   build_binary:
     name: Build addon-operator binary
@@ -17,11 +18,7 @@ jobs:
       - name: Check out addon-operator code
         uses: actions/checkout@v2.4.0
 
-      # Restore go_modules.tar.gz from cache or download modules and pack them
-      # Then upload archive as artifact to use by other jobs.
-      # NOTE: cache action is limited to 400Mb artifacts and has a 2Gb space.
-      # As of June 2020, go_modules.tar.gz is ~389Mb
-      - name: Cache go modules archive
+      - name: Restore Go modules
         id: go-modules-cache
         uses: actions/cache@v2.1.7
         with:
@@ -35,7 +32,7 @@ jobs:
         if: steps.go-modules-cache.outputs.cache-hit != 'true'
         run: |
           go mod download
-          echo -n "GO modules size is: " && du -sh $HOME/go/pkg/mod
+          echo -n "Go modules unpacked size is: " && du -sh $HOME/go/pkg/mod
 
       - name: Download prebuilt libjq static libraries
         run: |
