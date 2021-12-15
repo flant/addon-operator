@@ -2,14 +2,13 @@
 # - run linter
 name: Lint
 on:
-  push:
-    branches:
+  pull_request:
+    types: [opened, synchronize]
+
 jobs:
   run_linter:
     name: Run linter
     runs-on: ubuntu-latest
-    env:
-      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
       - name: Set up Go 1.16
         uses: actions/setup-go@v2
@@ -20,32 +19,21 @@ jobs:
       - name: Check out addon-operator code
         uses: actions/checkout@v2.4.0
 
-      # Restore go_modules.tar.gz from cache or download modules and pack them
-      # Then upload archive as artifact to use by other jobs.
-      # NOTE: cache action is limited to 400Mb artifacts and has a 2Gb space.
-      # As of June 2020, go_modules.tar.gz is ~389Mb
-      - name: Cache go modules archive
+      - name: Restore Go modules
         id: go-modules-cache
         uses: actions/cache@v2.1.7
         with:
-          path: gomod
-          key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod') }}
+          path: |
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod', 'go.sum') }}
           restore-keys: |
             ${{ runner.os }}-gomod-
 
-      - name: Download and pack Go modules
+      - name: Download Go modules
         if: steps.go-modules-cache.outputs.cache-hit != 'true'
         run: |
-          mkdir -p gomod
           go mod download
-          tar -czf gomod/go_modules.tar.gz -C $HOME/go/pkg/mod .
-          echo -n "Unpacked size is: " && du -sh $HOME/go/pkg/mod
-          echo -n "Packed size is: " && du -sh gomod/go_modules.tar.gz
-
-      - name: Unpack go modules
-        if: steps.go-modules-cache.outputs.cache-hit == 'true'
-        run: |
-          mkdir -p $HOME/go/pkg/mod && tar -xzf gomod/go_modules.tar.gz -C $HOME/go/pkg/mod
+          echo -n "Go modules unpacked size is: " && du -sh $HOME/go/pkg/mod
 
       - name: Download prebuilt libjq static libraries
         run: |
@@ -53,10 +41,10 @@ jobs:
 
       - name: Run golangci-lint
         run: |
+          export CGO_ENABLED=1
           export CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/include"
           export CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/lib"
           export GOOS=linux
 
-          # Use 1.33.0 compiled with go 1.15
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b . v1.33.0
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b . v1.42.1
           ./golangci-lint run --sort-results --timeout 5m

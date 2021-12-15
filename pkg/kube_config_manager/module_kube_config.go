@@ -20,9 +20,7 @@ func GetModulesNamesFromConfigData(configData map[string]string) map[string]bool
 			continue
 		}
 
-		if strings.HasSuffix(key, "Enabled") {
-			key = strings.TrimSuffix(key, "Enabled")
-		}
+		key = strings.TrimSuffix(key, "Enabled")
 
 		modName := utils.ModuleNameFromValuesKey(key)
 
