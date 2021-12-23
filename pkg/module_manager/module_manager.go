@@ -574,6 +574,7 @@ func (mm *moduleManager) Init() error {
 		log.Warnf("ConfigMap/%s has values for absent modules: %+v", app.ConfigMapName, unknownNames)
 	}
 
+	// Initialize kubeConfigIsValid flag and start checking it in go routine.
 	err := mm.validateKubeConfig(mm.kubeConfigManager.CurrentConfig())
 
 	go mm.checkConfig()
@@ -618,6 +619,7 @@ func (mm *moduleManager) validateKubeConfig(kubeConfig *kube_config_manager.Conf
 	return validationErr
 }
 
+// checkConfig increases config_values_errors_total metric when kubeConfig becomes invalid.
 func (mm *moduleManager) checkConfig() {
 	for {
 		if mm.ctx.Err() != nil {
