@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	klient "github.com/flant/kube-client/client"
 	"github.com/hashicorp/go-multierror"
@@ -184,6 +185,8 @@ type moduleManager struct {
 	kubeGlobalConfigValues utils.Values
 	// module values from ConfigMap, only for enabled modules
 	kubeModulesConfigValues map[string]utils.Values
+	// marks addon-operator config is valid or not
+	kubeConfigIsValid bool
 
 	// Invariant: do not store patches that cannot be applied.
 	// Give user error for patches early, after patch receive.
@@ -563,7 +566,7 @@ func (mm *moduleManager) Init() error {
 	var unknown []utils.ModuleConfig
 	mm.enabledModulesByConfig, mm.kubeModulesConfigValues, unknown = mm.calculateEnabledModulesByConfig(kubeConfig.ModuleConfigs)
 
-	unknownNames := []string{}
+	unknownNames := make([]string, 0)
 	for _, config := range unknown {
 		unknownNames = append(unknownNames, config.ModuleName)
 	}
@@ -571,7 +574,12 @@ func (mm *moduleManager) Init() error {
 		log.Warnf("ConfigMap/%s has values for absent modules: %+v", app.ConfigMapName, unknownNames)
 	}
 
-	return mm.validateKubeConfig(mm.kubeConfigManager.CurrentConfig())
+	// Initialize kubeConfigIsValid flag and start checking it in go routine.
+	err := mm.validateKubeConfig(mm.kubeConfigManager.CurrentConfig())
+
+	go mm.checkConfig()
+
+	return err
 }
 
 func (mm *moduleManager) validateKubeConfig(kubeConfig *kube_config_manager.Config) error {
@@ -603,10 +611,25 @@ func (mm *moduleManager) validateKubeConfig(kubeConfig *kube_config_manager.Conf
 	}
 
 	if validationErr != nil {
-		mm.metricStorage.CounterAdd("{PREFIX}config_values_errors_total", 1.0, map[string]string{})
+		mm.kubeConfigIsValid = false
+	} else {
+		mm.kubeConfigIsValid = true
 	}
 
 	return validationErr
+}
+
+// checkConfig increases config_values_errors_total metric when kubeConfig becomes invalid.
+func (mm *moduleManager) checkConfig() {
+	for {
+		if mm.ctx.Err() != nil {
+			return
+		}
+		if !mm.kubeConfigIsValid {
+			mm.metricStorage.CounterAdd("{PREFIX}config_values_errors_total", 1.0, map[string]string{})
+		}
+		time.Sleep(5 * time.Second)
+	}
 }
 
 // Module manager loop
