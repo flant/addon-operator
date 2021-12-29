@@ -6,17 +6,15 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/flant/addon-operator/sdk"
-	log "github.com/sirupsen/logrus"
-
-	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
-
 	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/controller"
+	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/sdk"
 )
 
 type Hook interface {

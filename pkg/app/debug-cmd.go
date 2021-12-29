@@ -12,6 +12,19 @@ import (
 func DefineDebugCommands(kpApp *kingpin.Application) {
 	globalCmd := sh_app.CommandWithDefaultUsageTemplate(kpApp, "global", "manage global values")
 
+	globalListCmd := globalCmd.Command("list", "List global hooks.").
+		Action(func(c *kingpin.ParseContext) error {
+			dump, err := Global(sh_debug.DefaultClient()).List(sh_debug.OutputFormat)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(dump))
+			return nil
+		})
+	// -o json|yaml and --debug-unix-socket <file>
+	AddOutputJsonYamlFlag(globalListCmd)
+	sh_app.DefineDebugUnixSocketFlag(globalListCmd)
+
 	globalValuesCmd := globalCmd.Command("values", "Dump current global values.").
 		Action(func(c *kingpin.ParseContext) error {
 			dump, err := Global(sh_debug.DefaultClient()).Values(sh_debug.OutputFormat)
@@ -50,7 +63,20 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	// --debug-unix-socket <file>
 	sh_app.DefineDebugUnixSocketFlag(globalPatchesCmd)
 
-	moduleCmd := sh_app.CommandWithDefaultUsageTemplate(kpApp, "module", "manage modules ant their values")
+	globalSnapshotsCmd := globalCmd.Command("snapshots", "Dump snapshots for all global hooks.").
+		Action(func(c *kingpin.ParseContext) error {
+			out, err := Global(sh_debug.DefaultClient()).Snapshots(sh_debug.OutputFormat)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(out))
+			return nil
+		})
+	// -o json|yaml and --debug-unix-socket <file>
+	AddOutputJsonYamlFlag(globalSnapshotsCmd)
+	sh_app.DefineDebugUnixSocketFlag(globalSnapshotsCmd)
+
+	moduleCmd := sh_app.CommandWithDefaultUsageTemplate(kpApp, "module", "List modules and dump their values")
 
 	moduleListCmd := moduleCmd.Command("list", "List available modules and their enabled status.").
 		Action(func(c *kingpin.ParseContext) error {
@@ -122,17 +148,31 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleResourceMonitorCmd := moduleCmd.Command("resource-monitor", "Dump resource monitors.").
 		Action(func(c *kingpin.ParseContext) error {
-			out, err := Module(sh_debug.DefaultClient()).ResourceMonitor(sh_debug.OutputFormat)
+			out, err := Module(sh_debug.DefaultClient()).Name(moduleName).ResourceMonitor(sh_debug.OutputFormat)
 			if err != nil {
 				return err
 			}
 			fmt.Println(string(out))
 			return nil
 		})
+	moduleResourceMonitorCmd.Arg("module_name", "").StringVar(&moduleName)
 	// -o json|yaml and --debug-unix-socket <file>
 	AddOutputJsonYamlFlag(moduleResourceMonitorCmd)
 	sh_app.DefineDebugUnixSocketFlag(moduleResourceMonitorCmd)
 
+	moduleSnapshotsCmd := moduleCmd.Command("snapshots", "Dump snapshots for all hooks.").
+		Action(func(c *kingpin.ParseContext) error {
+			out, err := Module(sh_debug.DefaultClient()).Name(moduleName).Snapshots(sh_debug.OutputFormat)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(out))
+			return nil
+		})
+	moduleSnapshotsCmd.Arg("module_name", "").Required().StringVar(&moduleName)
+	// -o json|yaml and --debug-unix-socket <file>
+	AddOutputJsonYamlFlag(moduleSnapshotsCmd)
+	sh_app.DefineDebugUnixSocketFlag(moduleSnapshotsCmd)
 }
 
 func AddOutputJsonYamlFlag(cmd *kingpin.CmdClause) {
@@ -149,6 +189,11 @@ func Global(client *sh_debug.Client) *GlobalRequest {
 	return &GlobalRequest{client: client}
 }
 
+func (gr *GlobalRequest) List(format string) ([]byte, error) {
+	url := fmt.Sprintf("http://unix/global/list.%s", format)
+	return gr.client.Get(url)
+}
+
 func (gr *GlobalRequest) Values(format string) ([]byte, error) {
 	url := fmt.Sprintf("http://unix/global/values.%s", format)
 	return gr.client.Get(url)
@@ -161,6 +206,11 @@ func (gr *GlobalRequest) Config(format string) ([]byte, error) {
 
 func (gr *GlobalRequest) Patches() ([]byte, error) {
 	return gr.client.Get("http://unix/global/patches.json")
+}
+
+func (gr *GlobalRequest) Snapshots(format string) ([]byte, error) {
+	url := fmt.Sprintf("http://unix/global/snapshots.%s", format)
+	return gr.client.Get(url)
 }
 
 type ModuleRequest struct {
@@ -204,5 +254,10 @@ func (mr *ModuleRequest) Patches() ([]byte, error) {
 
 func (mr *ModuleRequest) Config(format string) ([]byte, error) {
 	url := fmt.Sprintf("http://unix/module/%s/config.%s", mr.name, format)
+	return mr.client.Get(url)
+}
+
+func (mr *ModuleRequest) Snapshots(format string) ([]byte, error) {
+	url := fmt.Sprintf("http://unix/module/%s/snapshots.%s", mr.name, format)
 	return mr.client.Get(url)
 }

@@ -148,6 +148,10 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	logEntry.Info("Module hook start")
 
+	for _, info := range h.HookController.SnapshotsInfo() {
+		logEntry.Infof("snapshot info: %s", info)
+	}
+
 	// Convert context for version
 	//versionedContextList := ConvertBindingContextList(h.Config.Version, context)
 
