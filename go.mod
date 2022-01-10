@@ -21,7 +21,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.12.1
-	github.com/tidwall/sjson v1.2.3
+	github.com/tidwall/sjson v1.2.4
 	go.uber.org/goleak v1.1.12
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/satori/go.uuid.v1 v1.2.0
