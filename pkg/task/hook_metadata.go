@@ -3,6 +3,7 @@ package task
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"sort"
 	"strings"
 
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -54,13 +55,22 @@ func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
 }
 
 func (hm HookMetadata) GetDescription() string {
-	bindings := []string{}
+	bindingsMap := make(map[string]struct{})
+	bindings := make([]string, 0)
+
 	for _, bc := range hm.BindingContext {
-		bindings = append(bindings, bc.Binding)
+		bindingsMap[bc.Binding] = struct{}{}
 	}
+	for bindingName := range bindingsMap {
+		bindings = append(bindings, bindingName)
+	}
+	sort.Strings(bindings)
 	bindingNames := ""
 	if len(bindings) > 0 {
 		bindingNames = ":" + strings.Join(bindings, ",")
+	}
+	if len(hm.BindingContext) > 1 {
+		bindingNames = fmt.Sprintf("%s in %d contexts", bindingNames, len(hm.BindingContext))
 	}
 
 	if hm.ModuleName == "" {

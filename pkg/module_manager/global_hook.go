@@ -152,6 +152,11 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 	// Convert bindingContext for version
 	//versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
 
+	for _, info := range h.HookController.SnapshotsInfo() {
+		log.WithFields(utils.LabelsToLogFields(logLabels)).
+			Infof("snapshot info: %s", info)
+	}
+
 	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version, h.moduleManager.KubeObjectPatcher)
 	globalHookExecutor.WithLogLabels(logLabels)
 	hookResult, err := globalHookExecutor.Run()

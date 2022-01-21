@@ -2,7 +2,6 @@ package addon_operator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -13,12 +12,6 @@ import (
 	"time"
 
 	klient "github.com/flant/kube-client/client"
-	"github.com/go-chi/chi"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
-	uuid "gopkg.in/satori/go.uuid.v1"
-	"sigs.k8s.io/yaml"
-
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
@@ -29,6 +22,10 @@ import (
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	. "github.com/flant/shell-operator/pkg/utils/measure"
+	"github.com/go-chi/chi"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
+	uuid "gopkg.in/satori/go.uuid.v1"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -1875,144 +1872,87 @@ func (op *AddonOperator) RunAddonOperatorMetrics() {
 }
 
 func (op *AddonOperator) SetupDebugServerHandles() {
-	op.DebugServer.Router.Get("/global/{type:(config|values)}.{format:(json|yaml)}", func(writer http.ResponseWriter, request *http.Request) {
-		valType := chi.URLParam(request, "type")
-		format := chi.URLParam(request, "format")
-
-		var values utils.Values
-		var err error
-		switch valType {
-		case "config":
-			values = op.ModuleManager.GlobalConfigValues()
-		case "values":
-			values, err = op.ModuleManager.GlobalValues()
-		}
-
-		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
-		}
-
-		outBytes, err := values.AsBytes(format)
-		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
-		}
-		_, _ = writer.Write(outBytes)
+	op.DebugServer.Route("/global/list.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
+		return map[string]interface{}{
+			"globalHooks": op.ModuleManager.GetGlobalHooksNames(),
+		}, nil
 	})
 
-	op.DebugServer.Router.Get("/global/patches.json", func(writer http.ResponseWriter, request *http.Request) {
-		jp := op.ModuleManager.GlobalValuesPatches()
-		data, err := json.Marshal(jp)
-		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
-		}
-		_, _ = writer.Write(data)
+	op.DebugServer.Route("/global/values.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
+		return op.ModuleManager.GlobalValues()
 	})
 
-	op.DebugServer.Router.Get("/module/list.{format:(json|yaml|text)}", func(writer http.ResponseWriter, request *http.Request) {
-		format := chi.URLParam(request, "format")
-
-		_, _ = fmt.Fprintf(writer, "Dump enabled modules in %s format.\n", format)
-
-		for _, mName := range op.ModuleManager.GetModuleNamesInOrder() {
-			_, _ = fmt.Fprintf(writer, "%s \n", mName)
-		}
-
+	op.DebugServer.Route("/global/config.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
+		return op.ModuleManager.GlobalConfigValues(), nil
 	})
 
-	op.DebugServer.Router.Get("/module/{name}/{type:(config|values)}.{format:(json|yaml)}", func(writer http.ResponseWriter, request *http.Request) {
-		modName := chi.URLParam(request, "name")
-		valType := chi.URLParam(request, "type")
-		format := chi.URLParam(request, "format")
+	op.DebugServer.Route("/global/patches.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
+		return op.ModuleManager.GlobalValuesPatches(), nil
+	})
+
+	op.DebugServer.Route("/global/snapshots.{format:(json|yaml)}", func(r *http.Request) (interface{}, error) {
+		kubeHookNames := op.ModuleManager.GetGlobalHooksInOrder(OnKubernetesEvent)
+		snapshots := make(map[string]interface{})
+		for _, hName := range kubeHookNames {
+			h := op.ModuleManager.GetGlobalHook(hName)
+			snapshots[hName] = h.HookController.SnapshotsDump()
+		}
+
+		return snapshots, nil
+	})
+
+	op.DebugServer.Route("/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (interface{}, error) {
+		return map[string][]string{"enabledModules": op.ModuleManager.GetModuleNamesInOrder()}, nil
+	})
+
+	op.DebugServer.Route("/module/{name}/{type:(config|values)}.{format:(json|yaml)}", func(r *http.Request) (interface{}, error) {
+		modName := chi.URLParam(r, "name")
+		valType := chi.URLParam(r, "type")
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
-			writer.WriteHeader(http.StatusNotFound)
-			_, _ = writer.Write([]byte("Module not found"))
-			return
+			return nil, fmt.Errorf("Module not found")
 		}
 
-		var values utils.Values
-		var err error
 		switch valType {
 		case "config":
-			values = m.ConfigValues()
+			return m.ConfigValues(), nil
 		case "values":
-			values, err = m.Values()
+			return m.Values()
 		}
-
-		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
-		}
-
-		outBytes, err := values.AsBytes(format)
-		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
-		}
-		_, _ = writer.Write(outBytes)
+		return "no values", nil
 	})
 
-	op.DebugServer.Router.Get("/module/{name}/render", func(writer http.ResponseWriter, request *http.Request) {
-		modName := chi.URLParam(request, "name")
+	op.DebugServer.Route("/module/{name}/render", func(r *http.Request) (interface{}, error) {
+		modName := chi.URLParam(r, "name")
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
-			writer.WriteHeader(http.StatusNotFound)
-			_, _ = writer.Write([]byte("Module not found"))
-			return
+			return nil, fmt.Errorf("Module not found")
 		}
 
 		valuesPath, err := m.PrepareValuesYamlFile()
 		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
+			return nil, err
 		}
 		defer os.Remove(valuesPath)
 
 		helmCl := helm.NewClient()
-		output, err := helmCl.Render(m.Name, m.Path, []string{valuesPath}, nil, app.Namespace)
-		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
-		}
-
-		_, _ = writer.Write([]byte(output))
+		return helmCl.Render(m.Name, m.Path, []string{valuesPath}, nil, app.Namespace)
 	})
 
-	op.DebugServer.Router.Get("/module/{name}/patches.json", func(writer http.ResponseWriter, request *http.Request) {
-		modName := chi.URLParam(request, "name")
+	op.DebugServer.Route("/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {
+		modName := chi.URLParam(r, "name")
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
-			writer.WriteHeader(http.StatusNotFound)
-			_, _ = writer.Write([]byte("Module not found"))
-			return
+			return nil, fmt.Errorf("Module not found")
 		}
 
-		jp := m.ValuesPatches()
-		data, err := json.Marshal(jp)
-		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
-		}
-		_, _ = writer.Write(data)
+		return m.ValuesPatches(), nil
 	})
 
-	op.DebugServer.Router.Get("/module/resource-monitor.{format:(json|yaml)}", func(writer http.ResponseWriter, request *http.Request) {
-		format := chi.URLParam(request, "format")
-
+	op.DebugServer.Route("/module/resource-monitor.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
 		dump := map[string]interface{}{}
 
 		for _, moduleName := range op.ModuleManager.GetModuleNamesInOrder() {
@@ -2025,19 +1965,25 @@ func (op *AddonOperator) SetupDebugServerHandles() {
 			dump[moduleName] = ids
 		}
 
-		var outBytes []byte
-		var err error
-		switch format {
-		case "yaml":
-			outBytes, err = yaml.Marshal(dump)
-		case "json":
-			outBytes, err = json.Marshal(dump)
+		return dump, nil
+	})
+
+	op.DebugServer.Route("/module/{name}/snapshots.{format:(json|yaml)}", func(r *http.Request) (interface{}, error) {
+		modName := chi.URLParam(r, "name")
+
+		m := op.ModuleManager.GetModule(modName)
+		if m == nil {
+			return nil, fmt.Errorf("Module not found")
 		}
-		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = fmt.Fprintf(writer, "Error: %s", err)
+
+		mHookNames := op.ModuleManager.GetModuleHookNames(m.Name)
+		snapshots := make(map[string]interface{})
+		for _, hName := range mHookNames {
+			h := op.ModuleManager.GetModuleHook(hName)
+			snapshots[hName] = h.HookController.SnapshotsDump()
 		}
-		_, _ = writer.Write(outBytes)
+
+		return snapshots, nil
 	})
 
 }

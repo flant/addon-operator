@@ -56,6 +56,7 @@ type ModuleManager interface {
 	WithHookMetricStorage(storage *metric_storage.MetricStorage)
 
 	GetGlobalHooksInOrder(bindingType BindingType) []string
+	GetGlobalHooksNames() []string
 	GetGlobalHook(name string) *GlobalHook
 
 	GetModuleNamesInOrder() []string
@@ -858,6 +859,18 @@ func (mm *moduleManager) GetModuleHook(name string) *ModuleHook {
 	}
 	log.Errorf("Possible bug!!! GetModuleHook: no module hook '%s' in ModuleManager indexes", name)
 	return nil
+}
+
+func (mm *moduleManager) GetGlobalHooksNames() []string {
+	names := make([]string, 0)
+
+	for name := range mm.globalHooksByName {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
+
+	return names
 }
 
 func (mm *moduleManager) GetGlobalHooksInOrder(bindingType BindingType) []string {
