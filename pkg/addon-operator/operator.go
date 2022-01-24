@@ -2061,10 +2061,12 @@ func (op *AddonOperator) MainQueueHasConvergeTasks() (int, []string) {
 
 	op.TaskQueues.GetMain().Iterate(func(t sh_task.Task) {
 		ttype := t.GetType()
+
+		addToList(t)
+
 		switch ttype {
 		case task.ModuleRun, task.DiscoverModulesState, task.ModuleDelete, task.ModulePurge, task.ModuleManagerRetry, task.ReloadAllModules, task.GlobalHookEnableKubernetesBindings, task.GlobalHookEnableScheduleBindings:
 			convergeTasks++
-			addToList(t)
 			return
 		}
 
@@ -2073,7 +2075,6 @@ func (op *AddonOperator) MainQueueHasConvergeTasks() (int, []string) {
 			switch hm.BindingType {
 			case BeforeAll, AfterAll:
 				convergeTasks++
-				addToList(t)
 				return
 			}
 		}
