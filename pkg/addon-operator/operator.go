@@ -2023,7 +2023,7 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	})
 
 	http.HandleFunc("/status/converge", func(writer http.ResponseWriter, request *http.Request) {
-		convergeTasks := op.MainQueueHasConvergeTasks()
+		convergeTasks, _ := op.MainQueueHasConvergeTasks()
 
 		statusLines := make([]string, 0)
 		if op.StartupConvergeDone {
@@ -2049,13 +2049,22 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	})
 }
 
-func (op *AddonOperator) MainQueueHasConvergeTasks() int {
+func (op *AddonOperator) MainQueueHasConvergeTasks() (int, []string) {
 	convergeTasks := 0
+
+	names := make([]string, 0)
+	addToList := func(t sh_task.Task) {
+		meta := task.HookMetadataAccessor(t)
+		s := fmt.Sprintf("%s/%s", meta.ModuleName, meta.HookName)
+		names = append(names, s)
+	}
+
 	op.TaskQueues.GetMain().Iterate(func(t sh_task.Task) {
 		ttype := t.GetType()
 		switch ttype {
 		case task.ModuleRun, task.DiscoverModulesState, task.ModuleDelete, task.ModulePurge, task.ModuleManagerRetry, task.ReloadAllModules, task.GlobalHookEnableKubernetesBindings, task.GlobalHookEnableScheduleBindings:
 			convergeTasks++
+			addToList(t)
 			return
 		}
 
@@ -2064,19 +2073,20 @@ func (op *AddonOperator) MainQueueHasConvergeTasks() int {
 			switch hm.BindingType {
 			case BeforeAll, AfterAll:
 				convergeTasks++
+				addToList(t)
 				return
 			}
 		}
 	})
 
-	return convergeTasks
+	return convergeTasks, names
 }
 
 func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
-	convergeTasks := op.MainQueueHasConvergeTasks()
+	convergeTasks, names := op.MainQueueHasConvergeTasks()
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
-	logEntry.Infof("Queue 'main' contains %d converge tasks after handle '%s'", convergeTasks, string(t.GetType()))
+	logEntry.Infof("Queue 'main' contains %d converge tasks after handle '%s'; Queue: %v", convergeTasks, string(t.GetType()), names)
 
 	// Trigger Started.
 	if convergeTasks > 0 {
