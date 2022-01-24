@@ -2,6 +2,7 @@ package module_manager
 
 import (
 	"fmt"
+	"k8s.io/utils/diff"
 	"path/filepath"
 	"strings"
 
@@ -157,6 +158,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			Infof("snapshot info: %s", info)
 	}
 
+	before, _ := h.moduleManager.kubeGlobalConfigValues.AsString("yaml")
+
 	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version, h.moduleManager.KubeObjectPatcher)
 	globalHookExecutor.WithLogLabels(logLabels)
 	hookResult, err := globalHookExecutor.Run()
@@ -224,6 +227,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 
 			h.moduleManager.UpdateGlobalConfigValues(configValuesPatchResult.Values)
 			log.Debugf("Global hook '%s': kube config global values updated:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
+			after, _ := h.moduleManager.kubeGlobalConfigValues.YamlString()
+			log.Infof("Global hook '%s': kube config global values updated, diff:\n%s", h.Name, diff.StringDiff(before, after))
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*configValuesPatch)
@@ -263,6 +268,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)
 			}
 			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, newGlobalValues.DebugString())
+			after, _ := h.moduleManager.kubeGlobalConfigValues.YamlString()
+			log.Infof("Global hook '%s': kube config global values updated, diff:\n%s", h.Name, diff.StringDiff(before, after))
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*valuesPatch)
