@@ -245,6 +245,7 @@ type ModuleChange struct {
 type Event struct {
 	ModulesChanges []ModuleChange
 	Type           EventType
+	Description    string
 }
 
 // NewMainModuleManager returns new MainModuleManager
@@ -377,7 +378,7 @@ func (mm *moduleManager) handleNewKubeConfig(newConfig kube_config_manager.Confi
 
 	res := &kubeUpdate{
 		KubeGlobalConfigValues: newConfig.Values,
-		Events:                 []Event{{Type: GlobalChanged}},
+		Events:                 []Event{{Type: GlobalChanged, Description: "New kube config"}},
 	}
 
 	var unknown []utils.ModuleConfig
@@ -451,7 +452,7 @@ func (mm *moduleManager) handleNewKubeModuleConfigs(moduleConfigs kube_config_ma
 		// create a Discover task, run enabled scripts again, init new module hooks,
 		// update mm.enabledModulesInOrder
 		logEntry.Debugf("enabled modules set changed from %v to %v: generate GlobalChanged event", mm.enabledModulesInOrder, res.EnabledModulesByConfig)
-		res.Events = append(res.Events, Event{Type: GlobalChanged})
+		res.Events = append(res.Events, Event{Type: GlobalChanged, Description: "Enabled modules was changed"})
 	} else {
 		// Enabled modules set is not changed, only values in configmap are changed.
 		logEntry.Debugf("generate ModulesChanged events...")
