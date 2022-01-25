@@ -1406,7 +1406,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	}
 
 	if shouldRunHook {
-		logEntry.Infof("Module hook start '%s'", hm.HookName)
+		logEntry.Infof("Module hook should start '%s/%s\n'", hm.ModuleName, hm.HookName)
 
 		// Module hook can recreate helm objects, so pause resources monitor.
 		// Parallel hooks can interfere, so pause-resume only for hooks in the main queue.
@@ -2056,7 +2056,7 @@ func (op *AddonOperator) MainQueueHasConvergeTasks() (int, []string) {
 	names := make([]string, 0)
 	addToList := func(t sh_task.Task) {
 		meta := task.HookMetadataAccessor(t)
-		s := fmt.Sprintf("%s/%s", meta.ModuleName, meta.HookName)
+		s := fmt.Sprintf("%s:%s/%s()", t.GetType(), meta.ModuleName, meta.GetHookName())
 		names = append(names, s)
 	}
 
