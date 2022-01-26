@@ -2,7 +2,6 @@ package module_manager
 
 import (
 	"fmt"
-	"k8s.io/utils/diff"
 	"path/filepath"
 	"strings"
 
@@ -192,9 +191,17 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		}
 	}
 
+	patchesForLogs := func(p *utils.ValuesPatch) string {
+		r := make([]string, 0, len(p.Operations))
+		for _, o := range p.Operations {
+			r = append(r, o.ToString())
+		}
+
+		return strings.Join(r, ";")
+	}
+
 	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
-		before, _ := h.moduleManager.kubeGlobalConfigValues.YamlString()
 		preparedConfigValues := utils.MergeValues(
 			utils.Values{"global": map[string]interface{}{}},
 			h.moduleManager.kubeGlobalConfigValues,
@@ -224,10 +231,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
 			}
 
-			h.moduleManager.UpdateGlobalConfigValues(configValuesPatchResult.Values)
 			log.Debugf("Global hook '%s': kube config global values updated:\n%s\n", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
-			after, _ := h.moduleManager.kubeGlobalConfigValues.YamlString()
-			log.Infof("Global hook '%s': kube config global values updated, diff:\n%s\n", h.Name, diff.StringDiff(before, after))
+			log.Infof("Global hook '%s': kube config global values updated, patches:\n%s\n", h.Name, patchesForLogs(configValuesPatch))
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*configValuesPatch)
@@ -261,18 +266,13 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				)
 			}
 
-			before, _ := h.moduleManager.GlobalValues()
-			beforeYAML, _ := before.YamlString()
-
 			h.moduleManager.UpdateGlobalDynamicValuesPatches(valuesPatchResult.ValuesPatch)
 			newGlobalValues, err := h.moduleManager.GlobalValues()
 			if err != nil {
 				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)
 			}
 			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, newGlobalValues.DebugString())
-			after, _ := h.moduleManager.GlobalValues()
-			afterYAML, _ := after.YamlString()
-			log.Infof("Global hook '%s': kube config global values updated, diff:\n%s", h.Name, diff.StringDiff(beforeYAML, afterYAML))
+			log.Infof("Global hook '%s': kube config global values updated, diff:\n%s", h.Name, patchesForLogs(valuesPatch))
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*valuesPatch)
