@@ -359,9 +359,7 @@ func (op *AddonOperator) Start() {
 	// Start it before start all informers to catch all kubernetes events (#42)
 	op.ManagerEventsHandler.Start()
 
-	// add schedules to schedule manager
-	//op.HookManager.EnableScheduleBindings()
-	op.ScheduleManager.Start()
+	// schedule manager run after first converge will be finished
 
 	op.ModuleManager.Start()
 	op.StartModuleManagerEventHandler()
@@ -2094,6 +2092,8 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 		if !op.StartupConvergeDone && op.StartupConvergeStarted {
 			logEntry.Infof("First converge is finished. Operator is ready now.")
 			op.StartupConvergeDone = true
+			op.ScheduleManager.Start()
+			logEntry.Infof("Schedule manager was started.")
 		}
 		if op.ConvergeStarted != 0 {
 			convergeSeconds := time.Duration(time.Now().UnixNano() - op.ConvergeStarted).Seconds()
