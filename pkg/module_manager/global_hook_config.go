@@ -368,8 +368,9 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 
 		res.AllowFailure = input.AllowFailure
 		res.ScheduleEntry = types.ScheduleEntry{
-			Crontab: inSch.Crontab,
-			Id:      config.ScheduleID(),
+			Crontab:      inSch.Crontab,
+			Id:           config.ScheduleID(),
+			InitialDelay: inSch.InitialDelay,
 		}
 
 		if input.Queue == "" {
