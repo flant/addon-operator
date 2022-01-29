@@ -191,15 +191,6 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		}
 	}
 
-	patchesForLogs := func(p *utils.ValuesPatch) string {
-		r := make([]string, 0, len(p.Operations))
-		for _, o := range p.Operations {
-			r = append(r, o.ToString())
-		}
-
-		return strings.Join(r, ";")
-	}
-
 	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
 		preparedConfigValues := utils.MergeValues(
@@ -231,8 +222,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
 			}
 
-			log.Debugf("Global hook '%s': kube config global values updated:\n%s\n", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
-			log.Infof("Global hook '%s': kube config global values updated, patches:\n%s\n", h.Name, patchesForLogs(configValuesPatch))
+			log.Infof("Global hook '%s': kube config global values updated, patches\n", h.Name)
+			log.Debugf("New kube config global values:\n%s\n", h.moduleManager.kubeGlobalConfigValues.DebugString())
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*configValuesPatch)
@@ -271,8 +262,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			if err != nil {
 				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)
 			}
-			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, newGlobalValues.DebugString())
-			log.Infof("Global hook '%s': kube config global values updated, diff:\n%s", h.Name, patchesForLogs(valuesPatch))
+			log.Infof("Global hook '%s': kube global values updated\n")
+			log.Debugf("New global values:\n%s", newGlobalValues.DebugString())
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*valuesPatch)

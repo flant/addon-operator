@@ -484,7 +484,6 @@ func (op *AddonOperator) PrepopulateMainQueue(tqs *queue.TaskQueueSet) {
 		WithMetadata(task.HookMetadata{
 			EventDescription: "PrepopulateMainQueue",
 			OnStartupHooks:   true,
-			AdditionalInfo:   "from prepopulateMainQueue",
 		})
 	op.TaskQueues.GetMain().AddLast(reloadAllModulesTask.WithQueuedAt(time.Now()))
 }
@@ -699,7 +698,6 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						WithMetadata(task.HookMetadata{
 							EventDescription: "GlobalConfigValuesChanged",
 							OnStartupHooks:   false,
-							AdditionalInfo:   fmt.Sprintf("Module manager GlobalChanged event: %s", moduleEvent.Description),
 						})
 					op.TaskQueues.GetMain().AddLast(reloadAllModulesTask.WithQueuedAt(time.Now()))
 
@@ -890,12 +888,6 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 		taskLogEntry.Info("queue beforeAll and discoverModulesState tasks")
 		hm := task.HookMetadataAccessor(t)
 
-		descr := fmt.Sprintf("%s(%s) from %s", hm.HookName, hm.GetDescription(), hm.AdditionalInfo)
-
-		if t.GetQueueName() != "main" {
-			taskLogEntry.Warnf("Reload all modules from not main queue: %s", descr)
-		}
-
 		// Remove adjacent ReloadAllModules tasks
 		stopFilter := false
 		op.TaskQueues.GetByName(t.GetQueueName()).Filter(func(tsk sh_task.Task) bool {
@@ -908,23 +900,6 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			}
 			return stopFilter
 		})
-
-		countReloadTasks := 0
-		op.TaskQueues.GetByName(t.GetQueueName()).Iterate(func(tsk sh_task.Task) {
-			// Ignore current task
-			if tsk.GetId() == t.GetId() {
-				return
-			}
-			if tsk.GetType() == task.ReloadAllModules {
-				countReloadTasks += 1
-			}
-		})
-
-		if countReloadTasks > 0 {
-			taskLogEntry.Warnf("Attention! Queue contains additional reload all modules tasks %s. Count: %d", descr, countReloadTasks)
-		}
-
-		taskLogEntry.Warnf("reload all modules %s", descr)
 
 		res.Status = "Success"
 		reloadAllTasks := op.CreateReloadAllTasks(hm.OnStartupHooks, t.GetLogLabels(), hm.EventDescription)
@@ -1431,8 +1406,6 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	}
 
 	if shouldRunHook {
-		logEntry.Infof("Module hook should start '%s/%s\n'", hm.ModuleName, hm.HookName)
-
 		// Module hook can recreate helm objects, so pause resources monitor.
 		// Parallel hooks can interfere, so pause-resume only for hooks in the main queue.
 		// FIXME pause-resume for parallel hooks
@@ -2049,7 +2022,7 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	})
 
 	http.HandleFunc("/status/converge", func(writer http.ResponseWriter, request *http.Request) {
-		convergeTasks, _ := op.MainQueueHasConvergeTasks()
+		convergeTasks := op.MainQueueHasConvergeTasks()
 
 		statusLines := make([]string, 0)
 		if op.StartupConvergeDone {
@@ -2075,21 +2048,10 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	})
 }
 
-func (op *AddonOperator) MainQueueHasConvergeTasks() (int, []string) {
+func (op *AddonOperator) MainQueueHasConvergeTasks() int {
 	convergeTasks := 0
-
-	names := make([]string, 0)
-	addToList := func(t sh_task.Task) {
-		meta := task.HookMetadataAccessor(t)
-		s := fmt.Sprintf("%s:%s/%s()", t.GetType(), meta.ModuleName, meta.GetHookName())
-		names = append(names, s)
-	}
-
 	op.TaskQueues.GetMain().Iterate(func(t sh_task.Task) {
 		ttype := t.GetType()
-
-		addToList(t)
-
 		switch ttype {
 		case task.ModuleRun, task.DiscoverModulesState, task.ModuleDelete, task.ModulePurge, task.ModuleManagerRetry, task.ReloadAllModules, task.GlobalHookEnableKubernetesBindings, task.GlobalHookEnableScheduleBindings:
 			convergeTasks++
@@ -2106,14 +2068,14 @@ func (op *AddonOperator) MainQueueHasConvergeTasks() (int, []string) {
 		}
 	})
 
-	return convergeTasks, names
+	return convergeTasks
 }
 
 func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
-	convergeTasks, names := op.MainQueueHasConvergeTasks()
+	convergeTasks := op.MainQueueHasConvergeTasks()
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(t.GetLogLabels()))
-	logEntry.Infof("Queue 'main' contains %d converge tasks after handle '%s'; Queue: %v", convergeTasks, string(t.GetType()), names)
+	logEntry.Infof("Queue 'main' contains %d converge tasks after handle '%s'", convergeTasks, string(t.GetType()))
 
 	// Trigger Started.
 	if convergeTasks > 0 {

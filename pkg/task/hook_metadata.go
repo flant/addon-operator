@@ -15,7 +15,6 @@ import (
 // HookMetadata is a metadata for addon-operator tasks
 type HookMetadata struct {
 	EventDescription string // event name for informative queue dump
-	AdditionalInfo   string // for logs purposes
 	HookName         string
 	ModuleName       string
 	Binding          string // binding name from configuration
