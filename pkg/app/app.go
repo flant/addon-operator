@@ -115,8 +115,8 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
 
-	cmd.Flag("use-random-first-run-delay-schedule", "Use random [1s - 30s] first run delay for schedule hooks if delay did not pass for hook").
-		Envar("ADDON_USE_RANDOM_FIRST_RUN_DELAY_SCHEDULE").
+	cmd.Flag("use-random-first-run-delay-schedule-hook", "Use random [1s - 30s] first run delay for schedule hooks if delay did not pass for hook").
+		Envar("ADDON_USE_RANDOM_FIRST_RUN_DELAY_SCHEDULE_HOOK").
 		BoolVar(&RandomFirstRunDelayForScheduleHooks)
 
 	sh_app.DefineKubeClientFlags(cmd)
