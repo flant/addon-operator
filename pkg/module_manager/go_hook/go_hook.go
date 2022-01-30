@@ -168,7 +168,7 @@ type ScheduleConfig struct {
 	Name    string
 	Crontab string
 
-	InitialDelay time.Duration // delay before first execution
+	FirstRunDelay time.Duration // delay before first execution
 }
 
 type FilterFunc func(*unstructured.Unstructured) (FilterResult, error)

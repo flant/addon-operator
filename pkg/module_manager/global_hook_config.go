@@ -3,8 +3,11 @@ package module_manager
 import (
 	"errors"
 	"fmt"
+	"math/rand"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/flant/addon-operator/pkg/app"
 	types2 "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/go-openapi/spec"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -364,13 +367,26 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		if inSch.Name == "" {
 			return c, spew.Errorf(`"name" is a required field in binding: %v`, inSch)
 		}
-		res.BindingName = inSch.Name
 
+		firstRunDelay := inSch.FirstRunDelay
+		if firstRunDelay == 0 && app.RandomFirstRunDelayForScheduleHooks {
+			const min = 1
+			const max = 30
+			// we silence gosec linter here
+			// because we do not need security random number
+			// for choice random element
+			s := rand.NewSource(time.Now().UnixNano())
+			r := rand.New(s) //nolint:gosec
+			delaySeconds := r.Int63n(max-min) + min
+			firstRunDelay = time.Duration(delaySeconds) * time.Second
+		}
+
+		res.BindingName = inSch.Name
 		res.AllowFailure = input.AllowFailure
 		res.ScheduleEntry = types.ScheduleEntry{
-			Crontab:      inSch.Crontab,
-			Id:           config.ScheduleID(),
-			InitialDelay: inSch.InitialDelay,
+			Crontab:       inSch.Crontab,
+			Id:            config.ScheduleID(),
+			FirstRunDelay: inSch.FirstRunDelay,
 		}
 
 		if input.Queue == "" {

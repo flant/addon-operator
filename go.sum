@@ -577,8 +577,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8m
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
-github.com/name212/shell-operator v1.0.8-0.20220129165326-c4e9425e311c h1:Lh4cReIz+pRld2EPDfeymsT5bRtUgcUO1TvKyw7v0gU=
-github.com/name212/shell-operator v1.0.8-0.20220129165326-c4e9425e311c/go.mod h1:bHcTpRq0k0c/kaVQl6sODi/Nz8mqmtmMk9ff9dxrpN4=
+github.com/name212/shell-operator v1.0.8-0.20220130104727-8987867ff577 h1:WUICKIg5STRy0W5t/8Xm9D709x0Okm1ZAXAgyp4YH3A=
+github.com/name212/shell-operator v1.0.8-0.20220130104727-8987867ff577/go.mod h1:bHcTpRq0k0c/kaVQl6sODi/Nz8mqmtmMk9ff9dxrpN4=
 github.com/nats-io/jwt v0.3.0/go.mod h1:fRYCDE99xlTsqUzISS1Bi75UBJ6ljOJQOAAu5VglpSg=
 github.com/nats-io/jwt v0.3.2/go.mod h1:/euKqTS1ZD+zzjYrY7pseZrTtWQSjujC7xjPc8wL6eU=
 github.com/nats-io/nats-server/v2 v2.1.2/go.mod h1:Afk+wRZqkMQs/p45uXdrVLuab3gwv3Z8C4HTBu8GD/k=
