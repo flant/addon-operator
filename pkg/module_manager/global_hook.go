@@ -222,6 +222,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
 			}
 
+			h.moduleManager.UpdateGlobalConfigValues(configValuesPatchResult.Values)
+
 			log.Infof("Global hook '%s': kube config global values updated, patches\n", h.Name)
 			log.Debugf("New kube config global values:\n%s\n", h.moduleManager.kubeGlobalConfigValues.DebugString())
 		}
