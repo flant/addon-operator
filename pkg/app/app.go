@@ -41,8 +41,6 @@ var DefaultTempDir = "/tmp/addon-operator"
 
 var DefaultDebugUnixSocket = "/var/run/addon-operator/debug.socket"
 
-var RandomFirstRunDelayForScheduleHooks = false
-
 // DefineStartCommandFlags init global flags with default values
 func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause) {
 	cmd.Flag("tmp-dir", "a path to store temporary files with data for hooks").
@@ -114,10 +112,6 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_CONFIG_MAP").
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
-
-	cmd.Flag("use-random-first-run-delay-schedule-hook", "Use random [1s - 30s] first run delay for schedule hooks if delay did not pass for hook").
-		Envar("ADDON_USE_RANDOM_FIRST_RUN_DELAY_SCHEDULE_HOOK").
-		BoolVar(&RandomFirstRunDelayForScheduleHooks)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)

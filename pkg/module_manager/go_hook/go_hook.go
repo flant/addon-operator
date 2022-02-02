@@ -167,8 +167,6 @@ type HookConfigSettings struct {
 type ScheduleConfig struct {
 	Name    string
 	Crontab string
-
-	FirstRunDelay time.Duration // delay before first execution
 }
 
 type FilterFunc func(*unstructured.Unstructured) (FilterResult, error)

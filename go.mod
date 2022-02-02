@@ -42,5 +42,3 @@ replace github.com/go-openapi/validate => github.com/flant/go-openapi-validate v
 replace k8s.io/client-go => k8s.io/client-go v0.19.11
 
 replace k8s.io/api => k8s.io/api v0.19.11
-
-replace github.com/flant/shell-operator => github.com/name212/shell-operator v1.0.8-0.20220130104727-8987867ff577
