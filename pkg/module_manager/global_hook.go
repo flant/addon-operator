@@ -262,7 +262,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			if err != nil {
 				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)
 			}
-			log.Infof("Global hook '%s': kube global values updated\n")
+			log.Infof("Global hook '%s': kube global values updated\n", h.Name)
 			log.Debugf("New global values:\n%s", newGlobalValues.DebugString())
 		}
 		// Apply patches for *Enabled keys.
