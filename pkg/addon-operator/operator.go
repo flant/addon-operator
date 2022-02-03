@@ -1669,7 +1669,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 					}).
 					WithQueuedAt(time.Now())
 				op.TaskQueues.GetMain().AddLast(reloadAllModulesTask.WithQueuedAt(time.Now()))
-				logEntry.Infof("Reload all from task running: %s (task hook: %s)", hm.GetDescription(), taskHook.Name)
+				logEntry.Infof("ReloadAllModules queued by hook '%s' (task: %s)", taskHook.Name, hm.GetDescription())
 			}
 			// TODO rethink helm monitors pause-resume. It is not working well with parallel hooks without locks. But locks will destroy parallelization.
 			//else {
