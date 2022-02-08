@@ -223,7 +223,9 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			}
 
 			h.moduleManager.UpdateGlobalConfigValues(configValuesPatchResult.Values)
-			log.Debugf("Global hook '%s': kube config global values updated:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
+
+			log.Infof("Global hook '%s': kube config global values updated", h.Name)
+			log.Debugf("New kube config global values:\n%s\n", h.moduleManager.kubeGlobalConfigValues.DebugString())
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*configValuesPatch)
@@ -262,7 +264,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			if err != nil {
 				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)
 			}
-			log.Debugf("Global hook '%s': global values updated:\n%s", h.Name, newGlobalValues.DebugString())
+			log.Infof("Global hook '%s': kube global values updated", h.Name)
+			log.Debugf("New global values:\n%s", newGlobalValues.DebugString())
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*valuesPatch)

@@ -359,9 +359,7 @@ func (op *AddonOperator) Start() {
 	// Start it before start all informers to catch all kubernetes events (#42)
 	op.ManagerEventsHandler.Start()
 
-	// add schedules to schedule manager
-	//op.HookManager.EnableScheduleBindings()
-	op.ScheduleManager.Start()
+	// schedule manager run after first converge will be finished
 
 	op.ModuleManager.Start()
 	op.StartModuleManagerEventHandler()
@@ -1406,8 +1404,6 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	}
 
 	if shouldRunHook {
-		logEntry.Infof("Module hook start '%s'", hm.HookName)
-
 		// Module hook can recreate helm objects, so pause resources monitor.
 		// Parallel hooks can interfere, so pause-resume only for hooks in the main queue.
 		// FIXME pause-resume for parallel hooks
@@ -1673,6 +1669,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 					}).
 					WithQueuedAt(time.Now())
 				op.TaskQueues.GetMain().AddLast(reloadAllModulesTask.WithQueuedAt(time.Now()))
+				logEntry.Infof("ReloadAllModules queued by hook '%s' (task: %s)", taskHook.Name, hm.GetDescription())
 			}
 			// TODO rethink helm monitors pause-resume. It is not working well with parallel hooks without locks. But locks will destroy parallelization.
 			//else {
@@ -2095,6 +2092,8 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 		if !op.StartupConvergeDone && op.StartupConvergeStarted {
 			logEntry.Infof("First converge is finished. Operator is ready now.")
 			op.StartupConvergeDone = true
+			op.ScheduleManager.Start()
+			logEntry.Infof("Schedule manager was started.")
 		}
 		if op.ConvergeStarted != 0 {
 			convergeSeconds := time.Duration(time.Now().UnixNano() - op.ConvergeStarted).Seconds()

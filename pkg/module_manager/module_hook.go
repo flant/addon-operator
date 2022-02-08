@@ -146,7 +146,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	})
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
-	logEntry.Info("Module hook start")
+	logEntry.Infof("Module hook start %s/%s", h.Module.Name, h.Name)
 
 	for _, info := range h.HookController.SnapshotsInfo() {
 		logEntry.Infof("snapshot info: %s", info)
@@ -260,7 +260,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		}
 	}
 
-	logEntry.Infof("Module hook success")
+	logEntry.Infof("Module hook success %s/%s", h.Module.Name, h.Name)
 
 	return nil
 }
