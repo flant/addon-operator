@@ -9,6 +9,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/config"
 	"github.com/flant/shell-operator/pkg/debug"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
@@ -39,7 +40,9 @@ func main() {
 	startCmd := kpApp.Command("start", "Start events processing.").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			sh_app.SetupLogging()
+			runtimeConfig := config.NewConfig()
+			// Init logging subsystem.
+			sh_app.SetupLogging(runtimeConfig)
 			log.Infof("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
 
 			operator := addon_operator.DefaultOperator()
