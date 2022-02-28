@@ -90,6 +90,14 @@ func (op *AddonOperator) Stop() {
 	}
 }
 
+func (op *AddonOperator) IsStartupConvergeDone() bool {
+	return op.StartupConvergeDone
+}
+
+func (op *AddonOperator) SetStartupConvergeDone() {
+	op.StartupConvergeDone = true
+}
+
 // InitMetricStorage creates new MetricStorage instance in AddonOperator
 // if it is not initialized yet. Run it before Init() to override default
 // MetricStorage instance in shell-operator.
@@ -200,6 +208,28 @@ func (op *AddonOperator) InitModuleManager() error {
 	return nil
 }
 
+func (op *AddonOperator) NeedAddCrontabTask(hook *module_manager.CommonHook) bool {
+	if op.IsStartupConvergeDone() {
+		return true
+	}
+
+	// converge not done into next lines
+
+	// shell hooks will be scheduled after converge done
+	// TODO maybe need to add parameter to ShellOperator same to go hooks
+	if hook.GoHook == nil {
+		return false
+	}
+
+	s := hook.GoHook.Config().Settings
+
+	if s != nil && s.EnableSchedulesOnStartup == true {
+		return true
+	}
+
+	return false
+}
+
 func (op *AddonOperator) DefineEventHandlers() {
 	op.ManagerEventsHandler.WithScheduleEventHandler(func(crontab string) []sh_task.Task {
 		logLabels := map[string]string{
@@ -212,6 +242,10 @@ func (op *AddonOperator) DefineEventHandlers() {
 		var tasks []sh_task.Task
 		err := op.ModuleManager.HandleScheduleEvent(crontab,
 			func(globalHook *module_manager.GlobalHook, info controller.BindingExecutionInfo) {
+				if !op.NeedAddCrontabTask(globalHook.CommonHook) {
+					return
+				}
+
 				hookLabels := utils.MergeLabels(logLabels, map[string]string{
 					"hook":      globalHook.GetName(),
 					"hook.type": "module",
@@ -236,6 +270,10 @@ func (op *AddonOperator) DefineEventHandlers() {
 				tasks = append(tasks, newTask)
 			},
 			func(module *module_manager.Module, moduleHook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
+				if !op.NeedAddCrontabTask(moduleHook.CommonHook) {
+					return
+				}
+
 				hookLabels := utils.MergeLabels(logLabels, map[string]string{
 					"module":    module.Name,
 					"hook":      moduleHook.GetName(),
@@ -359,7 +397,9 @@ func (op *AddonOperator) Start() {
 	// Start it before start all informers to catch all kubernetes events (#42)
 	op.ManagerEventsHandler.Start()
 
-	// schedule manager run after first converge will be finished
+	// add schedules to schedule manager
+	//op.HookManager.EnableScheduleBindings()
+	op.ScheduleManager.Start()
 
 	op.ModuleManager.Start()
 	op.StartModuleManagerEventHandler()
@@ -2010,7 +2050,7 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 	})
 
 	http.HandleFunc("/ready", func(w http.ResponseWriter, request *http.Request) {
-		if op.StartupConvergeDone {
+		if op.IsStartupConvergeDone() {
 			w.WriteHeader(200)
 			_, _ = w.Write([]byte("Startup converge done.\n"))
 		} else {
@@ -2023,7 +2063,7 @@ func (op *AddonOperator) SetupHttpServerHandles() {
 		convergeTasks := op.MainQueueHasConvergeTasks()
 
 		statusLines := make([]string, 0)
-		if op.StartupConvergeDone {
+		if op.IsStartupConvergeDone() {
 			statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
 			if convergeTasks > 0 {
 				statusLines = append(statusLines, fmt.Sprintf("CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
@@ -2089,11 +2129,9 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 
 	// Trigger Done.
 	if convergeTasks == 0 {
-		if !op.StartupConvergeDone && op.StartupConvergeStarted {
+		if !op.IsStartupConvergeDone() && op.StartupConvergeStarted {
 			logEntry.Infof("First converge is finished. Operator is ready now.")
-			op.StartupConvergeDone = true
-			op.ScheduleManager.Start()
-			logEntry.Infof("Schedule manager was started.")
+			op.SetStartupConvergeDone()
 		}
 		if op.ConvergeStarted != 0 {
 			convergeSeconds := time.Duration(time.Now().UnixNano() - op.ConvergeStarted).Seconds()
