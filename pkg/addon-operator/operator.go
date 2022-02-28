@@ -223,7 +223,7 @@ func (op *AddonOperator) NeedAddCrontabTask(hook *module_manager.CommonHook) boo
 
 	s := hook.GoHook.Config().Settings
 
-	if s != nil && s.EnableSchedulesOnStartup == true {
+	if s != nil && s.EnableSchedulesOnStartup {
 		return true
 	}
 
