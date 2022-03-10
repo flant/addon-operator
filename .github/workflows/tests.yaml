@@ -17,7 +17,7 @@ jobs:
         id: go
 
       - name: Check out addon-operator code
-        uses: actions/checkout@v2.4.0
+        uses: actions/checkout@v3
 
       - name: Restore Go modules
         id: go-modules-cache
