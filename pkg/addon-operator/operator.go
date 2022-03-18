@@ -168,7 +168,6 @@ func (op *AddonOperator) InitModuleManager() error {
 	op.KubeConfigManager.WithContext(op.ctx)
 	op.KubeConfigManager.WithNamespace(app.Namespace)
 	op.KubeConfigManager.WithConfigMapName(app.ConfigMapName)
-	op.KubeConfigManager.WithValuesChecksumsAnnotation(app.ValuesChecksumsAnnotation)
 
 	err = op.KubeConfigManager.Init()
 	if err != nil {

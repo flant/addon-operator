@@ -23,7 +23,6 @@ type KubeConfigManager interface {
 	WithKubeClient(client klient.Client)
 	WithNamespace(namespace string)
 	WithConfigMapName(configMap string)
-	WithValuesChecksumsAnnotation(annotation string)
 	SetKubeGlobalValues(values utils.Values) error
 	SetKubeModuleValues(moduleName string, values utils.Values) error
 	Init() error
@@ -177,10 +176,6 @@ func (kcm *kubeConfigManager) WithNamespace(namespace string) {
 
 func (kcm *kubeConfigManager) WithConfigMapName(configMap string) {
 	kcm.ConfigMapName = configMap
-}
-
-// No need in annotation anymore.
-func (kcm *kubeConfigManager) WithValuesChecksumsAnnotation(_ string) {
 }
 
 func (kcm *kubeConfigManager) SetKubeGlobalValues(values utils.Values) error {
