@@ -81,7 +81,6 @@ type ModuleManager interface {
 	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error)
 	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (beforeChecksum string, afterChecksum string, err error)
 	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) error
-	Retry()
 
 	RegisterModuleHooks(module *Module, logLabels map[string]string) error
 
@@ -205,11 +204,6 @@ type moduleManager struct {
 	globalValuesChanged chan bool
 
 	kubeConfigManager kube_config_manager.KubeConfigManager
-
-	// Saved values from ConfigMap to handle Ambiguous state.
-	moduleConfigsUpdateBeforeAmbiguos kube_config_manager.ModuleConfigs
-	// Internal event: module manager needs to be restarted.
-	retryOnAmbiguous chan bool
 }
 
 var _ ModuleManager = &moduleManager{}
@@ -273,9 +267,6 @@ func NewMainModuleManager() *moduleManager {
 		globalValuesChanged: make(chan bool, 1),
 
 		kubeConfigManager: nil,
-
-		moduleConfigsUpdateBeforeAmbiguos: make(kube_config_manager.ModuleConfigs),
-		retryOnAmbiguous:                  make(chan bool, 1),
 
 		kubernetesBindingSynchronizationState: make(map[string]*KubernetesBindingSynchronizationState),
 	}
@@ -677,9 +668,6 @@ func (mm *moduleManager) Start() {
 				}
 
 			case newModuleConfigs := <-kube_config_manager.ModuleConfigsUpdated:
-				// Сбросить запомненные перед ошибкой конфиги
-				mm.moduleConfigsUpdateBeforeAmbiguos = kube_config_manager.ModuleConfigs{}
-
 				// For simplicity, check the whole config.
 				err := mm.validateKubeConfig(mm.kubeConfigManager.CurrentConfig())
 				if err != nil {
@@ -689,7 +677,6 @@ func (mm *moduleManager) Start() {
 
 				moduleUpdates, err := mm.handleNewKubeModuleConfigs(newModuleConfigs)
 				if err != nil {
-					mm.moduleConfigsUpdateBeforeAmbiguos = newModuleConfigs
 					log.Errorf("Unable to handle update of ConfigMap for modules [%s]: %s", strings.Join(newModuleConfigs.Names(), ", "), err)
 				}
 				if moduleUpdates != nil {
@@ -698,21 +685,9 @@ func (mm *moduleManager) Start() {
 						log.Errorf("ConfigMap update cannot be applied to values for modules %s: %s", strings.Join(newModuleConfigs.Names(), ", "), err)
 					}
 				}
-
-			case <-mm.retryOnAmbiguous:
-				if len(mm.moduleConfigsUpdateBeforeAmbiguos) != 0 {
-					log.Infof("MODULE_MANAGER_RUN Retry saved moduleConfigs: %v", mm.moduleConfigsUpdateBeforeAmbiguos)
-					kube_config_manager.ModuleConfigsUpdated <- mm.moduleConfigsUpdateBeforeAmbiguos
-				} else {
-					log.Debugf("MODULE_MANAGER_RUN Retry IS NOT needed")
-				}
 			}
 		}
 	}()
-}
-
-func (mm *moduleManager) Retry() {
-	mm.retryOnAmbiguous <- true
 }
 
 func (mm *moduleManager) Ch() chan Event {
