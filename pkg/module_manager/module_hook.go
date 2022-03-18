@@ -29,10 +29,8 @@ var _ Hook = &ModuleHook{}
 
 func NewModuleHook(name, path string) *ModuleHook {
 	res := &ModuleHook{
-		CommonHook: &CommonHook{
-			KubernetesBindingSynchronizationState: make(map[string]*KubernetesBindingSynchronizationState),
-		},
-		Config: &ModuleHookConfig{},
+		CommonHook: &CommonHook{},
+		Config:     &ModuleHookConfig{},
 	}
 	res.Name = name
 	res.Path = path

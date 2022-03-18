@@ -31,11 +31,6 @@ type Hook interface {
 	Order(binding sh_op_types.BindingType) float64
 }
 
-type KubernetesBindingSynchronizationState struct {
-	Queued bool
-	Done   bool
-}
-
 func (k *KubernetesBindingSynchronizationState) String() string {
 	return fmt.Sprintf("queue=%v done=%v", k.Queued, k.Done)
 }
@@ -44,8 +39,6 @@ type CommonHook struct {
 	hook.Hook
 
 	moduleManager *moduleManager
-
-	KubernetesBindingSynchronizationState map[string]*KubernetesBindingSynchronizationState
 
 	GoHook go_hook.GoHook
 }
@@ -78,28 +71,6 @@ func (h *CommonHook) SynchronizationNeeded() bool {
 		}
 	}
 	return false
-}
-
-// SynchronizationQueued is true if at least one KubernetesBindingSynchronizationState object has true for Queued.
-func (h *CommonHook) SynchronizationQueued() bool {
-	queued := false
-	for _, state := range h.KubernetesBindingSynchronizationState {
-		if state.Queued {
-			queued = true
-		}
-	}
-	return queued
-}
-
-// SynchronizationDone is true if all KubernetesBindingSynchronizationState objects has true for Done.
-func (h *CommonHook) SynchronizationDone() bool {
-	done := true
-	for _, state := range h.KubernetesBindingSynchronizationState {
-		if !state.Done {
-			done = false
-		}
-	}
-	return done
 }
 
 // SearchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.

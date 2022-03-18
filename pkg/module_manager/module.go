@@ -47,27 +47,11 @@ type Module struct {
 	metricStorage *metric_storage.MetricStorage
 }
 
-type ModuleState struct {
-	Enabled bool
-
-	//
-	OnStartupDone                bool
-	SynchronizationTasksQueued   bool
-	ShouldWaitForSynchronization bool
-	WaitStarted                  bool
-
-	// become true if no synchronization task is needed or when queued synchronization tasks are finished
-	SynchronizationDone bool
-
-	// flag to prevent excess monitor starts
-	MonitorsStarted bool
-}
-
 func NewModule(name, path string) *Module {
 	return &Module{
 		Name:  name,
 		Path:  path,
-		State: &ModuleState{},
+		State: NewModuleState(),
 	}
 }
 
@@ -83,6 +67,12 @@ func (m *Module) SafeName() string {
 	return sanitize.BaseName(m.Name)
 }
 
+// HasKubernetesHooks is true if module has at least one kubernetes hook.
+func (m *Module) HasKubernetesHooks() bool {
+	hooks := m.moduleManager.GetModuleHooksInOrder(m.Name, OnKubernetesEvent)
+	return len(hooks) > 0
+}
+
 // SynchronizationNeeded is true if module has at least one kubernetes hook
 // with executeHookOnSynchronization.
 func (m *Module) SynchronizationNeeded() bool {
@@ -93,30 +83,6 @@ func (m *Module) SynchronizationNeeded() bool {
 		}
 	}
 	return false
-}
-
-// SynchronizationQueued is true if at least one hook has queued kubernetes.Synchronization binding.
-func (m *Module) SynchronizationQueued() bool {
-	queued := false
-	for _, hookName := range m.moduleManager.GetModuleHooksInOrder(m.Name, OnKubernetesEvent) {
-		modHook := m.moduleManager.GetModuleHook(hookName)
-		if modHook.SynchronizationQueued() {
-			queued = true
-		}
-	}
-	return queued
-}
-
-// SynchronizationDone is true if all kubernetes.Synchronization bindings in all hooks are done.
-func (m *Module) SynchronizationDone() bool {
-	done := true
-	for _, hookName := range m.moduleManager.GetModuleHooksInOrder(m.Name, OnKubernetesEvent) {
-		modHook := m.moduleManager.GetModuleHook(hookName)
-		if modHook.SynchronizationNeeded() && !modHook.SynchronizationDone() {
-			done = false
-		}
-	}
-	return done
 }
 
 // Run is a phase of module lifecycle that runs onStartup hooks.
@@ -228,7 +194,7 @@ func (m *Module) Delete(logLabels map[string]string) error {
 	}
 
 	// Cleanup state.
-	m.State = &ModuleState{}
+	m.State = NewModuleState()
 	return nil
 }
 

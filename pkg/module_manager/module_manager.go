@@ -87,8 +87,7 @@ type ModuleManager interface {
 	HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo))
 	HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*GlobalHook, controller.BindingExecutionInfo)) error
 	HandleModuleEnableKubernetesBindings(hookName string, createTaskFn func(*ModuleHook, controller.BindingExecutionInfo)) error
-	StartModuleHooks(moduleName string)
-	//EnableScheduleBindings()
+	EnableModuleScheduleBindings(moduleName string)
 	DisableModuleHooks(moduleName string)
 	HandleScheduleEvent(crontab string, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) error
 
@@ -96,11 +95,7 @@ type ModuleManager interface {
 	ApplyEnabledPatch(enabledPatch utils.ValuesPatch) error
 
 	GlobalSynchronizationNeeded() bool
-	GlobalSynchronizationDone() bool
-	SynchronizationQueued(id string)
-	SynchronizationDone(id string)
-
-	DumpState()
+	GlobalSynchronizationState() *SynchronizationState
 }
 
 // ModulesState is a result of Discovery process, that determines which
@@ -171,7 +166,7 @@ type moduleManager struct {
 	// Note: one module hook can have several binding types.
 	modulesHooksOrderByName map[string]map[BindingType][]*ModuleHook
 
-	kubernetesBindingSynchronizationState map[string]*KubernetesBindingSynchronizationState
+	globalSynchronizationState *SynchronizationState
 
 	// VALUE STORAGES
 
@@ -268,7 +263,7 @@ func NewMainModuleManager() *moduleManager {
 
 		kubeConfigManager: nil,
 
-		kubernetesBindingSynchronizationState: make(map[string]*KubernetesBindingSynchronizationState),
+		globalSynchronizationState: NewSynchronizationState(),
 	}
 }
 
@@ -1177,12 +1172,6 @@ func (mm *moduleManager) HandleGlobalEnableKubernetesBindings(hookName string, c
 	return nil
 }
 
-/*
-
-mm.GetModule(moduleName).HandleEnableKubernetesBindings(createTaskFn)
-
-*/
-
 func (mm *moduleManager) HandleModuleEnableKubernetesBindings(moduleName string, createTaskFn func(*ModuleHook, controller.BindingExecutionInfo)) error {
 	kubeHooks := mm.GetModuleHooksInOrder(moduleName, OnKubernetesEvent)
 
@@ -1201,7 +1190,7 @@ func (mm *moduleManager) HandleModuleEnableKubernetesBindings(moduleName string,
 	return nil
 }
 
-func (mm *moduleManager) StartModuleHooks(moduleName string) {
+func (mm *moduleManager) EnableModuleScheduleBindings(moduleName string) {
 	schHooks := mm.GetModuleHooksInOrder(moduleName, Schedule)
 	for _, hookName := range schHooks {
 		mh := mm.GetModuleHook(hookName)
@@ -1348,40 +1337,8 @@ func (mm *moduleManager) GlobalSynchronizationNeeded() bool {
 	return false
 }
 
-func (mm *moduleManager) GlobalSynchronizationDone() bool {
-	done := true
-	for _, state := range mm.kubernetesBindingSynchronizationState {
-		if !state.Done {
-			done = false
-		}
-	}
-	return done
-}
-
-func (mm *moduleManager) SynchronizationQueued(id string) {
-	var state *KubernetesBindingSynchronizationState
-	state, ok := mm.kubernetesBindingSynchronizationState[id]
-	if !ok {
-		state = &KubernetesBindingSynchronizationState{}
-		mm.kubernetesBindingSynchronizationState[id] = state
-	}
-	state.Queued = true
-}
-
-func (mm *moduleManager) SynchronizationDone(id string) {
-	var state *KubernetesBindingSynchronizationState
-	state, ok := mm.kubernetesBindingSynchronizationState[id]
-	if !ok {
-		state = &KubernetesBindingSynchronizationState{}
-		mm.kubernetesBindingSynchronizationState[id] = state
-	}
-	state.Done = true
-}
-
-func (mm *moduleManager) DumpState() {
-	for id, state := range mm.kubernetesBindingSynchronizationState {
-		log.Infof("%s: queue=%v done=%v", id, state.Queued, state.Done)
-	}
+func (mm *moduleManager) GlobalSynchronizationState() *SynchronizationState {
+	return mm.globalSynchronizationState
 }
 
 func (mm *moduleManager) ApplyBindingActions(moduleHook *ModuleHook, bindingActions []go_hook.BindingAction) error {

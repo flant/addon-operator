@@ -185,6 +185,92 @@ This hook will be executed *before* updating the Helm release with this binding 
 }]
 ```
 
+### Synchronization for global hooks
+
+[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is a first run of global hooks with "kubernetes" bindings. As with the shell-operator, it occurs right after the success of the global "onStartup" hooks, but the following behaviour is slightly different. By default, the addon-operator waits for hooks with `executeHookOnSynchronization: true` to finish before proceeding to "beforeAll" hooks. You can skip this waiting for bindings in parallel queues by setting `waitForSynchronization: false`.
+
+For example, a global hook with `kubernetes` and `beforeAll` bindings may have this configuration:
+
+```yaml
+configVersion: v1
+beforeAll: 10
+kubernetes:
+- name: monitor-pods
+  apiVersion: v1
+  kind: Pod
+  jqFilter: ".metadata.labels"
+- name: monitor-nodes
+  apiVersion: v1
+  kind: Node
+  jqFilter: ".metadata.labels"
+  queue: config-map-handling-queue
+  executeHookOnSynchronization: false
+- name: monitor-cms
+  apiVersion: v1
+  kind: ConfigMap
+  jqFilter: ".metadata.labels"
+  queue: config-map-handling-queue
+  waitForSynchronization: false
+- name: monitor-secrets
+  apiVersion: v1
+  kind: Secret
+  jqFilter: ".metadata.labels"
+  queue: secrets-handling-queue
+  executeHookOnSynchronization: false
+  waitForSynchronization: false
+```
+
+This hook will be executed after "onStartup" as follows:
+
+- Run hook with binding context for the "monitor-pods" binding in the "main" queue.
+- Fill snapshot for the "monitor-nodes" binding, do not execute hook.
+- Run in parallel: 1) hook with the "beforeAll" binding context in the "main" queue, 2) hook with the "monitor-cms" binding context in the "config-map-handling-queue" queue, and 3) fill snapshot for the "monitor-secrets" binding.
+
+> Note: there is no guarantee that the "beforeAll" binding context contains snapshots with ConfigMaps and Secrets.
+
+### Synchronization for module hooks
+
+[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is a first run of module hooks with "kubernetes" bindings after module enablement. It occurs right after the success of the module's "onStartup" hooks. By default, the addon-operator waits for hooks with `executeHookOnSynchronization: true` to finish before proceeding to "beforeHelm" hooks. You can skip this waiting for bindings in parallel queues by setting `waitForSynchronization: false`.
+
+For example, a module hook with `kubernetes` and `beforeHelm` bindings may have this configuration:
+
+```yaml
+configVersion: v1
+beforeHelm: 10
+kubernetes:
+- name: monitor-pods
+  apiVersion: v1
+  kind: Pod
+  jqFilter: ".metadata.labels"
+- name: monitor-nodes
+  apiVersion: v1
+  kind: Node
+  jqFilter: ".metadata.labels"
+  queue: config-map-handling-queue
+  executeHookOnSynchronization: false
+- name: monitor-cms
+  apiVersion: v1
+  kind: ConfigMap
+  jqFilter: ".metadata.labels"
+  queue: config-map-handling-queue
+  waitForSynchronization: false
+- name: monitor-secrets
+  apiVersion: v1
+  kind: Secret
+  jqFilter: ".metadata.labels"
+  queue: secrets-handling-queue
+  executeHookOnSynchronization: false
+  waitForSynchronization: false
+```
+
+This hook will be executed after "onStartup" as follows:
+
+- Run hook with binding context for the "monitor-pods" binding in the "main" queue.
+- Fill snapshot for the "monitor-nodes" binding, do not execute hook.
+- Run in parallel: 1) hook with the "beforeHelm" binding context in the "main" queue, 2) hook with the "monitor-cms" binding context in the "config-map-handling-queue" queue, and 3) fill snapshot for the "monitor-secrets" binding.
+
+> Note: there is no guarantee that the "beforeHelm" binding context contains snapshots with ConfigMaps and Secrets.
+
 ### Execution rate
 
 Hook configuration has a `settings` section with parameters `executionMinPeriod` and `executionBurst`. These parameters are used to throttle hook executions and wait for more events in the queue. See section [execution rate](https://github.com/flant/shell-operator/blob/master/HOOKS.md#execution-rate) from the Shell-operator.
