@@ -187,7 +187,7 @@ This hook will be executed *before* updating the Helm release with this binding 
 
 ### Synchronization for global hooks
 
-[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is a first run of global hooks with "kubernetes" bindings. As with the shell-operator, it occurs right after the success of the global "onStartup" hooks, but the following behaviour is slightly different. By default, the addon-operator waits for hooks with `executeHookOnSynchronization: true` to finish before proceeding to "beforeAll" hooks. You can skip this waiting for bindings in parallel queues by setting `waitForSynchronization: false`.
+[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is the first run of global hooks with "kubernetes" bindings. As with the Shell-operator, it executes right after the successful completion of global "onStartup" hooks, but the following behavior is slightly different. By default, the Addon-operator executes "beforeAll" hooks after the completion of hooks with `executeHookOnSynchronization: true`. Set `waitForSynchronization: false` to execute these hooks in parallel with "beforeAll" hooks.
 
 For example, a global hook with `kubernetes` and `beforeAll` bindings may have this configuration:
 
@@ -203,19 +203,19 @@ kubernetes:
   apiVersion: v1
   kind: Node
   jqFilter: ".metadata.labels"
-  queue: config-map-handling-queue
+  queue: nodes-handling
   executeHookOnSynchronization: false
 - name: monitor-cms
   apiVersion: v1
   kind: ConfigMap
   jqFilter: ".metadata.labels"
-  queue: config-map-handling-queue
+  queue: config-map-handling
   waitForSynchronization: false
 - name: monitor-secrets
   apiVersion: v1
   kind: Secret
   jqFilter: ".metadata.labels"
-  queue: secrets-handling-queue
+  queue: secrets-handling
   executeHookOnSynchronization: false
   waitForSynchronization: false
 ```
@@ -224,13 +224,16 @@ This hook will be executed after "onStartup" as follows:
 
 - Run hook with binding context for the "monitor-pods" binding in the "main" queue.
 - Fill snapshot for the "monitor-nodes" binding, do not execute hook.
-- Run in parallel: 1) hook with the "beforeAll" binding context in the "main" queue, 2) hook with the "monitor-cms" binding context in the "config-map-handling-queue" queue, and 3) fill snapshot for the "monitor-secrets" binding.
+- Run in parallel:
+  - hook with the "beforeAll" binding context in the "main" queue
+  - hook with the "monitor-cms" binding context in the "config-map-handling" queue
+  - fill snapshot for the "monitor-secrets" binding.
 
 > Note: there is no guarantee that the "beforeAll" binding context contains snapshots with ConfigMaps and Secrets.
 
 ### Synchronization for module hooks
 
-[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is a first run of module hooks with "kubernetes" bindings after module enablement. It occurs right after the success of the module's "onStartup" hooks. By default, the addon-operator waits for hooks with `executeHookOnSynchronization: true` to finish before proceeding to "beforeHelm" hooks. You can skip this waiting for bindings in parallel queues by setting `waitForSynchronization: false`.
+[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is the first run of module hooks with "kubernetes" bindings after module enablement. It executes right after the successful completion of the module's "onStartup" hooks. By default, the Addon-operator executes "beforeHelm" hooks after the completion of hooks with `executeHookOnSynchronization: true`. Set `waitForSynchronization: false` to execute these hooks in parallel with "beforeHelm" hooks.
 
 For example, a module hook with `kubernetes` and `beforeHelm` bindings may have this configuration:
 
@@ -246,19 +249,19 @@ kubernetes:
   apiVersion: v1
   kind: Node
   jqFilter: ".metadata.labels"
-  queue: config-map-handling-queue
+  queue: nodes-handling
   executeHookOnSynchronization: false
 - name: monitor-cms
   apiVersion: v1
   kind: ConfigMap
   jqFilter: ".metadata.labels"
-  queue: config-map-handling-queue
+  queue: config-map-handling
   waitForSynchronization: false
 - name: monitor-secrets
   apiVersion: v1
   kind: Secret
   jqFilter: ".metadata.labels"
-  queue: secrets-handling-queue
+  queue: secrets-handling
   executeHookOnSynchronization: false
   waitForSynchronization: false
 ```
@@ -267,7 +270,10 @@ This hook will be executed after "onStartup" as follows:
 
 - Run hook with binding context for the "monitor-pods" binding in the "main" queue.
 - Fill snapshot for the "monitor-nodes" binding, do not execute hook.
-- Run in parallel: 1) hook with the "beforeHelm" binding context in the "main" queue, 2) hook with the "monitor-cms" binding context in the "config-map-handling-queue" queue, and 3) fill snapshot for the "monitor-secrets" binding.
+- Run in parallel: 
+  - hook with the "beforeHelm" binding context in the "main" queue
+  - hook with the "monitor-cms" binding context in the "config-map-handling" queue
+  - fill snapshot for the "monitor-secrets" binding
 
 > Note: there is no guarantee that the "beforeHelm" binding context contains snapshots with ConfigMaps and Secrets.
 
