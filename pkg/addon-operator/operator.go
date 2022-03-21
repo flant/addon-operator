@@ -737,22 +737,6 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							OnStartupHooks:   false,
 						})
 					op.TaskQueues.GetMain().AddLast(reloadAllModulesTask.WithQueuedAt(time.Now()))
-
-					// TODO Check if this is needed?
-					// As module list may have changed, hook schedule index must be re-created.
-					//ScheduleHooksController.UpdateScheduleHooks()
-				case module_manager.AmbiguousState:
-					// It is the error in the module manager. The task must be added to
-					// the beginning of the queue so the module manager can restore its
-					// state before running other queue tasks
-					logLabels["event.type"] = "AmbiguousState"
-					//TasksQueue.ChangesDisable()
-					newTask := sh_task.NewTask(task.ModuleManagerRetry).
-						WithLogLabels(logLabels).
-						WithQueueName("main")
-					op.TaskQueues.GetMain().AddFirst(newTask.WithQueuedAt(time.Now()))
-					eventLogEntry.WithFields(utils.LabelsToLogFields(newTask.LogLabels)).
-						Infof("queue task %s - module manager is in ambiguous state", newTask.GetDescription())
 				}
 			case absentResourcesEvent := <-op.HelmResourcesManager.Ch():
 				logLabels := map[string]string{
@@ -999,14 +983,6 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 			taskLogEntry.Infof("Module purge success")
 		}
 		res.Status = "Success"
-
-	case task.ModuleManagerRetry:
-		op.MetricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
-		op.ModuleManager.Retry()
-		taskLogEntry.Infof("Module manager retry is requested, now wait before run module discovery again")
-
-		res.Status = "Success"
-		res.DelayBeforeNextTask = queue.DelayOnFailedTask
 	}
 
 	if res.Status == "Success" {
@@ -1047,8 +1023,7 @@ func (op *AddonOperator) UpdateWaitInQueueMetric(t sh_task.Task) {
 		metricLabels["module"] = hm.ModuleName
 
 	case task.ReloadAllModules,
-		task.DiscoverModulesState,
-		task.ModuleManagerRetry:
+		task.DiscoverModulesState:
 		// no action required
 	}
 
@@ -2090,7 +2065,7 @@ func (op *AddonOperator) MainQueueHasConvergeTasks() int {
 	op.TaskQueues.GetMain().Iterate(func(t sh_task.Task) {
 		ttype := t.GetType()
 		switch ttype {
-		case task.ModuleRun, task.DiscoverModulesState, task.ModuleDelete, task.ModulePurge, task.ModuleManagerRetry, task.ReloadAllModules, task.GlobalHookEnableKubernetesBindings, task.GlobalHookEnableScheduleBindings:
+		case task.ModuleRun, task.DiscoverModulesState, task.ModuleDelete, task.ModulePurge, task.ReloadAllModules, task.GlobalHookEnableKubernetesBindings, task.GlobalHookEnableScheduleBindings:
 			convergeTasks++
 			return
 		}

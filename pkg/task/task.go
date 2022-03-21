@@ -20,6 +20,4 @@ const (
 
 	// Delete unknown helm release when no module in ModulesDir
 	ModulePurge task.TaskType = "ModulePurge"
-	// Task to call ModuleManager.Retry
-	ModuleManagerRetry task.TaskType = "ModuleManagerRetry"
 )
