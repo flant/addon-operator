@@ -269,9 +269,6 @@ func TestKubeConfigManager_ModuleConfigsUpdated_chan(t *testing.T) {
 	cm := &v1.ConfigMap{}
 	cm.SetNamespace("default")
 	cm.SetName(app.ConfigMapName)
-	//cm.SetAnnotations(map[string]string{
-	//	app.ValuesChecksumsAnnotation: `{"module1":"asdasdzxczxcqweqwe"}`,
-	//})
 	cm.Data = map[string]string{
 		"global": `
 param1: val1
@@ -287,7 +284,6 @@ param2: val2
 	kcm.WithKubeClient(kubeClient)
 	kcm.WithNamespace("default")
 	kcm.WithConfigMapName(app.ConfigMapName)
-	//	kcm.WithValuesChecksumsAnnotation(app.ValuesChecksumsAnnotation)
 
 	err = kcm.Init()
 	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")
@@ -327,9 +323,6 @@ func TestKubeConfigManager_SetKubeModuleValues(t *testing.T) {
 	cm := &v1.ConfigMap{}
 	cm.SetNamespace("default")
 	cm.SetName(app.ConfigMapName)
-	//cm.SetAnnotations(map[string]string{
-	//	app.ValuesChecksumsAnnotation: `{"module1":"asdasdzxczxcqweqwe"}`,
-	//})
 	cm.Data = map[string]string{
 		"global": `
 param1: val1
@@ -345,7 +338,6 @@ param2: val2
 	kcm.WithKubeClient(kubeClient)
 	kcm.WithNamespace("default")
 	kcm.WithConfigMapName(app.ConfigMapName)
-	//kcm.WithValuesChecksumsAnnotation(app.ValuesChecksumsAnnotation)
 
 	err = kcm.Init()
 	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")
@@ -372,11 +364,4 @@ moduleLongName:
 	g.Expect(cm.Data).Should(HaveLen(2))
 	g.Expect(cm.Data).To(HaveKey("global"))
 	g.Expect(cm.Data).To(HaveKey("moduleLongName"))
-
-	//g.Expect(cm.Annotations).To(HaveKey(app.ValuesChecksumsAnnotation))
-	//// chacksum annotation should contain an initial key 'module1' and a new key 'module-long-name'
-	//anno := cm.Annotations[app.ValuesChecksumsAnnotation]
-	//
-	//g.Expect(anno).To(ContainSubstring("module-long-name"))
-	//g.Expect(anno).To(ContainSubstring("module1"))
 }

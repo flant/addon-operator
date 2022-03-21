@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
@@ -70,7 +69,6 @@ func initModuleManager(t *testing.T, mm *moduleManager, configPath string) {
 		KubeConfigManager.WithContext(context.Background())
 		KubeConfigManager.WithNamespace("default")
 		KubeConfigManager.WithConfigMapName("addon-operator")
-		KubeConfigManager.WithValuesChecksumsAnnotation(app.ValuesChecksumsAnnotation)
 
 		err = KubeConfigManager.Init()
 		if err != nil {

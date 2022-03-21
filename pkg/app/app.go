@@ -33,7 +33,6 @@ var HelmMonitorKubeClientBurst int
 
 var Namespace = ""
 var ConfigMapName = "addon-operator"
-var ValuesChecksumsAnnotation = "addon-operator/values-checksums"
 
 var GlobalHooksDir = "global-hooks"
 var ModulesDir = "modules"
