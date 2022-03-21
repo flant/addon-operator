@@ -168,24 +168,36 @@ type HookConfigSettings struct {
 }
 
 type ScheduleConfig struct {
-	Name    string
+	Name string
+	// Crontab is a schedule config in crontab format. (5 or 6 fields)
 	Crontab string
 }
 
 type FilterFunc func(*unstructured.Unstructured) (FilterResult, error)
 
 type KubernetesConfig struct {
-	Name                         string
-	ApiVersion                   string
-	Kind                         string
-	NameSelector                 *types.NameSelector
-	NamespaceSelector            *types.NamespaceSelector
-	LabelSelector                *v1.LabelSelector
-	FieldSelector                *types.FieldSelector
-	ExecuteHookOnEvents          *bool
+	// Name is a key in snapshots map.
+	Name string
+	// ApiVersion of objects. "v1" is used if not set.
+	ApiVersion string
+	// Kind of objects.
+	Kind string
+	// NameSelector used to subscribe on object by its name.
+	NameSelector *types.NameSelector
+	// NamespaceSelector used to subscribe on objects in namespaces.
+	NamespaceSelector *types.NamespaceSelector
+	// LabelSelector used to subscribe on objects by matching their labels.
+	LabelSelector *v1.LabelSelector
+	// FieldSelector used to subscribe on objects by matching specific fields (the list of fields is narrow, see shell-operator documentation).
+	FieldSelector *types.FieldSelector
+	// ExecuteHookOnEvents is true by default. Set to false if only snapshot update is needed.
+	ExecuteHookOnEvents *bool
+	// ExecuteHookOnSynchronization is true by default. Set to false if only snapshot update is needed.
 	ExecuteHookOnSynchronization *bool
-	WaitForSynchronization       *bool
-	FilterFunc                   FilterFunc
+	// WaitForSynchronization is true by default. Set to false if beforeHelm is not required this snapshot on start.
+	WaitForSynchronization *bool
+	// FilterFunc used to filter object content for snapshot. Addon-operator use checksum of this filtered result to ignore irrelevant events.
+	FilterFunc FilterFunc
 }
 
 type OrderedConfig struct {
@@ -193,8 +205,11 @@ type OrderedConfig struct {
 }
 
 type HookBindingContext struct {
-	Type      string // type: Event Synchronization Group Schedule
-	Binding   string // binding name
+	// Type of binding context: [Event, Synchronization, Group, Schedule]
+	Type string
+	// Binding is a related binding name.
+	Binding string
+	// Snapshots contain all objects for all bindings.
 	Snapshots map[string][]types.ObjectAndFilterResult
 }
 

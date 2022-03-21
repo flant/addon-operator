@@ -185,6 +185,98 @@ This hook will be executed *before* updating the Helm release with this binding 
 }]
 ```
 
+### Synchronization for global hooks
+
+[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is the first run of global hooks with "kubernetes" bindings. As with the Shell-operator, it executes right after the successful completion of global "onStartup" hooks, but the following behavior is slightly different. By default, the Addon-operator executes "beforeAll" hooks after the completion of hooks with `executeHookOnSynchronization: true`. Set `waitForSynchronization: false` to execute these hooks in parallel with "beforeAll" hooks.
+
+For example, a global hook with `kubernetes` and `beforeAll` bindings may have this configuration:
+
+```yaml
+configVersion: v1
+beforeAll: 10
+kubernetes:
+- name: monitor-pods
+  apiVersion: v1
+  kind: Pod
+  jqFilter: ".metadata.labels"
+- name: monitor-nodes
+  apiVersion: v1
+  kind: Node
+  jqFilter: ".metadata.labels"
+  queue: nodes-handling
+  executeHookOnSynchronization: false
+- name: monitor-cms
+  apiVersion: v1
+  kind: ConfigMap
+  jqFilter: ".metadata.labels"
+  queue: config-map-handling
+  waitForSynchronization: false
+- name: monitor-secrets
+  apiVersion: v1
+  kind: Secret
+  jqFilter: ".metadata.labels"
+  queue: secrets-handling
+  executeHookOnSynchronization: false
+  waitForSynchronization: false
+```
+
+This hook will be executed after "onStartup" as follows:
+
+- Run hook with binding context for the "monitor-pods" binding in the "main" queue.
+- Fill snapshot for the "monitor-nodes" binding, do not execute hook.
+- Run in parallel:
+  - hook with the "beforeAll" binding context in the "main" queue
+  - hook with the "monitor-cms" binding context in the "config-map-handling" queue
+  - fill snapshot for the "monitor-secrets" binding.
+
+> Note: there is no guarantee that the "beforeAll" binding context contains snapshots with ConfigMaps and Secrets.
+
+### Synchronization for module hooks
+
+[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is the first run of module hooks with "kubernetes" bindings after module enablement. It executes right after the successful completion of the module's "onStartup" hooks. By default, the Addon-operator executes "beforeHelm" hooks after the completion of hooks with `executeHookOnSynchronization: true`. Set `waitForSynchronization: false` to execute these hooks in parallel with "beforeHelm" hooks.
+
+For example, a module hook with `kubernetes` and `beforeHelm` bindings may have this configuration:
+
+```yaml
+configVersion: v1
+beforeHelm: 10
+kubernetes:
+- name: monitor-pods
+  apiVersion: v1
+  kind: Pod
+  jqFilter: ".metadata.labels"
+- name: monitor-nodes
+  apiVersion: v1
+  kind: Node
+  jqFilter: ".metadata.labels"
+  queue: nodes-handling
+  executeHookOnSynchronization: false
+- name: monitor-cms
+  apiVersion: v1
+  kind: ConfigMap
+  jqFilter: ".metadata.labels"
+  queue: config-map-handling
+  waitForSynchronization: false
+- name: monitor-secrets
+  apiVersion: v1
+  kind: Secret
+  jqFilter: ".metadata.labels"
+  queue: secrets-handling
+  executeHookOnSynchronization: false
+  waitForSynchronization: false
+```
+
+This hook will be executed after "onStartup" as follows:
+
+- Run hook with binding context for the "monitor-pods" binding in the "main" queue.
+- Fill snapshot for the "monitor-nodes" binding, do not execute hook.
+- Run in parallel: 
+  - hook with the "beforeHelm" binding context in the "main" queue
+  - hook with the "monitor-cms" binding context in the "config-map-handling" queue
+  - fill snapshot for the "monitor-secrets" binding
+
+> Note: there is no guarantee that the "beforeHelm" binding context contains snapshots with ConfigMaps and Secrets.
+
 ### Execution rate
 
 Hook configuration has a `settings` section with parameters `executionMinPeriod` and `executionBurst`. These parameters are used to throttle hook executions and wait for more events in the queue. See section [execution rate](https://github.com/flant/shell-operator/blob/master/HOOKS.md#execution-rate) from the Shell-operator.
