@@ -10,10 +10,10 @@ The file structure of the module’s directory:
 ├── Chart.yaml
 ├── enabled
 ├── hooks
-│   └── module-hooks.sh
+│   └── module-hooks.sh
 ├── README.md
 ├── templates
-│   └── daemon-set.yaml
+│   └── daemon-set.yaml
 └── values.yaml
 ```
 

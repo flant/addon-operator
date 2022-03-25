@@ -27,7 +27,7 @@ During execution, a module hook receives global values and module values. Module
 | Binding  | Global? | Module? | Info |
 | ------------- | ------------- | --- | --- |
 | [onStartup](#onstartup)↗  | ✓ | – | On Addon-operator startup |
-| [onStartup](#onstartup)↗  | – |  ✓ | On first module's execution |
+| [onStartup](#onstartup)↗  | – |  ✓ | On Addon-operator startup or module enablement |
 | [beforeAll](#beforeall)↗ | ✓ | – | Before any modules are executed|
 | [afterAll](#afterall)↗ | ✓ | – | After all modules are executed|
 | [beforeHelm](#beforehelm)↗ | – | ✓ | Before executing `helm install` |
