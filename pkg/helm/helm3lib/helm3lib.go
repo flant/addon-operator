@@ -131,6 +131,18 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, stat
 }
 
 func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
+	err := h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
+	if err != nil {
+		// helm validation can fail because FeatureGate was enabled for example
+		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
+		h.reinitKubeClient()
+		return err
+	}
+
+	return nil
+}
+
+func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
 	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
@@ -166,9 +178,6 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		}
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
-
-	// reinitKubeClient helm config, because cached kube.Config can't handle Feature Gates
-	h.reinitKubeClient()
 
 	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chartName, namespace)
 	histClient := action.NewHistory(actionConfig)
