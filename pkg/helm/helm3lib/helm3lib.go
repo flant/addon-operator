@@ -136,7 +136,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		// helm validation can fail because FeatureGate was enabled for example
 		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
 		h.reinitKubeClient()
-		return err
+		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
 	}
 
 	return nil
