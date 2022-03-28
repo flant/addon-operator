@@ -13,6 +13,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage/driver"
@@ -75,6 +76,12 @@ func (h *LibClient) WithKubeClient(client klient.Client) {
 	h.KubeClient = client
 }
 
+func (h *LibClient) reinitKubeClient() {
+	getter := cli.New().RESTClientGetter()
+	kc := kube.New(getter)
+	actionConfig.KubeClient = kc
+}
+
 // initAndVersion runs helm version command.
 func (h *LibClient) initAndVersion() error {
 	ac := new(action.Configuration)
@@ -107,7 +114,7 @@ func (h *LibClient) DeleteOldFailedRevisions(releaseName string) error {
 
 // LastReleaseStatus returns last known revision for release and its status
 func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
-	release, err := actionConfig.Releases.Last(releaseName)
+	lastRelease, err := actionConfig.Releases.Last(releaseName)
 	if err != nil {
 		// in the Last(x) function we have the condition:
 		// 	if len(h) == 0 {
@@ -120,10 +127,22 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, stat
 		return "", "", err
 	}
 
-	return strconv.FormatInt(int64(release.Version), 10), release.Info.Status.String(), nil
+	return strconv.FormatInt(int64(lastRelease.Version), 10), lastRelease.Info.Status.String(), nil
 }
 
 func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
+	err := h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
+	if err != nil {
+		// helm validation can fail because FeatureGate was enabled for example
+		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
+		h.reinitKubeClient()
+		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
+	}
+
+	return nil
+}
+
+func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
 	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
@@ -338,7 +357,6 @@ func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []s
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
 	inst := action.NewInstall(actionConfig)
-	// inst := action.NewUpgrade(actionConfig)
 	inst.DryRun = true
 
 	if namespace != "" {
