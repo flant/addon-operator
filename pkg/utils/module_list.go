@@ -49,6 +49,20 @@ func SortByReference(in []string, ref []string) []string {
 	return res
 }
 
+// KeysSortedByReference returns keys from map sorted by the order of 'ref' array.
+// Note: keys not in ref are ignored.
+func KeysSortedByReference(m map[string]struct{}, ref []string) []string {
+	res := make([]string, 0)
+
+	for _, v := range ref {
+		if _, hasKey := m[v]; hasKey {
+			res = append(res, v)
+		}
+	}
+
+	return res
+}
+
 // ListSubtract creates a new array from 'src' array with items that are
 // not present in 'ignored' arrays.
 func ListSubtract(src []string, ignored ...[]string) (result []string) {
@@ -129,6 +143,26 @@ func ListFullyIn(arr []string, ref []string) bool {
 		if _, ok := m[v]; !ok {
 			return false
 		}
+	}
+
+	return res
+}
+
+func MapStringStructKeys(m map[string]struct{}) []string {
+	res := make([]string, 0, len(m))
+
+	for k := range m {
+		res = append(res, k)
+	}
+
+	return res
+}
+
+func ListToMapStringStruct(items []string) map[string]struct{} {
+	res := make(map[string]struct{})
+
+	for _, item := range items {
+		res[item] = struct{}{}
 	}
 
 	return res

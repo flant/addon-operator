@@ -3,4 +3,5 @@ kind: ConfigMap
 metadata:
   name: addon-operator
 data:
-  global: {}
+  moduleAlphaEnabled: "true"
+  moduleBetaEnabled: "false"

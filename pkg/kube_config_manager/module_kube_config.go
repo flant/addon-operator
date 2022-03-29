@@ -5,33 +5,31 @@ import (
 	"strings"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	log "github.com/sirupsen/logrus"
 )
 
-// TODO make a method of KubeConfig
-// TODO LOG: multierror?
 // GetModulesNamesFromConfigData returns all keys in kube config except global
 // modNameEnabled keys are also handled
-func GetModulesNamesFromConfigData(configData map[string]string) map[string]bool {
+func GetModulesNamesFromConfigData(configData map[string]string) (map[string]bool, error) {
 	res := make(map[string]bool)
 
 	for key := range configData {
+		// Ignore global section.
 		if key == utils.GlobalValuesKey {
 			continue
 		}
 
+		// Treat Enabled flags as module section.
 		key = strings.TrimSuffix(key, "Enabled")
 
 		modName := utils.ModuleNameFromValuesKey(key)
 
 		if utils.ModuleNameToValuesKey(modName) != key {
-			log.Errorf("Bad module name '%s': should be camelCased module name: ignoring data", key)
-			continue
+			return nil, fmt.Errorf("bad module name '%s': should be camelCased", key)
 		}
 		res[modName] = true
 	}
 
-	return res
+	return res, nil
 }
 
 type ModuleKubeConfig struct {
@@ -40,7 +38,13 @@ type ModuleKubeConfig struct {
 	ConfigData map[string]string
 }
 
-// TODO make a method of KubeConfig
+func (m *ModuleKubeConfig) GetEnabled() string {
+	if m == nil {
+		return ""
+	}
+	return m.ModuleConfig.GetEnabled()
+}
+
 func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) (*ModuleKubeConfig, error) {
 	valuesKey := utils.ModuleNameToValuesKey(moduleName)
 	if !values.HasKey(valuesKey) {
@@ -69,16 +73,15 @@ func GetModuleKubeConfigFromValues(moduleName string, values utils.Values) (*Mod
 	}, nil
 }
 
-// TODO make a method of KubeConfig
 // ExtractModuleKubeConfig returns ModuleKubeConfig with values loaded from ConfigMap
 func ExtractModuleKubeConfig(moduleName string, configData map[string]string) (*ModuleKubeConfig, error) {
 	moduleConfig, err := utils.NewModuleConfig(moduleName).FromConfigMapData(configData)
 	if err != nil {
-		return nil, fmt.Errorf("ConfigMap: bad yaml at key '%s': %s", utils.ModuleNameToValuesKey(moduleName), err)
+		return nil, fmt.Errorf("bad yaml at key '%s': %s", utils.ModuleNameToValuesKey(moduleName), err)
 	}
 	// NOTE this should never happen because of GetModulesNamesFromConfigData
 	if moduleConfig == nil {
-		return nil, fmt.Errorf("possible bug!!! Kube config for module '%s' is not found in ConfigMap.data", moduleName)
+		return nil, fmt.Errorf("possible bug!!! No section '%s' for module '%s'", utils.ModuleNameToValuesKey(moduleName), moduleName)
 	}
 
 	return &ModuleKubeConfig{

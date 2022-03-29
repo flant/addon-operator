@@ -1,12 +1,12 @@
 module github.com/flant/addon-operator
 
-go 1.15
+go 1.16
 
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/flant/kube-client v0.0.6
-	github.com/flant/shell-operator v1.0.10-0.20220324171037-a48626e8b125
+	github.com/flant/shell-operator v1.0.10-0.20220411072300-19eb91114325
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
@@ -14,7 +14,7 @@ require (
 	github.com/go-openapi/validate v0.19.12
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
-	github.com/onsi/gomega v1.17.0
+	github.com/onsi/gomega v1.18.1
 	github.com/peterbourgon/mergemap v0.0.0-20130613134717-e21c03b7a721
 	github.com/prometheus/client_golang v1.11.0
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
@@ -42,3 +42,5 @@ replace github.com/go-openapi/validate => github.com/flant/go-openapi-validate v
 replace k8s.io/client-go => k8s.io/client-go v0.19.11
 
 replace k8s.io/api => k8s.io/api v0.19.11
+
+replace github.com/flant/shell-operator => ../shell-operator

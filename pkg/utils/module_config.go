@@ -30,6 +30,9 @@ func (mc ModuleConfig) String() string {
 
 // GetEnabled returns string description of enabled status.
 func (mc *ModuleConfig) GetEnabled() string {
+	if mc == nil {
+		return ""
+	}
 	switch {
 	case mc.IsEnabled == nil:
 		return "n/d"

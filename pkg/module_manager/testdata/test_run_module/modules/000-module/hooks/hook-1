@@ -1,15 +1,14 @@
 #!/bin/bash -e
 
 if [[ "$1" == "--config" ]]; then
-    echo "
-{
-    \"beforeHelm\": 2
-}
-"
+  cat <<EOF
+configVersion: v1
+beforeHelm: 20
+EOF
 else
     cat << 'EOF' > "$VALUES_JSON_PATCH_PATH"
 [
-    { "op": "add", "path": "/module/beforeHelm", "value": "override-value" }
+    { "op": "add", "path": "/module/beforeHelm", "value": "value-from-before-helm-20" }
 ]
 EOF
 fi

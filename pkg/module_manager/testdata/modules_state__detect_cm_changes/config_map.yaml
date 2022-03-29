@@ -3,4 +3,4 @@ kind: ConfigMap
 metadata:
   name: addon-operator
 data:
-  global: {}
+  moduleThreeEnabled: "false"

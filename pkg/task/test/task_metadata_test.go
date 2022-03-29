@@ -51,9 +51,9 @@ func Test_TaskDescription(t *testing.T) {
 			"module run",
 			HookMetadata{
 				ModuleName:       "module-name",
-				EventDescription: "PrepopulateMainQueue",
+				EventDescription: "BootstrapMainQueue",
 			},
-			"module-name:PrepopulateMainQueue",
+			"module-name:BootstrapMainQueue",
 		},
 		{
 			"module run with onStartup",

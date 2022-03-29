@@ -157,6 +157,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 
 	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version, h.moduleManager.KubeObjectPatcher)
 	globalHookExecutor.WithLogLabels(logLabels)
+	globalHookExecutor.WithHelm(h.moduleManager.helm)
 	hookResult, err := globalHookExecutor.Run()
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
@@ -214,7 +215,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				)
 			}
 
-			err := h.moduleManager.kubeConfigManager.SetKubeGlobalValues(configValuesPatchResult.Values)
+			err := h.moduleManager.kubeConfigManager.SaveGlobalConfigValues(configValuesPatchResult.Values)
 			if err != nil {
 				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)

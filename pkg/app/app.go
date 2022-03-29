@@ -36,12 +36,26 @@ var ConfigMapName = "addon-operator"
 
 var GlobalHooksDir = "global-hooks"
 var ModulesDir = "modules"
-var DefaultTempDir = "/tmp/addon-operator"
 
-var DefaultDebugUnixSocket = "/var/run/addon-operator/debug.socket"
+const (
+	DefaultGlobalHooksDir  = "global-hooks"
+	DefaultModulesDir      = "modules"
+	DefaultTempDir         = "/tmp/addon-operator"
+	DefaultDebugUnixSocket = "/var/run/addon-operator/debug.socket"
+)
 
 // DefineStartCommandFlags init global flags with default values
 func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause) {
+	cmd.Flag("modules-dir", "a path where to search for module directories").
+		Envar("MODULES_DIR").
+		Default(DefaultModulesDir).
+		StringVar(&ModulesDir)
+
+	cmd.Flag("global-hooks-dir", "a path where to search for global hook files (and OpenAPI schemas)").
+		Envar("GLOBAL_HOOKS_DIR").
+		Default(GlobalHooksDir).
+		StringVar(&GlobalHooksDir)
+
 	cmd.Flag("tmp-dir", "a path to store temporary files with data for hooks").
 		Envar("ADDON_OPERATOR_TMP_DIR").
 		Default(DefaultTempDir).

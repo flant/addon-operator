@@ -1,8 +1,11 @@
 package addon_operator
 
 import (
+	"time"
+
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	sh_op "github.com/flant/shell-operator/pkg/shell-operator"
+	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 func RegisterAddonOperatorMetrics(metricStorage *metric_storage.MetricStorage) {
@@ -132,4 +135,27 @@ func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
 			"binding": "",
 			"queue":   "",
 		})
+}
+
+func StartLiveTicksUpdater(metricStorage *metric_storage.MetricStorage) {
+	// Addon-operator live ticks.
+	go func() {
+		for {
+			metricStorage.CounterAdd("{PREFIX}live_ticks", 1.0, map[string]string{})
+			time.Sleep(10 * time.Second)
+		}
+	}()
+}
+
+func StartTasksQueueLengthUpdater(metricStorage *metric_storage.MetricStorage, tqs *queue.TaskQueueSet) {
+	go func() {
+		for {
+			// Gather task queues lengths.
+			tqs.Iterate(func(queue *queue.TaskQueue) {
+				queueLen := float64(queue.Length())
+				metricStorage.GaugeSet("{PREFIX}tasks_queue_length", queueLen, map[string]string{"queue": queue.Name})
+			})
+			time.Sleep(5 * time.Second)
+		}
+	}()
 }

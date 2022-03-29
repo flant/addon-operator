@@ -1,15 +1,15 @@
 #!/bin/bash -e
 
 if [[ "$1" == "--config" ]]; then
-    echo "
-{
-    \"afterDeleteHelm\": 1
-}
-"
+  cat <<EOF
+configVersion: v1
+afterDeleteHelm: 10
+EOF
+
 else
     cat << 'EOF' > "$VALUES_JSON_PATCH_PATH"
 [
-    { "op": "add", "path": "/module/afterDeleteHelm", "value": "value" }
+    { "op": "add", "path": "/module/afterDeleteHelm", "value": "value-from-after-delete-helm-10" }
 ]
 EOF
 fi

@@ -1,0 +1,56 @@
+#!/bin/bash -e
+
+if [[ "$1" == "--config" ]]; then
+  cat << EOF
+configVersion: v1
+onStartup: 1
+afterAll: 1
+beforeAll: 1
+schedule:
+- crontab: "* * * * *"
+  allowFailure: true
+
+kubernetes:
+- executeHookOnEvent: ["Added"]
+  kind: "configmap"
+  labelSelector:
+    matchLabels:
+      component: component1
+    matchExpressions:
+     - key: "tier"
+       operator: "In"
+       values: ["cache"]
+  namespace:
+    nameSelector:
+      matchNames: ["namespace1"]
+  jqFilter: ".items[] | del(.metadata, .field1)"
+  allowFailure: true
+
+- kind: "namespace"
+  labelSelector:
+    matchLabels:
+      component: component2
+    matchExpressions:
+     - key: "tier"
+       operator: "In"
+       values: ["cache"]
+  namespace:
+    nameSelector:
+      matchNames: ["namespace2"]
+  jqFilter: ".items[] | del(.metadata, .field2)"
+  allowFailure: true
+
+- kind: "pod"
+  labelSelector:
+    matchLabels:
+      component: component3
+    matchExpressions:
+     - key: "tier"
+       operator: "In"
+       values: ["cache"]
+  namespace:
+    nameSelector:
+      matchNames: ["namespace2"]
+  jqFilter: ".items[] | del(.metadata, .field3)"
+EOF
+fi

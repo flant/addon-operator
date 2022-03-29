@@ -155,6 +155,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	moduleHookExecutor := NewHookExecutor(h, context, h.Config.Version, h.moduleManager.KubeObjectPatcher)
 	moduleHookExecutor.WithLogLabels(logLabels)
+	moduleHookExecutor.WithHelm(h.moduleManager.helm)
 	hookResult, err := moduleHookExecutor.Run()
 	if hookResult != nil && hookResult.Usage != nil {
 		// usage metrics
@@ -214,7 +215,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 				)
 			}
 
-			err := h.moduleManager.kubeConfigManager.SetKubeModuleValues(moduleName, configValuesPatchResult.Values)
+			err := h.moduleManager.kubeConfigManager.SaveModuleConfigValues(moduleName, configValuesPatchResult.Values)
 			if err != nil {
 				log.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.Name, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.Name, err)
