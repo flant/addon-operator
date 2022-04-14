@@ -326,7 +326,18 @@ func (h *LibClient) ListReleasesNames(labelSelector map[string]string) ([]string
 }
 
 // Render renders helm templates for chart
-func (h *LibClient) Render(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) (string, error) {
+func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string) (string, error) {
+	manifest, err := h.render(releaseName, chartName, valuesPaths, setValues, namespace)
+	if err != nil {
+		// same as install. we can have some feature gate here for validation and we have to reload kube client
+		h.reinitKubeClient()
+		return h.render(releaseName, chartName, valuesPaths, setValues, namespace)
+	}
+
+	return manifest, nil
+}
+
+func (h *LibClient) render(releaseName, chartName string, valuesPaths, setValues []string, namespace string) (string, error) {
 	chart, err := loader.Load(chartName)
 	if err != nil {
 		return "", err
