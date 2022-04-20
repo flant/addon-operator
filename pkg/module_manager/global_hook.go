@@ -152,7 +152,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 
 	for _, info := range h.HookController.SnapshotsInfo() {
 		log.WithFields(utils.LabelsToLogFields(logLabels)).
-			Infof("snapshot info: %s", info)
+			Debugf("snapshot info: %s", info)
 	}
 
 	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version, h.moduleManager.KubeObjectPatcher)

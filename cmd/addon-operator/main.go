@@ -46,6 +46,7 @@ func main() {
 			log.Infof("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
 
 			operator := addon_operator.DefaultOperator()
+			operator.WithRuntimeConfig(runtimeConfig)
 			err := addon_operator.InitAndStart(operator)
 			if err != nil {
 				os.Exit(1)
