@@ -30,7 +30,6 @@ import (
 )
 
 type assembleResult struct {
-	operator             *AddonOperator
 	helmClient           *helm.MockHelmClient
 	helmResourcesManager *helm_resources_manager.MockHelmResourcesManager
 	cmName               string
@@ -108,7 +107,8 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	result.helmClient = &helm.MockHelmClient{}
 	op.Helm = helm.MockHelm(result.helmClient)
 	// Mock helm resources manager to execute module actions: run, delete.
-	op.HelmResourcesManager = &helm_resources_manager.MockHelmResourcesManager{}
+	result.helmResourcesManager = &helm_resources_manager.MockHelmResourcesManager{}
+	op.HelmResourcesManager = result.helmResourcesManager
 
 	shell_operator.SetupEventManagers(op.ShellOperator)
 
