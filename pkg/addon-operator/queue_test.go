@@ -187,6 +187,7 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 		})
 	}
 }
+
 func Test_ModulesWithPendingModuleRun(t *testing.T) {
 	moduleRunTask := func(id string, moduleName string) *sh_task.BaseTask {
 		tsk := &sh_task.BaseTask{Type: task.ModuleRun, Id: id}
@@ -356,7 +357,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 			}
 			require.Equal(t, len(tt.in), q.Length(), "Should add all tasks to the queue.")
 
-			RemoveAdjacentConvergeModules(q, tt.afterID)
+			RemoveCurrentConvergeTasks(q, tt.afterID)
 
 			// Check tasks after remove.
 			require.Equal(t, len(tt.expect), q.Length(), "queue length should match length of expected tasks")

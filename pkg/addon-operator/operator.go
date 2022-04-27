@@ -1181,7 +1181,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		// Register module hooks on every enable.
 		moduleRunErr = op.ModuleManager.RegisterModuleHooks(module, labels)
 		if moduleRunErr == nil {
-			if hm.OnStartupHooks {
+			if hm.DoModuleStartup {
 				logEntry.Debugf("ModuleRun '%s' phase", module.State.Phase)
 
 				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
@@ -1336,7 +1336,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		} else {
 			// Debug messages every fifth second: print Synchronization state.
 			if time.Now().UnixNano()%5000000000 == 0 {
-				logEntry.Debugf("ModuleRun wait Synchronization state: onStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.OnStartupHooks, module.SynchronizationNeeded(), module.State.Synchronization().HasQueued(), module.State.Synchronization().IsComplete())
+				logEntry.Debugf("ModuleRun wait Synchronization state: moduleStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.DoModuleStartup, module.SynchronizationNeeded(), module.State.Synchronization().HasQueued(), module.State.Synchronization().IsComplete())
 				module.State.Synchronization().DebugDumpState(logEntry)
 			}
 			logEntry.Debugf("Synchronization not complete, keep ModuleRun task in repeat mode")
@@ -1372,7 +1372,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		if valuesChanged {
 			logEntry.Infof("ModuleRun success, values changed, restart module")
 			// One of afterHelm hooks changes values, run ModuleRun again: copy task, but disable startup hooks.
-			hm.OnStartupHooks = false
+			hm.DoModuleStartup = false
 			eventDescription := hm.EventDescription
 			if !strings.Contains(eventDescription, "AfterHelmHooksChangeModuleValues") {
 				eventDescription += ".AfterHelmHooksChangeModuleValues"
@@ -1850,10 +1850,11 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 		newLogLabels["module"] = moduleName
 		delete(newLogLabels, "task.id")
 
-		// Run OnStartup hooks on application startup or if module become enabled.
-		runOnStartupHooks := false
+		// Run OnStartup and Kubernetes.Synchronization hooks
+		// on application startup or if module become enabled.
+		doModuleStartup := false
 		if _, has := newlyEnabled[moduleName]; has {
-			runOnStartupHooks = true
+			doModuleStartup = true
 		}
 
 		newTask := sh_task.NewTask(task.ModuleRun).
@@ -1862,7 +1863,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 			WithMetadata(task.HookMetadata{
 				EventDescription: eventDescription,
 				ModuleName:       moduleName,
-				OnStartupHooks:   runOnStartupHooks,
+				DoModuleStartup:  doModuleStartup,
 			})
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}

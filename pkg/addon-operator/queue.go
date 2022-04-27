@@ -86,6 +86,10 @@ func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
 		// Return false to remove converge task right after the specified task.
 		if IsConvergeTask(t) {
 			convergeDrained = true
+			// Stop on ConvergeModules task.
+			if t.GetType() == task.ConvergeModules {
+				stop = true
+			}
 			return false
 		}
 		// Stop filtering when there is non-converge task after specified task.

@@ -20,7 +20,7 @@ func Test_MetadataAccessor(tT *testing.T) {
 		BindingType:      BeforeAll,
 		ModuleName:       "module-name",
 		EventDescription: "ReloadAllTasks",
-		OnStartupHooks:   true,
+		DoModuleStartup:  true,
 	})
 
 	hm := HookMetadataAccessor(t)
@@ -29,8 +29,6 @@ func Test_MetadataAccessor(tT *testing.T) {
 }
 
 func Test_TaskDescription(t *testing.T) {
-	g := NewWithT(t)
-
 	tests := []struct {
 		name     string
 		metadata HookMetadata
@@ -43,7 +41,7 @@ func Test_TaskDescription(t *testing.T) {
 				ModuleName:       "module-name",
 				HookName:         "hook.sh",
 				EventDescription: "ReloadAllTasks",
-				OnStartupHooks:   true,
+				DoModuleStartup:  true,
 			},
 			"beforeAll:hook.sh:ReloadAllTasks",
 		},
@@ -56,13 +54,13 @@ func Test_TaskDescription(t *testing.T) {
 			"module-name:BootstrapMainQueue",
 		},
 		{
-			"module run with onStartup",
+			"module run with DoModuleStartup",
 			HookMetadata{
 				ModuleName:       "module-name",
 				EventDescription: "GlobalValuesChanged",
-				OnStartupHooks:   true,
+				DoModuleStartup:  true,
 			},
-			"module-name:onStartupHooks:GlobalValuesChanged",
+			"module-name:doStartup:GlobalValuesChanged",
 		},
 		{
 			"module hook",
@@ -78,8 +76,8 @@ func Test_TaskDescription(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 			g.Expect(tt.metadata.GetDescription()).To(Equal(tt.expect))
 		})
 	}
-
 }

@@ -22,8 +22,7 @@ type HookMetadata struct {
 	BindingContext   []BindingContext
 	AllowFailure     bool //Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
-	OnStartup      bool // Execute onStartup and kubernetes@Synchronization hooks for module
-	OnStartupHooks bool // Execute onStartup and kubernetes@Synchronization hooks for module
+	DoModuleStartup bool // Execute onStartup and kubernetes@Synchronization hooks for module
 
 	ValuesChecksum           string // checksum of global values before first afterAll hook execution
 	DynamicEnabledChecksum   string // checksum of dynamicEnabled before first afterAll hook execution
@@ -81,8 +80,8 @@ func (hm HookMetadata) GetDescription() string {
 		if hm.HookName == "" {
 			// module run
 			osh := ""
-			if hm.OnStartup {
-				osh = ":onStartup"
+			if hm.DoModuleStartup {
+				osh = ":doStartup"
 			}
 			return fmt.Sprintf("%s%s%s:%s", hm.ModuleName, osh, bindingNames, hm.EventDescription)
 		} else {

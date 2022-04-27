@@ -453,6 +453,12 @@ func Test_ModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 
 	_, _ = mm.RefreshEnabledState(map[string]string{})
 
+	// Register modules hooks.
+	for _, modName := range []string{"after-helm-binding-hooks"} {
+		err := mm.RegisterModuleHooks(mm.GetModule(modName), map[string]string{})
+		require.NoError(t, err, "Should register hooks for module '%s'", modName)
+	}
+
 	var moduleHooks []string
 
 	tests := []struct {
