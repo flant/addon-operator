@@ -23,6 +23,7 @@ type HookMetadata struct {
 	AllowFailure     bool //Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
 	DoModuleStartup bool // Execute onStartup and kubernetes@Synchronization hooks for module
+	IsReloadAll     bool // ModuleRun task is a part of 'Reload all modules' process.
 
 	ValuesChecksum           string // checksum of global values before first afterAll hook execution
 	DynamicEnabledChecksum   string // checksum of dynamicEnabled before first afterAll hook execution

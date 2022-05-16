@@ -1,6 +1,6 @@
 package kube_config_manager
 
-// Checksums is a non-safe storage if checksums for KubeConfig sections.
+// Checksums is a non thread-safe storage for KubeConfig sections checksums.
 type Checksums struct {
 	sums map[string]map[string]struct{}
 }

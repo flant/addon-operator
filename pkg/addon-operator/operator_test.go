@@ -5,11 +5,10 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/flant/kube-client/fake"
-	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	//. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -17,8 +16,10 @@ import (
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
+	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8types "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/helm"
@@ -133,10 +134,27 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	return op, result
 }
 
+func convergeDone(op *AddonOperator) func(g Gomega) bool {
+	return func(g Gomega) bool {
+		if op.IsStartupConvergeDone() {
+			return true
+		}
+		mainQueue := op.TaskQueues.GetMain()
+		g.Expect(func() bool {
+			if mainQueue.IsEmpty() {
+				return true
+			}
+			return mainQueue.GetFirst().GetFailureCount() >= 2
+		}).Should(BeTrue(), "Error loop detected.")
+		return false
+	}
+}
+
 // CreateOnStartupTasks fills a working queue with onStartup hooks.
 // TaskRunner should run all hooks and clean the queue.
 func Test_Operator_startup_tasks(t *testing.T) {
 	g := NewWithT(t)
+	log.SetLevel(log.ErrorLevel)
 
 	op, _ := assembleTestAddonOperator(t, "startup_tasks")
 
@@ -179,7 +197,8 @@ func Test_Operator_startup_tasks(t *testing.T) {
 	})
 }
 
-// Load global hooks and modules, setup wrapper for TaskHandler, and check
+// This test case checks tasks sequence in the 'main' queue during first converge.
+// It loads all global hooks and modules, setup wrapper for TaskHandler, and check
 // tasks sequence until converge is done.
 func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 	g := NewWithT(t)
@@ -229,23 +248,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 	op.TaskQueues.StartMain()
 
 	// Wait until converge is done.
-	stopTimer := time.NewTimer(30 * time.Second)
-	checkTicker := time.NewTicker(200 * time.Millisecond)
-waitConverge:
-	for {
-		select {
-		case <-stopTimer.C:
-			t.Fatal("Operator not ready after timeout.")
-		case <-checkTicker.C:
-			if op.IsStartupConvergeDone() {
-				break waitConverge
-			}
-			mainQueue := op.TaskQueues.GetMain()
-			if !mainQueue.IsEmpty() && mainQueue.GetFirst().GetFailureCount() >= 2 {
-				t.Fatal("Error loop detected.")
-			}
-		}
-	}
+	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
 
 	// Match history with expected tasks.
 	historyExpects := []struct {
@@ -325,4 +328,232 @@ waitConverge:
 			g.Expect(historyInfo.hookName).To(ContainSubstring("/"+parts[1]), "hook name should match for history entry %d, got %+v %+v", i, historyInfo)
 		}
 	}
+}
+
+// This test case checks tasks sequence in the 'main' queue when
+// global section is changed during converge.
+func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
+	g := NewWithT(t)
+	// Mute messages about registration and tasks queueing.
+	log.SetLevel(log.ErrorLevel)
+
+	op, res := assembleTestAddonOperator(t, "converge__main_queue_only")
+
+	// Prefill main queue and start required managers.
+	op.BootstrapMainQueue(op.TaskQueues)
+
+	op.KubeConfigManager.Start()
+	op.ModuleManager.Start()
+	op.StartModuleManagerEventHandler()
+
+	// Define task handler to gather task execution history.
+	type taskInfo struct {
+		taskType         sh_task.TaskType
+		bindingType      BindingType
+		moduleName       string
+		hookName         string
+		spawnerTaskPhase string
+		convergeEvent    ConvergeEvent
+	}
+
+	canChangeConfigMap := make(chan struct{}, 0)
+	canHandleTasks := make(chan struct{}, 0)
+	triggerPause := true
+
+	historyMu := new(sync.Mutex)
+	taskHandleHistory := make([]taskInfo, 0)
+	op.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+		// Put task info to history.
+		hm := task.HookMetadataAccessor(tsk)
+		phase := ""
+		var convergeEvent ConvergeEvent
+		switch tsk.GetType() {
+		case task.ConvergeModules:
+			phase = string(op.ConvergeState.Phase)
+			convergeEvent = tsk.GetProp(ConvergeEventProp).(ConvergeEvent)
+		case task.ModuleRun:
+			if triggerPause {
+				close(canChangeConfigMap)
+				<-canHandleTasks
+				triggerPause = false
+			}
+			phase = string(op.ModuleManager.GetModule(hm.ModuleName).State.Phase)
+		}
+		historyMu.Lock()
+		taskHandleHistory = append(taskHandleHistory, taskInfo{
+			taskType:         tsk.GetType(),
+			bindingType:      hm.BindingType,
+			moduleName:       hm.ModuleName,
+			hookName:         hm.HookName,
+			spawnerTaskPhase: phase,
+			convergeEvent:    convergeEvent,
+		})
+		historyMu.Unlock()
+
+		// Handle it.
+		return op.TaskHandler(tsk)
+	})
+
+	// Start 'main' queue and wait for first converge.
+	op.TaskQueues.StartMain()
+
+	// Emulate changing ConfigMap during converge.
+	go func() {
+		<-canChangeConfigMap
+		// Trigger global changes via KubeConfigManager.
+		globalValuesChangePatch := `[{"op": "add", 
+"path": "/data/global",
+"value": "param: newValue"}]`
+
+		cmPatched, err := op.KubeClient.CoreV1().ConfigMaps(res.cmNamespace).Patch(context.TODO(),
+			res.cmName,
+			k8types.JSONPatchType,
+			[]byte(globalValuesChangePatch),
+			metav1.PatchOptions{},
+		)
+		g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be patched")
+		g.Expect(cmPatched).ShouldNot(BeNil())
+		g.Expect(cmPatched.Data).Should(HaveKey("global"))
+		g.Expect(cmPatched.Data["global"]).Should(Equal("param: newValue"))
+		close(canHandleTasks)
+	}()
+
+	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
+
+	hasReloadAllInStandby := false
+	for i, tsk := range taskHandleHistory {
+		//if i < ignoreTasksCount {
+		//	continue
+		//}
+		if tsk.taskType != task.ConvergeModules {
+			continue
+		}
+		if tsk.convergeEvent == KubeConfigChanged {
+			g.Expect(len(taskHandleHistory) > i+1).Should(BeTrue(), "history should not ends on KubeConfigChanged")
+			next := taskHandleHistory[i+1]
+			g.Expect(next.convergeEvent).Should(Equal(ReloadAllModules))
+			g.Expect(next.spawnerTaskPhase).Should(Equal(string(StandBy)))
+			hasReloadAllInStandby = true
+			break
+		}
+	}
+
+	g.Expect(hasReloadAllInStandby).To(BeTrue(), "Should have ReloadAllModules right after KubeConfigChanged")
+}
+
+// This test case checks tasks sequence in the 'main' queue after changing
+// global section in the config map.
+func Test_HandleConvergeModules_global_changed(t *testing.T) {
+	g := NewWithT(t)
+	// Mute messages about registration and tasks queueing.
+	log.SetLevel(log.ErrorLevel)
+
+	op, res := assembleTestAddonOperator(t, "converge__main_queue_only")
+
+	op.BootstrapMainQueue(op.TaskQueues)
+
+	op.KubeConfigManager.Start()
+	op.ModuleManager.Start()
+	op.StartModuleManagerEventHandler()
+
+	type taskInfo struct {
+		taskType         sh_task.TaskType
+		bindingType      BindingType
+		moduleName       string
+		hookName         string
+		spawnerTaskPhase string
+		convergeEvent    ConvergeEvent
+	}
+
+	historyMu := new(sync.Mutex)
+	taskHandleHistory := make([]taskInfo, 0)
+	op.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+		// Put task info to history.
+		hm := task.HookMetadataAccessor(tsk)
+		phase := ""
+		var convergeEvent ConvergeEvent
+		switch tsk.GetType() {
+		case task.ConvergeModules:
+			phase = string(op.ConvergeState.Phase)
+			convergeEvent = tsk.GetProp(ConvergeEventProp).(ConvergeEvent)
+		case task.ModuleRun:
+			phase = string(op.ModuleManager.GetModule(hm.ModuleName).State.Phase)
+		}
+		historyMu.Lock()
+		taskHandleHistory = append(taskHandleHistory, taskInfo{
+			taskType:         tsk.GetType(),
+			bindingType:      hm.BindingType,
+			moduleName:       hm.ModuleName,
+			hookName:         hm.HookName,
+			spawnerTaskPhase: phase,
+			convergeEvent:    convergeEvent,
+		})
+		historyMu.Unlock()
+
+		// Handle it.
+		return op.TaskHandler(tsk)
+	})
+
+	op.TaskQueues.StartMain()
+
+	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
+
+	log.Infof("Converge done, got %d tasks in history", len(taskHandleHistory))
+
+	// Save current history length to ignore first converge tasks later.
+	ignoreTasksCount := len(taskHandleHistory)
+
+	// Trigger global changes via KubeConfigManager.
+	globalValuesChangePatch := `[{"op": "add", 
+"path": "/data/global",
+"value": "param: newValue"}]`
+
+	cmPatched, err := op.KubeClient.CoreV1().ConfigMaps(res.cmNamespace).Patch(context.TODO(),
+		res.cmName,
+		k8types.JSONPatchType,
+		[]byte(globalValuesChangePatch),
+		metav1.PatchOptions{},
+	)
+	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be patched")
+	g.Expect(cmPatched).ShouldNot(BeNil())
+	g.Expect(cmPatched.Data).Should(HaveKey("global"))
+	g.Expect(cmPatched.Data["global"]).Should(Equal("param: newValue"))
+
+	log.Infof("ConfigMap patched, got %d tasks in history", len(taskHandleHistory))
+
+	// Expect ConvergeModules appears in queue.
+	g.Eventually(func() bool {
+		historyMu.Lock()
+		defer historyMu.Unlock()
+		for i, tsk := range taskHandleHistory {
+			if i < ignoreTasksCount {
+				continue
+			}
+			if tsk.taskType != task.ConvergeModules {
+				continue
+			}
+			if tsk.convergeEvent == KubeConfigChanged {
+				return true
+			}
+		}
+		return false
+	}, "30s", "200ms").Should(BeTrue(), "Should queue ConvergeModules task after changing global section in ConfigMap")
+
+	// Expect ConvergeModules/ReloadAllModules appears in queue.
+	g.Eventually(func() bool {
+		historyMu.Lock()
+		defer historyMu.Unlock()
+		for i, tsk := range taskHandleHistory {
+			if i < ignoreTasksCount {
+				continue
+			}
+			if tsk.taskType != task.ConvergeModules {
+				continue
+			}
+			if tsk.convergeEvent == ReloadAllModules {
+				return true
+			}
+		}
+		return false
+	}, "30s", "200ms").Should(BeTrue(), "Should queue ReloadAllModules task after changing global section in ConfigMap")
 }

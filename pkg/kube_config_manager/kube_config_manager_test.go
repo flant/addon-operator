@@ -17,6 +17,8 @@ import (
 
 const testConfigMapName = "test-addon-operator"
 
+// initKubeConfigManager returns an initialized KubeConfigManager instance.
+// Pass string or map to prefill ConfigMap.
 func initKubeConfigManager(t *testing.T, kubeClient klient.Client, cmData map[string]string, cmContent string) KubeConfigManager {
 	g := NewWithT(t)
 
@@ -70,7 +72,7 @@ prometheus: |
   adminPassword: qwerty
   retentionDays: 20
   userPassword: qwerty
-kubeLegoEnabled: "false"
+grafanaEnabled: "false"
 `
 
 	kubeClient := klient.NewFake(nil)
@@ -123,7 +125,7 @@ kubeLegoEnabled: "false"
 				},
 			},
 		},
-		"kube-lego": {
+		"grafana": {
 			&utils.ModuleDisabled,
 			utils.Values{},
 		},
@@ -280,7 +282,7 @@ func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
 
 }
 
-// Receive message over ModuleConfigsUpdate when ConfigMap is
+// Receive message over KubeConfigEventCh when ConfigMap is
 // externally modified.
 func Test_KubeConfigManager_event_after_adding_module_section(t *testing.T) {
 	g := NewWithT(t)
@@ -314,12 +316,35 @@ param2: val2
 	)
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be patched")
 
-	// Wait for event
-	<-kcm.KubeConfigEventCh()
+	// Wait for event.
+	g.Eventually(kcm.KubeConfigEventCh(), "20s", "100ms").Should(Receive(), "KubeConfigManager should emit event")
 
 	kcm.SafeReadConfig(func(config *KubeConfig) {
 		g.Expect(config.Modules).To(HaveLen(1), "Module section should appear after ConfigMap update")
+		g.Expect(config.Modules).To(HaveKey("module-2"), "module-2 section should appear after ConfigMap update")
 	})
+
+	// Update ConfigMap with global section.
+	globalPatch := `[{"op": "replace", 
+"path": "/data/global",
+"value": "param1: val1"}]`
+
+	_, err = kubeClient.CoreV1().ConfigMaps("default").Patch(context.TODO(),
+		testConfigMapName,
+		types.JSONPatchType,
+		[]byte(globalPatch),
+		metav1.PatchOptions{},
+	)
+	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be patched")
+
+	// Wait for event.
+	g.Eventually(kcm.KubeConfigEventCh(), "20s", "100ms").Should(Receive(), "KubeConfigManager should emit event")
+
+	kcm.SafeReadConfig(func(config *KubeConfig) {
+		g.Expect(config.Global.Values).To(HaveKey("global"), "Should update global section cache")
+		g.Expect(config.Global.Values["global"]).To(HaveKey("param1"), "Should update global section cache")
+	})
+
 }
 
 // SaveModuleConfigValues should update ConfigMap's data

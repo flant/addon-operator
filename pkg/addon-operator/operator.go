@@ -485,6 +485,8 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 				reloadTasks := op.CreateReloadModulesTasks(state.ModulesToReload, t.GetLogLabels(), "KubeConfig-Changed-Modules")
 				if len(reloadTasks) > 0 {
 					logEntry.Infof("ConvergeModules: append %d tasks to reload modules %+v after kube config modification", len(reloadTasks), state.ModulesToReload)
+					// Reset delay if error-loop.
+					res.DelayBeforeNextTask = 0
 				}
 				res.TailTasks = reloadTasks
 				op.logTaskAdd(logEntry, "tail", res.TailTasks...)
@@ -792,7 +794,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						logLabels,
 					)
 					op.TaskQueues.GetMain().AddFirst(convergeTask)
-					// Cancel delay if the head task is stuck in the error loop.
+					// Cancel delay in case the head task is stuck in the error loop.
 					op.TaskQueues.GetMain().CancelTaskDelay()
 					op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put first", convergeTask)
 				}
@@ -1864,6 +1866,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 				EventDescription: eventDescription,
 				ModuleName:       moduleName,
 				DoModuleStartup:  doModuleStartup,
+				IsReloadAll:      true,
 			})
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}

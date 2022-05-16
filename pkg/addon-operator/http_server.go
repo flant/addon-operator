@@ -35,10 +35,10 @@ func RegisterDefaultRoutes(op *AddonOperator) {
 
 	http.HandleFunc("/ready", func(w http.ResponseWriter, request *http.Request) {
 		if op.IsStartupConvergeDone() {
-			w.WriteHeader(200)
+			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("Startup converge done.\n"))
 		} else {
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("Startup converge in progress\n"))
 		}
 	})

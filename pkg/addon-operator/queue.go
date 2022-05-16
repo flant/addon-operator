@@ -60,7 +60,7 @@ func ConvergeTasksInQueue(q *queue.TaskQueue) int {
 }
 
 // RemoveCurrentConvergeTasks detects if converge tasks present in the main
-// queue after task if id equal to 'afterID'. These tasks are drained
+// queue after task which ID equals to 'afterID'. These tasks are drained
 // and the method returns true.
 func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
 	if q == nil {
@@ -86,7 +86,7 @@ func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
 		// Return false to remove converge task right after the specified task.
 		if IsConvergeTask(t) {
 			convergeDrained = true
-			// Stop on ConvergeModules task.
+			// Stop draining when ConvergeModules task is found.
 			if t.GetType() == task.ConvergeModules {
 				stop = true
 			}

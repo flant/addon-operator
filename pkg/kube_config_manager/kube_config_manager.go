@@ -228,6 +228,42 @@ func (kcm *kubeConfigManager) currentModuleNames() map[string]struct{} {
 	return names
 }
 
+// isGlobalChanged returns true when changes in "global" section requires firing event.
+func (kcm *kubeConfigManager) isGlobalChanged(newConfig *KubeConfig) bool {
+	if newConfig.Global == nil {
+		// Fire event when global section is deleted: ConfigMap has no global section but global config is cached.
+		// Note: no checksum checking here, "save" operations can't delete global section.
+		if kcm.currentConfig.Global != nil {
+			kcm.logEntry.Infof("Global section deleted")
+			return true
+		}
+		kcm.logEntry.Debugf("Global section is empty")
+		return false
+	}
+
+	newChecksum := newConfig.Global.Checksum
+	// Global section is updated if a new checksum not equal to the saved one and not in knownChecksum.
+	if kcm.knownChecksums.HasEqualChecksum(utils.GlobalValuesKey, newChecksum) {
+		// Remove known checksum, do not fire event on self-update.
+		kcm.knownChecksums.Remove(utils.GlobalValuesKey, newChecksum)
+		kcm.logEntry.Debugf("Global section self-update")
+		return false
+	}
+
+	if kcm.currentConfig.Global == nil {
+		// "global" section is added after initialization.
+		kcm.logEntry.Infof("Global section added")
+		return true
+	}
+	// Consider "global" change when new checksum is not equal to the saved.
+	if kcm.currentConfig.Global.Checksum != newChecksum {
+		kcm.logEntry.Infof("Global section updated")
+		return true
+	}
+
+	return false
+}
+
 // handleNewCm determine changes in kube config. It sends KubeConfigChanged event if something
 // changed or KubeConfigInvalid event if ConfigMap is incorrect.
 func (kcm *kubeConfigManager) handleCmEvent(obj *v1.ConfigMap) error {
@@ -251,27 +287,7 @@ func (kcm *kubeConfigManager) handleCmEvent(obj *v1.ConfigMap) error {
 	// Lock to read known checksums and update config.
 	kcm.m.Lock()
 
-	globalChanged := false
-	if newConfig.Global == nil {
-		// Global section is deleted if ConfigMap has no global section but global config is cached.
-		// Note: no checksum checking, save operations can't delete global section.
-		if kcm.currentConfig.Global != nil {
-			globalChanged = true
-			kcm.logEntry.Infof("Global section deleted")
-		}
-	} else {
-		newChecksum := newConfig.Global.Checksum
-		// Global section is updated if a new checksum not equal to the saved one and not in knownChecksum.
-		if kcm.knownChecksums.HasEqualChecksum(utils.GlobalValuesKey, newChecksum) {
-			// Remove known checksum, do not fire event on self-update.
-			kcm.knownChecksums.Remove(utils.GlobalValuesKey, newChecksum)
-		} else if kcm.currentConfig.Global != nil {
-			if kcm.currentConfig.Global.Checksum != newChecksum {
-				globalChanged = true
-				kcm.logEntry.Infof("Global section updated")
-			}
-		}
-	}
+	globalChanged := kcm.isGlobalChanged(newConfig)
 
 	// Parse values in module sections, create new ModuleConfigs and checksums map.
 	currentModuleNames := kcm.currentModuleNames()

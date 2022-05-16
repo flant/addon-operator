@@ -50,12 +50,13 @@ const (
 
 func IsConvergeTask(t sh_task.Task) bool {
 	taskType := t.GetType()
-	switch taskType {
-	case task.ModuleDelete, task.ModuleRun, task.ConvergeModules:
-		return true
-	}
 	hm := task.HookMetadataAccessor(t)
+
 	switch taskType {
+	case task.ModuleDelete, task.ConvergeModules:
+		return true
+	case task.ModuleRun:
+		return hm.IsReloadAll
 	case task.GlobalHookRun:
 		switch hm.BindingType {
 		case BeforeAll, AfterAll:
