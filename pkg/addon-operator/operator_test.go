@@ -356,8 +356,8 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		convergeEvent    ConvergeEvent
 	}
 
-	canChangeConfigMap := make(chan struct{}, 0)
-	canHandleTasks := make(chan struct{}, 0)
+	canChangeConfigMap := make(chan struct{})
+	canHandleTasks := make(chan struct{})
 	triggerPause := true
 
 	historyMu := new(sync.Mutex)

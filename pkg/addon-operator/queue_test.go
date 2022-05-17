@@ -269,102 +269,114 @@ func Test_ModulesWithPendingModuleRun(t *testing.T) {
 }
 
 func Test_RemoveCurrentConvergeTasks(t *testing.T) {
+	const currentTaskID = "1"
 	tests := []struct {
-		name    string
-		afterID string
-		in      []sh_task.BaseTask
-		expect  []sh_task.BaseTask
+		name          string
+		initialTasks  []sh_task.BaseTask
+		expectTasks   []sh_task.BaseTask
+		expectRemoved bool
 	}{
 		{
-			name:    "No Converge tasks",
-			afterID: "1",
-			in: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: "1"},
+			name: "No Converge tasks",
+			initialTasks: []sh_task.BaseTask{
+				{Type: task.ConvergeModules, Id: currentTaskID},
 				{Type: task.ModuleHookRun, Id: "2"},
 				{Type: task.GlobalHookRun, Id: "3"},
 			},
-			expect: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: "1"},
-				{Type: task.ModuleHookRun, Id: "2"},
-				{Type: task.GlobalHookRun, Id: "3"},
-			},
-		},
-		{
-			name:    "No Converge tasks, preceding tasks present",
-			afterID: "1",
-			in: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: "-1"},
-				{Type: task.ConvergeModules, Id: "0"},
-				{Type: task.ConvergeModules, Id: "1"},
-				{Type: task.ModuleHookRun, Id: "2"},
-				{Type: task.GlobalHookRun, Id: "3"},
-			},
-			expect: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: "-1"},
-				{Type: task.ConvergeModules, Id: "0"},
+			expectTasks: []sh_task.BaseTask{
 				{Type: task.ConvergeModules, Id: "1"},
 				{Type: task.ModuleHookRun, Id: "2"},
 				{Type: task.GlobalHookRun, Id: "3"},
 			},
 		},
 		{
-			name:    "Single adjacent ConvergeModules task with more Converge tasks",
-			afterID: "1",
-			in: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: "1"},
+			name: "No Converge in progress, preceding tasks present",
+			initialTasks: []sh_task.BaseTask{
+				{Type: task.ConvergeModules, Id: "-1"},
+				{Type: task.ConvergeModules, Id: "0"},
+				{Type: task.ConvergeModules, Id: currentTaskID},
+				{Type: task.ModuleHookRun, Id: "2"},
+				{Type: task.GlobalHookRun, Id: "3"},
+			},
+			expectTasks: []sh_task.BaseTask{
+				{Type: task.ConvergeModules, Id: "-1"},
+				{Type: task.ConvergeModules, Id: "0"},
+				{Type: task.ConvergeModules, Id: currentTaskID},
+				{Type: task.ModuleHookRun, Id: "2"},
+				{Type: task.GlobalHookRun, Id: "3"},
+			},
+		},
+		{
+			name: "Single adjacent ConvergeModules task with more Converge tasks",
+			initialTasks: []sh_task.BaseTask{
+				{Type: task.ConvergeModules, Id: currentTaskID},
 				{Type: task.ConvergeModules, Id: "2"},
 				{Type: task.ModuleRun, Id: "3"},
 				{Type: task.ModuleDelete, Id: "4"},
 			},
-			expect: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: "1"},
+			expectTasks: []sh_task.BaseTask{
+				{Type: task.ConvergeModules, Id: currentTaskID},
 				{Type: task.ModuleRun, Id: "3"},
 				{Type: task.ModuleDelete, Id: "4"},
 			},
+			expectRemoved: true,
 		},
 		{
-			name:    "Converge in progress",
-			afterID: "1",
-			in: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: "1"},
+			name: "Converge in progress",
+			initialTasks: []sh_task.BaseTask{
+				{Type: task.ConvergeModules, Id: currentTaskID},
 				{Type: task.ModuleDelete, Id: "2"},
 				{Type: task.ModuleDelete, Id: "3"},
-				{Type: task.ModuleRun, Id: "4"},
-				{Type: task.ModuleRun, Id: "5"},
-				{Type: task.ModuleRun, Id: "6"},
+				{Type: task.ModuleRun, Id: "4", Metadata: task.HookMetadata{IsReloadAll: true}},
+				{Type: task.ModuleRun, Id: "5", Metadata: task.HookMetadata{IsReloadAll: true}},
+				{Type: task.ModuleRun, Id: "6", Metadata: task.HookMetadata{IsReloadAll: true}},
 				{Type: task.ConvergeModules, Id: "7"},
 				{Type: task.ConvergeModules, Id: "8"},
 				{Type: task.ConvergeModules, Id: "9"},
 				{Type: task.ModuleRun, Id: "11"},
 				{Type: task.GlobalHookRun, Id: "10"},
 			},
-			expect: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: "1"},
+			expectTasks: []sh_task.BaseTask{
+				{Type: task.ConvergeModules, Id: currentTaskID},
 				{Type: task.ConvergeModules, Id: "8"},
 				{Type: task.ConvergeModules, Id: "9"},
 				{Type: task.ModuleRun, Id: "11"},
 				{Type: task.GlobalHookRun, Id: "10"},
 			},
+			expectRemoved: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Fill queue from the test case.
 			q := queue.NewTasksQueue()
-			for _, tsk := range tt.in {
+			for _, tsk := range tt.initialTasks {
 				tmpTsk := tsk
+				// Set metadata to prevent "possible bug" errors.
+				if tmpTsk.Metadata == nil {
+					tmpTsk.Metadata = task.HookMetadata{}
+				}
 				q.AddLast(&tmpTsk)
 			}
-			require.Equal(t, len(tt.in), q.Length(), "Should add all tasks to the queue.")
+			require.Equal(t, len(tt.initialTasks), q.Length(), "Should add all tasks to the queue.")
 
-			RemoveCurrentConvergeTasks(q, tt.afterID)
+			// Try to clean the queue.
+			removed := RemoveCurrentConvergeTasks(q, currentTaskID)
 
-			// Check tasks after remove.
-			require.Equal(t, len(tt.expect), q.Length(), "queue length should match length of expected tasks")
+			// Check result.
+			if tt.expectRemoved {
+				require.True(t, removed, "Should remove tasks from the queue")
+			} else {
+				require.False(t, removed, "Should not remove tasks from the queue")
+			}
+
+			// Check tasks in queue after remove.
+			require.Equal(t, len(tt.expectTasks), q.Length(), "queue length should match length of expected tasks")
 			i := 0
 			q.Iterate(func(tsk sh_task.Task) {
-				require.Equal(t, tt.expect[i].Id, tsk.GetId(), "ID should match for task %d %+v", i, tsk)
-				require.Equal(t, tt.expect[i].Type, tsk.GetType(), "Type should match for task %d %+v", i, tsk)
+				require.Equal(t, tt.expectTasks[i].Id, tsk.GetId(), "ID should match for task %d %+v", i, tsk)
+				require.Equal(t, tt.expectTasks[i].Type, tsk.GetType(), "Type should match for task %d %+v", i, tsk)
 				i++
 			})
 		})
