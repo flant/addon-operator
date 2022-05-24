@@ -962,17 +962,20 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 	delete(newLogLabels, "task.id")
 
 	err := op.ModuleManager.HandleGlobalEnableKubernetesBindings(hm.HookName, func(hook *module_manager.GlobalHook, info controller.BindingExecutionInfo) {
-		hookLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
+		taskLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
+			"binding":   string(OnKubernetesEvent) + "Synchronization",
 			"hook":      hook.GetName(),
 			"hook.type": "global",
 			"queue":     info.QueueName,
-			"binding":   string(OnKubernetesEvent),
 		})
-		delete(hookLogLabels, "task.id")
+		if len(info.BindingContext) > 0 {
+			taskLogLabels["binding.name"] = info.BindingContext[0].Binding
+		}
+		delete(taskLogLabels, "task.id")
 
 		kubernetesBindingID := uuid.NewV4().String()
 		newTask := sh_task.NewTask(task.GlobalHookRun).
-			WithLogLabels(hookLogLabels).
+			WithLogLabels(taskLogLabels).
 			WithQueueName(info.QueueName).
 			WithMetadata(task.HookMetadata{
 				EventDescription:         hm.EventDescription,
@@ -1048,7 +1051,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 
 	// Note: No need to add "main" Synchronization tasks to the GlobalSynchronizationState.
 	res.HeadTasks = mainSyncTasks
-	op.logTaskAdd(logEntry, "head", res.HeadTasks...)
+	op.logTaskAdd(logEntry, "head", mainSyncTasks...)
 
 	res.Status = queue.Success
 
@@ -1221,20 +1224,17 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		// Start monitors for each kubernetes binding in each module hook.
 		err := op.ModuleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
 			queueName := info.QueueName
-			//if queueName == t.GetQueueName() {
-			//	// main
-			//	queueName = syncQueueName
-			//}
-			hookLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
+			taskLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
+				"binding":   string(OnKubernetesEvent) + "Synchronization",
 				"module":    hm.ModuleName,
 				"hook":      hook.GetName(),
 				"hook.type": "module",
 				"queue":     queueName,
 			})
 			if len(info.BindingContext) > 0 {
-				hookLogLabels["binding.name"] = info.BindingContext[0].Binding
+				taskLogLabels["binding.name"] = info.BindingContext[0].Binding
 			}
-			delete(hookLogLabels, "task.id")
+			delete(taskLogLabels, "task.id")
 
 			kubernetesBindingID := uuid.NewV4().String()
 			taskMeta := task.HookMetadata{
@@ -1250,7 +1250,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				ExecuteOnSynchronization: info.KubernetesBinding.ExecuteHookOnSynchronization,
 			}
 			newTask := sh_task.NewTask(task.ModuleHookRun).
-				WithLogLabels(hookLogLabels).
+				WithLogLabels(taskLogLabels).
 				WithQueueName(queueName).
 				WithMetadata(taskMeta)
 			newTask.WithQueuedAt(time.Now())
@@ -1310,7 +1310,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			if len(mainSyncTasks) > 0 {
 				res.HeadTasks = mainSyncTasks
 				res.Status = queue.Keep
-				op.logTaskAdd(logEntry, "head", res.HeadTasks...)
+				op.logTaskAdd(logEntry, "head", mainSyncTasks...)
 				return
 			}
 		}
@@ -1954,7 +1954,7 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 		// GlobalHookRun task for Synchronization of 'kubernetes/cni_name' binding, trigger KubernetesEvent
 		// GlobalHookRun task done, result 'Success' for Synchronization of 'kubernetes/cni_name' binding, trigger KubernetesEvent
 
-		if len(hm.Binding) > 0 {
+		if len(hm.BindingContext) > 0 {
 			if hm.BindingContext[0].IsSynchronization() {
 				parts = append(parts, "Synchronization of")
 			}
@@ -1966,6 +1966,8 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 				name := hm.BindingContext[0].Binding
 				if bindingType == OnKubernetesEvent || bindingType == Schedule {
 					name = fmt.Sprintf("'%s/%s'", bindingType, name)
+				} else {
+					name = string(bindingType)
 				}
 				parts = append(parts, name)
 			} else {
@@ -1994,11 +1996,10 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 		}
 
 	case task.ModuleRun:
-		modDesc := fmt.Sprintf("module '%s', phase '%s'", hm.ModuleName, phase)
+		parts = append(parts, fmt.Sprintf("module '%s', phase '%s'", hm.ModuleName, phase))
 		if hm.DoModuleStartup {
-			modDesc = ", doModuleStartup"
+			parts = append(parts, "with doModuleStartup")
 		}
-		parts = append(parts, modDesc)
 
 	case task.ModulePurge, task.ModuleDelete:
 		parts = append(parts, fmt.Sprintf("module '%s'", hm.ModuleName))
@@ -2019,7 +2020,7 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 
 	triggeredBy := hm.EventDescription
 	if triggeredBy != "" {
-		triggeredBy = ", trigger " + triggeredBy
+		triggeredBy = ", trigger is " + triggeredBy
 	}
 
 	return fmt.Sprintf("%s%s", strings.Join(parts, " "), triggeredBy)
@@ -2029,13 +2030,16 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 func (op *AddonOperator) logTaskAdd(logEntry *log.Entry, action string, tasks ...sh_task.Task) {
 	logger := logEntry.WithField("task.flow", "add")
 	for _, tsk := range tasks {
-		logger.Infof(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
+		logger.WithFields(utils.LabelsToLogFields(tsk.GetLogLabels())).
+			Infof(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
 	}
 }
 
 // logTaskStart prints info about task at start. Also prints event source info from task props.
 func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
-	logger := logEntry.WithField("task.flow", "start")
+	logger := logEntry.
+		WithField("task.flow", "start").
+		WithFields(utils.LabelsToLogFields(tsk.GetLogLabels()))
 	if triggeredBy, ok := tsk.GetProp("triggered-by").(log.Fields); ok {
 		logger = logger.WithFields(triggeredBy)
 	}
@@ -2044,7 +2048,9 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
 
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
 func (op *AddonOperator) logTaskEnd(logEntry *log.Entry, tsk sh_task.Task, result queue.TaskResult) {
-	logger := logEntry.WithField("task.flow", "end")
+	logger := logEntry.
+		WithField("task.flow", "end").
+		WithFields(utils.LabelsToLogFields(tsk.GetLogLabels()))
 
 	level := log.DebugLevel
 	if tsk.GetType() == task.ConvergeModules {

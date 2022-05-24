@@ -144,7 +144,14 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	})
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
-	logEntry.Infof("Module hook start %s/%s", h.Module.Name, h.Name)
+
+	logStartLevel := log.InfoLevel
+	// Use Debug when run as a separate task for Kubernetes or Schedule hooks, as task start is already logged.
+	// TODO log this message by callers.
+	if bindingType == OnKubernetesEvent || bindingType == Schedule {
+		logStartLevel = log.DebugLevel
+	}
+	logEntry.Logf(logStartLevel, "Module hook start %s/%s", h.Module.Name, h.Name)
 
 	for _, info := range h.HookController.SnapshotsInfo() {
 		logEntry.Debugf("snapshot info: %s", info)
