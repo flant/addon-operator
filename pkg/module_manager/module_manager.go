@@ -122,8 +122,6 @@ type moduleManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	logEntry *log.Entry
-
 	// Directories.
 	ModulesDir     string
 	GlobalHooksDir string
@@ -206,8 +204,6 @@ var _ ModuleManager = &moduleManager{}
 // NewModuleManager returns new MainModuleManager
 func NewModuleManager() *moduleManager {
 	return &moduleManager{
-		logEntry: log.WithField("operator.component", "ModuleManager"),
-
 		valuesLayersLock: sync.Mutex{},
 
 		ValuesValidator: validation.NewValuesValidator(),
@@ -439,7 +435,7 @@ func (mm *moduleManager) warnAboutUnknownModules(kubeConfig *kube_config_manager
 		}
 	}
 	if len(unknownNames) > 0 {
-		mm.logEntry.Warnf("ConfigMap/%s has values for unknown modules: %+v", app.ConfigMapName, unknownNames)
+		log.Warnf("ConfigMap/%s has values for unknown modules: %+v", app.ConfigMapName, unknownNames)
 	}
 }
 
@@ -677,7 +673,7 @@ func (mm *moduleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	if err != nil {
 		return nil, err
 	}
-	logEntry.Infof("Modules enabled by script: %+v", enabledModules)
+	logEntry.Infof("Modules enabled by scripts: %+v", enabledModules)
 
 	// Difference between the list of currently enabled modules and the list
 	// of enabled modules after running enabled scripts.
@@ -865,8 +861,6 @@ func (mm *moduleManager) RunGlobalHook(hookName string, binding BindingType, bin
 	if err != nil {
 		return "", "", err
 	}
-
-	log.Debugf("RunGH: %s %s", hookName, binding)
 
 	// Update kubernetes snapshots just before execute a hook
 	if binding == OnKubernetesEvent || binding == Schedule {
@@ -1200,7 +1194,7 @@ func (mm *moduleManager) ApplyEnabledPatch(enabledPatch utils.ValuesPatch) error
 
 	mm.dynamicEnabled = newDynamicEnabled
 
-	log.Infof("dynamic enabled after patch: %s", mm.DumpDynamicEnabled())
+	log.Infof("dynamic enabled modules list after patch: %s", mm.DumpDynamicEnabled())
 
 	return nil
 }

@@ -3,6 +3,7 @@ package validation
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/swag"
@@ -81,6 +82,42 @@ func (st *SchemaStorage) AddModuleValuesSchemas(moduleName string, configBytes, 
 	}
 	st.ModuleSchemas[moduleName] = schemas
 	return nil
+}
+
+// ModuleSchemasDescription describes which schemas are present in storage for the module.
+func (st *SchemaStorage) ModuleSchemasDescription(moduleName string) string {
+	types := availableSchemaTypes(st.ModuleSchemas[moduleName])
+	if len(types) == 0 {
+		return "No OpenAPI schemas"
+	}
+	return fmt.Sprintf("OpenAPI schemas: %s.", strings.Join(types, ", "))
+}
+
+// GlobalSchemasDescription describes which global schemas are present in storage.
+func (st *SchemaStorage) GlobalSchemasDescription() string {
+	types := availableSchemaTypes(st.GlobalSchemas)
+	if len(types) == 0 {
+		return "No Global OpenAPI schemas"
+	}
+	return fmt.Sprintf("Global OpenAPI schemas: %s.", strings.Join(types, ", "))
+}
+
+func availableSchemaTypes(schemas map[SchemaType]*spec.Schema) []string {
+	types := make([]string, 0)
+	if len(schemas) == 0 {
+		return types
+	}
+
+	if _, has := schemas[ConfigValuesSchema]; has {
+		types = append(types, "config values")
+	}
+	if _, has := schemas[ValuesSchema]; has {
+		types = append(types, "values")
+	}
+	if _, has := schemas[HelmValuesSchema]; has {
+		types = append(types, "helm values")
+	}
+	return types
 }
 
 // loadSchema returns spec.Schema object loaded from yaml bytes.

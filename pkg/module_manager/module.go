@@ -1009,7 +1009,7 @@ func (mm *moduleManager) RegisterModules() error {
 			return fmt.Errorf("add module '%s' schemas: %v", module.Name, err)
 		}
 
-		logEntry.Infof("Module '%s' is registered", module.Name)
+		logEntry.Infof("Module from '%s'. %s", module.Path, mm.ValuesValidator.SchemaStorage.ModuleSchemasDescription(module.Name))
 	}
 
 	return nil

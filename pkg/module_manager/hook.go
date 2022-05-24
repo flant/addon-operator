@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 
 	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/controller"
@@ -146,7 +147,11 @@ func SearchGlobalShellHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 		hooks = append(hooks, globalHook)
 	}
 
-	log.Infof("Registered %d global shell hooks from '%s'", len(hooks), hooksDir)
+	count := "no"
+	if len(hooks) > 0 {
+		count = strconv.Itoa(len(hooks))
+	}
+	log.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
 
 	return
 }
@@ -166,7 +171,11 @@ func SearchGlobalGoHooks() (hooks []*GlobalHook, err error) {
 		hooks = append(hooks, globalHook)
 	}
 
-	log.Infof("Registered %d global Go hooks", len(hooks))
+	count := "no"
+	if len(hooks) > 0 {
+		count = strconv.Itoa(len(hooks))
+	}
+	log.Infof("Found %s global Go hooks", count)
 
 	return hooks, nil
 }
@@ -330,7 +339,7 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		}
 		mm.globalHooksByName[globalHook.Name] = globalHook
 
-		logEntry.Infof("Global hook '%s' successfully run with --config. Register with bindings: %s", globalHook.Name, globalHook.GetConfigDescription())
+		logEntry.Infof("Global hook from '%s'. Bindings: %s", globalHook.Path, globalHook.GetConfigDescription())
 
 		mm.metricStorage.GaugeSet(
 			"{PREFIX}binding_count",
@@ -352,6 +361,8 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 	if err != nil {
 		return fmt.Errorf("add global schemas: %v", err)
 	}
+
+	log.Infof(mm.ValuesValidator.SchemaStorage.GlobalSchemasDescription())
 
 	return nil
 }
@@ -440,7 +451,7 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 			registeredModuleHooks[binding] = append(registeredModuleHooks[binding], moduleHook)
 		}
 
-		hookLogEntry.Infof("Module hook successfully run with --config. Register with bindings: %s", moduleHook.GetConfigDescription())
+		hookLogEntry.Infof("Module hook from '%s'. Bindings: %s", moduleHook.Path, moduleHook.GetConfigDescription())
 
 		mm.metricStorage.GaugeSet(
 			"{PREFIX}binding_count",
