@@ -1927,14 +1927,12 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 	parts := make([]string, 0)
 
 	switch action {
-	case "start", "end":
+	case "start":
 		parts = append(parts, fmt.Sprintf("%s task", tsk.GetType()))
+	case "end":
+		parts = append(parts, fmt.Sprintf("%s task done, result is '%s'", tsk.GetType(), status))
 	default:
 		parts = append(parts, fmt.Sprintf("%s task %s", action, tsk.GetType()))
-	}
-
-	if action == "end" {
-		parts = append(parts, fmt.Sprintf("done, result is '%s'", status))
 	}
 
 	parts = append(parts, "for")
