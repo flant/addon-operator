@@ -15,7 +15,7 @@ import (
 func Test_Config_GoHook(t *testing.T) {
 	g := NewWithT(t)
 
-	moduleManager := NewMainModuleManager()
+	moduleManager := NewModuleManager()
 
 	expectedGoHookName := "simple.go"
 	expectedGoHookPath := "/global-hooks/simple.go"

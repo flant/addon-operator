@@ -14,13 +14,32 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 )
 
-var NewClient = func(logLabels ...map[string]string) client.HelmClient {
+type Helm struct {
+	kubeClient     klient.Client
+	healthzHandler func(writer http.ResponseWriter, request *http.Request)
+	newClient      func(logLabels ...map[string]string) client.HelmClient
+}
+
+func New() *Helm {
+	return &Helm{}
+}
+
+func (h *Helm) WithKubeClient(kubeClient klient.Client) {
+	h.kubeClient = kubeClient
+}
+
+func (h *Helm) NewClient(logLabels ...map[string]string) client.HelmClient {
+	if h.newClient != nil {
+		return h.newClient(logLabels...)
+	}
 	return nil
 }
 
-var HealthzHandler func(writer http.ResponseWriter, request *http.Request)
+func (h *Helm) HealthzHandler() func(writer http.ResponseWriter, request *http.Request) {
+	return h.healthzHandler
+}
 
-func Init(client klient.Client) error {
+func (h *Helm) Init() error {
 	helmVersion, err := DetectHelmVersion()
 	if err != nil {
 		return err
@@ -29,24 +48,24 @@ func Init(client klient.Client) error {
 	switch helmVersion {
 	case "v3lib":
 		log.Info("Helm3Lib detected")
-		NewClient = helm3lib.NewClient
+		h.newClient = helm3lib.NewClient
 		err = helm3lib.Init(&helm3lib.Options{
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,
-			KubeClient: client,
+			KubeClient: h.kubeClient,
 		})
 		return err
 
 	case "v3":
 		log.Info("Helm 3 detected")
 		// Use helm3 client.
-		NewClient = helm3.NewClient
+		h.newClient = helm3.NewClient
 		err = helm3.Init(&helm3.Helm3Options{
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,
-			KubeClient: client,
+			KubeClient: h.kubeClient,
 		})
 		return err
 
@@ -68,13 +87,13 @@ func Init(client klient.Client) error {
 		// Initialize helm2 client
 		err = helm2.Init(&helm2.Helm2Options{
 			Namespace:  app.Namespace,
-			KubeClient: client,
+			KubeClient: h.kubeClient,
 		})
 		if err != nil {
 			return fmt.Errorf("init helm client: %s", err)
 		}
-		NewClient = helm2.NewClient
-		HealthzHandler = helm2.TillerHealthHandler()
+		h.newClient = helm2.NewClient
+		h.healthzHandler = helm2.TillerHealthHandler()
 	}
 
 	return nil

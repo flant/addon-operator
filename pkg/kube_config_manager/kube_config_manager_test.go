@@ -2,22 +2,56 @@ package kube_config_manager
 
 import (
 	"context"
-	klient "github.com/flant/kube-client/client"
-	"sync"
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/app"
+	klient "github.com/flant/kube-client/client"
 	. "github.com/onsi/gomega"
-
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-func Test_LoadValues_On_Init(t *testing.T) {
+const testConfigMapName = "test-addon-operator"
+
+// initKubeConfigManager returns an initialized KubeConfigManager instance.
+// Pass string or map to prefill ConfigMap.
+func initKubeConfigManager(t *testing.T, kubeClient klient.Client, cmData map[string]string, cmContent string) KubeConfigManager {
+	g := NewWithT(t)
+
+	cm := &v1.ConfigMap{}
+	cm.SetNamespace("default")
+	cm.SetName(testConfigMapName)
+
+	if cmData != nil {
+		cm.Data = cmData
+	} else {
+		cmData := map[string]string{}
+		_ = yaml.Unmarshal([]byte(cmContent), cmData)
+		cm.Data = cmData
+	}
+
+	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
+	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
+
+	kcm := NewKubeConfigManager()
+	kcm.WithContext(context.Background())
+	kcm.WithKubeClient(kubeClient)
+	kcm.WithNamespace("default")
+	kcm.WithConfigMapName(testConfigMapName)
+
+	err = kcm.Init()
+	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")
+
+	go kcm.Start()
+
+	return kcm
+}
+
+func Test_KubeConfigManager_loadConfig(t *testing.T) {
 	cmDataText := `
 global: |
   project: tfprod
@@ -38,27 +72,14 @@ prometheus: |
   adminPassword: qwerty
   retentionDays: 20
   userPassword: qwerty
-kubeLegoEnabled: "false"
+grafanaEnabled: "false"
 `
-	cmData := map[string]string{}
-	_ = yaml.Unmarshal([]byte(cmDataText), cmData)
 
 	kubeClient := klient.NewFake(nil)
-	_, _ = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), &v1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "addon-operator"},
-		Data:       cmData,
-	}, metav1.CreateOptions{})
 
-	kcm := NewKubeConfigManager()
-	kcm.WithKubeClient(kubeClient)
-	kcm.WithNamespace("default")
-	kcm.WithConfigMapName("addon-operator")
+	kcm := initKubeConfigManager(t, kubeClient, nil, cmDataText)
 
-	err := kcm.Init()
-	if err != nil {
-		t.Errorf("kube_config_manager initialization error: %s", err)
-	}
-	config := kcm.InitialConfig()
+	defer kcm.Stop()
 
 	tests := map[string]struct {
 		isEnabled *bool
@@ -104,34 +125,36 @@ kubeLegoEnabled: "false"
 				},
 			},
 		},
-		"kube-lego": {
+		"grafana": {
 			&utils.ModuleDisabled,
 			utils.Values{},
 		},
 	}
 
+	// No need to use lock in KubeConfigManager.
 	for name, expect := range tests {
 		t.Run(name, func(t *testing.T) {
 			if name == "global" {
-				assert.Equal(t, expect.values, config.Values)
+				kcm.SafeReadConfig(func(config *KubeConfig) {
+					assert.Equal(t, expect.values, config.Global.Values)
+				})
 			} else {
-				// module
-				moduleConfig, hasConfig := config.ModuleConfigs[name]
-				assert.True(t, hasConfig)
-				assert.Equal(t, expect.isEnabled, moduleConfig.IsEnabled)
-				assert.Equal(t, expect.values, moduleConfig.Values)
+				kcm.SafeReadConfig(func(config *KubeConfig) {
+					// module
+					moduleConfig, hasConfig := config.Modules[name]
+					assert.True(t, hasConfig)
+					assert.Equal(t, expect.isEnabled, moduleConfig.IsEnabled)
+					assert.Equal(t, expect.values, moduleConfig.Values)
+				})
 			}
 		})
 	}
 }
 
-func Test_SaveValuesToConfigMap(t *testing.T) {
+func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
 	kubeClient := klient.NewFake(nil)
 
-	kcm := NewKubeConfigManager()
-	kcm.WithKubeClient(kubeClient)
-	kcm.WithNamespace("default")
-	kcm.WithConfigMapName("addon-operator")
+	kcm := initKubeConfigManager(t, kubeClient, nil, "")
 
 	var err error
 	var cm *v1.ConfigMap
@@ -141,7 +164,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 		globalValues *utils.Values
 		moduleValues *utils.Values
 		moduleName   string
-		testFn       func(global *utils.Values, module *utils.Values)
+		testFn       func(t *testing.T, global *utils.Values, module *utils.Values)
 	}{
 		{
 			"scenario 1: first save with non existent ConfigMap",
@@ -155,7 +178,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 			},
 			nil,
 			"",
-			func(global *utils.Values, module *utils.Values) {
+			func(t *testing.T, global *utils.Values, module *utils.Values) {
 				// Check values in a 'global' key
 				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
 				savedGlobalValues, err := utils.NewGlobalValues(cm.Data["global"])
@@ -179,7 +202,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 				},
 			},
 			nil, "",
-			func(global *utils.Values, module *utils.Values) {
+			func(t *testing.T, global *utils.Values, module *utils.Values) {
 				// Check values in a 'global' key
 				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
 				savedGlobalValues, err := utils.NewGlobalValues(cm.Data["global"])
@@ -198,7 +221,7 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 				},
 			},
 			"mymodule",
-			func(global *utils.Values, module *utils.Values) {
+			func(t *testing.T, global *utils.Values, module *utils.Values) {
 				// Check values in a 'global' key
 				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
 
@@ -234,115 +257,108 @@ func Test_SaveValuesToConfigMap(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.globalValues != nil {
-				err = kcm.SetKubeGlobalValues(*test.globalValues)
+				err = kcm.SaveGlobalConfigValues(*test.globalValues)
 				if !assert.NoError(t, err, "Global Values should be saved") {
 					t.FailNow()
 				}
 			} else if test.moduleValues != nil {
-				err = kcm.SetKubeModuleValues(test.moduleName, *test.moduleValues)
+				err = kcm.SaveModuleConfigValues(test.moduleName, *test.moduleValues)
 				if !assert.NoError(t, err, "Module Values should be saved") {
 					t.FailNow()
 				}
 			}
 
 			// Check that ConfigMap is created or exists
-			cm, err = kubeClient.CoreV1().ConfigMaps("default").Get(context.TODO(), "addon-operator", metav1.GetOptions{})
-			if assert.NoError(t, err, "ConfigMap should exist after SetKubeGlobalValues") {
+			cm, err = kubeClient.CoreV1().ConfigMaps("default").Get(context.TODO(), testConfigMapName, metav1.GetOptions{})
+			if assert.NoError(t, err, "ConfigMap should exist after SaveGlobalConfigValues") {
 				assert.NotNil(t, cm, "ConfigMap should not be nil")
 			} else {
 				t.FailNow()
 			}
 
-			test.testFn(test.globalValues, test.moduleValues)
+			test.testFn(t, test.globalValues, test.moduleValues)
 		})
 	}
 
 }
 
-// Receive message over ModuleConfigsUpdate when ConfigMap is
+// Receive message over KubeConfigEventCh when ConfigMap is
 // externally modified.
-func TestKubeConfigManager_ModuleConfigsUpdated_chan(t *testing.T) {
+func Test_KubeConfigManager_event_after_adding_module_section(t *testing.T) {
 	g := NewWithT(t)
 
 	kubeClient := klient.NewFake(nil)
 
-	cm := &v1.ConfigMap{}
-	cm.SetNamespace("default")
-	cm.SetName(app.ConfigMapName)
-	cm.Data = map[string]string{
+	kcm := initKubeConfigManager(t, kubeClient, map[string]string{
 		"global": `
 param1: val1
 param2: val2
 `,
-	}
+	}, "")
 
-	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
-	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
-
-	kcm := NewKubeConfigManager()
-	kcm.WithContext(context.Background())
-	kcm.WithKubeClient(kubeClient)
-	kcm.WithNamespace("default")
-	kcm.WithConfigMapName(app.ConfigMapName)
-
-	err = kcm.Init()
-	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")
-
-	go kcm.Start()
 	defer kcm.Stop()
 
-	var newModuleConfigs ModuleConfigs
+	// Check initial modules configs.
+	kcm.SafeReadConfig(func(config *KubeConfig) {
+		g.Expect(config.Modules).To(HaveLen(0), "No modules section should be after Init()")
+	})
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	// Update ConfigMap with new module section.
+	sectionPatch := `[{"op": "add", 
+"path": "/data/module2",
+"value": "modParam1: val1\nmodParam2: val2"}]`
 
-	go func() {
-		newModuleConfigs = <-ModuleConfigsUpdated
-		wg.Done()
-	}()
+	_, err := kubeClient.CoreV1().ConfigMaps("default").Patch(context.TODO(),
+		testConfigMapName,
+		types.JSONPatchType,
+		[]byte(sectionPatch),
+		metav1.PatchOptions{},
+	)
+	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be patched")
 
-	// update cm
-	cm.Data["module2"] = `
-modParam1: val1
-modParam2: val2
-`
-	_, err = kubeClient.CoreV1().ConfigMaps("default").Update(context.TODO(), cm, metav1.UpdateOptions{})
-	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
+	// Wait for event.
+	g.Eventually(kcm.KubeConfigEventCh(), "20s", "100ms").Should(Receive(), "KubeConfigManager should emit event")
 
-	wg.Wait()
+	kcm.SafeReadConfig(func(config *KubeConfig) {
+		g.Expect(config.Modules).To(HaveLen(1), "Module section should appear after ConfigMap update")
+		g.Expect(config.Modules).To(HaveKey("module-2"), "module-2 section should appear after ConfigMap update")
+	})
 
-	g.Expect(newModuleConfigs).To(HaveLen(1))
+	// Update ConfigMap with global section.
+	globalPatch := `[{"op": "replace", 
+"path": "/data/global",
+"value": "param1: val1"}]`
+
+	_, err = kubeClient.CoreV1().ConfigMaps("default").Patch(context.TODO(),
+		testConfigMapName,
+		types.JSONPatchType,
+		[]byte(globalPatch),
+		metav1.PatchOptions{},
+	)
+	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be patched")
+
+	// Wait for event.
+	g.Eventually(kcm.KubeConfigEventCh(), "20s", "100ms").Should(Receive(), "KubeConfigManager should emit event")
+
+	kcm.SafeReadConfig(func(config *KubeConfig) {
+		g.Expect(config.Global.Values).To(HaveKey("global"), "Should update global section cache")
+		g.Expect(config.Global.Values["global"]).To(HaveKey("param1"), "Should update global section cache")
+	})
+
 }
 
-// SetKubeModuleValues should update ConfigMap's data
-func TestKubeConfigManager_SetKubeModuleValues(t *testing.T) {
+// SaveModuleConfigValues should update ConfigMap's data
+func Test_KubeConfigManager_SaveModuleConfigValues(t *testing.T) {
 	g := NewWithT(t)
-
 	kubeClient := klient.NewFake(nil)
 
-	cm := &v1.ConfigMap{}
-	cm.SetNamespace("default")
-	cm.SetName(app.ConfigMapName)
-	cm.Data = map[string]string{
+	kcm := initKubeConfigManager(t, kubeClient, map[string]string{
 		"global": `
 param1: val1
 param2: val2
 `,
-	}
+	}, "")
 
-	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
-	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
-
-	kcm := NewKubeConfigManager()
-	kcm.WithContext(context.Background())
-	kcm.WithKubeClient(kubeClient)
-	kcm.WithNamespace("default")
-	kcm.WithConfigMapName(app.ConfigMapName)
-
-	err = kcm.Init()
-	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")
-
-	go kcm.Start()
 	defer kcm.Stop()
 
 	// Set modules values
@@ -354,14 +370,76 @@ moduleLongName:
 	g.Expect(err).ShouldNot(HaveOccurred(), "values should load from bytes")
 	g.Expect(modVals).To(HaveKey("moduleLongName"))
 
-	err = kcm.SetKubeModuleValues("module-long-name", modVals)
+	err = kcm.SaveModuleConfigValues("module-long-name", modVals)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Check that values are updated in ConfigMap
-	cm, err = kubeClient.CoreV1().ConfigMaps("default").Get(context.TODO(), app.ConfigMapName, metav1.GetOptions{})
+	cm, err := kubeClient.CoreV1().ConfigMaps("default").Get(context.TODO(), testConfigMapName, metav1.GetOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap get")
 
 	g.Expect(cm.Data).Should(HaveLen(2))
 	g.Expect(cm.Data).To(HaveKey("global"))
 	g.Expect(cm.Data).To(HaveKey("moduleLongName"))
+}
+
+// Check error if ConfigMap on init
+func Test_KubeConfigManager_error_on_Init(t *testing.T) {
+	g := NewWithT(t)
+
+	kubeClient := klient.NewFake(nil)
+	kcm := initKubeConfigManager(t, kubeClient, nil, "global: ''")
+	defer kcm.Stop()
+
+	// Update ConfigMap with new module section with bad name.
+	badNameSectionPatch := `[{"op": "add", 
+"path": "/data/InvalidName-module",
+"value": "modParam1: val1\nmodParam2: val2"}]`
+
+	_, err := kubeClient.CoreV1().ConfigMaps("default").Patch(context.TODO(),
+		testConfigMapName,
+		types.JSONPatchType,
+		[]byte(badNameSectionPatch),
+		metav1.PatchOptions{},
+	)
+	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be patched")
+
+	// Wait for event
+	ev := <-kcm.KubeConfigEventCh()
+
+	g.Expect(ev).To(Equal(KubeConfigInvalid), "Invalid name in module section should generate 'invalid' event")
+
+	//kcm.SafeReadConfig(func(config *KubeConfig) {
+	//	g.Expect(config.IsInvalid).To(Equal(true), "Current config should be invalid")
+	//})
+
+	// Update ConfigMap with new module section with bad name.
+	validSectionPatch := `[{"op": "add", 
+"path": "/data/validModuleName",
+"value": "modParam1: val1\nmodParam2: val2"},
+{"op": "remove", 
+"path": "/data/InvalidName-module"}]`
+
+	_, err = kubeClient.CoreV1().ConfigMaps("default").Patch(context.TODO(),
+		testConfigMapName,
+		types.JSONPatchType,
+		[]byte(validSectionPatch),
+		metav1.PatchOptions{},
+	)
+	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be patched")
+
+	// Wait for event
+	ev = <-kcm.KubeConfigEventCh()
+
+	g.Expect(ev).To(Equal(KubeConfigChanged), "Valid section patch should generate 'changed' event")
+
+	kcm.SafeReadConfig(func(config *KubeConfig) {
+		//g.Expect(config.IsInvalid).To(Equal(false), "Current config should be valid")
+		g.Expect(config.Modules).To(HaveLen(1), "Current config should have module sections")
+		g.Expect(config.Modules).To(HaveKey("valid-module-name"), "Current config should have module section for 'valid-module-name'")
+		modValues := config.Modules["valid-module-name"].Values
+		g.Expect(modValues.HasKey("validModuleName")).To(BeTrue())
+		m := modValues["validModuleName"]
+		vals := m.(map[string]interface{})
+		g.Expect(vals).To(HaveKey("modParam2"), "Module config values should contain modParam2 key")
+	})
 }

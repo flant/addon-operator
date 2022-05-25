@@ -7,6 +7,14 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
+func MockHelm(cl client.HelmClient) *Helm {
+	return &Helm{
+		newClient: func(_ ...map[string]string) client.HelmClient {
+			return cl
+		},
+	}
+}
+
 type MockHelmClient struct {
 	client.HelmClient
 	DeleteSingleFailedRevisionExecuted bool
@@ -14,6 +22,8 @@ type MockHelmClient struct {
 	DeleteReleaseExecuted              bool
 	ReleaseNames                       []string
 }
+
+var _ client.HelmClient = &MockHelmClient{}
 
 func (h *MockHelmClient) DeleteOldFailedRevisions(releaseName string) error {
 	return nil
@@ -62,4 +72,8 @@ func (h *MockHelmClient) UpgradeRelease(_, _ string, _ []string, _ []string, _ s
 func (h *MockHelmClient) DeleteRelease(_ string) error {
 	h.DeleteReleaseExecuted = true
 	return nil
+}
+
+func (h *MockHelmClient) Render(_ string, _ string, _ []string, _ []string, _ string) (string, error) {
+	return "", nil
 }

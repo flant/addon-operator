@@ -5,8 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func CreateEmptyWritableFile(filePath string) error {
@@ -19,12 +17,14 @@ func CreateEmptyWritableFile(filePath string) error {
 	return nil
 }
 
+// ReadOpenAPIFiles reads config-values.yaml and values.yaml from the specified directory.
+// Global schemas:
 //  /global/openapi/config-values.yaml
 //  /global/openapi/values.yaml
-//  /modules/XXXX/openapi/config-values.yaml
-//  /modules/XXXX/openapi/values.yaml
+// Module schemas:
+//  /modules/XXX-module-name/openapi/config-values.yaml
+//  /modules/XXX-module-name/openapi/values.yaml
 func ReadOpenAPIFiles(openApiDir string) (configSchemaBytes, valuesSchemaBytes []byte, err error) {
-	log.Debugf("Check openAPI schemas in '%s'", openApiDir)
 	if openApiDir == "" {
 		return nil, nil, nil
 	}
@@ -38,7 +38,6 @@ func ReadOpenAPIFiles(openApiDir string) (configSchemaBytes, valuesSchemaBytes [
 		if err != nil {
 			return nil, nil, fmt.Errorf("read file '%s': %v", configPath, err)
 		}
-		log.Infof("Read '%s' OpenAPI schema for config values", configPath)
 	}
 
 	valuesPath := filepath.Join(openApiDir, "values.yaml")
@@ -47,7 +46,6 @@ func ReadOpenAPIFiles(openApiDir string) (configSchemaBytes, valuesSchemaBytes [
 		if err != nil {
 			return nil, nil, fmt.Errorf("read file '%s': %v", valuesPath, err)
 		}
-		log.Infof("Read '%s' OpenAPI schema for values", valuesPath)
 	}
 
 	return

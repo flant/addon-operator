@@ -149,14 +149,15 @@ func (h *GlobalHook) applyEnabledPatches(valuesPatch utils.ValuesPatch) error {
 func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
 	// Convert bindingContext for version
 	//versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	for _, info := range h.HookController.SnapshotsInfo() {
-		log.WithFields(utils.LabelsToLogFields(logLabels)).
-			Debugf("snapshot info: %s", info)
+		logEntry.Debugf("snapshot info: %s", info)
 	}
 
 	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version, h.moduleManager.KubeObjectPatcher)
 	globalHookExecutor.WithLogLabels(logLabels)
+	globalHookExecutor.WithHelm(h.moduleManager.helm)
 	hookResult, err := globalHookExecutor.Run()
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
@@ -203,7 +204,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		}
 
 		if configValuesPatchResult != nil && configValuesPatchResult.ValuesChanged {
-			log.Debugf("Global hook '%s': validate global config values before update", h.Name)
+			logEntry.Debugf("Global hook '%s': validate global config values before update", h.Name)
 			// Validate merged static and new values.
 			mergedValues := h.moduleManager.GlobalStaticAndNewValues(configValuesPatchResult.Values)
 			validationErr := h.moduleManager.ValuesValidator.ValidateGlobalConfigValues(mergedValues)
@@ -214,16 +215,16 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				)
 			}
 
-			err := h.moduleManager.kubeConfigManager.SetKubeGlobalValues(configValuesPatchResult.Values)
+			err := h.moduleManager.kubeConfigManager.SaveGlobalConfigValues(configValuesPatchResult.Values)
 			if err != nil {
-				log.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
+				logEntry.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
 			}
 
 			h.moduleManager.UpdateGlobalConfigValues(configValuesPatchResult.Values)
 
-			log.Infof("Global hook '%s': kube config global values updated", h.Name)
-			log.Debugf("New kube config global values:\n%s\n", h.moduleManager.kubeGlobalConfigValues.DebugString())
+			logEntry.Debugf("Global hook '%s': kube config global values updated", h.Name)
+			logEntry.Debugf("New kube config global values:\n%s\n", h.moduleManager.kubeGlobalConfigValues.DebugString())
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*configValuesPatch)
@@ -248,7 +249,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		// MemoryValuesPatch from global hook can contains patches for *Enabled keys
 		// and no patches for 'global' section — valuesPatchResult will be nil in this case.
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
-			log.Debugf("Global hook '%s': validate global values before update", h.Name)
+			logEntry.Debugf("Global hook '%s': validate global values before update", h.Name)
 			validationErr := h.moduleManager.ValuesValidator.ValidateGlobalValues(valuesPatchResult.Values)
 			if validationErr != nil {
 				return multierror.Append(
@@ -262,8 +263,8 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			if err != nil {
 				return fmt.Errorf("global hook '%s': global values after patch apply: %s", h.Name, err)
 			}
-			log.Infof("Global hook '%s': kube global values updated", h.Name)
-			log.Debugf("New global values:\n%s", newGlobalValues.DebugString())
+			logEntry.Debugf("Global hook '%s': kube global values updated", h.Name)
+			logEntry.Debugf("New global values:\n%s", newGlobalValues.DebugString())
 		}
 		// Apply patches for *Enabled keys.
 		err = h.applyEnabledPatches(*valuesPatch)

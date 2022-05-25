@@ -3,9 +3,4 @@
 # Declare variables to be passed into your templates.
 
 module:
-  replicaCount: 1
-
-  image:
-    repository: nginx
-    tag: stable
-    pullPolicy: IfNotPresent
+  imageName: "nginx:stable"

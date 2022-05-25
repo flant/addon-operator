@@ -209,3 +209,7 @@ func (v Values) YamlString() (string, error) {
 func (v Values) YamlBytes() ([]byte, error) {
 	return v.AsBytes("yaml")
 }
+
+func (v Values) IsEmpty() bool {
+	return len(v) == 0
+}

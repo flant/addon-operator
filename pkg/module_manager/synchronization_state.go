@@ -1,13 +1,16 @@
 package module_manager
 
 import (
-	log "github.com/sirupsen/logrus"
+	"fmt"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/task"
 )
 
-// KubernetesBindingSynchronizationState is a state of the single Synchronization task.
+// KubernetesBindingSynchronizationState is a state of the single Synchronization task
+// for one kubernetes binding.
 type KubernetesBindingSynchronizationState struct {
 	HookName    string
 	BindingName string
@@ -15,7 +18,13 @@ type KubernetesBindingSynchronizationState struct {
 	Done        bool
 }
 
-// SynchronizationState can be used to track synchronization tasks for global or for module.
+func (k *KubernetesBindingSynchronizationState) String() string {
+	return fmt.Sprintf("queue=%v done=%v", k.Queued, k.Done)
+}
+
+// SynchronizationState stores state to track synchronization
+// tasks for kubernetes bindings either for all global hooks
+// or for module's hooks.
 type SynchronizationState struct {
 	state map[string]*KubernetesBindingSynchronizationState
 	m     sync.RWMutex

@@ -144,7 +144,14 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	})
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
-	logEntry.Infof("Module hook start %s/%s", h.Module.Name, h.Name)
+
+	logStartLevel := log.InfoLevel
+	// Use Debug when run as a separate task for Kubernetes or Schedule hooks, as task start is already logged.
+	// TODO log this message by callers.
+	if bindingType == OnKubernetesEvent || bindingType == Schedule {
+		logStartLevel = log.DebugLevel
+	}
+	logEntry.Logf(logStartLevel, "Module hook start %s/%s", h.Module.Name, h.Name)
 
 	for _, info := range h.HookController.SnapshotsInfo() {
 		logEntry.Debugf("snapshot info: %s", info)
@@ -155,6 +162,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 
 	moduleHookExecutor := NewHookExecutor(h, context, h.Config.Version, h.moduleManager.KubeObjectPatcher)
 	moduleHookExecutor.WithLogLabels(logLabels)
+	moduleHookExecutor.WithHelm(h.moduleManager.helm)
 	hookResult, err := moduleHookExecutor.Run()
 	if hookResult != nil && hookResult.Usage != nil {
 		// usage metrics
@@ -203,7 +211,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		}
 
 		if configValuesPatchResult.ValuesChanged {
-			log.Debugf("Module hook '%s': validate module config values before update", h.Name)
+			logEntry.Debugf("Module hook '%s': validate module config values before update", h.Name)
 			// Validate merged static and new values.
 			mergedValues := h.Module.StaticAndNewValues(configValuesPatchResult.Values)
 			validationErr := h.moduleManager.ValuesValidator.ValidateModuleConfigValues(h.Module.ValuesKey(), mergedValues)
@@ -214,14 +222,14 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 				)
 			}
 
-			err := h.moduleManager.kubeConfigManager.SetKubeModuleValues(moduleName, configValuesPatchResult.Values)
+			err := h.moduleManager.kubeConfigManager.SaveModuleConfigValues(moduleName, configValuesPatchResult.Values)
 			if err != nil {
-				log.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.Name, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
+				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.Name, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.Name, err)
 			}
 
 			h.moduleManager.UpdateModuleConfigValues(moduleName, configValuesPatchResult.Values)
-			log.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.Name, moduleName, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
+			logEntry.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.Name, moduleName, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
 		}
 	}
 
@@ -238,7 +246,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 			return fmt.Errorf("module hook '%s': dynamic module values update error: %s", h.Name, err)
 		}
 		if valuesPatchResult.ValuesChanged {
-			log.Debugf("Module hook '%s': validate module values before update", h.Name)
+			logEntry.Debugf("Module hook '%s': validate module values before update", h.Name)
 			// Validate schema for updated module values
 			validationErr := h.moduleManager.ValuesValidator.ValidateModuleValues(h.Module.ValuesKey(), valuesPatchResult.Values)
 			if validationErr != nil {
@@ -254,11 +262,11 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 			if err != nil {
 				return fmt.Errorf("get module values after values patch: %s", err)
 			}
-			log.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.Name, moduleName, newValues.DebugString())
+			logEntry.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.Name, moduleName, newValues.DebugString())
 		}
 	}
 
-	logEntry.Infof("Module hook success %s/%s", h.Module.Name, h.Name)
+	logEntry.Debugf("Module hook success %s/%s", h.Module.Name, h.Name)
 
 	return nil
 }

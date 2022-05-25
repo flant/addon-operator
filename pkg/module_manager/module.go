@@ -45,6 +45,7 @@ type Module struct {
 
 	moduleManager *moduleManager
 	metricStorage *metric_storage.MetricStorage
+	helm          *helm.Helm
 }
 
 func NewModule(name, path string) *Module {
@@ -61,6 +62,10 @@ func (m *Module) WithModuleManager(moduleManager *moduleManager) {
 
 func (m *Module) WithMetricStorage(mstor *metric_storage.MetricStorage) {
 	m.metricStorage = mstor
+}
+
+func (m *Module) WithHelm(helm *helm.Helm) {
+	m.helm = helm
 }
 
 func (m *Module) SafeName() string {
@@ -172,7 +177,7 @@ func (m *Module) Delete(logLabels map[string]string) error {
 	// Module has chart and release -> execute helm delete.
 	chartExists, _ := m.checkHelmChart()
 	if chartExists {
-		releaseExists, err := helm.NewClient(deleteLogLabels).IsReleaseExists(m.generateHelmReleaseName())
+		releaseExists, err := m.helm.NewClient(deleteLogLabels).IsReleaseExists(m.generateHelmReleaseName())
 		if !releaseExists {
 			if err != nil {
 				logEntry.Warnf("Cannot find helm release '%s' for module '%s'. Helm error: %s", m.generateHelmReleaseName(), m.Name, err)
@@ -181,7 +186,7 @@ func (m *Module) Delete(logLabels map[string]string) error {
 			}
 		} else {
 			// Chart and release are existed, so run helm delete command
-			err := helm.NewClient(deleteLogLabels).DeleteRelease(m.generateHelmReleaseName())
+			err := m.helm.NewClient(deleteLogLabels).DeleteRelease(m.generateHelmReleaseName())
 			if err != nil {
 				return err
 			}
@@ -211,11 +216,11 @@ func (m *Module) cleanup() error {
 		"module": m.Name,
 	}
 
-	if err := helm.NewClient(helmLogLabels).DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
+	if err := m.helm.NewClient(helmLogLabels).DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
-	if err := helm.NewClient(helmLogLabels).DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
+	if err := m.helm.NewClient(helmLogLabels).DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
 		return err
 	}
 
@@ -254,7 +259,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 	}
 	defer os.Remove(valuesPath)
 
-	helmClient := helm.NewClient(logLabels)
+	helmClient := m.helm.NewClient(logLabels)
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
@@ -746,7 +751,7 @@ func (m *Module) Values() (utils.Values, error) {
 	res = MergeLayers(
 		res,
 		utils.Values{"global": map[string]interface{}{
-			"enabledModules": m.moduleManager.enabledModulesInOrder,
+			"enabledModules": m.moduleManager.enabledModules,
 		}},
 	)
 
@@ -804,7 +809,11 @@ func (m *Module) readModuleEnabledResult(filePath string) (bool, error) {
 	return false, fmt.Errorf("expected 'true' or 'false', got '%s'", value)
 }
 
-func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLabels map[string]string) (bool, error) {
+func (m *Module) runEnabledScript(precedingEnabledModules []string, logLabels map[string]string) (bool, error) {
+	// Copy labels and set 'module' label.
+	logLabels = utils.MergeLabels(logLabels)
+	logLabels["module"] = m.Name
+
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	enabledScriptPath := filepath.Join(m.Path, "enabled")
 
@@ -916,6 +925,11 @@ func (m *Module) checkIsEnabledByScript(precedingEnabledModules []string, logLab
 var ValidModuleNameRe = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
 
 func SearchModules(modulesDir string) (modules []*Module, err error) {
+	if modulesDir == "" {
+		log.Warnf("Modules directory path is empty! No modules to load.")
+		return nil, nil
+	}
+
 	files, err := ioutil.ReadDir(modulesDir) // returns a list of modules sorted by filename
 	if err != nil {
 		return nil, fmt.Errorf("list modules directory '%s': %s", modulesDir, err)
@@ -967,6 +981,7 @@ func (mm *moduleManager) RegisterModules() error {
 
 		module.WithModuleManager(mm)
 		module.WithMetricStorage(mm.metricStorage)
+		module.WithHelm(mm.helm)
 
 		// load static config from values.yaml
 		err := module.loadStaticValues()
@@ -994,7 +1009,7 @@ func (mm *moduleManager) RegisterModules() error {
 			return fmt.Errorf("add module '%s' schemas: %v", module.Name, err)
 		}
 
-		logEntry.Infof("Module '%s' is registered", module.Name)
+		logEntry.Infof("Module from '%s'. %s", module.Path, mm.ValuesValidator.SchemaStorage.ModuleSchemasDescription(module.ValuesKey()))
 	}
 
 	return nil

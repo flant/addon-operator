@@ -2,14 +2,14 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/flant/kube-client/klogtologrus"
-	log "github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/config"
 	"github.com/flant/shell-operator/pkg/debug"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
@@ -40,17 +40,16 @@ func main() {
 	startCmd := kpApp.Command("start", "Start events processing.").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			runtimeConfig := config.NewConfig()
-			// Init logging subsystem.
-			sh_app.SetupLogging(runtimeConfig)
-			log.Infof("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
+			sh_app.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
 
-			operator := addon_operator.DefaultOperator()
-			operator.WithRuntimeConfig(runtimeConfig)
-			err := addon_operator.InitAndStart(operator)
+			// Init rand generator.
+			rand.Seed(time.Now().UnixNano())
+
+			operator, err := addon_operator.Init()
 			if err != nil {
 				os.Exit(1)
 			}
+			operator.Start()
 
 			// Block action by waiting signals from OS.
 			utils_signal.WaitForProcessInterruption(func() {

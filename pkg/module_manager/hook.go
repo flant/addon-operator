@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 
 	"github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/controller"
@@ -29,10 +30,6 @@ type Hook interface {
 	GetConfigValues() utils.Values
 	PrepareTmpFilesForHookRun(bindingContext []byte) (map[string]string, error)
 	Order(binding sh_op_types.BindingType) float64
-}
-
-func (k *KubernetesBindingSynchronizationState) String() string {
-	return fmt.Sprintf("queue=%v done=%v", k.Queued, k.Done)
 }
 
 type CommonHook struct {
@@ -73,8 +70,29 @@ func (h *CommonHook) SynchronizationNeeded() bool {
 	return false
 }
 
+// ShouldEnableSchedulesOnStartup returns true for Go hooks if EnableSchedulesOnStartup is set.
+// This flag for schedule hooks that start after onStartup hooks.
+func (h *CommonHook) ShouldEnableSchedulesOnStartup() bool {
+	if h.GoHook == nil {
+		return false
+	}
+
+	s := h.GoHook.Config().Settings
+
+	if s != nil && s.EnableSchedulesOnStartup {
+		return true
+	}
+
+	return false
+}
+
 // SearchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
 func SearchGlobalHooks(hooksDir string) (hooks []*GlobalHook, err error) {
+	if hooksDir == "" {
+		log.Warnf("Global hooks directory path is empty! No global hooks to load.")
+		return nil, nil
+	}
+
 	hooks = make([]*GlobalHook, 0)
 	shellHooks, err := SearchGlobalShellHooks(hooksDir)
 	if err != nil {
@@ -129,7 +147,11 @@ func SearchGlobalShellHooks(hooksDir string) (hooks []*GlobalHook, err error) {
 		hooks = append(hooks, globalHook)
 	}
 
-	log.Infof("Registered %d global shell hooks from '%s'", len(hooks), hooksDir)
+	count := "no"
+	if len(hooks) > 0 {
+		count = strconv.Itoa(len(hooks))
+	}
+	log.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
 
 	return
 }
@@ -149,7 +171,11 @@ func SearchGlobalGoHooks() (hooks []*GlobalHook, err error) {
 		hooks = append(hooks, globalHook)
 	}
 
-	log.Infof("Registered %d global Go hooks", len(hooks))
+	count := "no"
+	if len(hooks) > 0 {
+		count = strconv.Itoa(len(hooks))
+	}
+	log.Infof("Found %s global Go hooks", count)
 
 	return hooks, nil
 }
@@ -241,9 +267,13 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 	if err != nil {
 		return err
 	}
-	log.Debugf("Found %d global hooks:", len(hooks))
-	for _, h := range hooks {
-		log.Debugf("  GlobalHook: Name=%s, Path=%s", h.Name, h.Path)
+	if len(hooks) > 0 {
+		log.Debugf("Found %d global hooks:", len(hooks))
+		for _, h := range hooks {
+			log.Debugf("  GlobalHook: Name=%s, Path=%s", h.Name, h.Path)
+		}
+	} else {
+		log.Debugf("Found no global hooks in %s", mm.GlobalHooksDir)
 	}
 
 	for _, globalHook := range hooks {
@@ -256,7 +286,9 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		if globalHook.GoHook != nil {
 			goConfig = globalHook.GoHook.Config()
 		} else {
-			yamlConfigBytes, err = NewHookExecutor(globalHook, nil, "", nil).Config()
+			hookExecutor := NewHookExecutor(globalHook, nil, "", nil)
+			hookExecutor.WithHelm(mm.helm)
+			yamlConfigBytes, err = hookExecutor.Config()
 			if err != nil {
 				logEntry.Errorf("Run --config: %s", err)
 				return fmt.Errorf("global hook --config run problem")
@@ -307,7 +339,7 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		}
 		mm.globalHooksByName[globalHook.Name] = globalHook
 
-		logEntry.Infof("Global hook '%s' successfully run with --config. Register with bindings: %s", globalHook.Name, globalHook.GetConfigDescription())
+		logEntry.Infof("Global hook from '%s'. Bindings: %s", globalHook.Path, globalHook.GetConfigDescription())
 
 		mm.metricStorage.GaugeSet(
 			"{PREFIX}binding_count",
@@ -329,6 +361,8 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 	if err != nil {
 		return fmt.Errorf("add global schemas: %v", err)
 	}
+
+	log.Infof(mm.ValuesValidator.SchemaStorage.GlobalSchemasDescription())
 
 	return nil
 }
@@ -364,7 +398,9 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 		if moduleHook.GoHook != nil {
 			goConfig = moduleHook.GoHook.Config()
 		} else {
-			yamlConfigBytes, err = NewHookExecutor(moduleHook, nil, "", nil).Config()
+			hookExecutor := NewHookExecutor(moduleHook, nil, "", nil)
+			hookExecutor.WithHelm(mm.helm)
+			yamlConfigBytes, err = hookExecutor.Config()
 			if err != nil {
 				hookLogEntry.Errorf("Run --config: %s", err)
 				return fmt.Errorf("module hook --config run problem")
@@ -415,7 +451,7 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 			registeredModuleHooks[binding] = append(registeredModuleHooks[binding], moduleHook)
 		}
 
-		hookLogEntry.Infof("Module hook successfully run with --config. Register with bindings: %s", moduleHook.GetConfigDescription())
+		hookLogEntry.Infof("Module hook from '%s'. Bindings: %s", moduleHook.Path, moduleHook.GetConfigDescription())
 
 		mm.metricStorage.GaugeSet(
 			"{PREFIX}binding_count",
