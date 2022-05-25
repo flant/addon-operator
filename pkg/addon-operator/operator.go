@@ -2028,8 +2028,7 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 func (op *AddonOperator) logTaskAdd(logEntry *log.Entry, action string, tasks ...sh_task.Task) {
 	logger := logEntry.WithField("task.flow", "add")
 	for _, tsk := range tasks {
-		logger.WithFields(utils.LabelsToLogFields(tsk.GetLogLabels())).
-			Infof(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
+		logger.Infof(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
 	}
 }
 
