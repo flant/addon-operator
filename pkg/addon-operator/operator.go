@@ -2040,6 +2040,18 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
 	if triggeredBy, ok := tsk.GetProp("triggered-by").(log.Fields); ok {
 		logger = logger.WithFields(triggeredBy)
 	}
+	// Prevent excess messages for tasks on 'Repeat'.
+	if tsk.GetType() == task.GlobalHookWaitKubernetesSynchronization {
+		return
+	}
+	if tsk.GetType() == task.ModuleRun {
+		hm := task.HookMetadataAccessor(tsk)
+		module := op.ModuleManager.GetModule(hm.ModuleName)
+		if module.State.Phase == module_manager.WaitForSynchronization {
+			return
+		}
+	}
+
 	logger.Infof(taskDescriptionForTaskFlowLog(tsk, "start", op.taskPhase(tsk), ""))
 }
 
