@@ -1318,8 +1318,6 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 	// Repeat ModuleRun if there are running Synchronization tasks to wait.
 	if module.State.Phase == module_manager.WaitForSynchronization {
-		logEntry.Debugf("ModuleRun '%s' phase", module.State.Phase)
-
 		if module.State.Synchronization().IsComplete() {
 			// Proceed with the next phase.
 			module.State.Phase = module_manager.EnableScheduleBindings
@@ -2034,13 +2032,7 @@ func (op *AddonOperator) logTaskAdd(logEntry *log.Entry, action string, tasks ..
 
 // logTaskStart prints info about task at start. Also prints event source info from task props.
 func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
-	logger := logEntry.
-		WithField("task.flow", "start").
-		WithFields(utils.LabelsToLogFields(tsk.GetLogLabels()))
-	if triggeredBy, ok := tsk.GetProp("triggered-by").(log.Fields); ok {
-		logger = logger.WithFields(triggeredBy)
-	}
-	// Prevent excess messages for tasks on 'Repeat'.
+	// Prevent excess messages for highly frequent tasks.
 	if tsk.GetType() == task.GlobalHookWaitKubernetesSynchronization {
 		return
 	}
@@ -2050,6 +2042,13 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
 		if module.State.Phase == module_manager.WaitForSynchronization {
 			return
 		}
+	}
+
+	logger := logEntry.
+		WithField("task.flow", "start").
+		WithFields(utils.LabelsToLogFields(tsk.GetLogLabels()))
+	if triggeredBy, ok := tsk.GetProp("triggered-by").(log.Fields); ok {
+		logger = logger.WithFields(triggeredBy)
 	}
 
 	logger.Infof(taskDescriptionForTaskFlowLog(tsk, "start", op.taskPhase(tsk), ""))
