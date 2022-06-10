@@ -10,6 +10,7 @@ import (
 
 	"github.com/flant/kube-client/fake"
 	log "github.com/sirupsen/logrus"
+	logrus_test "github.com/sirupsen/logrus/hooks/test"
 	//. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
@@ -556,4 +557,38 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		}
 		return false
 	}, "30s", "200ms").Should(BeTrue(), "Should queue ReloadAllModules task after changing global section in ConfigMap")
+}
+
+// Test task flow logging:
+// - ensure no messages about WaitForSynchronization
+// - log_task__wait_for_synchronization contains a global hook and a module hook
+//   that use separate queue to execute and require waiting for Synchronization
+func Test_Operator_logTask(t *testing.T) {
+	g := NewWithT(t)
+
+	// Catch all info messages.
+	log.SetLevel(log.InfoLevel)
+	log.SetOutput(ioutil.Discard)
+	logHook := new(logrus_test.Hook)
+	log.AddHook(logHook)
+
+	op, _ := assembleTestAddonOperator(t, "log_task__wait_for_synchronization")
+	op.BootstrapMainQueue(op.TaskQueues)
+	op.TaskQueues.StartMain()
+	op.CreateAndStartQueuesForGlobalHooks()
+
+	// Wait until converge is done.
+	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
+
+	g.Expect(len(logHook.Entries) > 0).Should(BeTrue())
+
+	hasWaitForSynchronizationMessages := false
+	for _, entry := range logHook.Entries {
+		if strings.Contains(entry.Message, "WaitForSynchronization") && entry.Level < log.DebugLevel {
+			hasWaitForSynchronizationMessages = true
+		}
+	}
+	logHook.Reset()
+
+	g.Expect(hasWaitForSynchronizationMessages).Should(BeFalse(), "should not log messages about WaitForSynchronization")
 }
