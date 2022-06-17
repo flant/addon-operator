@@ -382,3 +382,81 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 		})
 	}
 }
+
+func Test_ConvergeModulesInQueue(t *testing.T) {
+	tests := []struct {
+		name   string
+		result int
+		queue  func() *queue.TaskQueue
+	}{
+		{
+			name:   "Non converge ModuleRun tasks",
+			result: 0,
+			queue: func() *queue.TaskQueue {
+				q := queue.NewTasksQueue()
+
+				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "test"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
+				return q
+			}},
+		{
+			name:   "Converge ModuleRun tasks",
+			result: 3,
+			queue: func() *queue.TaskQueue {
+				q := queue.NewTasksQueue()
+
+				Task := &sh_task.BaseTask{Type: task.GlobalHookRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "test"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test", IsReloadAll: true}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "test2"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test2", IsReloadAll: true}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "test3"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test3", IsReloadAll: true}))
+
+				Task = &sh_task.BaseTask{Type: task.ConvergeModules, Id: "unknown-converge"}
+				// Prevent "Possible bug: metadata is nil"
+				q.AddLast(Task.WithMetadata(task.HookMetadata{}))
+				return q
+			}},
+		{
+			name:   "Converge ModuleRun and ModuleDelete tasks",
+			result: 3,
+			queue: func() *queue.TaskQueue {
+				q := queue.NewTasksQueue()
+
+				Task := &sh_task.BaseTask{Type: task.GlobalHookRun, Id: "unknown"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleDelete, Id: "test"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "test2"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test2", IsReloadAll: true}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "test3"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test3", IsReloadAll: true}))
+
+				Task = &sh_task.BaseTask{Type: task.ConvergeModules, Id: "unknown-converge"}
+				// Prevent "Possible bug: metadata is nil"
+				q.AddLast(Task.WithMetadata(task.HookMetadata{}))
+				return q
+			}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ConvergeModulesInQueue(tt.queue())
+			require.Equal(t, tt.result, result, "ConvergeModulesInQueue should run correctly")
+		})
+	}
+}
