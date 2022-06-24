@@ -59,6 +59,22 @@ func ConvergeTasksInQueue(q *queue.TaskQueue) int {
 	return convergeTasks
 }
 
+func ConvergeModulesInQueue(q *queue.TaskQueue) int {
+	if q == nil {
+		return 0
+	}
+
+	tasks := 0
+	q.Iterate(func(t sh_task.Task) {
+		taskType := t.GetType()
+		if IsConvergeTask(t) && (taskType == task.ModuleRun || taskType == task.ModuleDelete) {
+			tasks++
+		}
+	})
+
+	return tasks
+}
+
 // RemoveCurrentConvergeTasks detects if converge tasks present in the main
 // queue after task which ID equals to 'afterID'. These tasks are drained
 // and the method returns true.

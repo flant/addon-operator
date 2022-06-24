@@ -1891,6 +1891,12 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 
 	// Update field for the first converge.
 	op.UpdateFirstConvergeStatus(convergeTasks)
+
+	// Report modules left to process.
+	if convergeTasks > 0 && (t.GetType() == task.ModuleRun || t.GetType() == task.ModuleDelete) {
+		moduleTasks := ConvergeModulesInQueue(op.TaskQueues.GetMain())
+		log.Infof("Converge modules in progress: %d modules left to process in queue 'main'", moduleTasks)
+	}
 }
 
 // UpdateFirstConvergeStatus checks first converge status and prints log messages if first converge
