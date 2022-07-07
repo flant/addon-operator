@@ -7,7 +7,7 @@ require (
 	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/flant/kube-client v0.0.6
 	github.com/flant/shell-operator v1.0.11-0.20220705171534-5787ae0b8755 // branch: main
-	github.com/go-chi/chi v4.0.3+incompatible
+	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
 	github.com/go-openapi/swag v0.19.9
