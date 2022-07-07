@@ -47,22 +47,21 @@ func RegisterDefaultRoutes(op *AddonOperator) {
 		convergeTasks := ConvergeTasksInQueue(op.TaskQueues.GetMain())
 
 		statusLines := make([]string, 0)
-		if op.IsStartupConvergeDone() {
+		switch op.ConvergeState.FirstRunPhase {
+		case FirstNotStarted:
+			statusLines = append(statusLines, "STARTUP_CONVERGE_NOT_STARTED")
+		case FirstStarted:
+			if convergeTasks > 0 {
+				statusLines = append(statusLines, fmt.Sprintf("STARTUP_CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
+			} else {
+				statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
+			}
+		case FirstDone:
 			statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
 			if convergeTasks > 0 {
 				statusLines = append(statusLines, fmt.Sprintf("CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
 			} else {
 				statusLines = append(statusLines, "CONVERGE_WAIT_TASK")
-			}
-		} else {
-			if op.ConvergeState.FirstStarted {
-				if convergeTasks > 0 {
-					statusLines = append(statusLines, fmt.Sprintf("STARTUP_CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
-				} else {
-					statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
-				}
-			} else {
-				statusLines = append(statusLines, "STARTUP_CONVERGE_WAIT_TASKS")
 			}
 		}
 

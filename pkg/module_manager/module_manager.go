@@ -57,6 +57,7 @@ type ModuleManager interface {
 	GetGlobalHooksNames() []string
 	GetGlobalHook(name string) *GlobalHook
 
+	GetModuleNames() []string
 	GetEnabledModuleNames() []string
 	IsModuleEnabled(moduleName string) bool
 	GetModule(name string) *Module
@@ -715,6 +716,10 @@ func (mm *moduleManager) GetModule(name string) *Module {
 		log.Errorf("Possible bug!!! GetModule: no module '%s' in ModuleManager indexes", name)
 		return nil
 	}
+}
+
+func (mm *moduleManager) GetModuleNames() []string {
+	return mm.allModulesNamesInOrder
 }
 
 func (mm *moduleManager) GetEnabledModuleNames() []string {
