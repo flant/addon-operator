@@ -182,7 +182,7 @@ type moduleManager struct {
 	commonStaticValues utils.Values
 
 	// A lock to synchronize access to *ConfigValues and *DynamicValuesPatches maps.
-	valuesLayersLock sync.Mutex
+	valuesLayersLock sync.RWMutex
 
 	// global values from ConfigMap
 	kubeGlobalConfigValues utils.Values
@@ -205,8 +205,6 @@ var _ ModuleManager = &moduleManager{}
 // NewModuleManager returns new MainModuleManager
 func NewModuleManager() *moduleManager {
 	return &moduleManager{
-		valuesLayersLock: sync.Mutex{},
-
 		ValuesValidator: validation.NewValuesValidator(),
 
 		allModulesByName:            make(map[string]*Module),
@@ -1031,15 +1029,15 @@ func (mm *moduleManager) UpdateGlobalDynamicValuesPatches(valuesPatch utils.Valu
 
 // ModuleConfigValues returns config values for module.
 func (mm *moduleManager) ModuleConfigValues(moduleName string) utils.Values {
-	mm.valuesLayersLock.Lock()
-	defer mm.valuesLayersLock.Unlock()
+	mm.valuesLayersLock.RLock()
+	defer mm.valuesLayersLock.RUnlock()
 	return mm.kubeModulesConfigValues[moduleName]
 }
 
 // ModuleConfigValues returns all patches for dynamic values.
 func (mm *moduleManager) ModuleDynamicValuesPatches(moduleName string) []utils.ValuesPatch {
-	mm.valuesLayersLock.Lock()
-	defer mm.valuesLayersLock.Unlock()
+	mm.valuesLayersLock.RLock()
+	defer mm.valuesLayersLock.RUnlock()
 	return mm.modulesDynamicValuesPatches[moduleName]
 }
 
