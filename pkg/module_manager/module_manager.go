@@ -1059,8 +1059,8 @@ func (mm *moduleManager) UpdateModuleDynamicValuesPatches(moduleName string, val
 }
 
 func (mm *moduleManager) ApplyModuleDynamicValuesPatches(moduleName string, values utils.Values) (utils.Values, error) {
-	mm.valuesLayersLock.Lock()
-	defer mm.valuesLayersLock.Unlock()
+	mm.valuesLayersLock.RLock()
+	defer mm.valuesLayersLock.RUnlock()
 
 	var err error
 	res := values
