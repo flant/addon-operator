@@ -71,8 +71,12 @@ type ModuleManager interface {
 	GlobalValuesPatches() []utils.ValuesPatch
 	UpdateGlobalConfigValues(configValues utils.Values)
 	UpdateGlobalDynamicValuesPatches(valuesPatch utils.ValuesPatch)
+
+	ModuleConfigValues(moduleName string) utils.Values
+	ModuleDynamicValuesPatches(moduleName string) []utils.ValuesPatch
 	UpdateModuleConfigValues(moduleName string, configValues utils.Values)
 	UpdateModuleDynamicValuesPatches(moduleName string, valuesPatch utils.ValuesPatch)
+	ApplyModuleDynamicValuesPatches(moduleName string, values utils.Values) (utils.Values, error)
 
 	GetKubeConfigValid() bool
 	SetKubeConfigValid(valid bool)
@@ -177,8 +181,8 @@ type moduleManager struct {
 	// Values from modules/values.yaml file
 	commonStaticValues utils.Values
 
-	// A lock to synchronize access to *ConfigValues and *DynamicValuesPatches fields.
-	valuesLayersLock sync.Mutex
+	// A lock to synchronize access to *ConfigValues and *DynamicValuesPatches maps.
+	valuesLayersLock sync.RWMutex
 
 	// global values from ConfigMap
 	kubeGlobalConfigValues utils.Values
@@ -189,9 +193,6 @@ type moduleManager struct {
 	kubeConfigValid bool
 	// Static and config values are valid using OpenAPI schemas.
 	kubeConfigValuesValid bool
-
-	// Invariant: do not store patches that cannot be applied.
-	// Give user error for patches early, after patch receive.
 
 	// Patches for dynamic global values
 	globalDynamicValuesPatches []utils.ValuesPatch
@@ -204,8 +205,6 @@ var _ ModuleManager = &moduleManager{}
 // NewModuleManager returns new MainModuleManager
 func NewModuleManager() *moduleManager {
 	return &moduleManager{
-		valuesLayersLock: sync.Mutex{},
-
 		ValuesValidator: validation.NewValuesValidator(),
 
 		allModulesByName:            make(map[string]*Module),
@@ -1028,6 +1027,20 @@ func (mm *moduleManager) UpdateGlobalDynamicValuesPatches(valuesPatch utils.Valu
 		valuesPatch)
 }
 
+// ModuleConfigValues returns config values for module.
+func (mm *moduleManager) ModuleConfigValues(moduleName string) utils.Values {
+	mm.valuesLayersLock.RLock()
+	defer mm.valuesLayersLock.RUnlock()
+	return mm.kubeModulesConfigValues[moduleName]
+}
+
+// ModuleConfigValues returns all patches for dynamic values.
+func (mm *moduleManager) ModuleDynamicValuesPatches(moduleName string) []utils.ValuesPatch {
+	mm.valuesLayersLock.RLock()
+	defer mm.valuesLayersLock.RUnlock()
+	return mm.modulesDynamicValuesPatches[moduleName]
+}
+
 // UpdateModuleConfigValues sets updated config values for module.
 func (mm *moduleManager) UpdateModuleConfigValues(moduleName string, configValues utils.Values) {
 	mm.valuesLayersLock.Lock()
@@ -1043,6 +1056,24 @@ func (mm *moduleManager) UpdateModuleDynamicValuesPatches(moduleName string, val
 	mm.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(
 		mm.modulesDynamicValuesPatches[moduleName],
 		valuesPatch)
+}
+
+func (mm *moduleManager) ApplyModuleDynamicValuesPatches(moduleName string, values utils.Values) (utils.Values, error) {
+	mm.valuesLayersLock.RLock()
+	defer mm.valuesLayersLock.RUnlock()
+
+	var err error
+	res := values
+	for _, patch := range mm.modulesDynamicValuesPatches[moduleName] {
+		// Invariant: do not store patches that does not apply
+		// Give user error for patches early, after patch receive
+		res, _, err = utils.ApplyValuesPatch(res, patch, utils.IgnoreNonExistentPaths)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return res, nil
 }
 
 func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) {

@@ -88,10 +88,10 @@ func RegisterDebugModuleRoutes(dbgSrv *debug.Server, op *AddonOperator) {
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
-			return nil, fmt.Errorf("Module not found")
+			return nil, fmt.Errorf("Unknown module %s", modName)
 		}
 
-		return m.ValuesPatches(), nil
+		return op.ModuleManager.ModuleDynamicValuesPatches(modName), nil
 	})
 
 	dbgSrv.Route("/module/resource-monitor.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {

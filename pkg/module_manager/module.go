@@ -650,7 +650,7 @@ func (m *Module) ConfigValues() utils.Values {
 		// Init module section.
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		// Merge overrides from ConfigMap.
-		m.moduleManager.kubeModulesConfigValues[m.Name],
+		m.moduleManager.ModuleConfigValues(m.Name),
 	)
 }
 
@@ -673,7 +673,7 @@ func (m *Module) StaticAndConfigValues() utils.Values {
 			m.moduleManager.ValuesValidator,
 		},
 		// Merge overrides from ConfigMap.
-		m.moduleManager.kubeModulesConfigValues[m.Name],
+		m.moduleManager.ModuleConfigValues(m.Name),
 	)
 }
 
@@ -729,7 +729,7 @@ func (m *Module) Values() (utils.Values, error) {
 			m.moduleManager.ValuesValidator,
 		},
 		// Merge overrides from ConfigMap.
-		m.moduleManager.kubeModulesConfigValues[m.Name],
+		m.moduleManager.ModuleConfigValues(m.Name),
 		// Apply dynamic values defaults before patches.
 		&ApplyDefaultsForModule{
 			m.ValuesKey(),
@@ -738,13 +738,11 @@ func (m *Module) Values() (utils.Values, error) {
 		},
 	)
 
-	for _, patch := range m.moduleManager.modulesDynamicValuesPatches[m.Name] {
-		// Invariant: do not store patches that does not apply
-		// Give user error for patches early, after patch receive
-		res, _, err = utils.ApplyValuesPatch(res, patch, utils.IgnoreNonExistentPaths)
-		if err != nil {
-			return nil, fmt.Errorf("construct module values: apply module patch error: %s", err)
-		}
+	// Do not store patches that does not apply, give user error
+	// for patches early, after patch receive.
+	res, err = m.moduleManager.ApplyModuleDynamicValuesPatches(m.Name, res)
+	if err != nil {
+		return nil, fmt.Errorf("construct module values: apply module patch error: %s", err)
 	}
 
 	// Add enabledModules array.
@@ -778,10 +776,6 @@ func (m *Module) ValuesForEnabledScript(precedingEnabledModules []string) (utils
 // TODO Transform to a field.
 func (m *Module) ValuesKey() string {
 	return utils.ModuleNameToValuesKey(m.Name)
-}
-
-func (m *Module) ValuesPatches() []utils.ValuesPatch {
-	return m.moduleManager.modulesDynamicValuesPatches[m.Name]
 }
 
 func (m *Module) prepareModuleEnabledResultFile() (string, error) {
