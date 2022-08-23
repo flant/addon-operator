@@ -7,7 +7,7 @@ import (
 
 	"github.com/flant/shell-operator/pkg/debug"
 	"github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/flant/addon-operator/pkg/app"
 )
