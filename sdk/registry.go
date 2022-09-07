@@ -57,7 +57,7 @@ func (h *HookRegistry) Add(hook go_hook.GoHook) {
 
 	config := hook.Config()
 	if config.OnStartup != nil && len(config.Kubernetes) > 0 {
-		panic("OnStartup and Kubernetes bindings cannot be used in a same hook")
+		panic("OnStartup hook always has binding context without Kubernetes snapshots. To prevent logic errors, don't use OnStartup and Kubernetes bindings in the same Go hook configuration.")
 	}
 
 	hookMeta := &go_hook.HookMetadata{}
