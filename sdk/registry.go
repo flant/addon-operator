@@ -55,6 +55,11 @@ func (h *HookRegistry) Add(hook go_hook.GoHook) {
 	h.m.Lock()
 	defer h.m.Unlock()
 
+	config := hook.Config()
+	if config.OnStartup != nil && len(config.Kubernetes) > 0 {
+		panic("OnStartup and Kubernetes bindings cannot be used in a same hook")
+	}
+
 	hookMeta := &go_hook.HookMetadata{}
 
 	pc := make([]uintptr, 50)
