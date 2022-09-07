@@ -8,6 +8,8 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 )
 
+const bindingsPanicMsg = "OnStartup hook always has binding context without Kubernetes snapshots. To prevent logic errors, don't use OnStartup and Kubernetes bindings in the same Go hook configuration."
+
 // /path/.../global-hooks/a/b/c/Hook-name.go
 // $1 - Hook path for sorting (/global/hooks/subdir/v1-hook-onstartup.go)
 // $2 - Hook name for identification (subdir/v1-hook-onstartup.go)
@@ -57,7 +59,7 @@ func (h *HookRegistry) Add(hook go_hook.GoHook) {
 
 	config := hook.Config()
 	if config.OnStartup != nil && len(config.Kubernetes) > 0 {
-		panic("OnStartup hook always has binding context without Kubernetes snapshots. To prevent logic errors, don't use OnStartup and Kubernetes bindings in the same Go hook configuration.")
+		panic(bindingsPanicMsg)
 	}
 
 	hookMeta := &go_hook.HookMetadata{}

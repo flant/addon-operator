@@ -9,8 +9,6 @@ import (
 )
 
 func TestRegister(t *testing.T) {
-	const panicMsg = "OnStartup hook always has binding context without Kubernetes snapshots. To prevent logic errors, don't use OnStartup and Kubernetes bindings in the same Go hook configuration."
-
 	t.Run("Hook with OnStartup and Kubernetes bindings should panic", func(t *testing.T) {
 		hook := newCommonGoHook(
 			&go_hook.HookConfig{
@@ -30,7 +28,7 @@ func TestRegister(t *testing.T) {
 		defer func() {
 			r := recover()
 			require.NotEmpty(t, r)
-			assert.Equal(t, panicMsg, r)
+			assert.Equal(t, bindingsPanicMsg, r)
 		}()
 		Registry().Add(hook)
 	})
@@ -45,7 +43,7 @@ func TestRegister(t *testing.T) {
 
 		defer func() {
 			r := recover()
-			assert.NotEqual(t, panicMsg, r)
+			assert.NotEqual(t, bindingsPanicMsg, r)
 		}()
 		Registry().Add(hook)
 	})
@@ -67,7 +65,7 @@ func TestRegister(t *testing.T) {
 
 		defer func() {
 			r := recover()
-			assert.NotEqual(t, panicMsg, r)
+			assert.NotEqual(t, bindingsPanicMsg, r)
 		}()
 		Registry().Add(hook)
 	})
