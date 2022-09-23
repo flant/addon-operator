@@ -27,7 +27,7 @@ type ModuleState struct {
 	Phase                ModuleRunPhase
 	LastModuleErr        error
 	hookErrors           map[string]error
-	hookErrorsLock       sync.Mutex
+	hookErrorsLock       sync.RWMutex
 	synchronizationState *SynchronizationState
 }
 
@@ -53,8 +53,8 @@ func (s *ModuleState) SetLastHookErr(hookName string, err error) {
 
 // GetLastHookErr returns hook error.
 func (s *ModuleState) GetLastHookErr() error {
-	s.hookErrorsLock.Lock()
-	defer s.hookErrorsLock.Unlock()
+	s.hookErrorsLock.RLock()
+	defer s.hookErrorsLock.RUnlock()
 
 	for name, err := range s.hookErrors {
 		if err != nil {

@@ -26,12 +26,12 @@ const (
 	WaitAfterAll            ConvergePhase = "WaitAfterAll"
 )
 
-type FirstConvergePhase string
+type FirstConvergePhase int
 
 const (
-	FirstNotStarted FirstConvergePhase = "NotStarted"
-	FirstStarted    FirstConvergePhase = "Started"
-	FirstDone       FirstConvergePhase = "Done"
+	FirstNotStarted FirstConvergePhase = iota
+	FirstStarted
+	FirstDone
 )
 
 func NewConvergeState() *ConvergeState {
