@@ -72,7 +72,7 @@ func (op *AddonOperator) Stop() {
 }
 
 func (op *AddonOperator) IsStartupConvergeDone() bool {
-	return op.ConvergeState.FirstRunPhase == FirstDone
+	return op.ConvergeState.firstRunPhase == firstDone
 }
 
 // InitModuleManager initialize KubeConfigManager and ModuleManager,
@@ -484,7 +484,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			}
 
 			// Skip queueing additional Converge tasks during run global hooks at startup.
-			if op.ConvergeState.FirstRunPhase == FirstNotStarted {
+			if op.ConvergeState.firstRunPhase == firstNotStarted {
 				logEntry.Infof("ConvergeModules: kube config modification detected, ignore until starting first converge")
 				return
 			}
@@ -1913,19 +1913,19 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 // UpdateFirstConvergeStatus checks first converge status and prints log messages if first converge
 // is in progress.
 func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
-	switch op.ConvergeState.FirstRunPhase {
-	case FirstDone:
+	switch op.ConvergeState.firstRunPhase {
+	case firstDone:
 		return
-	case FirstNotStarted:
+	case firstNotStarted:
 		// Switch to 'started' state if there are 'converge' tasks in the queue.
 		if convergeTasks > 0 {
-			op.ConvergeState.FirstRunPhase = FirstStarted
+			op.ConvergeState.firstRunPhase = firstStarted
 		}
-	case FirstStarted:
+	case firstStarted:
 		// Switch to 'done' state after first converge is started and when no 'converge' tasks left in the queue.
 		if convergeTasks == 0 {
 			log.Infof("First converge is finished. Operator is ready now.")
-			op.ConvergeState.FirstRunPhase = FirstDone
+			op.ConvergeState.firstRunPhase = firstDone
 		}
 	}
 }
