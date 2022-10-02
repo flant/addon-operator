@@ -1320,3 +1320,73 @@ func Test_ModuleManager_ModulesState_detect_ConfigMap_changes(t *testing.T) {
 		require.Len(t, state.ModulesToReload, 0)
 	}
 }
+
+// initModuleManagerLight only loads modules and create ValuesValidator.
+func initModuleManagerLight(t *testing.T, configPath string) ModuleManager {
+	// Init directories
+	rootDir := filepath.Join("testdata", configPath)
+
+	var err error
+
+	// Create and init moduleManager instance
+	// Note: skip KubeEventManager, ScheduleManager, KubeObjectPatcher, MetricStorage, HookMetricStorage
+	moduleManager := NewModuleManager()
+	moduleManager.WithContext(context.Background())
+	moduleManager.WithDirectories(filepath.Join(rootDir, "modules"), filepath.Join(rootDir, "global"), t.TempDir())
+
+	err = moduleManager.Init()
+	require.NoError(t, err, "Should register global hooks and all modules")
+
+	return moduleManager
+}
+
+// ModuleManager light mode: load global and modules and create ValuesValidator.
+func Test_ModuleManager_Load_And_Validate(t *testing.T) {
+	mm := initModuleManagerLight(t, "load_and_validate_usage")
+
+	validGlobalValues := valuesFromYaml(t, `
+global:
+  paramStr: "val1"
+  paramNum: 100
+  paramBool: true
+`)
+
+	err := mm.GetValuesValidator().ValidateGlobalConfigValues(validGlobalValues)
+	require.NoError(t, err, "should validate valid global values")
+
+	invalidGlobalValues := valuesFromYaml(t, `
+global:
+  paramStr: 100
+  paramNum: "100"
+  paramBool: "yes"
+`)
+
+	err = mm.GetValuesValidator().ValidateGlobalConfigValues(invalidGlobalValues)
+	require.Errorf(t, err, "should return error on invalid global values")
+
+	validModuleValues := valuesFromYaml(t, `
+testModule:
+  paramStr: "val1"
+  paramNum: 100
+  paramBool: true
+`)
+
+	err = mm.GetValuesValidator().ValidateModuleConfigValues("testModule", validModuleValues)
+	require.NoError(t, err, "should validate valid module values")
+
+	invalidModuleValues := valuesFromYaml(t, `
+testModule:
+  paramStr: 100
+  paramNum: "100"
+  paramBool: "yes"
+`)
+
+	err = mm.GetValuesValidator().ValidateModuleConfigValues("testModule", invalidModuleValues)
+	require.Errorf(t, err, "should return error on invalid module values")
+}
+
+func valuesFromYaml(t *testing.T, yamlStr string) utils.Values {
+	vals, err := utils.NewValuesFromBytes([]byte(yamlStr))
+	require.NoError(t, err, "should load values from string %s", yamlStr)
+	return vals
+}

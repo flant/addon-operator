@@ -79,6 +79,8 @@ type ModuleManager interface {
 	UpdateModuleDynamicValuesPatches(moduleName string, valuesPatch utils.ValuesPatch)
 	ApplyModuleDynamicValuesPatches(moduleName string, values utils.Values) (utils.Values, error)
 
+	GetValuesValidator() *validation.ValuesValidator
+
 	GetKubeConfigValid() bool
 	SetKubeConfigValid(valid bool)
 
@@ -1079,6 +1081,10 @@ func (mm *moduleManager) ApplyModuleDynamicValuesPatches(moduleName string, valu
 	}
 
 	return res, nil
+}
+
+func (mm *moduleManager) GetValuesValidator() *validation.ValuesValidator {
+	return mm.ValuesValidator
 }
 
 func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) {
