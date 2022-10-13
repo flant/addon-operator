@@ -8,6 +8,7 @@ require (
 	github.com/flant/kube-client v0.0.6
 	github.com/flant/shell-operator v1.0.11
 	github.com/go-chi/chi/v5 v5.0.7
+	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
 	github.com/go-openapi/swag v0.19.9

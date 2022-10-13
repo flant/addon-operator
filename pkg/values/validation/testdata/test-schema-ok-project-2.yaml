@@ -1,0 +1,31 @@
+# Hide OpenAPI schema inside array to test loading from the $ref-ed fragment.
+# Also test local definitions. Note $ref works from the document root, not
+# from the fragment root (see test-schema-ok.yaml).
+versions:
+- version: v1
+  OpenAPISchema:
+    definitions:
+      version:
+        type: number
+      description:
+        type: string
+    type: object
+    properties:
+      project:
+        type: object
+        properties: &common_project
+          name:
+            type: string
+          version:
+            $ref: '#/versions/0/OpenAPISchema/definitions/version'
+      activeProject:
+        type: object
+        properties: *common_project
+      archive:
+        type: array
+        items:
+          type: object
+          properties:
+            <<: *common_project
+            description:
+              $ref: '#/versions/0/OpenAPISchema/definitions/description'
