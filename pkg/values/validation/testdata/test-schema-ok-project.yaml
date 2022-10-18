@@ -1,13 +1,5 @@
 type: object
-additionalProperties: false
-required:
-  - clusterName
-minProperties: 2
 properties:
-  clusterName:
-    type: string
-  clusterHostname:
-    type: string
   project:
     type: object
     properties: &common_project
@@ -26,7 +18,3 @@ properties:
         <<: *common_project
         description:
           type: string
-  externalProjects:
-    $ref: 'testdata/test-schema-ok-project.yaml'
-  fragmentedProjects:
-    $ref: 'testdata/test-schema-ok-project-2.yaml#/versions/0/OpenAPISchema'

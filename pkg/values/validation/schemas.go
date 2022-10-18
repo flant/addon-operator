@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-openapi/loads"
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/swag"
+	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/values/validation/schema"
 )
@@ -33,6 +35,23 @@ const (
 	HelmValuesSchema   SchemaType = "helm"
 )
 
+func init() {
+	// Add loader to override swag.BytesToYAML marshaling into yaml.MapSlice.
+	// This type doesn't support map merging feature of YAML anchors. So additional
+	// loader is required to unmarshal into ordinary interface{} before converting to JSON.
+	loads.AddLoader(swag.YAMLMatcher, YAMLDocLoader)
+}
+
+// YAMLDocLoader loads a yaml document from either http or a file and converts it to json.
+func YAMLDocLoader(path string) (json.RawMessage, error) {
+	data, err := swag.LoadFromFileOrHTTP(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return YAMLBytesToJSONDoc(data)
+}
+
 type SchemaStorage struct {
 	GlobalSchemas map[SchemaType]*spec.Schema
 	ModuleSchemas map[string]map[SchemaType]*spec.Schema
@@ -45,13 +64,13 @@ func NewSchemaStorage() *SchemaStorage {
 	}
 }
 
-// GetGlobalValuesSchema returns ready-to-use schema for global values.
+// GlobalValuesSchema returns ready-to-use schema for global values.
 // schemaType is "config", "values" or "helm"
 func (st *SchemaStorage) GlobalValuesSchema(schemaType SchemaType) *spec.Schema {
 	return st.GlobalSchemas[schemaType]
 }
 
-// GetModuleValuesSchema returns ready-to-use schema for module values.
+// ModuleValuesSchema returns ready-to-use schema for module values.
 // schemaType is "config" of "values"
 func (st *SchemaStorage) ModuleValuesSchema(moduleName string, schemaType SchemaType) *spec.Schema {
 	if _, ok := st.ModuleSchemas[moduleName]; !ok {
@@ -70,7 +89,7 @@ func (st *SchemaStorage) AddGlobalValuesSchemas(configBytes, valuesBytes []byte)
 	return nil
 }
 
-// schemaType is "config" of "memory"
+// AddModuleValuesSchemas creates schema for module values.
 func (st *SchemaStorage) AddModuleValuesSchemas(moduleName string, configBytes, valuesBytes []byte) error {
 	schemas, err := PrepareSchemas(configBytes, valuesBytes)
 	if err != nil {
@@ -120,20 +139,32 @@ func availableSchemaTypes(schemas map[SchemaType]*spec.Schema) []string {
 	return types
 }
 
-// loadSchema returns spec.Schema object loaded from yaml bytes.
-func LoadSchemaFromBytes(openApiContent []byte) (*spec.Schema, error) {
-	yml, err := swag.BytesToYAMLDoc(openApiContent)
+// YAMLBytesToJSONDoc is a replacement of swag.YAMLData and YAMLDoc to Unmarshal into interface{}.
+// swag.BytesToYAML uses yaml.MapSlice to unmarshal YAML. This type doesn't support map merge of YAML anchors.
+func YAMLBytesToJSONDoc(data []byte) (json.RawMessage, error) {
+	var yamlObj interface{}
+	err := yaml.Unmarshal(data, &yamlObj)
 	if err != nil {
 		return nil, fmt.Errorf("yaml unmarshal: %v", err)
 	}
-	d, err := swag.YAMLToJSON(yml)
+
+	doc, err := swag.YAMLToJSON(yamlObj)
 	if err != nil {
 		return nil, fmt.Errorf("yaml to json: %v", err)
 	}
 
-	s := new(spec.Schema)
+	return doc, nil
+}
 
-	if err := json.Unmarshal(d, s); err != nil {
+// LoadSchemaFromBytes returns spec.Schema object loaded from YAML bytes.
+func LoadSchemaFromBytes(openApiContent []byte) (*spec.Schema, error) {
+	jsonDoc, err := YAMLBytesToJSONDoc(openApiContent)
+	if err != nil {
+		return nil, err
+	}
+
+	s := new(spec.Schema)
+	if err := json.Unmarshal(jsonDoc, s); err != nil {
 		return nil, fmt.Errorf("json unmarshal: %v", err)
 	}
 
@@ -145,6 +176,7 @@ func LoadSchemaFromBytes(openApiContent []byte) (*spec.Schema, error) {
 	return s, nil
 }
 
+// PrepareSchemas loads schemas for config values, values and helm values.
 func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*spec.Schema, err error) {
 	var res = make(map[SchemaType]*spec.Schema)
 	if configBytes != nil {
