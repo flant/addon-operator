@@ -1,0 +1,8 @@
+#!/bin/bash -e
+
+if [[ "$1" == "--config" ]]; then
+  cat << EOF
+configVersion: v1
+onStartup: 1
+EOF
+fi

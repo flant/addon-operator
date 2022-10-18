@@ -57,6 +57,7 @@ type ModuleManager interface {
 	GetGlobalHooksNames() []string
 	GetGlobalHook(name string) *GlobalHook
 
+	GetModuleNames() []string
 	GetEnabledModuleNames() []string
 	IsModuleEnabled(moduleName string) bool
 	GetModule(name string) *Module
@@ -77,6 +78,8 @@ type ModuleManager interface {
 	UpdateModuleConfigValues(moduleName string, configValues utils.Values)
 	UpdateModuleDynamicValuesPatches(moduleName string, valuesPatch utils.ValuesPatch)
 	ApplyModuleDynamicValuesPatches(moduleName string, values utils.Values) (utils.Values, error)
+
+	GetValuesValidator() *validation.ValuesValidator
 
 	GetKubeConfigValid() bool
 	SetKubeConfigValid(valid bool)
@@ -717,6 +720,10 @@ func (mm *moduleManager) GetModule(name string) *Module {
 	}
 }
 
+func (mm *moduleManager) GetModuleNames() []string {
+	return mm.allModulesNamesInOrder
+}
+
 func (mm *moduleManager) GetEnabledModuleNames() []string {
 	return mm.enabledModules
 }
@@ -1074,6 +1081,10 @@ func (mm *moduleManager) ApplyModuleDynamicValuesPatches(moduleName string, valu
 	}
 
 	return res, nil
+}
+
+func (mm *moduleManager) GetValuesValidator() *validation.ValuesValidator {
+	return mm.ValuesValidator
 }
 
 func (mm *moduleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*Module, *ModuleHook, controller.BindingExecutionInfo)) {

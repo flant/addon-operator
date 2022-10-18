@@ -1,5 +1,10 @@
 package module_manager
 
+import (
+	"fmt"
+	"sync"
+)
+
 type ModuleRunPhase string
 
 const (
@@ -20,16 +25,42 @@ const (
 type ModuleState struct {
 	Enabled              bool
 	Phase                ModuleRunPhase
+	LastModuleErr        error
+	hookErrors           map[string]error
+	hookErrorsLock       sync.RWMutex
 	synchronizationState *SynchronizationState
 }
 
 func NewModuleState() *ModuleState {
 	return &ModuleState{
 		Phase:                Startup,
+		hookErrors:           make(map[string]error),
 		synchronizationState: NewSynchronizationState(),
 	}
 }
 
 func (s *ModuleState) Synchronization() *SynchronizationState {
 	return s.synchronizationState
+}
+
+// SetLastHookErr saves error from hook.
+func (s *ModuleState) SetLastHookErr(hookName string, err error) {
+	s.hookErrorsLock.Lock()
+	defer s.hookErrorsLock.Unlock()
+
+	s.hookErrors[hookName] = err
+}
+
+// GetLastHookErr returns hook error.
+func (s *ModuleState) GetLastHookErr() error {
+	s.hookErrorsLock.RLock()
+	defer s.hookErrorsLock.RUnlock()
+
+	for name, err := range s.hookErrors {
+		if err != nil {
+			return fmt.Errorf("%s: %v", name, err)
+		}
+	}
+
+	return nil
 }

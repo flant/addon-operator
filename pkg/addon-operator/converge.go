@@ -10,11 +10,10 @@ import (
 )
 
 type ConvergeState struct {
-	Phase        ConvergePhase
-	FirstStarted bool
-	FirstDone    bool
-	StartedAt    int64
-	Activation   string
+	Phase         ConvergePhase
+	firstRunPhase firstConvergePhase
+	StartedAt     int64
+	Activation    string
 }
 
 type ConvergePhase string
@@ -27,9 +26,18 @@ const (
 	WaitAfterAll            ConvergePhase = "WaitAfterAll"
 )
 
+type firstConvergePhase int
+
+const (
+	firstNotStarted firstConvergePhase = iota
+	firstStarted
+	firstDone
+)
+
 func NewConvergeState() *ConvergeState {
 	return &ConvergeState{
-		Phase: StandBy,
+		Phase:         StandBy,
+		firstRunPhase: firstNotStarted,
 	}
 }
 

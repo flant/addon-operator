@@ -72,7 +72,7 @@ func (op *AddonOperator) Stop() {
 }
 
 func (op *AddonOperator) IsStartupConvergeDone() bool {
-	return op.ConvergeState.FirstDone
+	return op.ConvergeState.firstRunPhase == firstDone
 }
 
 // InitModuleManager initialize KubeConfigManager and ModuleManager,
@@ -111,7 +111,7 @@ func (op *AddonOperator) InitModuleManager() error {
 // AllowHandleScheduleEvent returns false if the Schedule event can be ignored.
 func (op *AddonOperator) AllowHandleScheduleEvent(hook *module_manager.CommonHook) bool {
 	// Always allow if first converge is done.
-	if op.ConvergeState.FirstDone {
+	if op.IsStartupConvergeDone() {
 		return true
 	}
 
@@ -483,6 +483,12 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 				return
 			}
 
+			// Skip queueing additional Converge tasks during run global hooks at startup.
+			if op.ConvergeState.firstRunPhase == firstNotStarted {
+				logEntry.Infof("ConvergeModules: kube config modification detected, ignore until starting first converge")
+				return
+			}
+
 			if len(state.ModulesToReload) > 0 {
 				// Append ModuleRun tasks if ModuleRun is not queued already.
 				reloadTasks := op.CreateReloadModulesTasks(state.ModulesToReload, t.GetLogLabels(), "KubeConfig-Changed-Modules")
@@ -552,8 +558,8 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 					op.ModuleManager.DisableModuleHooks(moduleName)
 					//op.DrainModuleQueues(moduleName)
 				}
-				// Set ModulesToEnable list to run onStartup hooks for first converge.
-				if !op.ConvergeState.FirstDone {
+				// Set ModulesToEnable list to properly run onStartup hooks for first converge.
+				if !op.IsStartupConvergeDone() {
 					state.ModulesToEnable = state.AllEnabledModules
 				}
 				tasks := op.CreateConvergeModulesTasks(state, t.GetLogLabels(), string(taskEvent))
@@ -1122,6 +1128,7 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 		err = op.ModuleManager.DeleteModule(hm.ModuleName, t.GetLogLabels())
 	}
 
+	module.State.LastModuleErr = err
 	if err != nil {
 		op.MetricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
 		logEntry.Errorf("Module delete failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
@@ -1350,6 +1357,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		valuesChanged, moduleRunErr = module.Run(t.GetLogLabels())
 	}
 
+	module.State.LastModuleErr = moduleRunErr
 	if moduleRunErr != nil {
 		res.Status = queue.Fail
 		logEntry.Errorf("ModuleRun failed in phase '%s'. Requeue task to retry after delay. Failed count is %d. Error: %s", module.State.Phase, t.GetFailureCount()+1, moduleRunErr)
@@ -1482,17 +1490,20 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 				allowed = 1.0
 				logEntry.Infof("Module hook failed, but allowed to fail. Error: %v", err)
 				res.Status = queue.Success
+				taskHook.Module.State.SetLastHookErr(hm.HookName, nil)
 			} else {
 				errors = 1.0
 				logEntry.Errorf("Module hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 				t.UpdateFailureMessage(err.Error())
 				t.WithQueuedAt(time.Now())
 				res.Status = queue.Fail
+				taskHook.Module.State.SetLastHookErr(hm.HookName, err)
 			}
 		} else {
 			success = 1.0
 			logEntry.Debugf("Module hook success '%s'", hm.HookName)
 			res.Status = queue.Success
+			taskHook.Module.State.SetLastHookErr(hm.HookName, nil)
 
 			// Handle module values change.
 			reloadModule := false
@@ -1902,20 +1913,20 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 // UpdateFirstConvergeStatus checks first converge status and prints log messages if first converge
 // is in progress.
 func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
-	if op.ConvergeState.FirstDone {
+	switch op.ConvergeState.firstRunPhase {
+	case firstDone:
 		return
-	}
-
-	if convergeTasks > 0 {
-		if !op.ConvergeState.FirstStarted {
-			op.ConvergeState.FirstStarted = true
+	case firstNotStarted:
+		// Switch to 'started' state if there are 'converge' tasks in the queue.
+		if convergeTasks > 0 {
+			op.ConvergeState.firstRunPhase = firstStarted
 		}
-	}
-
-	// First converge is done if started and no converge tasks left in the main queue.
-	if convergeTasks == 0 && op.ConvergeState.FirstStarted {
-		log.Infof("First converge is finished. Operator is ready now.")
-		op.ConvergeState.FirstDone = true
+	case firstStarted:
+		// Switch to 'done' state after first converge is started and when no 'converge' tasks left in the queue.
+		if convergeTasks == 0 {
+			log.Infof("First converge is finished. Operator is ready now.")
+			op.ConvergeState.firstRunPhase = firstDone
+		}
 	}
 }
 
