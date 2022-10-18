@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/davecgh/go-spew v1.1.1
-	github.com/evanphx/json-patch v4.11.0+incompatible
+	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/flant/kube-client v0.0.6
 	github.com/flant/shell-operator v1.0.12
 	github.com/go-chi/chi/v5 v5.0.7
