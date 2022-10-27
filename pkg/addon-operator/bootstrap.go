@@ -16,7 +16,8 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 )
 
-func Init() (*AddonOperator, error) {
+// Bootstrap inits all dependencies for a full-fledged AddonOperator instance.
+func Bootstrap(op *AddonOperator) error {
 	runtimeConfig := config.NewConfig()
 	// Init logging subsystem.
 	sh_app.SetupLogging(runtimeConfig)
@@ -25,48 +26,47 @@ func Init() (*AddonOperator, error) {
 	modulesDir, err := shell_operator.RequireExistingDirectory(app.ModulesDir)
 	if err != nil {
 		log.Errorf("Fatal: modules directory: %s", err)
-		return nil, err
+		return err
 	}
 	log.Infof("Modules directory: %s", modulesDir)
 
 	globalHooksDir, err := shell_operator.RequireExistingDirectory(app.GlobalHooksDir)
 	if err != nil {
 		log.Errorf("Fatal: global hooks directory: %s", err)
-		return nil, err
+		return err
 	}
 	log.Infof("Global hooks directory: %s", globalHooksDir)
 
 	tempDir, err := shell_operator.EnsureTempDirectory(sh_app.TempDir)
 	if err != nil {
 		log.Errorf("Fatal: temp directory: %s", err)
-		return nil, err
+		return err
 	}
 
 	log.Infof("Addon-operator namespace: %s", app.Namespace)
 
-	op := NewAddonOperator()
 	op.WithContext(context.Background())
 
 	// Debug server.
 	debugServer, err := shell_operator.InitDefaultDebugServer()
 	if err != nil {
 		log.Errorf("Fatal: start Debug server: %s", err)
-		return nil, err
+		return err
 	}
 
 	err = shell_operator.AssembleCommonOperator(op.ShellOperator)
 	if err != nil {
 		log.Errorf("Fatal: %s", err)
-		return nil, err
+		return err
 	}
 
 	err = AssembleAddonOperator(op, modulesDir, globalHooksDir, tempDir, debugServer, runtimeConfig)
 	if err != nil {
 		log.Errorf("Fatal: %s", err)
-		return nil, err
+		return err
 	}
 
-	return op, nil
+	return nil
 }
 
 func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir string, tempDir string, debugServer *debug.Server, runtimeConfig *config.Config) (err error) {

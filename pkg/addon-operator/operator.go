@@ -50,6 +50,9 @@ type AddonOperator struct {
 
 	// converge state
 	ConvergeState *ConvergeState
+
+	// Initial KubeConfig to bypass initial loading from the ConfigMap.
+	InitialKubeConfig *kube_config_manager.KubeConfig
 }
 
 func NewAddonOperator() *AddonOperator {
@@ -93,12 +96,22 @@ func (op *AddonOperator) InitModuleManager() error {
 	}
 
 	// Load existing config values from ConfigMap.
-	op.KubeConfigManager.SafeReadConfig(func(config *kube_config_manager.KubeConfig) {
-		_, err = op.ModuleManager.HandleNewKubeConfig(config)
-	})
-	if err != nil {
-		return fmt.Errorf("init module manager with kube config: %s", err)
+	// Also, it is possible to override initial KubeConfig to give global hooks a chance
+	// to handle the ConfigMap content later.
+	if op.InitialKubeConfig == nil {
+		op.KubeConfigManager.SafeReadConfig(func(config *kube_config_manager.KubeConfig) {
+			_, err = op.ModuleManager.HandleNewKubeConfig(config)
+		})
+		if err != nil {
+			return fmt.Errorf("init module manager: load config from ConfigMap: %s", err)
+		}
+	} else {
+		_, err = op.ModuleManager.HandleNewKubeConfig(op.InitialKubeConfig)
+		if err != nil {
+			return fmt.Errorf("init module manager: load overridden initial config: %s", err)
+		}
 	}
+
 	// Initialize 'valid kube config' flag.
 	op.ModuleManager.SetKubeConfigValid(true)
 

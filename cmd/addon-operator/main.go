@@ -45,7 +45,8 @@ func main() {
 			// Init rand generator.
 			rand.Seed(time.Now().UnixNano())
 
-			operator, err := addon_operator.Init()
+			operator := addon_operator.NewAddonOperator()
+			err := addon_operator.Bootstrap(operator)
 			if err != nil {
 				os.Exit(1)
 			}
