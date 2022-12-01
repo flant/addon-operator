@@ -42,33 +42,32 @@ func (v *ValuesValidator) ValidateModuleHelmValues(moduleName string, values uti
 	return v.ValidateValues(ModuleSchema, HelmValuesSchema, moduleName, values)
 }
 
+// GetSchema returns a schema from the schema storage.
+func (v *ValuesValidator) GetSchema(schemaType SchemaType, valuesType SchemaType, modName string) *spec.Schema {
+	switch schemaType {
+	case GlobalSchema:
+		return v.SchemaStorage.GlobalValuesSchema(valuesType)
+	case ModuleSchema:
+		return v.SchemaStorage.ModuleValuesSchema(modName, valuesType)
+	}
+	return nil
+}
+
 func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType SchemaType, moduleName string, values utils.Values) error {
-	var s *spec.Schema
-	var obj interface{}
-	var ok bool
-	var rootName string
-	if schemaType == "global" {
-		s = v.SchemaStorage.GlobalValuesSchema(valuesType)
-		if s == nil {
-			log.Debugf("schema for %s '%s' values is not found", schemaType, valuesType)
-			return nil
-		}
-		obj, ok = values[utils.GlobalValuesKey]
-		if !ok {
-			return fmt.Errorf("values should have a 'global' key '%s'", utils.GlobalValuesKey)
-		}
-		rootName = utils.GlobalValuesKey
-	} else {
-		s = v.SchemaStorage.ModuleValuesSchema(moduleName, valuesType)
-		if s == nil {
-			log.Debugf("module '%s': schema for '%s' values is not found", moduleName, valuesType)
-			return nil
-		}
-		obj, ok = values[moduleName]
-		if !ok {
-			return fmt.Errorf("values should have a module name key '%s'", moduleName)
-		}
+	s := v.GetSchema(schemaType, valuesType, moduleName)
+	if s == nil {
+		log.Debugf("%s schema (%s) for '%s' values is not found", schemaType, moduleName, valuesType)
+		return nil
+	}
+
+	rootName := utils.GlobalValuesKey
+	if schemaType == ModuleSchema {
 		rootName = moduleName
+	}
+
+	obj, ok := values[rootName]
+	if !ok {
+		return fmt.Errorf("root key '%s' not found in input values", rootName)
 	}
 
 	validationErr := ValidateObject(obj, s, rootName)
@@ -80,6 +79,7 @@ func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType Schem
 	return validationErr
 }
 
+// ValidateObject uses schema to validate data structure in the dataObj.
 // See https://github.com/kubernetes/apiextensions-apiserver/blob/1bb376f70aa2c6f2dec9a8c7f05384adbfac7fbb/pkg/apiserver/validation/validation.go#L47
 func ValidateObject(dataObj interface{}, s *spec.Schema, rootName string) (multiErr error) {
 	if s == nil {
