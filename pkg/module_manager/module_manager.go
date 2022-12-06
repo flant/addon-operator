@@ -479,7 +479,7 @@ func (mm *moduleManager) calculateEnabledModulesByConfig(config *kube_config_man
 	}
 
 	return enabledByConfig
-	//enabled = utils.SortByReference(enabled, mm.allModulesNamesInOrder)
+	// enabled = utils.SortByReference(enabled, mm.allModulesNamesInOrder)
 }
 
 // calculateEnabledModulesWithDynamic determine enable state for all modules
@@ -700,7 +700,7 @@ func (mm *moduleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 
 	// Update state
 	mm.enabledModules = enabledModules
-	//mm.enabledModulesIdx := utils.MapStringStructKeys(enabledModules)
+	// mm.enabledModulesIdx := utils.MapStringStructKeys(enabledModules)
 
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
