@@ -218,8 +218,8 @@ github.com/flant/kube-client v0.0.7-0.20221207130940-42768d5a4e2c h1:37JHJJZnatw
 github.com/flant/kube-client v0.0.7-0.20221207130940-42768d5a4e2c/go.mod h1:AKcBd8m37MajZqm2xPJRMB18WwXcQ+VgVFs8eavkwj0=
 github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a h1:PlStPekqPtTSWDDKFlwgETsT1OiXD1gZtRHcNxAs1lc=
 github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a/go.mod h1:+SYqi5wsNjtQVlkPg0Ep5IOuN+ydg79Jo/gk4/PuS8c=
-github.com/flant/shell-operator v1.0.13-0.20221207142648-1d74f06f865a h1:fzfAvskbKsewPAtK+cdAHbjJn1OxMZxBJ8AqP4AgsMQ=
-github.com/flant/shell-operator v1.0.13-0.20221207142648-1d74f06f865a/go.mod h1:YtHKn+IFMOgfqkQ4r183W9Et74KnrSsBYpHkMs1Bme4=
+github.com/flant/shell-operator v1.0.13-0.20221207144331-e9e50963f737 h1:5mNEofgN3aNPBSgYOYYanf+EO8QibweG6ePRN8096G8=
+github.com/flant/shell-operator v1.0.13-0.20221207144331-e9e50963f737/go.mod h1:wsMUvmXuLdN5WPSFmDfvgqosWoLolDFsNVKG6EUvK/Y=
 github.com/form3tech-oss/jwt-go v3.2.3+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
