@@ -10,10 +10,10 @@ jobs:
     name: Run linter
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.16
+      - name: Set up Go 1.18
         uses: actions/setup-go@v3
         with:
-          go-version: 1.16
+          go-version: 1.18
         id: go
 
       - name: Check out addon-operator code
