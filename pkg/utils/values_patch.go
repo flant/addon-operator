@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -188,7 +188,7 @@ func ValuesPatchFromBytes(data []byte) (*ValuesPatch, error) {
 }
 
 func ValuesPatchFromFile(filePath string) (*ValuesPatch, error) {
-	data, err := ioutil.ReadFile(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %s: %s", filePath, err)
 	}

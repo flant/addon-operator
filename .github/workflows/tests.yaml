@@ -10,10 +10,10 @@ jobs:
     name: Run unit tests
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.16
+      - name: Set up Go 1.19
         uses: actions/setup-go@v3
         with:
-          go-version: 1.16
+          go-version: 1.19
         id: go
 
       - name: Check out addon-operator code
@@ -41,10 +41,10 @@ jobs:
 
       - name: Run unit tests
         run: |
-          export CGO_ENABLED=1
-          export CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/include"
-          export CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/lib"
-          export GOOS=linux
+          #export CGO_ENABLED=1
+          #export CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/include"
+          #export CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/lib"
+          #export GOOS=linux
 
           go test \
             -tags test \

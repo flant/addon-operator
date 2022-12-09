@@ -3,7 +3,7 @@ package module_manager
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -79,7 +79,7 @@ func initModuleManager(t *testing.T, configPath string) (ModuleManager, *initMod
 	cmExists, _ := utils_file.FileExists(cmFilePath)
 	var cmObj *v1.ConfigMap
 	if cmExists {
-		cmDataBytes, err := ioutil.ReadFile(cmFilePath)
+		cmDataBytes, err := os.ReadFile(cmFilePath)
 		require.NoError(t, err, "Should read config map file '%s'", cmFilePath)
 
 		cmObj = new(v1.ConfigMap)

@@ -3,7 +3,6 @@ package module_manager
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -354,10 +353,11 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 }
 
 // ShouldRunHelmUpgrade tells if there is a case to run `helm upgrade`:
-//  - Helm chart in not installed yet.
-//  - Last release has FAILED status.
-//  - Checksum in release values not equals to checksum argument.
-//  - Some resources installed previously are missing.
+//   - Helm chart in not installed yet.
+//   - Last release has FAILED status.
+//   - Checksum in release values not equals to checksum argument.
+//   - Some resources installed previously are missing.
+//
 // If all these conditions aren't met, helm upgrade can be skipped.
 func (m *Module) ShouldRunHelmUpgrade(helmClient client.HelmClient, releaseName string, checksum string, manifests []manifest.Manifest, logLabels map[string]string) (bool, error) {
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
@@ -787,7 +787,7 @@ func (m *Module) prepareModuleEnabledResultFile() (string, error) {
 }
 
 func (m *Module) readModuleEnabledResult(filePath string) (bool, error) {
-	data, err := ioutil.ReadFile(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return false, fmt.Errorf("cannot read %s: %s", filePath, err)
 	}
@@ -924,7 +924,7 @@ func SearchModules(modulesDir string) (modules []*Module, err error) {
 		return nil, nil
 	}
 
-	files, err := ioutil.ReadDir(modulesDir) // returns a list of modules sorted by filename
+	files, err := os.ReadDir(modulesDir) // returns a list of modules sorted by filename
 	if err != nil {
 		return nil, fmt.Errorf("list modules directory '%s': %s", modulesDir, err)
 	}
@@ -1026,7 +1026,7 @@ func (m *Module) loadStaticValues() (err error) {
 		return nil
 	}
 
-	data, err := ioutil.ReadFile(valuesYamlPath)
+	data, err := os.ReadFile(valuesYamlPath)
 	if err != nil {
 		return fmt.Errorf("cannot read '%s': %s", m.Path, err)
 	}
@@ -1046,7 +1046,7 @@ func (mm *moduleManager) loadCommonStaticValues() error {
 		return nil
 	}
 
-	valuesYaml, err := ioutil.ReadFile(valuesPath)
+	valuesYaml, err := os.ReadFile(valuesPath)
 	if err != nil {
 		return fmt.Errorf("load common values file '%s': %s", valuesPath, err)
 	}
@@ -1064,7 +1064,7 @@ func (mm *moduleManager) loadCommonStaticValues() error {
 }
 
 func dumpData(filePath string, data []byte) error {
-	err := ioutil.WriteFile(filePath, data, 0644)
+	err := os.WriteFile(filePath, data, 0644)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,11 @@
+run:
+  timeout: 15m
+linters:
+  include:
+    - bodyclose
+    - asciicheck
+    - dogsled
+    - durationcheck
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
