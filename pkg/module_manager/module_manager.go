@@ -479,7 +479,6 @@ func (mm *moduleManager) calculateEnabledModulesByConfig(config *kube_config_man
 	}
 
 	return enabledByConfig
-	//enabled = utils.SortByReference(enabled, mm.allModulesNamesInOrder)
 }
 
 // calculateEnabledModulesWithDynamic determine enable state for all modules
@@ -700,7 +699,6 @@ func (mm *moduleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 
 	// Update state
 	mm.enabledModules = enabledModules
-	//mm.enabledModulesIdx := utils.MapStringStructKeys(enabledModules)
 
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
@@ -1321,7 +1319,6 @@ func (mm *moduleManager) ApplyBindingActions(moduleHook *ModuleHook, bindingActi
 // mergeEnabled merges enabled flags. Enabled flag can be nil.
 //
 // If all flags are nil, then false is returned — module is disabled by default.
-//
 func mergeEnabled(enabledFlags ...*bool) bool {
 	result := false
 	for _, enabled := range enabledFlags {

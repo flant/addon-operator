@@ -41,11 +41,11 @@ jobs:
 
       - name: Run unit tests
         run: |
-          #export CGO_ENABLED=1
-          #export CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/include"
-          #export CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/lib"
-          #export GOOS=linux
+          export CGO_ENABLED=1
+          export CGO_CFLAGS="-I$GITHUB_WORKSPACE/libjq/include"
+          export CGO_LDFLAGS="-L$GITHUB_WORKSPACE/libjq/lib"
+          export GOOS=linux
 
           go test \
-            -tags test \
+            -tags test,use_libjq \
             ./cmd/... ./pkg/...
