@@ -36,7 +36,7 @@ func Init(opts *Options) error {
 	return hc.initAndVersion()
 }
 
-// Library use client
+// LibClient use helm3 package as Go library.
 type LibClient struct {
 	KubeClient klient.Client
 	LogEntry   *log.Entry
@@ -100,13 +100,13 @@ func (h *LibClient) initAndVersion() error {
 	return nil
 }
 
-func (h *LibClient) DeleteSingleFailedRevision(releaseName string) error {
+func (h *LibClient) DeleteSingleFailedRevision(_ string) error {
 	// No need to delete single failed revision anymore
 	// https://github.com/helm/helm/issues/8037#issuecomment-622217632
 	return nil
 }
 
-func (h *LibClient) DeleteOldFailedRevisions(releaseName string) error {
+func (h *LibClient) DeleteOldFailedRevisions(_ string) error {
 	// No need to delete single failed revision anymore
 	// https://github.com/helm/helm/issues/8037#issuecomment-622217632
 	return nil
@@ -284,7 +284,7 @@ func (h *LibClient) IsReleaseExists(releaseName string) (bool, error) {
 
 // ListReleases returns all known releases as strings — "<release_name>.v<release_number>"
 // It is required only for helm2.
-func (h *LibClient) ListReleases(labelSelector map[string]string) (releases []string, err error) {
+func (h *LibClient) ListReleases(_ map[string]string) (releases []string, err error) {
 	return
 }
 
@@ -307,8 +307,8 @@ func (h *LibClient) ListReleasesNames(labelSelector map[string]string) ([]string
 
 	uniqNamesMap := make(map[string]struct{})
 	for _, secret := range list.Items {
-		releaseName, has_key := secret.Labels["name"]
-		if has_key && releaseName != "" {
+		releaseName, hasKey := secret.Labels["name"]
+		if hasKey && releaseName != "" {
 			uniqNamesMap[releaseName] = struct{}{}
 		}
 	}

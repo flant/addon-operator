@@ -2,7 +2,7 @@ package validation
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/go-openapi/swag"
@@ -15,7 +15,7 @@ func Test_Add_Schema(t *testing.T) {
 
 	st := NewSchemaStorage()
 
-	schemaBytes, err := ioutil.ReadFile("testdata/test-schema-ok.yaml")
+	schemaBytes, err := os.ReadFile("testdata/test-schema-ok.yaml")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = st.AddGlobalValuesSchemas(schemaBytes, nil)
@@ -61,7 +61,7 @@ func Test_Add_Schema_Bad(t *testing.T) {
 	g := NewWithT(t)
 	st := NewSchemaStorage()
 
-	schemaBytes, err := ioutil.ReadFile("testdata/test-schema-bad.yaml")
+	schemaBytes, err := os.ReadFile("testdata/test-schema-bad.yaml")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = st.AddGlobalValuesSchemas(nil, schemaBytes)

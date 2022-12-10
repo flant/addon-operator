@@ -2,7 +2,7 @@
 FROM --platform=${TARGETPLATFORM:-linux/amd64} flant/jq:b6be13d5-musl as libjq
 
 # Go builder.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.16-alpine3.15 AS builder
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.19-alpine3.15 AS builder
 
 ARG appVersion=latest
 RUN apk --no-cache add git ca-certificates gcc musl-dev libc-dev
@@ -18,7 +18,7 @@ ADD . /app
 # Clone shell-operator to get frameworks
 RUN git clone https://github.com/flant/shell-operator shell-operator-clone && \
     cd shell-operator-clone && \
-    git checkout v1.0.9
+    git checkout v1.1.0
 
 RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
     CGO_ENABLED=1 \
@@ -26,7 +26,7 @@ RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
     CGO_LDFLAGS="-L/libjq/lib" \
     GOOS=linux \
     go build -ldflags="-linkmode external -extldflags '-static' -s -w -X 'github.com/flant/shell-operator/pkg/app.Version=$shellOpVer' -X 'github.com/flant/addon-operator/pkg/app.Version=$appVersion'" \
-             -tags='release' \
+             -tags release,use_libjq \
              -o addon-operator \
              ./cmd/addon-operator
 

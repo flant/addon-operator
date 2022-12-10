@@ -2,7 +2,8 @@ package addon_operator
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -71,7 +72,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	var cmObj *v1.ConfigMap
 	if cmExists {
-		cmDataBytes, err := ioutil.ReadFile(cmFilePath)
+		cmDataBytes, err := os.ReadFile(cmFilePath)
 		g.Expect(err).ShouldNot(HaveOccurred(), "Should read config map file '%s'", cmFilePath)
 
 		cmObj = new(v1.ConfigMap)
@@ -560,15 +561,15 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 }
 
 // Test task flow logging:
-// - ensure no messages about WaitForSynchronization
-// - log_task__wait_for_synchronization contains a global hook and a module hook
-//   that use separate queue to execute and require waiting for Synchronization
+//   - ensure no messages about WaitForSynchronization
+//   - log_task__wait_for_synchronization contains a global hook and a module hook
+//     that use separate queue to execute and require waiting for Synchronization
 func Test_Operator_logTask(t *testing.T) {
 	g := NewWithT(t)
 
 	// Catch all info messages.
 	log.SetLevel(log.InfoLevel)
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	logHook := new(logrus_test.Hook)
 	log.AddHook(logHook)
 

@@ -10,10 +10,10 @@ jobs:
     name: Run unit tests
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.16
+      - name: Set up Go 1.19
         uses: actions/setup-go@v3
         with:
-          go-version: 1.16
+          go-version: 1.19
         id: go
 
       - name: Check out addon-operator code
@@ -47,5 +47,5 @@ jobs:
           export GOOS=linux
 
           go test \
-            -tags test \
+            -tags test,use_libjq \
             ./cmd/... ./pkg/...

@@ -3,7 +3,7 @@ package helm2
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -148,7 +148,7 @@ func TillerHealthHandler() func(writer http.ResponseWriter, request *http.Reques
 			return
 		}
 
-		tillerLivenessBody, err := ioutil.ReadAll(res.Body)
+		tillerLivenessBody, err := io.ReadAll(res.Body)
 		_ = res.Body.Close()
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)

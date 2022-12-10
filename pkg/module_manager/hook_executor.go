@@ -2,7 +2,6 @@ package module_manager
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -129,7 +128,7 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 		return result, fmt.Errorf("got bad metrics: %s", err)
 	}
 
-	kubernetesPatchBytes, err := ioutil.ReadFile(e.KubernetesPatchPath)
+	kubernetesPatchBytes, err := os.ReadFile(e.KubernetesPatchPath)
 	if err != nil {
 		return result, fmt.Errorf("can't read kubernetes patch file: %s", err)
 	}
