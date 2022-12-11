@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# It is a replacement for helm binary to test running with error.
+
+exit 1

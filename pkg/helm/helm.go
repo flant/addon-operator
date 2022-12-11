@@ -1,7 +1,6 @@
 package helm
 
 import (
-	"fmt"
 	"net/http"
 
 	klient "github.com/flant/kube-client/client"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
-	"github.com/flant/addon-operator/pkg/helm/helm2"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 )
@@ -46,8 +44,8 @@ func (h *Helm) Init() error {
 	}
 
 	switch helmVersion {
-	case "v3lib":
-		log.Info("Helm3Lib detected")
+	case Helm3Lib:
+		log.Info("Helm3Lib detected. Use builtin Helm.")
 		h.newClient = helm3lib.NewClient
 		err = helm3lib.Init(&helm3lib.Options{
 			Namespace:  app.Namespace,
@@ -57,8 +55,8 @@ func (h *Helm) Init() error {
 		})
 		return err
 
-	case "v3":
-		log.Info("Helm 3 detected")
+	case Helm3:
+		log.Infof("Helm 3 detected (path is '%s')", helm3.Helm3Path)
 		// Use helm3 client.
 		h.newClient = helm3.NewClient
 		err = helm3.Init(&helm3.Helm3Options{
@@ -68,32 +66,6 @@ func (h *Helm) Init() error {
 			KubeClient: h.kubeClient,
 		})
 		return err
-
-	case "v2":
-		log.Info("Helm 2 detected, start Tiller")
-		// TODO make tiller cancelable
-		err = helm2.InitTillerProcess(helm2.TillerOptions{
-			Namespace:          app.Namespace,
-			HistoryMax:         app.TillerMaxHistory,
-			ListenAddress:      app.TillerListenAddress,
-			ListenPort:         app.TillerListenPort,
-			ProbeListenAddress: app.TillerProbeListenAddress,
-			ProbeListenPort:    app.TillerProbeListenPort,
-		})
-		if err != nil {
-			return fmt.Errorf("init tiller: %s", err)
-		}
-
-		// Initialize helm2 client
-		err = helm2.Init(&helm2.Helm2Options{
-			Namespace:  app.Namespace,
-			KubeClient: h.kubeClient,
-		})
-		if err != nil {
-			return fmt.Errorf("init helm client: %s", err)
-		}
-		h.newClient = helm2.NewClient
-		h.healthzHandler = helm2.TillerHealthHandler()
 	}
 
 	return nil

@@ -89,7 +89,7 @@ func (m *Module) SynchronizationNeeded() bool {
 	return false
 }
 
-// Run is a phase of module lifecycle that runs onStartup hooks.
+// RunOnStartup is a phase of module lifecycle that runs onStartup hooks.
 // It is a handler of task MODULE_RUN
 func (m *Module) RunOnStartup(logLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
@@ -98,10 +98,6 @@ func (m *Module) RunOnStartup(logLabels map[string]string) error {
 	})
 
 	m.State.Enabled = true
-
-	if err := m.cleanup(); err != nil {
-		return err
-	}
 
 	// Hooks can delete release resources, so stop resources monitor before run hooks.
 	// m.moduleManager.HelmResourcesManager.PauseMonitor(m.Name)
@@ -122,10 +118,6 @@ func (m *Module) Run(logLabels map[string]string) (bool, error) {
 		"module": m.Name,
 		"queue":  "main",
 	})
-
-	if err := m.cleanup(); err != nil {
-		return false, err
-	}
 
 	// Hooks can delete release resources, so pause resources monitor before run hooks.
 	m.moduleManager.HelmResourcesManager.PauseMonitor(m.Name)
@@ -199,30 +191,6 @@ func (m *Module) Delete(logLabels map[string]string) error {
 
 	// Cleanup state.
 	m.State = NewModuleState()
-	return nil
-}
-
-func (m *Module) cleanup() error {
-	chartExists, err := m.checkHelmChart()
-	if !chartExists {
-		if err != nil {
-			log.Debugf("MODULE '%s': cleanup is not needed: %s", m.Name, err)
-			return nil
-		}
-	}
-
-	helmLogLabels := map[string]string{
-		"module": m.Name,
-	}
-
-	if err := m.helm.NewClient(helmLogLabels).DeleteSingleFailedRevision(m.generateHelmReleaseName()); err != nil {
-		return err
-	}
-
-	if err := m.helm.NewClient(helmLogLabels).DeleteOldFailedRevisions(m.generateHelmReleaseName()); err != nil {
-		return err
-	}
-
 	return nil
 }
 

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
-
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -17,15 +16,10 @@ var DefaultListenAddress = "0.0.0.0"
 var DefaultListenPort = "9650"
 var DefaultPrometheusMetricsPrefix = "addon_operator_"
 
-var TillerListenAddress = "127.0.0.1"
-var TillerListenPort int32 = 44434
-var TillerProbeListenAddress = "127.0.0.1"
-var TillerProbeListenPort int32 = 44435
-var TillerMaxHistory int32 = 0
-
 var Helm3HistoryMax int32 = 10
 var Helm3Timeout time.Duration = 5 * time.Minute
 var HelmIgnoreRelease = ""
+
 var HelmMonitorKubeClientQpsDefault = "5" // DefaultQPS from k8s.io/client-go/rest/config.go
 var HelmMonitorKubeClientQps float32
 var HelmMonitorKubeClientBurstDefault = "10" // DefaultBurst from k8s.io/client-go/rest/config.go
@@ -83,20 +77,6 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default("").
 		StringVar(&sh_app.HookMetricsListenPort)
 
-	cmd.Flag("tiller-listen-port", "Listen port for tiller.").
-		Envar("ADDON_OPERATOR_TILLER_LISTEN_PORT").
-		Default(strconv.Itoa(int(TillerListenPort))).
-		Int32Var(&TillerListenPort)
-	cmd.Flag("tiller-probe-listen-port", "Listen port for tiller.").
-		Envar("ADDON_OPERATOR_TILLER_PROBE_LISTEN_PORT").
-		Default(strconv.Itoa(int(TillerProbeListenPort))).
-		Int32Var(&TillerProbeListenPort)
-
-	cmd.Flag("tiller-max-history", "Tiller: limit the maximum number of revisions saved per release. Use 0 for no limit.").
-		Envar("TILLER_MAX_HISTORY").
-		Default(strconv.Itoa(int(TillerMaxHistory))).
-		Int32Var(&TillerMaxHistory)
-
 	cmd.Flag("helm-history-max", "Helm: limit the maximum number of revisions saved per release. Use 0 for no limit.").
 		Envar("HELM_HISTORY_MAX").
 		Default(strconv.Itoa(int(Helm3HistoryMax))).
@@ -107,7 +87,7 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default(Helm3Timeout.String()).
 		DurationVar(&Helm3Timeout)
 
-	cmd.Flag("helm-ignore-release", "Helm3+: do not count release as a module release.").
+	cmd.Flag("helm-ignore-release", "Do not treat Helm release in the addon-operator namespace as a part of module releases, save it from auto-deletion at start.").
 		Envar("HELM_IGNORE_RELEASE").
 		StringVar(&HelmIgnoreRelease)
 

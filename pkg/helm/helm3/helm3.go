@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -71,16 +70,9 @@ func (h *Helm3Client) WithKubeClient(client klient.Client) {
 	h.KubeClient = client
 }
 
-func (h *Helm3Client) CommandEnv() []string {
-	res := make([]string, 0)
-	return res
-}
-
-// cmd starts Helm with specified arguments.
-// Sets the TILLER_NAMESPACE environment variable before starting, because Addon-operator works with its own Tiller.
+// cmd runs Helm binary with specified arguments.
 func (h *Helm3Client) cmd(args ...string) (stdout string, stderr string, err error) {
 	cmd := exec.Command(Helm3Path, args...)
-	cmd.Env = append(os.Environ(), h.CommandEnv()...)
 
 	var stdoutBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -107,22 +99,11 @@ func (h *Helm3Client) initAndVersion() error {
 	return nil
 }
 
-func (h *Helm3Client) DeleteSingleFailedRevision(releaseName string) error {
-	// No need to delete single failed revision anymore
-	// https://github.com/helm/helm/issues/8037#issuecomment-622217632
-	return nil
-}
-
-func (h *Helm3Client) DeleteOldFailedRevisions(releaseName string) error {
-	// No need to delete single failed revision anymore
-	// https://github.com/helm/helm/issues/8037#issuecomment-622217632
-	return nil
-}
-
 // LastReleaseStatus returns last known revision for release and its status
-//   Example helm history output:
-//   REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
-//   1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
+//
+//	Example helm history output:
+//	REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
+//	1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
 func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
 	stdout, stderr, err := h.cmd("history", releaseName, "--max", "1", "--output", "yaml")
 
@@ -252,12 +233,6 @@ func (h *Helm3Client) IsReleaseExists(releaseName string) (bool, error) {
 	}
 
 	return true, nil
-}
-
-// ListReleases returns all known releases as strings — "<release_name>.v<release_number>"
-// It is required only for helm2.
-func (h *Helm3Client) ListReleases(labelSelector map[string]string) (releases []string, err error) {
-	return
 }
 
 // ListReleasesNames returns list of release names.

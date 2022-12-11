@@ -103,7 +103,6 @@ func (e *HookExecutor) Run() (result *HookResult, err error) {
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
-	envs = append(envs, e.helmEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{}, envs)
 
@@ -215,7 +214,6 @@ func (e *HookExecutor) Config() (configOutput []byte, err error) {
 
 	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
-	envs = append(envs, e.helmEnv()...)
 
 	cmd := executor.MakeCommand("", e.Hook.GetPath(), []string{"--config"}, envs)
 
@@ -231,11 +229,4 @@ func (e *HookExecutor) Config() (configOutput []byte, err error) {
 	log.Debugf("Hook '%s' config output:\n%s", e.Hook.GetName(), string(output))
 
 	return output, nil
-}
-
-func (e *HookExecutor) helmEnv() []string {
-	if e.Helm == nil {
-		return []string{}
-	}
-	return e.Helm.NewClient().CommandEnv()
 }

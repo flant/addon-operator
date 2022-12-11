@@ -43,14 +43,6 @@ A module’s execution might be triggered by an event that does not change the v
 
 The Addon-operator monitors resources defined by a Helm chart and triggers an update if something is deleted. This is useful for resources that Helm can't update without deletion. It is worth noting, that resource deletion by hooks is smartly ignored to prevent needless updates.
 
-## Workarounds for Helm issues
-
-The Helm handles failed chart installations poorly ([PR#4871](https://github.com/helm/helm/pull/4871)). A workaround has been added to Addon-operator to reduce the number of manual interventions in such situations: automatic deletion of a single failed release. In the future, in addition to this mechanism, we plan to add a few improvements to the interaction with Helm. In particular, we plan to port related algorithms (how the interaction with Helm is done) from werf — [ROADMAP](https://github.com/flant/addon-operator/issues/17).
-
-## Tiller
-
-The Tiller is started as a subprocess. It listens on 127.0.0.1 and uses two ports: one for gRPC connectivity with helm and one for cluster probes. These settings can be changed with environment variables (See [RUNNING](RUNNING.md)). If the Tiller process suddenly exits, the Addon-operator process also exits and Pod is restarted.
-
 # Next
 
 - The Addon-operator's [lifecycle](LIFECYCLE.md)

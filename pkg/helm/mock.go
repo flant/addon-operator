@@ -1,3 +1,4 @@
+//go:build !release
 // +build !release
 
 package helm
@@ -17,39 +18,18 @@ func MockHelm(cl client.HelmClient) *Helm {
 
 type MockHelmClient struct {
 	client.HelmClient
-	DeleteSingleFailedRevisionExecuted bool
-	UpgradeReleaseExecuted             bool
-	DeleteReleaseExecuted              bool
-	ReleaseNames                       []string
+	UpgradeReleaseExecuted bool
+	DeleteReleaseExecuted  bool
+	ReleaseNames           []string
 }
 
 var _ client.HelmClient = &MockHelmClient{}
-
-func (h *MockHelmClient) DeleteOldFailedRevisions(releaseName string) error {
-	return nil
-}
-
-func (h *MockHelmClient) ListReleases(_ map[string]string) ([]string, error) {
-	if h.ReleaseNames != nil {
-		return h.ReleaseNames, nil
-	}
-	return []string{}, nil
-}
 
 func (h *MockHelmClient) ListReleasesNames(_ map[string]string) ([]string, error) {
 	if h.ReleaseNames != nil {
 		return h.ReleaseNames, nil
 	}
 	return []string{}, nil
-}
-
-func (h *MockHelmClient) CommandEnv() []string {
-	return []string{}
-}
-
-func (h *MockHelmClient) DeleteSingleFailedRevision(_ string) error {
-	h.DeleteSingleFailedRevisionExecuted = true
-	return nil
 }
 
 func (h *MockHelmClient) LastReleaseStatus(_ string) (string, string, error) {
