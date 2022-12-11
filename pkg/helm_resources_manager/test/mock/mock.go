@@ -1,6 +1,4 @@
-// +build !release
-
-package helm_resources_manager
+package mock
 
 import (
 	"context"
@@ -8,6 +6,7 @@ import (
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
 
+	. "github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 )
 

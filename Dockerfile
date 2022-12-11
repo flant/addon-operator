@@ -26,7 +26,7 @@ RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
     CGO_LDFLAGS="-L/libjq/lib" \
     GOOS=linux \
     go build -ldflags="-linkmode external -extldflags '-static' -s -w -X 'github.com/flant/shell-operator/pkg/app.Version=$shellOpVer' -X 'github.com/flant/addon-operator/pkg/app.Version=$appVersion'" \
-             -tags release,use_libjq \
+             -tags use_libjq \
              -o addon-operator \
              ./cmd/addon-operator
 

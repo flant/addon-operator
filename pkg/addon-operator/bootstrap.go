@@ -82,9 +82,7 @@ func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir 
 	RegisterDebugModuleRoutes(debugServer, op)
 
 	// Helm client factory.
-	op.Helm = helm.New()
-	op.Helm.WithKubeClient(op.KubeClient)
-	err = op.Helm.Init()
+	op.Helm, err = helm.InitHelmClientFactory(op.KubeClient)
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
 	}

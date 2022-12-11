@@ -25,12 +25,7 @@ func RegisterDefaultRoutes(op *AddonOperator) {
 	http.Handle("/metrics", promhttp.Handler())
 
 	http.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
-		helmHealthHandler := op.Helm.HealthzHandler()
-		if helmHealthHandler == nil {
-			writer.WriteHeader(http.StatusOK)
-			return
-		}
-		helmHealthHandler(writer, request)
+		writer.WriteHeader(http.StatusOK)
 	})
 
 	http.HandleFunc("/ready", func(w http.ResponseWriter, request *http.Request) {

@@ -9,6 +9,11 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	klient "github.com/flant/kube-client/client"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -16,27 +21,19 @@ import (
 	k8types "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
-	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/helm_resources_manager"
-	"github.com/flant/addon-operator/pkg/kube_config_manager"
-	"github.com/flant/addon-operator/pkg/utils"
-	klient "github.com/flant/kube-client/client"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	utils_file "github.com/flant/shell-operator/pkg/utils/file"
-
+	mockhelm "github.com/flant/addon-operator/pkg/helm/test/mock"
+	mockhelmresmgr "github.com/flant/addon-operator/pkg/helm_resources_manager/test/mock"
 	. "github.com/flant/addon-operator/pkg/hook/types"
-
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	. "github.com/flant/shell-operator/pkg/hook/types"
-
+	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	_ "github.com/flant/addon-operator/pkg/module_manager/test/go_hooks/global-hooks"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type initModuleManagerResult struct {
 	moduleManager        *moduleManager
 	kubeConfigManager    kube_config_manager.KubeConfigManager
-	helmClient           *helm.MockHelmClient
-	helmResourcesManager *helm_resources_manager.MockHelmResourcesManager
+	helmClient           *mockhelm.Client
+	helmResourcesManager *mockhelmresmgr.MockHelmResourcesManager
 	kubeClient           klient.Client
 	initialState         *ModulesState
 	initialStateErr      error
@@ -52,10 +49,10 @@ func initModuleManager(t *testing.T, configPath string) (ModuleManager, *initMod
 	result := new(initModuleManagerResult)
 
 	// Mock helm client for module.go, hook_executor.go
-	result.helmClient = &helm.MockHelmClient{}
+	result.helmClient = &mockhelm.Client{}
 
 	// Mock helm resources manager to execute module actions: run, delete.
-	result.helmResourcesManager = &helm_resources_manager.MockHelmResourcesManager{}
+	result.helmResourcesManager = &mockhelmresmgr.MockHelmResourcesManager{}
 
 	// Init directories
 	rootDir := filepath.Join("testdata", configPath)
@@ -67,7 +64,7 @@ func initModuleManager(t *testing.T, configPath string) (ModuleManager, *initMod
 	result.moduleManager = NewModuleManager()
 	result.moduleManager.WithContext(context.Background())
 	result.moduleManager.WithDirectories(filepath.Join(rootDir, "modules"), filepath.Join(rootDir, "global-hooks"), t.TempDir())
-	result.moduleManager.WithHelm(helm.MockHelm(result.helmClient))
+	result.moduleManager.WithHelm(mockhelm.NewClientFactory(result.helmClient))
 
 	err = result.moduleManager.Init()
 	require.NoError(t, err, "Should register global hooks and all modules")
@@ -722,12 +719,10 @@ func Test_ModuleManager_RunModuleHook(t *testing.T) {
 			"update-module-dynamic",
 			"100-update-module-dynamic/hooks/merge_and_patch_values",
 			utils.Values{},
-			[]utils.ValuesPatch{
-				*utils.MustValuesPatch(utils.ValuesPatchFromBytes([]byte(`[
+			valuesPatchesFromYAML(t, `[
 {"op": "add", "path": "/updateModuleDynamic/a", "value": 123},
 {"op": "add", "path": "/updateModuleDynamic/x", "value": 10}
-				]`))),
-			},
+]`),
 			utils.Values{
 				"global":              map[string]interface{}{},
 				"updateModuleDynamic": map[string]interface{}{},
@@ -955,12 +950,10 @@ func Test_ModuleManager_Run_GlobalHook(t *testing.T) {
 			"merge_and_patch_over_existing_dynamic_values",
 			"100-update-dynamic/merge_and_patch_values",
 			utils.Values{},
-			[]utils.ValuesPatch{
-				*utils.MustValuesPatch(utils.ValuesPatchFromBytes([]byte(`[
+			valuesPatchesFromYAML(t, `[
 {"op": "add", "path": "/global/a", "value": 123},
 {"op": "add", "path": "/global/x", "value": 10.0}
-				]`))),
-			},
+]`),
 			utils.Values{
 				"global": map[string]interface{}{},
 			},
@@ -1144,7 +1137,7 @@ func Test_ModuleManager_ModulesState_no_ConfigMap(t *testing.T) {
 			require.NoError(t, res.initialStateErr, "Should load ConfigMap state")
 			mm = res.moduleManager
 
-			mm.WithHelm(helm.MockHelm(&helm.MockHelmClient{
+			mm.WithHelm(mockhelm.NewClientFactory(&mockhelm.Client{
 				ReleaseNames: test.helmReleases,
 			}))
 
@@ -1178,7 +1171,7 @@ func Test_ModuleManager_ModulesState_detect_ConfigMap_changes(t *testing.T) {
 	require.Contains(t, res.moduleManager.enabledModulesByConfig, "module-one")
 
 	// RefreshStateFromHelmReleases should detect all modules from helm releases as enabled.
-	mm.WithHelm(helm.MockHelm(&helm.MockHelmClient{
+	mm.WithHelm(mockhelm.NewClientFactory(&mockhelm.Client{
 		ReleaseNames: []string{"module-one", "module-two", "module-three"},
 	}))
 	state, err = mm.RefreshStateFromHelmReleases(map[string]string{})
@@ -1388,4 +1381,13 @@ func valuesFromYaml(t *testing.T, yamlStr string) utils.Values {
 	vals, err := utils.NewValuesFromBytes([]byte(yamlStr))
 	require.NoError(t, err, "should load values from string %s", yamlStr)
 	return vals
+}
+
+func valuesPatchesFromYAML(t *testing.T, patches string) []utils.ValuesPatch {
+	t.Helper()
+
+	res, err := utils.ValuesPatchFromBytes([]byte(patches))
+	require.NoError(t, err, "should load values patches from bytes, got err %v", err)
+
+	return []utils.ValuesPatch{*res}
 }

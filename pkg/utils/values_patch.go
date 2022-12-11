@@ -378,17 +378,11 @@ func EnabledFromValuesPatch(valuesPatch ValuesPatch) ValuesPatch {
 	return newValuesPatch
 }
 
-// TODO this one used only in tests
-func MustValuesPatch(res *ValuesPatch, err error) *ValuesPatch {
-	if err != nil {
-		panic(err)
-	}
-	return res
-}
-
 // Error messages to distinguish non-typed errors from the 'json-patch' library.
-const NonExistentPathErrorMsg = "error in remove for path:"
-const MissingPathErrorMsg = "remove operation does not apply: doc is missing path"
+const (
+	NonExistentPathErrorMsg = "error in remove for path:"
+	MissingPathErrorMsg     = "remove operation does not apply: doc is missing path"
+)
 
 func IsNonExistentPathError(err error) bool {
 	if err == nil {

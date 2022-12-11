@@ -10,22 +10,21 @@ import (
 	"testing"
 
 	"github.com/flant/kube-client/fake"
-	log "github.com/sirupsen/logrus"
-	logrus_test "github.com/sirupsen/logrus/hooks/test"
-	//. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 	. "github.com/onsi/gomega"
+	log "github.com/sirupsen/logrus"
+	logrus_test "github.com/sirupsen/logrus/hooks/test"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8types "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
-	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/helm_resources_manager"
+	mockhelm "github.com/flant/addon-operator/pkg/helm/test/mock"
+	mockhelmresmgr "github.com/flant/addon-operator/pkg/helm_resources_manager/test/mock"
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
@@ -33,8 +32,8 @@ import (
 )
 
 type assembleResult struct {
-	helmClient           *helm.MockHelmClient
-	helmResourcesManager *helm_resources_manager.MockHelmResourcesManager
+	helmClient           *mockhelm.Client
+	helmResourcesManager *mockhelmresmgr.MockHelmResourcesManager
 	cmName               string
 	cmNamespace          string
 }
@@ -107,10 +106,10 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	op.WithContext(context.Background())
 	op.KubeClient = kubeClient
 	// Mock helm client for ModuleManager
-	result.helmClient = &helm.MockHelmClient{}
-	op.Helm = helm.MockHelm(result.helmClient)
+	result.helmClient = &mockhelm.Client{}
+	op.Helm = mockhelm.NewClientFactory(result.helmClient)
 	// Mock helm resources manager to execute module actions: run, delete.
-	result.helmResourcesManager = &helm_resources_manager.MockHelmResourcesManager{}
+	result.helmResourcesManager = &mockhelmresmgr.MockHelmResourcesManager{}
 	op.HelmResourcesManager = result.helmResourcesManager
 
 	shell_operator.SetupEventManagers(op.ShellOperator)

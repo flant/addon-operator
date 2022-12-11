@@ -43,7 +43,7 @@ type AddonOperator struct {
 	// and variable changes.
 	ModuleManager module_manager.ModuleManager
 
-	Helm *helm.Helm
+	Helm *helm.ClientFactory
 
 	// HelmResourcesManager monitors absent resources created for modules.
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager

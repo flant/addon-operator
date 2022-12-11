@@ -32,7 +32,7 @@ type HookExecutor struct {
 	ObjectPatcher         *object_patch.ObjectPatcher
 	KubernetesPatchPath   string
 	LogLabels             map[string]string
-	Helm                  *helm.Helm
+	Helm                  *helm.ClientFactory
 }
 
 func NewHookExecutor(h Hook, context []BindingContext, configVersion string, objectPatcher *object_patch.ObjectPatcher) *HookExecutor {
@@ -49,7 +49,7 @@ func (e *HookExecutor) WithLogLabels(logLabels map[string]string) {
 	e.LogLabels = logLabels
 }
 
-func (e *HookExecutor) WithHelm(helm *helm.Helm) {
+func (e *HookExecutor) WithHelm(helm *helm.ClientFactory) {
 	e.Helm = helm
 }
 
