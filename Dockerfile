@@ -38,10 +38,10 @@ ARG TARGETPLATFORM
 RUN apk --no-cache add ca-certificates bash sed tini && \
     kubectlArch=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\/v7//') && \
     echo "Download kubectl for ${kubectlArch}" && \
-    wget https://storage.googleapis.com/kubernetes-release/release/v1.21.10/bin/${kubectlArch}/kubectl -O /bin/kubectl && \
+    wget https://storage.googleapis.com/kubernetes-release/release/v1.25.2/bin/${kubectlArch}/kubectl -O /bin/kubectl && \
     chmod +x /bin/kubectl && \
     helmArch=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g;s/-v7//') && \
-    wget https://get.helm.sh/helm-v3.5.4-${helmArch}.tar.gz -O /helm.tgz && \
+    wget https://get.helm.sh/helm-v3.10.2-${helmArch}.tar.gz -O /helm.tgz && \
     tar -z -x -C /bin -f /helm.tgz --strip-components=1 ${helmArch}/helm && \
     rm -f /helm.tgz
 
