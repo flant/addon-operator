@@ -44,7 +44,7 @@ type Module struct {
 
 	moduleManager *moduleManager
 	metricStorage *metric_storage.MetricStorage
-	helm          *helm.Helm
+	helm          *helm.ClientFactory
 }
 
 func NewModule(name, path string) *Module {
@@ -63,7 +63,7 @@ func (m *Module) WithMetricStorage(mstor *metric_storage.MetricStorage) {
 	m.metricStorage = mstor
 }
 
-func (m *Module) WithHelm(helm *helm.Helm) {
+func (m *Module) WithHelm(helm *helm.ClientFactory) {
 	m.helm = helm
 }
 

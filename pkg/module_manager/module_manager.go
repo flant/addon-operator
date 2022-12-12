@@ -48,7 +48,7 @@ type ModuleManager interface {
 	WithKubeObjectPatcher(*object_patch.ObjectPatcher)
 	WithScheduleManager(schedule_manager.ScheduleManager)
 	WithKubeConfigManager(kubeConfigManager kube_config_manager.KubeConfigManager)
-	WithHelm(*helm.Helm)
+	WithHelm(factory *helm.ClientFactory)
 	WithHelmResourcesManager(manager helm_resources_manager.HelmResourcesManager)
 	WithMetricStorage(storage *metric_storage.MetricStorage)
 	WithHookMetricStorage(storage *metric_storage.MetricStorage)
@@ -139,7 +139,7 @@ type moduleManager struct {
 	kubeEventsManager    kube_events_manager.KubeEventsManager
 	scheduleManager      schedule_manager.ScheduleManager
 	kubeConfigManager    kube_config_manager.KubeConfigManager
-	helm                 *helm.Helm
+	helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	metricStorage        *metric_storage.MetricStorage
 	hookMetricStorage    *metric_storage.MetricStorage
@@ -239,7 +239,7 @@ func (mm *moduleManager) WithKubeConfigManager(kubeConfigManager kube_config_man
 	mm.kubeConfigManager = kubeConfigManager
 }
 
-func (mm *moduleManager) WithHelm(helm *helm.Helm) {
+func (mm *moduleManager) WithHelm(helm *helm.ClientFactory) {
 	mm.helm = helm
 }
 

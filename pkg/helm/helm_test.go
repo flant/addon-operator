@@ -23,9 +23,7 @@ func TestHelmFactory(t *testing.T) {
 		kubeClient := klient.NewFake(nil)
 
 		// Setup Helm client factory.
-		helm := New()
-		helm.WithKubeClient(kubeClient)
-		err := helm.Init()
+		helm, err := InitHelmClientFactory(kubeClient)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Ensure client is a builtin Helm3 library.
@@ -44,9 +42,7 @@ func TestHelmFactory(t *testing.T) {
 		kubeClient := klient.NewFake(nil)
 
 		// Setup Helm client factory.
-		helm := New()
-		helm.WithKubeClient(kubeClient)
-		err := helm.Init()
+		helm, err := InitHelmClientFactory(kubeClient)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Ensure client is a builtin Helm3 library.
