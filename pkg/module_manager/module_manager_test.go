@@ -568,7 +568,6 @@ func Test_ModuleManager_RunModule(t *testing.T) {
 	}
 
 	// Check for helm client methods calls.
-	assert.Equal(t, res.helmClient.DeleteSingleFailedRevisionExecuted, true, "helm.DeleteSingleFailedRevision must be executed!")
 	assert.Equal(t, res.helmClient.UpgradeReleaseExecuted, true, "helm.UpgradeReleaseExecuted must be executed!")
 }
 

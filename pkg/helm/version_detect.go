@@ -1,56 +1,76 @@
 package helm
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
 
-	"github.com/flant/addon-operator/pkg/helm/helm2"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 )
 
 const DefaultHelmBinPath = "helm"
 
-func DetectHelmVersion() (string, error) {
-	// Setup default universal helm path
-	helmPath := os.Getenv("HELM_BIN_PATH")
-	if helmPath == "" {
-		helmPath = DefaultHelmBinPath
+var helm2Envs = []string{
+	"ADDON_OPERATOR_TILLER_LISTEN_PORT",
+	"ADDON_OPERATOR_TILLER_PROBE_LISTEN_PORT",
+	"TILLER_MAX_HISTORY",
+	"TILLER_BIN_PATH",
+	"HELM2",
+}
+
+const helm2DeprecationMsg = "Helm2 support is deprecated in Addon-operator v1.1+, please adopt Helm2 releases and use Helm3."
+
+type ClientType string
+
+const (
+	Helm3    = ClientType("Helm3")
+	Helm3Lib = ClientType("Helm3Lib")
+)
+
+func DetectHelmVersion() (ClientType, error) {
+	// Detect Helm2 related environment variables.
+	for _, env := range helm2Envs {
+		if os.Getenv(env) != "" {
+			return "", fmt.Errorf("%s environment is found. %s", env, helm2DeprecationMsg)
+		}
 	}
-	helm2.Helm2Path = helmPath
+
+	// Override helm binary path if requested.
+	helmPath := DefaultHelmBinPath
+	userHelmPath := os.Getenv("HELM_BIN_PATH")
+	if userHelmPath != "" {
+		helmPath = userHelmPath
+	}
 	helm3.Helm3Path = helmPath
 
-	tillerPath := os.Getenv("TILLER_BIN_PATH")
-	if tillerPath != "" {
-		helm2.TillerPath = tillerPath
-	}
-
 	if os.Getenv("HELM3") == "yes" {
-		return "v3", nil
-	}
-
-	if os.Getenv("HELM2") == "yes" {
-		return "v2", nil
+		return Helm3, nil
 	}
 
 	if os.Getenv("HELM3LIB") == "yes" {
-		return "v3lib", nil
+		return Helm3Lib, nil
 	}
 
 	// No environments, try to autodetect via execution `helm --help` command.
 	// Helm3 has no mentions of "tiller" in help output.
+	// Note: we rely on help command because 'helm version' is not precise if helm is compiled without setting a version.
 	cmd := exec.Command(helmPath, "--help")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		// no helm3 binary found, rollback to library
-		return "v3lib", nil
+		if userHelmPath == "" {
+			// Use builtin helm if something wrong with the default path.
+			return Helm3Lib, nil
+		}
+		// Report error if HELM_BIN_PATH is set.
+		return "", fmt.Errorf("error running requested Helm binary path '%s': %v", userHelmPath, err)
 	}
 	tillerRe := regexp.MustCompile(`tiller`)
 	tillerLoc := tillerRe.FindIndex(out)
 	if tillerLoc != nil {
-		return "v2", nil
+		return "", fmt.Errorf("'%s' is detected as helm2 binary. %s", helmPath, helm2DeprecationMsg)
 	}
 
-	// TODO helm4 detection?
-	return "v3", nil
+	// TODO(future) Add helm4 detection here.
+	return Helm3, nil
 }

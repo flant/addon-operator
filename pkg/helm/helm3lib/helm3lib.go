@@ -67,11 +67,6 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	}
 }
 
-func (h *LibClient) CommandEnv() []string {
-	res := make([]string, 0)
-	return res
-}
-
 func (h *LibClient) WithKubeClient(client klient.Client) {
 	h.KubeClient = client
 }
@@ -97,18 +92,6 @@ func (h *LibClient) initAndVersion() error {
 
 	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
 
-	return nil
-}
-
-func (h *LibClient) DeleteSingleFailedRevision(_ string) error {
-	// No need to delete single failed revision anymore
-	// https://github.com/helm/helm/issues/8037#issuecomment-622217632
-	return nil
-}
-
-func (h *LibClient) DeleteOldFailedRevisions(_ string) error {
-	// No need to delete single failed revision anymore
-	// https://github.com/helm/helm/issues/8037#issuecomment-622217632
 	return nil
 }
 
@@ -280,12 +263,6 @@ func (h *LibClient) IsReleaseExists(releaseName string) (bool, error) {
 		return false, nil
 	}
 	return false, err
-}
-
-// ListReleases returns all known releases as strings — "<release_name>.v<release_number>"
-// It is required only for helm2.
-func (h *LibClient) ListReleases(_ map[string]string) (releases []string, err error) {
-	return
 }
 
 // ListReleasesNames returns list of release names.
