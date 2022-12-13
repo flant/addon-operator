@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/flant/kube-client v0.25.0
-	github.com/flant/shell-operator v1.1.1
+	github.com/flant/shell-operator v1.1.2
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
