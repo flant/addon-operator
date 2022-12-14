@@ -149,7 +149,6 @@ moduleOne:
 	values, err = NewValues(mapInput)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(values).To(Equal(expected))
-
 }
 
 func Test_Values_NewGlobalValues(t *testing.T) {
@@ -182,5 +181,4 @@ paramArr:
 	values, err = NewGlobalValues(yamlInput)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(values).To(Equal(expected))
-
 }

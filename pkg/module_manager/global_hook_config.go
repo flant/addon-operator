@@ -298,7 +298,7 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		monitor.Metadata.MonitorId = config.MonitorConfigID()
 		monitor.Metadata.LogLabels = map[string]string{}
 		monitor.Metadata.MetricLabels = map[string]string{}
-		//monitor.WithMode(kubeCfg.Mode)
+		// monitor.WithMode(kubeCfg.Mode)
 		monitor.ApiVersion = kubeCfg.ApiVersion
 		monitor.Kind = kubeCfg.Kind
 		monitor.WithNameSelector(kubeCfg.NameSelector)
@@ -388,7 +388,7 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 
 	// Update IncludeSnapshotsFrom for every binding with a group.
 	// Merge binding's IncludeSnapshotsFrom with snapshots list calculated for group.
-	var groupSnapshots = make(map[string][]string)
+	groupSnapshots := make(map[string][]string)
 	for _, kubeCfg := range c.OnKubernetesEvents {
 		if kubeCfg.Group == "" {
 			continue

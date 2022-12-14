@@ -98,7 +98,6 @@ type globalValuesPatchResult struct {
 
 // handleGlobalValuesPatch do simple checks of patches and apply them to passed Values.
 func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesPatch utils.ValuesPatch) (*globalValuesPatchResult, error) {
-
 	if err := utils.ValidateHookValuesPatch(valuesPatch, utils.GlobalValuesKey); err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}
@@ -148,7 +147,7 @@ func (h *GlobalHook) applyEnabledPatches(valuesPatch utils.ValuesPatch) error {
 
 func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContext, logLabels map[string]string) error {
 	// Convert bindingContext for version
-	//versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
+	// versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	for _, info := range h.HookController.SnapshotsInfo() {
@@ -324,7 +323,7 @@ func (h *GlobalHook) GetConfigValues() utils.Values {
 
 // CONFIG_VALUES_PATH
 func (h *GlobalHook) prepareConfigValuesJsonFile() (string, error) {
-	var configValues = h.GetConfigValues()
+	configValues := h.GetConfigValues()
 	data, err := configValues.JsonBytes()
 	if err != nil {
 		return "", err
@@ -376,7 +375,7 @@ func (h *GlobalHook) prepareBindingContextJsonFile(bindingContext []byte) (strin
 	}
 
 	// TODO too much information in binding context with snapshots!
-	//log.Debugf("Prepared global hook %s binding context:\n%s", h.Name, string(bindingContext))
+	// log.Debugf("Prepared global hook %s binding context:\n%s", h.Name, string(bindingContext))
 
 	return path, nil
 }

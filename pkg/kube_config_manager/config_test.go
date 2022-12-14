@@ -37,7 +37,6 @@ param2: val2
 	assert.True(t, cfg.Global.Values.HasGlobal(), "Config should have global values for global only data")
 	assert.NotNil(t, cfg.Modules, "Modules should not be nil for global only data")
 	assert.Len(t, cfg.Modules, 0, "No module configs should present for global only data")
-
 }
 
 func Test_ParseCM_only_Modules(t *testing.T) {

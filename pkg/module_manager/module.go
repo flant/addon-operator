@@ -736,7 +736,8 @@ func (m *Module) ValuesForEnabledScript(precedingEnabledModules []string) (utils
 		utils.Values{
 			"global": map[string]interface{}{
 				"enabledModules": precedingEnabledModules,
-			}},
+			},
+		},
 	)
 	return res, nil
 }
@@ -1032,7 +1033,7 @@ func (mm *moduleManager) loadCommonStaticValues() error {
 }
 
 func dumpData(filePath string, data []byte) error {
-	err := os.WriteFile(filePath, data, 0644)
+	err := os.WriteFile(filePath, data, 0o644)
 	if err != nil {
 		return err
 	}

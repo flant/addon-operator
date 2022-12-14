@@ -4,8 +4,7 @@ import (
 	"github.com/go-openapi/spec"
 )
 
-type RequiredForHelmTransformer struct {
-}
+type RequiredForHelmTransformer struct{}
 
 const XRequiredForHelm = "x-required-for-helm"
 

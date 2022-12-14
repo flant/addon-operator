@@ -39,8 +39,10 @@ type HookRegistry struct {
 	m     sync.Mutex
 }
 
-var instance *HookRegistry
-var once sync.Once
+var (
+	instance *HookRegistry
+	once     sync.Once
+)
 
 func Registry() *HookRegistry {
 	once.Do(func() {

@@ -2,8 +2,7 @@ package schema
 
 import "github.com/go-openapi/spec"
 
-type CopyTransformer struct {
-}
+type CopyTransformer struct{}
 
 func (t *CopyTransformer) Transform(s *spec.Schema) *spec.Schema {
 	tmpBytes, _ := s.MarshalJSON()

@@ -30,7 +30,8 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "test"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
 				return q
-			}},
+			},
+		},
 		{
 			name:   "First task",
 			result: false,
@@ -46,7 +47,8 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
 				return q
-			}},
+			},
+		},
 		{
 			name:   "No module run",
 			result: false,
@@ -62,7 +64,8 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
 				return q
-			}},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -404,7 +407,8 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "test"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
 				return q
-			}},
+			},
+		},
 		{
 			name:   "Converge ModuleRun tasks",
 			result: 3,
@@ -427,7 +431,8 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 				// Prevent "Possible bug: metadata is nil"
 				q.AddLast(Task.WithMetadata(task.HookMetadata{}))
 				return q
-			}},
+			},
+		},
 		{
 			name:   "Converge ModuleRun and ModuleDelete tasks",
 			result: 3,
@@ -450,7 +455,8 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 				// Prevent "Possible bug: metadata is nil"
 				q.AddLast(Task.WithMetadata(task.HookMetadata{}))
 				return q
-			}},
+			},
+		},
 	}
 
 	for _, tt := range tests {

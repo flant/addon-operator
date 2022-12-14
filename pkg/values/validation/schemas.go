@@ -178,7 +178,7 @@ func LoadSchemaFromBytes(openApiContent []byte) (*spec.Schema, error) {
 
 // PrepareSchemas loads schemas for config values, values and helm values.
 func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*spec.Schema, err error) {
-	var res = make(map[SchemaType]*spec.Schema)
+	res := make(map[SchemaType]*spec.Schema)
 	if configBytes != nil {
 		schemaObj, err := LoadSchemaFromBytes(configBytes)
 		if err != nil {

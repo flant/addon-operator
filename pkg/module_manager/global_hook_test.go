@@ -57,5 +57,4 @@ beforeAll: 23
 }
 
 func Test_GlobalHook_Description(t *testing.T) {
-
 }

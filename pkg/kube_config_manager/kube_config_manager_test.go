@@ -279,7 +279,6 @@ func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
 			test.testFn(t, test.globalValues, test.moduleValues)
 		})
 	}
-
 }
 
 // Receive message over KubeConfigEventCh when ConfigMap is
@@ -344,7 +343,6 @@ param2: val2
 		g.Expect(config.Global.Values).To(HaveKey("global"), "Should update global section cache")
 		g.Expect(config.Global.Values["global"]).To(HaveKey("param1"), "Should update global section cache")
 	})
-
 }
 
 // SaveModuleConfigValues should update ConfigMap's data
@@ -433,7 +431,7 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 	g.Expect(ev).To(Equal(KubeConfigChanged), "Valid section patch should generate 'changed' event")
 
 	kcm.SafeReadConfig(func(config *KubeConfig) {
-		//g.Expect(config.IsInvalid).To(Equal(false), "Current config should be valid")
+		// g.Expect(config.IsInvalid).To(Equal(false), "Current config should be valid")
 		g.Expect(config.Modules).To(HaveLen(1), "Current config should have module sections")
 		g.Expect(config.Modules).To(HaveKey("valid-module-name"), "Current config should have module section for 'valid-module-name'")
 		modValues := config.Modules["valid-module-name"].Values

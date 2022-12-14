@@ -20,14 +20,10 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-/**
- * KubeConfigManager watches for changes in ConfigMap/addon-operator and provides
- * methods to change its content.
- *
- * It stores values parsed from ConfigMap data. OpenAPI validation of these config values
- * is not a responsibility of this component.
- */
-
+// KubeConfigManager watches for changes in ConfigMap/addon-operator and provides
+// methods to change its content.
+// It stores values parsed from ConfigMap data. OpenAPI validation of these config values
+// is not a responsibility of this component.
 type KubeConfigManager interface {
 	WithContext(ctx context.Context)
 	WithKubeClient(client klient.Client)

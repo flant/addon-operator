@@ -1,8 +1,9 @@
 package kube_config_manager
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_Checksums(t *testing.T) {
@@ -26,5 +27,4 @@ func Test_Checksums(t *testing.T) {
 
 	c.Remove("global", "qwe")
 	assert.False(t, c.HasEqualChecksum("global", "qwe"))
-
 }

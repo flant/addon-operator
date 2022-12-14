@@ -2,9 +2,10 @@ package task
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"sort"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
@@ -20,7 +21,7 @@ type HookMetadata struct {
 	Binding          string // binding name from configuration
 	BindingType      BindingType
 	BindingContext   []BindingContext
-	AllowFailure     bool //Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
+	AllowFailure     bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
 	DoModuleStartup bool // Execute onStartup and kubernetes@Synchronization hooks for module
 	IsReloadAll     bool // ModuleRun task is a part of 'Reload all modules' process.
@@ -36,10 +37,12 @@ type HookMetadata struct {
 	ExecuteOnSynchronization bool     // A flag to skip hook execution in Synchronization tasks.
 }
 
-var _ task_metadata.HookNameAccessor = HookMetadata{}
-var _ task_metadata.BindingContextAccessor = HookMetadata{}
-var _ task_metadata.MonitorIDAccessor = HookMetadata{}
-var _ task.MetadataDescriptable = HookMetadata{}
+var (
+	_ task_metadata.HookNameAccessor       = HookMetadata{}
+	_ task_metadata.BindingContextAccessor = HookMetadata{}
+	_ task_metadata.MonitorIDAccessor      = HookMetadata{}
+	_ task.MetadataDescriptable            = HookMetadata{}
+)
 
 func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
 	taskMeta := t.GetMetadata()

@@ -135,7 +135,6 @@ testModule:
 			test.assertFn()
 		})
 	}
-
 }
 
 func Test_LoadValues(t *testing.T) {
@@ -267,5 +266,4 @@ func Test_GetEnabled(t *testing.T) {
 			g.Expect(actual).To(Equal(test.expected))
 		})
 	}
-
 }

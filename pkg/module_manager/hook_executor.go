@@ -167,7 +167,7 @@ func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 	logEntry := log.WithFields(utils.LabelsToLogFields(e.LogLabels)).
 		WithField("output", "gohook")
 
-	var formattedSnapshots = make(go_hook.Snapshots, len(e.Context))
+	formattedSnapshots := make(go_hook.Snapshots, len(e.Context))
 	for _, context := range e.Context {
 		for snapBindingName, snaps := range context.Snapshots {
 			for _, snapshot := range snaps {

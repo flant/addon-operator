@@ -81,7 +81,7 @@ func mergeRequired(s *spec.Schema, parent *spec.Schema) []string {
 }
 
 func mergeProperties(s *spec.Schema, parent *spec.Schema) map[string]spec.Schema {
-	var res = make(map[string]spec.Schema)
+	res := make(map[string]spec.Schema)
 
 	for k, v := range parent.Properties {
 		res[k] = v
@@ -94,7 +94,7 @@ func mergeProperties(s *spec.Schema, parent *spec.Schema) map[string]spec.Schema
 }
 
 func mergePatternProperties(s *spec.Schema, parent *spec.Schema) map[string]spec.Schema {
-	var res = make(map[string]spec.Schema)
+	res := make(map[string]spec.Schema)
 
 	for k, v := range parent.PatternProperties {
 		res[k] = v
@@ -107,7 +107,7 @@ func mergePatternProperties(s *spec.Schema, parent *spec.Schema) map[string]spec
 }
 
 func mergeDefinitions(s *spec.Schema, parent *spec.Schema) spec.Definitions {
-	var res = make(spec.Definitions)
+	res := make(spec.Definitions)
 
 	for k, v := range parent.Definitions {
 		res[k] = v
@@ -120,7 +120,7 @@ func mergeDefinitions(s *spec.Schema, parent *spec.Schema) spec.Definitions {
 }
 
 func mergeExtensions(s *spec.Schema, parent *spec.Schema) spec.Extensions {
-	var ext = make(spec.Extensions)
+	ext := make(spec.Extensions)
 
 	for k, v := range parent.Extensions {
 		ext.Add(k, v)

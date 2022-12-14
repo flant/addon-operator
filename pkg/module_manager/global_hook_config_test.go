@@ -7,7 +7,7 @@ import (
 )
 
 func Test_GlobalHook_Config_v0_v1(t *testing.T) {
-	var g = NewWithT(t)
+	g := NewWithT(t)
 
 	var err error
 	var config *GlobalHookConfig
