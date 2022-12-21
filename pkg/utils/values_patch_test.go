@@ -24,7 +24,6 @@ func Test_JsonPatchFromString(t *testing.T) {
 	patch, err := JsonPatchFromString(input)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(patch).Should(HaveLen(4))
-
 }
 
 // ValuesPatchFromBytes should work with one valid json objects and with a stream of objects
@@ -41,7 +40,6 @@ func Test_ValuesPatchFromBytes(t *testing.T) {
 	vp, err := ValuesPatchFromBytes([]byte(input))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(vp.Operations).Should(HaveLen(4))
-
 }
 
 func Test_ApplyValuesPatch(t *testing.T) {
@@ -140,7 +138,6 @@ func Test_ApplyValuesPatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			newValues, changed, err := ApplyValuesPatch(tt.values, tt.operations, IgnoreNonExistentPaths)
-
 			if err != nil {
 				t.Errorf("ApplyValuesPatch error: %s", err)
 				return
@@ -489,7 +486,6 @@ func Test_CompactPatches_add_empty_object(t *testing.T) {
 	if assert.NoError(t, err) {
 		assert.True(t, jsonpatch.Equal(newPatchBytes, []byte(expected)), "%s should be equal to %s", newPatchBytes, expected)
 	}
-
 }
 
 /**
@@ -675,7 +671,6 @@ func Test_jsonpatch_Add_Number_To_A_String_Value(t *testing.T) {
 	newDoc, err := patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch apply")
 	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
-
 }
 
 // Create array, op:add some items, op:remove items by index.

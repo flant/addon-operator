@@ -256,14 +256,13 @@ func Test_ModuleManager_LoadValuesInInit(t *testing.T) {
 			test.testFn()
 		})
 	}
-
 }
 
 func Test_ModuleManager_LoadValues_ApplyDefaults(t *testing.T) {
 	_, res := initModuleManager(t, "load_values__module_apply_defaults")
 
-	//assert.Len(t, mm.commonStaticValues, 1)
-	//assert.Len(t, mm.commonStaticValues.Global(), 1)
+	// assert.Len(t, mm.commonStaticValues, 1)
+	// assert.Len(t, mm.commonStaticValues.Global(), 1)
 	assert.Len(t, res.moduleManager.allModulesByName, 1)
 
 	assert.Contains(t, res.moduleManager.allModulesByName, "module-one")
@@ -846,7 +845,7 @@ func Test_MainModuleManager_Get_GlobalHook(t *testing.T) {
 func Test_ModuleManager_Get_GlobalHooksInOrder(t *testing.T) {
 	mm, _ := initModuleManager(t, "get__global_hooks_in_order")
 
-	var expectations = []struct {
+	expectations := []struct {
 		testName    string
 		bindingType BindingType
 		hooksOrder  []string
@@ -973,7 +972,7 @@ func Test_ModuleManager_Run_GlobalHook(t *testing.T) {
 			_, _, err := mm.RunGlobalHook(expectation.hookName, BeforeAll, []BindingContext{}, map[string]string{})
 			require.NoError(t, err, "Hook %s should not fail", expectation.hookName)
 
-			var configValues = mm.GlobalConfigValues()
+			configValues := mm.GlobalConfigValues()
 			if !reflect.DeepEqual(expectation.expectedConfigValues, configValues) {
 				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", spew.Sdump(expectation.expectedConfigValues), spew.Sdump(configValues))
 			}
@@ -1147,7 +1146,6 @@ func Test_ModuleManager_ModulesState_no_ConfigMap(t *testing.T) {
 			test.testFn(t)
 		})
 	}
-
 }
 
 // Modules in modules_state__purge:

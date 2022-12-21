@@ -50,9 +50,11 @@ type Options struct {
 	KubeClient klient.Client
 }
 
-var _ client.HelmClient = &LibClient{}
-var options *Options
-var actionConfig *action.Configuration
+var (
+	_            client.HelmClient = &LibClient{}
+	options      *Options
+	actionConfig *action.Configuration
+)
 
 func NewClient(logLabels ...map[string]string) client.HelmClient {
 	logEntry := log.WithField("operator.component", "helm3lib")
@@ -217,7 +219,7 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 			return
 		}
 	} else {
-		var previousVersion = latestRelease.Version - 1
+		previousVersion := latestRelease.Version - 1
 		for i := 1; i < len(releases); i++ {
 			if !releases[i].Info.Status.IsPending() {
 				previousVersion = releases[i].Version

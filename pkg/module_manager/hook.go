@@ -376,7 +376,7 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 	}
 	logEntry.Debugf("Search and register hooks")
 
-	var registeredModuleHooks = make(map[sh_op_types.BindingType][]*ModuleHook)
+	registeredModuleHooks := make(map[sh_op_types.BindingType][]*ModuleHook)
 
 	hooks, err := SearchModuleHooks(module)
 	if err != nil {

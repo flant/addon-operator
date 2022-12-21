@@ -3,11 +3,11 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
-	log "github.com/sirupsen/logrus"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/peterbourgon/mergemap"
 	"github.com/segmentio/go-camelcase"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 

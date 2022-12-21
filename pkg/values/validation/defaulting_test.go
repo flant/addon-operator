@@ -23,7 +23,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var configSchemaYaml = `
+	configSchemaYaml := `
 type: object
 additionalProperties: false
 required:
@@ -107,7 +107,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var configSchemaYaml = `
+	configSchemaYaml := `
 type: object
 additionalProperties: false
 required:
@@ -156,8 +156,8 @@ properties:
 	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	//mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
-	//g.Expect(mErr).ShouldNot(HaveOccurred())
+	// mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
+	// g.Expect(mErr).ShouldNot(HaveOccurred())
 
 	s := v.SchemaStorage.ModuleValuesSchema("moduleName", ConfigValuesSchema)
 
@@ -194,5 +194,4 @@ properties:
 	p = p["deepParam1"].(map[string]interface{})
 	str = p["param1"].(string)
 	g.Expect(str).Should(Equal("ololo"))
-
 }

@@ -15,7 +15,7 @@ func Test_Validate_Extended(t *testing.T) {
 
 	v := NewValuesValidator()
 
-	var configValuesYaml = `
+	configValuesYaml := `
 type: object
 additionalProperties: false
 required:
@@ -29,7 +29,7 @@ properties:
   param2:
     type: string
 `
-	var valuesYaml = `
+	valuesYaml := `
 x-extend:
   schema: "config-values.yaml"
 type: object

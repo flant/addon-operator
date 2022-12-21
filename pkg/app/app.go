@@ -8,28 +8,30 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-var AppName = "addon-operator"
-var AppDescription = ""
-var Version = "dev"
+var (
+	AppName        = "addon-operator"
+	AppDescription = ""
+	Version        = "dev"
 
-var DefaultListenAddress = "0.0.0.0"
-var DefaultListenPort = "9650"
-var DefaultPrometheusMetricsPrefix = "addon_operator_"
+	DefaultListenAddress           = "0.0.0.0"
+	DefaultListenPort              = "9650"
+	DefaultPrometheusMetricsPrefix = "addon_operator_"
 
-var Helm3HistoryMax int32 = 10
-var Helm3Timeout time.Duration = 5 * time.Minute
-var HelmIgnoreRelease = ""
+	Helm3HistoryMax   int32         = 10
+	Helm3Timeout      time.Duration = 5 * time.Minute
+	HelmIgnoreRelease               = ""
 
-var HelmMonitorKubeClientQpsDefault = "5" // DefaultQPS from k8s.io/client-go/rest/config.go
-var HelmMonitorKubeClientQps float32
-var HelmMonitorKubeClientBurstDefault = "10" // DefaultBurst from k8s.io/client-go/rest/config.go
-var HelmMonitorKubeClientBurst int
+	HelmMonitorKubeClientQpsDefault   = "5" // DefaultQPS from k8s.io/client-go/rest/config.go
+	HelmMonitorKubeClientQps          float32
+	HelmMonitorKubeClientBurstDefault = "10" // DefaultBurst from k8s.io/client-go/rest/config.go
+	HelmMonitorKubeClientBurst        int
 
-var Namespace = ""
-var ConfigMapName = "addon-operator"
+	Namespace     = ""
+	ConfigMapName = "addon-operator"
 
-var GlobalHooksDir = "global-hooks"
-var ModulesDir = "modules"
+	GlobalHooksDir = "global-hooks"
+	ModulesDir     = "modules"
+)
 
 const (
 	DefaultGlobalHooksDir  = "global-hooks"

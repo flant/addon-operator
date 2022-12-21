@@ -201,7 +201,6 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 				tasks = append(tasks, newTask)
 			})
-
 		if err != nil {
 			logEntry.Errorf("handle schedule event '%s': %s", crontab, err)
 			return []sh_task.Task{}
@@ -334,8 +333,8 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 
 func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_task.Task {
 	const eventDescription = "Operator-Startup"
-	var tasks = make([]sh_task.Task, 0)
-	var queuedAt = time.Now()
+	tasks := make([]sh_task.Task, 0)
+	queuedAt := time.Now()
 
 	// 'OnStartup' global hooks.
 	onStartupHooks := op.ModuleManager.GetGlobalHooksInOrder(OnStartup)
@@ -443,7 +442,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 // CreatePurgeTasks returns ModulePurge tasks for each unknown Helm release.
 func (op *AddonOperator) CreatePurgeTasks(modulesToPurge []string, t sh_task.Task) []sh_task.Task {
 	var newTasks []sh_task.Task
-	var queuedAt = time.Now()
+	queuedAt := time.Now()
 
 	hm := task.HookMetadataAccessor(t)
 
@@ -569,7 +568,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 				// Disable events for disabled modules.
 				for _, moduleName := range state.ModulesToDisable {
 					op.ModuleManager.DisableModuleHooks(moduleName)
-					//op.DrainModuleQueues(moduleName)
+					// op.DrainModuleQueues(moduleName)
 				}
 				// Set ModulesToEnable list to properly run onStartup hooks for first converge.
 				if !op.IsStartupConvergeDone() {
@@ -626,8 +625,8 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 
 // CreateBeforeAllTasks returns tasks to run BeforeAll global hooks.
 func (op *AddonOperator) CreateBeforeAllTasks(logLabels map[string]string, eventDescription string) []sh_task.Task {
-	var tasks = make([]sh_task.Task, 0)
-	var queuedAt = time.Now()
+	tasks := make([]sh_task.Task, 0)
+	queuedAt := time.Now()
 
 	// Get 'beforeAll' global hooks.
 	beforeAllHooks := op.ModuleManager.GetGlobalHooksInOrder(BeforeAll)
@@ -668,8 +667,8 @@ func (op *AddonOperator) CreateBeforeAllTasks(logLabels map[string]string, event
 
 // CreateAfterAllTasks returns tasks to run AfterAll global hooks.
 func (op *AddonOperator) CreateAfterAllTasks(logLabels map[string]string, eventDescription string) ([]sh_task.Task, error) {
-	var tasks = make([]sh_task.Task, 0)
-	var queuedAt = time.Now()
+	tasks := make([]sh_task.Task, 0)
+	queuedAt := time.Now()
 
 	// Get 'afterAll' global hooks.
 	afterAllHooks := op.ModuleManager.GetGlobalHooksInOrder(AfterAll)
@@ -852,8 +851,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 
 // TaskHandler handles tasks in queue.
 func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
-	var taskLogLabels = t.GetLogLabels()
-	var taskLogEntry = log.WithFields(utils.LabelsToLogFields(taskLogLabels))
+	taskLogLabels := t.GetLogLabels()
+	taskLogEntry := log.WithFields(utils.LabelsToLogFields(taskLogLabels))
 	var res queue.TaskResult
 
 	op.logTaskStart(taskLogEntry, t)
@@ -972,10 +971,10 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 	hm := task.HookMetadataAccessor(t)
 	globalHook := op.ModuleManager.GetGlobalHook(hm.HookName)
 
-	var mainSyncTasks = make([]sh_task.Task, 0)
-	var parallelSyncTasks = make([]sh_task.Task, 0)
-	var parallelSyncTasksToWait = make([]sh_task.Task, 0)
-	var queuedAt = time.Now()
+	mainSyncTasks := make([]sh_task.Task, 0)
+	parallelSyncTasks := make([]sh_task.Task, 0)
+	parallelSyncTasksToWait := make([]sh_task.Task, 0)
+	queuedAt := time.Now()
 
 	newLogLabels := utils.MergeLabels(t.GetLogLabels())
 	delete(newLogLabels, "task.id")
@@ -1023,7 +1022,6 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 			}
 		}
 	})
-
 	if err != nil {
 		hookLabel := path.Base(globalHook.Path)
 		// TODO use separate metric, as in shell-operator?
@@ -1135,7 +1133,7 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 	// TODO disable events and drain queues here or earlier during ConvergeModules.RunBeforeAll phase?
 	if err == nil {
 		// Disable events
-		//op.ModuleManager.DisableModuleHooks(hm.ModuleName)
+		// op.ModuleManager.DisableModuleHooks(hm.ModuleName)
 		// Remove all hooks from parallel queues.
 		op.DrainModuleQueues(hm.ModuleName)
 		err = op.ModuleManager.DeleteModule(hm.ModuleName, t.GetLogLabels())
@@ -1193,7 +1191,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	})()
 
 	var moduleRunErr error
-	var valuesChanged = false
+	valuesChanged := false
 
 	// First module run on operator startup or when module is enabled.
 	if module.State.Phase == module_manager.Startup {
@@ -1235,11 +1233,11 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		logEntry.Debugf("ModuleRun '%s' phase", module.State.Phase)
 
 		// ModuleHookRun.Synchronization tasks for bindings with the "main" queue.
-		var mainSyncTasks = make([]sh_task.Task, 0)
+		mainSyncTasks := make([]sh_task.Task, 0)
 		// ModuleHookRun.Synchronization tasks to add in parallel queues.
-		var parallelSyncTasks = make([]sh_task.Task, 0)
+		parallelSyncTasks := make([]sh_task.Task, 0)
 		// Wait for these ModuleHookRun.Synchronization tasks from parallel queues.
-		var parallelSyncTasksToWait = make([]sh_task.Task, 0)
+		parallelSyncTasksToWait := make([]sh_task.Task, 0)
 
 		// Start monitors for each kubernetes binding in each module hook.
 		err := op.ModuleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
@@ -1674,7 +1672,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 	}
 
 	// TODO create metadata flag that indicate whether to add reload all task on values changes
-	//op.HelmResourcesManager.PauseMonitors()
+	// op.HelmResourcesManager.PauseMonitors()
 
 	if shouldRunHook {
 		logEntry.Debugf("Global hook run")
@@ -1814,7 +1812,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 
 func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabels map[string]string, eventDescription string) []sh_task.Task {
 	var newTasks []sh_task.Task
-	var queuedAt = time.Now()
+	queuedAt := time.Now()
 
 	queuedModuleNames := ModulesWithPendingModuleRun(op.TaskQueues.GetMain())
 
@@ -1844,7 +1842,7 @@ func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabel
 // CreateConvergeModulesTasks creates ModuleRun/ModuleDelete tasks based on moduleManager state.
 func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.ModulesState, logLabels map[string]string, eventDescription string) []sh_task.Task {
 	var newTasks []sh_task.Task
-	var queuedAt = time.Now()
+	queuedAt := time.Now()
 
 	// Add ModuleDelete tasks to delete helm releases of disabled modules.
 	for _, moduleName := range state.ModulesToDisable {

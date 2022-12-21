@@ -10,8 +10,10 @@ import (
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
-var ModuleEnabled = true
-var ModuleDisabled = false
+var (
+	ModuleEnabled  = true
+	ModuleDisabled = false
+)
 
 type ModuleConfig struct {
 	ModuleName       string
@@ -78,7 +80,6 @@ func (mc *ModuleConfig) WithValues(values Values) *ModuleConfig {
 // Values for module in `values` map are addressed by a key.
 // This key should be produced with ModuleNameToValuesKey.
 func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
-
 	if moduleValuesData, hasModuleData := values[mc.ModuleConfigKey]; hasModuleData {
 		switch v := moduleValuesData.(type) {
 		case map[string]interface{}, []interface{}:
@@ -111,8 +112,10 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 // Example:
 //
 // simpleModule:
-//   param1: 10
-//   param2: 120
+//
+//	param1: 10
+//	param2: 120
+//
 // simpleModuleEnabled: true
 func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
 	values, err := NewValuesFromBytes(yamlString)

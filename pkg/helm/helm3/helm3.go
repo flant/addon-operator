@@ -106,7 +106,6 @@ func (h *Helm3Client) initAndVersion() error {
 //	1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
 func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
 	stdout, stderr, err := h.cmd("history", releaseName, "--max", "1", "--output", "yaml")
-
 	if err != nil {
 		errLine := strings.Split(stderr, "\n")[0]
 		if strings.Contains(errLine, "Error:") && strings.Contains(errLine, "not found") {

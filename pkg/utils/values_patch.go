@@ -15,8 +15,10 @@ import (
 
 type ValuesPatchType string
 
-const ConfigMapPatch ValuesPatchType = "CONFIG_MAP_PATCH"
-const MemoryValuesPatch ValuesPatchType = "MEMORY_VALUES_PATCH"
+const (
+	ConfigMapPatch    ValuesPatchType = "CONFIG_MAP_PATCH"
+	MemoryValuesPatch ValuesPatchType = "MEMORY_VALUES_PATCH"
+)
 
 type ValuesPatch struct {
 	Operations []*ValuesPatchOperation
@@ -109,7 +111,7 @@ func (op *ValuesPatchOperation) ToJsonPatch() (jsonpatch.Patch, error) {
 }
 
 func JsonPatchFromReader(r io.Reader) (jsonpatch.Patch, error) {
-	var operations = make([]jsonpatch.Operation, 0)
+	operations := make([]jsonpatch.Operation, 0)
 
 	dec := json.NewDecoder(r)
 	for {
@@ -144,6 +146,7 @@ func JsonPatchFromReader(r io.Reader) (jsonpatch.Patch, error) {
 func JsonPatchFromBytes(data []byte) (jsonpatch.Patch, error) {
 	return JsonPatchFromReader(bytes.NewReader(data))
 }
+
 func JsonPatchFromString(in string) (jsonpatch.Patch, error) {
 	return JsonPatchFromReader(strings.NewReader(in))
 }
@@ -282,8 +285,10 @@ func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*
 
 type ApplyPatchMode string
 
-const Strict ApplyPatchMode = "strict"
-const IgnoreNonExistentPaths ApplyPatchMode = "ignore-non-existent-paths"
+const (
+	Strict                 ApplyPatchMode = "strict"
+	IgnoreNonExistentPaths ApplyPatchMode = "ignore-non-existent-paths"
+)
 
 // ApplyValuesPatch applies a set of json patch operations to the values and returns a result
 func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values, bool, error) {

@@ -13,7 +13,7 @@ func Test_Transform_Required(t *testing.T) {
 	var err error
 	v := NewValuesValidator()
 
-	var configValuesYaml = `
+	configValuesYaml := `
 type: object
 required:
 - param1
@@ -25,7 +25,7 @@ properties:
   param2:
     type: string
 `
-	var valuesYaml = `
+	valuesYaml := `
 x-extend:
   schema: "config-values.yaml"
 x-required-for-helm:

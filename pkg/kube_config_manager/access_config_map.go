@@ -2,12 +2,13 @@ package kube_config_manager
 
 import (
 	"context"
-	"github.com/flant/addon-operator/pkg/utils"
 
 	klient "github.com/flant/kube-client/client"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 // ConfigMapGet gets the ConfigMap object from the cluster.

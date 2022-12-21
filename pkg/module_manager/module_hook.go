@@ -158,7 +158,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	}
 
 	// Convert context for version
-	//versionedContextList := ConvertBindingContextList(h.Config.Version, context)
+	// versionedContextList := ConvertBindingContextList(h.Config.Version, context)
 
 	moduleHookExecutor := NewHookExecutor(h, context, h.Config.Version, h.moduleManager.KubeObjectPatcher)
 	moduleHookExecutor.WithLogLabels(logLabels)
@@ -331,7 +331,7 @@ func (h *ModuleHook) prepareConfigValuesJsonFile() (string, error) {
 
 // BINDING_CONTEXT_PATH
 func (h *ModuleHook) prepareBindingContextJsonFile(bindingContext []byte) (string, error) {
-	//data := utils.MustDump(utils.DumpValuesJson(context))
+	// data := utils.MustDump(utils.DumpValuesJson(context))
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-%s-binding-context-%s.json", h.Module.SafeName(), h.SafeName(), uuid.NewV4().String()))
 	err := dumpData(path, bindingContext)
 	if err != nil {
@@ -339,7 +339,7 @@ func (h *ModuleHook) prepareBindingContextJsonFile(bindingContext []byte) (strin
 	}
 
 	// FIXME too much information because of snapshots
-	//log.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, string(bindingContext))
+	// log.Debugf("Prepared module %s hook %s binding context:\n%s", h.Module.SafeName(), h.Name, string(bindingContext))
 
 	return path, nil
 }

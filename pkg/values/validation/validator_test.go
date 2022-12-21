@@ -20,7 +20,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var configSchemaYaml = `
+	configSchemaYaml := `
 type: object
 additionalProperties: false
 required:
@@ -55,7 +55,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var configSchemaYaml = `
+	configSchemaYaml := `
 type: object
 additionalProperties: false
 required:
@@ -120,7 +120,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var configSchemaYaml = `
+	configSchemaYaml := `
 type: object
 properties:
   param1:
@@ -163,5 +163,4 @@ properties:
 	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
 	g.Expect(mErr.Error()).Should(ContainSubstring("3 errors occurred"))
 	g.Expect(mErr.Error()).Should(ContainSubstring("forbidden property"))
-
 }

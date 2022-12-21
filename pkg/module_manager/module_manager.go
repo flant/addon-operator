@@ -790,7 +790,6 @@ func (mm *moduleManager) GetGlobalHooksInOrder(bindingType BindingType) []string
 }
 
 func (mm *moduleManager) GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string {
-
 	moduleHooksByBinding, ok := mm.modulesHooksOrderByName[moduleName]
 	if !ok {
 		return []string{}

@@ -160,7 +160,7 @@ func FindExecutableFilesInPath(dir string) (executables []string, nonExecutables
 
 	// Find only executable files
 	files, err := FilesFromRoot(dir, func(dir string, name string, info os.FileInfo) bool {
-		if info.Mode()&0111 != 0 {
+		if info.Mode()&0o111 != 0 {
 			return true
 		}
 		nonExecutables = append(nonExecutables, path.Join(dir, name))
