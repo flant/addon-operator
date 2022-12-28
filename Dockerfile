@@ -2,7 +2,7 @@
 FROM --platform=${TARGETPLATFORM:-linux/amd64} flant/jq:b6be13d5-musl as libjq
 
 # Go builder.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.19-alpine3.15 AS builder
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.19-alpine3.16 AS builder
 
 ARG appVersion=latest
 RUN apk --no-cache add git ca-certificates gcc musl-dev libc-dev binutils-gold
@@ -18,7 +18,7 @@ ADD . /app
 # Clone shell-operator to get frameworks
 RUN git clone https://github.com/flant/shell-operator shell-operator-clone && \
     cd shell-operator-clone && \
-    git checkout v1.1.0
+    git checkout v1.1.3
 
 RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
     CGO_ENABLED=1 \
@@ -31,17 +31,17 @@ RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
              ./cmd/addon-operator
 
 # Final image
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.15
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.16
 ARG TARGETPLATFORM
 # kubectl url has no variant (v7)
 # helm url has dashes and no variant (v7)
 RUN apk --no-cache add ca-certificates bash sed tini && \
     kubectlArch=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\/v7//') && \
     echo "Download kubectl for ${kubectlArch}" && \
-    wget https://storage.googleapis.com/kubernetes-release/release/v1.25.4/bin/${kubectlArch}/kubectl -O /bin/kubectl && \
+    wget https://storage.googleapis.com/kubernetes-release/release/v1.25.5/bin/${kubectlArch}/kubectl -O /bin/kubectl && \
     chmod +x /bin/kubectl && \
     helmArch=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g;s/-v7//') && \
-    wget https://get.helm.sh/helm-v3.10.2-${helmArch}.tar.gz -O /helm.tgz && \
+    wget https://get.helm.sh/helm-v3.10.3-${helmArch}.tar.gz -O /helm.tgz && \
     tar -z -x -C /bin -f /helm.tgz --strip-components=1 ${helmArch}/helm && \
     rm -f /helm.tgz
 
