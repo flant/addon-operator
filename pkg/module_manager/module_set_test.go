@@ -30,7 +30,7 @@ func TestModuleSet(t *testing.T) {
 		Name:  "module-three-one",
 		Order: 15,
 	})
-	// "overriden" module
+	// "overridden" module
 	ms.Add(&Module{
 		Name:  "module-four",
 		Order: 20,
