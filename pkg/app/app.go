@@ -31,21 +31,27 @@ var (
 
 	GlobalHooksDir = "global-hooks"
 	ModulesDir     = "modules"
+
+	UnnumberedModuleOrder = 1
 )
 
 const (
-	DefaultGlobalHooksDir  = "global-hooks"
-	DefaultModulesDir      = "modules"
 	DefaultTempDir         = "/tmp/addon-operator"
 	DefaultDebugUnixSocket = "/var/run/addon-operator/debug.socket"
 )
 
 // DefineStartCommandFlags init global flags with default values
 func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause) {
-	cmd.Flag("modules-dir", "a path where to search for module directories").
+	cmd.Flag("modules-dir", "paths where to search for module directories").
 		Envar("MODULES_DIR").
-		Default(DefaultModulesDir).
+		Default(ModulesDir).
 		StringVar(&ModulesDir)
+
+	// TODO Delete this setting after refactoring module dependencies machinery.
+	cmd.Flag("unnumbered-modules-order", "default order for modules without numbered prefix in name").
+		Envar("UNNUMBERED_MODULES_ORDER").
+		Default(strconv.Itoa(UnnumberedModuleOrder)).
+		IntVar(&UnnumberedModuleOrder)
 
 	cmd.Flag("global-hooks-dir", "a path where to search for global hook files (and OpenAPI schemas)").
 		Envar("GLOBAL_HOOKS_DIR").

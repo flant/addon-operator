@@ -145,11 +145,8 @@ type moduleManager struct {
 	hookMetricStorage    *metric_storage.MetricStorage
 	ValuesValidator      *validation.ValuesValidator
 
-	// Index of all modules in modules directory. Key is module name.
-	allModulesByName map[string]*Module
-
-	// Ordered list of all modules names for ordered iterations of allModulesByName.
-	allModulesNamesInOrder []string
+	// All known modules from specified directories ($MODULES_DIR)
+	modules *ModuleSet
 
 	// TODO new layer of values for *Enabled values
 	// commonStaticEnabledValues utils.Values // modules/values.yaml
@@ -210,8 +207,7 @@ func NewModuleManager() *moduleManager {
 	return &moduleManager{
 		ValuesValidator: validation.NewValuesValidator(),
 
-		allModulesByName:            make(map[string]*Module),
-		allModulesNamesInOrder:      make([]string, 0),
+		modules:                     new(ModuleSet),
 		enabledModulesByConfig:      make(map[string]struct{}),
 		enabledModules:              make([]string, 0),
 		dynamicEnabled:              make(map[string]*bool),
@@ -342,7 +338,7 @@ func (mm *moduleManager) HandleNewKubeConfig(kubeConfig *kube_config_manager.Kub
 
 	// Full reload if enabled flags are changed.
 	isEnabledChanged := false
-	for moduleName := range mm.allModulesByName {
+	for _, moduleName := range mm.modules.NamesInOrder() {
 		// Current module state.
 		_, wasEnabled := mm.enabledModulesByConfig[moduleName]
 		_, isEnabled := newEnabledByConfig[moduleName]
@@ -432,7 +428,7 @@ func (mm *moduleManager) warnAboutUnknownModules(kubeConfig *kube_config_manager
 
 	unknownNames := make([]string, 0)
 	for moduleName := range kubeConfig.Modules {
-		if _, isKnown := mm.allModulesByName[moduleName]; !isKnown {
+		if !mm.modules.Has(moduleName) {
 			unknownNames = append(unknownNames, moduleName)
 		}
 	}
@@ -450,11 +446,11 @@ func (mm *moduleManager) warnAboutUnknownModules(kubeConfig *kube_config_manager
 func (mm *moduleManager) calculateEnabledModulesByConfig(config *kube_config_manager.KubeConfig) map[string]struct{} {
 	enabledByConfig := make(map[string]struct{})
 
-	for moduleName, module := range mm.allModulesByName {
+	for _, module := range mm.modules.List() {
 		var kubeConfigEnabled *bool
 		var kubeConfigEnabledStr string
 		if config != nil {
-			if kubeConfig, hasKubeConfig := config.Modules[moduleName]; hasKubeConfig {
+			if kubeConfig, hasKubeConfig := config.Modules[module.Name]; hasKubeConfig {
 				kubeConfigEnabled = kubeConfig.IsEnabled
 				kubeConfigEnabledStr = kubeConfig.GetEnabled()
 			}
@@ -467,7 +463,7 @@ func (mm *moduleManager) calculateEnabledModulesByConfig(config *kube_config_man
 		)
 
 		if isEnabled {
-			enabledByConfig[moduleName] = struct{}{}
+			enabledByConfig[module.Name] = struct{}{}
 		}
 
 		log.Debugf("enabledByConfig: module '%s' enabled flags: common '%v', static '%v', kubeConfig '%v', result: '%v'",
@@ -491,7 +487,7 @@ func (mm *moduleManager) calculateEnabledModulesWithDynamic(enabledByConfig map[
 	log.Debugf("calculateEnabled: dynamicEnabled is %s", mm.DumpDynamicEnabled())
 
 	enabled := make([]string, 0)
-	for _, moduleName := range mm.allModulesNamesInOrder {
+	for _, moduleName := range mm.modules.NamesInOrder() {
 		_, isEnabledByConfig := enabledByConfig[moduleName]
 
 		isEnabled := mergeEnabled(
@@ -622,7 +618,7 @@ func (mm *moduleManager) stateFromHelmReleases(releases []string) *ModulesState 
 
 	// Filter out known modules.
 	enabledModules := make([]string, 0)
-	for _, modName := range mm.allModulesNamesInOrder {
+	for _, modName := range mm.modules.NamesInOrder() {
 		// Remove known module to detect unknown ones.
 		if _, has := releasesMap[modName]; has {
 			// Treat known module as enabled module.
@@ -685,7 +681,7 @@ func (mm *moduleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	// Disabled modules are that present in the list of currently enabled modules
 	// but not present in the list after running enabled scripts
 	disabledModules := utils.ListSubtract(mm.enabledModules, enabledModules)
-	disabledModules = utils.SortReverseByReference(disabledModules, mm.allModulesNamesInOrder)
+	disabledModules = utils.SortReverseByReference(disabledModules, mm.modules.NamesInOrder())
 
 	logEntry.Debugf("Refresh state results:\n"+
 		"    mm.enabledModulesByConfig: %v\n"+
@@ -709,17 +705,15 @@ func (mm *moduleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 }
 
 func (mm *moduleManager) GetModule(name string) *Module {
-	module, exist := mm.allModulesByName[name]
-	if exist {
-		return module
-	} else {
-		log.Errorf("Possible bug!!! GetModule: no module '%s' in ModuleManager indexes", name)
-		return nil
+	if mm.modules.Has(name) {
+		return mm.modules.Get(name)
 	}
+	log.Errorf("Possible bug!!! GetModule: no module '%s' in ModuleManager indexes", name)
+	return nil
 }
 
 func (mm *moduleManager) GetModuleNames() []string {
-	return mm.allModulesNamesInOrder
+	return mm.modules.NamesInOrder()
 }
 
 func (mm *moduleManager) GetEnabledModuleNames() []string {

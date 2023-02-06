@@ -1,26 +1,34 @@
 # Module structure
 
-A module is a directory with files. Addon-operator searches for the modules directories in `/modules` or in the path specified by the $MODULES_DIR variable. The module has the same name as the corresponding directory excluding the numeric prefix.
+A module is a directory with files. Addon-operator searches for the modules directories in `/modules` or in the paths specified by the $MODULES_DIR variable. The module has the same name as the corresponding directory excluding the numeric prefix.
 
-The file structure of the module’s directory:
+An example of the file structure of the module:
 
 ```
 /modules/001-simple-module
+├── hooks
+│   ├── module-hook-1.sh
+│   ├── ...
+│   └── module-hook-N.sh
+├── openapi
+│   ├── config-values.yaml
+│   └── values.yaml
+├── templates
+│   ├── config-maps.yaml
+│   ├── ...
+│   └── daemon-set.yaml
+├── enabled
+├── README.md
 ├── .helmignore
 ├── Chart.yaml
-├── enabled
-├── hooks
-│   └── module-hooks.sh
-├── README.md
-├── templates
-│   └── daemon-set.yaml
 └── values.yaml
 ```
 
-- `hooks` — a directory with hooks;
-- `enabled` — a script that gets the status of module (is it enabled or not). See the [modules discovery](LIFECYCLE.md#modules-discovery) process;
-- `Chart.yaml`, `.helmignore`, `templates` — a Helm chart files;
-- `README.md` — a file with the module description;
+- `hooks` — a directory with hooks.
+- `openapi` — [OpenAPI schemas](VALUES.md) for config values and for helm values.
+- `enabled` — a script that gets the status of module (is it enabled or not). See the [modules discovery](LIFECYCLE.md#modules-discovery) process.
+- `Chart.yaml`, `.helmignore`, `templates` — a Helm chart files.
+- `README.md` — an optional file with the module description.
 - `values.yaml` – default values for chart in a [YAML format](VALUES.md).
 
 The name of this module is `simple-module`. values.yaml should contain a section `simpleModule` and a `simpleModuleEnabled` flag (see [VALUES](VALUES.md#values-storage)). 

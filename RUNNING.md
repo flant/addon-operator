@@ -2,13 +2,15 @@
 
 ## Environment variables
 
-**MODULES_DIR** — a directory where modules are located.
-
 **GLOBAL_HOOKS_DIR** — a directory with global hook files.
 
-**ADDON_OPERATOR_NAMESPACE** — a required parameter with namespace where Addon-operator is deployed.
+**MODULES_DIR** — paths separated by colon where modules are located.
 
-**ADDON_OPERATOR_CONFIG_MAP** — a name of ConfigMap to store values. Default is `addon-operator`.
+**UNNUMBERED_MODULE_ORDER** — a default order for modules without numbered prefix.
+
+**ADDON_OPERATOR_NAMESPACE** — a required parameter with namespace where Addon-operator is deployed.
+
+**ADDON_OPERATOR_CONFIG_MAP** — a name of ConfigMap to store values. Default is `addon-operator`.
 
 Namespace and config map name are used to watch for ConfigMap changes. 
 

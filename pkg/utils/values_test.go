@@ -182,3 +182,44 @@ paramArr:
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(values).To(Equal(expected))
 }
+
+func TestNameValuesKeyNameConsistence(t *testing.T) {
+	tests := []struct {
+		origName        string
+		expectValuesKey string
+		expectName      string
+	}{
+		{
+			"module",
+			"module",
+			"module",
+		},
+		{
+			"module-one",
+			"moduleOne",
+			"module-one",
+		},
+		{
+			"module-one-0-1",
+			"moduleOne01",
+			"module-one-0-1",
+		},
+		{
+			// Inconsistent module name!
+			"module_one",
+			"moduleOne",
+			"module-one", // Real expectation in "module_one", same as module name.
+		},
+	}
+
+	for _, test := range tests {
+		name := fmt.Sprintf("%s -> %s -> %s", test.origName, test.expectValuesKey, test.expectName)
+		t.Run(name, func(t *testing.T) {
+			g := NewWithT(t)
+			valuesKey := ModuleNameToValuesKey(test.origName)
+			moduleName := ModuleNameFromValuesKey(valuesKey)
+			newName := fmt.Sprintf("%s -> %s -> %s", test.origName, valuesKey, moduleName)
+			g.Expect(name).Should(Equal(newName), "should convert values key to original module name")
+		})
+	}
+}
