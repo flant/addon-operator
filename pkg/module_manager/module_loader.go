@@ -50,10 +50,10 @@ func splitToPaths(dir string) []string {
 func findModulesInDir(modulesDir string) ([]*Module, error) {
 	dirEntries, err := os.ReadDir(modulesDir)
 	if err != nil && os.IsNotExist(err) {
-		return nil, fmt.Errorf("path '%s' not exists", modulesDir)
+		return nil, fmt.Errorf("path '%s' does not exist", modulesDir)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("list modules directory '%s': %s", modulesDir, err)
+		return nil, fmt.Errorf("listing modules directory '%s': %s", modulesDir, err)
 	}
 
 	modules := make([]*Module, 0)
