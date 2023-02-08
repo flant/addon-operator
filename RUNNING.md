@@ -6,7 +6,7 @@
 
 **MODULES_DIR** — paths separated by colon where modules are located.
 
-**UNNUMBERED_MODULE_ORDER** — a default order for modules without numbered prefix.
+**UNNUMBERED_MODULE_ORDER** — an integer number to use as the default order for modules without numbered prefix.
 
 **ADDON_OPERATOR_NAMESPACE** — a required parameter with namespace where Addon-operator is deployed.
 

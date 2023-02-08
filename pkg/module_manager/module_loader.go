@@ -13,6 +13,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	PathsSeparator = ":"
+	ValuesFileName = "values.yaml"
+)
+
 func SearchModules(modulesDirs string) (*ModuleSet, error) {
 	paths := splitToPaths(modulesDirs)
 	modules := new(ModuleSet)
@@ -32,8 +37,6 @@ func SearchModules(modulesDirs string) (*ModuleSet, error) {
 
 	return modules, nil
 }
-
-const PathsSeparator = ":"
 
 func splitToPaths(dir string) []string {
 	res := make([]string, 0)
@@ -94,7 +97,7 @@ func resolveDirEntry(dirPath string, entry os.DirEntry) (string, string, error) 
 		return name, targetPath, nil
 	}
 
-	if name != "values.yaml" {
+	if name != ValuesFileName {
 		log.Warnf("Ignore '%s' while searching for modules", absPath)
 	}
 	return "", "", nil
@@ -162,8 +165,7 @@ func LoadCommonStaticValues(modulesDirs string) (utils.Values, error) {
 
 	res := make(map[string]interface{})
 	for _, path := range paths {
-		valuesPath := filepath.Join(path, "values.yaml")
-		values, err := loadValuesFromFile(valuesPath)
+		values, err := loadValuesFileFromDir(path)
 		if err != nil {
 			return nil, err
 		}
@@ -178,14 +180,15 @@ func LoadCommonStaticValues(modulesDirs string) (utils.Values, error) {
 	return res, nil
 }
 
-func loadValuesFromFile(valuesPath string) (utils.Values, error) {
-	valuesYaml, err := os.ReadFile(valuesPath)
+func loadValuesFileFromDir(dir string) (utils.Values, error) {
+	valuesFilePath := filepath.Join(dir, ValuesFileName)
+	valuesYaml, err := os.ReadFile(valuesFilePath)
 	if err != nil && os.IsNotExist(err) {
-		log.Debugf("No common static values file '%s': %v", valuesPath, err)
+		log.Debugf("No common static values file '%s': %v", valuesFilePath, err)
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("load common values file '%s': %s", valuesPath, err)
+		return nil, fmt.Errorf("load common values file '%s': %s", valuesFilePath, err)
 	}
 
 	values, err := utils.NewValuesFromBytes(valuesYaml)

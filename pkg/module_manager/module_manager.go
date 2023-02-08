@@ -705,11 +705,7 @@ func (mm *moduleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 }
 
 func (mm *moduleManager) GetModule(name string) *Module {
-	if mm.modules.Has(name) {
-		return mm.modules.Get(name)
-	}
-	log.Errorf("Possible bug!!! GetModule: no module '%s' in ModuleManager indexes", name)
-	return nil
+	return mm.modules.Get(name)
 }
 
 func (mm *moduleManager) GetModuleNames() []string {
@@ -730,13 +726,7 @@ func (mm *moduleManager) IsModuleEnabled(moduleName string) bool {
 }
 
 func (mm *moduleManager) GetGlobalHook(name string) *GlobalHook {
-	globalHook, exist := mm.globalHooksByName[name]
-	if exist {
-		return globalHook
-	} else {
-		log.Errorf("Possible bug!!! GetGlobalHook: no global hook '%s' in ModuleManager indexes", name)
-		return nil
-	}
+	return mm.globalHooksByName[name]
 }
 
 func (mm *moduleManager) GetModuleHook(name string) *ModuleHook {
@@ -749,7 +739,6 @@ func (mm *moduleManager) GetModuleHook(name string) *ModuleHook {
 			}
 		}
 	}
-	log.Errorf("Possible bug!!! GetModuleHook: no module hook '%s' in ModuleManager indexes", name)
 	return nil
 }
 

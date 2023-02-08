@@ -953,13 +953,13 @@ func (m *Module) loadStaticValues() (err error) {
 	if err != nil {
 		return err
 	}
-	log.Debugf("module %s common static values: %s", m.Name, m.CommonStaticConfig.Values.DebugString())
+	log.Debugf("module %s static values in common file: %s", m.Name, m.CommonStaticConfig.Values.DebugString())
 
-	valuesYamlPath := filepath.Join(m.Path, "values.yaml")
+	valuesYamlPath := filepath.Join(m.Path, ValuesFileName)
 
 	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
 		m.StaticConfig = utils.NewModuleConfig(m.Name)
-		log.Debugf("module %s is static disabled: no values.yaml exists", m.Name)
+		log.Debugf("module %s has no static values", m.Name)
 		return nil
 	}
 
