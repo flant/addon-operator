@@ -1,0 +1,5 @@
+moduleOne:
+  param1: val1
+  param2: val2
+moduleTwo:
+  param1: val1

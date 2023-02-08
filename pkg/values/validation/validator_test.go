@@ -164,3 +164,39 @@ properties:
 	g.Expect(mErr.Error()).Should(ContainSubstring("3 errors occurred"))
 	g.Expect(mErr.Error()).Should(ContainSubstring("forbidden property"))
 }
+
+func Test_Validate_MultiplyOfInt(t *testing.T) {
+	g := NewWithT(t)
+
+	var err error
+	var moduleValues utils.Values
+	moduleValues, err = utils.NewValuesFromBytes([]byte(`
+moduleName:
+  sampling: 100
+#  sampling2: 56.105
+`))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	configSchemaYaml := `
+type: object
+additionalProperties: false
+properties:
+  sampling:
+    type: number
+    minimum: 0.01
+    maximum: 100.0
+    multipleOf: 0.01
+  sampling2:
+    type: number
+    minimum: 0.01
+    maximum: 100.0
+    multipleOf: 0.01
+`
+	v := NewValuesValidator()
+
+	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
+	g.Expect(mErr).ShouldNot(HaveOccurred())
+}

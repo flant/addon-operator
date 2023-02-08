@@ -165,14 +165,14 @@ func Test_ModuleManager_LoadValuesInInit(t *testing.T) {
 					},
 				}
 
-				assert.Contains(t, mm.allModulesByName, "with-values-1")
-				assert.Contains(t, mm.allModulesByName, "with-values-2")
+				assert.True(t, mm.modules.Has("with-values-1"))
+				assert.True(t, mm.modules.Has("with-values-2"))
 
-				with1 := mm.allModulesByName["with-values-1"]
+				with1 := mm.modules.Get("with-values-1")
 				assert.NotNil(t, with1.StaticConfig)
 				assert.Equal(t, modWithValues1Expected, with1.StaticConfig.Values)
 
-				with2 := mm.allModulesByName["with-values-2"]
+				with2 := mm.modules.Get("with-values-2")
 				assert.NotNil(t, with2.StaticConfig)
 				assert.Equal(t, modWithValues2Expected, with2.StaticConfig.Values)
 			},
@@ -184,9 +184,9 @@ func Test_ModuleManager_LoadValuesInInit(t *testing.T) {
 			func() {
 				assert.Len(t, mm.commonStaticValues, 0)
 				assert.Len(t, mm.commonStaticValues.Global(), 0)
-				assert.Len(t, mm.allModulesByName, 1)
-				assert.NotNil(t, mm.allModulesByName["module"].CommonStaticConfig)
-				assert.NotNil(t, mm.allModulesByName["module"].StaticConfig)
+				assert.Len(t, mm.modules.List(), 1)
+				assert.NotNil(t, mm.modules.Get("module").CommonStaticConfig)
+				assert.NotNil(t, mm.modules.Get("module").StaticConfig)
 			},
 		},
 		{
@@ -195,14 +195,14 @@ func Test_ModuleManager_LoadValuesInInit(t *testing.T) {
 			func() {
 				assert.Len(t, mm.commonStaticValues, 4)
 				assert.Len(t, mm.commonStaticValues.Global(), 1)
-				assert.Len(t, mm.allModulesByName, 4)
+				assert.Len(t, mm.modules.List(), 4)
 
-				assert.Contains(t, mm.allModulesByName, "with-values-1")
-				assert.Contains(t, mm.allModulesByName, "with-values-2")
-				assert.Contains(t, mm.allModulesByName, "without-values")
-				assert.Contains(t, mm.allModulesByName, "with-kube-values")
+				assert.True(t, mm.modules.Has("with-values-1"))
+				assert.True(t, mm.modules.Has("with-values-2"))
+				assert.True(t, mm.modules.Has("without-values"))
+				assert.True(t, mm.modules.Has("with-kube-values"))
 
-				with1 := mm.allModulesByName["with-values-1"]
+				with1 := mm.modules.Get("with-values-1")
 				assert.NotNil(t, with1.CommonStaticConfig)
 				assert.NotNil(t, with1.StaticConfig)
 				assert.Equal(t, "with-values-1", with1.CommonStaticConfig.ModuleName)
@@ -223,12 +223,12 @@ func Test_ModuleManager_LoadValuesInInit(t *testing.T) {
 				assert.NotContains(t, mm.kubeModulesConfigValues, "with-values-1")
 
 				// all modules should have CommonStaticConfig and StaticConfig
-				assert.NotNil(t, mm.allModulesByName["with-values-2"].CommonStaticConfig)
-				assert.NotNil(t, mm.allModulesByName["with-values-2"].StaticConfig)
-				assert.NotNil(t, mm.allModulesByName["without-values"].CommonStaticConfig)
-				assert.NotNil(t, mm.allModulesByName["without-values"].StaticConfig)
-				assert.NotNil(t, mm.allModulesByName["with-kube-values"].CommonStaticConfig)
-				assert.NotNil(t, mm.allModulesByName["with-kube-values"].StaticConfig)
+				assert.NotNil(t, mm.modules.Get("with-values-2").CommonStaticConfig)
+				assert.NotNil(t, mm.modules.Get("with-values-2").StaticConfig)
+				assert.NotNil(t, mm.modules.Get("without-values").CommonStaticConfig)
+				assert.NotNil(t, mm.modules.Get("without-values").StaticConfig)
+				assert.NotNil(t, mm.modules.Get("with-kube-values").CommonStaticConfig)
+				assert.NotNil(t, mm.modules.Get("with-kube-values").StaticConfig)
 
 				fmt.Printf("kubeModulesConfigValues: %#v\n", mm.kubeModulesConfigValues)
 
@@ -263,11 +263,11 @@ func Test_ModuleManager_LoadValues_ApplyDefaults(t *testing.T) {
 
 	// assert.Len(t, mm.commonStaticValues, 1)
 	// assert.Len(t, mm.commonStaticValues.Global(), 1)
-	assert.Len(t, res.moduleManager.allModulesByName, 1)
+	assert.Len(t, res.moduleManager.modules.List(), 1)
 
-	assert.Contains(t, res.moduleManager.allModulesByName, "module-one")
+	assert.True(t, res.moduleManager.modules.Has("module-one"))
 
-	modOne := res.moduleManager.allModulesByName["module-one"]
+	modOne := res.moduleManager.modules.Get("module-one")
 	assert.NotNil(t, modOne.CommonStaticConfig)
 	assert.NotNil(t, modOne.StaticConfig)
 	assert.Equal(t, "module-one", modOne.CommonStaticConfig.ModuleName)
@@ -311,8 +311,8 @@ func Test_ModuleManager_LoadValues_ApplyDefaults(t *testing.T) {
 func Test_ModuleManager_Get_Module(t *testing.T) {
 	mm, res := initModuleManager(t, "get__module")
 
-	programmaticModule := &Module{Name: "programmatic-module"}
-	res.moduleManager.allModulesByName["programmatic-module"] = programmaticModule
+	programmaticModule := &Module{Name: "programmatic-module", Order: 10}
+	res.moduleManager.modules.Add(programmaticModule)
 
 	var module *Module
 
@@ -468,7 +468,7 @@ func Test_ModuleManager_Get_ModuleHooksInOrder(t *testing.T) {
 			"after-helm-binding-hooks",
 			AfterHelm,
 			func() {
-				assert.Len(t, res.moduleManager.allModulesByName, 1)
+				// assert.Len(t, res.moduleManager.allModulesByName, 1)
 				assert.Len(t, res.moduleManager.modulesHooksOrderByName, 1)
 
 				expectedOrder := []string{

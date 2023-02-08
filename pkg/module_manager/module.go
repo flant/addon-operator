@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime/trace"
 	"strings"
 	"time"
@@ -33,8 +32,9 @@ import (
 )
 
 type Module struct {
-	Name string
-	Path string
+	Name  string // MODULE_NAME env
+	Path  string // MODULE_DIR env
+	Order int    // MODULE_ORDER env
 	// module values from modules/values.yaml file
 	CommonStaticConfig *utils.ModuleConfig
 	// module values from modules/<module name>/values.yaml
@@ -47,10 +47,11 @@ type Module struct {
 	helm          *helm.ClientFactory
 }
 
-func NewModule(name, path string) *Module {
+func NewModule(name string, path string, order int) *Module {
 	return &Module{
 		Name:  name,
 		Path:  path,
+		Order: order,
 		State: NewModuleState(),
 	}
 }
@@ -885,61 +886,30 @@ func (m *Module) runEnabledScript(precedingEnabledModules []string, logLabels ma
 	return moduleEnabled, nil
 }
 
-var ValidModuleNameRe = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
-
-func SearchModules(modulesDir string) (modules []*Module, err error) {
-	if modulesDir == "" {
-		log.Warnf("Modules directory path is empty! No modules to load.")
-		return nil, nil
-	}
-
-	files, err := os.ReadDir(modulesDir) // returns a list of modules sorted by filename
-	if err != nil {
-		return nil, fmt.Errorf("list modules directory '%s': %s", modulesDir, err)
-	}
-
-	badModulesDirs := make([]string, 0)
-	modules = make([]*Module, 0)
-
-	for _, file := range files {
-		if !file.IsDir() {
-			continue
-		}
-		matchRes := ValidModuleNameRe.FindStringSubmatch(file.Name())
-		if matchRes != nil {
-			moduleName := matchRes[1]
-			modulePath := filepath.Join(modulesDir, file.Name())
-			module := NewModule(moduleName, modulePath)
-			modules = append(modules, module)
-		} else {
-			badModulesDirs = append(badModulesDirs, filepath.Join(modulesDir, file.Name()))
-		}
-	}
-
-	if len(badModulesDirs) > 0 {
-		return nil, fmt.Errorf("modules directory contains directories not matched ValidModuleRegex '%s': %s", ValidModuleNameRe, strings.Join(badModulesDirs, ", "))
-	}
-
-	return
-}
-
-// RegisterModules load all available modules from modules directory
-// FIXME: Only 000-name modules are loaded, allow non-prefixed modules.
+// RegisterModules load all available modules from modules directory.
 func (mm *moduleManager) RegisterModules() error {
+	if mm.ModulesDir == "" {
+		log.Warnf("Empty modules directory is passed! No modules to load.")
+		return nil
+	}
+
 	log.Debug("Search and register modules")
+
+	// load global and modules common static values from modules/values.yaml
+	commonStaticValues, err := LoadCommonStaticValues(mm.ModulesDir)
+	if err != nil {
+		return fmt.Errorf("load common values for modules: %s", err)
+	}
+	mm.commonStaticValues = commonStaticValues
 
 	modules, err := SearchModules(mm.ModulesDir)
 	if err != nil {
 		return err
 	}
-	log.Debugf("Found %d modules", len(modules))
 
-	// load global and modules common static values from modules/values.yaml
-	if err := mm.loadCommonStaticValues(); err != nil {
-		return fmt.Errorf("load common values for modules: %s", err)
-	}
+	log.Debugf("Found modules: %v", modules.NamesInOrder())
 
-	for _, module := range modules {
+	for _, module := range modules.List() {
 		logEntry := log.WithField("module", module.Name)
 
 		module.WithModuleManager(mm)
@@ -952,9 +922,6 @@ func (mm *moduleManager) RegisterModules() error {
 			logEntry.Errorf("Load values.yaml: %s", err)
 			return fmt.Errorf("bad module values")
 		}
-
-		mm.allModulesByName[module.Name] = module
-		mm.allModulesNamesInOrder = append(mm.allModulesNamesInOrder, module.Name)
 
 		// Load validation schemas
 		openAPIPath := filepath.Join(module.Path, "openapi")
@@ -975,6 +942,7 @@ func (mm *moduleManager) RegisterModules() error {
 		logEntry.Infof("Module from '%s'. %s", module.Path, mm.ValuesValidator.SchemaStorage.ModuleSchemasDescription(module.ValuesKey()))
 	}
 
+	mm.modules = modules
 	return nil
 }
 
@@ -985,13 +953,13 @@ func (m *Module) loadStaticValues() (err error) {
 	if err != nil {
 		return err
 	}
-	log.Debugf("module %s common static values: %s", m.Name, m.CommonStaticConfig.Values.DebugString())
+	log.Debugf("module %s static values in common file: %s", m.Name, m.CommonStaticConfig.Values.DebugString())
 
-	valuesYamlPath := filepath.Join(m.Path, "values.yaml")
+	valuesYamlPath := filepath.Join(m.Path, ValuesFileName)
 
 	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
 		m.StaticConfig = utils.NewModuleConfig(m.Name)
-		log.Debugf("module %s is static disabled: no values.yaml exists", m.Name)
+		log.Debugf("module %s has no static values", m.Name)
 		return nil
 	}
 
@@ -1005,30 +973,6 @@ func (m *Module) loadStaticValues() (err error) {
 		return err
 	}
 	log.Debugf("module %s static values: %s", m.Name, m.StaticConfig.Values.DebugString())
-	return nil
-}
-
-func (mm *moduleManager) loadCommonStaticValues() error {
-	valuesPath := filepath.Join(mm.ModulesDir, "values.yaml")
-	if _, err := os.Stat(valuesPath); os.IsNotExist(err) {
-		log.Debugf("No common static values file: %s", err)
-		return nil
-	}
-
-	valuesYaml, err := os.ReadFile(valuesPath)
-	if err != nil {
-		return fmt.Errorf("load common values file '%s': %s", valuesPath, err)
-	}
-
-	values, err := utils.NewValuesFromBytes(valuesYaml)
-	if err != nil {
-		return err
-	}
-
-	mm.commonStaticValues = values
-
-	log.Debugf("Successfully load common static values:\n%s", mm.commonStaticValues.DebugString())
-
 	return nil
 }
 
