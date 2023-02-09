@@ -23,12 +23,7 @@ func Bootstrap(op *AddonOperator) error {
 	sh_app.SetupLogging(runtimeConfig)
 	log.Infof(sh_app.AppStartMessage)
 
-	modulesDir, err := shell_operator.RequireExistingDirectory(app.ModulesDir)
-	if err != nil {
-		log.Errorf("Fatal: modules directory: %s", err)
-		return err
-	}
-	log.Infof("Modules directory: %s", modulesDir)
+	log.Infof("Search modules in: %s", app.ModulesDir)
 
 	globalHooksDir, err := shell_operator.RequireExistingDirectory(app.GlobalHooksDir)
 	if err != nil {
@@ -60,7 +55,7 @@ func Bootstrap(op *AddonOperator) error {
 		return err
 	}
 
-	err = AssembleAddonOperator(op, modulesDir, globalHooksDir, tempDir, debugServer, runtimeConfig)
+	err = AssembleAddonOperator(op, app.ModulesDir, globalHooksDir, tempDir, debugServer, runtimeConfig)
 	if err != nil {
 		log.Errorf("Fatal: %s", err)
 		return err

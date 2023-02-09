@@ -1,0 +1,10 @@
+#!/bin/bash
+
+if [[ $1 == "--config" ]] ; then
+  cat <<EOF
+configVersion: v1
+onStartup: 1
+EOF
+else
+  echo "[002-frontend/startup] is triggered"
+fi

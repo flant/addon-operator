@@ -1,0 +1,10 @@
+#!/bin/bash
+
+if [[ $1 == "--config" ]] ; then
+  cat <<EOF
+configVersion: v1
+onStartup: 1
+EOF
+else
+  echo "[001-backend/startup] is triggered"
+fi

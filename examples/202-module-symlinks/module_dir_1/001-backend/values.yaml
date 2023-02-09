@@ -1,0 +1,3 @@
+backendEnabled: true
+backend:
+  replicas: 1
