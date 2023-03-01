@@ -191,7 +191,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
 		h.LogEntry.Infof("Latest release '%s': revision: %d has status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
 		if latestRelease.Info.Status.IsPending() {
-			h.rollbackLatestRelease(releases)
+			h.deleteSecretForPendingRelease(releases)
 		}
 	}
 
@@ -202,6 +202,19 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	h.LogEntry.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful", releaseName, chartName, namespace)
 
 	return nil
+}
+
+func (h *LibClient) deleteSecretForPendingRelease(releases []*release.Release) {
+	latestRelease := releases[0]
+	delRel, err := actionConfig.Releases.Delete(latestRelease.Name, latestRelease.Version)
+	if err != nil {
+		h.LogEntry.Errorf("Delete secret for pending release %s:%d failed: %s", latestRelease.Name, latestRelease.Version, err)
+		// fallback to the rollback process
+		h.rollbackLatestRelease(releases)
+		return
+	}
+
+	h.LogEntry.Infof("Release %s:%d secret was deleted", delRel.Name, delRel.Version)
 }
 
 func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
