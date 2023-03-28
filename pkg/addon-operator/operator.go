@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flant/shell-operator/pkg/debug"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -53,6 +54,9 @@ type AddonOperator struct {
 
 	// Initial KubeConfig to bypass initial loading from the ConfigMap.
 	InitialKubeConfig *kube_config_manager.KubeConfig
+
+	// Debug server instance for external usages.
+	DebugServer *debug.Server
 }
 
 func NewAddonOperator() *AddonOperator {

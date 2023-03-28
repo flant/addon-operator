@@ -6,7 +6,6 @@ import (
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/config"
-	"github.com/flant/shell-operator/pkg/debug"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	log "github.com/sirupsen/logrus"
 
@@ -43,7 +42,7 @@ func Bootstrap(op *AddonOperator) error {
 	op.WithContext(context.Background())
 
 	// Debug server.
-	debugServer, err := shell_operator.InitDefaultDebugServer()
+	op.DebugServer, err = shell_operator.InitDefaultDebugServer()
 	if err != nil {
 		log.Errorf("Fatal: start Debug server: %s", err)
 		return err
@@ -55,7 +54,7 @@ func Bootstrap(op *AddonOperator) error {
 		return err
 	}
 
-	err = AssembleAddonOperator(op, app.ModulesDir, globalHooksDir, tempDir, debugServer, runtimeConfig)
+	err = AssembleAddonOperator(op, app.ModulesDir, globalHooksDir, tempDir, runtimeConfig)
 	if err != nil {
 		log.Errorf("Fatal: %s", err)
 		return err
@@ -64,17 +63,17 @@ func Bootstrap(op *AddonOperator) error {
 	return nil
 }
 
-func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir string, tempDir string, debugServer *debug.Server, runtimeConfig *config.Config) (err error) {
+func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir string, tempDir string, runtimeConfig *config.Config) (err error) {
 	RegisterDefaultRoutes(op)
 	RegisterAddonOperatorMetrics(op.MetricStorage)
 	StartLiveTicksUpdater(op.MetricStorage)
 	StartTasksQueueLengthUpdater(op.MetricStorage, op.TaskQueues)
 
 	// Register routes in debug server.
-	shell_operator.RegisterDebugQueueRoutes(debugServer, op.ShellOperator)
-	shell_operator.RegisterDebugConfigRoutes(debugServer, runtimeConfig)
-	RegisterDebugGlobalRoutes(debugServer, op)
-	RegisterDebugModuleRoutes(debugServer, op)
+	shell_operator.RegisterDebugQueueRoutes(op.DebugServer, op.ShellOperator)
+	shell_operator.RegisterDebugConfigRoutes(op.DebugServer, runtimeConfig)
+	RegisterDebugGlobalRoutes(op.DebugServer, op)
+	RegisterDebugModuleRoutes(op.DebugServer, op)
 
 	// Helm client factory.
 	op.Helm, err = helm.InitHelmClientFactory(op.KubeClient)
