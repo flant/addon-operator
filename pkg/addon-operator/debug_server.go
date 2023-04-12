@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -68,6 +69,10 @@ func RegisterDebugModuleRoutes(dbgSrv *debug.Server, op *AddonOperator) {
 
 	dbgSrv.Route("/module/{name}/render", func(r *http.Request) (interface{}, error) {
 		modName := chi.URLParam(r, "name")
+		debug, err := strconv.ParseBool(r.URL.Query().Get("debug"))
+		if err != nil {
+			return nil, fmt.Errorf("can't parse debug query parameter: %w", err)
+		}
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
@@ -80,7 +85,7 @@ func RegisterDebugModuleRoutes(dbgSrv *debug.Server, op *AddonOperator) {
 		}
 		defer os.Remove(valuesPath)
 
-		return op.Helm.NewClient().Render(m.Name, m.Path, []string{valuesPath}, nil, app.Namespace)
+		return op.Helm.NewClient().Render(m.Name, m.Path, []string{valuesPath}, nil, app.Namespace, debug)
 	})
 
 	dbgSrv.Route("/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {
