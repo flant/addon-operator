@@ -3,15 +3,13 @@ package test
 import (
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/sdk"
-
-	// Register hooks
 	_ "github.com/flant/addon-operator/sdk/test/simple_operator/global-hooks"
 	_ "github.com/flant/addon-operator/sdk/test/simple_operator/modules/001-module-one/hooks"
 	_ "github.com/flant/addon-operator/sdk/test/simple_operator/modules/002-module-two/hooks/level1/sublevel"
-
-	. "github.com/onsi/gomega"
 )
 
 func Test_HookMetadata_from_runtime(t *testing.T) {

@@ -23,7 +23,6 @@ import (
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
-
 	klient "github.com/flant/kube-client/client"
 )
 

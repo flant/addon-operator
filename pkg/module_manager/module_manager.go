@@ -9,39 +9,35 @@ import (
 	"sync"
 	"time"
 
+	// bindings constants and binding configs
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
-
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	. "github.com/flant/shell-operator/pkg/hook/types"
-	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
-
-	// bindings constants and binding configs
-	. "github.com/flant/addon-operator/pkg/hook/types"
-
-	"github.com/flant/shell-operator/pkg/hook/controller"
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
-	"github.com/flant/shell-operator/pkg/kube_events_manager"
-	"github.com/flant/shell-operator/pkg/metric_storage"
-	"github.com/flant/shell-operator/pkg/schedule_manager"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
+	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	"github.com/flant/shell-operator/pkg/hook/controller"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
+	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	"github.com/flant/shell-operator/pkg/metric_storage"
+	"github.com/flant/shell-operator/pkg/schedule_manager"
+	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
-// TODO separate modules and hooks storage, values storage and actions
+// TODO: separate modules and hooks storage, values storage and actions
 
 type ModuleManager interface {
 	Init() error
 	Start()
 
-	// Dependencies
 	WithContext(ctx context.Context)
 	WithDirectories(modulesDir string, globalHooksDir string, tempDir string) ModuleManager
 	WithKubeEventManager(kube_events_manager.KubeEventsManager)
@@ -84,14 +80,12 @@ type ModuleManager interface {
 	GetKubeConfigValid() bool
 	SetKubeConfigValid(valid bool)
 
-	// Methods to change module manager's state.
 	RefreshStateFromHelmReleases(logLabels map[string]string) (*ModulesState, error)
 	HandleNewKubeConfig(kubeConfig *kube_config_manager.KubeConfig) (*ModulesState, error)
 	RefreshEnabledState(logLabels map[string]string) (*ModulesState, error)
 
-	// Actions for tasks.
 	DeleteModule(moduleName string, logLabels map[string]string) error
-	RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error)
+	RunModule(moduleName string, logLabels map[string]string) (bool, error)
 	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (beforeChecksum string, afterChecksum string, err error)
 	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (beforeChecksum string, afterChecksum string, err error)
 
@@ -196,7 +190,7 @@ type moduleManager struct {
 
 	// Patches for dynamic global values
 	globalDynamicValuesPatches []utils.ValuesPatch
-	// Pathces for dynamic module values
+	// Patches for dynamic module values
 	modulesDynamicValuesPatches map[string][]utils.ValuesPatch
 }
 
@@ -511,11 +505,7 @@ func (mm *moduleManager) Init() error {
 		return err
 	}
 
-	if err := mm.RegisterModules(); err != nil {
-		return err
-	}
-
-	return nil
+	return mm.RegisterModules()
 }
 
 // validateKubeConfig checks validity of all sections in ConfigMap with OpenAPI schemas.
@@ -760,11 +750,11 @@ func (mm *moduleManager) GetGlobalHooksInOrder(bindingType BindingType) []string
 		return []string{}
 	}
 
-	sort.Slice(globalHooks[:], func(i, j int) bool {
+	sort.Slice(globalHooks, func(i, j int) bool {
 		return globalHooks[i].Order(bindingType) < globalHooks[j].Order(bindingType)
 	})
 
-	var globalHooksNames []string
+	globalHooksNames := make([]string, 0, len(globalHooks))
 	for _, globalHook := range globalHooks {
 		globalHooksNames = append(globalHooksNames, globalHook.Name)
 	}
@@ -783,11 +773,11 @@ func (mm *moduleManager) GetModuleHooksInOrder(moduleName string, bindingType Bi
 		return []string{}
 	}
 
-	sort.Slice(moduleBindingHooks[:], func(i, j int) bool {
+	sort.Slice(moduleBindingHooks, func(i, j int) bool {
 		return moduleBindingHooks[i].Order(bindingType) < moduleBindingHooks[j].Order(bindingType)
 	})
 
-	var moduleHooksNames []string
+	moduleHooksNames := make([]string, 0, len(moduleBindingHooks))
 	for _, moduleHook := range moduleBindingHooks {
 		moduleHooksNames = append(moduleHooksNames, moduleHook.Name)
 	}
@@ -829,7 +819,7 @@ func (mm *moduleManager) DeleteModule(moduleName string, logLabels map[string]st
 }
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
-func (mm *moduleManager) RunModule(moduleName string, onStartup bool, logLabels map[string]string, afterStartupCb func() error) (bool, error) {
+func (mm *moduleManager) RunModule(moduleName string, logLabels map[string]string) (bool, error) {
 	module := mm.GetModule(moduleName)
 
 	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
@@ -1306,9 +1296,8 @@ func mergeEnabled(enabledFlags ...*bool) bool {
 	for _, enabled := range enabledFlags {
 		if enabled == nil {
 			continue
-		} else {
-			result = *enabled
 		}
+		result = *enabled
 	}
 
 	return result

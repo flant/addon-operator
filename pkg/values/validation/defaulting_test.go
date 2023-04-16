@@ -3,11 +3,10 @@ package validation
 import (
 	"testing"
 
-	. "github.com/onsi/gomega"
-
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/validate"
 	"github.com/go-openapi/validate/post"
+	. "github.com/onsi/gomega"
 
 	"github.com/flant/addon-operator/pkg/utils"
 )

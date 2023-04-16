@@ -3,13 +3,12 @@ package task_test
 import (
 	"testing"
 
-	"github.com/flant/shell-operator/pkg/hook/types"
 	. "github.com/onsi/gomega"
-
-	sh_task "github.com/flant/shell-operator/pkg/task"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/addon-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/hook/types"
+	sh_task "github.com/flant/shell-operator/pkg/task"
 )
 
 func Test_MetadataAccessor(tT *testing.T) {

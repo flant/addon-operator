@@ -9,12 +9,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/flant/kube-client/fake"
-	. "github.com/flant/shell-operator/pkg/hook/types"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
-	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
-	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	logrus_test "github.com/sirupsen/logrus/hooks/test"
@@ -29,6 +23,12 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
+	"github.com/flant/kube-client/fake"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
+	sh_task "github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
+	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 )
 
 type assembleResult struct {
@@ -297,7 +297,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 
 		// Only one hook with kubernetes binding.
 		{task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook01", ""},
-		//{task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook02", ""},
+		// {task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook02", ""},
 
 		// Skip waiting tasks in parallel queues, proceed to schedule bindings.
 		{task.ModuleRun, "", "module-alpha", string(module_manager.EnableScheduleBindings)},
@@ -423,7 +423,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 
 	hasReloadAllInStandby := false
 	for i, tsk := range taskHandleHistory {
-		//if i < ignoreTasksCount {
+		// if i < ignoreTasksCount {
 		//	continue
 		//}
 		if tsk.taskType != task.ConvergeModules {

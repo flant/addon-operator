@@ -9,14 +9,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
 
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-
-	. "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-
-	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type GlobalHook struct {
@@ -36,52 +34,52 @@ func NewGlobalHook(name, path string) *GlobalHook {
 	return res
 }
 
-func (g *GlobalHook) WithConfig(configOutput []byte) (err error) {
-	err = g.Config.LoadAndValidate(configOutput)
+func (h *GlobalHook) WithConfig(configOutput []byte) (err error) {
+	err = h.Config.LoadAndValidate(configOutput)
 	if err != nil {
-		return fmt.Errorf("load global hook '%s' config: %s\nhook --config output: %s", g.Name, err.Error(), configOutput)
+		return fmt.Errorf("load global hook '%s' config: %s\nhook --config output: %s", h.Name, err.Error(), configOutput)
 	}
 	// Make HookController and GetConfigDescription work.
-	g.Hook.Config = &g.Config.HookConfig
-	g.Hook.RateLimiter = hook.CreateRateLimiter(g.Hook.Config)
+	h.Hook.Config = &h.Config.HookConfig
+	h.Hook.RateLimiter = hook.CreateRateLimiter(h.Hook.Config)
 
 	return nil
 }
 
-func (g *GlobalHook) WithGoConfig(config *go_hook.HookConfig) (err error) {
-	g.Config, err = NewGlobalHookConfigFromGoConfig(config)
+func (h *GlobalHook) WithGoConfig(config *go_hook.HookConfig) (err error) {
+	h.Config, err = NewGlobalHookConfigFromGoConfig(config)
 	if err != nil {
 		return err
 	}
 
 	// Make HookController and GetConfigDescription work.
-	g.Hook.Config = &g.Config.HookConfig
-	g.Hook.RateLimiter = hook.CreateRateLimiter(g.Hook.Config)
+	h.Hook.Config = &h.Config.HookConfig
+	h.Hook.RateLimiter = hook.CreateRateLimiter(h.Hook.Config)
 	return nil
 }
 
-func (gh *GlobalHook) GetConfigDescription() string {
+func (h *GlobalHook) GetConfigDescription() string {
 	msgs := []string{}
-	if gh.Config.BeforeAll != nil {
-		msgs = append(msgs, fmt.Sprintf("beforeAll:%d", int64(gh.Config.BeforeAll.Order)))
+	if h.Config.BeforeAll != nil {
+		msgs = append(msgs, fmt.Sprintf("beforeAll:%d", int64(h.Config.BeforeAll.Order)))
 	}
-	if gh.Config.AfterAll != nil {
-		msgs = append(msgs, fmt.Sprintf("afterAll:%d", int64(gh.Config.AfterAll.Order)))
+	if h.Config.AfterAll != nil {
+		msgs = append(msgs, fmt.Sprintf("afterAll:%d", int64(h.Config.AfterAll.Order)))
 	}
-	msgs = append(msgs, gh.Hook.GetConfigDescription())
+	msgs = append(msgs, h.Hook.GetConfigDescription())
 	return strings.Join(msgs, ", ")
 }
 
 // Order return float order number for bindings with order.
-func (g *GlobalHook) Order(binding BindingType) float64 {
-	if g.Config.HasBinding(binding) {
+func (h *GlobalHook) Order(binding BindingType) float64 {
+	if h.Config.HasBinding(binding) {
 		switch binding {
 		case BeforeAll:
-			return g.Config.BeforeAll.Order
+			return h.Config.BeforeAll.Order
 		case AfterAll:
-			return g.Config.AfterAll.Order
+			return h.Config.AfterAll.Order
 		case OnStartup:
-			return g.Config.OnStartup.Order
+			return h.Config.OnStartup.Order
 		}
 	}
 	return 0.0

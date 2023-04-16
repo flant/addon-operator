@@ -1,9 +1,10 @@
 package sdk
 
 import (
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 )
 
 var _ go_hook.GoHook = (*commonGoHook)(nil)

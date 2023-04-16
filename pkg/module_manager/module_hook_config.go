@@ -6,12 +6,10 @@ import (
 	"github.com/go-openapi/spec"
 	"sigs.k8s.io/yaml"
 
-	. "github.com/flant/shell-operator/pkg/hook/types"
-
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-
 	"github.com/flant/shell-operator/pkg/hook/config"
+	. "github.com/flant/shell-operator/pkg/hook/types"
 )
 
 // ModuleHookConfig is a structure with versioned hook configuration
@@ -240,8 +238,9 @@ func (c *ModuleHookConfig) HasBinding(binding BindingType) bool {
 		return c.AfterHelm != nil
 	case AfterDeleteHelm:
 		return c.AfterDeleteHelm != nil
+	default:
+		return false
 	}
-	return false
 }
 
 func (c *ModuleHookConfig) BindingsCount() int {

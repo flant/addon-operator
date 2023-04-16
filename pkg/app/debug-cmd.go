@@ -222,9 +222,9 @@ func Module(client *sh_debug.Client) *ModuleRequest {
 	return &ModuleRequest{client: client}
 }
 
-func (r *ModuleRequest) List(format string) ([]byte, error) {
+func (mr *ModuleRequest) List(format string) ([]byte, error) {
 	url := fmt.Sprintf("http://unix/module/list.%s", format)
-	return r.client.Get(url)
+	return mr.client.Get(url)
 }
 
 func (mr *ModuleRequest) ResourceMonitor(format string) ([]byte, error) {

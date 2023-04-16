@@ -1,9 +1,10 @@
 package validation
 
 import (
-	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/go-openapi/spec"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 // ApplyDefaults traverses an object and apply default values from OpenAPI schema.

@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/flant/kube-client/fake"
-	"github.com/flant/kube-client/manifest"
 	. "github.com/onsi/gomega"
 	"go.uber.org/goleak"
+
+	"github.com/flant/kube-client/fake"
+	"github.com/flant/kube-client/manifest"
 )
 
 // Problem: fake client do not support metadata.name filtering

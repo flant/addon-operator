@@ -3,13 +3,13 @@ package go_hook
 import (
 	"time"
 
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
+	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 )
 
 type GoHook interface {
@@ -34,13 +34,13 @@ type patchCollectorProxy struct {
 	patcher *object_patch.PatchCollector
 }
 
-// Deprecated. Use Create from PatchCollector.
+// Deprecated: Use Create from PatchCollector.
 func (p patchCollectorProxy) CreateObject(object *unstructured.Unstructured, subresource string) error {
 	p.patcher.Create(object, object_patch.WithSubresource(subresource))
 	return nil
 }
 
-// Deprecated. Use Create with UpdateIfExists option from PatchCollector.
+// Deprecated: Use Create with UpdateIfExists option from PatchCollector.
 func (p patchCollectorProxy) CreateOrUpdateObject(object *unstructured.Unstructured, subresource string) error {
 	p.patcher.Create(object,
 		object_patch.WithSubresource(subresource),
@@ -49,7 +49,7 @@ func (p patchCollectorProxy) CreateOrUpdateObject(object *unstructured.Unstructu
 	return nil
 }
 
-// Deprecated. Use Filter from PatchCollector.
+// Deprecated: Use Filter from PatchCollector.
 func (p patchCollectorProxy) FilterObject(
 	filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error),
 	apiVersion, kind, namespace, name, subresource string,
@@ -60,7 +60,7 @@ func (p patchCollectorProxy) FilterObject(
 	return nil
 }
 
-// Deprecated. Use MergePatch from PatchCollector.
+// Deprecated: Use MergePatch from PatchCollector.
 func (p patchCollectorProxy) MergePatchObject(mergePatch []byte, apiVersion, kind, namespace, name, subresource string) error {
 	p.patcher.MergePatch(mergePatch,
 		apiVersion, kind, namespace, name,
@@ -68,7 +68,7 @@ func (p patchCollectorProxy) MergePatchObject(mergePatch []byte, apiVersion, kin
 	return nil
 }
 
-// Deprecated. Use JSONPatch from PatchCollector.
+// Deprecated: Use JSONPatch from PatchCollector.
 func (p patchCollectorProxy) JSONPatchObject(jsonPatch []byte, apiVersion, kind, namespace, name, subresource string) error {
 	p.patcher.JSONPatch(jsonPatch,
 		apiVersion, kind, namespace, name,
@@ -76,14 +76,14 @@ func (p patchCollectorProxy) JSONPatchObject(jsonPatch []byte, apiVersion, kind,
 	return nil
 }
 
-// Deprecated. Use Delete from PatchCollector.
+// Deprecated: Use Delete from PatchCollector.
 func (p patchCollectorProxy) DeleteObject(apiVersion, kind, namespace, name, subresource string) error {
 	p.patcher.Delete(apiVersion, kind, namespace, name,
 		object_patch.WithSubresource(subresource))
 	return nil
 }
 
-// Deprecated. Use Delete with InBackground option from PatchCollector.
+// Deprecated: Use Delete with InBackground option from PatchCollector.
 func (p patchCollectorProxy) DeleteObjectInBackground(apiVersion, kind, namespace, name, subresource string) error {
 	p.patcher.Delete(apiVersion, kind, namespace, name,
 		object_patch.WithSubresource(subresource),
@@ -91,7 +91,7 @@ func (p patchCollectorProxy) DeleteObjectInBackground(apiVersion, kind, namespac
 	return nil
 }
 
-// Deprecated. Use Delete with NonCascading option from PatchCollector.
+// Deprecated: Use Delete with NonCascading option from PatchCollector.
 func (p patchCollectorProxy) DeleteObjectNonCascading(apiVersion, kind, namespace, name, subresource string) error {
 	p.patcher.Delete(apiVersion, kind, namespace, name,
 		object_patch.WithSubresource(subresource),
@@ -133,7 +133,7 @@ type HookInput struct {
 	BindingActions   *[]BindingAction
 }
 
-// Deprecated. Use methods from PatchCollector property.
+// Deprecated: Use methods from PatchCollector property.
 func (hi HookInput) ObjectPatcher() ObjectPatcher {
 	return patchCollectorProxy{hi.PatchCollector}
 }

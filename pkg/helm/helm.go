@@ -1,13 +1,13 @@
 package helm
 
 import (
-	klient "github.com/flant/kube-client/client"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
+	klient "github.com/flant/kube-client/client"
 )
 
 type ClientFactory struct {

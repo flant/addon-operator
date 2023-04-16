@@ -3,13 +3,12 @@ package module_manager
 import (
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-	"github.com/flant/addon-operator/sdk"
 	. "github.com/onsi/gomega"
 
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	_ "github.com/flant/addon-operator/pkg/module_manager/test/go_hooks/global-hooks"
+	"github.com/flant/addon-operator/sdk"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 )
 
 func Test_Config_GoHook(t *testing.T) {

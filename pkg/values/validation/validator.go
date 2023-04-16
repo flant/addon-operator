@@ -86,7 +86,7 @@ func ValidateObject(dataObj interface{}, s *spec.Schema, rootName string) (multi
 		return fmt.Errorf("validate config: schema is not provided")
 	}
 
-	validator := validate.NewSchemaValidator(s, nil, rootName, strfmt.Default) //, validate.DisableObjectArrayTypeCheck(true)
+	validator := validate.NewSchemaValidator(s, nil, rootName, strfmt.Default) // , validate.DisableObjectArrayTypeCheck(true)
 
 	result := validator.Validate(dataObj)
 	if result.IsValid() {

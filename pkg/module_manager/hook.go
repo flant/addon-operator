@@ -7,15 +7,15 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/flant/shell-operator/pkg/hook"
-	"github.com/flant/shell-operator/pkg/hook/controller"
-	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
-	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/sdk"
+	"github.com/flant/shell-operator/pkg/hook"
+	"github.com/flant/shell-operator/pkg/hook/controller"
+	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
 type Hook interface {
@@ -40,12 +40,12 @@ type CommonHook struct {
 	GoHook go_hook.GoHook
 }
 
-func (c *CommonHook) WithModuleManager(moduleManager *moduleManager) {
-	c.moduleManager = moduleManager
+func (h *CommonHook) WithModuleManager(moduleManager *moduleManager) {
+	h.moduleManager = moduleManager
 }
 
-func (c *CommonHook) WithGoHook(h go_hook.GoHook) {
-	c.GoHook = h
+func (h *CommonHook) WithGoHook(gh go_hook.GoHook) {
+	h.GoHook = gh
 }
 
 func (h *CommonHook) GetName() string {
@@ -301,13 +301,11 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 				logEntry.Errorf("Hook return bad config: %s", err)
 				return fmt.Errorf("global hook return bad config")
 			}
-		} else {
-			if goConfig != nil {
-				err := globalHook.WithGoConfig(goConfig)
-				if err != nil {
-					logEntry.Errorf("Hook return bad config: %s", err)
-					return fmt.Errorf("global hook return bad config")
-				}
+		} else if goConfig != nil {
+			err := globalHook.WithGoConfig(goConfig)
+			if err != nil {
+				logEntry.Errorf("Hook return bad config: %s", err)
+				return fmt.Errorf("global hook return bad config")
 			}
 		}
 
@@ -413,13 +411,11 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 				hookLogEntry.Errorf("Hook return bad config: %s", err)
 				return fmt.Errorf("module hook return bad config")
 			}
-		} else {
-			if moduleHook.GoHook != nil {
-				err := moduleHook.WithGoConfig(goConfig)
-				if err != nil {
-					logEntry.Errorf("Hook return bad config: %s", err)
-					return fmt.Errorf("module hook return bad config")
-				}
+		} else if moduleHook.GoHook != nil {
+			err := moduleHook.WithGoConfig(goConfig)
+			if err != nil {
+				logEntry.Errorf("Hook return bad config: %s", err)
+				return fmt.Errorf("module hook return bad config")
 			}
 		}
 

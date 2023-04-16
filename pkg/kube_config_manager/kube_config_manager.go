@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	klient "github.com/flant/kube-client/client"
-	"github.com/flant/shell-operator/pkg/config"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
@@ -18,6 +16,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	klient "github.com/flant/kube-client/client"
+	"github.com/flant/shell-operator/pkg/config"
 )
 
 // KubeConfigManager watches for changes in ConfigMap/addon-operator and provides

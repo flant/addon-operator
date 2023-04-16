@@ -44,7 +44,7 @@ func GetGlobalKubeConfigFromConfigData(configData map[string]string) (*GlobalKub
 
 	values, err := utils.NewGlobalValues(yamlData)
 	if err != nil {
-		return nil, fmt.Errorf("ConfigMap: bad yaml at key '%s': %s:\n%s", utils.GlobalValuesKey, err, string(yamlData))
+		return nil, fmt.Errorf("ConfigMap: bad yaml at key '%s': %s:\n%s", utils.GlobalValuesKey, err, yamlData)
 	}
 
 	checksum, err := values.Checksum()

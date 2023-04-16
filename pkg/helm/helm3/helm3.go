@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	klient "github.com/flant/kube-client/client"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
@@ -18,6 +17,7 @@ import (
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
+	klient "github.com/flant/kube-client/client"
 	"github.com/flant/shell-operator/pkg/executor"
 )
 
@@ -253,8 +253,8 @@ func (h *Helm3Client) ListReleasesNames(labelSelector map[string]string) ([]stri
 
 	uniqNamesMap := make(map[string]struct{})
 	for _, secret := range list.Items {
-		releaseName, has_key := secret.Labels["name"]
-		if has_key && releaseName != "" {
+		releaseName, hasKey := secret.Labels["name"]
+		if hasKey && releaseName != "" {
 			uniqNamesMap[releaseName] = struct{}{}
 		}
 	}

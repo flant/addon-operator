@@ -9,14 +9,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
 
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-
-	. "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type ModuleHook struct {
@@ -37,61 +35,61 @@ func NewModuleHook(name, path string) *ModuleHook {
 	return res
 }
 
-func (m *ModuleHook) WithModule(module *Module) {
-	m.Module = module
+func (h *ModuleHook) WithModule(module *Module) {
+	h.Module = module
 }
 
-func (m *ModuleHook) WithConfig(configOutput []byte) (err error) {
-	err = m.Config.LoadAndValidate(configOutput)
+func (h *ModuleHook) WithConfig(configOutput []byte) (err error) {
+	err = h.Config.LoadAndValidate(configOutput)
 	if err != nil {
-		return fmt.Errorf("load module hook '%s' config: %s\nhook --config output: %s", m.Name, err.Error(), configOutput)
+		return fmt.Errorf("load module hook '%s' config: %s\nhook --config output: %s", h.Name, err.Error(), configOutput)
 	}
 	// Make HookController and GetConfigDescription work.
-	m.Hook.Config = &m.Config.HookConfig
-	m.Hook.RateLimiter = hook.CreateRateLimiter(m.Hook.Config)
+	h.Hook.Config = &h.Config.HookConfig
+	h.Hook.RateLimiter = hook.CreateRateLimiter(h.Hook.Config)
 
 	return nil
 }
 
-func (m *ModuleHook) WithGoConfig(config *go_hook.HookConfig) (err error) {
-	m.Config, err = NewModuleHookConfigFromGoConfig(config)
+func (h *ModuleHook) WithGoConfig(config *go_hook.HookConfig) (err error) {
+	h.Config, err = NewModuleHookConfigFromGoConfig(config)
 	if err != nil {
 		return err
 	}
 
 	// Make HookController and GetConfigDescription work.
-	m.Hook.Config = &m.Config.HookConfig
-	m.Hook.RateLimiter = hook.CreateRateLimiter(m.Hook.Config)
+	h.Hook.Config = &h.Config.HookConfig
+	h.Hook.RateLimiter = hook.CreateRateLimiter(h.Hook.Config)
 	return nil
 }
 
-func (m *ModuleHook) GetConfigDescription() string {
+func (h *ModuleHook) GetConfigDescription() string {
 	msgs := []string{}
-	if m.Config.BeforeHelm != nil {
-		msgs = append(msgs, fmt.Sprintf("beforeHelm:%d", int64(m.Config.BeforeHelm.Order)))
+	if h.Config.BeforeHelm != nil {
+		msgs = append(msgs, fmt.Sprintf("beforeHelm:%d", int64(h.Config.BeforeHelm.Order)))
 	}
-	if m.Config.AfterHelm != nil {
-		msgs = append(msgs, fmt.Sprintf("afterHelm:%d", int64(m.Config.AfterHelm.Order)))
+	if h.Config.AfterHelm != nil {
+		msgs = append(msgs, fmt.Sprintf("afterHelm:%d", int64(h.Config.AfterHelm.Order)))
 	}
-	if m.Config.AfterDeleteHelm != nil {
-		msgs = append(msgs, fmt.Sprintf("afterDeleteHelm:%d", int64(m.Config.AfterDeleteHelm.Order)))
+	if h.Config.AfterDeleteHelm != nil {
+		msgs = append(msgs, fmt.Sprintf("afterDeleteHelm:%d", int64(h.Config.AfterDeleteHelm.Order)))
 	}
-	msgs = append(msgs, m.Hook.GetConfigDescription())
+	msgs = append(msgs, h.Hook.GetConfigDescription())
 	return strings.Join(msgs, ", ")
 }
 
 // Order return float order number for bindings with order.
-func (m *ModuleHook) Order(binding BindingType) float64 {
-	if m.Config.HasBinding(binding) {
+func (h *ModuleHook) Order(binding BindingType) float64 {
+	if h.Config.HasBinding(binding) {
 		switch binding {
 		case OnStartup:
-			return m.Config.OnStartup.Order
+			return h.Config.OnStartup.Order
 		case BeforeHelm:
-			return m.Config.BeforeHelm.Order
+			return h.Config.BeforeHelm.Order
 		case AfterHelm:
-			return m.Config.AfterHelm.Order
+			return h.Config.AfterHelm.Order
 		case AfterDeleteHelm:
-			return m.Config.AfterDeleteHelm.Order
+			return h.Config.AfterDeleteHelm.Order
 		}
 	}
 	return 0.0

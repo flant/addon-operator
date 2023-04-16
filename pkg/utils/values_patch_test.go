@@ -7,9 +7,8 @@ import (
 	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch"
-	"github.com/stretchr/testify/assert"
-
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_JsonPatchFromString(t *testing.T) {
@@ -437,14 +436,14 @@ func Test_CompactPatches_Apply(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var origPatchedDoc []byte = []byte(tt.input)
+			origPatchedDoc := []byte(tt.input)
 			var err error
 
 			operations := []*ValuesPatchOperation{}
 			for _, patch := range tt.patches {
 				vp, _ := ValuesPatchFromBytes([]byte(patch))
 				operations = append(operations, vp.Operations...)
-				patchedDoc, err := vp.ApplyIgnoreNonExistentPaths([]byte(origPatchedDoc))
+				patchedDoc, err := vp.ApplyIgnoreNonExistentPaths(origPatchedDoc)
 				if !assert.NoError(t, err) {
 					t.Logf("%s should apply on %s", patch, origPatchedDoc)
 					t.FailNow()
@@ -719,7 +718,7 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 
 	// 4. Remove elements in the middle.
-	origDoc = newDoc[:]
+	origDoc = newDoc
 	patch1, _ = jsonpatch.DecodePatch([]byte(`
 [ {"op":"remove", "path":"/root/array/1"},
   {"op":"remove", "path":"/root/array/2"}

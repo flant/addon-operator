@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/evanphx/json-patch"
+	jsonpatch "github.com/evanphx/json-patch"
 )
 
 type ValuesPatchType string
