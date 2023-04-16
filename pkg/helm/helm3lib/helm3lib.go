@@ -344,6 +344,28 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
+	inst := newInstAction(namespace, releaseName)
+
+	rs, err := inst.Run(chart, resultValues)
+	if err != nil {
+		// helm render can fail because the CRD were previously created
+		// handling this case we can reinitialize RESTClient and repeat one more time by backoff
+		h.actionConfigInit()
+		inst = newInstAction(namespace, releaseName)
+
+		rs, err = inst.Run(chart, resultValues)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
+
+	return rs.Manifest, nil
+}
+
+func newInstAction(namespace, releaseName string) *action.Install {
 	inst := action.NewInstall(actionConfig)
 	inst.DryRun = true
 
@@ -356,12 +378,5 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	inst.IsUpgrade = true
 	inst.DisableOpenAPIValidation = true
 
-	rs, err := inst.Run(chart, resultValues)
-	if err != nil {
-		return "", err
-	}
-
-	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
-
-	return rs.Manifest, nil
+	return inst
 }
