@@ -13,7 +13,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage/driver"
@@ -28,13 +27,12 @@ import (
 	klient "github.com/flant/kube-client/client"
 )
 
-// Init runs
-func Init(opts *Options) error {
+func Init(opts *Options) {
 	hc := &LibClient{
 		LogEntry: log.WithField("operator.component", "helm3lib"),
 	}
 	options = opts
-	return hc.initAndVersion()
+	hc.initAndVersion()
 }
 
 // LibClient use helm3 package as Go library.
@@ -93,27 +91,20 @@ func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioption
 	return flags
 }
 
-// initAndVersion runs helm version command.
-func (h *LibClient) initAndVersion() error {
+func (h *LibClient) actionConfigInit() {
 	ac := new(action.Configuration)
 
 	getter := buildConfigFlagsFromEnv(&options.Namespace, cli.New())
-
-	err := ac.Init(getter, options.Namespace, "secrets", h.LogEntry.Debugf)
-	if err != nil {
-		return err
-	}
+	// Error is not possible for secrets driver
+	_ = ac.Init(getter, options.Namespace, "secrets", h.LogEntry.Debugf)
 
 	actionConfig = ac
-	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
-
-	return nil
 }
 
-func (h *LibClient) reinitKubeClient() {
-	getter := buildConfigFlagsFromEnv(&options.Namespace, cli.New())
-	kc := kube.New(getter)
-	actionConfig.KubeClient = kc
+// initAndVersion runs helm version command.
+func (h *LibClient) initAndVersion() {
+	h.actionConfigInit()
+	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
 }
 
 // LastReleaseStatus returns last known revision for release and its status
@@ -139,7 +130,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	if err != nil {
 		// helm validation can fail because FeatureGate was enabled for example
 		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
-		h.reinitKubeClient()
+		h.actionConfigInit()
 		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
 	}
 

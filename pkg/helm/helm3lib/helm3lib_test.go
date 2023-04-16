@@ -45,17 +45,14 @@ func TestHelm3LibUpgradeDelete(t *testing.T) {
 }
 
 func initHelmClient(t *testing.T) *LibClient {
-	g := NewWithT(t)
-
 	fCluster := fake.NewFakeCluster(fake.ClusterVersionV125)
 
-	err := Init(&Options{
+	Init(&Options{
 		Namespace:  "test-ns",
 		HistoryMax: 10,
 		Timeout:    0,
 		KubeClient: fCluster.Client,
 	})
-	g.Expect(err).ShouldNot(HaveOccurred())
 
 	actionConfig = actionConfigFixture(t)
 

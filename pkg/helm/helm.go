@@ -33,7 +33,7 @@ func InitHelmClientFactory(kubeClient klient.Client) (*ClientFactory, error) {
 	case Helm3Lib:
 		log.Info("Helm3Lib detected. Use builtin Helm.")
 		factory.NewClientFn = helm3lib.NewClient
-		err = helm3lib.Init(&helm3lib.Options{
+		helm3lib.Init(&helm3lib.Options{
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,
