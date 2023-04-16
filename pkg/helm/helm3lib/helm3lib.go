@@ -19,6 +19,8 @@ import (
 	"helm.sh/helm/v3/pkg/storage/driver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/rest"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
@@ -68,32 +70,50 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	}
 }
 
-func (h *LibClient) WithKubeClient(client klient.Client) {
-	h.KubeClient = client
-}
+// buildConfigFlagsFromEnv builds a ConfigFlags object from the environment and
+// returns it. It uses a persistent config, meaning that underlying clients will
+// be cached and reused.
+func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioptions.ConfigFlags {
+	flags := genericclioptions.NewConfigFlags(true)
 
-func (h *LibClient) reinitKubeClient() {
-	getter := cli.New().RESTClientGetter()
-	kc := kube.New(getter)
-	actionConfig.KubeClient = kc
+	flags.Namespace = ns
+	flags.Context = &env.KubeContext
+	flags.BearerToken = &env.KubeToken
+	flags.APIServer = &env.KubeAPIServer
+	flags.CAFile = &env.KubeCaFile
+	flags.KubeConfig = &env.KubeConfig
+	flags.Impersonate = &env.KubeAsUser
+	flags.Insecure = &env.KubeInsecureSkipTLSVerify
+	flags.TLSServerName = &env.KubeTLSServerName
+	flags.ImpersonateGroup = &env.KubeAsGroups
+	flags.WrapConfigFn = func(config *rest.Config) *rest.Config {
+		config.Burst = env.BurstLimit
+		return config
+	}
+	return flags
 }
 
 // initAndVersion runs helm version command.
 func (h *LibClient) initAndVersion() error {
 	ac := new(action.Configuration)
 
-	env := cli.New()
+	getter := buildConfigFlagsFromEnv(&options.Namespace, cli.New())
 
-	err := ac.Init(env.RESTClientGetter(), options.Namespace, "secrets", h.LogEntry.Debugf)
+	err := ac.Init(getter, options.Namespace, "secrets", h.LogEntry.Debugf)
 	if err != nil {
 		return err
 	}
 
 	actionConfig = ac
-
 	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
 
 	return nil
+}
+
+func (h *LibClient) reinitKubeClient() {
+	getter := buildConfigFlagsFromEnv(&options.Namespace, cli.New())
+	kc := kube.New(getter)
+	actionConfig.KubeClient = kc
 }
 
 // LastReleaseStatus returns last known revision for release and its status
@@ -183,7 +203,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	h.LogEntry.Infof("%d old releases found", len(releases))
 	if len(releases) > 0 {
 		// https://github.com/fluxcd/helm-controller/issues/149
-		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
+		// looking through this issue you can find the common error: another operation (install/upgrade/rollback) is in progress
 		// and hints to fix it. In the future releases of helm they will handle sudden shutdown
 		releaseutil.Reverse(releases, releaseutil.SortByRevision)
 		latestRelease := releases[0]
