@@ -3,11 +3,11 @@ package helm_resources_manager
 import (
 	"context"
 
-	klient "github.com/flant/kube-client/client"
-	"github.com/flant/kube-client/manifest"
 	log "github.com/sirupsen/logrus"
 
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
+	klient "github.com/flant/kube-client/client"
+	"github.com/flant/kube-client/manifest"
 )
 
 type HelmResourcesManager interface {

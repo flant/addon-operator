@@ -9,11 +9,6 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	klient "github.com/flant/kube-client/client"
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	. "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -27,6 +22,11 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	_ "github.com/flant/addon-operator/pkg/module_manager/test/go_hooks/global-hooks"
 	"github.com/flant/addon-operator/pkg/utils"
+	klient "github.com/flant/kube-client/client"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
 type initModuleManagerResult struct {
@@ -522,7 +522,7 @@ func Test_ModuleManager_RunModule(t *testing.T) {
 	err = mm.RegisterModuleHooks(module, map[string]string{})
 	require.NoError(t, err, "Should register module hooks")
 
-	valuesChanged, err := mm.RunModule(ModuleName, false, map[string]string{}, nil)
+	valuesChanged, err := mm.RunModule(ModuleName, map[string]string{})
 	require.NoError(t, err, "Module %s should run successfully", ModuleName)
 	require.True(t, valuesChanged, "Module hooks should change values")
 
@@ -585,7 +585,7 @@ func Test_ModuleManager_DeleteModule(t *testing.T) {
 	err = mm.DeleteModule(ModuleName, map[string]string{})
 	require.NoError(t, err, "Should delete module")
 
-	//if !reflect.DeepEqual(expectedModuleValues, values) {
+	// if !reflect.DeepEqual(expectedModuleValues, values) {
 	//	t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, values)
 	//}
 	// Check values after running hooks:

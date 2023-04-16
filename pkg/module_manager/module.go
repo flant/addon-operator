@@ -9,26 +9,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flant/kube-client/manifest"
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
 
-	. "github.com/flant/addon-operator/pkg/hook/types"
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	. "github.com/flant/shell-operator/pkg/hook/types"
-
-	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/executor"
-	"github.com/flant/shell-operator/pkg/metric_storage"
-	utils_file "github.com/flant/shell-operator/pkg/utils/file"
-	"github.com/flant/shell-operator/pkg/utils/measure"
-
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
+	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	"github.com/flant/kube-client/manifest"
+	sh_app "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/executor"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/metric_storage"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
 type Module struct {
@@ -103,11 +101,7 @@ func (m *Module) RunOnStartup(logLabels map[string]string) error {
 	// Hooks can delete release resources, so stop resources monitor before run hooks.
 	// m.moduleManager.HelmResourcesManager.PauseMonitor(m.Name)
 
-	if err := m.runHooksByBinding(OnStartup, logLabels); err != nil {
-		return err
-	}
-
-	return nil
+	return m.runHooksByBinding(OnStartup, logLabels)
 }
 
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.

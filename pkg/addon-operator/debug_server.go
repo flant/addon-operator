@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/flant/shell-operator/pkg/debug"
-	"github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/debug"
+	"github.com/flant/shell-operator/pkg/hook/types"
 )
 
 func RegisterDebugGlobalRoutes(dbgSrv *debug.Server, op *AddonOperator) {

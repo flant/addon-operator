@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	klient "github.com/flant/kube-client/client"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -13,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	klient "github.com/flant/kube-client/client"
 )
 
 const testConfigMapName = "test-addon-operator"
@@ -406,9 +406,9 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 
 	g.Expect(ev).To(Equal(KubeConfigInvalid), "Invalid name in module section should generate 'invalid' event")
 
-	//kcm.SafeReadConfig(func(config *KubeConfig) {
+	// kcm.SafeReadConfig(func(config *KubeConfig) {
 	//	g.Expect(config.IsInvalid).To(Equal(true), "Current config should be invalid")
-	//})
+	// })
 
 	// Update ConfigMap with new module section with bad name.
 	validSectionPatch := `[{"op": "add", 

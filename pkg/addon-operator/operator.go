@@ -3,20 +3,12 @@ package addon_operator
 import (
 	"context"
 	"fmt"
-	_ "net/http/pprof"
+	_ "net/http/pprof" // Webserver pprof endpoint injection
 	"path"
 	"runtime/trace"
 	"strings"
 	"time"
 
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	"github.com/flant/shell-operator/pkg/hook/controller"
-	. "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
-	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
-	. "github.com/flant/shell-operator/pkg/utils/measure"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
 
@@ -27,6 +19,14 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	"github.com/flant/shell-operator/pkg/hook/controller"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
+	sh_task "github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
+	. "github.com/flant/shell-operator/pkg/utils/measure"
 )
 
 // AddonOperator extends ShellOperator with modules and global hooks
@@ -441,7 +441,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 
 // CreatePurgeTasks returns ModulePurge tasks for each unknown Helm release.
 func (op *AddonOperator) CreatePurgeTasks(modulesToPurge []string, t sh_task.Task) []sh_task.Task {
-	var newTasks []sh_task.Task
+	newTasks := make([]sh_task.Task, 0, len(modulesToPurge))
 	queuedAt := time.Now()
 
 	hm := task.HookMetadataAccessor(t)
@@ -1759,7 +1759,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 					if eventDescription == "" {
 						eventDescription = "AfterAll-Hooks-Change-DynamicEnabled"
 					} else {
-						eventDescription = eventDescription + "-And-DynamicEnabled"
+						eventDescription += "-And-DynamicEnabled"
 					}
 				}
 			}
@@ -1788,7 +1788,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 				op.logTaskAdd(logEntry, "global values are changed, append", newTask)
 			}
 			// TODO rethink helm monitors pause-resume. It is not working well with parallel hooks without locks. But locks will destroy parallelization.
-			//else {
+			// else {
 			//	op.HelmResourcesManager.ResumeMonitors()
 			//}
 		}
@@ -1811,7 +1811,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 }
 
 func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabels map[string]string, eventDescription string) []sh_task.Task {
-	var newTasks []sh_task.Task
+	newTasks := make([]sh_task.Task, 0, len(moduleNames))
 	queuedAt := time.Now()
 
 	queuedModuleNames := ModulesWithPendingModuleRun(op.TaskQueues.GetMain())
@@ -1841,7 +1841,7 @@ func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabel
 
 // CreateConvergeModulesTasks creates ModuleRun/ModuleDelete tasks based on moduleManager state.
 func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.ModulesState, logLabels map[string]string, eventDescription string) []sh_task.Task {
-	var newTasks []sh_task.Task
+	newTasks := make([]sh_task.Task, 0, len(state.ModulesToDisable)+len(state.AllEnabledModules))
 	queuedAt := time.Now()
 
 	// Add ModuleDelete tasks to delete helm releases of disabled modules.

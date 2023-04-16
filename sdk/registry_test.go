@@ -3,9 +3,10 @@ package sdk
 import (
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 )
 
 func TestRegister(t *testing.T) {

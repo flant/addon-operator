@@ -4,8 +4,9 @@ import (
 	"strconv"
 	"time"
 
-	sh_app "github.com/flant/shell-operator/pkg/app"
 	"gopkg.in/alecthomas/kingpin.v2"
+
+	sh_app "github.com/flant/shell-operator/pkg/app"
 )
 
 var (
@@ -17,9 +18,9 @@ var (
 	DefaultListenPort              = "9650"
 	DefaultPrometheusMetricsPrefix = "addon_operator_"
 
-	Helm3HistoryMax   int32         = 10
-	Helm3Timeout      time.Duration = 5 * time.Minute
-	HelmIgnoreRelease               = ""
+	Helm3HistoryMax   int32 = 10
+	Helm3Timeout            = 5 * time.Minute
+	HelmIgnoreRelease       = ""
 
 	HelmMonitorKubeClientQpsDefault   = "5" // DefaultQPS from k8s.io/client-go/rest/config.go
 	HelmMonitorKubeClientQps          float32

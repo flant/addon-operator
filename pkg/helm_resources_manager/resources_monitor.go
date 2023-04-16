@@ -8,14 +8,13 @@ import (
 	"sync"
 	"time"
 
-	klient "github.com/flant/kube-client/client"
-	"github.com/flant/kube-client/manifest"
 	log "github.com/sirupsen/logrus"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	klient "github.com/flant/kube-client/client"
+	"github.com/flant/kube-client/manifest"
 )
 
 const monitorDelayBase = time.Minute*4 + time.Second*30

@@ -5,18 +5,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	log "github.com/sirupsen/logrus"
-
-	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/executor"
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
+	sh_app "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/executor"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
+	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 type HookExecutor struct {

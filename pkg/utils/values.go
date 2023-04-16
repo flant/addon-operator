@@ -34,24 +34,23 @@ func ModuleNameFromValuesKey(moduleValuesKey string) string {
 
 	for i < l {
 		c := moduleValuesKey[i]
-
-		if c >= 'A' && c <= 'Z' {
+		switch {
+		case c >= 'A' && c <= 'Z':
 			if i > 0 {
 				// Appends dash module name parts delimiter.
 				b = append(b, '-')
 			}
 			// Appends lowercased symbol.
 			b = append(b, c+('a'-'A'))
-		} else if c >= '0' && c <= '9' {
+		case c >= '0' && c <= '9':
 			if i > 0 {
 				// Appends dash module name parts delimiter.
 				b = append(b, '-')
 			}
 			b = append(b, c)
-		} else {
+		default:
 			b = append(b, c)
 		}
-
 		i++
 	}
 
@@ -67,7 +66,7 @@ func NewValuesFromBytes(data []byte) (Values, error) {
 		return nil, fmt.Errorf("bad values data: %s\n%s", err, string(data))
 	}
 
-	return Values(values), nil
+	return values, nil
 }
 
 // NewValues load all sections from input data and makes sure that input map

@@ -3,22 +3,21 @@ package mock
 import (
 	"context"
 
-	klient "github.com/flant/kube-client/client"
-	"github.com/flant/kube-client/manifest"
-
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
+	klient "github.com/flant/kube-client/client"
+	"github.com/flant/kube-client/manifest"
 )
 
 type MockHelmResourcesManager struct {
 	MonitorsNames []string
 }
 
-func (h *MockHelmResourcesManager) WithContext(ctx context.Context) {}
+func (h *MockHelmResourcesManager) WithContext(_ context.Context) {}
 
-func (h *MockHelmResourcesManager) WithKubeClient(client klient.Client) {}
+func (h *MockHelmResourcesManager) WithKubeClient(_ klient.Client) {}
 
-func (h *MockHelmResourcesManager) WithDefaultNamespace(namespace string) {}
+func (h *MockHelmResourcesManager) WithDefaultNamespace(_ string) {}
 
 func (h *MockHelmResourcesManager) Stop() {}
 
@@ -28,25 +27,25 @@ func (h *MockHelmResourcesManager) PauseMonitors() {}
 
 func (h *MockHelmResourcesManager) ResumeMonitors() {}
 
-func (h *MockHelmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string) {
+func (h *MockHelmResourcesManager) StartMonitor(_ string, _ []manifest.Manifest, _ string) {
 }
 
-func (h *MockHelmResourcesManager) HasMonitor(moduleName string) bool {
+func (h *MockHelmResourcesManager) HasMonitor(_ string) bool {
 	return false
 }
-func (h *MockHelmResourcesManager) StopMonitor(moduleName string)   {}
-func (h *MockHelmResourcesManager) PauseMonitor(moduleName string)  {}
-func (h *MockHelmResourcesManager) ResumeMonitor(moduleName string) {}
+func (h *MockHelmResourcesManager) StopMonitor(_ string)   {}
+func (h *MockHelmResourcesManager) PauseMonitor(_ string)  {}
+func (h *MockHelmResourcesManager) ResumeMonitor(_ string) {}
 
-func (h *MockHelmResourcesManager) AbsentResources(moduleName string) ([]manifest.Manifest, error) {
+func (h *MockHelmResourcesManager) AbsentResources(_ string) ([]manifest.Manifest, error) {
 	return nil, nil
 }
 
-func (h *MockHelmResourcesManager) GetMonitor(moduleName string) *ResourcesMonitor {
+func (h *MockHelmResourcesManager) GetMonitor(_ string) *ResourcesMonitor {
 	return nil
 }
 
-func (h *MockHelmResourcesManager) GetAbsentResources(templates []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error) {
+func (h *MockHelmResourcesManager) GetAbsentResources(_ []manifest.Manifest, _ string) ([]manifest.Manifest, error) {
 	return nil, nil
 }
 

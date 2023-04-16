@@ -26,7 +26,7 @@ type ModuleConfig struct {
 }
 
 // String returns description of ModuleConfig values.
-func (mc ModuleConfig) String() string {
+func (mc *ModuleConfig) String() string {
 	return fmt.Sprintf("Module(Name=%s IsEnabled=%v IsUpdated=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.IsUpdated, mc.Values.DebugString())
 }
 
@@ -168,11 +168,12 @@ func (mc *ModuleConfig) FromConfigMapData(configData map[string]string) (*Module
 	if hasKey {
 		var enabled bool
 
-		if enabledString == "true" {
+		switch enabledString {
+		case "true":
 			enabled = true
-		} else if enabledString == "false" {
+		case "false":
 			enabled = false
-		} else {
+		default:
 			return nil, fmt.Errorf("module enabled key '%s' should have a boolean value, got '%v'", mc.ModuleEnabledKey, enabledString)
 		}
 
@@ -204,9 +205,8 @@ func ModuleEnabledValue(i interface{}) (*bool, error) {
 	case bool:
 		if v {
 			return &ModuleEnabled, nil
-		} else {
-			return &ModuleDisabled, nil
 		}
+		return &ModuleDisabled, nil
 	}
 	return nil, fmt.Errorf("unsupported module enabled value: %v", i)
 }

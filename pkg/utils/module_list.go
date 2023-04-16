@@ -91,11 +91,7 @@ func ListIntersection(arrs ...[]string) (result []string) {
 	m := make(map[string]int)
 	for _, a := range arrs {
 		for _, v := range a {
-			if _, ok := m[v]; ok {
-				m[v] = m[v] + 1
-			} else {
-				m[v] = 1
-			}
+			m[v]++
 		}
 	}
 

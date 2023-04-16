@@ -3,10 +3,9 @@ package addon_operator
 import (
 	"time"
 
-	sh_task "github.com/flant/shell-operator/pkg/task"
-
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/task"
+	sh_task "github.com/flant/shell-operator/pkg/task"
 )
 
 type ConvergeState struct {

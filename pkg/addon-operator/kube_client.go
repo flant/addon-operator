@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	klient "github.com/flant/kube-client/client"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
-
-	"github.com/flant/addon-operator/pkg/app"
-	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 )
 
+// DefaultHelmMonitorKubeClientMetricLabels are labels that indicates go client metrics producer.
 // Important! These labels should be consistent with similar labels in ShellOperator!
 var DefaultHelmMonitorKubeClientMetricLabels = map[string]string{"component": "helm_monitor"}
 

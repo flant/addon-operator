@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/utils"
-	log "github.com/sirupsen/logrus"
 )
 
 const (

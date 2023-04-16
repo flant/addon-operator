@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/config"
-	"github.com/flant/shell-operator/pkg/debug"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	sh_app "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/config"
+	"github.com/flant/shell-operator/pkg/debug"
+	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 )
 
 // Bootstrap inits all dependencies for a full-fledged AddonOperator instance.

@@ -4,11 +4,11 @@ import (
 	"os"
 	"testing"
 
-	klient "github.com/flant/kube-client/client"
 	. "github.com/onsi/gomega"
 
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
+	klient "github.com/flant/kube-client/client"
 )
 
 func TestHelmFactory(t *testing.T) {

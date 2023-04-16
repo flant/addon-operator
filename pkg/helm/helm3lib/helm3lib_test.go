@@ -4,7 +4,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/flant/kube-client/fake"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
@@ -13,6 +12,8 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
+
+	"github.com/flant/kube-client/fake"
 )
 
 func TestHelm3LibEmptyCluster(t *testing.T) {
