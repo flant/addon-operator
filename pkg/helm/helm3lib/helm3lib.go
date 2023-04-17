@@ -13,12 +13,13 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/rest"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
@@ -26,13 +27,12 @@ import (
 	klient "github.com/flant/kube-client/client"
 )
 
-// Init runs
-func Init(opts *Options) error {
+func Init(opts *Options) {
 	hc := &LibClient{
 		LogEntry: log.WithField("operator.component", "helm3lib"),
 	}
 	options = opts
-	return hc.initAndVersion()
+	hc.initAndVersion()
 }
 
 // LibClient use helm3 package as Go library.
@@ -68,32 +68,43 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	}
 }
 
-func (h *LibClient) WithKubeClient(client klient.Client) {
-	h.KubeClient = client
+// buildConfigFlagsFromEnv builds a ConfigFlags object from the environment and
+// returns it. It uses a persistent config, meaning that underlying clients will
+// be cached and reused.
+func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioptions.ConfigFlags {
+	flags := genericclioptions.NewConfigFlags(true)
+
+	flags.Namespace = ns
+	flags.Context = &env.KubeContext
+	flags.BearerToken = &env.KubeToken
+	flags.APIServer = &env.KubeAPIServer
+	flags.CAFile = &env.KubeCaFile
+	flags.KubeConfig = &env.KubeConfig
+	flags.Impersonate = &env.KubeAsUser
+	flags.Insecure = &env.KubeInsecureSkipTLSVerify
+	flags.TLSServerName = &env.KubeTLSServerName
+	flags.ImpersonateGroup = &env.KubeAsGroups
+	flags.WrapConfigFn = func(config *rest.Config) *rest.Config {
+		config.Burst = env.BurstLimit
+		return config
+	}
+	return flags
 }
 
-func (h *LibClient) reinitKubeClient() {
-	getter := cli.New().RESTClientGetter()
-	kc := kube.New(getter)
-	actionConfig.KubeClient = kc
+func (h *LibClient) actionConfigInit() {
+	ac := new(action.Configuration)
+
+	getter := buildConfigFlagsFromEnv(&options.Namespace, cli.New())
+	// Error is not possible for secrets driver
+	_ = ac.Init(getter, options.Namespace, "secrets", h.LogEntry.Debugf)
+
+	actionConfig = ac
 }
 
 // initAndVersion runs helm version command.
-func (h *LibClient) initAndVersion() error {
-	ac := new(action.Configuration)
-
-	env := cli.New()
-
-	err := ac.Init(env.RESTClientGetter(), options.Namespace, "secrets", h.LogEntry.Debugf)
-	if err != nil {
-		return err
-	}
-
-	actionConfig = ac
-
+func (h *LibClient) initAndVersion() {
+	h.actionConfigInit()
 	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
-
-	return nil
 }
 
 // LastReleaseStatus returns last known revision for release and its status
@@ -119,7 +130,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	if err != nil {
 		// helm validation can fail because FeatureGate was enabled for example
 		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
-		h.reinitKubeClient()
+		h.actionConfigInit()
 		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
 	}
 
@@ -183,7 +194,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	h.LogEntry.Infof("%d old releases found", len(releases))
 	if len(releases) > 0 {
 		// https://github.com/fluxcd/helm-controller/issues/149
-		// looking through this issue you can found the common error: another operation (install/upgrade/rollback) is in progress
+		// looking through this issue you can find the common error: another operation (install/upgrade/rollback) is in progress
 		// and hints to fix it. In the future releases of helm they will handle sudden shutdown
 		releaseutil.Reverse(releases, releaseutil.SortByRevision)
 		latestRelease := releases[0]
@@ -333,6 +344,28 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 
 	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
+	inst := newInstAction(namespace, releaseName)
+
+	rs, err := inst.Run(chart, resultValues)
+	if err != nil {
+		// helm render can fail because the CRD were previously created
+		// handling this case we can reinitialize RESTClient and repeat one more time by backoff
+		h.actionConfigInit()
+		inst = newInstAction(namespace, releaseName)
+
+		rs, err = inst.Run(chart, resultValues)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
+
+	return rs.Manifest, nil
+}
+
+func newInstAction(namespace, releaseName string) *action.Install {
 	inst := action.NewInstall(actionConfig)
 	inst.DryRun = true
 
@@ -345,12 +378,5 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	inst.IsUpgrade = true
 	inst.DisableOpenAPIValidation = true
 
-	rs, err := inst.Run(chart, resultValues)
-	if err != nil {
-		return "", err
-	}
-
-	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
-
-	return rs.Manifest, nil
+	return inst
 }

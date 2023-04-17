@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/cli"
 	kubefake "helm.sh/helm/v3/pkg/kube/fake"
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/storage"
@@ -44,17 +45,14 @@ func TestHelm3LibUpgradeDelete(t *testing.T) {
 }
 
 func initHelmClient(t *testing.T) *LibClient {
-	g := NewWithT(t)
-
 	fCluster := fake.NewFakeCluster(fake.ClusterVersionV125)
 
-	err := Init(&Options{
+	Init(&Options{
 		Namespace:  "test-ns",
 		HistoryMax: 10,
 		Timeout:    0,
 		KubeClient: fCluster.Client,
 	})
-	g.Expect(err).ShouldNot(HaveOccurred())
 
 	actionConfig = actionConfigFixture(t)
 
@@ -85,4 +83,24 @@ func actionConfigFixture(t *testing.T) *action.Configuration {
 			t.Logf(format, v...)
 		},
 	}
+}
+
+// BenchmarkRESTMapper is here to remember that helm does not cache the client by default.
+func BenchmarkRESTMapper(b *testing.B) {
+	ns := "test"
+
+	getterEnv := cli.New().RESTClientGetter()
+	getterPersistent := buildConfigFlagsFromEnv(&ns, cli.New())
+
+	b.Run("Env client", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, _ = getterEnv.ToRESTMapper()
+		}
+	})
+
+	b.Run("Persistent client", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, _ = getterPersistent.ToRESTMapper()
+		}
+	})
 }
