@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flant/addon-operator/pkg/values/validation"
-
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
 
@@ -21,6 +19,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -85,6 +84,14 @@ type ModuleManager interface {
 	SetKubeConfigValid(valid bool)
 }
 
+type KubeConfigManager interface {
+	Init() error
+	Start()
+	Stop()
+	KubeConfigEventCh() chan kube_config_manager.KubeConfigEvent
+	SafeReadConfig(handler func(config *kube_config_manager.KubeConfig))
+}
+
 // AddonOperator extends ShellOperator with modules and global hooks
 // and with a value storage.
 type AddonOperator struct {
@@ -93,7 +100,7 @@ type AddonOperator struct {
 	cancel context.CancelFunc
 
 	// KubeConfigManager monitors changes in ConfigMap.
-	KubeConfigManager kube_config_manager.KubeConfigManager
+	KubeConfigManager KubeConfigManager
 
 	// ModuleManager is the module manager object, which monitors configuration
 	// and variable changes.

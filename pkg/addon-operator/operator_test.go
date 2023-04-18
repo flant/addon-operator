@@ -114,11 +114,14 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	shell_operator.SetupEventManagers(op.ShellOperator)
 
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager()
-	op.KubeConfigManager.WithKubeClient(op.KubeClient)
-	op.KubeConfigManager.WithContext(op.ctx)
-	op.KubeConfigManager.WithNamespace(result.cmNamespace)
-	op.KubeConfigManager.WithConfigMapName(result.cmName)
+	kcfg := kube_config_manager.Config{
+		Namespace:     result.cmNamespace,
+		ConfigMapName: result.cmName,
+		KubeClient:    op.KubeClient,
+		RuntimeConfig: nil,
+	}
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, &kcfg)
+	op.KubeConfigManager = manager
 
 	dirs := module_manager.DirectoryConfig{
 		ModulesDir:     modulesDir,
@@ -128,7 +131,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	deps := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    nil,
 		KubeEventsManager:    op.KubeEventsManager,
-		KubeConfigManager:    op.KubeConfigManager,
+		KubeConfigManager:    manager,
 		ScheduleManager:      op.ScheduleManager,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,

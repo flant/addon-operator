@@ -101,12 +101,14 @@ func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir 
 
 func SetupModuleManager(op *AddonOperator, modulesDir string, globalHooksDir string, tempDir string, runtimeConfig *config.Config) {
 	// Create manager to check values in ConfigMap.
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager()
-	op.KubeConfigManager.WithKubeClient(op.KubeClient)
-	op.KubeConfigManager.WithContext(op.ctx)
-	op.KubeConfigManager.WithNamespace(app.Namespace)
-	op.KubeConfigManager.WithConfigMapName(app.ConfigMapName)
-	op.KubeConfigManager.WithRuntimeConfig(runtimeConfig)
+	kcfg := kube_config_manager.Config{
+		Namespace:     app.Namespace,
+		ConfigMapName: app.ConfigMapName,
+		KubeClient:    op.KubeClient,
+		RuntimeConfig: runtimeConfig,
+	}
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, &kcfg)
+	op.KubeConfigManager = manager
 
 	// Create manager that runs modules and hooks.
 	dirConfig := module_manager.DirectoryConfig{
@@ -117,7 +119,7 @@ func SetupModuleManager(op *AddonOperator, modulesDir string, globalHooksDir str
 	cfg := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    op.ObjectPatcher,
 		KubeEventsManager:    op.KubeEventsManager,
-		KubeConfigManager:    op.KubeConfigManager,
+		KubeConfigManager:    manager,
 		ScheduleManager:      op.ScheduleManager,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,

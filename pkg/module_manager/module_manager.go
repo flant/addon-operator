@@ -53,11 +53,16 @@ type DirectoryConfig struct {
 	TempDir        string
 }
 
+type KubeConfigManager interface {
+	SaveGlobalConfigValues(values utils.Values) error
+	SaveModuleConfigValues(moduleName string, values utils.Values) error
+}
+
 // ModuleManagerDependencies pass dependencies for ModuleManager
 type ModuleManagerDependencies struct {
 	KubeObjectPatcher    *object_patch.ObjectPatcher
 	KubeEventsManager    kube_events_manager.KubeEventsManager
-	KubeConfigManager    kube_config_manager.KubeConfigManager
+	KubeConfigManager    KubeConfigManager
 	ScheduleManager      schedule_manager.ScheduleManager
 	Helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager

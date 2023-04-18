@@ -29,9 +29,17 @@ import (
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
+type TestKubeConfigManager interface {
+	Init() error
+	Start()
+	Stop()
+	KubeConfigEventCh() chan kube_config_manager.KubeConfigEvent
+	SafeReadConfig(handler func(config *kube_config_manager.KubeConfig))
+}
+
 type initModuleManagerResult struct {
 	moduleManager        *ModuleManager
-	kubeConfigManager    kube_config_manager.KubeConfigManager
+	kubeConfigManager    TestKubeConfigManager
 	helmClient           *mockhelm.Client
 	helmResourcesManager *mockhelmresmgr.MockHelmResourcesManager
 	kubeClient           klient.Client
@@ -94,11 +102,14 @@ func initModuleManager(t *testing.T, configPath string) (*ModuleManager, *initMo
 		require.NoError(t, err, "Should create ConfigMap/%s", result.cmName)
 	}
 
-	result.kubeConfigManager = kube_config_manager.NewKubeConfigManager()
-	result.kubeConfigManager.WithKubeClient(result.kubeClient)
-	result.kubeConfigManager.WithContext(context.Background())
-	result.kubeConfigManager.WithNamespace(result.cmNamespace)
-	result.kubeConfigManager.WithConfigMapName(result.cmName)
+	kcfg := kube_config_manager.Config{
+		Namespace:     result.cmNamespace,
+		ConfigMapName: result.cmName,
+		KubeClient:    result.kubeClient,
+		RuntimeConfig: nil,
+	}
+	manager := kube_config_manager.NewKubeConfigManager(context.Background(), &kcfg)
+	result.kubeConfigManager = manager
 
 	err = result.kubeConfigManager.Init()
 	require.NoError(t, err, "KubeConfigManager.Init should not fail")
@@ -113,7 +124,7 @@ func initModuleManager(t *testing.T, configPath string) (*ModuleManager, *initMo
 	deps := ModuleManagerDependencies{
 		Helm:                 mockhelm.NewClientFactory(result.helmClient),
 		HelmResourcesManager: result.helmResourcesManager,
-		KubeConfigManager:    result.kubeConfigManager,
+		KubeConfigManager:    manager,
 	}
 	result.moduleManager = NewModuleManager(context.Background(), dirs, &deps)
 
