@@ -111,7 +111,7 @@ func (h *ModuleHook) handleModuleValuesPatch(currentValues utils.Values, valuesP
 	}
 
 	// Apply new patches in Strict mode. Hook should not return 'remove' with nonexistent path.
-	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch, utils.Strict)
+	newValues, valuesChanged, err := utils.FastApplyValuesPatch(currentValues, valuesPatch, utils.Strict)
 	if err != nil {
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", h.Module.Name, err)
 	}

@@ -108,7 +108,7 @@ func (h *GlobalHook) handleGlobalValuesPatch(currentValues utils.Values, valuesP
 	}
 
 	// Apply new patches in Strict mode. Hook should not return 'remove' with nonexistent path.
-	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, globalValuesPatch, utils.Strict)
+	newValues, valuesChanged, err := utils.FastApplyValuesPatch(currentValues, globalValuesPatch, utils.Strict)
 	if err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}

@@ -792,7 +792,7 @@ func (p Patch) applyContainer(pd container) (container, error) {
 		}
 
 		if err != nil {
-			return nil, err
+			return pd, err
 		}
 	}
 

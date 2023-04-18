@@ -150,6 +150,22 @@ func Test_ApplyValuesPatch(t *testing.T) {
 				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", tt.expectedValuesChanged, changed)
 			}
 		})
+
+		t.Run("[fast] "+tt.name, func(t *testing.T) {
+			newValues, changed, err := FastApplyValuesPatch(tt.values, tt.operations, IgnoreNonExistentPaths)
+			if err != nil {
+				t.Errorf("FastApplyValuesPatch error: %s", err)
+				return
+			}
+
+			if !reflect.DeepEqual(tt.expectedValues, newValues) {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", tt.expectedValues, newValues)
+			}
+
+			if changed != tt.expectedValuesChanged {
+				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", tt.expectedValuesChanged, changed)
+			}
+		})
 	}
 }
 
