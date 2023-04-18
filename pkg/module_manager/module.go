@@ -40,7 +40,7 @@ type Module struct {
 
 	State *ModuleState
 
-	moduleManager *moduleManager
+	moduleManager *ModuleManager
 	metricStorage *metric_storage.MetricStorage
 	helm          *helm.ClientFactory
 }
@@ -54,7 +54,7 @@ func NewModule(name string, path string, order int) *Module {
 	}
 }
 
-func (m *Module) WithModuleManager(moduleManager *moduleManager) {
+func (m *Module) WithModuleManager(moduleManager *ModuleManager) {
 	m.moduleManager = moduleManager
 }
 
@@ -115,8 +115,8 @@ func (m *Module) Run(logLabels map[string]string) (bool, error) {
 	})
 
 	// Hooks can delete release resources, so pause resources monitor before run hooks.
-	m.moduleManager.HelmResourcesManager.PauseMonitor(m.Name)
-	defer m.moduleManager.HelmResourcesManager.ResumeMonitor(m.Name)
+	m.moduleManager.dependencies.HelmResourcesManager.PauseMonitor(m.Name)
+	defer m.moduleManager.dependencies.HelmResourcesManager.ResumeMonitor(m.Name)
 
 	var err error
 
@@ -157,7 +157,7 @@ func (m *Module) Delete(logLabels map[string]string) error {
 	logEntry := log.WithFields(utils.LabelsToLogFields(deleteLogLabels))
 
 	// Stop resources monitor before deleting release
-	m.moduleManager.HelmResourcesManager.StopMonitor(m.Name)
+	m.moduleManager.dependencies.HelmResourcesManager.StopMonitor(m.Name)
 
 	// Module has chart, but there is no release -> log a warning.
 	// Module has chart and release -> execute helm delete.
@@ -277,8 +277,8 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 
 	if !runUpgradeRelease {
 		// Start resources monitor if release is not changed
-		if !m.moduleManager.HelmResourcesManager.HasMonitor(m.Name) {
-			m.moduleManager.HelmResourcesManager.StartMonitor(m.Name, manifests, app.Namespace)
+		if !m.moduleManager.dependencies.HelmResourcesManager.HasMonitor(m.Name) {
+			m.moduleManager.dependencies.HelmResourcesManager.StartMonitor(m.Name, manifests, app.Namespace)
 		}
 		return nil
 	}
@@ -310,7 +310,7 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 	}
 
 	// Start monitor resources if release was successful
-	m.moduleManager.HelmResourcesManager.StartMonitor(m.Name, manifests, app.Namespace)
+	m.moduleManager.dependencies.HelmResourcesManager.StartMonitor(m.Name, manifests, app.Namespace)
 
 	return nil
 }
@@ -366,7 +366,7 @@ func (m *Module) ShouldRunHelmUpgrade(helmClient client.HelmClient, releaseName 
 	}
 
 	// Check if there are absent resources
-	absent, err := m.moduleManager.HelmResourcesManager.GetAbsentResources(manifests, app.Namespace)
+	absent, err := m.moduleManager.dependencies.HelmResourcesManager.GetAbsentResources(manifests, app.Namespace)
 	if err != nil {
 		return false, err
 	}
@@ -857,9 +857,9 @@ func (m *Module) runEnabledScript(precedingEnabledModules []string, logLabels ma
 			"queue":      logLabels["queue"],
 			"activation": logLabels["event.type"],
 		}
-		m.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", usage.Sys.Seconds(), metricLabels, nil)
-		m.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", usage.User.Seconds(), metricLabels, nil)
-		m.moduleManager.metricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(usage.MaxRss)*1024, metricLabels)
+		m.moduleManager.dependencies.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", usage.Sys.Seconds(), metricLabels, nil)
+		m.moduleManager.dependencies.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", usage.User.Seconds(), metricLabels, nil)
+		m.moduleManager.dependencies.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(usage.MaxRss)*1024, metricLabels)
 	}
 	if err != nil {
 		logEntry.Errorf("Fail to run enabled script '%s': %s", enabledScriptPath, err)
@@ -881,7 +881,7 @@ func (m *Module) runEnabledScript(precedingEnabledModules []string, logLabels ma
 }
 
 // RegisterModules load all available modules from modules directory.
-func (mm *moduleManager) RegisterModules() error {
+func (mm *ModuleManager) RegisterModules() error {
 	if mm.ModulesDir == "" {
 		log.Warnf("Empty modules directory is passed! No modules to load.")
 		return nil
@@ -907,8 +907,8 @@ func (mm *moduleManager) RegisterModules() error {
 		logEntry := log.WithField("module", module.Name)
 
 		module.WithModuleManager(mm)
-		module.WithMetricStorage(mm.metricStorage)
-		module.WithHelm(mm.helm)
+		module.WithMetricStorage(mm.dependencies.MetricStorage)
+		module.WithHelm(mm.dependencies.Helm)
 
 		// load static config from values.yaml
 		err := module.loadStaticValues()

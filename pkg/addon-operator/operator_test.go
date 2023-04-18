@@ -120,14 +120,22 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	op.KubeConfigManager.WithNamespace(result.cmNamespace)
 	op.KubeConfigManager.WithConfigMapName(result.cmName)
 
-	op.ModuleManager = module_manager.NewModuleManager()
-	op.ModuleManager.WithContext(op.ctx)
-	op.ModuleManager.WithDirectories(modulesDir, globalHooksDir, t.TempDir())
-	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
-	op.ModuleManager.WithHelm(op.Helm)
-	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
-	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
-	op.ModuleManager.WithHelmResourcesManager(op.HelmResourcesManager)
+	dirs := module_manager.DirectoryConfig{
+		ModulesDir:     modulesDir,
+		GlobalHooksDir: globalHooksDir,
+		TempDir:        t.TempDir(),
+	}
+	deps := module_manager.ModuleManagerDependencies{
+		KubeObjectPatcher:    nil,
+		KubeEventsManager:    op.KubeEventsManager,
+		KubeConfigManager:    op.KubeConfigManager,
+		ScheduleManager:      op.ScheduleManager,
+		Helm:                 op.Helm,
+		HelmResourcesManager: op.HelmResourcesManager,
+		MetricStorage:        nil,
+		HookMetricStorage:    nil,
+	}
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirs, &deps)
 
 	err = op.InitModuleManager()
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should init ModuleManager")

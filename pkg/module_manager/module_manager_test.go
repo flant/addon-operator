@@ -30,7 +30,7 @@ import (
 )
 
 type initModuleManagerResult struct {
-	moduleManager        *moduleManager
+	moduleManager        *ModuleManager
 	kubeConfigManager    kube_config_manager.KubeConfigManager
 	helmClient           *mockhelm.Client
 	helmResourcesManager *mockhelmresmgr.MockHelmResourcesManager
@@ -42,7 +42,7 @@ type initModuleManagerResult struct {
 }
 
 // initModuleManager creates a ready-to-use ModuleManager instance and some dependencies.
-func initModuleManager(t *testing.T, configPath string) (ModuleManager, *initModuleManagerResult) {
+func initModuleManager(t *testing.T, configPath string) (*ModuleManager, *initModuleManagerResult) {
 	const defaultNamespace = "default"
 	const defaultName = "addon-operator"
 
@@ -59,50 +59,40 @@ func initModuleManager(t *testing.T, configPath string) (ModuleManager, *initMod
 
 	var err error
 
-	// Create and init moduleManager instance
-	// Note: skip KubeEventManager, ScheduleManager, KubeObjectPatcher, MetricStorage, HookMetricStorage
-	result.moduleManager = NewModuleManager()
-	result.moduleManager.WithContext(context.Background())
-	result.moduleManager.WithDirectories(filepath.Join(rootDir, "modules"), filepath.Join(rootDir, "global-hooks"), t.TempDir())
-	result.moduleManager.WithHelm(mockhelm.NewClientFactory(result.helmClient))
+	{
+		// Load config values from config_map.yaml.
+		cmFilePath := filepath.Join(rootDir, "config_map.yaml")
+		cmExists, _ := utils_file.FileExists(cmFilePath)
+		var cmObj *v1.ConfigMap
+		if cmExists {
+			cmDataBytes, err := os.ReadFile(cmFilePath)
+			require.NoError(t, err, "Should read config map file '%s'", cmFilePath)
 
-	err = result.moduleManager.Init()
-	require.NoError(t, err, "Should register global hooks and all modules")
-
-	result.moduleManager.WithHelmResourcesManager(result.helmResourcesManager)
-
-	// Load config values from config_map.yaml.
-	cmFilePath := filepath.Join(rootDir, "config_map.yaml")
-	cmExists, _ := utils_file.FileExists(cmFilePath)
-	var cmObj *v1.ConfigMap
-	if cmExists {
-		cmDataBytes, err := os.ReadFile(cmFilePath)
-		require.NoError(t, err, "Should read config map file '%s'", cmFilePath)
-
-		cmObj = new(v1.ConfigMap)
-		err = yaml.Unmarshal(cmDataBytes, &cmObj)
-		require.NoError(t, err, "Should parse YAML in %s", cmFilePath)
-		if cmObj.Namespace == "" {
-			cmObj.SetNamespace(defaultNamespace)
+			cmObj = new(v1.ConfigMap)
+			err = yaml.Unmarshal(cmDataBytes, &cmObj)
+			require.NoError(t, err, "Should parse YAML in %s", cmFilePath)
+			if cmObj.Namespace == "" {
+				cmObj.SetNamespace(defaultNamespace)
+			}
+		} else {
+			cmObj = &v1.ConfigMap{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      defaultName,
+					Namespace: defaultNamespace,
+				},
+				Data: nil,
+			}
 		}
-	} else {
-		cmObj = &v1.ConfigMap{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ConfigMap",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      defaultName,
-				Namespace: defaultNamespace,
-			},
-			Data: nil,
-		}
+		result.cmName = cmObj.Name
+		result.cmNamespace = cmObj.Namespace
+		result.kubeClient = klient.NewFake(nil)
+		_, err = result.kubeClient.CoreV1().ConfigMaps(result.cmNamespace).Create(context.TODO(), cmObj, metav1.CreateOptions{})
+		require.NoError(t, err, "Should create ConfigMap/%s", result.cmName)
 	}
-	result.cmName = cmObj.Name
-	result.cmNamespace = cmObj.Namespace
-	result.kubeClient = klient.NewFake(nil)
-	_, err = result.kubeClient.CoreV1().ConfigMaps(result.cmNamespace).Create(context.TODO(), cmObj, metav1.CreateOptions{})
-	require.NoError(t, err, "Should create ConfigMap/%s", result.cmName)
 
 	result.kubeConfigManager = kube_config_manager.NewKubeConfigManager()
 	result.kubeConfigManager.WithKubeClient(result.kubeClient)
@@ -112,20 +102,36 @@ func initModuleManager(t *testing.T, configPath string) (ModuleManager, *initMod
 
 	err = result.kubeConfigManager.Init()
 	require.NoError(t, err, "KubeConfigManager.Init should not fail")
-	result.moduleManager.WithKubeConfigManager(result.kubeConfigManager)
+
+	// Create and init moduleManager instance
+	// Note: skip KubeEventManager, ScheduleManager, KubeObjectPatcher, MetricStorage, HookMetricStorage
+	dirs := DirectoryConfig{
+		ModulesDir:     filepath.Join(rootDir, "modules"),
+		GlobalHooksDir: filepath.Join(rootDir, "global-hooks"),
+		TempDir:        t.TempDir(),
+	}
+	deps := ModuleManagerDependencies{
+		Helm:                 mockhelm.NewClientFactory(result.helmClient),
+		HelmResourcesManager: result.helmResourcesManager,
+		KubeConfigManager:    result.kubeConfigManager,
+	}
+	result.moduleManager = NewModuleManager(context.Background(), dirs, &deps)
+
+	err = result.moduleManager.Init()
+	require.NoError(t, err, "Should register global hooks and all modules")
+
+	// Start KubeConfigManager to be able to change config values via patching ConfigMap.
+	result.kubeConfigManager.Start()
 
 	result.kubeConfigManager.SafeReadConfig(func(config *kube_config_manager.KubeConfig) {
 		result.initialState, result.initialStateErr = result.moduleManager.HandleNewKubeConfig(config)
 	})
 
-	// Start KubeConfigManager to be able to change config values via patching ConfigMap.
-	result.kubeConfigManager.Start()
-
 	return result.moduleManager, result
 }
 
 func Test_ModuleManager_LoadValuesInInit(t *testing.T) {
-	var mm *moduleManager
+	var mm *ModuleManager
 
 	tests := []struct {
 		name       string
@@ -991,7 +997,7 @@ func Test_ModuleManager_Run_GlobalHook(t *testing.T) {
 // __with_enabled_scripts - check running enabled scripts.
 // __module_names_order - check modules order.
 func Test_ModuleManager_ModulesState_no_ConfigMap(t *testing.T) {
-	var mm *moduleManager
+	var mm *ModuleManager
 	var modulesState *ModulesState
 	var err error
 
@@ -1136,9 +1142,9 @@ func Test_ModuleManager_ModulesState_no_ConfigMap(t *testing.T) {
 			require.NoError(t, res.initialStateErr, "Should load ConfigMap state")
 			mm = res.moduleManager
 
-			mm.WithHelm(mockhelm.NewClientFactory(&mockhelm.Client{
+			mm.dependencies.Helm = mockhelm.NewClientFactory(&mockhelm.Client{
 				ReleaseNames: test.helmReleases,
-			}))
+			})
 
 			modulesState, err = mm.RefreshStateFromHelmReleases(map[string]string{})
 			require.NoError(t, err, "Should refresh from helm releases")
@@ -1169,9 +1175,9 @@ func Test_ModuleManager_ModulesState_detect_ConfigMap_changes(t *testing.T) {
 	require.Contains(t, res.moduleManager.enabledModulesByConfig, "module-one")
 
 	// RefreshStateFromHelmReleases should detect all modules from helm releases as enabled.
-	mm.WithHelm(mockhelm.NewClientFactory(&mockhelm.Client{
+	mm.dependencies.Helm = mockhelm.NewClientFactory(&mockhelm.Client{
 		ReleaseNames: []string{"module-one", "module-two", "module-three"},
-	}))
+	})
 	state, err = mm.RefreshStateFromHelmReleases(map[string]string{})
 	require.NoError(t, err, "RefreshStateFromHelmReleases should not fail")
 	require.NotNil(t, state)
@@ -1312,7 +1318,7 @@ func Test_ModuleManager_ModulesState_detect_ConfigMap_changes(t *testing.T) {
 }
 
 // initModuleManagerLight only loads modules and create ValuesValidator.
-func initModuleManagerLight(t *testing.T, configPath string) ModuleManager {
+func initModuleManagerLight(t *testing.T, configPath string) *ModuleManager {
 	// Init directories
 	rootDir := filepath.Join("testdata", configPath)
 
@@ -1320,9 +1326,12 @@ func initModuleManagerLight(t *testing.T, configPath string) ModuleManager {
 
 	// Create and init moduleManager instance
 	// Note: skip KubeEventManager, ScheduleManager, KubeObjectPatcher, MetricStorage, HookMetricStorage
-	moduleManager := NewModuleManager()
-	moduleManager.WithContext(context.Background())
-	moduleManager.WithDirectories(filepath.Join(rootDir, "modules"), filepath.Join(rootDir, "global"), t.TempDir())
+	dirs := DirectoryConfig{
+		ModulesDir:     filepath.Join(rootDir, "modules"),
+		GlobalHooksDir: filepath.Join(rootDir, "global"),
+		TempDir:        t.TempDir(),
+	}
+	moduleManager := NewModuleManager(context.Background(), dirs, nil)
 
 	err = moduleManager.Init()
 	require.NoError(t, err, "Should register global hooks and all modules")

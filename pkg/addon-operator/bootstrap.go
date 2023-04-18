@@ -109,15 +109,20 @@ func SetupModuleManager(op *AddonOperator, modulesDir string, globalHooksDir str
 	op.KubeConfigManager.WithRuntimeConfig(runtimeConfig)
 
 	// Create manager that runs modules and hooks.
-	op.ModuleManager = module_manager.NewModuleManager()
-	op.ModuleManager.WithContext(op.ctx)
-	op.ModuleManager.WithDirectories(modulesDir, globalHooksDir, tempDir)
-	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
-	op.ModuleManager.WithHelm(op.Helm)
-	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
-	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
-	op.ModuleManager.WithKubeObjectPatcher(op.ObjectPatcher)
-	op.ModuleManager.WithMetricStorage(op.MetricStorage)
-	op.ModuleManager.WithHookMetricStorage(op.HookMetricStorage)
-	op.ModuleManager.WithHelmResourcesManager(op.HelmResourcesManager)
+	dirConfig := module_manager.DirectoryConfig{
+		ModulesDir:     modulesDir,
+		GlobalHooksDir: globalHooksDir,
+		TempDir:        tempDir,
+	}
+	cfg := module_manager.ModuleManagerDependencies{
+		KubeObjectPatcher:    op.ObjectPatcher,
+		KubeEventsManager:    op.KubeEventsManager,
+		KubeConfigManager:    op.KubeConfigManager,
+		ScheduleManager:      op.ScheduleManager,
+		Helm:                 op.Helm,
+		HelmResourcesManager: op.HelmResourcesManager,
+		MetricStorage:        op.MetricStorage,
+		HookMetricStorage:    op.HookMetricStorage,
+	}
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirConfig, &cfg)
 }
