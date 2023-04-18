@@ -17,6 +17,7 @@ require (
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/gomega v1.20.1
 	github.com/peterbourgon/mergemap v0.0.0-20130613134717-e21c03b7a721
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.9.0
@@ -30,6 +31,7 @@ require (
 	helm.sh/helm/v3 v3.10.3
 	k8s.io/api v0.25.5
 	k8s.io/apimachinery v0.25.5
+	k8s.io/cli-runtime v0.25.5
 	k8s.io/client-go v0.25.5
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
 	sigs.k8s.io/yaml v1.3.0
@@ -118,7 +120,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
@@ -155,7 +156,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/apiextensions-apiserver v0.25.4 // indirect
 	k8s.io/apiserver v0.25.4 // indirect
-	k8s.io/cli-runtime v0.25.5 // indirect
 	k8s.io/component-base v0.25.5 // indirect
 	k8s.io/klog/v2 v2.70.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1 // indirect

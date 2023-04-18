@@ -738,3 +738,102 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 
 	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }
+
+func BenchmarkValuesPatchApply(b *testing.B) {
+	patch := ValuesPatch{
+		[]*ValuesPatchOperation{
+			{
+				Op:    "add",
+				Path:  "/test_key_3",
+				Value: "baz",
+			},
+			{
+				Op:   "remove",
+				Path: "/test_key_3",
+			},
+			{
+				Op:    "add",
+				Path:  "/test_key_3",
+				Value: "baz",
+			},
+			{
+				Op:   "remove",
+				Path: "/test-parent/test_key_nonexist",
+			},
+			{
+				Op:    "add",
+				Path:  "/test_key_3",
+				Value: "baz",
+			},
+			{
+				Op:    "add",
+				Path:  "/test_key_3",
+				Value: "baz",
+			},
+			{
+				Op:   "remove",
+				Path: "/test_key_3",
+			},
+			{
+				Op:    "add",
+				Path:  "/test_key_3",
+				Value: "baz",
+			},
+			{
+				Op:   "remove",
+				Path: "/test-parent/test_key_nonexist",
+			},
+			{
+				Op:    "add",
+				Path:  "/test_key_3",
+				Value: "baz",
+			},
+			{
+				Op:    "add",
+				Path:  "/test_key_3",
+				Value: "baz",
+			},
+			{
+				Op:   "remove",
+				Path: "/test_key_3",
+			},
+			{
+				Op:    "add",
+				Path:  "/test_key_3",
+				Value: "baz",
+			},
+			{
+				Op:   "remove",
+				Path: "/test-parent/test_key_nonexist",
+			},
+		},
+	}
+
+	values := Values{
+		"test_key_1": "foo",
+		"test_key_2": "bar",
+		// In the real world there are cumbersome json docs for all modules.
+		// Let's add more data to make it harder to encode in JSON.
+		"patches":        patch,
+		"one_more_patch": patch,
+		"and_more":       patch,
+	}
+
+	b.Run("Apply Patch", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, _, err := ApplyValuesPatch(values, patch, IgnoreNonExistentPaths)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("Apply Patch Fast", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, _, err := FastApplyValuesPatch(values, patch, IgnoreNonExistentPaths)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
