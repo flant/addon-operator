@@ -19,7 +19,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -30,68 +29,6 @@ import (
 	. "github.com/flant/shell-operator/pkg/utils/measure"
 )
 
-// TODO: separate modules and hooks storage, values storage and actions
-
-type ModuleManager interface {
-	Init() error
-	Start()
-
-	RegisterModuleHooks(module *module_manager.Module, logLabels map[string]string) error
-
-	GetEnabledModuleNames() []string
-	GetModuleHookNames(moduleName string) []string
-
-	IsModuleEnabled(moduleName string) bool
-	GetModule(name string) *module_manager.Module
-	GetModuleNames() []string
-	DeleteModule(moduleName string, logLabels map[string]string) error
-
-	GetModuleHook(nae string) *module_manager.ModuleHook
-	RunModuleHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (beforeChecksum string, afterChecksum string, err error)
-	DisableModuleHooks(moduleName string)
-
-	GetGlobalHooksNames() []string
-	GetGlobalHooksInOrder(bindingType BindingType) []string
-
-	GetGlobalHook(name string) *module_manager.GlobalHook
-	RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (beforeChecksum string, afterChecksum string, err error)
-
-	GlobalValues() (utils.Values, error)
-	GlobalConfigValues() utils.Values
-	GlobalValuesPatches() []utils.ValuesPatch
-	ModuleDynamicValuesPatches(moduleName string) []utils.ValuesPatch
-	GetValuesValidator() *validation.ValuesValidator
-
-	EnableModuleScheduleBindings(moduleName string)
-
-	RefreshEnabledState(logLabels map[string]string) (*module_manager.ModulesState, error)
-	RefreshStateFromHelmReleases(logLabels map[string]string) (*module_manager.ModulesState, error)
-
-	GlobalSynchronizationState() *module_manager.SynchronizationState
-	GlobalSynchronizationNeeded() bool
-
-	HandleNewKubeConfig(kubeConfig *kube_config_manager.KubeConfig) (*module_manager.ModulesState, error)
-	HandleModuleEnableKubernetesBindings(hookName string, createTaskFn func(*module_manager.ModuleHook, controller.BindingExecutionInfo)) error
-
-	HandleKubeEvent(kubeEvent types.KubeEvent, createGlobalTaskFn func(*module_manager.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*module_manager.Module, *module_manager.ModuleHook, controller.BindingExecutionInfo))
-	HandleScheduleEvent(crontab string, createGlobalTaskFn func(*module_manager.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*module_manager.Module, *module_manager.ModuleHook, controller.BindingExecutionInfo)) error
-	HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*module_manager.GlobalHook, controller.BindingExecutionInfo)) error
-
-	DynamicEnabledChecksum() string
-
-	// maybe this could be removed
-	GetKubeConfigValid() bool
-	SetKubeConfigValid(valid bool)
-}
-
-type KubeConfigManager interface {
-	Init() error
-	Start()
-	Stop()
-	KubeConfigEventCh() chan kube_config_manager.KubeConfigEvent
-	SafeReadConfig(handler func(config *kube_config_manager.KubeConfig))
-}
-
 // AddonOperator extends ShellOperator with modules and global hooks
 // and with a value storage.
 type AddonOperator struct {
@@ -100,11 +37,11 @@ type AddonOperator struct {
 	cancel context.CancelFunc
 
 	// KubeConfigManager monitors changes in ConfigMap.
-	KubeConfigManager KubeConfigManager
+	KubeConfigManager *kube_config_manager.KubeConfigManager
 
 	// ModuleManager is the module manager object, which monitors configuration
 	// and variable changes.
-	ModuleManager ModuleManager
+	ModuleManager *module_manager.ModuleManager
 
 	Helm *helm.ClientFactory
 
