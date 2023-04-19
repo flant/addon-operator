@@ -36,6 +36,13 @@ linters-settings:
       - prefix(github.com/flant/)
   goimports:
     local-prefixes: github.com/flant/
+  depguard:
+    list-type: blacklist
+    include-go-root: true
+    packages:
+      - github.com/evanphx/json-patch
+    packages-with-error-message:
+      - github.com/evanphx/json-patch: "The 'github.com/evanphx/json-patch' package is superseded. Use pkg/utils/jsonpatch.go instead."
 issues:
   exclude:
   # Using underscores is a common practice, refactor in the future

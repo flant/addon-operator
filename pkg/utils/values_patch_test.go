@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	jsonpatch "github.com/evanphx/json-patch"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 )
@@ -139,22 +138,6 @@ func Test_ApplyValuesPatch(t *testing.T) {
 			newValues, changed, err := ApplyValuesPatch(tt.values, tt.operations, IgnoreNonExistentPaths)
 			if err != nil {
 				t.Errorf("ApplyValuesPatch error: %s", err)
-				return
-			}
-
-			if !reflect.DeepEqual(tt.expectedValues, newValues) {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", tt.expectedValues, newValues)
-			}
-
-			if changed != tt.expectedValuesChanged {
-				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", tt.expectedValuesChanged, changed)
-			}
-		})
-
-		t.Run("[fast] "+tt.name, func(t *testing.T) {
-			newValues, changed, err := FastApplyValuesPatch(tt.values, tt.operations, IgnoreNonExistentPaths)
-			if err != nil {
-				t.Errorf("FastApplyValuesPatch error: %s", err)
 				return
 			}
 
@@ -348,7 +331,7 @@ func Test_CompactPatches_Result(t *testing.T) {
 			newPatch := CompactValuesPatches([]ValuesPatch{*valuesPatch}, *newValuesPatch)
 			newPatchBytes, err := json.Marshal(newPatch[0].Operations)
 			if assert.NoError(t, err) {
-				assert.True(t, jsonpatch.Equal(newPatchBytes, []byte(tt.expected)), "%s should be equal to %s", newPatchBytes, tt.expected)
+				assert.True(t, JSONEqual(newPatchBytes, []byte(tt.expected)), "%s should be equal to %s", newPatchBytes, tt.expected)
 			}
 		})
 	}
@@ -467,7 +450,7 @@ func Test_CompactPatches_Apply(t *testing.T) {
 				origPatchedDoc = patchedDoc
 			}
 
-			assert.True(t, jsonpatch.Equal(origPatchedDoc, []byte(tt.expected)), "%s should be equal to %s", origPatchedDoc, tt.expected)
+			assert.True(t, JSONEqual(origPatchedDoc, []byte(tt.expected)), "%s should be equal to %s", origPatchedDoc, tt.expected)
 
 			newPatch := CompactPatches(nil, operations)
 			if !assert.NoError(t, err) {
@@ -475,7 +458,7 @@ func Test_CompactPatches_Apply(t *testing.T) {
 			}
 			patched, err := newPatch.ApplyIgnoreNonExistentPaths([]byte(tt.input))
 			if assert.NoError(t, err) {
-				assert.True(t, jsonpatch.Equal(patched, []byte(tt.expected)), "%s should be equal to %s", patched, tt.expected)
+				assert.True(t, JSONEqual(patched, []byte(tt.expected)), "%s should be equal to %s", patched, tt.expected)
 			}
 		})
 	}
@@ -499,7 +482,7 @@ func Test_CompactPatches_add_empty_object(t *testing.T) {
 	newPatch := CompactValuesPatches([]ValuesPatch{*valuesPatch}, *newValuesPatch)
 	newPatchBytes, err := json.Marshal(newPatch[0].Operations)
 	if assert.NoError(t, err) {
-		assert.True(t, jsonpatch.Equal(newPatchBytes, []byte(expected)), "%s should be equal to %s", newPatchBytes, expected)
+		assert.True(t, JSONEqual(newPatchBytes, []byte(expected)), "%s should be equal to %s", newPatchBytes, expected)
 	}
 }
 
@@ -523,7 +506,7 @@ func Test_jsonpatch_Remove_NonExistent_IsError(t *testing.T) {
 	withParentsPatch := []byte(`[{"op":"remove", "path":"/test_parent/test_sub/test_key"}]`)
 
 	// 1. Root key.
-	patch1, _ := jsonpatch.DecodePatch(rootKeyPatch)
+	patch1, _ := DecodePatch(rootKeyPatch)
 	_, err := patch1.Apply(origDoc)
 	g.Expect(err).Should(HaveOccurred(), "jsonpatch Apply should return error")
 	// Assert the message from the 'json-patch' library.
@@ -532,7 +515,7 @@ func Test_jsonpatch_Remove_NonExistent_IsError(t *testing.T) {
 	g.Expect(IsNonExistentPathError(err)).Should(BeTrue())
 
 	// 2. Key with parents.
-	patch2, _ := jsonpatch.DecodePatch(withParentsPatch)
+	patch2, _ := DecodePatch(withParentsPatch)
 	_, err = patch2.Apply(origDoc)
 	g.Expect(err).Should(HaveOccurred(), "jsonpatch Apply should return error")
 	// Assert the message from the 'json-patch' library.
@@ -568,7 +551,7 @@ func Test_jsonpatch_Remove_ObjectAndArray(t *testing.T) {
 		"test_array":["uno", "deux", "three"]
     }`)
 
-	patch1, _ := jsonpatch.DecodePatch([]byte(`[
+	patch1, _ := DecodePatch([]byte(`[
 		{"op":"remove", "path":"/test_obj"},
 		{"op":"remove", "path":"/test_array"}
 	]`))
@@ -577,7 +560,7 @@ func Test_jsonpatch_Remove_ObjectAndArray(t *testing.T) {
 
 	newDoc, err := patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch apply")
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }
 
 // https://github.com/evanphx/json-patch/pull/85
@@ -594,13 +577,13 @@ func Test_jsonpatch_Replace_NonExistent_IsError(t *testing.T) {
 
 	origDoc := []byte(`{"foo":"bar"}`)
 
-	patch1, _ := jsonpatch.DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
+	patch1, _ := DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
 
 	expectNewDoc := []byte(`{"foo":"bar"}`)
 
 	newDoc, err := patch1.Apply(origDoc)
 	g.Expect(err).Should(HaveOccurred(), "replace operation should ")
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }
 
 func Test_jsonpatch_Replace_NonExistent_v4_9_0_behaviour_is_incorrect(t *testing.T) {
@@ -608,13 +591,13 @@ func Test_jsonpatch_Replace_NonExistent_v4_9_0_behaviour_is_incorrect(t *testing
 
 	origDoc := []byte(`{"foo":"bar"}`)
 
-	patch1, _ := jsonpatch.DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
+	patch1, _ := DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
 
 	expectNewDoc := []byte(`{"foo":"bar", "test_key":"qwe"}`)
 
 	newDoc, err := patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "replace operation should ")
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }
 
 // Applying op:add of path with non-existent parents should give error.
@@ -622,7 +605,7 @@ func Test_jsonpatch_Replace_NonExistent_v4_9_0_behaviour_is_incorrect(t *testing
 func Test_jsonpatch_Add_WithNonExistentParent_is_error(t *testing.T) {
 	g := NewWithT(t)
 
-	patch1, _ := jsonpatch.DecodePatch([]byte(`
+	patch1, _ := DecodePatch([]byte(`
 		[{"op":"add", "path":"/level1/level2/test_key", "value":"qwe"}]
 	`))
 
@@ -636,7 +619,7 @@ func Test_jsonpatch_Add_WithNonExistentParent_is_error(t *testing.T) {
 func Test_jsonpatch_Add_WithParents(t *testing.T) {
 	g := NewWithT(t)
 
-	patch1, _ := jsonpatch.DecodePatch([]byte(`
+	patch1, _ := DecodePatch([]byte(`
 [
   {"op":"add", "path":"/level1", "value":{}},
   {"op":"add", "path":"/level1/level2", "value":{}},
@@ -650,7 +633,7 @@ func Test_jsonpatch_Add_WithParents(t *testing.T) {
 
 	newDoc, err := patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch apply")
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }
 
 // Applying op:add operation with key when parent is a string value is an error!
@@ -659,7 +642,7 @@ func Test_jsonpatch_Add_Key_To_A_String_Value(t *testing.T) {
 
 	origDoc := []byte(`{"test_obj":""}`)
 
-	patch1, _ := jsonpatch.DecodePatch([]byte(`
+	patch1, _ := DecodePatch([]byte(`
 [
 	{"op":"add", "path":"/test_obj/key3", "value":"foo"}
 ]
@@ -675,7 +658,7 @@ func Test_jsonpatch_Add_Number_To_A_String_Value(t *testing.T) {
 
 	origDoc := []byte(`{"test_key":""}`)
 
-	patch1, _ := jsonpatch.DecodePatch([]byte(`
+	patch1, _ := DecodePatch([]byte(`
 [
 	{"op":"add", "path":"/test_key", "value":123}
 ]
@@ -685,7 +668,7 @@ func Test_jsonpatch_Add_Number_To_A_String_Value(t *testing.T) {
 
 	newDoc, err := patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch apply")
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }
 
 // Create array, op:add some items, op:remove items by index.
@@ -695,7 +678,7 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 	// 1. Create array
 	origDoc := []byte(`{"root":{}}`)
 
-	patch1, _ := jsonpatch.DecodePatch([]byte(`
+	patch1, _ := DecodePatch([]byte(`
 [{"op":"add", "path":"/root/array", "value":[]}]
 `))
 
@@ -703,11 +686,11 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 
 	newDoc, err := patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch 1 apply")
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 
 	// 2. Add last element.
 	origDoc = newDoc
-	patch1, _ = jsonpatch.DecodePatch([]byte(`
+	patch1, _ = DecodePatch([]byte(`
 [{"op":"add", "path":"/root/array/-", "value":"azaza"}]
 `))
 
@@ -715,12 +698,12 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 
 	newDoc, err = patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch 2 apply")
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 
 	// 3. Add more elements.
 	origDoc = newDoc
 
-	patch1, _ = jsonpatch.DecodePatch([]byte(`
+	patch1, _ = DecodePatch([]byte(`
 [ {"op":"add", "path":"/root/array/-", "value":"ololo"},
   {"op":"add", "path":"/root/array/-", "value":"foobar"},
   {"op":"add", "path":"/root/array/-", "value":"baz"}
@@ -731,11 +714,11 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 
 	newDoc, err = patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch 3 apply")
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
+	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 
 	// 4. Remove elements in the middle.
 	origDoc = newDoc
-	patch1, _ = jsonpatch.DecodePatch([]byte(`
+	patch1, _ = DecodePatch([]byte(`
 [ {"op":"remove", "path":"/root/array/1"},
   {"op":"remove", "path":"/root/array/2"}
 ]
@@ -752,104 +735,5 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 	newDoc, err = patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch 4 apply")
 
-	g.Expect(jsonpatch.Equal(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
-}
-
-func BenchmarkValuesPatchApply(b *testing.B) {
-	patch := ValuesPatch{
-		[]*ValuesPatchOperation{
-			{
-				Op:    "add",
-				Path:  "/test_key_3",
-				Value: "baz",
-			},
-			{
-				Op:   "remove",
-				Path: "/test_key_3",
-			},
-			{
-				Op:    "add",
-				Path:  "/test_key_3",
-				Value: "baz",
-			},
-			{
-				Op:   "remove",
-				Path: "/test-parent/test_key_nonexist",
-			},
-			{
-				Op:    "add",
-				Path:  "/test_key_3",
-				Value: "baz",
-			},
-			{
-				Op:    "add",
-				Path:  "/test_key_3",
-				Value: "baz",
-			},
-			{
-				Op:   "remove",
-				Path: "/test_key_3",
-			},
-			{
-				Op:    "add",
-				Path:  "/test_key_3",
-				Value: "baz",
-			},
-			{
-				Op:   "remove",
-				Path: "/test-parent/test_key_nonexist",
-			},
-			{
-				Op:    "add",
-				Path:  "/test_key_3",
-				Value: "baz",
-			},
-			{
-				Op:    "add",
-				Path:  "/test_key_3",
-				Value: "baz",
-			},
-			{
-				Op:   "remove",
-				Path: "/test_key_3",
-			},
-			{
-				Op:    "add",
-				Path:  "/test_key_3",
-				Value: "baz",
-			},
-			{
-				Op:   "remove",
-				Path: "/test-parent/test_key_nonexist",
-			},
-		},
-	}
-
-	values := Values{
-		"test_key_1": "foo",
-		"test_key_2": "bar",
-		// In the real world there are cumbersome json docs for all modules.
-		// Let's add more data to make it harder to encode in JSON.
-		"patches":        patch,
-		"one_more_patch": patch,
-		"and_more":       patch,
-	}
-
-	b.Run("Apply Patch", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, _, err := ApplyValuesPatch(values, patch, IgnoreNonExistentPaths)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
-	b.Run("Apply Patch Fast", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, _, err := FastApplyValuesPatch(values, patch, IgnoreNonExistentPaths)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
+	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }

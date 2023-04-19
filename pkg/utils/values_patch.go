@@ -9,8 +9,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-
-	jsonpatch "github.com/evanphx/json-patch"
 )
 
 type ValuesPatchType string
@@ -25,12 +23,12 @@ type ValuesPatch struct {
 }
 
 // ToJsonPatch returns a jsonpatch.Patch with all operations.
-func (p *ValuesPatch) ToJsonPatch() (jsonpatch.Patch, error) {
+func (p *ValuesPatch) ToJsonPatch() (Patch, error) {
 	data, err := json.Marshal(p.Operations)
 	if err != nil {
 		return nil, err
 	}
-	patch, err := jsonpatch.DecodePatch(data)
+	patch, err := DecodePatch(data)
 	if err != nil {
 		return nil, err
 	}
@@ -53,35 +51,13 @@ func (p *ValuesPatch) ApplyStrict(doc []byte) ([]byte, error) {
 //
 // - errors from "remove" operations are ignored.
 func (p *ValuesPatch) ApplyIgnoreNonExistentPaths(doc []byte) ([]byte, error) {
-	for _, op := range p.Operations {
-		patch, err := op.ToJsonPatch()
-		if err != nil {
-			return nil, err
-		}
-		newDoc, err := patch.Apply(doc)
-
-		// Ignore errors for remove operation.
-		if op.Op == "remove" && IsNonExistentPathError(err) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		doc = newDoc
-	}
-
-	return doc, nil
-}
-
-// FastApplyIgnoreNonExistentPaths is the same as ApplyIgnoreNonExistentPaths but uses internal patched json-patch lib.
-func (p *ValuesPatch) FastApplyIgnoreNonExistentPaths(doc []byte) ([]byte, error) {
 	pd, err := getContainer(doc)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, op := range p.Operations {
-		patch, err := op.ToFastJsonPatch()
+		patch, err := op.ToJsonPatch()
 		if err != nil {
 			return nil, err
 		}
@@ -121,15 +97,7 @@ func (op *ValuesPatchOperation) ToString() string {
 }
 
 // ToJsonPatch returns a jsonpatch.Patch with one operation.
-func (op *ValuesPatchOperation) ToJsonPatch() (jsonpatch.Patch, error) {
-	opBytes, err := json.Marshal([]*ValuesPatchOperation{op})
-	if err != nil {
-		return nil, err
-	}
-	return jsonpatch.DecodePatch(opBytes)
-}
-
-func (op *ValuesPatchOperation) ToFastJsonPatch() (Patch, error) {
+func (op *ValuesPatchOperation) ToJsonPatch() (Patch, error) {
 	opBytes, err := json.Marshal([]*ValuesPatchOperation{op})
 	if err != nil {
 		return nil, err
@@ -137,8 +105,8 @@ func (op *ValuesPatchOperation) ToFastJsonPatch() (Patch, error) {
 	return DecodePatch(opBytes)
 }
 
-func JsonPatchFromReader(r io.Reader) (jsonpatch.Patch, error) {
-	operations := make([]jsonpatch.Operation, 0)
+func JsonPatchFromReader(r io.Reader) (Patch, error) {
+	operations := make([]Operation, 0)
 
 	dec := json.NewDecoder(r)
 	for {
@@ -170,21 +138,21 @@ func JsonPatchFromReader(r io.Reader) (jsonpatch.Patch, error) {
 	return operations, nil
 }
 
-func JsonPatchFromBytes(data []byte) (jsonpatch.Patch, error) {
+func JsonPatchFromBytes(data []byte) (Patch, error) {
 	return JsonPatchFromReader(bytes.NewReader(data))
 }
 
-func JsonPatchFromString(in string) (jsonpatch.Patch, error) {
+func JsonPatchFromString(in string) (Patch, error) {
 	return JsonPatchFromReader(strings.NewReader(in))
 }
 
-func DecodeJsonPatchOperation(v interface{}) (jsonpatch.Operation, error) {
+func DecodeJsonPatchOperation(v interface{}) (Operation, error) {
 	data, err := json.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("marshal operation to bytes: %s", err)
 	}
 
-	var res jsonpatch.Operation
+	var res Operation
 	err = json.Unmarshal(data, &res)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal operation from bytes: %s", err)
@@ -317,7 +285,8 @@ const (
 	IgnoreNonExistentPaths ApplyPatchMode = "ignore-non-existent-paths"
 )
 
-// ApplyValuesPatch applies a set of json patch operations to the values and returns a result
+// ApplyValuesPatch uses patched jsonpatch library to make the behavior of ApplyIgnoreNonExistentPaths
+// as fast as ApplyStrict.
 func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values, bool, error) {
 	var err error
 
@@ -332,37 +301,6 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 		resJSONDoc, err = valuesPatch.ApplyStrict(jsonDoc)
 	case IgnoreNonExistentPaths:
 		resJSONDoc, err = valuesPatch.ApplyIgnoreNonExistentPaths(jsonDoc)
-	}
-	if err != nil {
-		return nil, false, err
-	}
-
-	resValues := make(Values)
-	if err = json.Unmarshal(resJSONDoc, &resValues); err != nil {
-		return nil, false, err
-	}
-
-	valuesChanged := !reflect.DeepEqual(values, resValues)
-
-	return resValues, valuesChanged, nil
-}
-
-// FastApplyValuesPatch uses patched jsonpatch library to make the behavior of ApplyIgnoreNonExistentPaths
-// as fast as ApplyStrict.
-func FastApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values, bool, error) {
-	var err error
-
-	jsonDoc, err := json.Marshal(values)
-	if err != nil {
-		return nil, false, err
-	}
-
-	var resJSONDoc []byte
-	switch mode {
-	case Strict:
-		resJSONDoc, err = valuesPatch.ApplyStrict(jsonDoc)
-	case IgnoreNonExistentPaths:
-		resJSONDoc, err = valuesPatch.FastApplyIgnoreNonExistentPaths(jsonDoc)
 	}
 	if err != nil {
 		return nil, false, err

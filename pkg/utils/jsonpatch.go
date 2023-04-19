@@ -787,6 +787,19 @@ func (p Patch) applyContainer(pd container) (container, error) {
 	return pd, nil
 }
 
+// JSONEqual indicates if 2 JSON documents have the same structural equality.
+func JSONEqual(a, b []byte) bool {
+	ra := make(json.RawMessage, len(a))
+	copy(ra, a)
+	la := newLazyNode(&ra)
+
+	rb := make(json.RawMessage, len(b))
+	copy(rb, b)
+	lb := newLazyNode(&rb)
+
+	return la.equal(lb)
+}
+
 // ApplyIndent mutates a JSON document according to the patch, and returns the new
 // document indented.
 func (p Patch) ApplyIndent(doc []byte, indent string) ([]byte, error) {
