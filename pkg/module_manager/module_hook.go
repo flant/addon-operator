@@ -158,15 +158,15 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	// Convert context for version
 	// versionedContextList := ConvertBindingContextList(h.Config.Version, context)
 
-	moduleHookExecutor := NewHookExecutor(h, context, h.Config.Version, h.moduleManager.KubeObjectPatcher)
+	moduleHookExecutor := NewHookExecutor(h, context, h.Config.Version, h.moduleManager.dependencies.KubeObjectPatcher)
 	moduleHookExecutor.WithLogLabels(logLabels)
-	moduleHookExecutor.WithHelm(h.moduleManager.helm)
+	moduleHookExecutor.WithHelm(h.moduleManager.dependencies.Helm)
 	hookResult, err := moduleHookExecutor.Run()
 	if hookResult != nil && hookResult.Usage != nil {
 		// usage metrics
-		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
-		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
-		h.moduleManager.metricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
+		h.moduleManager.dependencies.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
+		h.moduleManager.dependencies.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
+		h.moduleManager.dependencies.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
 	if err != nil {
 		return fmt.Errorf("module hook '%s' failed: %s", h.Name, err)
@@ -175,14 +175,14 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 	moduleName := h.Module.Name
 
 	if len(hookResult.ObjectPatcherOperations) > 0 {
-		err = h.moduleManager.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
+		err = h.moduleManager.dependencies.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
 		if err != nil {
 			return err
 		}
 	}
 
 	// Apply metric operations
-	err = h.moduleManager.hookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
+	err = h.moduleManager.dependencies.HookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
 		"hook":   h.Name,
 		"module": moduleName,
 	})
@@ -220,7 +220,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 				)
 			}
 
-			err := h.moduleManager.kubeConfigManager.SaveModuleConfigValues(moduleName, configValuesPatchResult.Values)
+			err := h.moduleManager.dependencies.KubeConfigManager.SaveModuleConfigValues(moduleName, configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.Name, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.Name, err)

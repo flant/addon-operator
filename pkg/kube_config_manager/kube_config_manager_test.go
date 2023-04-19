@@ -19,7 +19,7 @@ const testConfigMapName = "test-addon-operator"
 
 // initKubeConfigManager returns an initialized KubeConfigManager instance.
 // Pass string or map to prefill ConfigMap.
-func initKubeConfigManager(t *testing.T, kubeClient klient.Client, cmData map[string]string, cmContent string) KubeConfigManager {
+func initKubeConfigManager(t *testing.T, kubeClient klient.Client, cmData map[string]string, cmContent string) *KubeConfigManager {
 	g := NewWithT(t)
 
 	cm := &v1.ConfigMap{}
@@ -37,11 +37,13 @@ func initKubeConfigManager(t *testing.T, kubeClient klient.Client, cmData map[st
 	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
 
-	kcm := NewKubeConfigManager()
-	kcm.WithContext(context.Background())
-	kcm.WithKubeClient(kubeClient)
-	kcm.WithNamespace("default")
-	kcm.WithConfigMapName(testConfigMapName)
+	kcfg := Config{
+		Namespace:     "default",
+		ConfigMapName: testConfigMapName,
+		KubeClient:    kubeClient,
+		RuntimeConfig: nil,
+	}
+	kcm := NewKubeConfigManager(context.Background(), &kcfg)
 
 	err = kcm.Init()
 	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")

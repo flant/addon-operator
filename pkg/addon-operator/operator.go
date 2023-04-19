@@ -37,11 +37,11 @@ type AddonOperator struct {
 	cancel context.CancelFunc
 
 	// KubeConfigManager monitors changes in ConfigMap.
-	KubeConfigManager kube_config_manager.KubeConfigManager
+	KubeConfigManager *kube_config_manager.KubeConfigManager
 
 	// ModuleManager is the module manager object, which monitors configuration
 	// and variable changes.
-	ModuleManager module_manager.ModuleManager
+	ModuleManager *module_manager.ModuleManager
 
 	Helm *helm.ClientFactory
 

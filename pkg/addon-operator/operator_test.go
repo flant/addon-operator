@@ -114,20 +114,31 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	shell_operator.SetupEventManagers(op.ShellOperator)
 
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager()
-	op.KubeConfigManager.WithKubeClient(op.KubeClient)
-	op.KubeConfigManager.WithContext(op.ctx)
-	op.KubeConfigManager.WithNamespace(result.cmNamespace)
-	op.KubeConfigManager.WithConfigMapName(result.cmName)
+	kcfg := kube_config_manager.Config{
+		Namespace:     result.cmNamespace,
+		ConfigMapName: result.cmName,
+		KubeClient:    op.KubeClient,
+		RuntimeConfig: nil,
+	}
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, &kcfg)
+	op.KubeConfigManager = manager
 
-	op.ModuleManager = module_manager.NewModuleManager()
-	op.ModuleManager.WithContext(op.ctx)
-	op.ModuleManager.WithDirectories(modulesDir, globalHooksDir, t.TempDir())
-	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
-	op.ModuleManager.WithHelm(op.Helm)
-	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
-	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
-	op.ModuleManager.WithHelmResourcesManager(op.HelmResourcesManager)
+	dirs := module_manager.DirectoryConfig{
+		ModulesDir:     modulesDir,
+		GlobalHooksDir: globalHooksDir,
+		TempDir:        t.TempDir(),
+	}
+	deps := module_manager.ModuleManagerDependencies{
+		KubeObjectPatcher:    nil,
+		KubeEventsManager:    op.KubeEventsManager,
+		KubeConfigManager:    manager,
+		ScheduleManager:      op.ScheduleManager,
+		Helm:                 op.Helm,
+		HelmResourcesManager: op.HelmResourcesManager,
+		MetricStorage:        nil,
+		HookMetricStorage:    nil,
+	}
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirs, &deps)
 
 	err = op.InitModuleManager()
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should init ModuleManager")
