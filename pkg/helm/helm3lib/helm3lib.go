@@ -363,11 +363,12 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 		return "", err
 	}
 	if rs == nil {
-		return "", nil
+		return "", err
 	}
 
 	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
 
+	rs.Manifest += fmt.Sprintf("\n\n\n%v", err)
 	return rs.Manifest, nil
 
 }
