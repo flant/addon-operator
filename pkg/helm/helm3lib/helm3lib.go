@@ -356,19 +356,19 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 		rs, err = inst.Run(chart, resultValues)
 	}
 
-	if err != nil && !debug {
-		if rs != nil {
+	if err != nil {
+		if !debug {
 			return "", fmt.Errorf("%w\n\nUse --debug flag to render out invalid YAML", err)
 		}
-		return "", err
-	}
-	if rs == nil {
-		return "", err
+		if rs == nil {
+			return "", err
+		}
+
+		rs.Manifest += fmt.Sprintf("\n\n\n%v", err)
 	}
 
 	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
 
-	rs.Manifest += fmt.Sprintf("\n\n\n%v", err)
 	return rs.Manifest, nil
 
 }
