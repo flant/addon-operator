@@ -14,19 +14,19 @@ import (
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
-	. "github.com/flant/addon-operator/pkg/hook/types"
+	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	. "github.com/flant/shell-operator/pkg/hook/types"
+	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	. "github.com/flant/shell-operator/pkg/utils/measure"
+	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
 // AddonOperator extends ShellOperator with modules and global hooks
@@ -137,7 +137,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	op.ManagerEventsHandler.WithScheduleEventHandler(func(crontab string) []sh_task.Task {
 		logLabels := map[string]string{
 			"event.id": uuid.NewV4().String(),
-			"binding":  string(Schedule),
+			"binding":  string(htypes.Schedule),
 		}
 		logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 		logEntry.Debugf("Create tasks for 'schedule' event '%s'", crontab)
@@ -164,7 +164,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 					WithMetadata(task.HookMetadata{
 						EventDescription:         "Schedule",
 						HookName:                 globalHook.GetName(),
-						BindingType:              Schedule,
+						BindingType:              htypes.Schedule,
 						BindingContext:           info.BindingContext,
 						AllowFailure:             info.AllowFailure,
 						ReloadAllOnValuesChanges: true,
@@ -194,7 +194,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 						EventDescription: "Schedule",
 						ModuleName:       module.Name,
 						HookName:         moduleHook.GetName(),
-						BindingType:      Schedule,
+						BindingType:      htypes.Schedule,
 						BindingContext:   info.BindingContext,
 						AllowFailure:     info.AllowFailure,
 					})
@@ -213,7 +213,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	op.ManagerEventsHandler.WithKubeEventHandler(func(kubeEvent types.KubeEvent) []sh_task.Task {
 		logLabels := map[string]string{
 			"event.id": uuid.NewV4().String(),
-			"binding":  string(OnKubernetesEvent),
+			"binding":  string(htypes.OnKubernetesEvent),
 		}
 		logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 		logEntry.Debugf("Create tasks for 'kubernetes' event '%s'", kubeEvent.String())
@@ -237,7 +237,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 					WithMetadata(task.HookMetadata{
 						EventDescription:         "Kubernetes",
 						HookName:                 globalHook.GetName(),
-						BindingType:              OnKubernetesEvent,
+						BindingType:              htypes.OnKubernetesEvent,
 						BindingContext:           info.BindingContext,
 						AllowFailure:             info.AllowFailure,
 						Binding:                  info.Binding,
@@ -266,7 +266,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 						ModuleName:       module.Name,
 						HookName:         moduleHook.GetName(),
 						Binding:          info.Binding,
-						BindingType:      OnKubernetesEvent,
+						BindingType:      htypes.OnKubernetesEvent,
 						BindingContext:   info.BindingContext,
 						AllowFailure:     info.AllowFailure,
 					})
@@ -337,17 +337,17 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	queuedAt := time.Now()
 
 	// 'OnStartup' global hooks.
-	onStartupHooks := op.ModuleManager.GetGlobalHooksInOrder(OnStartup)
+	onStartupHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.OnStartup)
 	for _, hookName := range onStartupHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			"hook":      hookName,
 			"hook.type": "global",
 			"queue":     "main",
-			"binding":   string(OnStartup),
+			"binding":   string(htypes.OnStartup),
 		})
 
-		onStartupBindingContext := BindingContext{Binding: string(OnStartup)}
-		onStartupBindingContext.Metadata.BindingType = OnStartup
+		onStartupBindingContext := bc.BindingContext{Binding: string(htypes.OnStartup)}
+		onStartupBindingContext.Metadata.BindingType = htypes.OnStartup
 
 		newTask := sh_task.NewTask(task.GlobalHookRun).
 			WithLogLabels(hookLogLabels).
@@ -355,15 +355,15 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 			WithMetadata(task.HookMetadata{
 				EventDescription:         eventDescription,
 				HookName:                 hookName,
-				BindingType:              OnStartup,
-				BindingContext:           []BindingContext{onStartupBindingContext},
+				BindingType:              htypes.OnStartup,
+				BindingContext:           []bc.BindingContext{onStartupBindingContext},
 				ReloadAllOnValuesChanges: false,
 			})
 		tasks = append(tasks, newTask.WithQueuedAt(queuedAt))
 	}
 
 	// 'Schedule' global hooks.
-	schedHooks := op.ModuleManager.GetGlobalHooksInOrder(Schedule)
+	schedHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.Schedule)
 	for _, hookName := range schedHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			"hook":      hookName,
@@ -383,7 +383,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	}
 
 	// Tasks to enable kubernetes events for all global hooks with kubernetes bindings.
-	kubeHooks := op.ModuleManager.GetGlobalHooksInOrder(OnKubernetesEvent)
+	kubeHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.OnKubernetesEvent)
 	for _, hookName := range kubeHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			"hook":      hookName,
@@ -629,14 +629,14 @@ func (op *AddonOperator) CreateBeforeAllTasks(logLabels map[string]string, event
 	queuedAt := time.Now()
 
 	// Get 'beforeAll' global hooks.
-	beforeAllHooks := op.ModuleManager.GetGlobalHooksInOrder(BeforeAll)
+	beforeAllHooks := op.ModuleManager.GetGlobalHooksInOrder(hookTypes.BeforeAll)
 
 	for _, hookName := range beforeAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			"hook":      hookName,
 			"hook.type": "global",
 			"queue":     "main",
-			"binding":   string(BeforeAll),
+			"binding":   string(hookTypes.BeforeAll),
 		})
 		// remove task.id — it is set by NewTask
 		delete(hookLogLabels, "task.id")
@@ -644,10 +644,10 @@ func (op *AddonOperator) CreateBeforeAllTasks(logLabels map[string]string, event
 		// bc := module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: stringmodule_manager.BeforeAll)}}
 		// bc.KubernetesSnapshots := ModuleManager.GetGlobalHook(hookName).HookController.KubernetesSnapshots()
 
-		beforeAllBc := BindingContext{
-			Binding: string(BeforeAll),
+		beforeAllBc := bc.BindingContext{
+			Binding: string(hookTypes.BeforeAll),
 		}
-		beforeAllBc.Metadata.BindingType = BeforeAll
+		beforeAllBc.Metadata.BindingType = hookTypes.BeforeAll
 		beforeAllBc.Metadata.IncludeAllSnapshots = true
 
 		newTask := sh_task.NewTask(task.GlobalHookRun).
@@ -656,8 +656,8 @@ func (op *AddonOperator) CreateBeforeAllTasks(logLabels map[string]string, event
 			WithMetadata(task.HookMetadata{
 				EventDescription:         eventDescription,
 				HookName:                 hookName,
-				BindingType:              BeforeAll,
-				BindingContext:           []BindingContext{beforeAllBc},
+				BindingType:              hookTypes.BeforeAll,
+				BindingContext:           []bc.BindingContext{beforeAllBc},
 				ReloadAllOnValuesChanges: false,
 			})
 		tasks = append(tasks, newTask.WithQueuedAt(queuedAt))
@@ -671,28 +671,28 @@ func (op *AddonOperator) CreateAfterAllTasks(logLabels map[string]string, eventD
 	queuedAt := time.Now()
 
 	// Get 'afterAll' global hooks.
-	afterAllHooks := op.ModuleManager.GetGlobalHooksInOrder(AfterAll)
+	afterAllHooks := op.ModuleManager.GetGlobalHooksInOrder(hookTypes.AfterAll)
 
 	for i, hookName := range afterAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			"hook":      hookName,
 			"hook.type": "global",
 			"queue":     "main",
-			"binding":   string(AfterAll),
+			"binding":   string(hookTypes.AfterAll),
 		})
 		delete(hookLogLabels, "task.id")
 
-		afterAllBc := BindingContext{
-			Binding: string(AfterAll),
+		afterAllBc := bc.BindingContext{
+			Binding: string(hookTypes.AfterAll),
 		}
-		afterAllBc.Metadata.BindingType = AfterAll
+		afterAllBc.Metadata.BindingType = hookTypes.AfterAll
 		afterAllBc.Metadata.IncludeAllSnapshots = true
 
 		taskMetadata := task.HookMetadata{
 			EventDescription: eventDescription,
 			HookName:         hookName,
-			BindingType:      AfterAll,
-			BindingContext:   []BindingContext{afterAllBc},
+			BindingType:      hookTypes.AfterAll,
+			BindingContext:   []bc.BindingContext{afterAllBc},
 		}
 		if i == len(afterAllHooks)-1 {
 			taskMetadata.LastAfterAllHook = true
@@ -981,7 +981,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 
 	err := op.ModuleManager.HandleGlobalEnableKubernetesBindings(hm.HookName, func(hook *module_manager.GlobalHook, info controller.BindingExecutionInfo) {
 		taskLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
-			"binding":   string(OnKubernetesEvent) + "Synchronization",
+			"binding":   string(htypes.OnKubernetesEvent) + "Synchronization",
 			"hook":      hook.GetName(),
 			"hook.type": "global",
 			"queue":     info.QueueName,
@@ -998,7 +998,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 			WithMetadata(task.HookMetadata{
 				EventDescription:         hm.EventDescription,
 				HookName:                 hook.GetName(),
-				BindingType:              OnKubernetesEvent,
+				BindingType:              htypes.OnKubernetesEvent,
 				BindingContext:           info.BindingContext,
 				AllowFailure:             info.AllowFailure,
 				ReloadAllOnValuesChanges: false, // Ignore global values changes in global Synchronization tasks.
@@ -1186,7 +1186,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		"activation": labels["event.type"],
 	}
 
-	defer Duration(func(d time.Duration) {
+	defer measure.Duration(func(d time.Duration) {
 		op.MetricStorage.HistogramObserve("{PREFIX}module_run_seconds", d.Seconds(), metricLabels, nil)
 	})()
 
@@ -1243,7 +1243,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		err := op.ModuleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
 			queueName := info.QueueName
 			taskLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
-				"binding":   string(OnKubernetesEvent) + "Synchronization",
+				"binding":   string(htypes.OnKubernetesEvent) + "Synchronization",
 				"module":    hm.ModuleName,
 				"hook":      hook.GetName(),
 				"hook.type": "module",
@@ -1259,7 +1259,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				EventDescription:         hm.EventDescription,
 				ModuleName:               hm.ModuleName,
 				HookName:                 hook.GetName(),
-				BindingType:              OnKubernetesEvent,
+				BindingType:              htypes.OnKubernetesEvent,
 				BindingContext:           info.BindingContext,
 				AllowFailure:             info.AllowFailure,
 				KubernetesBindingId:      kubernetesBindingID,
@@ -1429,7 +1429,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 		"activation": labels["event.type"],
 	}
 
-	defer Duration(func(d time.Duration) {
+	defer measure.Duration(func(d time.Duration) {
 		op.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels, nil)
 	})()
 
@@ -1520,13 +1520,13 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 			reloadModule := false
 			eventDescription := ""
 			switch hm.BindingType {
-			case Schedule:
+			case htypes.Schedule:
 				if beforeChecksum != afterChecksum {
 					logEntry.Infof("Module hook changed values, will restart ModuleRun.")
 					reloadModule = true
 					eventDescription = "Schedule-Change-ModuleValues"
 				}
-			case OnKubernetesEvent:
+			case htypes.OnKubernetesEvent:
 				// Do not reload module on changes during Synchronization.
 				if beforeChecksum != afterChecksum {
 					if hm.IsSynchronization() {
@@ -1616,7 +1616,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		"activation": labels["event.type"],
 	}
 
-	defer Duration(func(d time.Duration) {
+	defer measure.Duration(func(d time.Duration) {
 		op.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_seconds", d.Seconds(), metricLabels, nil)
 	})()
 
@@ -1706,7 +1706,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 			reloadAll := false
 			eventDescription := ""
 			switch hm.BindingType {
-			case Schedule:
+			case htypes.Schedule:
 				if beforeChecksum != afterChecksum {
 					logEntry.Infof("Global hook changed values, will run ReloadAll.")
 					reloadAll = true
@@ -1721,7 +1721,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 						eventDescription += "-And-DynamicEnabled"
 					}
 				}
-			case OnKubernetesEvent:
+			case htypes.OnKubernetesEvent:
 				if beforeChecksum != afterChecksum {
 					if hm.ReloadAllOnValuesChanges {
 						logEntry.Infof("Global hook changed values, will run ReloadAll.")
@@ -1740,7 +1740,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 						eventDescription += "-And-DynamicEnabled"
 					}
 				}
-			case AfterAll:
+			case hookTypes.AfterAll:
 				if !hm.LastAfterAllHook && afterChecksum != beforeChecksum {
 					logEntry.Infof("Global hook changed values, but ReloadAll ignored: more AfterAll hooks to execute.")
 				}
@@ -1988,7 +1988,7 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 			group := hm.BindingContext[0].Metadata.Group
 			if group == "" {
 				name := hm.BindingContext[0].Binding
-				if bindingType == OnKubernetesEvent || bindingType == Schedule {
+				if bindingType == htypes.OnKubernetesEvent || bindingType == htypes.Schedule {
 					name = fmt.Sprintf("'%s/%s'", bindingType, name)
 				} else {
 					name = string(bindingType)
