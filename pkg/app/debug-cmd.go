@@ -110,11 +110,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	moduleRenderCmd := moduleCmd.Command("render", "Render module manifests.").
 		Action(func(c *kingpin.ParseContext) error {
 			dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Render(debug)
-			if err != nil && !debug {
+			if err != nil {
 				return err
 			}
 			fmt.Println(string(dump))
-			return err
+			return nil
 		})
 	moduleRenderCmd.Arg("module_name", "").Required().StringVar(&moduleName)
 	moduleRenderCmd.Flag("debug", "enable debug mode").Default("false").BoolVar(&debug)
