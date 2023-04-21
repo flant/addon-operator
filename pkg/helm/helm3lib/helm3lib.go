@@ -370,7 +370,6 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
 
 	return rs.Manifest, nil
-
 }
 
 func newInstAction(namespace, releaseName string) *action.Install {
