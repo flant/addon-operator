@@ -2,6 +2,7 @@ package module_manager
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -92,8 +93,16 @@ func resolveDirEntry(dirPath string, entry os.DirEntry) (string, string, error) 
 	// Check if entry is a symlink to a directory.
 	targetPath, err := resolveSymlinkToDir(dirPath, entry)
 	if err != nil {
+		if e, ok := err.(*fs.PathError); ok {
+			if e.Err.Error() == "no such file or directory" {
+				log.Warnf("Symlink target %q does not exist. Ignoring module", dirPath)
+				return "", "", nil
+			}
+		}
+
 		return "", "", fmt.Errorf("resolve '%s' as a possible symlink: %v", absPath, err)
 	}
+
 	if targetPath != "" {
 		return name, targetPath, nil
 	}
