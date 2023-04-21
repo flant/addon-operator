@@ -152,9 +152,9 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		logEntry.Debugf("snapshot info: %s", info)
 	}
 
-	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version, h.moduleManager.KubeObjectPatcher)
+	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version, h.moduleManager.dependencies.KubeObjectPatcher)
 	globalHookExecutor.WithLogLabels(logLabels)
-	globalHookExecutor.WithHelm(h.moduleManager.helm)
+	globalHookExecutor.WithHelm(h.moduleManager.dependencies.Helm)
 	hookResult, err := globalHookExecutor.Run()
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
@@ -164,16 +164,16 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			"activation": logLabels["event.type"],
 		}
 		// usage metrics
-		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}global_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
-		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}global_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
-		h.moduleManager.metricStorage.GaugeSet("{PREFIX}global_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
+		h.moduleManager.dependencies.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
+		h.moduleManager.dependencies.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
+		h.moduleManager.dependencies.MetricStorage.GaugeSet("{PREFIX}global_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)
 	}
 
 	// Apply metric operations
-	err = h.moduleManager.hookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
+	err = h.moduleManager.dependencies.HookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
 		"hook": h.Name,
 	})
 	if err != nil {
@@ -181,7 +181,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 	}
 
 	if len(hookResult.ObjectPatcherOperations) > 0 {
-		err = h.moduleManager.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
+		err = h.moduleManager.dependencies.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
 		if err != nil {
 			return err
 		}
@@ -212,7 +212,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				)
 			}
 
-			err := h.moduleManager.kubeConfigManager.SaveGlobalConfigValues(configValuesPatchResult.Values)
+			err := h.moduleManager.dependencies.KubeConfigManager.SaveGlobalConfigValues(configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)

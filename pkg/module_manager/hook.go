@@ -19,7 +19,7 @@ import (
 )
 
 type Hook interface {
-	WithModuleManager(moduleManager *moduleManager)
+	WithModuleManager(moduleManager *ModuleManager)
 	WithConfig(configOutput []byte) (err error)
 	WithGoConfig(config *go_hook.HookConfig) (err error)
 	WithHookController(hookController controller.HookController)
@@ -35,12 +35,12 @@ type Hook interface {
 type CommonHook struct {
 	hook.Hook
 
-	moduleManager *moduleManager
+	moduleManager *ModuleManager
 
 	GoHook go_hook.GoHook
 }
 
-func (h *CommonHook) WithModuleManager(moduleManager *moduleManager) {
+func (h *CommonHook) WithModuleManager(moduleManager *ModuleManager) {
 	h.moduleManager = moduleManager
 }
 
@@ -257,7 +257,7 @@ func SearchModuleGoHooks(module *Module) (hooks []*ModuleHook, err error) {
 	return hooks, nil
 }
 
-func (mm *moduleManager) RegisterGlobalHooks() error {
+func (mm *ModuleManager) RegisterGlobalHooks() error {
 	log.Debug("Search and register global hooks")
 
 	mm.globalHooksOrder = make(map[sh_op_types.BindingType][]*GlobalHook)
@@ -287,7 +287,7 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 			goConfig = globalHook.GoHook.Config()
 		} else {
 			hookExecutor := NewHookExecutor(globalHook, nil, "", nil)
-			hookExecutor.WithHelm(mm.helm)
+			hookExecutor.WithHelm(mm.dependencies.Helm)
 			yamlConfigBytes, err = hookExecutor.Config()
 			if err != nil {
 				logEntry.Errorf("Run --config: %s", err)
@@ -325,8 +325,8 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 		}
 
 		hookCtrl := controller.NewHookController()
-		hookCtrl.InitKubernetesBindings(globalHook.Hook.Config.OnKubernetesEvents, mm.kubeEventsManager)
-		hookCtrl.InitScheduleBindings(globalHook.Config.Schedules, mm.scheduleManager)
+		hookCtrl.InitKubernetesBindings(globalHook.Hook.Config.OnKubernetesEvents, mm.dependencies.KubeEventsManager)
+		hookCtrl.InitScheduleBindings(globalHook.Config.Schedules, mm.dependencies.ScheduleManager)
 
 		globalHook.WithHookController(hookCtrl)
 		globalHook.WithTmpDir(mm.TempDir)
@@ -339,7 +339,7 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 
 		logEntry.Infof("Global hook from '%s'. Bindings: %s", globalHook.Path, globalHook.GetConfigDescription())
 
-		mm.metricStorage.GaugeSet(
+		mm.dependencies.MetricStorage.GaugeSet(
 			"{PREFIX}binding_count",
 			float64(globalHook.Config.BindingsCount()),
 			map[string]string{
@@ -365,7 +365,7 @@ func (mm *moduleManager) RegisterGlobalHooks() error {
 	return nil
 }
 
-func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[string]string) error {
+func (mm *ModuleManager) RegisterModuleHooks(module *Module, logLabels map[string]string) error {
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).WithField("module", module.Name)
 
 	if _, ok := mm.modulesHooksOrderByName[module.Name]; ok {
@@ -397,7 +397,7 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 			goConfig = moduleHook.GoHook.Config()
 		} else {
 			hookExecutor := NewHookExecutor(moduleHook, nil, "", nil)
-			hookExecutor.WithHelm(mm.helm)
+			hookExecutor.WithHelm(mm.dependencies.Helm)
 			yamlConfigBytes, err = hookExecutor.Config()
 			if err != nil {
 				hookLogEntry.Errorf("Run --config: %s", err)
@@ -436,8 +436,8 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 		}
 
 		hookCtrl := controller.NewHookController()
-		hookCtrl.InitKubernetesBindings(moduleHook.Config.OnKubernetesEvents, mm.kubeEventsManager)
-		hookCtrl.InitScheduleBindings(moduleHook.Config.Schedules, mm.scheduleManager)
+		hookCtrl.InitKubernetesBindings(moduleHook.Config.OnKubernetesEvents, mm.dependencies.KubeEventsManager)
+		hookCtrl.InitScheduleBindings(moduleHook.Config.Schedules, mm.dependencies.ScheduleManager)
 
 		moduleHook.WithHookController(hookCtrl)
 		moduleHook.WithTmpDir(mm.TempDir)
@@ -449,7 +449,7 @@ func (mm *moduleManager) RegisterModuleHooks(module *Module, logLabels map[strin
 
 		hookLogEntry.Infof("Module hook from '%s'. Bindings: %s", moduleHook.Path, moduleHook.GetConfigDescription())
 
-		mm.metricStorage.GaugeSet(
+		mm.dependencies.MetricStorage.GaugeSet(
 			"{PREFIX}binding_count",
 			float64(moduleHook.Config.BindingsCount()),
 			map[string]string{

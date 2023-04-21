@@ -1,6 +1,8 @@
 package module_manager
 
 import (
+	"context"
+	"os"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -14,7 +16,12 @@ import (
 func Test_Config_GoHook(t *testing.T) {
 	g := NewWithT(t)
 
-	moduleManager := NewModuleManager()
+	dirs := DirectoryConfig{
+		ModulesDir:     "./",
+		GlobalHooksDir: "/global-hooks",
+		TempDir:        os.TempDir(),
+	}
+	moduleManager := NewModuleManager(context.Background(), dirs, nil)
 
 	expectedGoHookName := "simple.go"
 	expectedGoHookPath := "/global-hooks/simple.go"
@@ -35,7 +42,7 @@ func Test_Config_GoHook(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	gh.WithModuleManager(moduleManager)
 
-	bc := []BindingContext{}
+	bc := make([]BindingContext, 0)
 
 	e := NewHookExecutor(gh, bc, "v1", nil)
 	res, err := e.Run()

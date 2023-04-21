@@ -101,23 +101,30 @@ func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir 
 
 func SetupModuleManager(op *AddonOperator, modulesDir string, globalHooksDir string, tempDir string, runtimeConfig *config.Config) {
 	// Create manager to check values in ConfigMap.
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager()
-	op.KubeConfigManager.WithKubeClient(op.KubeClient)
-	op.KubeConfigManager.WithContext(op.ctx)
-	op.KubeConfigManager.WithNamespace(app.Namespace)
-	op.KubeConfigManager.WithConfigMapName(app.ConfigMapName)
-	op.KubeConfigManager.WithRuntimeConfig(runtimeConfig)
+	kcfg := kube_config_manager.Config{
+		Namespace:     app.Namespace,
+		ConfigMapName: app.ConfigMapName,
+		KubeClient:    op.KubeClient,
+		RuntimeConfig: runtimeConfig,
+	}
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, &kcfg)
+	op.KubeConfigManager = manager
 
 	// Create manager that runs modules and hooks.
-	op.ModuleManager = module_manager.NewModuleManager()
-	op.ModuleManager.WithContext(op.ctx)
-	op.ModuleManager.WithDirectories(modulesDir, globalHooksDir, tempDir)
-	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
-	op.ModuleManager.WithHelm(op.Helm)
-	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
-	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
-	op.ModuleManager.WithKubeObjectPatcher(op.ObjectPatcher)
-	op.ModuleManager.WithMetricStorage(op.MetricStorage)
-	op.ModuleManager.WithHookMetricStorage(op.HookMetricStorage)
-	op.ModuleManager.WithHelmResourcesManager(op.HelmResourcesManager)
+	dirConfig := module_manager.DirectoryConfig{
+		ModulesDir:     modulesDir,
+		GlobalHooksDir: globalHooksDir,
+		TempDir:        tempDir,
+	}
+	cfg := module_manager.ModuleManagerDependencies{
+		KubeObjectPatcher:    op.ObjectPatcher,
+		KubeEventsManager:    op.KubeEventsManager,
+		KubeConfigManager:    manager,
+		ScheduleManager:      op.ScheduleManager,
+		Helm:                 op.Helm,
+		HelmResourcesManager: op.HelmResourcesManager,
+		MetricStorage:        op.MetricStorage,
+		HookMetricStorage:    op.HookMetricStorage,
+	}
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirConfig, &cfg)
 }
