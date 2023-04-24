@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/peterbourgon/mergemap"
+	"github.com/imdario/mergo"
 	"github.com/segmentio/go-camelcase"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -101,7 +101,7 @@ func MergeValues(values ...Values) Values {
 	res := make(Values)
 
 	for _, v := range values {
-		res = mergemap.Merge(res, v)
+		_ = mergo.Merge(&res, v, mergo.WithOverride)
 	}
 
 	return res
