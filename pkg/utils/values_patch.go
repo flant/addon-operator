@@ -22,6 +22,12 @@ type ValuesPatch struct {
 	Operations []*ValuesPatchOperation
 }
 
+func NewValuesPatch() *ValuesPatch {
+	return &ValuesPatch{
+		Operations: make([]*ValuesPatchOperation, 0),
+	}
+}
+
 // ToJsonPatch returns a jsonpatch.Patch with all operations.
 func (p *ValuesPatch) ToJsonPatch() (Patch, error) {
 	data, err := json.Marshal(p.Operations)
