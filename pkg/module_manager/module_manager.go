@@ -87,6 +87,9 @@ type ModuleManager struct {
 	// All known modules from specified directories ($MODULES_DIR)
 	modules *ModuleSet
 
+	// create CR with registered modules
+	registerModules bool
+
 	// TODO new layer of values for *Enabled values
 	// commonStaticEnabledValues utils.Values // modules/values.yaml
 	// kubeEnabledValues utils.Values // ConfigMap
@@ -140,7 +143,7 @@ type ModuleManager struct {
 }
 
 // NewModuleManager returns new MainModuleManager
-func NewModuleManager(ctx context.Context, dirCfg DirectoryConfig, deps *ModuleManagerDependencies) *ModuleManager {
+func NewModuleManager(ctx context.Context, dirCfg DirectoryConfig, deps *ModuleManagerDependencies, regModules bool) *ModuleManager {
 	if deps == nil {
 		deps = &ModuleManagerDependencies{}
 	}
@@ -158,7 +161,9 @@ func NewModuleManager(ctx context.Context, dirCfg DirectoryConfig, deps *ModuleM
 
 		ValuesValidator: validation.NewValuesValidator(),
 
-		modules:                     new(ModuleSet),
+		modules:         new(ModuleSet),
+		registerModules: regModules,
+
 		enabledModulesByConfig:      make(map[string]struct{}),
 		enabledModules:              make([]string, 0),
 		dynamicEnabled:              make(map[string]*bool),

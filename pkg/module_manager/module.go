@@ -908,15 +908,10 @@ func (mm *ModuleManager) RegisterModules() error {
 
 	log.Debugf("Found modules: %v", modules.NamesInOrder())
 
+	createCROperations := make([]object_patch.Operation, 0, len(modules.List()))
+
 	for _, module := range modules.List() {
 		logEntry := log.WithField("module", module.Name)
-
-		// TODO: create module CR
-		err := mm.CreateModuleCR(module)
-		if err != nil {
-			logEntry.Errorf("Create Module %q CustomResource: %s", module.Name, err)
-			return fmt.Errorf("failed to create Module CR")
-		}
 
 		module.WithModuleManager(mm)
 		module.WithMetricStorage(mm.dependencies.MetricStorage)
@@ -945,17 +940,28 @@ func (mm *ModuleManager) RegisterModules() error {
 			return fmt.Errorf("add module '%s' schemas: %v", module.Name, err)
 		}
 
+		op := mm.createModuleOperation(module)
+		createCROperations = append(createCROperations, op)
+
 		logEntry.Infof("Module from '%s'. %s", module.Path, mm.ValuesValidator.SchemaStorage.ModuleSchemasDescription(module.ValuesKey()))
+	}
+
+	if mm.registerModules {
+		err = mm.dependencies.KubeObjectPatcher.ExecuteOperations(createCROperations)
+		if err != nil {
+			log.Errorf("Create CRs for Modules failed: %s", err)
+			return err
+		}
 	}
 
 	mm.modules = modules
 	return nil
 }
 
-func (mm *ModuleManager) CreateModuleCR(module *Module) error {
+func (mm *ModuleManager) createModuleOperation(module *Module) object_patch.Operation {
 	cr := v1alpha1.NewModule(module.Name)
 	cop := object_patch.NewCreateOperation(cr, object_patch.UpdateIfExists())
-	return mm.dependencies.KubeObjectPatcher.ExecuteOperation(cop)
+	return cop
 }
 
 // loadStaticValues loads config for module from values.yaml

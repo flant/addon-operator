@@ -21,7 +21,7 @@ func Test_Config_GoHook(t *testing.T) {
 		GlobalHooksDir: "/global-hooks",
 		TempDir:        os.TempDir(),
 	}
-	moduleManager := NewModuleManager(context.Background(), dirs, nil)
+	moduleManager := NewModuleManager(context.Background(), dirs, nil, false)
 
 	expectedGoHookName := "simple.go"
 	expectedGoHookPath := "/global-hooks/simple.go"

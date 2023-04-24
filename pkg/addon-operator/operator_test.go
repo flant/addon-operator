@@ -137,7 +137,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		MetricStorage:        nil,
 		HookMetricStorage:    nil,
 	}
-	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirs, &deps)
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirs, &deps, false)
 
 	err = op.InitModuleManager()
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should init ModuleManager")

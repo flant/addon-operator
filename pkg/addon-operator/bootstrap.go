@@ -123,5 +123,5 @@ func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir st
 		MetricStorage:        op.MetricStorage,
 		HookMetricStorage:    op.HookMetricStorage,
 	}
-	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirConfig, &cfg)
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirConfig, &cfg, app.RegisterModulesCR)
 }

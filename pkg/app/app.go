@@ -34,6 +34,8 @@ var (
 	ModulesDir     = "modules"
 
 	UnnumberedModuleOrder = 1
+
+	RegisterModulesCR = false
 )
 
 const (
@@ -114,6 +116,11 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_CONFIG_MAP").
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
+
+	cmd.Flag("register-modules-cr", "Create CR Modules for all registered modules.").
+		Envar("ADDON_OPERATOR_REGISTER_MODULES").
+		Default("false").
+		BoolVar(&RegisterModulesCR)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)
