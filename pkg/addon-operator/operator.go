@@ -55,17 +55,17 @@ type AddonOperator struct {
 	InitialKubeConfig *kube_config_manager.KubeConfig
 }
 
-func NewAddonOperator() *AddonOperator {
+func NewAddonOperator(ctx context.Context) *AddonOperator {
+	cctx, cancel := context.WithCancel(ctx)
+	so := shell_operator.NewShellOperator()
+	so.WithContext(cctx)
+
 	return &AddonOperator{
-		ShellOperator: &shell_operator.ShellOperator{},
+		ctx:           cctx,
+		cancel:        cancel,
+		ShellOperator: so,
 		ConvergeState: NewConvergeState(),
 	}
-}
-
-func (op *AddonOperator) WithContext(ctx context.Context) *AddonOperator {
-	op.ctx, op.cancel = context.WithCancel(ctx)
-	op.ShellOperator.WithContext(op.ctx)
-	return op
 }
 
 func (op *AddonOperator) Stop() {

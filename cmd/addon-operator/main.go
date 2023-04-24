@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
@@ -44,8 +45,8 @@ func main() {
 			// Init rand generator.
 			rand.Seed(time.Now().UnixNano())
 
-			operator := addon_operator.NewAddonOperator()
-			err := addon_operator.Bootstrap(operator)
+			operator := addon_operator.NewAddonOperator(context.Background())
+			err := operator.Bootstrap()
 			if err != nil {
 				os.Exit(1)
 			}
