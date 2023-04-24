@@ -242,7 +242,9 @@ func (m *Module) runHelmInstall(logLabels map[string]string) error {
 			m.Path,
 			[]string{valuesPath},
 			[]string{},
-			app.Namespace)
+			app.Namespace,
+			false,
+		)
 	}()
 	if err != nil {
 		return err

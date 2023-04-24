@@ -314,7 +314,7 @@ func (h *LibClient) ListReleasesNames(labelSelector map[string]string) ([]string
 	return uniqNames, nil
 }
 
-func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string) (string, error) {
+func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
 	chart, err := loader.Load(chartName)
 	if err != nil {
 		return "", err
@@ -357,7 +357,14 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	}
 
 	if err != nil {
-		return "", err
+		if !debug {
+			return "", fmt.Errorf("%w\n\nUse --debug flag to render out invalid YAML", err)
+		}
+		if rs == nil {
+			return "", err
+		}
+
+		rs.Manifest += fmt.Sprintf("\n\n\n%v", err)
 	}
 
 	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)

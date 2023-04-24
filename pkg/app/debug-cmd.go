@@ -106,9 +106,10 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	AddOutputJsonYamlFlag(moduleValuesCmd)
 	sh_app.DefineDebugUnixSocketFlag(moduleValuesCmd)
 
+	var debug bool
 	moduleRenderCmd := moduleCmd.Command("render", "Render module manifests.").
 		Action(func(c *kingpin.ParseContext) error {
-			dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Render()
+			dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Render(debug)
 			if err != nil {
 				return err
 			}
@@ -116,6 +117,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			return nil
 		})
 	moduleRenderCmd.Arg("module_name", "").Required().StringVar(&moduleName)
+	moduleRenderCmd.Flag("debug", "enable debug mode").Default("false").BoolVar(&debug)
 	AddOutputJsonYamlFlag(moduleRenderCmd)
 	sh_app.DefineDebugUnixSocketFlag(moduleRenderCmd)
 
@@ -242,8 +244,8 @@ func (mr *ModuleRequest) Values(format string) ([]byte, error) {
 	return mr.client.Get(url)
 }
 
-func (mr *ModuleRequest) Render() ([]byte, error) {
-	url := fmt.Sprintf("http://unix/module/%s/render", mr.name)
+func (mr *ModuleRequest) Render(debug bool) ([]byte, error) {
+	url := fmt.Sprintf("http://unix/module/%s/render?debug=%t", mr.name, debug)
 	return mr.client.Get(url)
 }
 

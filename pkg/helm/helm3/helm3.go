@@ -272,11 +272,15 @@ func (h *Helm3Client) ListReleasesNames(labelSelector map[string]string) ([]stri
 }
 
 // Render renders helm templates for chart
-func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) (string, error) {
+func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string, debug bool) (string, error) {
 	args := make([]string, 0)
 	args = append(args, "template")
 	args = append(args, releaseName)
 	args = append(args, chart)
+
+	if debug {
+		args = append(args, "--debug")
+	}
 
 	if namespace != "" {
 		args = append(args, "--namespace")
