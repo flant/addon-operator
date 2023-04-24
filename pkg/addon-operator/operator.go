@@ -55,17 +55,17 @@ type AddonOperator struct {
 	InitialKubeConfig *kube_config_manager.KubeConfig
 }
 
-func NewAddonOperator() *AddonOperator {
+func NewAddonOperator(ctx context.Context) *AddonOperator {
+	cctx, cancel := context.WithCancel(ctx)
+	so := shell_operator.NewShellOperator()
+	so.WithContext(cctx)
+
 	return &AddonOperator{
-		ShellOperator: &shell_operator.ShellOperator{},
+		ctx:           cctx,
+		cancel:        cancel,
+		ShellOperator: so,
 		ConvergeState: NewConvergeState(),
 	}
-}
-
-func (op *AddonOperator) WithContext(ctx context.Context) *AddonOperator {
-	op.ctx, op.cancel = context.WithCancel(ctx)
-	op.ShellOperator.WithContext(op.ctx)
-	return op
 }
 
 func (op *AddonOperator) Stop() {
@@ -280,7 +280,11 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 }
 
 // Start runs all managers, event and queue handlers.
-func (op *AddonOperator) Start() {
+func (op *AddonOperator) Start() error {
+	if err := op.bootstrap(); err != nil {
+		return err
+	}
+
 	log.Info("Start first converge for modules")
 	// Loading the onStartup hooks into the queue and running all modules.
 	// Turning tracking changes on only after startup ends.
@@ -303,6 +307,8 @@ func (op *AddonOperator) Start() {
 	op.KubeConfigManager.Start()
 	op.ModuleManager.Start()
 	op.StartModuleManagerEventHandler()
+
+	return nil
 }
 
 // BootstrapMainQueue adds tasks to initiate Startup sequence:

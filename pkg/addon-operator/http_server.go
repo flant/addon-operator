@@ -8,7 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func RegisterDefaultRoutes(op *AddonOperator) {
+func (op *AddonOperator) RegisterDefaultRoutes() {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		_, _ = writer.Write([]byte(`<html>
     <head><title>Addon-operator</title></head>

@@ -13,7 +13,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/types"
 )
 
-func RegisterDebugGlobalRoutes(dbgSrv *debug.Server, op *AddonOperator) {
+func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 	dbgSrv.Route("/global/list.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
 		return map[string]interface{}{
 			"globalHooks": op.ModuleManager.GetGlobalHooksNames(),
@@ -44,7 +44,7 @@ func RegisterDebugGlobalRoutes(dbgSrv *debug.Server, op *AddonOperator) {
 	})
 }
 
-func RegisterDebugModuleRoutes(dbgSrv *debug.Server, op *AddonOperator) {
+func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 	dbgSrv.Route("/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (interface{}, error) {
 		return map[string][]string{"enabledModules": op.ModuleManager.GetEnabledModuleNames()}, nil
 	})
