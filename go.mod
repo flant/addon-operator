@@ -4,7 +4,6 @@ go 1.19
 
 require (
 	github.com/davecgh/go-spew v1.1.1
-	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/flant/kube-client v0.25.0
 	github.com/flant/shell-operator v1.1.3
 	github.com/go-chi/chi/v5 v5.0.7
@@ -17,6 +16,7 @@ require (
 	github.com/imdario/mergo v0.3.15
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/gomega v1.20.1
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.9.0
@@ -63,6 +63,7 @@ require (
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
+	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a // indirect
@@ -118,7 +119,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
