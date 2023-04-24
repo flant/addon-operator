@@ -46,11 +46,10 @@ func main() {
 			rand.Seed(time.Now().UnixNano())
 
 			operator := addon_operator.NewAddonOperator(context.Background())
-			err := operator.Bootstrap()
+			err := operator.Start()
 			if err != nil {
 				os.Exit(1)
 			}
-			operator.Start()
 
 			// Block action by waiting signals from OS.
 			utils_signal.WaitForProcessInterruption(func() {

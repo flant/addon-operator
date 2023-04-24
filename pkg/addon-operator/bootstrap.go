@@ -1,18 +1,9 @@
 package addon_operator
 
 import (
-	"context"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/util/retry"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -25,7 +16,7 @@ import (
 )
 
 // Bootstrap inits all dependencies for a full-fledged AddonOperator instance.
-func (op *AddonOperator) Bootstrap() error {
+func (op *AddonOperator) bootstrap() error {
 	runtimeConfig := config.NewConfig()
 	// Init logging subsystem.
 	sh_app.SetupLogging(runtimeConfig)
@@ -67,17 +58,11 @@ func (op *AddonOperator) Bootstrap() error {
 		return err
 	}
 
-	err = op.CreateModuleCRD()
-	if err != nil {
-		log.Errorf("Fatal: %s", err)
-		return err
-	}
-
 	return nil
 }
 
 func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, tempDir string, debugServer *debug.Server, runtimeConfig *config.Config) (err error) {
-	RegisterDefaultRoutes(op)
+	op.RegisterDefaultRoutes()
 	RegisterAddonOperatorMetrics(op.MetricStorage)
 	StartLiveTicksUpdater(op.MetricStorage)
 	StartTasksQueueLengthUpdater(op.MetricStorage, op.TaskQueues)
@@ -85,8 +70,8 @@ func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, temp
 	// Register routes in debug server.
 	shell_operator.RegisterDebugQueueRoutes(debugServer, op.ShellOperator)
 	shell_operator.RegisterDebugConfigRoutes(debugServer, runtimeConfig)
-	RegisterDebugGlobalRoutes(debugServer, op)
-	RegisterDebugModuleRoutes(debugServer, op)
+	op.RegisterDebugGlobalRoutes(debugServer)
+	op.RegisterDebugModuleRoutes(debugServer)
 
 	// Helm client factory.
 	op.Helm, err = helm.InitHelmClientFactory(op.KubeClient)
@@ -139,88 +124,4 @@ func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir st
 		HookMetricStorage:    op.HookMetricStorage,
 	}
 	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirConfig, &cfg)
-}
-
-func (op *AddonOperator) CreateModuleCRD() error {
-	crd := generateCRD()
-	return ensureCRD(op.ctx, op.KubeClient.Dynamic(), crd)
-}
-
-func generateCRD() *v1.CustomResourceDefinition {
-	rd := v1.CustomResourceDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "CustomResourceDefinition",
-			APIVersion: "apiextensions.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "modules.deckhouse.io",
-		},
-		Spec: v1.CustomResourceDefinitionSpec{
-			Group: "deckhouse.io",
-			Names: v1.CustomResourceDefinitionNames{
-				Plural:   "modules",
-				Singular: "module",
-				Kind:     "Module",
-			},
-			Scope: "Cluster",
-			Versions: []v1.CustomResourceDefinitionVersion{
-				{
-					Name:    "v1alpha1",
-					Served:  true,
-					Storage: true,
-					Schema: &v1.CustomResourceValidation{
-						OpenAPIV3Schema: &v1.JSONSchemaProps{
-							Type: "object",
-							Properties: map[string]v1.JSONSchemaProps{
-								"foo": {
-									Type:    "string",
-									Default: &v1.JSON{Raw: []byte("bar")},
-								},
-							},
-						},
-					},
-					Subresources: &v1.CustomResourceSubresources{
-						Status: &v1.CustomResourceSubresourceStatus{},
-					},
-					AdditionalPrinterColumns: nil,
-				},
-			},
-			PreserveUnknownFields: false,
-		},
-		Status: v1.CustomResourceDefinitionStatus{},
-	}
-
-	return &rd
-}
-
-func ensureCRD(ctx context.Context, k8sDynamicClient dynamic.Interface, moduleCRD *v1.CustomResourceDefinition) error {
-	gvr := schema.GroupVersionResource{
-		Group:    "apiextensions.k8s.io",
-		Version:  "v1",
-		Resource: "customresourcedefinitions",
-	}
-
-	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(moduleCRD)
-	if err != nil {
-		return err
-	}
-
-	moduleUnst := &unstructured.Unstructured{Object: content}
-
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		_, err := k8sDynamicClient.Resource(gvr).Get(ctx, moduleCRD.ObjectMeta.Name, metav1.GetOptions{})
-		if err != nil {
-			if errors.IsNotFound(err) {
-				_, err = k8sDynamicClient.Resource(gvr).Create(ctx, moduleUnst, metav1.CreateOptions{})
-				if err != nil {
-					return err
-				}
-			}
-			return err
-		}
-		_, err = k8sDynamicClient.Resource(gvr).Update(ctx, moduleUnst, metav1.UpdateOptions{})
-		return err
-	})
-
-	return retryErr
 }
