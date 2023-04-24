@@ -9,6 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flant/addon-operator/pkg/module_manager/apis/v1alpha1"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
+
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
@@ -908,12 +911,19 @@ func (mm *ModuleManager) RegisterModules() error {
 	for _, module := range modules.List() {
 		logEntry := log.WithField("module", module.Name)
 
+		// TODO: create module CR
+		err := mm.CreateModuleCR(module)
+		if err != nil {
+			logEntry.Errorf("Create Module %q CustomResource: %s", module.Name, err)
+			return fmt.Errorf("failed to create Module CR")
+		}
+
 		module.WithModuleManager(mm)
 		module.WithMetricStorage(mm.dependencies.MetricStorage)
 		module.WithHelm(mm.dependencies.Helm)
 
 		// load static config from values.yaml
-		err := module.loadStaticValues()
+		err = module.loadStaticValues()
 		if err != nil {
 			logEntry.Errorf("Load values.yaml: %s", err)
 			return fmt.Errorf("bad module values")
@@ -940,6 +950,12 @@ func (mm *ModuleManager) RegisterModules() error {
 
 	mm.modules = modules
 	return nil
+}
+
+func (mm *ModuleManager) CreateModuleCR(module *Module) error {
+	cr := v1alpha1.NewModule(module.Name)
+	cop := object_patch.NewCreateOperation(cr, object_patch.UpdateIfExists())
+	return mm.dependencies.KubeObjectPatcher.ExecuteOperation(cop)
 }
 
 // loadStaticValues loads config for module from values.yaml
