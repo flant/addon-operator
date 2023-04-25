@@ -22,8 +22,7 @@ type ModuleSpec struct {
 	Foo  string `json:"foo"`
 }
 
-type ModuleStatus struct {
-}
+type ModuleStatus struct{}
 
 type moduleKind struct{}
 
@@ -36,9 +35,7 @@ func (mk *moduleKind) GroupVersionKind() schema.GroupVersionKind {
 	return moduleGVK
 }
 
-var (
-	moduleGVK = schema.GroupVersionKind{Group: "deckhouse.io", Version: "v1alpha1", Kind: "Module"}
-)
+var moduleGVK = schema.GroupVersionKind{Group: "deckhouse.io", Version: "v1alpha1", Kind: "Module"}
 
 func NewModule(moduleName string) *Module {
 	return &Module{

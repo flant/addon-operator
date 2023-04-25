@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flant/addon-operator/pkg/module_manager/apis/v1alpha1"
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
-
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
@@ -20,6 +17,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	. "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/apis/v1alpha1"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/kube-client/manifest"
@@ -27,6 +25,7 @@ import (
 	"github.com/flant/shell-operator/pkg/executor"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
