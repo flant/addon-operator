@@ -88,7 +88,7 @@ type ModuleManager struct {
 	modules *ModuleSet
 
 	// create CR with registered modules
-	registerModules bool
+	registerModulesGV string
 
 	// TODO new layer of values for *Enabled values
 	// commonStaticEnabledValues utils.Values // modules/values.yaml
@@ -143,7 +143,7 @@ type ModuleManager struct {
 }
 
 // NewModuleManager returns new MainModuleManager
-func NewModuleManager(ctx context.Context, dirCfg DirectoryConfig, deps *ModuleManagerDependencies, regModules bool) *ModuleManager {
+func NewModuleManager(ctx context.Context, dirCfg DirectoryConfig, deps *ModuleManagerDependencies, regModulesGV string) *ModuleManager {
 	if deps == nil {
 		deps = &ModuleManagerDependencies{}
 	}
@@ -161,8 +161,8 @@ func NewModuleManager(ctx context.Context, dirCfg DirectoryConfig, deps *ModuleM
 
 		ValuesValidator: validation.NewValuesValidator(),
 
-		modules:         new(ModuleSet),
-		registerModules: regModules,
+		modules:           new(ModuleSet),
+		registerModulesGV: regModulesGV,
 
 		enabledModulesByConfig:      make(map[string]struct{}),
 		enabledModules:              make([]string, 0),

@@ -940,13 +940,19 @@ func (mm *ModuleManager) RegisterModules() error {
 			return fmt.Errorf("add module '%s' schemas: %v", module.Name, err)
 		}
 
-		op := mm.createModuleOperation(module)
-		createCROperations = append(createCROperations, op)
+		if mm.registerModulesGV != "" {
+			op, err := mm.createModuleOperation(module)
+			if err != nil {
+				log.Warnf("Module can not be registered: %s", err)
+			} else {
+				createCROperations = append(createCROperations, op)
+			}
+		}
 
 		logEntry.Infof("Module from '%s'. %s", module.Path, mm.ValuesValidator.SchemaStorage.ModuleSchemasDescription(module.ValuesKey()))
 	}
 
-	if mm.registerModules {
+	if mm.registerModulesGV != "" {
 		err = mm.dependencies.KubeObjectPatcher.ExecuteOperations(createCROperations)
 		if err != nil {
 			log.Errorf("Create CRs for Modules failed: %s", err)
@@ -958,10 +964,19 @@ func (mm *ModuleManager) RegisterModules() error {
 	return nil
 }
 
-func (mm *ModuleManager) createModuleOperation(module *Module) object_patch.Operation {
-	cr := v1alpha1.NewModule(module.Name)
+func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Operation, error) {
+	var cr *v1alpha1.Module
+
+	switch mm.registerModulesGV {
+	case "deckhouse.io/v1alpha1":
+		cr = v1alpha1.NewModule(module.Name)
+
+	default:
+		return nil, fmt.Errorf("unknown GroupVersion for Module registration: %s", mm.registerModulesGV)
+	}
+
 	cop := object_patch.NewCreateOperation(cr, object_patch.UpdateIfExists())
-	return cop
+	return cop, nil
 }
 
 // loadStaticValues loads config for module from values.yaml

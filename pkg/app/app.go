@@ -35,7 +35,7 @@ var (
 
 	UnnumberedModuleOrder = 1
 
-	RegisterModulesCR = false
+	RegisterModulesGV string
 )
 
 const (
@@ -117,10 +117,10 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
 
-	cmd.Flag("register-modules-cr", "Create CR Modules for all registered modules.").
-		Envar("ADDON_OPERATOR_REGISTER_MODULES").
-		Default("false").
-		BoolVar(&RegisterModulesCR)
+	cmd.Flag("register-modules-gv", "GroupVersion to register Module CR in.").
+		Envar("ADDON_OPERATOR_REGISTER_MODULES_GV").
+		Default("").
+		StringVar(&RegisterModulesGV)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)
