@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/flant/addon-operator/pkg/module_manager/apis/v1alpha1"
-
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -68,5 +66,5 @@ func (op *AddonOperator) RegisterDefaultRoutes() {
 		_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
 	})
 
-	http.Handle("/validate/v1alpha1/modules", v1alpha1.ValidationHandler())
+	go aaa()
 }
