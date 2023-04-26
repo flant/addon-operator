@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	klient "github.com/flant/kube-client/client"
-	"github.com/flant/shell-operator/pkg/config"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
@@ -18,37 +16,28 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	klient "github.com/flant/kube-client/client"
+	"github.com/flant/shell-operator/pkg/config"
 )
+
+type Config struct {
+	Namespace     string
+	ConfigMapName string
+	KubeClient    klient.Client
+	RuntimeConfig *config.Config
+}
 
 // KubeConfigManager watches for changes in ConfigMap/addon-operator and provides
 // methods to change its content.
 // It stores values parsed from ConfigMap data. OpenAPI validation of these config values
 // is not a responsibility of this component.
-type KubeConfigManager interface {
-	WithContext(ctx context.Context)
-	WithKubeClient(client klient.Client)
-	WithNamespace(namespace string)
-	WithConfigMapName(configMap string)
-	WithRuntimeConfig(config *config.Config)
-	SaveGlobalConfigValues(values utils.Values) error
-	SaveModuleConfigValues(moduleName string, values utils.Values) error
-	Init() error
-	Start()
-	Stop()
-	KubeConfigEventCh() chan KubeConfigEvent
-	SafeReadConfig(handler func(config *KubeConfig))
-}
-
-type kubeConfigManager struct {
+type KubeConfigManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
 	KubeClient    klient.Client
 	Namespace     string
 	ConfigMapName string
-
-	m             sync.Mutex
-	currentConfig *KubeConfig
 
 	// Checksums to ignore self-initiated updates.
 	knownChecksums *Checksums
@@ -60,13 +49,24 @@ type kubeConfigManager struct {
 	runtimeConfig      *config.Config
 	logConfigMapEvents bool
 	logEntry           *log.Entry
+
+	m             sync.Mutex
+	currentConfig *KubeConfig
 }
 
 // kubeConfigManager should implement KubeConfigManager
-var _ KubeConfigManager = &kubeConfigManager{}
 
-func NewKubeConfigManager() KubeConfigManager {
-	return &kubeConfigManager{
+func NewKubeConfigManager(ctx context.Context, cfg *Config) *KubeConfigManager {
+	cctx, cancel := context.WithCancel(ctx)
+	return &KubeConfigManager{
+		ctx:    cctx,
+		cancel: cancel,
+
+		KubeClient:    cfg.KubeClient,
+		Namespace:     cfg.Namespace,
+		ConfigMapName: cfg.ConfigMapName,
+		runtimeConfig: cfg.RuntimeConfig,
+
 		currentConfig:  NewConfig(),
 		knownChecksums: NewChecksums(),
 		configEventCh:  make(chan KubeConfigEvent, 1),
@@ -74,27 +74,7 @@ func NewKubeConfigManager() KubeConfigManager {
 	}
 }
 
-func (kcm *kubeConfigManager) WithContext(ctx context.Context) {
-	kcm.ctx, kcm.cancel = context.WithCancel(ctx)
-}
-
-func (kcm *kubeConfigManager) WithKubeClient(client klient.Client) {
-	kcm.KubeClient = client
-}
-
-func (kcm *kubeConfigManager) WithNamespace(namespace string) {
-	kcm.Namespace = namespace
-}
-
-func (kcm *kubeConfigManager) WithConfigMapName(configMap string) {
-	kcm.ConfigMapName = configMap
-}
-
-func (kcm *kubeConfigManager) WithRuntimeConfig(config *config.Config) {
-	kcm.runtimeConfig = config
-}
-
-func (kcm *kubeConfigManager) SaveGlobalConfigValues(values utils.Values) error {
+func (kcm *KubeConfigManager) SaveGlobalConfigValues(values utils.Values) error {
 	globalKubeConfig, err := GetGlobalKubeConfigFromValues(values)
 	if err != nil {
 		return err
@@ -128,7 +108,7 @@ func (kcm *kubeConfigManager) SaveGlobalConfigValues(values utils.Values) error 
 
 // SaveModuleConfigValues updates module section in ConfigMap.
 // It uses knownChecksums to prevent KubeConfigChanged event on self-update.
-func (kcm *kubeConfigManager) SaveModuleConfigValues(moduleName string, values utils.Values) error {
+func (kcm *KubeConfigManager) SaveModuleConfigValues(moduleName string, values utils.Values) error {
 	moduleKubeConfig, err := GetModuleKubeConfigFromValues(moduleName, values)
 	if err != nil {
 		return err
@@ -160,13 +140,13 @@ func (kcm *kubeConfigManager) SaveModuleConfigValues(moduleName string, values u
 }
 
 // KubeConfigEventCh return a channel that emits new KubeConfig on ConfigMap changes in global section or enabled modules.
-func (kcm *kubeConfigManager) KubeConfigEventCh() chan KubeConfigEvent {
+func (kcm *KubeConfigManager) KubeConfigEventCh() chan KubeConfigEvent {
 	return kcm.configEventCh
 }
 
 // loadConfig gets config from ConfigMap before starting informer.
 // Set checksums for global section and modules.
-func (kcm *kubeConfigManager) loadConfig() error {
+func (kcm *KubeConfigManager) loadConfig() error {
 	obj, err := ConfigMapGet(kcm.KubeClient, kcm.Namespace, kcm.ConfigMapName)
 	if err != nil {
 		return err
@@ -186,7 +166,7 @@ func (kcm *kubeConfigManager) loadConfig() error {
 	return nil
 }
 
-func (kcm *kubeConfigManager) Init() error {
+func (kcm *KubeConfigManager) Init() error {
 	kcm.logEntry.Debug("INIT: KUBE_CONFIG")
 
 	if kcm.runtimeConfig != nil {
@@ -216,7 +196,7 @@ func (kcm *kubeConfigManager) Init() error {
 }
 
 // currentModuleNames gather modules names from the checksums map and from the currentConfig struct.
-func (kcm *kubeConfigManager) currentModuleNames() map[string]struct{} {
+func (kcm *KubeConfigManager) currentModuleNames() map[string]struct{} {
 	names := make(map[string]struct{})
 	for name := range kcm.currentConfig.Modules {
 		names[name] = struct{}{}
@@ -225,7 +205,7 @@ func (kcm *kubeConfigManager) currentModuleNames() map[string]struct{} {
 }
 
 // isGlobalChanged returns true when changes in "global" section requires firing event.
-func (kcm *kubeConfigManager) isGlobalChanged(newConfig *KubeConfig) bool {
+func (kcm *KubeConfigManager) isGlobalChanged(newConfig *KubeConfig) bool {
 	if newConfig.Global == nil {
 		// Fire event when global section is deleted: ConfigMap has no global section but global config is cached.
 		// Note: no checksum checking here, "save" operations can't delete global section.
@@ -262,7 +242,7 @@ func (kcm *kubeConfigManager) isGlobalChanged(newConfig *KubeConfig) bool {
 
 // handleNewCm determine changes in kube config. It sends KubeConfigChanged event if something
 // changed or KubeConfigInvalid event if ConfigMap is incorrect.
-func (kcm *kubeConfigManager) handleCmEvent(obj *v1.ConfigMap) error {
+func (kcm *KubeConfigManager) handleCmEvent(obj *v1.ConfigMap) error {
 	// ConfigMap is deleted, reset cached config and fire event.
 	if obj == nil {
 		kcm.m.Lock()
@@ -332,7 +312,7 @@ func (kcm *kubeConfigManager) handleCmEvent(obj *v1.ConfigMap) error {
 	return nil
 }
 
-func (kcm *kubeConfigManager) Start() {
+func (kcm *KubeConfigManager) Start() {
 	kcm.logEntry.Debugf("Start kube config manager")
 
 	// define resyncPeriod for informer
@@ -373,13 +353,13 @@ func (kcm *kubeConfigManager) Start() {
 	}()
 }
 
-func (kcm *kubeConfigManager) Stop() {
+func (kcm *KubeConfigManager) Stop() {
 	if kcm.cancel != nil {
 		kcm.cancel()
 	}
 }
 
-func (kcm *kubeConfigManager) logConfigMapEvent(obj interface{}, eventName string) {
+func (kcm *KubeConfigManager) logConfigMapEvent(obj interface{}, eventName string) {
 	if !kcm.logConfigMapEvents {
 		return
 	}
@@ -393,7 +373,7 @@ func (kcm *kubeConfigManager) logConfigMapEvent(obj interface{}, eventName strin
 }
 
 // SafeReadConfig locks currentConfig to safely read from it in external services.
-func (kcm *kubeConfigManager) SafeReadConfig(handler func(config *KubeConfig)) {
+func (kcm *KubeConfigManager) SafeReadConfig(handler func(config *KubeConfig)) {
 	if handler == nil {
 		return
 	}
@@ -402,7 +382,7 @@ func (kcm *kubeConfigManager) SafeReadConfig(handler func(config *KubeConfig)) {
 	})
 }
 
-func (kcm *kubeConfigManager) withLock(fn func()) {
+func (kcm *KubeConfigManager) withLock(fn func()) {
 	if fn == nil {
 		return
 	}

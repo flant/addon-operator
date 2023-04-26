@@ -9,12 +9,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/flant/kube-client/fake"
-	. "github.com/flant/shell-operator/pkg/hook/types"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
-	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
-	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	logrus_test "github.com/sirupsen/logrus/hooks/test"
@@ -29,6 +23,12 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
+	"github.com/flant/kube-client/fake"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
+	sh_task "github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
+	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 )
 
 type assembleResult struct {
@@ -102,8 +102,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should create ConfigMap/%s", result.cmName)
 
 	// Assemble AddonOperator.
-	op := NewAddonOperator()
-	op.WithContext(context.Background())
+	op := NewAddonOperator(context.Background())
 	op.KubeClient = kubeClient
 	// Mock helm client for ModuleManager
 	result.helmClient = &mockhelm.Client{}
@@ -114,20 +113,31 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	shell_operator.SetupEventManagers(op.ShellOperator)
 
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager()
-	op.KubeConfigManager.WithKubeClient(op.KubeClient)
-	op.KubeConfigManager.WithContext(op.ctx)
-	op.KubeConfigManager.WithNamespace(result.cmNamespace)
-	op.KubeConfigManager.WithConfigMapName(result.cmName)
+	kcfg := kube_config_manager.Config{
+		Namespace:     result.cmNamespace,
+		ConfigMapName: result.cmName,
+		KubeClient:    op.KubeClient,
+		RuntimeConfig: nil,
+	}
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, &kcfg)
+	op.KubeConfigManager = manager
 
-	op.ModuleManager = module_manager.NewModuleManager()
-	op.ModuleManager.WithContext(op.ctx)
-	op.ModuleManager.WithDirectories(modulesDir, globalHooksDir, t.TempDir())
-	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
-	op.ModuleManager.WithHelm(op.Helm)
-	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
-	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
-	op.ModuleManager.WithHelmResourcesManager(op.HelmResourcesManager)
+	dirs := module_manager.DirectoryConfig{
+		ModulesDir:     modulesDir,
+		GlobalHooksDir: globalHooksDir,
+		TempDir:        t.TempDir(),
+	}
+	deps := module_manager.ModuleManagerDependencies{
+		KubeObjectPatcher:    nil,
+		KubeEventsManager:    op.KubeEventsManager,
+		KubeConfigManager:    manager,
+		ScheduleManager:      op.ScheduleManager,
+		Helm:                 op.Helm,
+		HelmResourcesManager: op.HelmResourcesManager,
+		MetricStorage:        nil,
+		HookMetricStorage:    nil,
+	}
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirs, &deps)
 
 	err = op.InitModuleManager()
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should init ModuleManager")
@@ -297,7 +307,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 
 		// Only one hook with kubernetes binding.
 		{task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook01", ""},
-		//{task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook02", ""},
+		// {task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook02", ""},
 
 		// Skip waiting tasks in parallel queues, proceed to schedule bindings.
 		{task.ModuleRun, "", "module-alpha", string(module_manager.EnableScheduleBindings)},
@@ -423,7 +433,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 
 	hasReloadAllInStandby := false
 	for i, tsk := range taskHandleHistory {
-		//if i < ignoreTasksCount {
+		// if i < ignoreTasksCount {
 		//	continue
 		//}
 		if tsk.taskType != task.ConvergeModules {

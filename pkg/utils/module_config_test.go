@@ -108,12 +108,12 @@ testModule:
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(config).ToNot(BeNil())
 
-				arrayId := func(element interface{}) string {
+				arrayID := func(element interface{}) string {
 					return (element.(map[string]interface{})["id"]).(string)
 				}
 
 				g.Expect(config.Values).To(MatchAllKeys(Keys{
-					"testModule": MatchAllElements(arrayId, Elements{
+					"testModule": MatchAllElements(arrayID, Elements{
 						"0": MatchAllKeys(Keys{
 							"a":  Equal(1.0),
 							"id": Ignore(),

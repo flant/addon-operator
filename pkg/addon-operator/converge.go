@@ -3,10 +3,9 @@ package addon_operator
 import (
 	"time"
 
-	sh_task "github.com/flant/shell-operator/pkg/task"
-
-	. "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/task"
+	sh_task "github.com/flant/shell-operator/pkg/task"
 )
 
 type ConvergeState struct {
@@ -67,7 +66,7 @@ func IsConvergeTask(t sh_task.Task) bool {
 		return hm.IsReloadAll
 	case task.GlobalHookRun:
 		switch hm.BindingType {
-		case BeforeAll, AfterAll:
+		case types.BeforeAll, types.AfterAll:
 			return true
 		}
 	case task.ModuleHookRun:

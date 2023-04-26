@@ -3,100 +3,18 @@ package go_hook
 import (
 	"time"
 
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
+	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 )
 
 type GoHook interface {
 	Config() *HookConfig
 	Run(input *HookInput) error
-}
-
-// TODO delete after refactor hooks to use PatchCollector directly.
-type ObjectPatcher interface {
-	CreateObject(object *unstructured.Unstructured, subresource string) error
-	CreateOrUpdateObject(object *unstructured.Unstructured, subresource string) error
-	FilterObject(filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error),
-		apiVersion, kind, namespace, name, subresource string) error
-	MergePatchObject(mergePatch []byte, apiVersion, kind, namespace, name, subresource string) error
-	JSONPatchObject(jsonPatch []byte, apiVersion, kind, namespace, name, subresource string) error
-	DeleteObject(apiVersion, kind, namespace, name, subresource string) error
-	DeleteObjectInBackground(apiVersion, kind, namespace, name, subresource string) error
-	DeleteObjectNonCascading(apiVersion, kind, namespace, name, subresource string) error
-}
-
-type patchCollectorProxy struct {
-	patcher *object_patch.PatchCollector
-}
-
-// Deprecated. Use Create from PatchCollector.
-func (p patchCollectorProxy) CreateObject(object *unstructured.Unstructured, subresource string) error {
-	p.patcher.Create(object, object_patch.WithSubresource(subresource))
-	return nil
-}
-
-// Deprecated. Use Create with UpdateIfExists option from PatchCollector.
-func (p patchCollectorProxy) CreateOrUpdateObject(object *unstructured.Unstructured, subresource string) error {
-	p.patcher.Create(object,
-		object_patch.WithSubresource(subresource),
-		object_patch.UpdateIfExists(),
-	)
-	return nil
-}
-
-// Deprecated. Use Filter from PatchCollector.
-func (p patchCollectorProxy) FilterObject(
-	filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error),
-	apiVersion, kind, namespace, name, subresource string,
-) error {
-	p.patcher.Filter(filterFunc,
-		apiVersion, kind, namespace, name,
-		object_patch.WithSubresource(subresource))
-	return nil
-}
-
-// Deprecated. Use MergePatch from PatchCollector.
-func (p patchCollectorProxy) MergePatchObject(mergePatch []byte, apiVersion, kind, namespace, name, subresource string) error {
-	p.patcher.MergePatch(mergePatch,
-		apiVersion, kind, namespace, name,
-		object_patch.WithSubresource(subresource))
-	return nil
-}
-
-// Deprecated. Use JSONPatch from PatchCollector.
-func (p patchCollectorProxy) JSONPatchObject(jsonPatch []byte, apiVersion, kind, namespace, name, subresource string) error {
-	p.patcher.JSONPatch(jsonPatch,
-		apiVersion, kind, namespace, name,
-		object_patch.WithSubresource(subresource))
-	return nil
-}
-
-// Deprecated. Use Delete from PatchCollector.
-func (p patchCollectorProxy) DeleteObject(apiVersion, kind, namespace, name, subresource string) error {
-	p.patcher.Delete(apiVersion, kind, namespace, name,
-		object_patch.WithSubresource(subresource))
-	return nil
-}
-
-// Deprecated. Use Delete with InBackground option from PatchCollector.
-func (p patchCollectorProxy) DeleteObjectInBackground(apiVersion, kind, namespace, name, subresource string) error {
-	p.patcher.Delete(apiVersion, kind, namespace, name,
-		object_patch.WithSubresource(subresource),
-		object_patch.InBackground())
-	return nil
-}
-
-// Deprecated. Use Delete with NonCascading option from PatchCollector.
-func (p patchCollectorProxy) DeleteObjectNonCascading(apiVersion, kind, namespace, name, subresource string) error {
-	p.patcher.Delete(apiVersion, kind, namespace, name,
-		object_patch.WithSubresource(subresource),
-		object_patch.NonCascading())
-	return nil
 }
 
 // MetricsCollector collects metric's records for exporting them as a batch
@@ -131,11 +49,6 @@ type HookInput struct {
 	PatchCollector   *object_patch.PatchCollector
 	LogEntry         *logrus.Entry
 	BindingActions   *[]BindingAction
-}
-
-// Deprecated. Use methods from PatchCollector property.
-func (hi HookInput) ObjectPatcher() ObjectPatcher {
-	return patchCollectorProxy{hi.PatchCollector}
 }
 
 type BindingAction struct {

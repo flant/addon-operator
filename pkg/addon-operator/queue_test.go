@@ -3,10 +3,11 @@ package addon_operator
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_QueueHasPendingModuleRunTask(t *testing.T) {

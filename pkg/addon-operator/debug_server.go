@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
-	"github.com/flant/shell-operator/pkg/debug"
-	"github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/debug"
+	"github.com/flant/shell-operator/pkg/hook/types"
 )
 
-func RegisterDebugGlobalRoutes(dbgSrv *debug.Server, op *AddonOperator) {
+func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 	dbgSrv.Route("/global/list.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
 		return map[string]interface{}{
 			"globalHooks": op.ModuleManager.GetGlobalHooksNames(),
@@ -43,7 +44,7 @@ func RegisterDebugGlobalRoutes(dbgSrv *debug.Server, op *AddonOperator) {
 	})
 }
 
-func RegisterDebugModuleRoutes(dbgSrv *debug.Server, op *AddonOperator) {
+func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 	dbgSrv.Route("/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (interface{}, error) {
 		return map[string][]string{"enabledModules": op.ModuleManager.GetEnabledModuleNames()}, nil
 	})
@@ -68,6 +69,10 @@ func RegisterDebugModuleRoutes(dbgSrv *debug.Server, op *AddonOperator) {
 
 	dbgSrv.Route("/module/{name}/render", func(r *http.Request) (interface{}, error) {
 		modName := chi.URLParam(r, "name")
+		debug, err := strconv.ParseBool(r.URL.Query().Get("debug"))
+		if err != nil {
+			return nil, fmt.Errorf("can't parse debug query parameter: %w", err)
+		}
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
@@ -80,7 +85,7 @@ func RegisterDebugModuleRoutes(dbgSrv *debug.Server, op *AddonOperator) {
 		}
 		defer os.Remove(valuesPath)
 
-		return op.Helm.NewClient().Render(m.Name, m.Path, []string{valuesPath}, nil, app.Namespace)
+		return op.Helm.NewClient().Render(m.Name, m.Path, []string{valuesPath}, nil, app.Namespace, debug)
 	})
 
 	dbgSrv.Route("/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {

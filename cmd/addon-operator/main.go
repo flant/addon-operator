@@ -1,21 +1,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
 	"time"
 
-	"github.com/flant/kube-client/klogtologrus"
 	"gopkg.in/alecthomas/kingpin.v2"
-
-	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/debug"
-	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 
 	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/utils/stdliblogtologrus"
+	"github.com/flant/kube-client/klogtologrus"
+	sh_app "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/debug"
+	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 )
 
 func main() {
@@ -45,12 +45,11 @@ func main() {
 			// Init rand generator.
 			rand.Seed(time.Now().UnixNano())
 
-			operator := addon_operator.NewAddonOperator()
-			err := addon_operator.Bootstrap(operator)
+			operator := addon_operator.NewAddonOperator(context.Background())
+			err := operator.Start()
 			if err != nil {
 				os.Exit(1)
 			}
-			operator.Start()
 
 			// Block action by waiting signals from OS.
 			utils_signal.WaitForProcessInterruption(func() {

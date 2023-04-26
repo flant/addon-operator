@@ -80,19 +80,19 @@ func (hm HookMetadata) GetDescription() string {
 	if hm.ModuleName == "" {
 		// global hook
 		return fmt.Sprintf("%s:%s%s:%s", string(hm.BindingType), hm.HookName, bindingNames, hm.EventDescription)
-	} else {
-		if hm.HookName == "" {
-			// module run
-			osh := ""
-			if hm.DoModuleStartup {
-				osh = ":doStartup"
-			}
-			return fmt.Sprintf("%s%s%s:%s", hm.ModuleName, osh, bindingNames, hm.EventDescription)
-		} else {
-			// module hook
-			return fmt.Sprintf("%s:%s%s:%s", string(hm.BindingType), hm.HookName, bindingNames, hm.EventDescription)
-		}
 	}
+
+	if hm.HookName == "" {
+		// module run
+		osh := ""
+		if hm.DoModuleStartup {
+			osh = ":doStartup"
+		}
+		return fmt.Sprintf("%s%s%s:%s", hm.ModuleName, osh, bindingNames, hm.EventDescription)
+	}
+
+	// module hook
+	return fmt.Sprintf("%s:%s%s:%s", string(hm.BindingType), hm.HookName, bindingNames, hm.EventDescription)
 }
 
 func (hm HookMetadata) GetHookName() string {

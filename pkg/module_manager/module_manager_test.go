@@ -9,11 +9,6 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	klient "github.com/flant/kube-client/client"
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
-	. "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -27,11 +22,24 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	_ "github.com/flant/addon-operator/pkg/module_manager/test/go_hooks/global-hooks"
 	"github.com/flant/addon-operator/pkg/utils"
+	klient "github.com/flant/kube-client/client"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
+type TestKubeConfigManager interface {
+	Init() error
+	Start()
+	Stop()
+	KubeConfigEventCh() chan kube_config_manager.KubeConfigEvent
+	SafeReadConfig(handler func(config *kube_config_manager.KubeConfig))
+}
+
 type initModuleManagerResult struct {
-	moduleManager        *moduleManager
-	kubeConfigManager    kube_config_manager.KubeConfigManager
+	moduleManager        *ModuleManager
+	kubeConfigManager    TestKubeConfigManager
 	helmClient           *mockhelm.Client
 	helmResourcesManager *mockhelmresmgr.MockHelmResourcesManager
 	kubeClient           klient.Client
@@ -42,7 +50,7 @@ type initModuleManagerResult struct {
 }
 
 // initModuleManager creates a ready-to-use ModuleManager instance and some dependencies.
-func initModuleManager(t *testing.T, configPath string) (ModuleManager, *initModuleManagerResult) {
+func initModuleManager(t *testing.T, configPath string) (*ModuleManager, *initModuleManagerResult) {
 	const defaultNamespace = "default"
 	const defaultName = "addon-operator"
 
@@ -59,73 +67,82 @@ func initModuleManager(t *testing.T, configPath string) (ModuleManager, *initMod
 
 	var err error
 
+	{
+		// Load config values from config_map.yaml.
+		cmFilePath := filepath.Join(rootDir, "config_map.yaml")
+		cmExists, _ := utils_file.FileExists(cmFilePath)
+		var cmObj *v1.ConfigMap
+		if cmExists {
+			cmDataBytes, err := os.ReadFile(cmFilePath)
+			require.NoError(t, err, "Should read config map file '%s'", cmFilePath)
+
+			cmObj = new(v1.ConfigMap)
+			err = yaml.Unmarshal(cmDataBytes, &cmObj)
+			require.NoError(t, err, "Should parse YAML in %s", cmFilePath)
+			if cmObj.Namespace == "" {
+				cmObj.SetNamespace(defaultNamespace)
+			}
+		} else {
+			cmObj = &v1.ConfigMap{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      defaultName,
+					Namespace: defaultNamespace,
+				},
+				Data: nil,
+			}
+		}
+		result.cmName = cmObj.Name
+		result.cmNamespace = cmObj.Namespace
+		result.kubeClient = klient.NewFake(nil)
+		_, err = result.kubeClient.CoreV1().ConfigMaps(result.cmNamespace).Create(context.TODO(), cmObj, metav1.CreateOptions{})
+		require.NoError(t, err, "Should create ConfigMap/%s", result.cmName)
+	}
+
+	kcfg := kube_config_manager.Config{
+		Namespace:     result.cmNamespace,
+		ConfigMapName: result.cmName,
+		KubeClient:    result.kubeClient,
+		RuntimeConfig: nil,
+	}
+	manager := kube_config_manager.NewKubeConfigManager(context.Background(), &kcfg)
+	result.kubeConfigManager = manager
+
+	err = result.kubeConfigManager.Init()
+	require.NoError(t, err, "KubeConfigManager.Init should not fail")
+
 	// Create and init moduleManager instance
 	// Note: skip KubeEventManager, ScheduleManager, KubeObjectPatcher, MetricStorage, HookMetricStorage
-	result.moduleManager = NewModuleManager()
-	result.moduleManager.WithContext(context.Background())
-	result.moduleManager.WithDirectories(filepath.Join(rootDir, "modules"), filepath.Join(rootDir, "global-hooks"), t.TempDir())
-	result.moduleManager.WithHelm(mockhelm.NewClientFactory(result.helmClient))
+	dirs := DirectoryConfig{
+		ModulesDir:     filepath.Join(rootDir, "modules"),
+		GlobalHooksDir: filepath.Join(rootDir, "global-hooks"),
+		TempDir:        t.TempDir(),
+	}
+	deps := ModuleManagerDependencies{
+		Helm:                 mockhelm.NewClientFactory(result.helmClient),
+		HelmResourcesManager: result.helmResourcesManager,
+		KubeConfigManager:    manager,
+	}
+	result.moduleManager = NewModuleManager(context.Background(), dirs, &deps)
 
 	err = result.moduleManager.Init()
 	require.NoError(t, err, "Should register global hooks and all modules")
 
-	result.moduleManager.WithHelmResourcesManager(result.helmResourcesManager)
-
-	// Load config values from config_map.yaml.
-	cmFilePath := filepath.Join(rootDir, "config_map.yaml")
-	cmExists, _ := utils_file.FileExists(cmFilePath)
-	var cmObj *v1.ConfigMap
-	if cmExists {
-		cmDataBytes, err := os.ReadFile(cmFilePath)
-		require.NoError(t, err, "Should read config map file '%s'", cmFilePath)
-
-		cmObj = new(v1.ConfigMap)
-		err = yaml.Unmarshal(cmDataBytes, &cmObj)
-		require.NoError(t, err, "Should parse YAML in %s", cmFilePath)
-		if cmObj.Namespace == "" {
-			cmObj.SetNamespace(defaultNamespace)
-		}
-	} else {
-		cmObj = &v1.ConfigMap{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ConfigMap",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      defaultName,
-				Namespace: defaultNamespace,
-			},
-			Data: nil,
-		}
-	}
-	result.cmName = cmObj.Name
-	result.cmNamespace = cmObj.Namespace
-	result.kubeClient = klient.NewFake(nil)
-	_, err = result.kubeClient.CoreV1().ConfigMaps(result.cmNamespace).Create(context.TODO(), cmObj, metav1.CreateOptions{})
-	require.NoError(t, err, "Should create ConfigMap/%s", result.cmName)
-
-	result.kubeConfigManager = kube_config_manager.NewKubeConfigManager()
-	result.kubeConfigManager.WithKubeClient(result.kubeClient)
-	result.kubeConfigManager.WithContext(context.Background())
-	result.kubeConfigManager.WithNamespace(result.cmNamespace)
-	result.kubeConfigManager.WithConfigMapName(result.cmName)
-
-	err = result.kubeConfigManager.Init()
-	require.NoError(t, err, "KubeConfigManager.Init should not fail")
-	result.moduleManager.WithKubeConfigManager(result.kubeConfigManager)
+	// Start KubeConfigManager to be able to change config values via patching ConfigMap.
+	result.kubeConfigManager.Start()
 
 	result.kubeConfigManager.SafeReadConfig(func(config *kube_config_manager.KubeConfig) {
 		result.initialState, result.initialStateErr = result.moduleManager.HandleNewKubeConfig(config)
 	})
 
-	// Start KubeConfigManager to be able to change config values via patching ConfigMap.
-	result.kubeConfigManager.Start()
-
 	return result.moduleManager, result
 }
 
 func Test_ModuleManager_LoadValuesInInit(t *testing.T) {
-	var mm *moduleManager
+	var mm *ModuleManager
 
 	tests := []struct {
 		name       string
@@ -522,7 +539,7 @@ func Test_ModuleManager_RunModule(t *testing.T) {
 	err = mm.RegisterModuleHooks(module, map[string]string{})
 	require.NoError(t, err, "Should register module hooks")
 
-	valuesChanged, err := mm.RunModule(ModuleName, false, map[string]string{}, nil)
+	valuesChanged, err := mm.RunModule(ModuleName, map[string]string{})
 	require.NoError(t, err, "Module %s should run successfully", ModuleName)
 	require.True(t, valuesChanged, "Module hooks should change values")
 
@@ -585,7 +602,7 @@ func Test_ModuleManager_DeleteModule(t *testing.T) {
 	err = mm.DeleteModule(ModuleName, map[string]string{})
 	require.NoError(t, err, "Should delete module")
 
-	//if !reflect.DeepEqual(expectedModuleValues, values) {
+	// if !reflect.DeepEqual(expectedModuleValues, values) {
 	//	t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectedModuleValues, values)
 	//}
 	// Check values after running hooks:
@@ -991,7 +1008,7 @@ func Test_ModuleManager_Run_GlobalHook(t *testing.T) {
 // __with_enabled_scripts - check running enabled scripts.
 // __module_names_order - check modules order.
 func Test_ModuleManager_ModulesState_no_ConfigMap(t *testing.T) {
-	var mm *moduleManager
+	var mm *ModuleManager
 	var modulesState *ModulesState
 	var err error
 
@@ -1136,9 +1153,9 @@ func Test_ModuleManager_ModulesState_no_ConfigMap(t *testing.T) {
 			require.NoError(t, res.initialStateErr, "Should load ConfigMap state")
 			mm = res.moduleManager
 
-			mm.WithHelm(mockhelm.NewClientFactory(&mockhelm.Client{
+			mm.dependencies.Helm = mockhelm.NewClientFactory(&mockhelm.Client{
 				ReleaseNames: test.helmReleases,
-			}))
+			})
 
 			modulesState, err = mm.RefreshStateFromHelmReleases(map[string]string{})
 			require.NoError(t, err, "Should refresh from helm releases")
@@ -1169,9 +1186,9 @@ func Test_ModuleManager_ModulesState_detect_ConfigMap_changes(t *testing.T) {
 	require.Contains(t, res.moduleManager.enabledModulesByConfig, "module-one")
 
 	// RefreshStateFromHelmReleases should detect all modules from helm releases as enabled.
-	mm.WithHelm(mockhelm.NewClientFactory(&mockhelm.Client{
+	mm.dependencies.Helm = mockhelm.NewClientFactory(&mockhelm.Client{
 		ReleaseNames: []string{"module-one", "module-two", "module-three"},
-	}))
+	})
 	state, err = mm.RefreshStateFromHelmReleases(map[string]string{})
 	require.NoError(t, err, "RefreshStateFromHelmReleases should not fail")
 	require.NotNil(t, state)
@@ -1312,7 +1329,7 @@ func Test_ModuleManager_ModulesState_detect_ConfigMap_changes(t *testing.T) {
 }
 
 // initModuleManagerLight only loads modules and create ValuesValidator.
-func initModuleManagerLight(t *testing.T, configPath string) ModuleManager {
+func initModuleManagerLight(t *testing.T, configPath string) *ModuleManager {
 	// Init directories
 	rootDir := filepath.Join("testdata", configPath)
 
@@ -1320,9 +1337,12 @@ func initModuleManagerLight(t *testing.T, configPath string) ModuleManager {
 
 	// Create and init moduleManager instance
 	// Note: skip KubeEventManager, ScheduleManager, KubeObjectPatcher, MetricStorage, HookMetricStorage
-	moduleManager := NewModuleManager()
-	moduleManager.WithContext(context.Background())
-	moduleManager.WithDirectories(filepath.Join(rootDir, "modules"), filepath.Join(rootDir, "global"), t.TempDir())
+	dirs := DirectoryConfig{
+		ModulesDir:     filepath.Join(rootDir, "modules"),
+		GlobalHooksDir: filepath.Join(rootDir, "global"),
+		TempDir:        t.TempDir(),
+	}
+	moduleManager := NewModuleManager(context.Background(), dirs, nil)
 
 	err = moduleManager.Init()
 	require.NoError(t, err, "Should register global hooks and all modules")

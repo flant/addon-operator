@@ -1,23 +1,22 @@
 package addon_operator
 
 import (
-	"context"
 	"fmt"
 
-	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/config"
-	"github.com/flant/shell-operator/pkg/debug"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	sh_app "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/config"
+	"github.com/flant/shell-operator/pkg/debug"
+	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 )
 
 // Bootstrap inits all dependencies for a full-fledged AddonOperator instance.
-func Bootstrap(op *AddonOperator) error {
+func (op *AddonOperator) bootstrap() error {
 	runtimeConfig := config.NewConfig()
 	// Init logging subsystem.
 	sh_app.SetupLogging(runtimeConfig)
@@ -40,8 +39,6 @@ func Bootstrap(op *AddonOperator) error {
 
 	log.Infof("Addon-operator namespace: %s", app.Namespace)
 
-	op.WithContext(context.Background())
-
 	// Debug server.
 	debugServer, err := shell_operator.InitDefaultDebugServer()
 	if err != nil {
@@ -55,7 +52,7 @@ func Bootstrap(op *AddonOperator) error {
 		return err
 	}
 
-	err = AssembleAddonOperator(op, app.ModulesDir, globalHooksDir, tempDir, debugServer, runtimeConfig)
+	err = op.Assemble(app.ModulesDir, globalHooksDir, tempDir, debugServer, runtimeConfig)
 	if err != nil {
 		log.Errorf("Fatal: %s", err)
 		return err
@@ -64,8 +61,8 @@ func Bootstrap(op *AddonOperator) error {
 	return nil
 }
 
-func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir string, tempDir string, debugServer *debug.Server, runtimeConfig *config.Config) (err error) {
-	RegisterDefaultRoutes(op)
+func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, tempDir string, debugServer *debug.Server, runtimeConfig *config.Config) (err error) {
+	op.RegisterDefaultRoutes()
 	RegisterAddonOperatorMetrics(op.MetricStorage)
 	StartLiveTicksUpdater(op.MetricStorage)
 	StartTasksQueueLengthUpdater(op.MetricStorage, op.TaskQueues)
@@ -73,8 +70,8 @@ func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir 
 	// Register routes in debug server.
 	shell_operator.RegisterDebugQueueRoutes(debugServer, op.ShellOperator)
 	shell_operator.RegisterDebugConfigRoutes(debugServer, runtimeConfig)
-	RegisterDebugGlobalRoutes(debugServer, op)
-	RegisterDebugModuleRoutes(debugServer, op)
+	op.RegisterDebugGlobalRoutes(debugServer)
+	op.RegisterDebugModuleRoutes(debugServer)
 
 	// Helm client factory.
 	op.Helm, err = helm.InitHelmClientFactory(op.KubeClient)
@@ -89,7 +86,7 @@ func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir 
 		return fmt.Errorf("initialize Helm resources manager: %s", err)
 	}
 
-	SetupModuleManager(op, modulesDir, globalHooksDir, tempDir, runtimeConfig)
+	op.SetupModuleManager(modulesDir, globalHooksDir, tempDir, runtimeConfig)
 
 	err = op.InitModuleManager()
 	if err != nil {
@@ -99,25 +96,32 @@ func AssembleAddonOperator(op *AddonOperator, modulesDir string, globalHooksDir 
 	return nil
 }
 
-func SetupModuleManager(op *AddonOperator, modulesDir string, globalHooksDir string, tempDir string, runtimeConfig *config.Config) {
+func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string, runtimeConfig *config.Config) {
 	// Create manager to check values in ConfigMap.
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager()
-	op.KubeConfigManager.WithKubeClient(op.KubeClient)
-	op.KubeConfigManager.WithContext(op.ctx)
-	op.KubeConfigManager.WithNamespace(app.Namespace)
-	op.KubeConfigManager.WithConfigMapName(app.ConfigMapName)
-	op.KubeConfigManager.WithRuntimeConfig(runtimeConfig)
+	kcfg := kube_config_manager.Config{
+		Namespace:     app.Namespace,
+		ConfigMapName: app.ConfigMapName,
+		KubeClient:    op.KubeClient,
+		RuntimeConfig: runtimeConfig,
+	}
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, &kcfg)
+	op.KubeConfigManager = manager
 
 	// Create manager that runs modules and hooks.
-	op.ModuleManager = module_manager.NewModuleManager()
-	op.ModuleManager.WithContext(op.ctx)
-	op.ModuleManager.WithDirectories(modulesDir, globalHooksDir, tempDir)
-	op.ModuleManager.WithKubeConfigManager(op.KubeConfigManager)
-	op.ModuleManager.WithHelm(op.Helm)
-	op.ModuleManager.WithScheduleManager(op.ScheduleManager)
-	op.ModuleManager.WithKubeEventManager(op.KubeEventsManager)
-	op.ModuleManager.WithKubeObjectPatcher(op.ObjectPatcher)
-	op.ModuleManager.WithMetricStorage(op.MetricStorage)
-	op.ModuleManager.WithHookMetricStorage(op.HookMetricStorage)
-	op.ModuleManager.WithHelmResourcesManager(op.HelmResourcesManager)
+	dirConfig := module_manager.DirectoryConfig{
+		ModulesDir:     modulesDir,
+		GlobalHooksDir: globalHooksDir,
+		TempDir:        tempDir,
+	}
+	cfg := module_manager.ModuleManagerDependencies{
+		KubeObjectPatcher:    op.ObjectPatcher,
+		KubeEventsManager:    op.KubeEventsManager,
+		KubeConfigManager:    manager,
+		ScheduleManager:      op.ScheduleManager,
+		Helm:                 op.Helm,
+		HelmResourcesManager: op.HelmResourcesManager,
+		MetricStorage:        op.MetricStorage,
+		HookMetricStorage:    op.HookMetricStorage,
+	}
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirConfig, &cfg)
 }

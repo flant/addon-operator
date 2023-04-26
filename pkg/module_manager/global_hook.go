@@ -9,14 +9,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
 
+	. "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-
-	. "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-
-	"github.com/flant/addon-operator/pkg/utils"
 )
 
 type GlobalHook struct {
@@ -36,52 +34,52 @@ func NewGlobalHook(name, path string) *GlobalHook {
 	return res
 }
 
-func (g *GlobalHook) WithConfig(configOutput []byte) (err error) {
-	err = g.Config.LoadAndValidate(configOutput)
+func (h *GlobalHook) WithConfig(configOutput []byte) (err error) {
+	err = h.Config.LoadAndValidate(configOutput)
 	if err != nil {
-		return fmt.Errorf("load global hook '%s' config: %s\nhook --config output: %s", g.Name, err.Error(), configOutput)
+		return fmt.Errorf("load global hook '%s' config: %s\nhook --config output: %s", h.Name, err.Error(), configOutput)
 	}
 	// Make HookController and GetConfigDescription work.
-	g.Hook.Config = &g.Config.HookConfig
-	g.Hook.RateLimiter = hook.CreateRateLimiter(g.Hook.Config)
+	h.Hook.Config = &h.Config.HookConfig
+	h.Hook.RateLimiter = hook.CreateRateLimiter(h.Hook.Config)
 
 	return nil
 }
 
-func (g *GlobalHook) WithGoConfig(config *go_hook.HookConfig) (err error) {
-	g.Config, err = NewGlobalHookConfigFromGoConfig(config)
+func (h *GlobalHook) WithGoConfig(config *go_hook.HookConfig) (err error) {
+	h.Config, err = NewGlobalHookConfigFromGoConfig(config)
 	if err != nil {
 		return err
 	}
 
 	// Make HookController and GetConfigDescription work.
-	g.Hook.Config = &g.Config.HookConfig
-	g.Hook.RateLimiter = hook.CreateRateLimiter(g.Hook.Config)
+	h.Hook.Config = &h.Config.HookConfig
+	h.Hook.RateLimiter = hook.CreateRateLimiter(h.Hook.Config)
 	return nil
 }
 
-func (gh *GlobalHook) GetConfigDescription() string {
+func (h *GlobalHook) GetConfigDescription() string {
 	msgs := []string{}
-	if gh.Config.BeforeAll != nil {
-		msgs = append(msgs, fmt.Sprintf("beforeAll:%d", int64(gh.Config.BeforeAll.Order)))
+	if h.Config.BeforeAll != nil {
+		msgs = append(msgs, fmt.Sprintf("beforeAll:%d", int64(h.Config.BeforeAll.Order)))
 	}
-	if gh.Config.AfterAll != nil {
-		msgs = append(msgs, fmt.Sprintf("afterAll:%d", int64(gh.Config.AfterAll.Order)))
+	if h.Config.AfterAll != nil {
+		msgs = append(msgs, fmt.Sprintf("afterAll:%d", int64(h.Config.AfterAll.Order)))
 	}
-	msgs = append(msgs, gh.Hook.GetConfigDescription())
+	msgs = append(msgs, h.Hook.GetConfigDescription())
 	return strings.Join(msgs, ", ")
 }
 
 // Order return float order number for bindings with order.
-func (g *GlobalHook) Order(binding BindingType) float64 {
-	if g.Config.HasBinding(binding) {
+func (h *GlobalHook) Order(binding BindingType) float64 {
+	if h.Config.HasBinding(binding) {
 		switch binding {
 		case BeforeAll:
-			return g.Config.BeforeAll.Order
+			return h.Config.BeforeAll.Order
 		case AfterAll:
-			return g.Config.AfterAll.Order
+			return h.Config.AfterAll.Order
 		case OnStartup:
-			return g.Config.OnStartup.Order
+			return h.Config.OnStartup.Order
 		}
 	}
 	return 0.0
@@ -154,9 +152,9 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 		logEntry.Debugf("snapshot info: %s", info)
 	}
 
-	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version, h.moduleManager.KubeObjectPatcher)
+	globalHookExecutor := NewHookExecutor(h, bindingContext, h.Config.Version, h.moduleManager.dependencies.KubeObjectPatcher)
 	globalHookExecutor.WithLogLabels(logLabels)
-	globalHookExecutor.WithHelm(h.moduleManager.helm)
+	globalHookExecutor.WithHelm(h.moduleManager.dependencies.Helm)
 	hookResult, err := globalHookExecutor.Run()
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
@@ -166,16 +164,16 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 			"activation": logLabels["event.type"],
 		}
 		// usage metrics
-		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}global_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
-		h.moduleManager.metricStorage.HistogramObserve("{PREFIX}global_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
-		h.moduleManager.metricStorage.GaugeSet("{PREFIX}global_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
+		h.moduleManager.dependencies.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
+		h.moduleManager.dependencies.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
+		h.moduleManager.dependencies.MetricStorage.GaugeSet("{PREFIX}global_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.Name, err)
 	}
 
 	// Apply metric operations
-	err = h.moduleManager.hookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
+	err = h.moduleManager.dependencies.HookMetricStorage.SendBatch(hookResult.Metrics, map[string]string{
 		"hook": h.Name,
 	})
 	if err != nil {
@@ -183,7 +181,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 	}
 
 	if len(hookResult.ObjectPatcherOperations) > 0 {
-		err = h.moduleManager.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
+		err = h.moduleManager.dependencies.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
 		if err != nil {
 			return err
 		}
@@ -214,7 +212,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				)
 			}
 
-			err := h.moduleManager.kubeConfigManager.SaveGlobalConfigValues(configValuesPatchResult.Values)
+			err := h.moduleManager.dependencies.KubeConfigManager.SaveGlobalConfigValues(configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)

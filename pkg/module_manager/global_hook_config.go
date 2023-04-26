@@ -5,18 +5,16 @@ import (
 	"fmt"
 
 	"github.com/davecgh/go-spew/spew"
-	types2 "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/go-openapi/spec"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-
-	. "github.com/flant/shell-operator/pkg/hook/types"
-
 	"github.com/flant/shell-operator/pkg/hook/config"
+	. "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	types2 "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/flant/shell-operator/pkg/schedule_manager/types"
 )
 
@@ -288,8 +286,8 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 	/*** A HUGE copy paste from shell-operator’s hook_config.ConvertAndCheckV1   ***/
 	// WARNING no checks and defaults!
 	for i, kubeCfg := range input.Kubernetes {
-		//err := c.CheckOnKubernetesEventV1(kubeCfg, fmt.Sprintf("kubernetes[%d]", i))
-		//if err != nil {
+		// err := c.CheckOnKubernetesEventV1(kubeCfg, fmt.Sprintf("kubernetes[%d]", i))
+		// if err != nil {
 		//	return fmt.Errorf("invalid kubernetes config [%d]: %v", i, err)
 		//}
 
@@ -341,7 +339,7 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		c.OnKubernetesEvents = append(c.OnKubernetesEvents, kubeConfig)
 	}
 
-	//for i, kubeCfg := range c.V1.OnKubernetesEvent {
+	// for i, kubeCfg := range c.V1.OnKubernetesEvent {
 	//	if len(kubeCfg.IncludeSnapshotsFrom) > 0 {
 	//		err := c.CheckIncludeSnapshots(kubeCfg.IncludeSnapshotsFrom...)
 	//		if err != nil {
@@ -354,8 +352,8 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 	// are depend on kubernetes bindings.
 	c.Schedules = []ScheduleConfig{}
 	for _, inSch := range input.Schedule {
-		//err := c.CheckScheduleV1(rawSchedule)
-		//if err != nil {
+		// err := c.CheckScheduleV1(rawSchedule)
+		// if err != nil {
 		//	return fmt.Errorf("invalid schedule config [%d]: %v", i, err)
 		//}
 
@@ -379,8 +377,8 @@ func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		}
 		res.Group = "main"
 
-		//schedule, err := c.ConvertScheduleV1(rawSchedule)
-		//if err != nil {
+		// schedule, err := c.ConvertScheduleV1(rawSchedule)
+		// if err != nil {
 		//	return err
 		//}
 		c.Schedules = append(c.Schedules, res)

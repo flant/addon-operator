@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	klient "github.com/flant/kube-client/client"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -13,13 +12,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	klient "github.com/flant/kube-client/client"
 )
 
 const testConfigMapName = "test-addon-operator"
 
 // initKubeConfigManager returns an initialized KubeConfigManager instance.
 // Pass string or map to prefill ConfigMap.
-func initKubeConfigManager(t *testing.T, kubeClient klient.Client, cmData map[string]string, cmContent string) KubeConfigManager {
+func initKubeConfigManager(t *testing.T, kubeClient klient.Client, cmData map[string]string, cmContent string) *KubeConfigManager {
 	g := NewWithT(t)
 
 	cm := &v1.ConfigMap{}
@@ -37,11 +37,13 @@ func initKubeConfigManager(t *testing.T, kubeClient klient.Client, cmData map[st
 	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
 
-	kcm := NewKubeConfigManager()
-	kcm.WithContext(context.Background())
-	kcm.WithKubeClient(kubeClient)
-	kcm.WithNamespace("default")
-	kcm.WithConfigMapName(testConfigMapName)
+	kcfg := Config{
+		Namespace:     "default",
+		ConfigMapName: testConfigMapName,
+		KubeClient:    kubeClient,
+		RuntimeConfig: nil,
+	}
+	kcm := NewKubeConfigManager(context.Background(), &kcfg)
 
 	err = kcm.Init()
 	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")
@@ -406,9 +408,9 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 
 	g.Expect(ev).To(Equal(KubeConfigInvalid), "Invalid name in module section should generate 'invalid' event")
 
-	//kcm.SafeReadConfig(func(config *KubeConfig) {
+	// kcm.SafeReadConfig(func(config *KubeConfig) {
 	//	g.Expect(config.IsInvalid).To(Equal(true), "Current config should be invalid")
-	//})
+	// })
 
 	// Update ConfigMap with new module section with bad name.
 	validSectionPatch := `[{"op": "add", 

@@ -1,28 +1,29 @@
 package metrics
 
 import (
-	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 	"k8s.io/utils/pointer"
+
+	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
-type inMemoryMetricsCollector struct {
+type MemoryMetricsCollector struct {
 	defaultGroup string
 
 	metrics []operation.MetricOperation
 }
 
 // NewCollector creates new metrics collector
-func NewCollector(defaultGroup string) *inMemoryMetricsCollector {
-	return &inMemoryMetricsCollector{defaultGroup: defaultGroup, metrics: make([]operation.MetricOperation, 0)}
+func NewCollector(defaultGroup string) *MemoryMetricsCollector {
+	return &MemoryMetricsCollector{defaultGroup: defaultGroup, metrics: make([]operation.MetricOperation, 0)}
 }
 
 // Inc increments specified Counter metric
-func (dms *inMemoryMetricsCollector) Inc(name string, labels map[string]string, opts ...Option) {
+func (dms *MemoryMetricsCollector) Inc(name string, labels map[string]string, opts ...Option) {
 	dms.Add(name, 1, labels, opts...)
 }
 
 // Add adds custom value for Counter metric
-func (dms *inMemoryMetricsCollector) Add(name string, value float64, labels map[string]string, options ...Option) {
+func (dms *MemoryMetricsCollector) Add(name string, value float64, labels map[string]string, options ...Option) {
 	opts := dms.defaultMetricsOptions()
 
 	for _, opt := range options {
@@ -39,7 +40,7 @@ func (dms *inMemoryMetricsCollector) Add(name string, value float64, labels map[
 }
 
 // Set specifies custom value for Gauge metric
-func (dms *inMemoryMetricsCollector) Set(name string, value float64, labels map[string]string, options ...Option) {
+func (dms *MemoryMetricsCollector) Set(name string, value float64, labels map[string]string, options ...Option) {
 	opts := dms.defaultMetricsOptions()
 
 	for _, opt := range options {
@@ -56,7 +57,7 @@ func (dms *inMemoryMetricsCollector) Set(name string, value float64, labels map[
 }
 
 // Expire marks metric's group as expired
-func (dms *inMemoryMetricsCollector) Expire(group string) {
+func (dms *MemoryMetricsCollector) Expire(group string) {
 	if group == "" {
 		group = dms.defaultGroup
 	}
@@ -66,12 +67,12 @@ func (dms *inMemoryMetricsCollector) Expire(group string) {
 	})
 }
 
-// CollectMetrics returns all collected metrics
-func (dms *inMemoryMetricsCollector) CollectedMetrics() []operation.MetricOperation {
+// CollectedMetrics returns all collected metrics
+func (dms *MemoryMetricsCollector) CollectedMetrics() []operation.MetricOperation {
 	return dms.metrics
 }
 
-func (dms *inMemoryMetricsCollector) defaultMetricsOptions() *metricsOptions {
+func (dms *MemoryMetricsCollector) defaultMetricsOptions() *metricsOptions {
 	return &metricsOptions{group: dms.defaultGroup}
 }
 

@@ -3,9 +3,10 @@ package module_manager
 import (
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	. "github.com/onsi/gomega"
 )
 
 func Test_GlobalHook_WithConfig(t *testing.T) {
@@ -54,7 +55,4 @@ beforeAll: 23
 			tt.assertFn()
 		})
 	}
-}
-
-func Test_GlobalHook_Description(t *testing.T) {
 }
