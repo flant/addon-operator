@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/flant/addon-operator/pkg/module_manager/apis/v1alpha1"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -18,6 +20,9 @@ func (op *AddonOperator) RegisterDefaultRoutes() {
     <p>
       <a href="/metrics">prometheus metrics</a>
       <a href="/healthz">health url</a>
+      <a href="/readyz">ready url</a>
+
+      <a href="/validate/v1alpha1/modules">validation admission webhook for Module CR</a>
     </p>
     </body>
     </html>`))
@@ -28,7 +33,7 @@ func (op *AddonOperator) RegisterDefaultRoutes() {
 		writer.WriteHeader(http.StatusOK)
 	})
 
-	http.HandleFunc("/ready", func(w http.ResponseWriter, request *http.Request) {
+	http.HandleFunc("/readyz", func(w http.ResponseWriter, request *http.Request) {
 		if op.IsStartupConvergeDone() {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("Startup converge done.\n"))
@@ -62,4 +67,6 @@ func (op *AddonOperator) RegisterDefaultRoutes() {
 
 		_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
 	})
+
+	http.Handle("/validate/v1alpha1/modules", v1alpha1.ValidationHandler())
 }
