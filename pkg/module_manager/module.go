@@ -968,7 +968,7 @@ func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Ope
 
 	switch mm.registerModulesGV {
 	case "deckhouse.io/v1alpha1":
-		cr = v1alpha1.NewModule(module.Name)
+		cr = v1alpha1.NewModule(module.Name, module.Order)
 
 	default:
 		return nil, fmt.Errorf("unknown GroupVersion for Module registration: %s", mm.registerModulesGV)

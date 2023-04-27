@@ -12,14 +12,13 @@ type Module struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec ModuleSpec `json:"spec"`
+	Properties ModuleProperties `json:"properties"`
 
 	Status ModuleStatus `json:"status,omitempty"`
 }
 
-type ModuleSpec struct {
-	Name string `json:"name"`
-	Foo  string `json:"foo"`
+type ModuleProperties struct {
+	Weight int `json:"weight"`
 }
 
 type ModuleStatus struct{}
@@ -37,7 +36,7 @@ func (mk *moduleKind) GroupVersionKind() schema.GroupVersionKind {
 
 var moduleGVK = schema.GroupVersionKind{Group: "deckhouse.io", Version: "v1alpha1", Kind: "Module"}
 
-func NewModule(moduleName string) *Module {
+func NewModule(moduleName string, order int) *Module {
 	return &Module{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: moduleGVK.GroupVersion().String(),
@@ -46,9 +45,8 @@ func NewModule(moduleName string) *Module {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: moduleName,
 		},
-		Spec: ModuleSpec{
-			Name: moduleName,
-			Foo:  "akak",
+		Properties: ModuleProperties{
+			Weight: order,
 		},
 		Status: ModuleStatus{},
 	}

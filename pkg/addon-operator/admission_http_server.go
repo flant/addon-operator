@@ -2,7 +2,6 @@ package addon_operator
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/flant/addon-operator/pkg/module_manager/apis/v1alpha1"
@@ -17,5 +16,8 @@ func aaa() {
 		Handler: mux,
 	}
 
-	log.Fatal(srv.ListenAndServeTLS("/certs/tls.crt", "/certs/tls.key"))
+	err := srv.ListenAndServeTLS("/certs/tls.crt", "/certs/tls.key")
+	if err != nil {
+		fmt.Println("TMP ERR", err)
+	}
 }
