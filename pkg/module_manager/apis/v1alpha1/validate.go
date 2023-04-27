@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"reflect"
 
 	log "github.com/sirupsen/logrus"
 	kwhhttp "github.com/slok/kubewebhook/v2/pkg/http"
@@ -16,17 +15,19 @@ import (
 
 // +k8s:deepcopy-gen=false
 var vf = kwhvalidating.ValidatorFunc(func(ctx context.Context, review *model.AdmissionReview, obj metav1.Object) (result *kwhvalidating.ValidatorResult, err error) {
-	fmt.Printf("VALIDATION REVIEW: %v\n", review)
+	fmt.Println("USER", review.UserInfo.Username)
 
-	module, ok := obj.(*Module)
-	if !ok {
-		fmt.Println("NOT module", ok)
-		fmt.Println(reflect.TypeOf(obj))
-		fmt.Println(obj)
-		return &kwhvalidating.ValidatorResult{}, nil
+	if review.UserInfo.Username != "deckhouse-controller" {
+		return &kwhvalidating.ValidatorResult{
+			Valid:   false,
+			Message: "Module manual delete is forbidden",
+		}, nil
 	}
 
-	fmt.Printf("MODULE: %v\n", module)
+	//module, ok := obj.(*Module)
+	//if !ok {
+	//	return &kwhvalidating.ValidatorResult{}, nil
+	//}
 
 	return &kwhvalidating.ValidatorResult{
 		Valid:   true,
