@@ -5,6 +5,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// Module kubernetes object
 type Module struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.

@@ -14,7 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +k8s:deepcopy-gen=false
 var vf = kwhvalidating.ValidatorFunc(func(ctx context.Context, review *model.AdmissionReview, obj metav1.Object) (result *kwhvalidating.ValidatorResult, err error) {
+	fmt.Printf("VALIDATION REVIEW: %v\n", review)
+
 	module, ok := obj.(*Module)
 	if !ok {
 		fmt.Println("NOT module", ok)
@@ -23,8 +26,6 @@ var vf = kwhvalidating.ValidatorFunc(func(ctx context.Context, review *model.Adm
 		return &kwhvalidating.ValidatorResult{}, nil
 	}
 
-	fmt.Printf("VALIDATION REVIEW: %v\n", review)
-
 	fmt.Printf("MODULE: %v\n", module)
 
 	return &kwhvalidating.ValidatorResult{
@@ -32,6 +33,8 @@ var vf = kwhvalidating.ValidatorFunc(func(ctx context.Context, review *model.Adm
 		Message: "",
 	}, nil
 })
+
+// +k8s:deepcopy-gen=false
 
 func ValidationHandler() http.Handler {
 	kl := kwhlogrus.NewLogrus(log.NewEntry(log.StandardLogger()))
