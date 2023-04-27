@@ -11,11 +11,11 @@ The other keys must match the [module's name](MODULES.md#module-structure) conve
 Hook receives values via files on execution. These schemas can help you understand the flow of values for a global hook and for a module hook:
 
 <p align="center">
-<img width="407" src="docs/module_values_flow.png" alt="Flow of values for module hook" />
+<img width="1024" src="image/module_values_flow.png" alt="Flow of values for module hook" />
 </p>
 
 <p align="center">
-<img width="407" src="docs/global_values_flow.png" alt="Flow of values for global hook" />
+<img width="1024" src="image/global_values_flow.png" alt="Flow of values for global hook" />
 </p>
 
 The values can be represented as:
@@ -38,8 +38,8 @@ An example of global values in `$MODULES_DIR/values.yaml`:
 
 ```yaml
 global:
-  param1: value1
-  param2: value2
+  param1: value1
+  param2: value2
 simpleModule:
   modParam1: value3
 ```
@@ -48,8 +48,8 @@ An example of module values in `$MODULES_DIR/001-simple-module/values.yaml`:
 
 ```yaml
 simpleModule:
-  modParam1: value1
-  modParam2: value2
+  modParam1: value1
+  modParam2: value2
 ```
 
 ## ConfigMap/addon-operator
@@ -62,12 +62,12 @@ An example of ConfigMap/addon-operator:
 
 ```yaml
 data:
-  global: |                 # vertical bar is required here
-    param1: newValue
-    param3: valu3
-  simpleModule: |           # module name should be in camelCase
-    modParam2: newValue2
-  anotherModule: "false"    # `false' value disables a module
+  global: | # vertical bar is required here
+    param1: newValue
+    param3: valu3
+  simpleModule: | # module name should be in camelCase
+    modParam2: newValue2
+  anotherModule: "false" # `false' value disables a module
 ```
 
 ## Update values
@@ -137,22 +137,22 @@ Let’s assume the following values are defined:
 $ cat modules/values.yaml:
 
 global:
-  param1: 100
-  param2: "Yes"
+  param1: 100
+  param2: "Yes"
 
 $ cat modules/01-some-module/values.yaml
 
 someModule:
-  param1: "String"
+  param1: "String"
 
 $ kubectl -n addon-operator get cm/addon-operator -o yaml
 
 data:
-  global: |
-    param1: 200
-  someModule: |
-    param1: "Long string"
-    param2: "FOO"
+  global: |
+    param1: 200
+  someModule: |
+    param1: "Long string"
+    param2: "FOO"
 ```
 
 The Addon-operator generates the following files with values:
@@ -161,20 +161,20 @@ The Addon-operator generates the following files with values:
 $ cat $CONFIG_VALUES_PATH
 
 {"global":{
-    "param1":200
+    "param1":200
 }, "someModule":{
-    "param1":"Long string",
-    "param2": "FOO"
+    "param1":"Long string",
+    "param2": "FOO"
 }}
 
 $ cat $VALUES_PATH
 
 {"global":{
-    "param1":200,
-    "param2": "YES"
+    "param1":200,
+    "param2": "YES"
 }, "someModule":{
-    "param1":"Long string",
-    "param2": "FOO"
+    "param1":"Long string",
+    "param2": "FOO"
 }}
 
 ```
@@ -187,7 +187,7 @@ $ cat /modules/001-some-module/hooks/hook.sh
 #!/usr/bin/env bash
 ...
 cat > $CONFIG_VALUES_JSON_PATCH_PATH <<EOF
-  [{"op":"add", "path":"/someModule/param3", "value":"newValue"}]
+    [{"op":"add", "path":"/someModule/param3", "value":"newValue"}]
 EOF
 ...
 ```
@@ -196,12 +196,12 @@ Now the ConfigMap/addon-operator has the following content:
 
 ```shell
 data:
-  global: |
-    param1: 200
-  someModule: |
-    param1: "Long string"
-    param2: "FOO"
-    param3: "newValue"
+  global: |
+    param1: 200
+  someModule: |
+    param1: "Long string"
+    param2: "FOO"
+    param3: "newValue"
 ```
 
 Next time the hook is executed, the Addon-operator would generate the following files with values:
@@ -210,23 +210,23 @@ Next time the hook is executed, the Addon-operator would generate the following 
 $ cat $CONFIG_VALUES_PATH
 
 {"global":{
-     "param1":200
+    "param1":200
 },
 "someModule":{
-    "param1":"Long string",
-    "param2": "FOO",
-    "param3": "newValue"
+    "param1":"Long string",
+    "param2": "FOO",
+    "param3": "newValue"
 }}
 
 $ cat $VALUES_PATH
 
 {"global":{
-    "param1":200,
-    "param2": "YES"
+    "param1":200,
+    "param2": "YES"
 }, "someModule":{
-    "param1":"Long string",
-    "param2": "FOO",
-    "param3": "newValue"
+    "param1":"Long string",
+    "param2": "FOO",
+    "param3": "newValue"
 }}
 ```
 

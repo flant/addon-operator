@@ -1,5 +1,5 @@
 <p align="center">
-<img src="docs/logo-addon-operator-small.png" alt="addon-operator logo" />
+<img src="docs/src/image/logo-addon-operator-small.png" alt="addon-operator logo" />
 </p>
 
 <p align="center">
@@ -9,18 +9,6 @@
 </p>
 
 **Addon-operator** combines Helm charts with hooks and values storage to transform charts into smart modules that configure themselves and respond to changes in the cluster. It is a sister project for [shell-operator](https://github.com/flant/shell-operator) and is actively used in [Deckhouse Kubernetes Platform](https://github.com/deckhouse/deckhouse) to implement its modules.
-
-**Contents**
-
-* [Features](#features)
-* [Overview](#overview)
-  * [Hooks and Helm values](#hooks-and-helm-values)
-  * [Modules](#modules)
-* [Installation](#installation)
-  * [Examples](#examples)
-* [What's next?](#whats-next)
-* [Community](#community)
-* [License](#license)
 
 # Features
 
@@ -40,38 +28,9 @@ Additionally, addon-operator provides:
 - *global hooks* for figuring out parameters and performing actions that affect several dependent modules;
 - off-the-shelf *metrics* for monitoring via Prometheus.
 
-# Overview
+# Documentation
 
-## Hooks and Helm values
-
-Hooks are triggered by Kubernetes events and in response to other stimuli.
-
-![Hooks are triggered by Kubernetes events](docs/readme-1.gif)
-
-A hook is an executable file that can make changes to Kubernetes and set values of Helm (they are stored in the memory of addon-operator) during execution.
-
-![A hook is an executable file](docs/readme-2.gif)
-
-Hooks are a part of the module. Also, there is a Helm chart in the module. If the hook makes changes to values, then addon-operator would upgrade the release of the Helm chart.
-
-![Hook is a part of the module](docs/readme-3.gif)
-
-## Modules
-
-There can be many modules.
-
-![Many modules](docs/readme-4.gif)
-
-In addition to modules, addon-operator supports **global hooks** and **global values**. They have a **storage of values**. Global hooks are triggered by events and when active they can:
-
-- Make changes to Kubernetes cluster;
-- Make changes to global values storage.
-
-![Global hooks and global values](docs/readme-5.gif)
-
-If the global hook changes values in the global storage, then addon-operator triggers an upgrade of releases of all Helm charts.
-
-![Changes in global values cause reinstallation](docs/readme-6.gif)
+Please see the [docs](https://flant.github.io/addon-operator/) for more in-depth information and supported features.
 
 # Installation
 
@@ -89,10 +48,7 @@ Sharing your examples of using addon-operator is much appreciated. Please, use t
 
 # What's next?
 
-- Find out more on [lifecycle](LIFECYCLE.md) of addon-operator and how to use [modules](MODULES.md), [hooks](HOOKS.md) and [values](VALUES.md).
-- See [METRICS](METRICS.md) on how to monitor addon-operator.
-- Explore [shell-operator](https://github.com/flant/shell-operator) documentation, especially its [hooks](https://github.com/flant/shell-operator/blob/master/HOOKS.md) section.
-- Discover how to tune [deploy settings](RUNNING.md).
+Explore [shell-operator](https://github.com/flant/shell-operator) documentation, especially its [hooks](https://github.com/flant/shell-operator/blob/main/docs/src/HOOKS.md) section.
 
 # Community
 

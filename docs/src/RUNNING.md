@@ -69,11 +69,11 @@ dev_cluster_live_ticks 32
 
 ### Kubernetes client settings
 
-**KUBE_CONFIG** — a path to a kubernetes client config (~/.kube/config)
+**KUBE_CONFIG** — a path to a kubernetes client config (~/.kube/config)
 
 **KUBE_CONTEXT** — a context name in a kubernetes client config (similar to a `--context` flag of a kubectl)
 
-**KUBE_CLIENT_QPS** and **KUBE_CLIENT_BURST** — qps and burst parameters to rate-limit requests to Kubernetes API server. Default qps is 5 and burst is 10 as in a [rest/config.go](https://github.com/kubernetes/client-go/blob/v0.17.0/rest/config.go#L44) file.
+**KUBE_CLIENT_QPS** and **KUBE_CLIENT_BURST** — qps and burst parameters to rate-limit requests to Kubernetes API server. Default qps is 5 and burst is 10 as in a [rest/config.go](https://github.com/kubernetes/client-go/blob/v0.17.0/rest/config.go#L44) file.
 
 ### Helm settings
 
@@ -97,11 +97,11 @@ env:
 
 ### Logging settings
 
-**LOG_TYPE** — Logging formatter type: `json`, `text` or `color`.
+**LOG_TYPE** — Logging formatter type: `json`, `text` or `color`.
 
-**LOG_LEVEL** — Logging level: `debug`, `info`, `error`.
+**LOG_LEVEL** — Logging level: `debug`, `info`, `error`.
 
-**LOG_NO_TIME** — 'true' value will disable timestamp logging. Useful when output is redirected to logging system that already adds timestamps. Default is 'false'.
+**LOG_NO_TIME** — 'true' value will disable timestamp logging. Useful when output is redirected to logging system that already adds timestamps. Default is 'false'.
 
 ## Debug
 
