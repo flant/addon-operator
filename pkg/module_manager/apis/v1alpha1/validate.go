@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	log "github.com/sirupsen/logrus"
 	kwhhttp "github.com/slok/kubewebhook/v2/pkg/http"
@@ -16,6 +17,9 @@ import (
 var vf = kwhvalidating.ValidatorFunc(func(ctx context.Context, review *model.AdmissionReview, obj metav1.Object) (result *kwhvalidating.ValidatorResult, err error) {
 	module, ok := obj.(*Module)
 	if !ok {
+		fmt.Println("NOT module", ok)
+		fmt.Println(reflect.TypeOf(obj))
+		fmt.Println(obj)
 		return &kwhvalidating.ValidatorResult{}, nil
 	}
 
@@ -34,7 +38,7 @@ func ValidationHandler() http.Handler {
 
 	// Create webhook.
 	wh, _ := kwhvalidating.NewWebhook(kwhvalidating.WebhookConfig{
-		ID:        "pod-annotate",
+		ID:        "module-operations",
 		Validator: vf,
 		Logger:    kl,
 	})
