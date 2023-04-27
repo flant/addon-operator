@@ -1,0 +1,10 @@
+[book]
+authors = ["The Addon-Operator Maintainers"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Addon-operator"
+
+[output.html]
+curly-quotes = true
+git-repository-url = "https://github.com/flant/addon-operator"

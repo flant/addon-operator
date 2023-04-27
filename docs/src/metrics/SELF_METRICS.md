@@ -1,6 +1,4 @@
-# Addon-operator metrics
-
-The Addon-operator implements Prometheus target at `/metrics` endpoint. The default port is `9650`.
+# Metrics
 
 * `addon_operator_binding_count{module="", hook=""}` — a gauge with bindings count for every hooks. Global hooks has empty "module" label.
 
@@ -23,9 +21,9 @@ The Addon-operator implements Prometheus target at `/metrics` endpoint. The defa
 * `addon_operator_module_hook_run_max_rss_bytes{module="", hook="", binding="", activation="", queue=""}` — a gauge with module hook max rss usage in bytes.
 
 * `addon_operator_module_discover_errors_total` – a counter of errors during the [modules discover](LIFECYCLE.md#modules-discover) process. It increases in these cases:
-  * an 'enabled' script is executed with an error
-  * a module hook return an invalid configuration
-  * a call to the Kubernetes API ends with an error (for example, retrieving Helm releases).
+    * an 'enabled' script is executed with an error
+    * a module hook return an invalid configuration
+    * a call to the Kubernetes API ends with an error (for example, retrieving Helm releases).
 * `addon_operator_module_run_errors_total{module=x}` – counter of errors on module [start-up](LIFECYCLE.md#modules-lifecycle).
 * `addon_operator_module_delete_errors_total{module=x}` – counter of errors on module [deletion](LIFECYCLE.md#modules-lifecycle).
 * `addon_operator_module_run_seconds{module=""}` — a histogram with module execution timings.
@@ -33,7 +31,7 @@ The Addon-operator implements Prometheus target at `/metrics` endpoint. The defa
 * `addon_operator_helm_operation_seconds{module="", activation="", operation=""}` — a histogram of different helm operations timings.
 
 * `addon_operator_convergence_seconds{activation=onStartup}` — a counter of seconds spent to execute "reload all modules" processes. "activation=OnStartup" label value can be used to retrieve information about first "reload all modules" when operator starts.
-* `addon_operator_convergence_total{activation=onStartup}` — a counter of "reload all modules" processes. 
+* `addon_operator_convergence_total{activation=onStartup}` — a counter of "reload all modules" processes.
 
 * `addon_operator_tasks_queue_length{queue=""}` – a gauge showing the length of the working queue. This metric can be used to warn about stuck hooks. It has the "queue" label with the queue name.
 
@@ -50,34 +48,8 @@ The Addon-operator implements Prometheus target at `/metrics` endpoint. The defa
 
 * `addon_operator_kube_snapshot_bytes{module="", hook="", binding="", queue=""}` — a gauge with size in bytes of cached objects for particular binding. Each cached object contains a Kubernetes object and/or result of jqFilter depending on the binding configuration. The size is a sum of the length of Kubernetes object in JSON format and the length of jqFilter‘s result in JSON format.
 
-* `addon_operator_kubernetes_client_request_result_total` — a counter of requests made by kubernetes/client-go library. 
+* `addon_operator_kubernetes_client_request_result_total` — a counter of requests made by kubernetes/client-go library.
 
-* `addon_operator_kubernetes_client_request_latency_seconds` — a histogram with latency of requests made by kubernetes/client-go library. 
+* `addon_operator_kubernetes_client_request_latency_seconds` — a histogram with latency of requests made by kubernetes/client-go library.
 
 * `addon_operator_tasks_queue_action_duration_seconds{queue_name="", queue_action=""}` — a histogram with measurements of low level queue operations. Use QUEUE_ACTIONS_METRICS="no" to disable this metric.
-
-
-## Custom metrics
-
-Hooks can export metrics by writing a set of operation on JSON format into $METRICS_PATH file.
-
-Operation to increase a counter:
-
-```json
-{"name":"metric_name","add":1,"labels":{"label1":"value1"}}
-```
-
-Operation to set a value for a gauge:
-
-```json
-{"name":"metric_name","set":33,"labels":{"label1":"value1"}}
-```
-
-Labels are not required, but Shell-operator adds `hook` and `module` labels.
-
-Several metrics can be expored at once. For example, this script will create 2 metrics:
-
-```
-echo '{"name":"hook_metric_count","add":1,"labels":{"label1":"value1"}}' >> $METRICS_PATH
-echo '{"name":"hook_metrics_items","add":1,"labels":{"label1":"value1"}}' >> $METRICS_PATH
-```

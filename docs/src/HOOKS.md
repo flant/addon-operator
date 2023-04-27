@@ -24,17 +24,17 @@ During execution, a module hook receives global values and module values. Module
 
 ### Overview
 
-| Binding  | Global? | Module? | Info |
-| ------------- | ------------- | --- | --- |
-| [onStartup](#onstartup)↗  | ✓ | – | On Addon-operator startup |
-| [onStartup](#onstartup)↗  | – |  ✓ | On Addon-operator startup or module enablement |
-| [beforeAll](#beforeall)↗ | ✓ | – | Before any modules are executed|
-| [afterAll](#afterall)↗ | ✓ | – | After all modules are executed|
-| [beforeHelm](#beforehelm)↗ | – | ✓ | Before executing `helm install` |
-| [afterHelm](#afterhelm)↗ | – | ✓ | After executing `helm install` |
-| [afterDeleteHelm](#afterdeletehelm)↗ | – | ✓ | After executing `helm delete` |
-| [schedule](#schedule)↗ | ✓ | ✓ | Run on schedule |
-| [kubernetes](#kubernetes)↗ | ✓ | ✓ | Run on event from Kubernetes |
+| Binding                              | Global? | Module? | Info                                           |
+|--------------------------------------|---------|---------|------------------------------------------------|
+| [onStartup](#onstartup)↗             | ✓       | –       | On Addon-operator startup                      |
+| [onStartup](#onstartup)↗             | –       | ✓       | On Addon-operator startup or module enablement |
+| [beforeAll](#beforeall)↗             | ✓       | –       | Before any modules are executed                |
+| [afterAll](#afterall)↗               | ✓       | –       | After all modules are executed                 |
+| [beforeHelm](#beforehelm)↗           | –       | ✓       | Before executing `helm install`                |
+| [afterHelm](#afterhelm)↗             | –       | ✓       | After executing `helm install`                 |
+| [afterDeleteHelm](#afterdeletehelm)↗ | –       | ✓       | After executing `helm delete`                  |
+| [schedule](#schedule)↗               | ✓       | ✓       | Run on schedule                                |
+| [kubernetes](#kubernetes)↗           | ✓       | ✓       | Run on event from Kubernetes                   |
 
 ### onStartup
 
