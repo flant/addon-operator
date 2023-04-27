@@ -41,6 +41,7 @@ func ValidationHandler() http.Handler {
 		ID:        "module-operations",
 		Validator: vf,
 		Logger:    kl,
+		Obj:       &Module{},
 	})
 
 	return kwhhttp.MustHandlerFor(kwhhttp.HandlerConfig{Webhook: wh, Logger: kl})
