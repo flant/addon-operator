@@ -1,0 +1,422 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Hooks - Addon-operator</title>
+                
+
+        <!-- Custom HTML head -->
+        
+
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+                <link rel="icon" href="favicon.svg">
+                        <link rel="shortcut icon" href="favicon.png">
+                <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+                <link rel="stylesheet" href="css/print.css" media="print">
+        
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+                <link rel="stylesheet" href="fonts/fonts.css">
+        
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+            </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Introduction</a></li><li class="chapter-item expanded "><a href="OVERVIEW.html"><strong aria-hidden="true">1.</strong> Overview</a></li><li class="chapter-item expanded "><a href="RUNNING.html"><strong aria-hidden="true">2.</strong> Running Addon-operator</a></li><li class="chapter-item expanded "><a href="LIFECYCLE.html"><strong aria-hidden="true">3.</strong> Lifecycle</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="LIFECYCLE-STEPS.html"><strong aria-hidden="true">3.1.</strong> Steps</a></li></ol></li><li class="chapter-item expanded "><a href="MODULES.html"><strong aria-hidden="true">4.</strong> Modules</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="HOOKS.html" class="active"><strong aria-hidden="true">4.1.</strong> Hooks</a></li><li class="chapter-item expanded "><a href="VALUES.html"><strong aria-hidden="true">4.2.</strong> Values</a></li></ol></li><li class="chapter-item expanded "><a href="metrics/ROOT.html"><strong aria-hidden="true">5.</strong> Metrics</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="metrics/SELF_METRICS.html"><strong aria-hidden="true">5.1.</strong> Self metrics</a></li><li class="chapter-item expanded "><a href="metrics/METRICS_FROM_HOOKS.html"><strong aria-hidden="true">5.2.</strong> Return metrics from hooks</a></li></ol></li></ol>            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                                                <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                                            </div>
+
+                    <h1 class="menu-title">Addon-operator</h1>
+
+                    <div class="right-buttons">
+                                                <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                                                                        <a href="https://github.com/flant/addon-operator" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                                                
+                    </div>
+                </div>
+
+                                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="hooks"><a class="header" href="#hooks">Hooks</a></h1>
+<p>A hook is an executable file that the Addon-operator executes when some event occurs. It can be a script or a compiled program written in any programming language.</p>
+<p>The Addon-operator pursues an agreement stating that the information is transferred to hooks via files and results of hook’s execution are also stored in files. Paths to files are passed via environment variables. The output to stdout will be written to the log, except for the case with the configuration output (run with <code>--config</code> flag). Such an agreement simplifies the work with the input data and reporting the results of the hook execution.</p>
+<h2 id="global-hooks"><a class="header" href="#global-hooks">Global hooks</a></h2>
+<p>Global hooks are stored in the <code>$GLOBAL_HOOKS_DIR/hooks</code> directory. The Addon-operator recursively searches all executable files in it and runs them with the <code>--config</code> flag. Each hook prints its events binding configuration in JSON or YAML format to stdout. If the execution fails, the Addon-operator terminates with the code of 1.</p>
+<p>Bindings from <a href="https://github.com/flant/shell-operator">shell-operator</a> are available for global hooks: <a href="#onstartup">onStartup</a>, <a href="#schedule">schedule</a> and <a href="#kubernetes">kubernetes</a>. The bindings to the events of the modules discovery process are also available: <a href="#beforeall">beforeAll</a> and <a href="#afterall">afterAll</a> (see <a href="LIFECYCLE.html#modules-discovery">modules discovery</a>).</p>
+<p>During execution, a global hook receives global values. These values can be modified by the hook to share data with global hooks, module hooks, and Helm templates. If the hook changes global values, the ‘global values changed’ event is generated and all modules are reloaded. For details on values storage, see <a href="VALUES.html">VALUES</a>. See also <a href="LIFECYCLE.html#reload-all-modules">an overview</a> and <a href="LIFECYCLE-STEPS.html#reload-all-modules">a detailed description</a> of ‘Reload all modules’ process.</p>
+<h2 id="module-hook"><a class="header" href="#module-hook">Module hook</a></h2>
+<p>Module hooks are executable files stored in the <code>hooks</code> subdirectory of the module. During the <a href="LIFECYCLE.html#modules-discovery">‘modules discovery’</a> process, if module appears to be enabled, the Addon-operator searches for executable files in <code>hooks</code> directory and executes them with <code>--config</code> flag. Each hook prints its event binding configuration in JSON or YAML format to stdout. The module discovery process restarts if an error occurs.</p>
+<p>Bindings from <a href="https://github.com/flant/shell-operator">shell-operator</a> are available for module hooks: <a href="#schedule">schedule</a> and <a href="#kubernetes">kubernetes</a>. The bindings of the module lifecycle are also available: <code>onStartup</code>, <code>beforeHelm</code>, <code>afterHelm</code>, <code>afterDeleteHelm</code> — see <a href="LIFECYCLE.html#module-lifecycle">module lifecycle</a>.</p>
+<p>During execution, a module hook receives global values and module values. Module values can be modified by the hook to share data with other hooks of the same module. If the hook changes module values, the ‘module values changed’ event is generated and then the module is reloaded. For details on values storage, see <a href="VALUES.html">VALUES</a>. See also a <a href="LIFECYCLE.html#module-lifecycle">module lifecycle</a> and a <a href="LIFECYCLE-STEPS.html#module-run">module run</a> detailed description.</p>
+<h2 id="bindings"><a class="header" href="#bindings">Bindings</a></h2>
+<h3 id="overview"><a class="header" href="#overview">Overview</a></h3>
+<table><thead><tr><th>Binding</th><th>Global?</th><th>Module?</th><th>Info</th></tr></thead><tbody>
+<tr><td><a href="#onstartup">onStartup</a>↗</td><td>✓</td><td>–</td><td>On Addon-operator startup</td></tr>
+<tr><td><a href="#onstartup">onStartup</a>↗</td><td>–</td><td>✓</td><td>On Addon-operator startup or module enablement</td></tr>
+<tr><td><a href="#beforeall">beforeAll</a>↗</td><td>✓</td><td>–</td><td>Before any modules are executed</td></tr>
+<tr><td><a href="#afterall">afterAll</a>↗</td><td>✓</td><td>–</td><td>After all modules are executed</td></tr>
+<tr><td><a href="#beforehelm">beforeHelm</a>↗</td><td>–</td><td>✓</td><td>Before executing <code>helm install</code></td></tr>
+<tr><td><a href="#afterhelm">afterHelm</a>↗</td><td>–</td><td>✓</td><td>After executing <code>helm install</code></td></tr>
+<tr><td><a href="#afterdeletehelm">afterDeleteHelm</a>↗</td><td>–</td><td>✓</td><td>After executing <code>helm delete</code></td></tr>
+<tr><td><a href="#schedule">schedule</a>↗</td><td>✓</td><td>✓</td><td>Run on schedule</td></tr>
+<tr><td><a href="#kubernetes">kubernetes</a>↗</td><td>✓</td><td>✓</td><td>Run on event from Kubernetes</td></tr>
+</tbody></table>
+<h3 id="onstartup"><a class="header" href="#onstartup">onStartup</a></h3>
+<p>Example:</p>
+<pre><code class="language-yaml">configVersion: v1
+onStartup: ORDER
+</code></pre>
+<p>Parameters:</p>
+<ul>
+<li><code>ORDER</code> — an integer value that specifies an execution order. When added to the “main” queue, the hooks will be sorted by this value and then alphabetically by file name.</li>
+</ul>
+<h3 id="beforeall"><a class="header" href="#beforeall">beforeAll</a></h3>
+<p>Example:</p>
+<pre><code class="language-yaml">configVersion: v1
+beforeAll: ORDER
+</code></pre>
+<p>Parameters:</p>
+<ul>
+<li><code>ORDER</code> — an integer value that specifies an execution order. When added to the “main” queue, the hooks will be sorted by this value and then alphabetically by file name.</li>
+</ul>
+<h3 id="afterall"><a class="header" href="#afterall">afterAll</a></h3>
+<p>Example:</p>
+<pre><code class="language-yaml">configVersion: v1
+afterAll: ORDER
+</code></pre>
+<p>Parameters:</p>
+<ul>
+<li><code>ORDER</code> — an integer value that specifies an execution order. When added to the “main” queue, the hooks will be sorted by this value and then alphabetically by file name.</li>
+</ul>
+<h3 id="beforehelm"><a class="header" href="#beforehelm">beforeHelm</a></h3>
+<p>Example:</p>
+<pre><code class="language-yaml">configVersion: v1
+beforeHelm: ORDER
+</code></pre>
+<p>Parameters:</p>
+<ul>
+<li><code>ORDER</code> — an integer value that specifies an execution order. When added to the “main” queue, the hooks will be sorted by this value and then alphabetically by file name.</li>
+</ul>
+<h3 id="afterhelm"><a class="header" href="#afterhelm">afterHelm</a></h3>
+<p>Example:</p>
+<pre><code class="language-yaml">configVersion: v1
+afterHelm: ORDER
+</code></pre>
+<p>Parameters:</p>
+<ul>
+<li><code>ORDER</code> — an integer value that specifies an execution order. When added to the “main” queue, the hooks will be sorted by this value and then alphabetically by file name.</li>
+</ul>
+<h3 id="afterdeletehelm"><a class="header" href="#afterdeletehelm">afterDeleteHelm</a></h3>
+<p>Example:</p>
+<pre><code class="language-yaml">configVersion: v1
+afterDeleteHelm: ORDER
+</code></pre>
+<p>Parameters:</p>
+<ul>
+<li><code>ORDER</code> — an integer value that specifies an execution order. When added to the “main” queue, the hooks will be sorted by this value and then alphabetically by file name.</li>
+</ul>
+<h3 id="schedule"><a class="header" href="#schedule">schedule</a></h3>
+<p>See the <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md#schedule">schedule binding</a> from the Shell-operator.</p>
+<h3 id="kubernetes"><a class="header" href="#kubernetes">kubernetes</a></h3>
+<p>See the <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md#kubernetes">kubernetes binding</a> from the Shell-operator.</p>
+<blockquote>
+<p>Note: Addon-operator requires a ServiceAccount with the appropriate <a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">RBAC</a> permissions. See <code>addon-operator-rbac.yaml</code> files in <a href="/examples">examples</a>.</p>
+</blockquote>
+<h2 id="execution-on-event"><a class="header" href="#execution-on-event">Execution on event</a></h2>
+<p>When an event associated with a hook is triggered, Addon-operator executes the hook without arguments and passes the global or module values from the storage of the values via temporary files. In response, a hook could return JSON patches to modify values. The detailed description of the storage of the values is available in <a href="VALUES.html">VALUES</a> document.</p>
+<h3 id="binding-context"><a class="header" href="#binding-context">Binding context</a></h3>
+<p>The binding context is a piece of information about the event which caused the hook execution.</p>
+<p>The <code>$BINDING_CONTEXT_PATH</code> environment variable contains the path to a file with a JSON array of structures with the following fields:</p>
+<ul>
+<li><code>binding</code> is a string from the <code>name</code> parameter for <code>schedule</code> or <code>kubernetes</code> bindings. Its value is a <em>binding type</em> if the parameter is not set and for other hooks. For example, the binding context for <code>beforeAll</code> binding type:</li>
+</ul>
+<pre><code class="language-json">[{&quot;binding&quot;:&quot;beforeAll&quot;}]
+</code></pre>
+<p>The binding context for <code>schedule</code> and <code>kubernetes</code> hooks contains additional fields, described in Shell-operator <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md#binding-context">documentation</a>.</p>
+<p><code>beforeAll</code> and <code>afterAll</code> global hooks and <code>beforeHelm</code>, <code>afterHelm</code>, and <code>afterDeleteHelm</code> module hooks are executed with the binding context that includes a <code>snapshots</code> field, which contains all Kubernetes objects that match hook’s <code>kubernetes</code> bindings configurations.</p>
+<p>For example, a global hook with <code>kubernetes</code> and <code>beforeAll</code> bindings may have this configuration:</p>
+<pre><code class="language-yaml">configVersion: v1
+beforeAll: 10
+kubernetes:
+- name: monitor-pods
+  apiVersion: v1
+  kind: Pod
+  jqFilter: &quot;.metadata.labels&quot;
+</code></pre>
+<p>This hook will be executed <em>before</em> updating the Helm release with this binding context:</p>
+<pre><code class="language-yaml">[{&quot;binding&quot;: &quot;beforeAll&quot;,
+&quot;snapshots&quot;: {
+  &quot;monitor-pods&quot;: [
+    {
+      &quot;object&quot;: {
+        &quot;kind&quot;: &quot;Pod&quot;,
+        &quot;apiVersion&quot;: &quot;v1&quot;,
+        &quot;metadata&quot;: {
+          &quot;name&quot;:&quot;pod-1r62e3&quot;,
+          &quot;namespace&quot;:&quot;default&quot;, ...},
+        ...
+      },
+      &quot;filterResult&quot;: {
+        &quot;label1&quot;: &quot;label value&quot;,
+        ...
+      },
+    },
+    ...
+    more pods
+    ...
+  ]
+}
+}]
+</code></pre>
+<h3 id="synchronization-for-global-hooks"><a class="header" href="#synchronization-for-global-hooks">Synchronization for global hooks</a></h3>
+<p><a href="https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context">Synchronization</a> is the first run of global hooks with “kubernetes” bindings. As with the Shell-operator, it executes right after the successful completion of global “onStartup” hooks, but the following behavior is slightly different. By default, the Addon-operator executes “beforeAll” hooks after the completion of hooks with <code>executeHookOnSynchronization: true</code>. Set <code>waitForSynchronization: false</code> to execute these hooks in parallel with “beforeAll” hooks.</p>
+<p>For example, a global hook with <code>kubernetes</code> and <code>beforeAll</code> bindings may have this configuration:</p>
+<pre><code class="language-yaml">configVersion: v1
+beforeAll: 10
+kubernetes:
+- name: monitor-pods
+  apiVersion: v1
+  kind: Pod
+  jqFilter: &quot;.metadata.labels&quot;
+- name: monitor-nodes
+  apiVersion: v1
+  kind: Node
+  jqFilter: &quot;.metadata.labels&quot;
+  queue: nodes-handling
+  executeHookOnSynchronization: false
+- name: monitor-cms
+  apiVersion: v1
+  kind: ConfigMap
+  jqFilter: &quot;.metadata.labels&quot;
+  queue: config-map-handling
+  waitForSynchronization: false
+- name: monitor-secrets
+  apiVersion: v1
+  kind: Secret
+  jqFilter: &quot;.metadata.labels&quot;
+  queue: secrets-handling
+  executeHookOnSynchronization: false
+  waitForSynchronization: false
+</code></pre>
+<p>This hook will be executed after “onStartup” as follows:</p>
+<ul>
+<li>Run hook with binding context for the “monitor-pods” binding in the “main” queue.</li>
+<li>Fill snapshot for the “monitor-nodes” binding, do not execute hook.</li>
+<li>Run in parallel:
+<ul>
+<li>hook with the “beforeAll” binding context in the “main” queue</li>
+<li>hook with the “monitor-cms” binding context in the “config-map-handling” queue</li>
+<li>fill snapshot for the “monitor-secrets” binding.</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>Note: there is no guarantee that the “beforeAll” binding context contains snapshots with ConfigMaps and Secrets.</p>
+</blockquote>
+<h3 id="synchronization-for-module-hooks"><a class="header" href="#synchronization-for-module-hooks">Synchronization for module hooks</a></h3>
+<p><a href="https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context">Synchronization</a> is the first run of module hooks with “kubernetes” bindings after module enablement. It executes right after the successful completion of the module’s “onStartup” hooks. By default, the Addon-operator executes “beforeHelm” hooks after the completion of hooks with <code>executeHookOnSynchronization: true</code>. Set <code>waitForSynchronization: false</code> to execute these hooks in parallel with “beforeHelm” hooks.</p>
+<p>For example, a module hook with <code>kubernetes</code> and <code>beforeHelm</code> bindings may have this configuration:</p>
+<pre><code class="language-yaml">configVersion: v1
+beforeHelm: 10
+kubernetes:
+- name: monitor-pods
+  apiVersion: v1
+  kind: Pod
+  jqFilter: &quot;.metadata.labels&quot;
+- name: monitor-nodes
+  apiVersion: v1
+  kind: Node
+  jqFilter: &quot;.metadata.labels&quot;
+  queue: nodes-handling
+  executeHookOnSynchronization: false
+- name: monitor-cms
+  apiVersion: v1
+  kind: ConfigMap
+  jqFilter: &quot;.metadata.labels&quot;
+  queue: config-map-handling
+  waitForSynchronization: false
+- name: monitor-secrets
+  apiVersion: v1
+  kind: Secret
+  jqFilter: &quot;.metadata.labels&quot;
+  queue: secrets-handling
+  executeHookOnSynchronization: false
+  waitForSynchronization: false
+</code></pre>
+<p>This hook will be executed after “onStartup” as follows:</p>
+<ul>
+<li>Run hook with binding context for the “monitor-pods” binding in the “main” queue.</li>
+<li>Fill snapshot for the “monitor-nodes” binding, do not execute hook.</li>
+<li>Run in parallel: 
+<ul>
+<li>hook with the “beforeHelm” binding context in the “main” queue</li>
+<li>hook with the “monitor-cms” binding context in the “config-map-handling” queue</li>
+<li>fill snapshot for the “monitor-secrets” binding</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>Note: there is no guarantee that the “beforeHelm” binding context contains snapshots with ConfigMaps and Secrets.</p>
+</blockquote>
+<h3 id="execution-rate"><a class="header" href="#execution-rate">Execution rate</a></h3>
+<p>Hook configuration has a <code>settings</code> section with parameters <code>executionMinPeriod</code> and <code>executionBurst</code>. These parameters are used to throttle hook executions and wait for more events in the queue. See section <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md#execution-rate">execution rate</a> from the Shell-operator.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                                                    <a rel="prev" href="MODULES.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                        
+                                                    <a rel="next" href="VALUES.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                                    <a rel="prev" href="MODULES.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+                                    <a rel="next" href="VALUES.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                            </nav>
+
+        </div>
+
+        
+        
+        
+                <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        
+        
+                <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+        
+    </body>
+</html>

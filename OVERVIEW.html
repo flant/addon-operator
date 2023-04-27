@@ -1,0 +1,237 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Overview - Addon-operator</title>
+                
+
+        <!-- Custom HTML head -->
+        
+
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+                <link rel="icon" href="favicon.svg">
+                        <link rel="shortcut icon" href="favicon.png">
+                <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+                <link rel="stylesheet" href="css/print.css" media="print">
+        
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+                <link rel="stylesheet" href="fonts/fonts.css">
+        
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+            </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Introduction</a></li><li class="chapter-item expanded "><a href="OVERVIEW.html" class="active"><strong aria-hidden="true">1.</strong> Overview</a></li><li class="chapter-item expanded "><a href="RUNNING.html"><strong aria-hidden="true">2.</strong> Running Addon-operator</a></li><li class="chapter-item expanded "><a href="LIFECYCLE.html"><strong aria-hidden="true">3.</strong> Lifecycle</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="LIFECYCLE-STEPS.html"><strong aria-hidden="true">3.1.</strong> Steps</a></li></ol></li><li class="chapter-item expanded "><a href="MODULES.html"><strong aria-hidden="true">4.</strong> Modules</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="HOOKS.html"><strong aria-hidden="true">4.1.</strong> Hooks</a></li><li class="chapter-item expanded "><a href="VALUES.html"><strong aria-hidden="true">4.2.</strong> Values</a></li></ol></li><li class="chapter-item expanded "><a href="metrics/ROOT.html"><strong aria-hidden="true">5.</strong> Metrics</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="metrics/SELF_METRICS.html"><strong aria-hidden="true">5.1.</strong> Self metrics</a></li><li class="chapter-item expanded "><a href="metrics/METRICS_FROM_HOOKS.html"><strong aria-hidden="true">5.2.</strong> Return metrics from hooks</a></li></ol></li></ol>            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                                                <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                                            </div>
+
+                    <h1 class="menu-title">Addon-operator</h1>
+
+                    <div class="right-buttons">
+                                                <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                                                                        <a href="https://github.com/flant/addon-operator" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                                                
+                    </div>
+                </div>
+
+                                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="overview"><a class="header" href="#overview">Overview</a></h1>
+<p><strong>Addon-operator</strong> combines Helm charts with hooks and values storage to transform charts into smart modules that configure themselves and respond to changes in the cluster. It is a sister project for <a href="https://github.com/flant/shell-operator">shell-operator</a> and is actively used in <a href="https://github.com/deckhouse/deckhouse">Deckhouse Kubernetes Platform</a> to implement its modules.</p>
+<h2 id="features"><a class="header" href="#features">Features</a></h2>
+<ul>
+<li><strong>Discovery of values</strong> for Helm charts — parameters can be generated, calculated or retrieved from the cluster;</li>
+<li><strong>Continuous discovery</strong> — parameters can be changed in response to cluster events;</li>
+<li><strong>Controlled Helm execution</strong> — addon-operator monitors the Helm operation to ensure the Helm chart’s successful installation. Coming soon: use kubedog to track deploy status and more;</li>
+<li><strong>Custom extra actions before and after running Helm</strong> as well as any other events via the hooks paradigm. See related <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md">shell-operator capabilities</a>.</li>
+</ul>
+<p>Additionally, addon-operator provides:</p>
+<ul>
+<li>ease of maintenance of Kubernetes clusters: use the tools that Ops are familiar with to build your modules and hooks such as Bash, kubectl, Python, etc;</li>
+<li>the execution queue of modules and hooks that ensures the launch sequence and repeated execution in case of an error, which <em>simplifies programming of modules</em> and ensures <em>predictable outcome</em> of their operation;</li>
+<li>the possibility of <em>dynamic enabling/disabling</em> of a module (depending on detected parameters);</li>
+<li>the ability to tie <em>conditions of module activation</em> to the activation of other modules;</li>
+<li><em>the unified ConfigMap</em> for the configuration of all settings;</li>
+<li>the ability to run Helm only if parameters have changed. In this case, <code>helm history</code> would output only releases with changes;</li>
+<li><em>global hooks</em> for figuring out parameters and performing actions that affect several dependent modules;</li>
+<li>off-the-shelf <em>metrics</em> for monitoring via Prometheus.</li>
+</ul>
+<h2 id="hooks-and-helm-values"><a class="header" href="#hooks-and-helm-values">Hooks and Helm values</a></h2>
+<p>Hooks are triggered by Kubernetes events and in response to other stimuli.</p>
+<p><img src="image/readme-1.gif" alt="Hooks are triggered by Kubernetes events" /></p>
+<p>A hook is an executable file that can make changes to Kubernetes and set values of Helm (they are stored in the memory of addon-operator) during execution.</p>
+<p><img src="image/readme-2.gif" alt="A hook is an executable file" /></p>
+<p>Hooks are a part of the module. Also, there is a Helm chart in the module. If the hook makes changes to values, then addon-operator would upgrade the release of the Helm chart.</p>
+<p><img src="image/readme-3.gif" alt="Hook is a part of the module" /></p>
+<h2 id="modules"><a class="header" href="#modules">Modules</a></h2>
+<p>There can be many modules.</p>
+<p><img src="image/readme-4.gif" alt="Many modules" /></p>
+<p>In addition to modules, addon-operator supports <strong>global hooks</strong> and <strong>global values</strong>. They have a <strong>storage of values</strong>. Global hooks are triggered by events and when active they can:</p>
+<ul>
+<li>Make changes to Kubernetes cluster;</li>
+<li>Make changes to global values storage.</li>
+</ul>
+<p><img src="image/readme-5.gif" alt="Global hooks and global values" /></p>
+<p>If the global hook changes values in the global storage, then addon-operator triggers an upgrade of releases of all Helm charts.</p>
+<p><img src="image/readme-6.gif" alt="Changes in global values cause reinstallation" /></p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                                                    <a rel="prev" href="index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                        
+                                                    <a rel="next" href="RUNNING.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                                    <a rel="prev" href="index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+                                    <a rel="next" href="RUNNING.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                            </nav>
+
+        </div>
+
+        
+        
+        
+                <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        
+        
+                <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+        
+    </body>
+</html>

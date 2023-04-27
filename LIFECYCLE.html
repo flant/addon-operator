@@ -1,0 +1,327 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Lifecycle - Addon-operator</title>
+                
+
+        <!-- Custom HTML head -->
+        
+
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+                <link rel="icon" href="favicon.svg">
+                        <link rel="shortcut icon" href="favicon.png">
+                <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+                <link rel="stylesheet" href="css/print.css" media="print">
+        
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+                <link rel="stylesheet" href="fonts/fonts.css">
+        
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+            </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Introduction</a></li><li class="chapter-item expanded "><a href="OVERVIEW.html"><strong aria-hidden="true">1.</strong> Overview</a></li><li class="chapter-item expanded "><a href="RUNNING.html"><strong aria-hidden="true">2.</strong> Running Addon-operator</a></li><li class="chapter-item expanded "><a href="LIFECYCLE.html" class="active"><strong aria-hidden="true">3.</strong> Lifecycle</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="LIFECYCLE-STEPS.html"><strong aria-hidden="true">3.1.</strong> Steps</a></li></ol></li><li class="chapter-item expanded "><a href="MODULES.html"><strong aria-hidden="true">4.</strong> Modules</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="HOOKS.html"><strong aria-hidden="true">4.1.</strong> Hooks</a></li><li class="chapter-item expanded "><a href="VALUES.html"><strong aria-hidden="true">4.2.</strong> Values</a></li></ol></li><li class="chapter-item expanded "><a href="metrics/ROOT.html"><strong aria-hidden="true">5.</strong> Metrics</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="metrics/SELF_METRICS.html"><strong aria-hidden="true">5.1.</strong> Self metrics</a></li><li class="chapter-item expanded "><a href="metrics/METRICS_FROM_HOOKS.html"><strong aria-hidden="true">5.2.</strong> Return metrics from hooks</a></li></ol></li></ol>            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                                                <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                                            </div>
+
+                    <h1 class="menu-title">Addon-operator</h1>
+
+                    <div class="right-buttons">
+                                                <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                                                                        <a href="https://github.com/flant/addon-operator" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                                                
+                    </div>
+                </div>
+
+                                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="lifecycle"><a class="header" href="#lifecycle">Lifecycle</a></h1>
+<h2 id="structure"><a class="header" href="#structure">Structure</a></h2>
+<p>Module files are located in the <code>/modules</code> directory. The directory can be set via <code>$MODULES_DIR</code> variable. Global hook files are located in the <code>/global-hooks</code> directory (you can set your own directory with the <code>$GLOBAL_HOOKS_DIR</code> variable).</p>
+<h2 id="startup-sequence"><a class="header" href="#startup-sequence">Startup sequence</a></h2>
+<p>During startup, Addon-operator finds and initializes all global hooks. For more info, see <a href="HOOKS.html#initialization-of-global-hooks">HOOKS</a>.</p>
+<p>After the global hooks initialization, Addon-operator executes all global <code>onStartup</code> hooks.</p>
+<p>Then, the <em>global</em> hooks with <code>kubernetes</code> binding are executed with a binding context of type <code>Synchronization</code> and Kubernetes monitors for global hooks are started.</p>
+<h2 id="reload-all-modules"><a class="header" href="#reload-all-modules">Reload all modules</a></h2>
+<p>Next, the ‘reload all modules’ process is started. First, it finds all modules and their hooks.</p>
+<p>Then, all global hooks with <code>beforeAll</code> binding are executed.</p>
+<p>Next, the ‘module discovery’ process is started, it finds which modules are enabled by executing ‘enabled’ script for modules enabled in values.yaml and in ConfigMap/addon-operator.</p>
+<p>Enabled modules are started.</p>
+<p>During each module start-up, it executes all <code>onStartup</code> hooks and initializes the installation of a Helm chart. Prior to the installation of a Helm chart, the <code>beforeHelm</code> hook is executed. The <code>afterHelm</code> hook is executed after the installation.</p>
+<p>When all modules are started, all global hooks with <code>afterAll</code> binding are executed.</p>
+<h2 id="main-loop"><a class="header" href="#main-loop">Main loop</a></h2>
+<p>After the first run of ‘reload all modules’, the main loop starts. It reacts to schedule and Kubernetes events, and to a values changes: it restarts a particular module if its values are changed and runs ‘reload all modules’ process again if global values are changed.</p>
+<h2 id="named-queues"><a class="header" href="#named-queues">Named queues</a></h2>
+<p>The Addon-operator supports named queues to execute hooks in parallel for <code>schedule</code> and <code>kubernetes/Event</code> bindings.</p>
+<p>All other actions are handled in a single “main” queue:</p>
+<ul>
+<li>global hooks:
+<ul>
+<li><code>onStartup</code></li>
+<li><code>kubernetes/Synchronization</code></li>
+<li><code>beforeAll</code></li>
+<li><code>afterAll</code></li>
+</ul>
+</li>
+<li>module hooks:
+<ul>
+<li><code>onStartup</code></li>
+<li><code>kubernetes/Synchronization</code></li>
+<li><code>beforeHelm</code></li>
+<li>execution of <code>helm</code> commands</li>
+<li><code>afterHelm</code></li>
+</ul>
+</li>
+</ul>
+<p>This document mainly describes modules. To get more information on hooks, see <a href="HOOKS.html">HOOKS</a> document. To get a full view of how hooks, modules, <a href="VALUES.html">values</a>, binding contexts, and queues are interlinked, see <a href="LIFECYCLE-STEPS.html">LIFECYCLE-STEPS</a> document.</p>
+<h2 id="module-lifecycle"><a class="header" href="#module-lifecycle">Module lifecycle</a></h2>
+<p>The <code>onStartup</code> hooks of enabled module is executed at the startup of the Addon-operator or later on module enablement.</p>
+<p>Next, the module’s chart is installed with <code>helm upgrade --install</code>. Before launching Helm, <code>beforeHelm</code> hooks are executed, after the launch, <code>afterHelm</code> hooks are executed.</p>
+<p>After the launch the module would start responding to two types of events:</p>
+<ul>
+<li><code>schedule</code> — events that are generated by the crontab scheduler built in the addon-operator;</li>
+<li><code>kubernetes</code> — events within the cluster that API server announces to the Addon-operator.</li>
+</ul>
+<p>When the module is deactivated, the Addon-operator launches command <code>helm delete --purge</code> and after the release deletion, the <code>afterDeleteHelm</code> hooks are executed.</p>
+<p>All necessary hooks will be restarted if there are errors during the module activation or deactivation. For example, if an error occurred in the hook with <code>afterHelm</code> binding during the first module execution, then after a 5 seconds delay the <code>onStartup</code> and <code>beforeHelm</code> hooks are executed, the Helm chart is installed and then <code>afterHelm</code> hooks are executed.</p>
+<h2 id="modules-discovery"><a class="header" href="#modules-discovery">Modules discovery</a></h2>
+<p>The Addon-operator makes a list of all enabled modules for their execution and a list of disabled modules for the deletion of their Helm releases. This process is called ‘modules discovery’ and is started in the following cases:</p>
+<ul>
+<li>during the start of addon-operator</li>
+<li>when an event to restart all modules occurs (see <a href="VALUES.html">VALUES</a>).</li>
+</ul>
+<p>Modules are disabled by default. The module can be enabled by a key with the module name suffixed by <code>Enabled</code>. This key should contain a boolean value and can be specified in these sources:</p>
+<ul>
+<li>$MODULES_DIR/values.yaml</li>
+<li><code>values.yaml</code> files in modules directories</li>
+<li>ConfigMap/addon-operator</li>
+</ul>
+<p>Boolean values from values.yaml files and ConfigMap/addon-operator are combined and if the result is equal to <code>false</code> or is empty, then the module is disabled.</p>
+<p>If the value is <code>true</code>, an additional check is performed – the <code>enabled</code> script is executed (see below). If the script is present in the module and it returns <code>false</code>, then the module is considered disabled. If the script is not present or returns <code>true</code>, then the module is enabled.</p>
+<p>If an error occurs during the ‘modules discovery’ process, then the module discovery is restarted every 5 seconds until successful execution. In this case, the execution of hooks with <code>schedule</code> and <code>kubernetes</code> bindings will be blocked in the “main” queue.</p>
+<p>As a result of a ‘module discovery’ process, the tasks for the execution of all <em>enabled</em> modules, deletion of all <em>disabled</em> modules, and execution of all global hooks with the <code>afterAll</code> binding are added to the queue.</p>
+<h3 id="enabled-script"><a class="header" href="#enabled-script">Enabled script</a></h3>
+<p>A script or an executable file that returns the status of the module. The script has access to the module values in <code>$VALUES_PATH</code> and <code>$CONFIG_VALUES_PATH</code> files, more details about the values are available <a href="VALUES.html#using-values-in-enabled-script">here</a>. The variable <code>$MODULE_ENABLED_RESULT</code> passes the path to the file into which the script should write the module status: <code>true</code> or <code>false</code>.</p>
+<p>Below is an example of the <code>enabled</code> script that disables the module when parameter <code>param2</code> is set to “stopMePlease”.</p>
+<pre><code class="language-bash">#!/usr/bin/env bash
+
+param2=$(jq -r '.simpleModule.param2' $VALUES_PATH)
+
+if [[ $param2 == &quot;stopMePlease&quot; ]] ; then
+  echo &quot;false&quot; &gt; $MODULE_ENABLED_RESULT
+else
+  echo &quot;true&quot; &gt; $MODULE_ENABLED_RESULT
+fi
+
+</code></pre>
+<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
+<h3 id="keys-in-valuesyaml-files"><a class="header" href="#keys-in-valuesyaml-files">Keys in <code>values.yaml</code> files</a></h3>
+<p>A module named <code>nginx-ingress</code> may have an <code>nginxIngressEnabled</code> flag in two files:</p>
+<pre><code class="language-shell">$ cat modules/values.yaml
+
+nginxIngressEnabled: true
+
+$ cat modules/001-nginx-ingress/values.yaml
+
+nginxIngressEnabled: false
+</code></pre>
+<p>Module <code>nginx-ingress</code> is enabled in <code>modules/values.yaml</code> but disabled in <code>modules/001-nginx-ingress/values.yaml</code>. The final result is that the module is disabled.</p>
+<p>Also, note that the module’s directory name is kebab-cased but keys in values.yaml are camelCased (see <a href="VALUES.html#values-storage">VALUES</a>).</p>
+<h3 id="valuesyaml-and-configmap"><a class="header" href="#valuesyaml-and-configmap"><code>values.yaml</code> and ConfigMap</a></h3>
+<p>A module named ‘some-module’ has no <code>someModuleEnabled</code> flag in <code>modules/001-some-module/values.yaml</code> but this flag is defined in a ConfigMap and the module has <code>enabled</code> script:</p>
+<pre><code class="language-shell">$ cat modules/values.yaml
+
+global:
+  param1: 100
+someModuleEnabled: false
+
+$ cat modules/001-some-module/values.yaml
+
+someModule:
+  param1: &quot;String&quot;
+
+
+$ kubectl -n addon-operator get cm/addon-operator -o yaml
+
+data:
+  global: |
+    param1: 200
+  someModule: |
+    param1: &quot;Long string&quot;
+    param2: &quot;FOO&quot;
+  someModuleEnabled: &quot;true&quot;
+
+$ cat modules/01-some-module/enabled
+
+#!/bin/bash
+
+echo false &gt; $MODULE_ENABLED_RESULT
+</code></pre>
+<p>Module <code>some-module</code> is explicitly disabled in <code>modules/values.yaml</code> but enabled by <code>someModuleEnabled</code> key in ConfigMap/addon-operator. Thus enabled script is executed and returns <code>false</code>. So the final result is that the module is disabled.</p>
+<h2 id="task-queues"><a class="header" href="#task-queues">Task queues</a></h2>
+<p>Task queues are simple FIFO queues. The Addon-operator processes an event, creates a task and adds it to the particular named queue. Each named queue has a queue handler which runs the first task and proceeds to the next.</p>
+<p>Each task is processed until successful completion. In case of an error, the task is returned to the start of the queue and executed with an exponentially growing delay (from 5s to 30s). When executing tasks for the <code>kubernetes</code> and <code>schedule</code> events, the queue handler ignores execution errors if the <code>allowFailure: true</code> flag is specified in the binding configuration.</p>
+<h2 id="queue-monitoring"><a class="header" href="#queue-monitoring">Queue monitoring</a></h2>
+<p>You can use Prometheus metrics to monitor the queue. For details, see <a href="METRICS.html">METRICS</a>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                                                    <a rel="prev" href="RUNNING.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                        
+                                                    <a rel="next" href="LIFECYCLE-STEPS.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                                    <a rel="prev" href="RUNNING.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+                                    <a rel="next" href="LIFECYCLE-STEPS.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                            </nav>
+
+        </div>
+
+        
+        
+        
+                <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        
+        
+                <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+        
+    </body>
+</html>

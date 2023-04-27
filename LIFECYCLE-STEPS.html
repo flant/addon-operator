@@ -1,0 +1,1106 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Steps - Addon-operator</title>
+                
+
+        <!-- Custom HTML head -->
+        
+
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+                <link rel="icon" href="favicon.svg">
+                        <link rel="shortcut icon" href="favicon.png">
+                <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+                <link rel="stylesheet" href="css/print.css" media="print">
+        
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+                <link rel="stylesheet" href="fonts/fonts.css">
+        
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+            </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Introduction</a></li><li class="chapter-item expanded "><a href="OVERVIEW.html"><strong aria-hidden="true">1.</strong> Overview</a></li><li class="chapter-item expanded "><a href="RUNNING.html"><strong aria-hidden="true">2.</strong> Running Addon-operator</a></li><li class="chapter-item expanded "><a href="LIFECYCLE.html"><strong aria-hidden="true">3.</strong> Lifecycle</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="LIFECYCLE-STEPS.html" class="active"><strong aria-hidden="true">3.1.</strong> Steps</a></li></ol></li><li class="chapter-item expanded "><a href="MODULES.html"><strong aria-hidden="true">4.</strong> Modules</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="HOOKS.html"><strong aria-hidden="true">4.1.</strong> Hooks</a></li><li class="chapter-item expanded "><a href="VALUES.html"><strong aria-hidden="true">4.2.</strong> Values</a></li></ol></li><li class="chapter-item expanded "><a href="metrics/ROOT.html"><strong aria-hidden="true">5.</strong> Metrics</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="metrics/SELF_METRICS.html"><strong aria-hidden="true">5.1.</strong> Self metrics</a></li><li class="chapter-item expanded "><a href="metrics/METRICS_FROM_HOOKS.html"><strong aria-hidden="true">5.2.</strong> Return metrics from hooks</a></li></ol></li></ol>            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                                                <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                                            </div>
+
+                    <h1 class="menu-title">Addon-operator</h1>
+
+                    <div class="right-buttons">
+                                                <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                                                                        <a href="https://github.com/flant/addon-operator" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                                                
+                    </div>
+                </div>
+
+                                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="steps-of-addon-operator-lifecycle"><a class="header" href="#steps-of-addon-operator-lifecycle">Steps of addon-operator lifecycle</a></h1>
+<p>This document is intended to give a full view of how <a href="HOOKS.html">hooks</a>, <a href="MODULES.html">modules</a>, <a href="VALUES.html">values</a>, binding contexts, and queues are interlinked within the Addon-operator’s <a href="LIFECYCLE.html">lifecycle</a>.</p>
+<p>Startup steps:</p>
+<p><a name="global-onstartup"></a>1. execute global hooks with ‘onStartup’ binding ordered by the ORDER value (see <a href="HOOKS.html#onstartup">onStartup</a>)</p>
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>[{&quot;binding&quot;:&quot;onStartup&quot;}]</code></li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>values changes do not trigger any event</li>
+</ul>
+</li>
+</ul>
+<p><a name="global-kubernetes-synchronization"></a>2. execute global hooks with ‘kubernets’ binding in alphabetic order (see <a href="HOOKS.html#kubernetes">kubernetes</a>)</p>
+<ul>
+<li>a hook executes several times for each defined ‘kubernetes’ binding</li>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>&quot;type&quot;: &quot;Synchronization&quot;</code>
+<ul>
+<li><code>&quot;objects&quot;</code> contains all existed objects</li>
+<li><code>&quot;snapshots&quot;</code> contains existed objects from previous bindings</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>values changes do not trigger an event</li>
+</ul>
+</li>
+</ul>
+<p><a name="reload-all-modules"></a>‘Reload all modules’ steps:</p>
+<p><a name="global-beforeall"></a>3. execute global hooks with ‘beforeAll’ binding ordered by ORDER value (see <a href="HOOKS.html#beforeall">beforeAll</a>)</p>
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li>“snapshots” contains existed objects from all ‘kubernetes’ bindings of this hook</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>values changes do not trigger an event</li>
+</ul>
+</li>
+</ul>
+<p><a name="discover-modules"></a>4. discover modules</p>
+<ul>
+<li>get merged ‘enabled’ state from config for each module
+<ul>
+<li>false</li>
+<li>‘{moduleName}Enabled’ value from modules/values.yaml</li>
+<li>‘{moduleName}Enabled’ value from modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}Enabled’ value from ConfigMap</li>
+</ul>
+</li>
+<li>run ‘enabled’ script if merged ‘enabled’ state is true
+<ul>
+<li>input
+<ul>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+<li>extra field ‘global.enabledModules’ contains a list of previously enabled modules</li>
+</ul>
+</li>
+<li>‘module values’ merged from:
+<ul>
+<li>‘{moduleName}’ section in modules/values.yaml</li>
+<li>‘{moduleName}’ section in modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+<li>patched with patches saved from previous module hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>‘enabled’ state ($MODULE_ENABLED_RESULT temporary file)
+<ul>
+<li>if hook return “false”, hook state is disabled</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>no ‘enabled’ script
+<ul>
+<li>merged ‘enabled’ state is used</li>
+</ul>
+</li>
+<li>create 3 lists
+<ul>
+<li>modules to enable</li>
+<li>modules to delete (disabled)</li>
+<li>modules to purge (there is helm release, but no module directory)</li>
+</ul>
+</li>
+</ul>
+<p><a name="module-run"></a>5. ‘module run’ for each enabled module</p>
+<ul>
+<li>if startup or if module just become enabled
+<ul>
+<li>execute module hooks with ‘onStartup’ binding ordered by the ORDER value (see <a href="HOOKS.html#onstartup">onStartup</a>)
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>{&quot;binding&quot;:&quot;onStartup&quot;}</code></li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+<li>extra field ‘global.enabledModules’ contains a list of <strong>all</strong> enabled modules created by ‘discover modules’ step (4)</li>
+</ul>
+</li>
+<li>‘module values’ merged from:
+<ul>
+<li>‘{moduleName}’ section in modules/values.yaml</li>
+<li>‘{moduleName}’ section in modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+<li>patched with patches saved from previous module hooks temporary file</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after hook run</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>values changes do not trigger an event</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>execute module hooks with ‘kubernetes’ bindings ordered in alphabetic order
+<ul>
+<li>a hook executes several times for each defined ‘kubernetes’ binding</li>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>&quot;type&quot;: &quot;Synchronization&quot;</code>
+<ul>
+<li><code>&quot;objects&quot;</code> contains all existed objects</li>
+<li><code>&quot;snapshots&quot;</code> contains existed objects from previous bindings</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+<li>extra field ‘global.enabledModules’ contains a list of <strong>all</strong> enabled modules created by ‘discover modules’ step (4)</li>
+</ul>
+</li>
+<li>‘module values’ merged from:
+<ul>
+<li>‘{moduleName}’ section in modules/values.yaml</li>
+<li>‘{moduleName}’ section in modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+<li>patched with patches saved from previous module hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>values changes do not trigger an event</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>execute module hooks with ‘beforeHelm’ binding ordered by the ORDER value (see <a href="HOOKS.html#beforehelm">beforeHelm</a>)
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>{&quot;binding&quot;:&quot;beforeHelm&quot;}</code></li>
+<li>extra field <code>&quot;snaphots&quot;</code> contains existed objects from all ‘kubernetes’ bindings of this hook</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+<li>extra field ‘global.enabledModules’ contains a list of <strong>all</strong> enabled modules created by ‘discover modules’ step (4)</li>
+</ul>
+</li>
+<li>‘module values’ merged from:
+<ul>
+<li>‘{moduleName}’ section in modules/values.yaml</li>
+<li>‘{moduleName}’ section in modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+<li>patched with patches saved from previous module hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)</li>
+<li>applied to ConfigMap just after the hook execution</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)</li>
+<li>saved in memory</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>values changes do not trigger an event</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>check if <code>helm upgrade</code> should run
+<ul>
+<li>get saved checksum from last release values</li>
+<li>render templates
+<ul>
+<li>if checksum is changed → helm release should be upgraded</li>
+</ul>
+</li>
+<li>get helm resources defined in templates
+<ul>
+<li>if there are absent resources → helm release should be upgraded</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>run <code>helm upgrade --install</code>
+<ul>
+<li>values (unique file in a temporary directory)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+</ul>
+</li>
+<li>‘module values’ merged from:
+<ul>
+<li>‘{moduleName}’ section in modules/values.yaml</li>
+<li>‘{moduleName}’ section in /modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+<li>patched with patches saved from previous module hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>release name
+<ul>
+<li>module name in kebab-case</li>
+<li>name from Chart.yaml is ignored</li>
+</ul>
+</li>
+<li>namespace
+<ul>
+<li>$ADDON_OPERATOR_NAMESPACE (see <a href="RUNNING.html">RUNNING</a>)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>execute module hooks with ‘afterHelm’ binding ordered by the ORDER value (see <a href="HOOKS.html#afterhelm">afterHelm</a>)
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>{&quot;binding&quot;:&quot;afterHelm&quot;}</code></li>
+<li>extra field <code>&quot;snaphots&quot;</code> contains existed objects from all ‘kubernetes’ bindings of this hook</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+<li>extra field ‘global.enabledModules’ contains a list of <strong>all</strong> enabled modules created by ‘discover modules’ step (4)</li>
+</ul>
+</li>
+<li>‘module values’ merged from:
+<ul>
+<li>‘{moduleName}’ section in modules/values.yaml</li>
+<li>‘{moduleName}’ section in modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+<li>patched with patches saved from previous module hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>if module values are changed, restart ‘module run’</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p><a name="module-delete"></a>6. ‘module delete’ for each disabled module</p>
+<ul>
+<li>run <code>helm delete --purge</code></li>
+<li>execute module hooks with ‘afterDeleteHelm’ binding ordered by the ORDER value (see <a href="HOOKS.html#afterdeletehelm">afterDeleteHelm</a>)
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>{&quot;binding&quot;:&quot;afterDeleteHelm&quot;}</code></li>
+<li>extra field <code>&quot;snaphots&quot;</code> contains existed objects from all ‘kubernetes’ bindings of this hook</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+<li>extra field ‘global.enabledModules’ contains a list of <strong>all</strong> enabled modules created by ‘discover modules’ step (4)</li>
+</ul>
+</li>
+<li>‘module values’ merged from:
+<ul>
+<li>‘{moduleName}’ section in modules/values.yaml</li>
+<li>‘{moduleName}’ section in modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+<li>patched with patches saved from previous module hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>values changes do not trigger an event</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p><a name="module-purge"></a>7. ‘module purge’ for each non-existent module</p>
+<ul>
+<li>run <code>helm delete --purge</code></li>
+</ul>
+<p><a name="global-afterall"></a>8. execute global hooks with ‘afterAll’ binding ordered by the ORDER value (see <a href="HOOKS.html#afterall">afterAll</a>)</p>
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>{&quot;binding&quot;:&quot;afterAll&quot;}</code></li>
+<li>extra field “snapshots” contains existed objects from all ‘kubernetes’ bindings of this hook</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>if values are changed, re-run ‘Reload all modules’ steps 3 to 8.</li>
+</ul>
+</li>
+</ul>
+<p><strong>Reaction to events</strong></p>
+<p><a name="global-kubernetes-event"></a>9. ‘kubernetes’ event for <em>global</em> hook (see <a href="HOOKS.html#kubernetes">kubernetes</a>)</p>
+<ul>
+<li>hook execution is queued in “main” or in a named queue according to the binding configuration</li>
+<li>queue handler runs a hook:
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>&quot;type&quot;: &quot;Event&quot;</code>
+<ul>
+<li><code>&quot;object&quot;</code> contains a related object</li>
+<li><code>&quot;filterResult&quot;</code> contains a result of jqFilter</li>
+<li><code>&quot;snapshots&quot;</code> contains existed objects from other bindings</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>‘global values changed’ if global section or *Enabled flags are changed</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p><a name="module-kubernetes-event"></a>10. ‘kubernetes’ event for <em>module</em> hook (see <a href="HOOKS.html#kubernetes">kubernetes</a>)</p>
+<ul>
+<li>hook execution is queued in “main” or in a named queue according to the binding configuration</li>
+<li>queue handler runs a hook:
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>&quot;type&quot;: &quot;Event&quot;</code>
+<ul>
+<li><code>&quot;object&quot;</code> contains a related object</li>
+<li><code>&quot;filterResult&quot;</code> contains a result of jqFilter</li>
+<li><code>&quot;snapshots&quot;</code> contains existed objects from other bindings</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+<li>extra field ‘global.enabledModules’ contains a list of <strong>all</strong> enabled modules created by ‘discover modules’ step (4)</li>
+</ul>
+</li>
+<li>‘module values’ merged from:
+<ul>
+<li>‘{moduleName}’ section in modules/values.yaml</li>
+<li>‘{moduleName}’ section in modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+<li>patched with patches saved from previous module hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>‘global values changed’ if global values are changed</li>
+<li>‘modules values changed’ if module values are changed</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p><a name="global-schedule-event"></a>11. ‘schedule’ event for <em>global</em> hook (see <a href="HOOKS.html#schedule">schedule</a>)</p>
+<ul>
+<li>hook execution is queued in “main” or in a named queue according to the binding configuration</li>
+<li>queue handler runs a hook:
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>&quot;snapshots&quot;</code> contains existed objects from other bindings</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>‘global values changed’ if global section or *Enabled flags are changed</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p><a name="module-schedule-event"></a>12. ‘schedule’ event for <em>module</em> hook (see <a href="HOOKS.html#schedule">schedule</a>)</p>
+<ul>
+<li>hook execution is queued in “main” or in a named queue according to the binding configuration</li>
+<li>queue handler runs a hook:
+<ul>
+<li>input
+<ul>
+<li>binding context ($BINDING_CONTEXT_PATH temporary file)
+<ul>
+<li><code>&quot;snapshots&quot;</code> contains existed objects from other bindings</li>
+</ul>
+</li>
+<li>config ($CONFIG_VALUES_PATH temporary file)
+<ul>
+<li>‘global’ section in ConfigMap</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+</ul>
+</li>
+<li>values ($VALUES_PATH temporary file)
+<ul>
+<li>‘global values’ merged from:
+<ul>
+<li>‘global’ section in modules/values.yaml</li>
+<li>‘global’ section in ConfigMap</li>
+<li>patched with patches saved from previous global hooks</li>
+<li>extra field ‘global.enabledModules’ contains a list of <strong>all</strong> enabled modules created by ‘discover modules’ step (4)</li>
+</ul>
+</li>
+<li>‘module values’ merged from:
+<ul>
+<li>‘{moduleName}’ section in modules/values.yaml</li>
+<li>‘{moduleName}’ section in modules/{moduleName}/values.yaml</li>
+<li>‘{moduleName}’ section in ConfigMap</li>
+<li>patched with patches saved from previous module hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>output
+<ul>
+<li>config patches ($CONFIG_VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>applied to ConfigMap just after the hook execution</li>
+</ul>
+</li>
+<li>values patches ($VALUES_JSON_PATCH_PATH temporary file)
+<ul>
+<li>saved in memory</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>events after execution
+<ul>
+<li>trigger ‘global values changed’ if global values are changed</li>
+<li>trigger ‘modules values changed’ if module values are changed</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p><a name="global-values-changed"></a>13. ‘global values changed’ event (see <a href="HOOKS.html#global-hook">global hook</a>)</p>
+<ul>
+<li>create ‘Reload all modules’ task in the “main” queue (steps 3 to 8)</li>
+</ul>
+<p><a name="module-values-changed"></a>14. ‘module values changed’ event (see <a href="HOOKS.html#module-hook">module hook</a>)</p>
+<ul>
+<li>create ‘module run’ task in the “main” queue
+<ul>
+<li>step 5 without <code>onStartup</code> and <code>kubernetes@Synchronization</code> hooks</li>
+</ul>
+</li>
+</ul>
+<p><a name="helm-resources-absent"></a>15. ‘helm resources absent’ event (see <a href="MODULES.html#release-auto-healing">auto-healing</a>)</p>
+<ul>
+<li>create ‘module run’ task in the “main” queue
+<ul>
+<li>step 5 without <code>onStartup</code> and <code>kubernetes@Synchronization</code> hooks</li>
+</ul>
+</li>
+</ul>
+<p><a name="configmap-changed"></a>16. ConfigMap is changed (see <a href="VALUES.html#configmapaddon-operator">ConfigMap/addon-operator</a>)</p>
+<ul>
+<li>values in global section are changed
+<ul>
+<li>create ‘Reload all modules’ task in the “main” queue (steps 3 to 8)</li>
+</ul>
+</li>
+<li>*Enabled flags are changed
+<ul>
+<li>create ‘Reload all modules’ task in the “main” queue (steps 3 to 8)</li>
+</ul>
+</li>
+<li>values in modules sections are changed
+<ul>
+<li>create ‘module run’ task in the “main” queue
+<ul>
+<li>step 5 without <code>onStartup</code> and <code>kubernetes@Synchronization</code> hooks</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                                                    <a rel="prev" href="LIFECYCLE.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                        
+                                                    <a rel="next" href="MODULES.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                                    <a rel="prev" href="LIFECYCLE.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+                                    <a rel="next" href="MODULES.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                            </nav>
+
+        </div>
+
+        
+        
+        
+                <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        
+        
+                <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+        
+    </body>
+</html>
