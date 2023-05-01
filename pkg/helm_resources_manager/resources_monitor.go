@@ -133,9 +133,9 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 
 	concurrency := make(chan struct{}, 5)
 
-	// don't use non-buffered channel here
-	// range on line 156 will ready one message from channel and quit but other goroutines will wait for channel
-	// in 'chan send' status and stuck forever. Also GC will not grab the channel because it has wait functions
+	// Don't use non-buffered channel here.
+	// Range on line 156 will read one message from the channel and quit but other goroutines will wait for the channel
+	// in 'chan send' status and stuck forever. Also, GC will not grab the channel because it has wait functions.
 	resC := make(chan gvrManifestResult, len(gvrMap))
 
 	var wg sync.WaitGroup
@@ -245,12 +245,17 @@ func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitG
 
 // list all objects in ns and return names of all existent objects
 func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvr namespacedGVR) (map[string]struct{}, error) {
-	objList, err := r.kubeClient.Dynamic().Resource(nsgvr.GVR).Namespace(nsgvr.Namespace).List(ctx, v1.ListOptions{})
+	// avoid hitting etcd quorum read to reduce the load of Kubernetes control-plane components
+	listOpts := v1.ListOptions{
+		ResourceVersion:      "0",
+		ResourceVersionMatch: v1.ResourceVersionMatchNotOlderThan,
+	}
+	objList, err := r.kubeClient.Dynamic().Resource(nsgvr.GVR).Namespace(nsgvr.Namespace).List(ctx, listOpts)
 	if err != nil {
 		return nil, fmt.Errorf("fetch list for helm resource %s in ns: %s failed: %s", nsgvr.GVR, nsgvr.Namespace, err)
 	}
 
-	existingObjs := make(map[string]struct{})
+	existingObjs := make(map[string]struct{}, len(objList.Items))
 	for _, eo := range objList.Items {
 		existingObjs[eo.GetName()] = struct{}{}
 	}
@@ -259,7 +264,7 @@ func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvr namespacedGV
 }
 
 func (r *ResourcesMonitor) ResourceIds() []string {
-	res := make([]string, 0)
+	res := make([]string, 0, len(r.manifests))
 
 	for _, m := range r.manifests {
 		id := fmt.Sprintf("%s/%s/%s", m.Namespace(r.defaultNamespace), m.Kind(), m.Name())
