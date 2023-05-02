@@ -5,8 +5,8 @@ go 1.19
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/flant/kube-client v0.25.0
-	github.com/flant/shell-operator v1.1.3
-	github.com/go-chi/chi/v5 v5.0.7
+	github.com/flant/shell-operator v1.2.0
+	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
@@ -66,7 +66,7 @@ require (
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/fatih/color v1.13.0 // indirect
-	github.com/flant/libjq-go v1.6.2-0.20200616114952-907039e8a02a // indirect
+	github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-gorp/gorp/v3 v3.0.2 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
