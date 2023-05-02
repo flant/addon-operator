@@ -46,7 +46,7 @@ func (mk *moduleKind) GroupVersionKind() schema.GroupVersionKind {
 var ModuleGVK = schema.GroupVersionKind{Group: "deckhouse.io", Version: "v1alpha1", Kind: "Module"}
 
 func NewModule(moduleName string, order int) *Module {
-	return &Module{
+	m := &Module{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: ModuleGVK.GroupVersion().String(),
 			Kind:       ModuleGVK.Kind,
@@ -60,9 +60,13 @@ func NewModule(moduleName string, order int) *Module {
 		},
 		Status: ModuleStatus{},
 	}
+
+	m.calculateLabels()
+
+	return m
 }
 
-func (m *Module) CalculateLabels() {
+func (m *Module) calculateLabels() {
 	if strings.HasPrefix(m.Name, "cni-") {
 		m.Properties.Labels = append(m.Properties.Labels, "cni")
 	}
@@ -73,5 +77,11 @@ func (m *Module) CalculateLabels() {
 
 	if strings.HasSuffix(m.Name, "-crd") {
 		m.Properties.Labels = append(m.Properties.Labels, "crd")
+	}
+
+	// upper part could be removed when we will ready properties from the module.yaml file
+
+	for _, label := range m.Properties.Labels {
+		m.Labels["module.deckhouse.io/"+label] = ""
 	}
 }
