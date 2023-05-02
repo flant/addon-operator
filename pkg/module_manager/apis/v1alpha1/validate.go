@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	log "github.com/sirupsen/logrus"
@@ -15,22 +14,14 @@ import (
 
 // +k8s:deepcopy-gen=false
 var vf = kwhvalidating.ValidatorFunc(func(ctx context.Context, review *model.AdmissionReview, obj metav1.Object) (result *kwhvalidating.ValidatorResult, err error) {
-	fmt.Println("####################################")
-	fmt.Println("USER", review.UserInfo.Username)
-	fmt.Println("UINFO", review.UserInfo)
-	fmt.Printf("REVIEW: %+v\n", review)
-
-	if review.UserInfo.Username != "deckhouse-controller" {
+	//UserInfo groups: [system:serviceaccounts system:serviceaccounts:d8-system system:authenticated]
+	//Extra: [authentication.kubernetes.io/pod-name:[deckhouse-7cf6ddd78-grn4m]]
+	if review.UserInfo.Username != "system:serviceaccount:d8-system:deckhouse" {
 		return &kwhvalidating.ValidatorResult{
 			Valid:   false,
 			Message: "Module manual delete is forbidden",
 		}, nil
 	}
-
-	// module, ok := obj.(*Module)
-	//if !ok {
-	//	return &kwhvalidating.ValidatorResult{}, nil
-	//}
 
 	return &kwhvalidating.ValidatorResult{
 		Valid:   true,
