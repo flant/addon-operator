@@ -946,14 +946,13 @@ func (mm *ModuleManager) RegisterModules() error {
 	return nil
 }
 
-func (mm *ModuleManager) CreateModulesCR(client klient.Client) error {
+func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 	if mm.registerModulesGV == "" {
 		return nil
 	}
 
 	gvr, err := client.GroupVersionResource(v1alpha1.ModuleGVK.GroupVersion().String(), v1alpha1.ModuleGVK.Kind)
 	if err != nil {
-		panic(err)
 		return err
 	}
 
@@ -997,6 +996,7 @@ func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Ope
 	switch mm.registerModulesGV {
 	case "deckhouse.io/v1alpha1":
 		cr = v1alpha1.NewModule(module.Name, module.Order)
+		cr.CalculateLabels() // this function could be removed when we will get all module properties from the module.yaml file
 
 	default:
 		return nil, fmt.Errorf("unknown GroupVersion for Module registration: %s", mm.registerModulesGV)

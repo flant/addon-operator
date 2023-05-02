@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -24,7 +26,8 @@ type Module struct {
 }
 
 type ModuleProperties struct {
-	Weight int `json:"weight"`
+	Weight int      `json:"weight"`
+	Labels []string `json:"labels"`
 }
 
 type ModuleStatus struct{}
@@ -53,7 +56,22 @@ func NewModule(moduleName string, order int) *Module {
 		},
 		Properties: ModuleProperties{
 			Weight: order,
+			Labels: make([]string, 0),
 		},
 		Status: ModuleStatus{},
+	}
+}
+
+func (m *Module) CalculateLabels() {
+	if strings.HasPrefix(m.Name, "cni-") {
+		m.Properties.Labels = append(m.Properties.Labels, "cni")
+	}
+
+	if strings.HasPrefix(m.Name, "cloud-provider-") {
+		m.Properties.Labels = append(m.Properties.Labels, "cloud-provider")
+	}
+
+	if strings.HasSuffix(m.Name, "-crd") {
+		m.Properties.Labels = append(m.Properties.Labels, "crd")
 	}
 }

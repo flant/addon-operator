@@ -2117,8 +2117,9 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 func (op *AddonOperator) OnFirstConvergeDone() {
 	go func() {
 		<-op.ConvergeState.firstRunDoneC
+		time.Sleep(1 * time.Second) // wait for service to be resolved
 
-		err := op.ModuleManager.CreateModulesCR(op.KubeConfigManager.KubeClient)
+		err := op.ModuleManager.SyncModulesCR(op.KubeConfigManager.KubeClient)
 		if err != nil {
 			log.Errorf("Modules CR registration failed: %s", err)
 		}
