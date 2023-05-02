@@ -988,6 +988,9 @@ func (mm *ModuleManager) CreateModulesCR(client klient.Client) error {
 		}
 	}
 
+	fmt.Println("CREATING MODULES", createCROperations)
+	fmt.Println("DELETE MODULES", deleteCROperations)
+
 	return mm.dependencies.KubeObjectPatcher.ExecuteOperations(append(createCROperations, deleteCROperations...))
 }
 
