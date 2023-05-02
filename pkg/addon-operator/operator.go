@@ -2117,7 +2117,8 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 func (op *AddonOperator) OnFirstConvergeDone() {
 	go func() {
 		<-op.ConvergeState.firstRunDoneC
-		err := op.ModuleManager.CreateModulesCR()
+
+		err := op.ModuleManager.CreateModulesCR(op.KubeConfigManager.KubeClient)
 		if err != nil {
 			log.Errorf("Modules CR registration failed: %s", err)
 		}

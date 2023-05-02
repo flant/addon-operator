@@ -37,16 +37,16 @@ func (ms *ModuleStatus) GetObjectKind() schema.ObjectKind {
 
 func (mk *moduleKind) SetGroupVersionKind(_ schema.GroupVersionKind) {}
 func (mk *moduleKind) GroupVersionKind() schema.GroupVersionKind {
-	return moduleGVK
+	return ModuleGVK
 }
 
-var moduleGVK = schema.GroupVersionKind{Group: "deckhouse.io", Version: "v1alpha1", Kind: "Module"}
+var ModuleGVK = schema.GroupVersionKind{Group: "deckhouse.io", Version: "v1alpha1", Kind: "Module"}
 
 func NewModule(moduleName string, order int) *Module {
 	return &Module{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: moduleGVK.GroupVersion().String(),
-			Kind:       moduleGVK.Kind,
+			APIVersion: ModuleGVK.GroupVersion().String(),
+			Kind:       ModuleGVK.Kind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: moduleName,

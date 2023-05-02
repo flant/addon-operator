@@ -12,6 +12,7 @@ import (
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -20,6 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/apis/v1alpha1"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -944,12 +946,38 @@ func (mm *ModuleManager) RegisterModules() error {
 	return nil
 }
 
-func (mm *ModuleManager) CreateModulesCR() error {
+func (mm *ModuleManager) CreateModulesCR(client klient.Client) error {
 	if mm.registerModulesGV == "" {
 		return nil
 	}
 
+	gvr, err := client.GroupVersionResource(v1alpha1.ModuleGVK.GroupVersion().String(), v1alpha1.ModuleGVK.Kind)
+	if err != nil {
+		panic(err)
+		return err
+	}
+
+	cctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	listOpts := v1.ListOptions{
+		ResourceVersion:      "0",
+		ResourceVersionMatch: v1.ResourceVersionMatchNotOlderThan,
+	}
+	list, err := client.Dynamic().Resource(gvr).List(cctx, listOpts)
+	if err != nil {
+		return err
+	}
+
 	createCROperations := make([]object_patch.Operation, 0, mm.modules.Len())
+	deleteCROperations := make([]object_patch.Operation, 0)
+
+	for _, existModuleCR := range list.Items {
+		if !mm.modules.Has(existModuleCR.GetName()) {
+			op := object_patch.NewDeleteOperation(v1alpha1.ModuleGVK.GroupVersion().String(), v1alpha1.ModuleGVK.Kind, "", existModuleCR.GetName(), object_patch.InBackground())
+			deleteCROperations = append(deleteCROperations, op)
+		}
+	}
 
 	for _, module := range mm.modules.List() {
 		op, err := mm.createModuleOperation(module)
@@ -960,7 +988,7 @@ func (mm *ModuleManager) CreateModulesCR() error {
 		}
 	}
 
-	return mm.dependencies.KubeObjectPatcher.ExecuteOperations(createCROperations)
+	return mm.dependencies.KubeObjectPatcher.ExecuteOperations(append(createCROperations, deleteCROperations...))
 }
 
 func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Operation, error) {
