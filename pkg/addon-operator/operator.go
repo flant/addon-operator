@@ -2117,7 +2117,6 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 func (op *AddonOperator) OnFirstConvergeDone() {
 	go func() {
 		<-op.ConvergeState.firstRunDoneC
-		fmt.Println("FIRST CONVERGE DONE")
 
 		err := op.ModuleManager.CreateModulesCR(op.KubeConfigManager.KubeClient)
 		if err != nil {

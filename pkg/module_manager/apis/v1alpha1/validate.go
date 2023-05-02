@@ -15,7 +15,10 @@ import (
 
 // +k8s:deepcopy-gen=false
 var vf = kwhvalidating.ValidatorFunc(func(ctx context.Context, review *model.AdmissionReview, obj metav1.Object) (result *kwhvalidating.ValidatorResult, err error) {
+	fmt.Println("####################################")
 	fmt.Println("USER", review.UserInfo.Username)
+	fmt.Println("UINFO", review.UserInfo)
+	fmt.Printf("REVIEW: %+v\n", review)
 
 	if review.UserInfo.Username != "deckhouse-controller" {
 		return &kwhvalidating.ValidatorResult{
