@@ -907,8 +907,6 @@ func (mm *ModuleManager) RegisterModules() error {
 
 	log.Debugf("Found modules: %v", modules.NamesInOrder())
 
-	createCROperations := make([]object_patch.Operation, 0, len(modules.List()))
-
 	for _, module := range modules.List() {
 		logEntry := log.WithField("module", module.Name)
 
@@ -939,28 +937,30 @@ func (mm *ModuleManager) RegisterModules() error {
 			return fmt.Errorf("add module '%s' schemas: %v", module.Name, err)
 		}
 
-		if mm.registerModulesGV != "" {
-			op, err := mm.createModuleOperation(module)
-			if err != nil {
-				log.Warnf("Module can not be registered: %s", err)
-			} else {
-				createCROperations = append(createCROperations, op)
-			}
-		}
-
 		logEntry.Infof("Module from '%s'. %s", module.Path, mm.ValuesValidator.SchemaStorage.ModuleSchemasDescription(module.ValuesKey()))
-	}
-
-	if mm.registerModulesGV != "" {
-		err = mm.dependencies.KubeObjectPatcher.ExecuteOperations(createCROperations)
-		if err != nil {
-			log.Errorf("Create CRs for Modules failed: %s", err)
-			return err
-		}
 	}
 
 	mm.modules = modules
 	return nil
+}
+
+func (mm *ModuleManager) CreateModulesCR() error {
+	if mm.registerModulesGV == "" {
+		return nil
+	}
+
+	createCROperations := make([]object_patch.Operation, 0, mm.modules.Len())
+
+	for _, module := range mm.modules.List() {
+		op, err := mm.createModuleOperation(module)
+		if err != nil {
+			log.Warnf("Module %q can not be registered: %s", module.Name, err)
+		} else {
+			createCROperations = append(createCROperations, op)
+		}
+	}
+
+	return mm.dependencies.KubeObjectPatcher.ExecuteOperations(createCROperations)
 }
 
 func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Operation, error) {

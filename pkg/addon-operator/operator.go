@@ -1936,13 +1936,13 @@ func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
 	case firstNotStarted:
 		// Switch to 'started' state if there are 'converge' tasks in the queue.
 		if convergeTasks > 0 {
-			op.ConvergeState.firstRunPhase = firstStarted
+			op.ConvergeState.setFirstRunPhase(firstStarted)
 		}
 	case firstStarted:
 		// Switch to 'done' state after first converge is started and when no 'converge' tasks left in the queue.
 		if convergeTasks == 0 {
 			log.Infof("First converge is finished. Operator is ready now.")
-			op.ConvergeState.firstRunPhase = firstDone
+			op.ConvergeState.setFirstRunPhase(firstDone)
 		}
 	}
 }
@@ -2111,4 +2111,15 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 		return string(module.State.Phase)
 	}
 	return ""
+}
+
+// OnFirstConvergeDone run addon-operator business logic when first converge is done and operator is ready
+func (op *AddonOperator) OnFirstConvergeDone() {
+	go func() {
+		<-op.ConvergeState.firstRunDoneC
+		err := op.ModuleManager.CreateModulesCR()
+		if err != nil {
+			log.Errorf("Modules CR registration failed: %s", err)
+		}
+	}()
 }

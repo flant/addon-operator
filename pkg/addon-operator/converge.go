@@ -11,6 +11,7 @@ import (
 type ConvergeState struct {
 	Phase         ConvergePhase
 	firstRunPhase firstConvergePhase
+	firstRunDoneC chan struct{}
 	StartedAt     int64
 	Activation    string
 }
@@ -37,6 +38,14 @@ func NewConvergeState() *ConvergeState {
 	return &ConvergeState{
 		Phase:         StandBy,
 		firstRunPhase: firstNotStarted,
+		firstRunDoneC: make(chan struct{}),
+	}
+}
+
+func (cs *ConvergeState) setFirstRunPhase(ph firstConvergePhase) {
+	cs.firstRunPhase = ph
+	if ph == firstDone {
+		close(cs.firstRunDoneC)
 	}
 }
 

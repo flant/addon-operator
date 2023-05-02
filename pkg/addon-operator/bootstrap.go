@@ -72,6 +72,7 @@ func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, temp
 	shell_operator.RegisterDebugConfigRoutes(debugServer, runtimeConfig)
 	op.RegisterDebugGlobalRoutes(debugServer)
 	op.RegisterDebugModuleRoutes(debugServer)
+	op.OnFirstConvergeDone()
 
 	// Helm client factory.
 	op.Helm, err = helm.InitHelmClientFactory(op.KubeClient)
