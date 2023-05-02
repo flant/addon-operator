@@ -52,7 +52,8 @@ func NewModule(moduleName string, order int) *Module {
 			Kind:       ModuleGVK.Kind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: moduleName,
+			Name:   moduleName,
+			Labels: make(map[string]string),
 		},
 		Properties: ModuleProperties{
 			Weight: order,

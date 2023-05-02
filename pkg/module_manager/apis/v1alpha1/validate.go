@@ -19,7 +19,7 @@ var vf = kwhvalidating.ValidatorFunc(func(ctx context.Context, review *model.Adm
 	if review.UserInfo.Username != "system:serviceaccount:d8-system:deckhouse" {
 		return &kwhvalidating.ValidatorResult{
 			Valid:   false,
-			Message: "Module manual delete is forbidden",
+			Message: "manual Module change is forbidden",
 		}, nil
 	}
 
