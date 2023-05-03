@@ -14,8 +14,8 @@ import (
 
 // +k8s:deepcopy-gen=false
 var vf = kwhvalidating.ValidatorFunc(func(ctx context.Context, review *model.AdmissionReview, obj metav1.Object) (result *kwhvalidating.ValidatorResult, err error) {
-	//UserInfo groups: [system:serviceaccounts system:serviceaccounts:d8-system system:authenticated]
-	//Extra: [authentication.kubernetes.io/pod-name:[deckhouse-7cf6ddd78-grn4m]]
+	// UserInfo groups: [system:serviceaccounts system:serviceaccounts:d8-system system:authenticated]
+	// Extra: [authentication.kubernetes.io/pod-name:[deckhouse-7cf6ddd78-grn4m]]
 	if review.UserInfo.Username != "system:serviceaccount:d8-system:deckhouse" {
 		return &kwhvalidating.ValidatorResult{
 			Valid:   false,
