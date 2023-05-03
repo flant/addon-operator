@@ -56,8 +56,8 @@ func (s *ModuleSet) Len() int {
 }
 
 func (s *ModuleSet) NamesInOrder() []string {
-	s.lck.RLock()
-	defer s.lck.RUnlock()
+	s.lck.Lock()
+	defer s.lck.Unlock()
 	return s.namesInOrder()
 }
 
