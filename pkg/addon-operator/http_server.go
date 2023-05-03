@@ -19,8 +19,6 @@ func (op *AddonOperator) RegisterDefaultRoutes() {
       <a href="/metrics">prometheus metrics</a>
       <a href="/healthz">health url</a>
       <a href="/readyz">ready url</a>
-
-      <a href="/validate/v1alpha1/modules">validation admission webhook for Module CR</a>
     </p>
     </body>
     </html>`))
