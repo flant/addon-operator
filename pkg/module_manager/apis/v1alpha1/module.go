@@ -26,8 +26,7 @@ type Module struct {
 }
 
 type ModuleProperties struct {
-	Weight int      `json:"weight"`
-	Labels []string `json:"labels"`
+	Weight int `json:"weight"`
 }
 
 type ModuleStatus struct{}
@@ -57,7 +56,6 @@ func NewModule(moduleName string, order int) *Module {
 		},
 		Properties: ModuleProperties{
 			Weight: order,
-			Labels: make([]string, 0),
 		},
 		Status: ModuleStatus{},
 	}
@@ -68,21 +66,17 @@ func NewModule(moduleName string, order int) *Module {
 }
 
 func (m *Module) calculateLabels() {
+	// could be removed when we will ready properties from the module.yaml file
+
 	if strings.HasPrefix(m.Name, "cni-") {
-		m.Properties.Labels = append(m.Properties.Labels, "cni")
+		m.Labels["module.deckhouse.io/cni"] = ""
 	}
 
 	if strings.HasPrefix(m.Name, "cloud-provider-") {
-		m.Properties.Labels = append(m.Properties.Labels, "cloud-provider")
+		m.Labels["module.deckhouse.io/cloud-provider"] = ""
 	}
 
 	if strings.HasSuffix(m.Name, "-crd") {
-		m.Properties.Labels = append(m.Properties.Labels, "crd")
-	}
-
-	// upper part could be removed when we will ready properties from the module.yaml file
-
-	for _, label := range m.Properties.Labels {
-		m.Labels["module.deckhouse.io/"+label] = ""
+		m.Labels["module.deckhouse.io/crd"] = ""
 	}
 }

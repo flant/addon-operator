@@ -983,24 +983,17 @@ func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 		op, err := mm.createModuleOperation(module)
 		if err != nil {
 			log.Warnf("Module %q can not be registered: %s", module.Name, err)
-		} else {
-			createCROperations = append(createCROperations, op)
+			continue
 		}
+
+		createCROperations = append(createCROperations, op)
 	}
 
 	return mm.dependencies.KubeObjectPatcher.ExecuteOperations(append(createCROperations, deleteCROperations...))
 }
 
 func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Operation, error) {
-	var cr *v1alpha1.Module
-
-	switch mm.registerModulesGV {
-	case "deckhouse.io/v1alpha1":
-		cr = v1alpha1.NewModule(module.Name, module.Order)
-
-	default:
-		return nil, fmt.Errorf("unknown GroupVersion for Module registration: %s", mm.registerModulesGV)
-	}
+	cr := v1alpha1.NewModule(module.Name, module.Order)
 
 	cop := object_patch.NewCreateOperation(cr, object_patch.UpdateIfExists())
 	return cop, nil
