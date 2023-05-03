@@ -63,6 +63,7 @@ func (op *AddonOperator) bootstrap() error {
 
 func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, tempDir string, debugServer *debug.Server, runtimeConfig *config.Config) (err error) {
 	op.RegisterDefaultRoutes()
+	op.StartAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
 	RegisterAddonOperatorMetrics(op.MetricStorage)
 	StartLiveTicksUpdater(op.MetricStorage)
 	StartTasksQueueLengthUpdater(op.MetricStorage, op.TaskQueues)

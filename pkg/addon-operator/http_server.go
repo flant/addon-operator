@@ -65,6 +65,4 @@ func (op *AddonOperator) RegisterDefaultRoutes() {
 
 		_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
 	})
-
-	go aaa()
 }

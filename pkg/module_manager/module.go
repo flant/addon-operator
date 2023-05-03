@@ -946,6 +946,7 @@ func (mm *ModuleManager) RegisterModules() error {
 	return nil
 }
 
+// SyncModulesCR synchronize modules CR from current modules list to the cluster one
 func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 	if mm.registerModulesGV == "" {
 		return nil

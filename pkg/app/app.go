@@ -14,8 +14,9 @@ var (
 	AppDescription = ""
 	Version        = "dev"
 
-	DefaultListenAddress           = "0.0.0.0"
-	DefaultListenPort              = "9650"
+	DefaultListenAddress = "0.0.0.0"
+	DefaultListenPort    = "9650"
+
 	DefaultPrometheusMetricsPrefix = "addon_operator_"
 
 	Helm3HistoryMax   int32 = 10
@@ -36,6 +37,9 @@ var (
 	UnnumberedModuleOrder = 1
 
 	RegisterModulesGV string
+
+	AdmissionServerListenPort = "9651"
+	AdmissionServerCertsDir   = ""
 )
 
 const (
@@ -121,6 +125,16 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_REGISTER_MODULES_GV").
 		Default("").
 		StringVar(&RegisterModulesGV)
+
+	cmd.Flag("admission-server-listen-port", "Port to use to serve admission webhooks.").
+		Envar("ADDON_OPERATOR_ADMISSION_SERVER_LISTEN_PORT").
+		Default(AdmissionServerListenPort).
+		StringVar(&AdmissionServerListenPort)
+
+	cmd.Flag("admission-server-certs-dir", "Path to the directory with tls certificates.").
+		Envar("ADDON_OPERATOR_ADMISSION_SERVER_CERTS_DIR").
+		Default("").
+		StringVar(&AdmissionServerCertsDir)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)
