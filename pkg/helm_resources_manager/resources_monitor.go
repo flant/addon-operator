@@ -250,7 +250,7 @@ func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvr namespacedGV
 		ResourceVersion:      "0",
 		ResourceVersionMatch: v1.ResourceVersionMatchNotOlderThan,
 	}
-	objList, err := r.kubeClient.Dynamic().Resource(nsgvr.GVR).Namespace(nsgvr.Namespace).List(ctx, listOpts)
+	objList, err := r.kubeClient.Metadata().Resource(nsgvr.GVR).Namespace(nsgvr.Namespace).List(ctx, listOpts)
 	if err != nil {
 		return nil, fmt.Errorf("fetch list for helm resource %s in ns: %s failed: %s", nsgvr.GVR, nsgvr.Namespace, err)
 	}

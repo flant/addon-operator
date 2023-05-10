@@ -181,8 +181,8 @@ github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYF
 github.com/felixge/httpsnoop v1.0.1 h1:lvB5Jl89CsZtGIWuTcDM1E/vkVs49/Ml7JJe07l8SPQ=
 github.com/flant/go-openapi-validate v0.19.12-flant.0 h1:xk6kvc9fHKMgUdB6J7kbpbLR5vJOUzKAK8p3nrD7mDk=
 github.com/flant/go-openapi-validate v0.19.12-flant.0/go.mod h1:Rzou8hA/CBw8donlS6WNEUQupNvUZ0waH08tGe6kAQ4=
-github.com/flant/kube-client v0.25.0 h1:7uwwbvGNl3d7jNk0nHM4VxNbTnhESXLTiv/gQaUb9A0=
-github.com/flant/kube-client v0.25.0/go.mod h1:BPNhiy57FgJmnSBXy0l8AwBN6F9SHOfgFgHi3UG2Jrw=
+github.com/flant/kube-client v0.26.1 h1:QIT/Skmdv5Mpu8OWBzncmZdtlKXDKzkyhte7wlXnbVE=
+github.com/flant/kube-client v0.26.1/go.mod h1:BPNhiy57FgJmnSBXy0l8AwBN6F9SHOfgFgHi3UG2Jrw=
 github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee h1:evii83J+/6QGNvyf6tjQ/p27DPY9iftxIBb37ALJRTg=
 github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee/go.mod h1:f+REaGl/+pZR97rbTcwHEka/MAipoQQ2Mc0iQUj4ak0=
 github.com/flant/shell-operator v1.2.0 h1:0KCWZ5IyThN8LFiAK954yXbLLBw6MvPk8bQ+ny3w7E8=

@@ -1,11 +1,15 @@
 package helm_resources_manager
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	. "github.com/onsi/gomega"
 	"go.uber.org/goleak"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	fakemetadata "k8s.io/client-go/metadata/fake"
 
 	"github.com/flant/kube-client/fake"
 	"github.com/flant/kube-client/manifest"
@@ -64,9 +68,10 @@ metadata:
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(absent).To(HaveLen(0), "Should be no absent resources after creation")
 
-	fc.DeleteSimpleNamespaced("ns1", "Pod", "pod-0")
+	deleteResource(fc, "v1", "Pod", "ns1", "pod-0")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	fc.DeleteSimpleNamespaced(defaultNs, "Deployment", "backend")
+
+	deleteResource(fc, "apps/v1", "Deployment", defaultNs, "backend")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	absent, err = mgr.GetAbsentResources(chartResources, "default")
@@ -87,7 +92,61 @@ func createResource(fc *fake.Cluster, ns, manifestYaml string) manifest.Manifest
 
 	fmt.Printf("Create %s\n", m.Id())
 
-	fc.CreateSimpleNamespaced(m.Namespace(ns), m.Kind(), m.Name())
+	apiRes, err := fc.Client.APIResource(m.ApiVersion(), m.Kind())
+	if err != nil {
+		panic(err)
+	}
+	gvr := schema.GroupVersionResource{
+		Group:    apiRes.Group,
+		Version:  apiRes.Version,
+		Resource: apiRes.Name,
+	}
+
+	defaultNs := m.Namespace(ns)
+
+	_, err = fc.Client.Metadata().(*fakemetadata.FakeMetadataClient).
+		Resource(gvr).
+		Namespace(defaultNs).(fakemetadata.MetadataClient).
+		CreateFake(
+			&metav1.PartialObjectMetadata{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: m.ApiVersion(),
+					Kind:       m.Kind(),
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      m.Name(),
+					Namespace: defaultNs,
+				},
+			},
+			metav1.CreateOptions{})
+	if err != nil {
+		panic(err)
+	}
 
 	return m
+}
+
+func deleteResource(fc *fake.Cluster, apiVersion, kind, ns, name string) {
+	fmt.Printf("Delete %s/%s/%s\n", kind, ns, name)
+
+	apiRes, err := fc.Client.APIResource(apiVersion, kind)
+	if err != nil {
+		panic(err)
+	}
+	gvr := schema.GroupVersionResource{
+		Group:    apiRes.Group,
+		Version:  apiRes.Version,
+		Resource: apiRes.Name,
+	}
+
+	err = fc.Client.Metadata().(*fakemetadata.FakeMetadataClient).
+		Resource(gvr).
+		Namespace(ns).(fakemetadata.MetadataClient).
+		Delete(
+			context.TODO(),
+			name,
+			metav1.DeleteOptions{})
+	if err != nil {
+		panic(err)
+	}
 }
