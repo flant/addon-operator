@@ -36,10 +36,11 @@ var (
 
 	UnnumberedModuleOrder = 1
 
-	RegisterModulesGV string
+	RegisterModulesGV string // deckhouse.io/v1alpha1/modules или deckhouse.io/v1alpha1
 
 	AdmissionServerListenPort = "9651"
 	AdmissionServerCertsDir   = ""
+	AdmissionServerEnabled    = false
 )
 
 const (
@@ -135,6 +136,11 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_ADMISSION_SERVER_CERTS_DIR").
 		Default("").
 		StringVar(&AdmissionServerCertsDir)
+
+	cmd.Flag("admission-server-enabled", "Flat to enable admission http server.").
+		Envar("ADDON_OPERATOR_ADMISSION_SERVER_ENABLED").
+		Default("false").
+		BoolVar(&AdmissionServerEnabled)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)

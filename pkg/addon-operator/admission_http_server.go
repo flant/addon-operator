@@ -8,36 +8,56 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
-	"github.com/flant/addon-operator/pkg/module_manager/apis/v1alpha1"
 )
 
-func (op *AddonOperator) StartAdmissionServer(listenPort, certsDir string) {
-	if certsDir == "" {
-		return
+type AdmissionServer struct {
+	listenPort string
+	certsDir   string
+
+	routes map[string]http.Handler
+}
+
+func NewAdmissionServer(listenPort, certsDir string) *AdmissionServer {
+	return &AdmissionServer{
+		listenPort: listenPort,
+		certsDir:   certsDir,
+		routes:     make(map[string]http.Handler),
+	}
+}
+
+func (as *AdmissionServer) RegisterHandler(route string, handler http.Handler) {
+	if _, ok := as.routes[route]; ok {
+		log.Fatalf("Route %q is already registered", route)
 	}
 
+	as.routes[route] = handler
+}
+
+// start runs admission https server
+func (as *AdmissionServer) start(ctx context.Context) {
 	mux := http.NewServeMux()
 
-	mux.Handle("/validate/v1alpha1/modules", v1alpha1.ValidationHandler())
+	for route, handler := range as.routes {
+		mux.Handle(route, handler)
+	}
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%s", listenPort),
+		Addr:         fmt.Sprintf(":%s", as.listenPort),
 		Handler:      mux,
 		ReadTimeout:  60 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
 	go func() {
-		cert := path.Join(certsDir, "tls.crt")
-		key := path.Join(certsDir, "tls.key")
+		cert := path.Join(as.certsDir, "tls.crt")
+		key := path.Join(as.certsDir, "tls.key")
 		if err := srv.ListenAndServeTLS(cert, key); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
 	go func() {
-		<-op.ctx.Done()
+		<-ctx.Done()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer func() {

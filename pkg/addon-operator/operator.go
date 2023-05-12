@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
@@ -53,6 +54,9 @@ type AddonOperator struct {
 
 	// Initial KubeConfig to bypass initial loading from the ConfigMap.
 	InitialKubeConfig *kube_config_manager.KubeConfig
+
+	// AdmissionServer handles validation and mutation admission webhooks
+	AdmissionServer *AdmissionServer
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -60,12 +64,18 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 	so := shell_operator.NewShellOperator()
 	so.WithContext(cctx)
 
-	return &AddonOperator{
+	ao := &AddonOperator{
 		ctx:           cctx,
 		cancel:        cancel,
 		ShellOperator: so,
 		ConvergeState: NewConvergeState(),
 	}
+
+	if app.AdmissionServerEnabled {
+		ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
+	}
+
+	return ao
 }
 
 func (op *AddonOperator) Stop() {

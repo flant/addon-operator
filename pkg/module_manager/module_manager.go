@@ -70,6 +70,11 @@ type ModuleManagerDependencies struct {
 	HookMetricStorage    *metric_storage.MetricStorage
 }
 
+type ModuleManagerConfig struct {
+	DirectoryConfig DirectoryConfig
+	Dependencies    ModuleManagerDependencies
+}
+
 type ModuleManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -87,8 +92,7 @@ type ModuleManager struct {
 	// All known modules from specified directories ($MODULES_DIR)
 	modules *ModuleSet
 
-	// create CR with registered modules
-	registerModulesGV string
+	moduleBuilder ModuleBuilder
 
 	// TODO new layer of values for *Enabled values
 	// commonStaticEnabledValues utils.Values // modules/values.yaml
@@ -143,26 +147,22 @@ type ModuleManager struct {
 }
 
 // NewModuleManager returns new MainModuleManager
-func NewModuleManager(ctx context.Context, dirCfg DirectoryConfig, deps *ModuleManagerDependencies, regModulesGV string) *ModuleManager {
-	if deps == nil {
-		deps = &ModuleManagerDependencies{}
-	}
+func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleManager {
 	cctx, cancel := context.WithCancel(ctx)
 
 	return &ModuleManager{
 		ctx:    cctx,
 		cancel: cancel,
 
-		ModulesDir:     dirCfg.ModulesDir,
-		GlobalHooksDir: dirCfg.GlobalHooksDir,
-		TempDir:        dirCfg.TempDir,
+		ModulesDir:     cfg.DirectoryConfig.ModulesDir,
+		GlobalHooksDir: cfg.DirectoryConfig.GlobalHooksDir,
+		TempDir:        cfg.DirectoryConfig.TempDir,
 
-		dependencies: deps,
+		dependencies: &cfg.Dependencies,
 
 		ValuesValidator: validation.NewValuesValidator(),
 
-		modules:           new(ModuleSet),
-		registerModulesGV: regModulesGV,
+		modules: new(ModuleSet),
 
 		enabledModulesByConfig:      make(map[string]struct{}),
 		enabledModules:              make([]string, 0),
@@ -184,6 +184,10 @@ func (mm *ModuleManager) Stop() {
 	if mm.cancel != nil {
 		mm.cancel()
 	}
+}
+
+func (mm *ModuleManager) SetupModuleBuilder(builder ModuleBuilder) {
+	mm.moduleBuilder = builder
 }
 
 // runModulesEnabledScript runs enable script for each module from the list.

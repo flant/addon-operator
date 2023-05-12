@@ -13,12 +13,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	. "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/module_manager/apis/v1alpha1"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	klient "github.com/flant/kube-client/client"
@@ -948,11 +948,13 @@ func (mm *ModuleManager) RegisterModules() error {
 
 // SyncModulesCR synchronize modules CR from current modules list to the cluster one
 func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
-	if mm.registerModulesGV == "" {
+	if mm.moduleBuilder == nil {
 		return nil
 	}
 
-	gvr, err := client.GroupVersionResource(v1alpha1.ModuleGVK.GroupVersion().String(), v1alpha1.ModuleGVK.Kind)
+	moduleGVK := mm.moduleBuilder.GetGVK()
+
+	gvr, err := client.GroupVersionResource(moduleGVK.GroupVersion().String(), moduleGVK.Kind)
 	if err != nil {
 		return err
 	}
@@ -974,7 +976,7 @@ func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 
 	for _, existModuleCR := range list.Items {
 		if !mm.modules.Has(existModuleCR.GetName()) {
-			op := object_patch.NewDeleteOperation(v1alpha1.ModuleGVK.GroupVersion().String(), v1alpha1.ModuleGVK.Kind, "", existModuleCR.GetName(), object_patch.InBackground())
+			op := object_patch.NewDeleteOperation(moduleGVK.GroupVersion().String(), moduleGVK.Kind, "", existModuleCR.GetName(), object_patch.InBackground())
 			deleteCROperations = append(deleteCROperations, op)
 		}
 	}
@@ -993,9 +995,12 @@ func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 }
 
 func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Operation, error) {
-	cr := v1alpha1.NewModule(module.Name, module.Order)
+	moduleObject := mm.moduleBuilder.NewModuleTemplate()
 
-	cop := object_patch.NewCreateOperation(cr, object_patch.UpdateIfExists())
+	moduleObject.SetName(module.Name)
+	moduleObject.SetWeight(module.Order)
+
+	cop := object_patch.NewCreateOperation(moduleObject, object_patch.UpdateIfExists())
 	return cop, nil
 }
 
@@ -1035,4 +1040,15 @@ func dumpData(filePath string, data []byte) error {
 		return err
 	}
 	return nil
+}
+
+type ModuleBuilder interface {
+	GetGVK() schema.GroupVersionKind
+
+	NewModuleTemplate() ModuleObject
+}
+
+type ModuleObject interface {
+	SetName(name string)
+	SetWeight(weight int)
 }
