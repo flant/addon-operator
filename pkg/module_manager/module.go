@@ -957,7 +957,7 @@ func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 		return err
 	}
 
-	cctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	cctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	listOpts := v1.ListOptions{
