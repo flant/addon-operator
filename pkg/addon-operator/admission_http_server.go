@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"reflect"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -37,9 +38,17 @@ func (as *AdmissionServer) RegisterHandler(route string, handler http.Handler) {
 func (as *AdmissionServer) start(ctx context.Context) {
 	mux := http.NewServeMux()
 
+	fmt.Println("REGISTER ROUTES", as.routes)
+
 	for route, handler := range as.routes {
 		mux.Handle(route, handler)
 	}
+
+	mux.HandleFunc("/routes", func(writer http.ResponseWriter, request *http.Request) {
+		httpMux := reflect.ValueOf(mux).Elem()
+		finList := httpMux.FieldByIndex([]int{1})
+		writer.Write(finList.Bytes())
+	})
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", as.listenPort),

@@ -36,8 +36,6 @@ var (
 
 	UnnumberedModuleOrder = 1
 
-	RegisterModulesGV string // deckhouse.io/v1alpha1/modules или deckhouse.io/v1alpha1
-
 	AdmissionServerListenPort = "9651"
 	AdmissionServerCertsDir   = ""
 	AdmissionServerEnabled    = false
@@ -121,11 +119,6 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_CONFIG_MAP").
 		Default(ConfigMapName).
 		StringVar(&ConfigMapName)
-
-	cmd.Flag("register-modules-gv", "GroupVersion to register Module CR in.").
-		Envar("ADDON_OPERATOR_REGISTER_MODULES_GV").
-		Default("").
-		StringVar(&RegisterModulesGV)
 
 	cmd.Flag("admission-server-listen-port", "Port to use to serve admission webhooks.").
 		Envar("ADDON_OPERATOR_ADMISSION_SERVER_LISTEN_PORT").
