@@ -75,6 +75,8 @@ func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, temp
 	shell_operator.RegisterDebugConfigRoutes(debugServer, runtimeConfig)
 	op.RegisterDebugGlobalRoutes(debugServer)
 	op.RegisterDebugModuleRoutes(debugServer)
+	// service (kubernetes object) does not have endpoints before addon-operator is ready
+	// we have to wait readiness probe (linked on the first-converge) before manipulating in-cluster objects covered with validation webhook
 	op.OnFirstConvergeDone()
 
 	// Helm client factory.
