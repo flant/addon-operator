@@ -1000,7 +1000,7 @@ func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Ope
 	mo.SetName(module.Name)
 	mo.SetWeight(module.Order)
 
-	cop := object_patch.NewCreateOperation(module, object_patch.UpdateIfExists())
+	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
 	return cop, nil
 }
 
