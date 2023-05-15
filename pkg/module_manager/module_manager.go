@@ -92,7 +92,7 @@ type ModuleManager struct {
 	// All known modules from specified directories ($MODULES_DIR)
 	modules *ModuleSet
 
-	moduleBuilder ModuleDirector
+	moduleProducer ModuleProducer
 
 	// TODO new layer of values for *Enabled values
 	// commonStaticEnabledValues utils.Values // modules/values.yaml
@@ -186,8 +186,10 @@ func (mm *ModuleManager) Stop() {
 	}
 }
 
-func (mm *ModuleManager) SetupModuleBuilder(dir ModuleDirector) {
-	mm.moduleBuilder = dir
+// SetupModuleProducer registers foreign Module producer, which provides runtime.Object Module for storing in a cluster
+func (mm *ModuleManager) SetupModuleProducer(producer interface{}) {
+	v := producer.(ModuleProducer)
+	mm.moduleProducer = v
 }
 
 // runModulesEnabledScript runs enable script for each module from the list.

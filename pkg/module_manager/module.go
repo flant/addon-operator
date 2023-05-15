@@ -948,11 +948,11 @@ func (mm *ModuleManager) RegisterModules() error {
 
 // SyncModulesCR synchronize modules CR from current modules list to the cluster one
 func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
-	if mm.moduleBuilder == nil {
+	if mm.moduleProducer == nil {
 		return nil
 	}
 
-	moduleGVK := mm.moduleBuilder.GetGVK()
+	moduleGVK := mm.moduleProducer.GetGVK()
 
 	gvr, err := client.GroupVersionResource(moduleGVK.GroupVersion().String(), moduleGVK.Kind)
 	if err != nil {
@@ -995,12 +995,12 @@ func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 }
 
 func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Operation, error) {
-	mb := mm.moduleBuilder.NewBuilder()
+	mo := mm.moduleProducer.NewModule()
 
-	mb.SetName(module.Name)
-	mb.SetWeight(module.Order)
+	mo.SetName(module.Name)
+	mo.SetWeight(module.Order)
 
-	cop := object_patch.NewCreateOperation(mb.Build(), object_patch.UpdateIfExists())
+	cop := object_patch.NewCreateOperation(module, object_patch.UpdateIfExists())
 	return cop, nil
 }
 
@@ -1042,18 +1042,13 @@ func dumpData(filePath string, data []byte) error {
 	return nil
 }
 
-type ModuleDirector interface {
+// ModuleProducer interface to get a factory which produces Modules CR object
+type ModuleProducer interface {
 	GetGVK() schema.GroupVersionKind
-	NewBuilder() ModuleBuilder
+	NewModule() ModuleObject
 }
 
-type ModuleBuilder interface {
-	SetName(name string)
-	SetWeight(weight int)
-
-	Build() interface{}
-}
-
+// ModuleObject Module CR
 type ModuleObject interface {
 	SetName(name string)
 	SetWeight(weight int)
