@@ -995,12 +995,12 @@ func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 }
 
 func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Operation, error) {
-	moduleObject := mm.moduleBuilder.NewModuleTemplate()
+	mb := mm.moduleBuilder.NewBuilder()
 
-	moduleObject.SetName(module.Name)
-	moduleObject.SetWeight(module.Order)
+	mb.SetName(module.Name)
+	mb.SetWeight(module.Order)
 
-	cop := object_patch.NewCreateOperation(moduleObject, object_patch.UpdateIfExists())
+	cop := object_patch.NewCreateOperation(mb.Build(), object_patch.UpdateIfExists())
 	return cop, nil
 }
 
@@ -1042,10 +1042,16 @@ func dumpData(filePath string, data []byte) error {
 	return nil
 }
 
-type ModuleBuilder interface {
+type ModuleDirector interface {
 	GetGVK() schema.GroupVersionKind
+	NewBuilder() ModuleBuilder
+}
 
-	NewModuleTemplate() ModuleObject
+type ModuleBuilder interface {
+	SetName(name string)
+	SetWeight(weight int)
+
+	Build() interface{}
 }
 
 type ModuleObject interface {

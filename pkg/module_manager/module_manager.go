@@ -92,7 +92,7 @@ type ModuleManager struct {
 	// All known modules from specified directories ($MODULES_DIR)
 	modules *ModuleSet
 
-	moduleBuilder ModuleBuilder
+	moduleBuilder ModuleDirector
 
 	// TODO new layer of values for *Enabled values
 	// commonStaticEnabledValues utils.Values // modules/values.yaml
@@ -186,8 +186,8 @@ func (mm *ModuleManager) Stop() {
 	}
 }
 
-func (mm *ModuleManager) SetupModuleBuilder(builder ModuleBuilder) {
-	mm.moduleBuilder = builder
+func (mm *ModuleManager) SetupModuleBuilder(dir ModuleDirector) {
+	mm.moduleBuilder = dir
 }
 
 // runModulesEnabledScript runs enable script for each module from the list.
