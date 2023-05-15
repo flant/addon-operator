@@ -186,10 +186,9 @@ func (mm *ModuleManager) Stop() {
 	}
 }
 
-// SetupModuleProducer registers foreign Module producer, which provides runtime.Object Module for storing in a cluster
-func (mm *ModuleManager) SetupModuleProducer(producer interface{}) {
-	v := producer.(ModuleProducer)
-	mm.moduleProducer = v
+// SetupModuleProducer registers foreign Module producer, which provides Module for storing in a cluster
+func (mm *ModuleManager) SetupModuleProducer(producer ModuleProducer) {
+	mm.moduleProducer = producer
 }
 
 // runModulesEnabledScript runs enable script for each module from the list.
