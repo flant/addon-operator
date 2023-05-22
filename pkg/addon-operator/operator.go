@@ -619,7 +619,6 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			op.ConvergeState.Phase = StandBy
 			logEntry.Infof("ConvergeModules task done")
 			res.Status = queue.Success
-			fmt.Println("CONVERGE DONE")
 			op.EmitModulesSync()
 			return res
 		}
