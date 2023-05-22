@@ -1006,8 +1006,11 @@ func (mm *ModuleManager) createModuleOperations(gvk schema.GroupVersionKind, mod
 	mo.SetSource(module.Source)
 	mo.SetEnabledState(module.State.Enabled)
 
+	fmt.Printf("STATUS: %v\n", mo.GetStatus())
+
 	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
 	statusOP := object_patch.NewMergePatchOperation(mo.GetStatus(), gvk.GroupVersion().String(), gvk.Kind, "", module.Name, object_patch.WithSubresource("/status"))
+	fmt.Println("STATUS OP", statusOP)
 	return []object_patch.Operation{cop, statusOP}, nil
 }
 
