@@ -71,9 +71,7 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		ConvergeState: NewConvergeState(),
 	}
 
-	if app.AdmissionServerEnabled {
-		ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
-	}
+	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
 
 	return ao
 }
