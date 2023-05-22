@@ -1,6 +1,7 @@
 package addon_operator
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -45,6 +46,7 @@ func NewConvergeState() *ConvergeState {
 func (cs *ConvergeState) setFirstRunPhase(ph firstConvergePhase) {
 	cs.firstRunPhase = ph
 	if ph == firstDone {
+		fmt.Println("FIRST CONVERGE DONE")
 		close(cs.firstRunDoneC)
 	}
 }

@@ -619,6 +619,8 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			op.ConvergeState.Phase = StandBy
 			logEntry.Infof("ConvergeModules task done")
 			res.Status = queue.Success
+			fmt.Println("CONVERGE DONE")
+			op.EmitModulesSync()
 			return res
 		}
 	}
@@ -2134,4 +2136,16 @@ func (op *AddonOperator) OnFirstConvergeDone() {
 			log.Errorf("Modules CR registration failed: %s", err)
 		}
 	}()
+}
+
+// EmitModulesSync emit modules CR synchronization
+func (op *AddonOperator) EmitModulesSync() {
+	if !op.IsStartupConvergeDone() {
+		return
+	}
+
+	err := op.ModuleManager.SyncModulesCR(op.KubeConfigManager.KubeClient)
+	if err != nil {
+		log.Errorf("Modules CR registration failed: %s", err)
+	}
 }

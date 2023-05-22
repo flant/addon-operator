@@ -42,6 +42,9 @@ type Module struct {
 	// module values from modules/<module name>/values.yaml
 	StaticConfig *utils.ModuleConfig
 
+	// Module source - Embedded or External repository
+	Source string
+
 	State *ModuleState
 
 	moduleManager *ModuleManager
@@ -51,10 +54,11 @@ type Module struct {
 
 func NewModule(name string, path string, order int) *Module {
 	return &Module{
-		Name:  name,
-		Path:  path,
-		Order: order,
-		State: NewModuleState(),
+		Name:   name,
+		Path:   path,
+		Order:  order,
+		State:  NewModuleState(),
+		Source: "Embedded",
 	}
 }
 
@@ -999,6 +1003,8 @@ func (mm *ModuleManager) createModuleOperation(module *Module) (object_patch.Ope
 
 	mo.SetName(module.Name)
 	mo.SetWeight(module.Order)
+	mo.SetSource(module.Source)
+	mo.SetEnabledState(module.State.Enabled)
 
 	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
 	return cop, nil
@@ -1052,4 +1058,6 @@ type ModuleProducer interface {
 type ModuleObject interface {
 	SetName(name string)
 	SetWeight(weight int)
+	SetSource(source string)
+	SetEnabledState(state bool)
 }

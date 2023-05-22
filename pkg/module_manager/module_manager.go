@@ -1176,6 +1176,16 @@ func (mm *ModuleManager) GlobalSynchronizationState() *SynchronizationState {
 	return mm.globalSynchronizationState
 }
 
+// SetModuleSource set source (external or embedded repository) for a module
+func (mm *ModuleManager) SetModuleSource(moduleName, source string) {
+	if !mm.modules.Has(moduleName) {
+		return
+	}
+
+	module := mm.modules.Get(moduleName)
+	module.Source = source
+}
+
 func (mm *ModuleManager) ApplyBindingActions(moduleHook *ModuleHook, bindingActions []go_hook.BindingAction) error {
 	for _, action := range bindingActions {
 		bindingIdx := -1
