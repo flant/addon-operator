@@ -986,7 +986,7 @@ func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 	}
 
 	for _, module := range mm.modules.List() {
-		ops, err := mm.createModuleOperations(module)
+		ops, err := mm.createModuleOperations(moduleGVK, module)
 		if err != nil {
 			log.Warnf("Module %q can not be registered: %s", module.Name, err)
 			continue
@@ -998,7 +998,7 @@ func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 	return mm.dependencies.KubeObjectPatcher.ExecuteOperations(append(createCROperations, deleteCROperations...))
 }
 
-func (mm *ModuleManager) createModuleOperations(module *Module) ([]object_patch.Operation, error) {
+func (mm *ModuleManager) createModuleOperations(gvk schema.GroupVersionKind, module *Module) ([]object_patch.Operation, error) {
 	mo := mm.moduleProducer.NewModule()
 
 	mo.SetName(module.Name)
@@ -1007,7 +1007,7 @@ func (mm *ModuleManager) createModuleOperations(module *Module) ([]object_patch.
 	mo.SetEnabledState(module.State.Enabled)
 
 	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
-	statusOP := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists(), object_patch.WithSubresource("/status"))
+	statusOP := object_patch.NewMergePatchOperation(mo.Status(), gvk.GroupVersion().String(), gvk.Kind, "", module.Name, object_patch.WithSubresource("/status"))
 	return []object_patch.Operation{cop, statusOP}, nil
 }
 
@@ -1061,4 +1061,6 @@ type ModuleObject interface {
 	SetWeight(weight int)
 	SetSource(source string)
 	SetEnabledState(state bool)
+
+	Status() interface{}
 }
