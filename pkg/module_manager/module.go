@@ -1007,7 +1007,7 @@ func (mm *ModuleManager) createModuleOperations(gvk schema.GroupVersionKind, mod
 	mo.SetEnabledState(module.State.Enabled)
 
 	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
-	statusOP := object_patch.NewMergePatchOperation(mo.Status(), gvk.GroupVersion().String(), gvk.Kind, "", module.Name, object_patch.WithSubresource("/status"))
+	statusOP := object_patch.NewMergePatchOperation(mo.GetStatus(), gvk.GroupVersion().String(), gvk.Kind, "", module.Name, object_patch.WithSubresource("/status"))
 	return []object_patch.Operation{cop, statusOP}, nil
 }
 
@@ -1062,5 +1062,5 @@ type ModuleObject interface {
 	SetSource(source string)
 	SetEnabledState(state bool)
 
-	Status() interface{}
+	GetStatus() interface{}
 }
