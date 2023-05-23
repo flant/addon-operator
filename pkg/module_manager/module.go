@@ -986,19 +986,19 @@ func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
 	}
 
 	for _, module := range mm.modules.List() {
-		ops, err := mm.createModuleOperations(moduleGVK, module)
+		op, err := mm.createModuleOperations(module)
 		if err != nil {
 			log.Warnf("Module %q can not be registered: %s", module.Name, err)
 			continue
 		}
 
-		createCROperations = append(createCROperations, ops...)
+		createCROperations = append(createCROperations, op)
 	}
 
 	return mm.dependencies.KubeObjectPatcher.ExecuteOperations(append(createCROperations, deleteCROperations...))
 }
 
-func (mm *ModuleManager) createModuleOperations(gvk schema.GroupVersionKind, module *Module) ([]object_patch.Operation, error) {
+func (mm *ModuleManager) createModuleOperations(module *Module) (object_patch.Operation, error) {
 	mo := mm.moduleProducer.NewModule()
 
 	mo.SetName(module.Name)
@@ -1007,12 +1007,8 @@ func (mm *ModuleManager) createModuleOperations(gvk schema.GroupVersionKind, mod
 	mo.SetEnabledState(module.State.Enabled)
 
 	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
-	status := map[string]interface{}{
-		"status": mo.GetStatus(),
-	}
-	statusOP := object_patch.NewMergePatchOperation(status, gvk.GroupVersion().String(), gvk.Kind, "", module.Name, object_patch.WithSubresource("/status"))
 
-	return []object_patch.Operation{cop, statusOP}, nil
+	return cop, nil
 }
 
 // loadStaticValues loads config for module from values.yaml
@@ -1065,6 +1061,4 @@ type ModuleObject interface {
 	SetWeight(weight int)
 	SetSource(source string)
 	SetEnabledState(state bool)
-
-	GetStatus() interface{}
 }
