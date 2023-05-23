@@ -2128,7 +2128,7 @@ func (op *AddonOperator) OnFirstConvergeDone() {
 		<-op.ConvergeState.firstRunDoneC
 		// after the first convergence, the service endpoints do not appear instantly.
 		// Let's add a short pause so that the service gets online and we don't get a rejection from the validation webhook (timeout reason)
-		time.Sleep(1 * time.Second) // wait for service to be resolved
+		time.Sleep(3 * time.Second) // wait for service to be resolved
 
 		err := op.ModuleManager.SyncModulesCR(op.KubeConfigManager.KubeClient)
 		if err != nil {
