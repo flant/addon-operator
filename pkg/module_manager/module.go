@@ -1006,7 +1006,9 @@ func (mm *ModuleManager) createModuleOperations(module *Module) (object_patch.Op
 	mo.SetSource(module.Source)
 	mo.SetEnabledState(module.State.Enabled)
 
-	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
+	fmt.Println("MODULE", mo)
+
+	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists(), object_patch.WithSubresource("/status"))
 
 	return cop, nil
 }
