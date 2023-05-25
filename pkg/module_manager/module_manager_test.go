@@ -126,7 +126,11 @@ func initModuleManager(t *testing.T, configPath string) (*ModuleManager, *initMo
 		HelmResourcesManager: result.helmResourcesManager,
 		KubeConfigManager:    manager,
 	}
-	result.moduleManager = NewModuleManager(context.Background(), dirs, &deps)
+	cfg := ModuleManagerConfig{
+		DirectoryConfig: dirs,
+		Dependencies:    deps,
+	}
+	result.moduleManager = NewModuleManager(context.Background(), &cfg)
 
 	err = result.moduleManager.Init()
 	require.NoError(t, err, "Should register global hooks and all modules")
@@ -1342,7 +1346,10 @@ func initModuleManagerLight(t *testing.T, configPath string) *ModuleManager {
 		GlobalHooksDir: filepath.Join(rootDir, "global"),
 		TempDir:        t.TempDir(),
 	}
-	moduleManager := NewModuleManager(context.Background(), dirs, nil)
+	cfg := ModuleManagerConfig{
+		DirectoryConfig: dirs,
+	}
+	moduleManager := NewModuleManager(context.Background(), &cfg)
 
 	err = moduleManager.Init()
 	require.NoError(t, err, "Should register global hooks and all modules")

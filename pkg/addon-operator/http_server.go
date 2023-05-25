@@ -18,6 +18,7 @@ func (op *AddonOperator) RegisterDefaultRoutes() {
     <p>
       <a href="/metrics">prometheus metrics</a>
       <a href="/healthz">health url</a>
+      <a href="/readyz">ready url</a>
     </p>
     </body>
     </html>`))
@@ -28,7 +29,7 @@ func (op *AddonOperator) RegisterDefaultRoutes() {
 		writer.WriteHeader(http.StatusOK)
 	})
 
-	http.HandleFunc("/ready", func(w http.ResponseWriter, request *http.Request) {
+	http.HandleFunc("/readyz", func(w http.ResponseWriter, request *http.Request) {
 		if op.IsStartupConvergeDone() {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("Startup converge done.\n"))

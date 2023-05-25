@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
@@ -53,6 +54,9 @@ type AddonOperator struct {
 
 	// Initial KubeConfig to bypass initial loading from the ConfigMap.
 	InitialKubeConfig *kube_config_manager.KubeConfig
+
+	// AdmissionServer handles validation and mutation admission webhooks
+	AdmissionServer *AdmissionServer
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -60,12 +64,16 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 	so := shell_operator.NewShellOperator()
 	so.WithContext(cctx)
 
-	return &AddonOperator{
+	ao := &AddonOperator{
 		ctx:           cctx,
 		cancel:        cancel,
 		ShellOperator: so,
 		ConvergeState: NewConvergeState(),
 	}
+
+	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
+
+	return ao
 }
 
 func (op *AddonOperator) Stop() {
@@ -611,6 +619,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			op.ConvergeState.Phase = StandBy
 			logEntry.Infof("ConvergeModules task done")
 			res.Status = queue.Success
+			op.EmitModulesSync()
 			return res
 		}
 	}
@@ -1936,13 +1945,13 @@ func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
 	case firstNotStarted:
 		// Switch to 'started' state if there are 'converge' tasks in the queue.
 		if convergeTasks > 0 {
-			op.ConvergeState.firstRunPhase = firstStarted
+			op.ConvergeState.setFirstRunPhase(firstStarted)
 		}
 	case firstStarted:
 		// Switch to 'done' state after first converge is started and when no 'converge' tasks left in the queue.
 		if convergeTasks == 0 {
 			log.Infof("First converge is finished. Operator is ready now.")
-			op.ConvergeState.firstRunPhase = firstDone
+			op.ConvergeState.setFirstRunPhase(firstDone)
 		}
 	}
 }
@@ -2111,4 +2120,31 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 		return string(module.State.Phase)
 	}
 	return ""
+}
+
+// OnFirstConvergeDone run addon-operator business logic when first converge is done and operator is ready
+func (op *AddonOperator) OnFirstConvergeDone() {
+	go func() {
+		<-op.ConvergeState.firstRunDoneC
+		// after the first convergence, the service endpoints do not appear instantly.
+		// Let's add a short pause so that the service gets online and we don't get a rejection from the validation webhook (timeout reason)
+		time.Sleep(3 * time.Second) // wait for service to be resolved
+
+		err := op.ModuleManager.SyncModulesCR(op.KubeConfigManager.KubeClient)
+		if err != nil {
+			log.Errorf("Modules CR registration failed: %s", err)
+		}
+	}()
+}
+
+// EmitModulesSync emit modules CR synchronization
+func (op *AddonOperator) EmitModulesSync() {
+	if !op.IsStartupConvergeDone() {
+		return
+	}
+
+	err := op.ModuleManager.SyncModulesCR(op.KubeConfigManager.KubeClient)
+	if err != nil {
+		log.Errorf("Modules CR registration failed: %s", err)
+	}
 }

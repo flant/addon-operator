@@ -48,6 +48,13 @@ func (s *ModuleSet) List() []*Module {
 	return list
 }
 
+func (s *ModuleSet) Len() int {
+	s.lck.RLock()
+	defer s.lck.RUnlock()
+
+	return len(s.modules)
+}
+
 func (s *ModuleSet) NamesInOrder() []string {
 	s.lck.Lock()
 	defer s.lck.Unlock()

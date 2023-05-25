@@ -63,6 +63,9 @@ func (op *AddonOperator) bootstrap() error {
 
 func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, tempDir string, debugServer *debug.Server, runtimeConfig *config.Config) (err error) {
 	op.RegisterDefaultRoutes()
+	if app.AdmissionServerEnabled {
+		op.AdmissionServer.start(op.ctx)
+	}
 	RegisterAddonOperatorMetrics(op.MetricStorage)
 	StartLiveTicksUpdater(op.MetricStorage)
 	StartTasksQueueLengthUpdater(op.MetricStorage, op.TaskQueues)
@@ -72,6 +75,9 @@ func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, temp
 	shell_operator.RegisterDebugConfigRoutes(debugServer, runtimeConfig)
 	op.RegisterDebugGlobalRoutes(debugServer)
 	op.RegisterDebugModuleRoutes(debugServer)
+	// service (kubernetes object) does not have endpoints before addon-operator is ready
+	// we have to wait readiness probe (linked on the first-converge) before manipulating in-cluster objects covered with validation webhook
+	op.OnFirstConvergeDone()
 
 	// Helm client factory.
 	op.Helm, err = helm.InitHelmClientFactory(op.KubeClient)
@@ -113,7 +119,7 @@ func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir st
 		GlobalHooksDir: globalHooksDir,
 		TempDir:        tempDir,
 	}
-	cfg := module_manager.ModuleManagerDependencies{
+	deps := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    op.ObjectPatcher,
 		KubeEventsManager:    op.KubeEventsManager,
 		KubeConfigManager:    manager,
@@ -123,5 +129,11 @@ func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir st
 		MetricStorage:        op.MetricStorage,
 		HookMetricStorage:    op.HookMetricStorage,
 	}
-	op.ModuleManager = module_manager.NewModuleManager(op.ctx, dirConfig, &cfg)
+
+	cfg := module_manager.ModuleManagerConfig{
+		DirectoryConfig: dirConfig,
+		Dependencies:    deps,
+	}
+
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, &cfg)
 }

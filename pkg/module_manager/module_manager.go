@@ -70,6 +70,11 @@ type ModuleManagerDependencies struct {
 	HookMetricStorage    *metric_storage.MetricStorage
 }
 
+type ModuleManagerConfig struct {
+	DirectoryConfig DirectoryConfig
+	Dependencies    ModuleManagerDependencies
+}
+
 type ModuleManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -86,6 +91,8 @@ type ModuleManager struct {
 
 	// All known modules from specified directories ($MODULES_DIR)
 	modules *ModuleSet
+
+	moduleProducer ModuleProducer
 
 	// TODO new layer of values for *Enabled values
 	// commonStaticEnabledValues utils.Values // modules/values.yaml
@@ -140,25 +147,23 @@ type ModuleManager struct {
 }
 
 // NewModuleManager returns new MainModuleManager
-func NewModuleManager(ctx context.Context, dirCfg DirectoryConfig, deps *ModuleManagerDependencies) *ModuleManager {
-	if deps == nil {
-		deps = &ModuleManagerDependencies{}
-	}
+func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleManager {
 	cctx, cancel := context.WithCancel(ctx)
 
 	return &ModuleManager{
 		ctx:    cctx,
 		cancel: cancel,
 
-		ModulesDir:     dirCfg.ModulesDir,
-		GlobalHooksDir: dirCfg.GlobalHooksDir,
-		TempDir:        dirCfg.TempDir,
+		ModulesDir:     cfg.DirectoryConfig.ModulesDir,
+		GlobalHooksDir: cfg.DirectoryConfig.GlobalHooksDir,
+		TempDir:        cfg.DirectoryConfig.TempDir,
 
-		dependencies: deps,
+		dependencies: &cfg.Dependencies,
 
 		ValuesValidator: validation.NewValuesValidator(),
 
-		modules:                     new(ModuleSet),
+		modules: new(ModuleSet),
+
 		enabledModulesByConfig:      make(map[string]struct{}),
 		enabledModules:              make([]string, 0),
 		dynamicEnabled:              make(map[string]*bool),
@@ -179,6 +184,11 @@ func (mm *ModuleManager) Stop() {
 	if mm.cancel != nil {
 		mm.cancel()
 	}
+}
+
+// SetupModuleProducer registers foreign Module producer, which provides Module for storing in a cluster
+func (mm *ModuleManager) SetupModuleProducer(producer ModuleProducer) {
+	mm.moduleProducer = producer
 }
 
 // runModulesEnabledScript runs enable script for each module from the list.
@@ -1164,6 +1174,16 @@ func (mm *ModuleManager) GlobalSynchronizationNeeded() bool {
 
 func (mm *ModuleManager) GlobalSynchronizationState() *SynchronizationState {
 	return mm.globalSynchronizationState
+}
+
+// SetModuleSource set source (external or embedded repository) for a module
+func (mm *ModuleManager) SetModuleSource(moduleName, source string) {
+	if !mm.modules.Has(moduleName) {
+		return
+	}
+
+	module := mm.modules.Get(moduleName)
+	module.Source = source
 }
 
 func (mm *ModuleManager) ApplyBindingActions(moduleHook *ModuleHook, bindingActions []go_hook.BindingAction) error {

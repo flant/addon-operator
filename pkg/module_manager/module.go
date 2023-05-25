@@ -12,6 +12,8 @@ import (
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -19,11 +21,13 @@ import (
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
@@ -38,6 +42,9 @@ type Module struct {
 	// module values from modules/<module name>/values.yaml
 	StaticConfig *utils.ModuleConfig
 
+	// Module source - Embedded or External repository
+	Source string
+
 	State *ModuleState
 
 	moduleManager *ModuleManager
@@ -47,10 +54,11 @@ type Module struct {
 
 func NewModule(name string, path string, order int) *Module {
 	return &Module{
-		Name:  name,
-		Path:  path,
-		Order: order,
-		State: NewModuleState(),
+		Name:   name,
+		Path:   path,
+		Order:  order,
+		State:  NewModuleState(),
+		Source: "Embedded",
 	}
 }
 
@@ -913,7 +921,7 @@ func (mm *ModuleManager) RegisterModules() error {
 		module.WithHelm(mm.dependencies.Helm)
 
 		// load static config from values.yaml
-		err := module.loadStaticValues()
+		err = module.loadStaticValues()
 		if err != nil {
 			logEntry.Errorf("Load values.yaml: %s", err)
 			return fmt.Errorf("bad module values")
@@ -940,6 +948,67 @@ func (mm *ModuleManager) RegisterModules() error {
 
 	mm.modules = modules
 	return nil
+}
+
+// SyncModulesCR synchronize modules CR from current modules list to the cluster one
+func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
+	if mm.moduleProducer == nil {
+		return nil
+	}
+
+	moduleGVK := mm.moduleProducer.GetGVK()
+
+	gvr, err := client.GroupVersionResource(moduleGVK.GroupVersion().String(), moduleGVK.Kind)
+	if err != nil {
+		return err
+	}
+
+	cctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	listOpts := v1.ListOptions{
+		ResourceVersion:      "0",
+		ResourceVersionMatch: v1.ResourceVersionMatchNotOlderThan,
+	}
+	list, err := client.Dynamic().Resource(gvr).List(cctx, listOpts)
+	if err != nil {
+		return err
+	}
+
+	createCROperations := make([]object_patch.Operation, 0, mm.modules.Len())
+	deleteCROperations := make([]object_patch.Operation, 0)
+
+	for _, existModuleCR := range list.Items {
+		if !mm.modules.Has(existModuleCR.GetName()) {
+			op := object_patch.NewDeleteOperation(moduleGVK.GroupVersion().String(), moduleGVK.Kind, "", existModuleCR.GetName(), object_patch.InBackground())
+			deleteCROperations = append(deleteCROperations, op)
+		}
+	}
+
+	for _, module := range mm.modules.List() {
+		op, err := mm.createModuleOperations(module)
+		if err != nil {
+			log.Warnf("Module %q can not be registered: %s", module.Name, err)
+			continue
+		}
+
+		createCROperations = append(createCROperations, op)
+	}
+
+	return mm.dependencies.KubeObjectPatcher.ExecuteOperations(append(createCROperations, deleteCROperations...))
+}
+
+func (mm *ModuleManager) createModuleOperations(module *Module) (object_patch.Operation, error) {
+	mo := mm.moduleProducer.NewModule()
+
+	mo.SetName(module.Name)
+	mo.SetWeight(module.Order)
+	mo.SetSource(module.Source)
+	mo.SetEnabledState(module.State.Enabled)
+
+	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
+
+	return cop, nil
 }
 
 // loadStaticValues loads config for module from values.yaml
@@ -978,4 +1047,18 @@ func dumpData(filePath string, data []byte) error {
 		return err
 	}
 	return nil
+}
+
+// ModuleProducer interface to get a factory which produces Modules CR object
+type ModuleProducer interface {
+	GetGVK() schema.GroupVersionKind
+	NewModule() ModuleObject
+}
+
+// ModuleObject Module CR
+type ModuleObject interface {
+	SetName(name string)
+	SetWeight(weight int)
+	SetSource(source string)
+	SetEnabledState(state bool)
 }
