@@ -905,7 +905,7 @@ func (mm *ModuleManager) GlobalValues() (utils.Values, error) {
 	return res, nil
 }
 
-// GlobalValues return patches for global values
+// GlobalValuesPatches return patches for global values.
 func (mm *ModuleManager) GlobalValuesPatches() []utils.ValuesPatch {
 	return mm.globalDynamicValuesPatches
 }
@@ -935,7 +935,7 @@ func (mm *ModuleManager) ModuleConfigValues(moduleName string) utils.Values {
 	return mm.kubeModulesConfigValues[moduleName]
 }
 
-// ModuleConfigValues returns all patches for dynamic values.
+// ModuleDynamicValuesPatches returns all patches for dynamic values.
 func (mm *ModuleManager) ModuleDynamicValuesPatches(moduleName string) []utils.ValuesPatch {
 	mm.valuesLayersLock.RLock()
 	defer mm.valuesLayersLock.RUnlock()
