@@ -8,7 +8,7 @@ The Addon-operator pursues an agreement stating that the information is transfer
 
 Global hooks are stored in the `$GLOBAL_HOOKS_DIR/hooks` directory. The Addon-operator recursively searches all executable files in it and runs them with the `--config` flag. Each hook prints its events binding configuration in JSON or YAML format to stdout. If the execution fails, the Addon-operator terminates with the code of 1.
 
-Bindings from [shell-operator](https://github.com/flant/shell-operator) are available for global hooks: [onStartup](#onstartup), [schedule](#schedule) and [kubernetes](#kubernetes). The bindings to the events of the modules discovery process are also available: [beforeAll](#beforeall) and [afterAll](#afterall) (see [modules discovery](LIFECYCLE.md#modules-discovery)).
+Bindings from [shell-operator][shell-operator] are available for global hooks: [onStartup](#onstartup), [schedule](#schedule) and [kubernetes](#kubernetes). The bindings to the events of the modules discovery process are also available: [beforeAll](#beforeall) and [afterAll](#afterall) (see [modules discovery](LIFECYCLE.md#modules-discovery)).
 
 During execution, a global hook receives global values. These values can be modified by the hook to share data with global hooks, module hooks, and Helm templates. If the hook changes global values, the 'global values changed' event is generated and all modules are reloaded. For details on values storage, see [VALUES](VALUES.md). See also [an overview](LIFECYCLE.md#reload-all-modules) and [a detailed description](LIFECYCLE-STEPS.md#reload-all-modules) of 'Reload all modules' process.
 
@@ -16,7 +16,7 @@ During execution, a global hook receives global values. These values can be modi
 
 Module hooks are executable files stored in the `hooks` subdirectory of the module. During the ['modules discovery'](LIFECYCLE.md#modules-discovery) process, if module appears to be enabled, the Addon-operator searches for executable files in `hooks` directory and executes them with `--config` flag. Each hook prints its event binding configuration in JSON or YAML format to stdout. The module discovery process restarts if an error occurs.
 
-Bindings from [shell-operator](https://github.com/flant/shell-operator) are available for module hooks: [schedule](#schedule) and [kubernetes](#kubernetes). The bindings of the module lifecycle are also available: `onStartup`, `beforeHelm`, `afterHelm`, `afterDeleteHelm` — see [module lifecycle](LIFECYCLE.md#module-lifecycle).
+Bindings from [shell-operator][shell-operator] are available for module hooks: [schedule](#schedule) and [kubernetes](#kubernetes). The bindings of the module lifecycle are also available: `onStartup`, `beforeHelm`, `afterHelm`, `afterDeleteHelm` — see [module lifecycle](LIFECYCLE.md#module-lifecycle).
 
 During execution, a module hook receives global values and module values. Module values can be modified by the hook to share data with other hooks of the same module. If the hook changes module values, the 'module values changed' event is generated and then the module is reloaded. For details on values storage, see [VALUES](VALUES.md). See also a [module lifecycle](LIFECYCLE.md#module-lifecycle) and a [module run](LIFECYCLE-STEPS.md#module-run) detailed description.
 
@@ -117,13 +117,13 @@ Parameters:
 
 ### schedule
 
-See the [schedule binding](https://github.com/flant/shell-operator/blob/master/HOOKS.md#schedule) from the Shell-operator.
+See the [schedule binding][shell-operator-binding-schedule] from the Shell-operator.
 
 ### kubernetes
 
-See the [kubernetes binding](https://github.com/flant/shell-operator/blob/master/HOOKS.md#kubernetes) from the Shell-operator.
+See the [kubernetes binding][shell-operator-binding-kubernetes] from the Shell-operator.
 
-> Note: Addon-operator requires a ServiceAccount with the appropriate [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) permissions. See `addon-operator-rbac.yaml` files in [examples](/examples).
+> Note: Addon-operator requires a ServiceAccount with the appropriate [RBAC][kubernetes-rbac] permissions. See `addon-operator-rbac.yaml` files in [examples][examples].
 
 ## Execution on event
 
@@ -141,7 +141,7 @@ The `$BINDING_CONTEXT_PATH` environment variable contains the path to a file wit
 [{"binding":"beforeAll"}]
 ```
 
-The binding context for `schedule` and `kubernetes` hooks contains additional fields, described in Shell-operator [documentation](https://github.com/flant/shell-operator/blob/master/HOOKS.md#binding-context).
+The binding context for `schedule` and `kubernetes` hooks contains additional fields, described in Shell-operator [documentation][shell-operator-binding-context].
 
 `beforeAll` and `afterAll` global hooks and `beforeHelm`, `afterHelm`, and `afterDeleteHelm` module hooks are executed with the binding context that includes a `snapshots` field, which contains all Kubernetes objects that match hook's `kubernetes` bindings configurations.
 
@@ -187,7 +187,7 @@ This hook will be executed *before* updating the Helm release with this binding 
 
 ### Synchronization for global hooks
 
-[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is the first run of global hooks with "kubernetes" bindings. As with the Shell-operator, it executes right after the successful completion of global "onStartup" hooks, but the following behavior is slightly different. By default, the Addon-operator executes "beforeAll" hooks after the completion of hooks with `executeHookOnSynchronization: true`. Set `waitForSynchronization: false` to execute these hooks in parallel with "beforeAll" hooks.
+[Synchronization][shell-operator-sync-binding-context] is the first run of global hooks with "kubernetes" bindings. As with the Shell-operator, it executes right after the successful completion of global "onStartup" hooks, but the following behavior is slightly different. By default, the Addon-operator executes "beforeAll" hooks after the completion of hooks with `executeHookOnSynchronization: true`. Set `waitForSynchronization: false` to execute these hooks in parallel with "beforeAll" hooks.
 
 For example, a global hook with `kubernetes` and `beforeAll` bindings may have this configuration:
 
@@ -233,7 +233,7 @@ This hook will be executed after "onStartup" as follows:
 
 ### Synchronization for module hooks
 
-[Synchronization](https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context) is the first run of module hooks with "kubernetes" bindings after module enablement. It executes right after the successful completion of the module's "onStartup" hooks. By default, the Addon-operator executes "beforeHelm" hooks after the completion of hooks with `executeHookOnSynchronization: true`. Set `waitForSynchronization: false` to execute these hooks in parallel with "beforeHelm" hooks.
+[Synchronization][shell-operator-sync-binding-context] is the first run of module hooks with "kubernetes" bindings after module enablement. It executes right after the successful completion of the module's "onStartup" hooks. By default, the Addon-operator executes "beforeHelm" hooks after the completion of hooks with `executeHookOnSynchronization: true`. Set `waitForSynchronization: false` to execute these hooks in parallel with "beforeHelm" hooks.
 
 For example, a module hook with `kubernetes` and `beforeHelm` bindings may have this configuration:
 
@@ -279,4 +279,13 @@ This hook will be executed after "onStartup" as follows:
 
 ### Execution rate
 
-Hook configuration has a `settings` section with parameters `executionMinPeriod` and `executionBurst`. These parameters are used to throttle hook executions and wait for more events in the queue. See section [execution rate](https://github.com/flant/shell-operator/blob/master/HOOKS.md#execution-rate) from the Shell-operator.
+Hook configuration has a `settings` section with parameters `executionMinPeriod` and `executionBurst`. These parameters are used to throttle hook executions and wait for more events in the queue. See section [execution rate][shell-operator-execution-rate] from the Shell-operator.
+
+[examples]: https://github.com/flant/addon-operator/tree/main/examples
+[kubernetes-rbac]: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+[shell-operator]: https://github.com/flant/shell-operator
+[shell-operator-binding-schedule]: https://flant.github.io/shell-operator/HOOKS.html#schedule
+[shell-operator-binding-kubernetes]: https://flant.github.io/shell-operator/HOOKS.html#kubernetes
+[shell-operator-binding-context]: https://flant.github.io/shell-operator/HOOKS.html#binding-context
+[shell-operator-execution-rate]: https://flant.github.io/shell-operator/HOOKS.html#execution-rate
+[shell-operator-sync-binding-context]: https://flant.github.io/shell-operator/HOOKS.html#synchronization-binding-context

@@ -88,7 +88,7 @@ As a result of a 'module discovery' process, the tasks for the execution of all 
 
 ### Enabled script
 
-A script or an executable file that returns the status of the module. The script has access to the module values in `$VALUES_PATH` and `$CONFIG_VALUES_PATH` files, more details about the values are available [here](VALUES.md#using-values-in-enabled-script). The variable `$MODULE_ENABLED_RESULT` passes the path to the file into which the script should write the module status: `true` or `false`.
+A script or an executable file that returns the status of the module. The script has access to the module values in `$VALUES_PATH` and `$CONFIG_VALUES_PATH` files, more details about the values are available [here](VALUES.md#using-the-values-in-enabled-scripts). The variable `$MODULE_ENABLED_RESULT` passes the path to the file into which the script should write the module status: `true` or `false`.
 
 Below is an example of the `enabled` script that disables the module when parameter `param2` is set to "stopMePlease".
 
@@ -169,4 +169,4 @@ Each task is processed until successful completion. In case of an error, the tas
 
 ## Queue monitoring
 
-You can use Prometheus metrics to monitor the queue. For details, see [METRICS](METRICS.md).
+You can use Prometheus metrics to monitor the queue. For details, see [METRICS](metrics/ROOT.md).

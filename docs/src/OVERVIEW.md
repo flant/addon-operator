@@ -1,13 +1,13 @@
 # Overview
 
-**Addon-operator** combines Helm charts with hooks and values storage to transform charts into smart modules that configure themselves and respond to changes in the cluster. It is a sister project for [shell-operator](https://github.com/flant/shell-operator) and is actively used in [Deckhouse Kubernetes Platform](https://github.com/deckhouse/deckhouse) to implement its modules.
+**Addon-operator** combines Helm charts with hooks and values storage to transform charts into smart modules that configure themselves and respond to changes in the cluster. It is a sister project for [shell-operator][shell-operator] and is actively used in [Deckhouse Kubernetes Platform][deckhouse] to implement its modules.
 
 ## Features
 
 - **Discovery of values** for Helm charts — parameters can be generated, calculated or retrieved from the cluster;
 - **Continuous discovery** — parameters can be changed in response to cluster events;
 - **Controlled Helm execution** — addon-operator monitors the Helm operation to ensure the Helm chart’s successful installation. Coming soon: use kubedog to track deploy status and more;
-- **Custom extra actions before and after running Helm** as well as any other events via the hooks paradigm. See related [shell-operator capabilities](https://github.com/flant/shell-operator/blob/master/HOOKS.md).
+- **Custom extra actions before and after running Helm** as well as any other events via the hooks paradigm. See related [shell-operator capabilities][shell-operator-hooks].
 
 Additionally, addon-operator provides:
 
@@ -50,3 +50,7 @@ In addition to modules, addon-operator supports **global hooks** and **global va
 If the global hook changes values in the global storage, then addon-operator triggers an upgrade of releases of all Helm charts.
 
 ![Changes in global values cause reinstallation](image/readme-6.gif)
+
+[deckhouse]: https://github.com/deckhouse/deckhouse
+[shell-operator]: https://github.com/flant/shell-operator
+[shell-operator-hooks]: https://flant.github.io/shell-operator/HOOKS.html
