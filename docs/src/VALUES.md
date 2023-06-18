@@ -1,6 +1,6 @@
 # Values storage
 
-The Addon-operator provides the storage for the values that will be passed to the Helm chart. You may find out more about the chart values concept in the Helm documentation: [values files](https://helm.sh/docs/chart_template_guide/#values-files). Global and module hooks have access to the values in the storage and can change them.
+The Addon-operator provides the storage for the values that will be passed to the Helm chart. You may find out more about the chart values concept in the Helm documentation: [values files][helm-values]. Global and module hooks have access to the values in the storage and can change them.
 
 The storage is a hash-like data structure. The `global` key contains all global values – they are passed to every hook and available to all Helm charts. Only global hooks may change global values.
 
@@ -23,7 +23,7 @@ The values can be represented as:
 - a structure (including empty structure)
 - a list (including empty list)
 
-Structures and lists must be JSON-compatible since hooks receive values at runtime as JSON files (see [using values in hook](#using-values-in-hook)).
+Structures and lists must be JSON-compatible since hooks receive values at runtime as JSON files (see [using values in hook](#using-values-in-the-hook)).
 
 > **Note:** each module has an additional key with `Enabled` suffix and a boolean value to enable or disable the module (e.g., `ingressNginxEnabled: false`). This key is handled by [modules discovery](LIFECYCLE.md#modules-discovery) process.
 
@@ -72,7 +72,7 @@ data:
 
 ## Update values
 
-Hooks can update values in the storage. To do that the hook returns a [JSON Patch](http://jsonpatch.com/).
+Hooks can update values in the storage. To do that the hook returns a [JSON Patch][json-patch].
 
 A hook can update values in the ConfigMap/addon-operator so that the updated values would be available after restarting the Addon-operator (long-term update). For example, you may store generated passwords or certificates.
 
@@ -296,7 +296,7 @@ This patch sets `clusterHostname` field in the 'global' section. It is not allow
 
 ## Extending
 
-Values are config values with applied patches, so schema in values.yaml should contain duplicates of properties from config-values.yaml schema. There is a technique with `allOf` to reduce duplicates: [1](https://github.com/json-schema-org/json-schema-spec/issues/348) [2](https://github.com/json-schema-org/json-schema-spec/issues/348), but it will not eliminate duplicates when `additionalProperties: false`. To overcome this problem, we implement custom property `x-extend` for values.yaml schema.
+Values are config values with applied patches, so schema in values.yaml should contain duplicates of properties from config-values.yaml schema. There is a technique with `allOf` to reduce [duplicates][duplicates], but it will not eliminate duplicates when `additionalProperties: false`. To overcome this problem, we implement custom property `x-extend` for values.yaml schema.
 
 If values.yaml schema contains `x-extend` field, shell-operator extends fields in values.yaml schema with fields from config-values.yaml schema:
 - definitions
@@ -451,3 +451,7 @@ properties:
   param2:
     type: string
 ```
+
+[duplicates]: https://github.com/json-schema-org/json-schema-spec/issues/348
+[helm-values]: https://helm.sh/docs/chart_template_guide/#values-files
+[json-patch]: http://jsonpatch.com/

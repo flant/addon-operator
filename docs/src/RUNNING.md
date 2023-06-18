@@ -73,7 +73,7 @@ dev_cluster_live_ticks 32
 
 **KUBE_CONTEXT** — a context name in a kubernetes client config (similar to a `--context` flag of a kubectl)
 
-**KUBE_CLIENT_QPS** and **KUBE_CLIENT_BURST** — qps and burst parameters to rate-limit requests to Kubernetes API server. Default qps is 5 and burst is 10 as in a [rest/config.go](https://github.com/kubernetes/client-go/blob/v0.17.0/rest/config.go#L44) file.
+**KUBE_CLIENT_QPS** and **KUBE_CLIENT_BURST** — qps and burst parameters to rate-limit requests to Kubernetes API server. Default qps is 5 and burst is 10 as in a [rest/config.go][config.go] file.
 
 ### Helm settings
 
@@ -141,3 +141,5 @@ addon-operator module config [-o yaml|json] <module_name>
 addon-operator module resource-monitor [-o text|yaml|json]
     Dump resource monitors.
 ```
+
+[config.go]: https://github.com/kubernetes/client-go/blob/v0.17.0/rest/config.go#L44

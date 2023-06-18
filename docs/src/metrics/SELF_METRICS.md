@@ -2,7 +2,7 @@
 
 * `addon_operator_binding_count{module="", hook=""}` — a gauge with bindings count for every hooks. Global hooks has empty "module" label.
 
-* `addon_operator_config_values_errors_total{}` — a counter of ConfigMap validation errors after `kubectl edit`. See [validation](VALUES.md#validation).
+* `addon_operator_config_values_errors_total{}` — a counter of ConfigMap validation errors after `kubectl edit`. See [validation](../VALUES.md#validation).
 
 * `addon_operator_global_hook_run_seconds{hook="", binding="", activation="", queue=""}` — a histogram with hook execution times. "hook" label is a name of the hook, "binding" is a binding name from configuration, "queue" is a queue name where hook is queued and "activation" is an event that triggers hook execution.
 * `addon_operator_global_hook_run_errors_total{hook="", binding="", activation="", queue=""}` – this is the counter of hooks’ execution errors. It only tracks errors of hooks with the disabled `allowFailure` (i.e. respective key is omitted in the configuration or the `allowFailure: false` parameter is set). This metric has a "hook" label with the name of a failed hook.
@@ -20,12 +20,12 @@
 * `addon_operator_module_hook_run_user_cpu_seconds{module="", hook="", binding="", activation="", queue=""}` — a histogram with module hook user cpu seconds.
 * `addon_operator_module_hook_run_max_rss_bytes{module="", hook="", binding="", activation="", queue=""}` — a gauge with module hook max rss usage in bytes.
 
-* `addon_operator_module_discover_errors_total` – a counter of errors during the [modules discover](LIFECYCLE.md#modules-discover) process. It increases in these cases:
+* `addon_operator_module_discover_errors_total` – a counter of errors during the [modules discover](../LIFECYCLE.md#modules-discover) process. It increases in these cases:
     * an 'enabled' script is executed with an error
     * a module hook return an invalid configuration
     * a call to the Kubernetes API ends with an error (for example, retrieving Helm releases).
-* `addon_operator_module_run_errors_total{module=x}` – counter of errors on module [start-up](LIFECYCLE.md#modules-lifecycle).
-* `addon_operator_module_delete_errors_total{module=x}` – counter of errors on module [deletion](LIFECYCLE.md#modules-lifecycle).
+* `addon_operator_module_run_errors_total{module=x}` – counter of errors on module [start-up](../LIFECYCLE.md#modules-lifecycle).
+* `addon_operator_module_delete_errors_total{module=x}` – counter of errors on module [deletion](../LIFECYCLE.md#modules-lifecycle).
 * `addon_operator_module_run_seconds{module=""}` — a histogram with module execution timings.
 * `addon_operator_module_helm_seconds{module="", activation=""}` — a histogram of module’s `helm upgrade` timings.
 * `addon_operator_helm_operation_seconds{module="", activation="", operation=""}` — a histogram of different helm operations timings.
