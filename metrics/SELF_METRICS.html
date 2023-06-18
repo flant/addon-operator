@@ -152,7 +152,7 @@
 <p><code>addon_operator_binding_count{module=&quot;&quot;, hook=&quot;&quot;}</code> — a gauge with bindings count for every hooks. Global hooks has empty “module” label.</p>
 </li>
 <li>
-<p><code>addon_operator_config_values_errors_total{}</code> — a counter of ConfigMap validation errors after <code>kubectl edit</code>. See <a href="VALUES.html#validation">validation</a>.</p>
+<p><code>addon_operator_config_values_errors_total{}</code> — a counter of ConfigMap validation errors after <code>kubectl edit</code>. See <a href="../VALUES.html#validation">validation</a>.</p>
 </li>
 <li>
 <p><code>addon_operator_global_hook_run_seconds{hook=&quot;&quot;, binding=&quot;&quot;, activation=&quot;&quot;, queue=&quot;&quot;}</code> — a histogram with hook execution times. “hook” label is a name of the hook, “binding” is a binding name from configuration, “queue” is a queue name where hook is queued and “activation” is an event that triggers hook execution.</p>
@@ -197,7 +197,7 @@
 <p><code>addon_operator_module_hook_run_max_rss_bytes{module=&quot;&quot;, hook=&quot;&quot;, binding=&quot;&quot;, activation=&quot;&quot;, queue=&quot;&quot;}</code> — a gauge with module hook max rss usage in bytes.</p>
 </li>
 <li>
-<p><code>addon_operator_module_discover_errors_total</code> – a counter of errors during the <a href="LIFECYCLE.html#modules-discover">modules discover</a> process. It increases in these cases:</p>
+<p><code>addon_operator_module_discover_errors_total</code> – a counter of errors during the <a href="../LIFECYCLE.html#modules-discover">modules discover</a> process. It increases in these cases:</p>
 <ul>
 <li>an ‘enabled’ script is executed with an error</li>
 <li>a module hook return an invalid configuration</li>
@@ -205,10 +205,10 @@
 </ul>
 </li>
 <li>
-<p><code>addon_operator_module_run_errors_total{module=x}</code> – counter of errors on module <a href="LIFECYCLE.html#modules-lifecycle">start-up</a>.</p>
+<p><code>addon_operator_module_run_errors_total{module=x}</code> – counter of errors on module <a href="../LIFECYCLE.html#modules-lifecycle">start-up</a>.</p>
 </li>
 <li>
-<p><code>addon_operator_module_delete_errors_total{module=x}</code> – counter of errors on module <a href="LIFECYCLE.html#modules-lifecycle">deletion</a>.</p>
+<p><code>addon_operator_module_delete_errors_total{module=x}</code> – counter of errors on module <a href="../LIFECYCLE.html#modules-lifecycle">deletion</a>.</p>
 </li>
 <li>
 <p><code>addon_operator_module_run_seconds{module=&quot;&quot;}</code> — a histogram with module execution timings.</p>

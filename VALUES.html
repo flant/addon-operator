@@ -165,7 +165,7 @@
 <li>a structure (including empty structure)</li>
 <li>a list (including empty list)</li>
 </ul>
-<p>Structures and lists must be JSON-compatible since hooks receive values at runtime as JSON files (see <a href="#using-values-in-hook">using values in hook</a>).</p>
+<p>Structures and lists must be JSON-compatible since hooks receive values at runtime as JSON files (see <a href="#using-values-in-the-hook">using values in hook</a>).</p>
 <blockquote>
 <p><strong>Note:</strong> each module has an additional key with <code>Enabled</code> suffix and a boolean value to enable or disable the module (e.g., <code>ingressNginxEnabled: false</code>). This key is handled by <a href="LIFECYCLE.html#modules-discovery">modules discovery</a> process.</p>
 </blockquote>
@@ -372,7 +372,7 @@ data:
 </code></pre>
 <p>This patch sets <code>clusterHostname</code> field in the ‘global’ section. It is not allowed because schema defines <code>clusterHostname</code> as a string. This situation is handled like a hook execution error, the hook stays in queue and restarts with exponential backoff (see <a href="LIFECYCLE.html#task-queues">LIFECYCLE</a>.</p>
 <h2 id="extending"><a class="header" href="#extending">Extending</a></h2>
-<p>Values are config values with applied patches, so schema in values.yaml should contain duplicates of properties from config-values.yaml schema. There is a technique with <code>allOf</code> to reduce duplicates: <a href="https://github.com/json-schema-org/json-schema-spec/issues/348">1</a> <a href="https://github.com/json-schema-org/json-schema-spec/issues/348">2</a>, but it will not eliminate duplicates when <code>additionalProperties: false</code>. To overcome this problem, we implement custom property <code>x-extend</code> for values.yaml schema.</p>
+<p>Values are config values with applied patches, so schema in values.yaml should contain duplicates of properties from config-values.yaml schema. There is a technique with <code>allOf</code> to reduce <a href="https://github.com/json-schema-org/json-schema-spec/issues/348">duplicates</a>, but it will not eliminate duplicates when <code>additionalProperties: false</code>. To overcome this problem, we implement custom property <code>x-extend</code> for values.yaml schema.</p>
 <p>If values.yaml schema contains <code>x-extend</code> field, shell-operator extends fields in values.yaml schema with fields from config-values.yaml schema:</p>
 <ul>
 <li>definitions</li>

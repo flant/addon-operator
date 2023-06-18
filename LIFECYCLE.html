@@ -212,7 +212,7 @@
 <p>If an error occurs during the ‘modules discovery’ process, then the module discovery is restarted every 5 seconds until successful execution. In this case, the execution of hooks with <code>schedule</code> and <code>kubernetes</code> bindings will be blocked in the “main” queue.</p>
 <p>As a result of a ‘module discovery’ process, the tasks for the execution of all <em>enabled</em> modules, deletion of all <em>disabled</em> modules, and execution of all global hooks with the <code>afterAll</code> binding are added to the queue.</p>
 <h3 id="enabled-script"><a class="header" href="#enabled-script">Enabled script</a></h3>
-<p>A script or an executable file that returns the status of the module. The script has access to the module values in <code>$VALUES_PATH</code> and <code>$CONFIG_VALUES_PATH</code> files, more details about the values are available <a href="VALUES.html#using-values-in-enabled-script">here</a>. The variable <code>$MODULE_ENABLED_RESULT</code> passes the path to the file into which the script should write the module status: <code>true</code> or <code>false</code>.</p>
+<p>A script or an executable file that returns the status of the module. The script has access to the module values in <code>$VALUES_PATH</code> and <code>$CONFIG_VALUES_PATH</code> files, more details about the values are available <a href="VALUES.html#using-the-values-in-enabled-scripts">here</a>. The variable <code>$MODULE_ENABLED_RESULT</code> passes the path to the file into which the script should write the module status: <code>true</code> or <code>false</code>.</p>
 <p>Below is an example of the <code>enabled</code> script that disables the module when parameter <code>param2</code> is set to “stopMePlease”.</p>
 <pre><code class="language-bash">#!/usr/bin/env bash
 
@@ -273,7 +273,7 @@ echo false &gt; $MODULE_ENABLED_RESULT
 <p>Task queues are simple FIFO queues. The Addon-operator processes an event, creates a task and adds it to the particular named queue. Each named queue has a queue handler which runs the first task and proceeds to the next.</p>
 <p>Each task is processed until successful completion. In case of an error, the task is returned to the start of the queue and executed with an exponentially growing delay (from 5s to 30s). When executing tasks for the <code>kubernetes</code> and <code>schedule</code> events, the queue handler ignores execution errors if the <code>allowFailure: true</code> flag is specified in the binding configuration.</p>
 <h2 id="queue-monitoring"><a class="header" href="#queue-monitoring">Queue monitoring</a></h2>
-<p>You can use Prometheus metrics to monitor the queue. For details, see <a href="METRICS.html">METRICS</a>.</p>
+<p>You can use Prometheus metrics to monitor the queue. For details, see <a href="metrics/ROOT.html">METRICS</a>.</p>
 
                     </main>
 

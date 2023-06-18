@@ -159,14 +159,14 @@
 <p>You may use a prepared image <a href="https://hub.docker.com/r/flant/addon-operator">flant/addon-operator</a> to install addon-operator in a cluster. The image comprises a binary <code>addon-operator</code> file as well as several required tools: <code>helm</code>, <code>tiller</code>, <code>kubectl</code>, <code>jq</code>, <code>bash</code>.</p>
 <p>The installation incorporates the image building process with <em>files of modules and hooks</em>, applying the necessary RBAC rights and deploying the image in the cluster.</p>
 <h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
-<p>To experiment with modules, hooks, and values we’ve prepared some <a href="/examples">examples</a>.</p>
+<p>To experiment with modules, hooks, and values we’ve prepared some <a href="https://github.com/flant/addon-operator/tree/main/examples">examples</a>.</p>
 <p><a href="https://deckhouse.io/">Deckhouse Kubernetes Platform</a> was an initial reason to create addon-operator, thus <a href="https://github.com/deckhouse/deckhouse/tree/main/modules">its modules</a> might become a vital source of inspiration for implementing your own modules.</p>
 <p>Sharing your examples of using addon-operator is much appreciated. Please, use the <a href="https://github.com/flant/addon-operator/discussions/categories/show-and-tell">relevant Discussions section</a> for that.</p>
 <h1 id="community"><a class="header" href="#community">Community</a></h1>
 <p>Please feel free to reach developers/maintainers and users via <a href="https://github.com/flant/addon-operator/discussions">GitHub Discussions</a> for any questions regarding addon-operator.</p>
 <p>You’re also welcome to follow <a href="https://twitter.com/flant_com">@flant_com</a> to stay informed about all our Open Source initiatives.</p>
 <h1 id="license"><a class="header" href="#license">License</a></h1>
-<p>Apache License 2.0, see <a href="LICENSE">LICENSE</a>.</p>
+<p>Apache License 2.0, see <a href="https://github.com/flant/addon-operator/blob/main/LICENSE">LICENSE</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="overview"><a class="header" href="#overview">Overview</a></h1>
 <p><strong>Addon-operator</strong> combines Helm charts with hooks and values storage to transform charts into smart modules that configure themselves and respond to changes in the cluster. It is a sister project for <a href="https://github.com/flant/shell-operator">shell-operator</a> and is actively used in <a href="https://github.com/deckhouse/deckhouse">Deckhouse Kubernetes Platform</a> to implement its modules.</p>
 <h2 id="features"><a class="header" href="#features">Features</a></h2>
@@ -174,7 +174,7 @@
 <li><strong>Discovery of values</strong> for Helm charts — parameters can be generated, calculated or retrieved from the cluster;</li>
 <li><strong>Continuous discovery</strong> — parameters can be changed in response to cluster events;</li>
 <li><strong>Controlled Helm execution</strong> — addon-operator monitors the Helm operation to ensure the Helm chart’s successful installation. Coming soon: use kubedog to track deploy status and more;</li>
-<li><strong>Custom extra actions before and after running Helm</strong> as well as any other events via the hooks paradigm. See related <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md">shell-operator capabilities</a>.</li>
+<li><strong>Custom extra actions before and after running Helm</strong> as well as any other events via the hooks paradigm. See related <a href="https://flant.github.io/shell-operator/HOOKS.html">shell-operator capabilities</a>.</li>
 </ul>
 <p>Additionally, addon-operator provides:</p>
 <ul>
@@ -372,7 +372,7 @@ addon-operator module resource-monitor [-o text|yaml|json]
 <p>If an error occurs during the ‘modules discovery’ process, then the module discovery is restarted every 5 seconds until successful execution. In this case, the execution of hooks with <code>schedule</code> and <code>kubernetes</code> bindings will be blocked in the “main” queue.</p>
 <p>As a result of a ‘module discovery’ process, the tasks for the execution of all <em>enabled</em> modules, deletion of all <em>disabled</em> modules, and execution of all global hooks with the <code>afterAll</code> binding are added to the queue.</p>
 <h3 id="enabled-script"><a class="header" href="#enabled-script">Enabled script</a></h3>
-<p>A script or an executable file that returns the status of the module. The script has access to the module values in <code>$VALUES_PATH</code> and <code>$CONFIG_VALUES_PATH</code> files, more details about the values are available <a href="VALUES.html#using-values-in-enabled-script">here</a>. The variable <code>$MODULE_ENABLED_RESULT</code> passes the path to the file into which the script should write the module status: <code>true</code> or <code>false</code>.</p>
+<p>A script or an executable file that returns the status of the module. The script has access to the module values in <code>$VALUES_PATH</code> and <code>$CONFIG_VALUES_PATH</code> files, more details about the values are available <a href="VALUES.html#using-the-values-in-enabled-scripts">here</a>. The variable <code>$MODULE_ENABLED_RESULT</code> passes the path to the file into which the script should write the module status: <code>true</code> or <code>false</code>.</p>
 <p>Below is an example of the <code>enabled</code> script that disables the module when parameter <code>param2</code> is set to “stopMePlease”.</p>
 <pre><code class="language-bash">#!/usr/bin/env bash
 
@@ -433,7 +433,7 @@ echo false &gt; $MODULE_ENABLED_RESULT
 <p>Task queues are simple FIFO queues. The Addon-operator processes an event, creates a task and adds it to the particular named queue. Each named queue has a queue handler which runs the first task and proceeds to the next.</p>
 <p>Each task is processed until successful completion. In case of an error, the task is returned to the start of the queue and executed with an exponentially growing delay (from 5s to 30s). When executing tasks for the <code>kubernetes</code> and <code>schedule</code> events, the queue handler ignores execution errors if the <code>allowFailure: true</code> flag is specified in the binding configuration.</p>
 <h2 id="queue-monitoring"><a class="header" href="#queue-monitoring">Queue monitoring</a></h2>
-<p>You can use Prometheus metrics to monitor the queue. For details, see <a href="METRICS.html">METRICS</a>.</p>
+<p>You can use Prometheus metrics to monitor the queue. For details, see <a href="metrics/ROOT.html">METRICS</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="steps-of-addon-operator-lifecycle"><a class="header" href="#steps-of-addon-operator-lifecycle">Steps of addon-operator lifecycle</a></h1>
 <p>This document is intended to give a full view of how <a href="HOOKS.html">hooks</a>, <a href="MODULES.html">modules</a>, <a href="VALUES.html">values</a>, binding contexts, and queues are interlinked within the Addon-operator’s <a href="LIFECYCLE.html">lifecycle</a>.</p>
 <p>Startup steps:</p>
@@ -1469,11 +1469,11 @@ afterDeleteHelm: ORDER
 <li><code>ORDER</code> — an integer value that specifies an execution order. When added to the “main” queue, the hooks will be sorted by this value and then alphabetically by file name.</li>
 </ul>
 <h3 id="schedule"><a class="header" href="#schedule">schedule</a></h3>
-<p>See the <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md#schedule">schedule binding</a> from the Shell-operator.</p>
+<p>See the <a href="https://flant.github.io/shell-operator/HOOKS.html#schedule">schedule binding</a> from the Shell-operator.</p>
 <h3 id="kubernetes"><a class="header" href="#kubernetes">kubernetes</a></h3>
-<p>See the <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md#kubernetes">kubernetes binding</a> from the Shell-operator.</p>
+<p>See the <a href="https://flant.github.io/shell-operator/HOOKS.html#kubernetes">kubernetes binding</a> from the Shell-operator.</p>
 <blockquote>
-<p>Note: Addon-operator requires a ServiceAccount with the appropriate <a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">RBAC</a> permissions. See <code>addon-operator-rbac.yaml</code> files in <a href="/examples">examples</a>.</p>
+<p>Note: Addon-operator requires a ServiceAccount with the appropriate <a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">RBAC</a> permissions. See <code>addon-operator-rbac.yaml</code> files in <a href="https://github.com/flant/addon-operator/tree/main/examples">examples</a>.</p>
 </blockquote>
 <h2 id="execution-on-event"><a class="header" href="#execution-on-event">Execution on event</a></h2>
 <p>When an event associated with a hook is triggered, Addon-operator executes the hook without arguments and passes the global or module values from the storage of the values via temporary files. In response, a hook could return JSON patches to modify values. The detailed description of the storage of the values is available in <a href="VALUES.html">VALUES</a> document.</p>
@@ -1485,7 +1485,7 @@ afterDeleteHelm: ORDER
 </ul>
 <pre><code class="language-json">[{&quot;binding&quot;:&quot;beforeAll&quot;}]
 </code></pre>
-<p>The binding context for <code>schedule</code> and <code>kubernetes</code> hooks contains additional fields, described in Shell-operator <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md#binding-context">documentation</a>.</p>
+<p>The binding context for <code>schedule</code> and <code>kubernetes</code> hooks contains additional fields, described in Shell-operator <a href="https://flant.github.io/shell-operator/HOOKS.html#binding-context">documentation</a>.</p>
 <p><code>beforeAll</code> and <code>afterAll</code> global hooks and <code>beforeHelm</code>, <code>afterHelm</code>, and <code>afterDeleteHelm</code> module hooks are executed with the binding context that includes a <code>snapshots</code> field, which contains all Kubernetes objects that match hook’s <code>kubernetes</code> bindings configurations.</p>
 <p>For example, a global hook with <code>kubernetes</code> and <code>beforeAll</code> bindings may have this configuration:</p>
 <pre><code class="language-yaml">configVersion: v1
@@ -1522,7 +1522,7 @@ kubernetes:
 }]
 </code></pre>
 <h3 id="synchronization-for-global-hooks"><a class="header" href="#synchronization-for-global-hooks">Synchronization for global hooks</a></h3>
-<p><a href="https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context">Synchronization</a> is the first run of global hooks with “kubernetes” bindings. As with the Shell-operator, it executes right after the successful completion of global “onStartup” hooks, but the following behavior is slightly different. By default, the Addon-operator executes “beforeAll” hooks after the completion of hooks with <code>executeHookOnSynchronization: true</code>. Set <code>waitForSynchronization: false</code> to execute these hooks in parallel with “beforeAll” hooks.</p>
+<p><a href="https://flant.github.io/shell-operator/HOOKS.html#synchronization-binding-context">Synchronization</a> is the first run of global hooks with “kubernetes” bindings. As with the Shell-operator, it executes right after the successful completion of global “onStartup” hooks, but the following behavior is slightly different. By default, the Addon-operator executes “beforeAll” hooks after the completion of hooks with <code>executeHookOnSynchronization: true</code>. Set <code>waitForSynchronization: false</code> to execute these hooks in parallel with “beforeAll” hooks.</p>
 <p>For example, a global hook with <code>kubernetes</code> and <code>beforeAll</code> bindings may have this configuration:</p>
 <pre><code class="language-yaml">configVersion: v1
 beforeAll: 10
@@ -1567,7 +1567,7 @@ kubernetes:
 <p>Note: there is no guarantee that the “beforeAll” binding context contains snapshots with ConfigMaps and Secrets.</p>
 </blockquote>
 <h3 id="synchronization-for-module-hooks"><a class="header" href="#synchronization-for-module-hooks">Synchronization for module hooks</a></h3>
-<p><a href="https://github.com/flant/shell-operator/blob/main/HOOKS.md#synchronization-binding-context">Synchronization</a> is the first run of module hooks with “kubernetes” bindings after module enablement. It executes right after the successful completion of the module’s “onStartup” hooks. By default, the Addon-operator executes “beforeHelm” hooks after the completion of hooks with <code>executeHookOnSynchronization: true</code>. Set <code>waitForSynchronization: false</code> to execute these hooks in parallel with “beforeHelm” hooks.</p>
+<p><a href="https://flant.github.io/shell-operator/HOOKS.html#synchronization-binding-context">Synchronization</a> is the first run of module hooks with “kubernetes” bindings after module enablement. It executes right after the successful completion of the module’s “onStartup” hooks. By default, the Addon-operator executes “beforeHelm” hooks after the completion of hooks with <code>executeHookOnSynchronization: true</code>. Set <code>waitForSynchronization: false</code> to execute these hooks in parallel with “beforeHelm” hooks.</p>
 <p>For example, a module hook with <code>kubernetes</code> and <code>beforeHelm</code> bindings may have this configuration:</p>
 <pre><code class="language-yaml">configVersion: v1
 beforeHelm: 10
@@ -1612,7 +1612,7 @@ kubernetes:
 <p>Note: there is no guarantee that the “beforeHelm” binding context contains snapshots with ConfigMaps and Secrets.</p>
 </blockquote>
 <h3 id="execution-rate"><a class="header" href="#execution-rate">Execution rate</a></h3>
-<p>Hook configuration has a <code>settings</code> section with parameters <code>executionMinPeriod</code> and <code>executionBurst</code>. These parameters are used to throttle hook executions and wait for more events in the queue. See section <a href="https://github.com/flant/shell-operator/blob/master/HOOKS.md#execution-rate">execution rate</a> from the Shell-operator.</p>
+<p>Hook configuration has a <code>settings</code> section with parameters <code>executionMinPeriod</code> and <code>executionBurst</code>. These parameters are used to throttle hook executions and wait for more events in the queue. See section <a href="https://flant.github.io/shell-operator/HOOKS.html#execution-rate">execution rate</a> from the Shell-operator.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="values-storage"><a class="header" href="#values-storage">Values storage</a></h1>
 <p>The Addon-operator provides the storage for the values that will be passed to the Helm chart. You may find out more about the chart values concept in the Helm documentation: <a href="https://helm.sh/docs/chart_template_guide/#values-files">values files</a>. Global and module hooks have access to the values in the storage and can change them.</p>
 <p>The storage is a hash-like data structure. The <code>global</code> key contains all global values – they are passed to every hook and available to all Helm charts. Only global hooks may change global values.</p>
@@ -1632,7 +1632,7 @@ kubernetes:
 <li>a structure (including empty structure)</li>
 <li>a list (including empty list)</li>
 </ul>
-<p>Structures and lists must be JSON-compatible since hooks receive values at runtime as JSON files (see <a href="VALUES.html#using-values-in-hook">using values in hook</a>).</p>
+<p>Structures and lists must be JSON-compatible since hooks receive values at runtime as JSON files (see <a href="VALUES.html#using-values-in-the-hook">using values in hook</a>).</p>
 <blockquote>
 <p><strong>Note:</strong> each module has an additional key with <code>Enabled</code> suffix and a boolean value to enable or disable the module (e.g., <code>ingressNginxEnabled: false</code>). This key is handled by <a href="LIFECYCLE.html#modules-discovery">modules discovery</a> process.</p>
 </blockquote>
@@ -1839,7 +1839,7 @@ data:
 </code></pre>
 <p>This patch sets <code>clusterHostname</code> field in the ‘global’ section. It is not allowed because schema defines <code>clusterHostname</code> as a string. This situation is handled like a hook execution error, the hook stays in queue and restarts with exponential backoff (see <a href="LIFECYCLE.html#task-queues">LIFECYCLE</a>.</p>
 <h2 id="extending"><a class="header" href="#extending">Extending</a></h2>
-<p>Values are config values with applied patches, so schema in values.yaml should contain duplicates of properties from config-values.yaml schema. There is a technique with <code>allOf</code> to reduce duplicates: <a href="https://github.com/json-schema-org/json-schema-spec/issues/348">1</a> <a href="https://github.com/json-schema-org/json-schema-spec/issues/348">2</a>, but it will not eliminate duplicates when <code>additionalProperties: false</code>. To overcome this problem, we implement custom property <code>x-extend</code> for values.yaml schema.</p>
+<p>Values are config values with applied patches, so schema in values.yaml should contain duplicates of properties from config-values.yaml schema. There is a technique with <code>allOf</code> to reduce <a href="https://github.com/json-schema-org/json-schema-spec/issues/348">duplicates</a>, but it will not eliminate duplicates when <code>additionalProperties: false</code>. To overcome this problem, we implement custom property <code>x-extend</code> for values.yaml schema.</p>
 <p>If values.yaml schema contains <code>x-extend</code> field, shell-operator extends fields in values.yaml schema with fields from config-values.yaml schema:</p>
 <ul>
 <li>definitions</li>
@@ -1974,7 +1974,7 @@ properties:
 <p><code>addon_operator_binding_count{module=&quot;&quot;, hook=&quot;&quot;}</code> — a gauge with bindings count for every hooks. Global hooks has empty “module” label.</p>
 </li>
 <li>
-<p><code>addon_operator_config_values_errors_total{}</code> — a counter of ConfigMap validation errors after <code>kubectl edit</code>. See <a href="metrics/VALUES.html#validation">validation</a>.</p>
+<p><code>addon_operator_config_values_errors_total{}</code> — a counter of ConfigMap validation errors after <code>kubectl edit</code>. See <a href="metrics/../VALUES.html#validation">validation</a>.</p>
 </li>
 <li>
 <p><code>addon_operator_global_hook_run_seconds{hook=&quot;&quot;, binding=&quot;&quot;, activation=&quot;&quot;, queue=&quot;&quot;}</code> — a histogram with hook execution times. “hook” label is a name of the hook, “binding” is a binding name from configuration, “queue” is a queue name where hook is queued and “activation” is an event that triggers hook execution.</p>
@@ -2019,7 +2019,7 @@ properties:
 <p><code>addon_operator_module_hook_run_max_rss_bytes{module=&quot;&quot;, hook=&quot;&quot;, binding=&quot;&quot;, activation=&quot;&quot;, queue=&quot;&quot;}</code> — a gauge with module hook max rss usage in bytes.</p>
 </li>
 <li>
-<p><code>addon_operator_module_discover_errors_total</code> – a counter of errors during the <a href="metrics/LIFECYCLE.html#modules-discover">modules discover</a> process. It increases in these cases:</p>
+<p><code>addon_operator_module_discover_errors_total</code> – a counter of errors during the <a href="metrics/../LIFECYCLE.html#modules-discover">modules discover</a> process. It increases in these cases:</p>
 <ul>
 <li>an ‘enabled’ script is executed with an error</li>
 <li>a module hook return an invalid configuration</li>
@@ -2027,10 +2027,10 @@ properties:
 </ul>
 </li>
 <li>
-<p><code>addon_operator_module_run_errors_total{module=x}</code> – counter of errors on module <a href="metrics/LIFECYCLE.html#modules-lifecycle">start-up</a>.</p>
+<p><code>addon_operator_module_run_errors_total{module=x}</code> – counter of errors on module <a href="metrics/../LIFECYCLE.html#modules-lifecycle">start-up</a>.</p>
 </li>
 <li>
-<p><code>addon_operator_module_delete_errors_total{module=x}</code> – counter of errors on module <a href="metrics/LIFECYCLE.html#modules-lifecycle">deletion</a>.</p>
+<p><code>addon_operator_module_delete_errors_total{module=x}</code> – counter of errors on module <a href="metrics/../LIFECYCLE.html#modules-lifecycle">deletion</a>.</p>
 </li>
 <li>
 <p><code>addon_operator_module_run_seconds{module=&quot;&quot;}</code> — a histogram with module execution timings.</p>
