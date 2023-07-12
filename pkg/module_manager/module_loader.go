@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	PathsSeparator = ":"
-	ValuesFileName = "values.yaml"
+	PathsSeparator           = ":"
+	ValuesFileName           = "values.yaml"
+	ModuleDefinitionFileName = "module.yaml"
 )
 
 func SearchModules(modulesDirs string) (*ModuleSet, error) {

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 	uuid "gopkg.in/satori/go.uuid.v1"
@@ -34,9 +36,10 @@ import (
 )
 
 type Module struct {
-	Name  string // MODULE_NAME env
-	Path  string // MODULE_DIR env
-	Order int    // MODULE_ORDER env
+	Name   string // MODULE_NAME env
+	Path   string // MODULE_DIR env
+	Order  int    // MODULE_ORDER env
+	Labels []string
 	// module values from modules/values.yaml file
 	CommonStaticConfig *utils.ModuleConfig
 	// module values from modules/<module name>/values.yaml
@@ -927,6 +930,13 @@ func (mm *ModuleManager) RegisterModules() error {
 			return fmt.Errorf("bad module values")
 		}
 
+		// load module definition from module.yaml
+		err = module.loadDefinition()
+		if err != nil {
+			logEntry.Errorf("Load module.yaml: %s", err)
+			return fmt.Errorf("bad module definition")
+		}
+
 		// Load validation schemas
 		openAPIPath := filepath.Join(module.Path, "openapi")
 		configBytes, valuesBytes, err := ReadOpenAPIFiles(openAPIPath)
@@ -1004,6 +1014,7 @@ func (mm *ModuleManager) createModuleOperations(module *Module) (object_patch.Op
 	mo.SetName(module.Name)
 	mo.SetWeight(module.Order)
 	mo.SetSource(module.Source)
+	mo.SetLabels(module.Labels)
 	mo.SetEnabledState(module.State.Enabled)
 
 	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
@@ -1041,6 +1052,39 @@ func (m *Module) loadStaticValues() (err error) {
 	return nil
 }
 
+func (m *Module) loadDefinition() (err error) {
+	moduleYamlPath := filepath.Join(m.Path, ModuleDefinitionFileName)
+
+	if _, err := os.Stat(moduleYamlPath); os.IsNotExist(err) {
+		log.Debugf("module %q has no module.yaml", m.Name)
+		return nil
+	}
+
+	data, err := os.ReadFile(moduleYamlPath)
+	if err != nil {
+		return fmt.Errorf("cannot read '%s': %s", m.Path, err)
+	}
+
+	var def ModuleDefinition
+
+	err = yaml.Unmarshal(data, &def)
+	if err != nil {
+		return fmt.Errorf("module %q deinition unmarshalling failed: %s", m.Name, err)
+	}
+
+	log.Debugf("module %q file definition: %v", m.Name, def)
+
+	if def.Weight > 0 {
+		m.Order = def.Weight
+	}
+
+	if len(def.Labels) > 0 {
+		m.Labels = def.Labels
+	}
+
+	return nil
+}
+
 func dumpData(filePath string, data []byte) error {
 	err := os.WriteFile(filePath, data, 0o644)
 	if err != nil {
@@ -1059,6 +1103,13 @@ type ModuleProducer interface {
 type ModuleObject interface {
 	SetName(name string)
 	SetWeight(weight int)
+	SetLabels(labels []string)
 	SetSource(source string)
 	SetEnabledState(state bool)
+}
+
+// ModuleDefinition describes module, some extra data loaded from module.yaml
+type ModuleDefinition struct {
+	Labels []string `json:"labels"`
+	Weight int      `json:"weight"`
 }
