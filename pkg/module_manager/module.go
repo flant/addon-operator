@@ -36,10 +36,10 @@ import (
 )
 
 type Module struct {
-	Name   string // MODULE_NAME env
-	Path   string // MODULE_DIR env
-	Order  int    // MODULE_ORDER env
-	Labels []string
+	Name  string // MODULE_NAME env
+	Path  string // MODULE_DIR env
+	Order int    // MODULE_ORDER env
+	Tags  []string
 	// module values from modules/values.yaml file
 	CommonStaticConfig *utils.ModuleConfig
 	// module values from modules/<module name>/values.yaml
@@ -1014,7 +1014,7 @@ func (mm *ModuleManager) createModuleOperations(module *Module) (object_patch.Op
 	mo.SetName(module.Name)
 	mo.SetWeight(module.Order)
 	mo.SetSource(module.Source)
-	mo.SetLabels(module.Labels)
+	mo.SetTags(module.Tags)
 	mo.SetEnabledState(module.State.Enabled)
 
 	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
@@ -1078,8 +1078,8 @@ func (m *Module) loadDefinition() (err error) {
 		m.Order = def.Weight
 	}
 
-	if len(def.Labels) > 0 {
-		m.Labels = def.Labels
+	if len(def.Tags) > 0 {
+		m.Tags = def.Tags
 	}
 
 	return nil
@@ -1103,13 +1103,13 @@ type ModuleProducer interface {
 type ModuleObject interface {
 	SetName(name string)
 	SetWeight(weight int)
-	SetLabels(labels []string)
+	SetTags(tags []string)
 	SetSource(source string)
 	SetEnabledState(state bool)
 }
 
 // ModuleDefinition describes module, some extra data loaded from module.yaml
 type ModuleDefinition struct {
-	Labels []string `json:"labels"`
+	Tags   []string `json:"tags"`
 	Weight int      `json:"weight"`
 }
