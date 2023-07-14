@@ -149,6 +149,7 @@ func moduleFromDirName(dirName string, absPath string) (*Module, error) {
 	return NewModuleWithNameValidation(matchRes[ModuleNameIdx], absPath, parseIntOrDefault(matchRes[ModuleOrderIdx], app.UnnumberedModuleOrder))
 }
 
+// NewModuleWithNameValidation creates module with the name validation: kebab-case and camelCase should be compatible
 func NewModuleWithNameValidation(name, path string, order int) (*Module, error) {
 	// Check if name is consistent for conversions between kebab-case and camelCase.
 	valuesKey := utils.ModuleNameToValuesKey(name)
