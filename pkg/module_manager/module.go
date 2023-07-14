@@ -919,10 +919,6 @@ func (mm *ModuleManager) RegisterModules() error {
 	for _, module := range modules.List() {
 		logEntry := log.WithField("module", module.Name)
 
-		module.WithModuleManager(mm)
-		module.WithMetricStorage(mm.dependencies.MetricStorage)
-		module.WithHelm(mm.dependencies.Helm)
-
 		// validate
 		err = mm.ValidateModule(module)
 		if err != nil {
@@ -938,6 +934,10 @@ func (mm *ModuleManager) RegisterModules() error {
 }
 
 func (mm *ModuleManager) ValidateModule(module *Module) error {
+	module.WithModuleManager(mm)
+	module.WithMetricStorage(mm.dependencies.MetricStorage)
+	module.WithHelm(mm.dependencies.Helm)
+
 	// load static config from values.yaml
 	err := module.loadStaticValues()
 	if err != nil {
