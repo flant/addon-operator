@@ -923,40 +923,49 @@ func (mm *ModuleManager) RegisterModules() error {
 		module.WithMetricStorage(mm.dependencies.MetricStorage)
 		module.WithHelm(mm.dependencies.Helm)
 
-		// load static config from values.yaml
-		err = module.loadStaticValues()
+		// validate
+		err = mm.ValidateModule(module)
 		if err != nil {
-			logEntry.Errorf("Load values.yaml: %s", err)
-			return fmt.Errorf("bad module values")
-		}
-
-		// load module definition from module.yaml
-		err = module.loadDefinition()
-		if err != nil {
-			logEntry.Errorf("Load module.yaml: %s", err)
-			return fmt.Errorf("bad module definition")
-		}
-
-		// Load validation schemas
-		openAPIPath := filepath.Join(module.Path, "openapi")
-		configBytes, valuesBytes, err := ReadOpenAPIFiles(openAPIPath)
-		if err != nil {
-			return fmt.Errorf("module '%s' read openAPI schemas: %v", module.Name, err)
-		}
-
-		err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
-			module.ValuesKey(),
-			configBytes,
-			valuesBytes,
-		)
-		if err != nil {
-			return fmt.Errorf("add module '%s' schemas: %v", module.Name, err)
+			logEntry.Error("module validation failed", err)
+			return err
 		}
 
 		logEntry.Infof("Module from '%s'. %s", module.Path, mm.ValuesValidator.SchemaStorage.ModuleSchemasDescription(module.ValuesKey()))
 	}
 
 	mm.modules = modules
+	return nil
+}
+
+func (mm *ModuleManager) ValidateModule(module *Module) error {
+	// load static config from values.yaml
+	err := module.loadStaticValues()
+	if err != nil {
+		return fmt.Errorf("load values.yaml failed: %v", err)
+	}
+
+	// load module definition from module.yaml
+	err = module.loadDefinition()
+	if err != nil {
+		return fmt.Errorf("load module.yaml failed: %v", err)
+	}
+
+	// Load validation schemas
+	openAPIPath := filepath.Join(module.Path, "openapi")
+	configBytes, valuesBytes, err := ReadOpenAPIFiles(openAPIPath)
+	if err != nil {
+		return fmt.Errorf("read openAPI schemas failed: %v", err)
+	}
+
+	err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
+		module.ValuesKey(),
+		configBytes,
+		valuesBytes,
+	)
+	if err != nil {
+		return fmt.Errorf("add schemas failed: %v", err)
+	}
+
 	return nil
 }
 
