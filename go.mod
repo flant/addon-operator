@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/flant/kube-client v0.26.1
-	github.com/flant/shell-operator v1.3.1-0.20230714211550-6bacd3b026f5
+	github.com/flant/shell-operator v1.3.1
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
