@@ -9,9 +9,7 @@ import (
 	sh_debug "github.com/flant/shell-operator/pkg/debug"
 )
 
-var (
-	outputFormat = "text"
-)
+var outputFormat = "text"
 
 func DefineDebugCommands(kpApp *kingpin.Application) {
 	globalCmd := sh_app.CommandWithDefaultUsageTemplate(kpApp, "global", "manage global values")

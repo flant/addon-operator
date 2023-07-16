@@ -52,6 +52,6 @@ func (c *Client) DeleteRelease(_ string) error {
 	return nil
 }
 
-func (c *Client) Render(_ string, _ string, _ []string, _ []string, _ string, debug bool) (string, error) {
+func (c *Client) Render(_ string, _ string, _ []string, _ []string, _ string, _ bool) (string, error) {
 	return "", nil
 }
