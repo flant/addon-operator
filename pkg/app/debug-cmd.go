@@ -9,12 +9,14 @@ import (
 	sh_debug "github.com/flant/shell-operator/pkg/debug"
 )
 
+var outputFormat = "text"
+
 func DefineDebugCommands(kpApp *kingpin.Application) {
 	globalCmd := sh_app.CommandWithDefaultUsageTemplate(kpApp, "global", "manage global values")
 
 	globalListCmd := globalCmd.Command("list", "List global hooks.").
 		Action(func(c *kingpin.ParseContext) error {
-			dump, err := Global(sh_debug.DefaultClient()).List(sh_debug.OutputFormat)
+			dump, err := Global(sh_debug.DefaultClient()).List(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -27,7 +29,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalValuesCmd := globalCmd.Command("values", "Dump current global values.").
 		Action(func(c *kingpin.ParseContext) error {
-			dump, err := Global(sh_debug.DefaultClient()).Values(sh_debug.OutputFormat)
+			dump, err := Global(sh_debug.DefaultClient()).Values(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -40,7 +42,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalConfigCmd := globalCmd.Command("config", "Dump global config values.").
 		Action(func(c *kingpin.ParseContext) error {
-			dump, err := Global(sh_debug.DefaultClient()).Config(sh_debug.OutputFormat)
+			dump, err := Global(sh_debug.DefaultClient()).Config(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -65,7 +67,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalSnapshotsCmd := globalCmd.Command("snapshots", "Dump snapshots for all global hooks.").
 		Action(func(c *kingpin.ParseContext) error {
-			out, err := Global(sh_debug.DefaultClient()).Snapshots(sh_debug.OutputFormat)
+			out, err := Global(sh_debug.DefaultClient()).Snapshots(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -80,7 +82,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleListCmd := moduleCmd.Command("list", "List available modules and their enabled status.").
 		Action(func(c *kingpin.ParseContext) error {
-			modules, err := Module(sh_debug.DefaultClient()).List(sh_debug.OutputFormat)
+			modules, err := Module(sh_debug.DefaultClient()).List(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -94,7 +96,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	var moduleName string
 	moduleValuesCmd := moduleCmd.Command("values", "Dump module values by name.").
 		Action(func(c *kingpin.ParseContext) error {
-			dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Values(sh_debug.OutputFormat)
+			dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Values(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -123,7 +125,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleConfigCmd := moduleCmd.Command("config", "Dump module config values by name.").
 		Action(func(c *kingpin.ParseContext) error {
-			dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Config(sh_debug.OutputFormat)
+			dump, err := Module(sh_debug.DefaultClient()).Name(moduleName).Config(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -150,7 +152,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleResourceMonitorCmd := moduleCmd.Command("resource-monitor", "Dump resource monitors.").
 		Action(func(c *kingpin.ParseContext) error {
-			out, err := Module(sh_debug.DefaultClient()).Name(moduleName).ResourceMonitor(sh_debug.OutputFormat)
+			out, err := Module(sh_debug.DefaultClient()).Name(moduleName).ResourceMonitor(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -164,7 +166,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleSnapshotsCmd := moduleCmd.Command("snapshots", "Dump snapshots for all hooks.").
 		Action(func(c *kingpin.ParseContext) error {
-			out, err := Module(sh_debug.DefaultClient()).Name(moduleName).Snapshots(sh_debug.OutputFormat)
+			out, err := Module(sh_debug.DefaultClient()).Name(moduleName).Snapshots(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -180,7 +182,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 func AddOutputJsonYamlFlag(cmd *kingpin.CmdClause) {
 	cmd.Flag("output", "Output format: json|yaml.").Short('o').
 		Default("yaml").
-		EnumVar(&sh_debug.OutputFormat, "json", "yaml")
+		EnumVar(&outputFormat, "json", "yaml")
 }
 
 type GlobalRequest struct {

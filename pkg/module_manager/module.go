@@ -14,6 +14,7 @@ import (
 	uuid "gopkg.in/satori/go.uuid.v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -37,6 +38,7 @@ type Module struct {
 	Name  string // MODULE_NAME env
 	Path  string // MODULE_DIR env
 	Order int    // MODULE_ORDER env
+	Tags  []string
 	// module values from modules/values.yaml file
 	CommonStaticConfig *utils.ModuleConfig
 	// module values from modules/<module name>/values.yaml
@@ -916,37 +918,53 @@ func (mm *ModuleManager) RegisterModules() error {
 	for _, module := range modules.List() {
 		logEntry := log.WithField("module", module.Name)
 
-		module.WithModuleManager(mm)
-		module.WithMetricStorage(mm.dependencies.MetricStorage)
-		module.WithHelm(mm.dependencies.Helm)
-
-		// load static config from values.yaml
-		err = module.loadStaticValues()
+		// validate
+		err = mm.ValidateModule(module)
 		if err != nil {
-			logEntry.Errorf("Load values.yaml: %s", err)
-			return fmt.Errorf("bad module values")
-		}
-
-		// Load validation schemas
-		openAPIPath := filepath.Join(module.Path, "openapi")
-		configBytes, valuesBytes, err := ReadOpenAPIFiles(openAPIPath)
-		if err != nil {
-			return fmt.Errorf("module '%s' read openAPI schemas: %v", module.Name, err)
-		}
-
-		err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
-			module.ValuesKey(),
-			configBytes,
-			valuesBytes,
-		)
-		if err != nil {
-			return fmt.Errorf("add module '%s' schemas: %v", module.Name, err)
+			logEntry.Error("module validation failed", err)
+			return err
 		}
 
 		logEntry.Infof("Module from '%s'. %s", module.Path, mm.ValuesValidator.SchemaStorage.ModuleSchemasDescription(module.ValuesKey()))
 	}
 
 	mm.modules = modules
+	return nil
+}
+
+func (mm *ModuleManager) ValidateModule(module *Module) error {
+	module.WithModuleManager(mm)
+	module.WithMetricStorage(mm.dependencies.MetricStorage)
+	module.WithHelm(mm.dependencies.Helm)
+
+	// load static config from values.yaml
+	err := module.loadStaticValues()
+	if err != nil {
+		return fmt.Errorf("load values.yaml failed: %v", err)
+	}
+
+	// load module definition from module.yaml
+	err = module.loadDefinition()
+	if err != nil {
+		return fmt.Errorf("load module.yaml failed: %v", err)
+	}
+
+	// Load validation schemas
+	openAPIPath := filepath.Join(module.Path, "openapi")
+	configBytes, valuesBytes, err := ReadOpenAPIFiles(openAPIPath)
+	if err != nil {
+		return fmt.Errorf("read openAPI schemas failed: %v", err)
+	}
+
+	err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
+		module.ValuesKey(),
+		configBytes,
+		valuesBytes,
+	)
+	if err != nil {
+		return fmt.Errorf("add schemas failed: %v", err)
+	}
+
 	return nil
 }
 
@@ -1004,6 +1022,7 @@ func (mm *ModuleManager) createModuleOperations(module *Module) (object_patch.Op
 	mo.SetName(module.Name)
 	mo.SetWeight(module.Order)
 	mo.SetSource(module.Source)
+	mo.SetTags(module.Tags)
 	mo.SetEnabledState(module.State.Enabled)
 
 	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
@@ -1041,6 +1060,39 @@ func (m *Module) loadStaticValues() (err error) {
 	return nil
 }
 
+func (m *Module) loadDefinition() (err error) {
+	moduleYamlPath := filepath.Join(m.Path, ModuleDefinitionFileName)
+
+	if _, err := os.Stat(moduleYamlPath); os.IsNotExist(err) {
+		log.Debugf("module %q has no module.yaml", m.Name)
+		return nil
+	}
+
+	data, err := os.ReadFile(moduleYamlPath)
+	if err != nil {
+		return fmt.Errorf("cannot read '%s': %s", m.Path, err)
+	}
+
+	var def ModuleDefinition
+
+	err = yaml.Unmarshal(data, &def)
+	if err != nil {
+		return fmt.Errorf("module %q deinition unmarshalling failed: %s", m.Name, err)
+	}
+
+	log.Debugf("module %q file definition: %v", m.Name, def)
+
+	if def.Weight > 0 {
+		m.Order = def.Weight
+	}
+
+	if len(def.Tags) > 0 {
+		m.Tags = def.Tags
+	}
+
+	return nil
+}
+
 func dumpData(filePath string, data []byte) error {
 	err := os.WriteFile(filePath, data, 0o644)
 	if err != nil {
@@ -1059,6 +1111,13 @@ type ModuleProducer interface {
 type ModuleObject interface {
 	SetName(name string)
 	SetWeight(weight int)
+	SetTags(tags []string)
 	SetSource(source string)
 	SetEnabledState(state bool)
+}
+
+// ModuleDefinition describes module, some extra data loaded from module.yaml
+type ModuleDefinition struct {
+	Tags   []string `json:"tags"`
+	Weight int      `json:"weight"`
 }

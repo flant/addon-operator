@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	PathsSeparator = ":"
-	ValuesFileName = "values.yaml"
+	PathsSeparator           = ":"
+	ValuesFileName           = "values.yaml"
+	ModuleDefinitionFileName = "module.yaml"
 )
 
 func SearchModules(modulesDirs string) (*ModuleSet, error) {
@@ -144,8 +145,12 @@ func moduleFromDirName(dirName string, absPath string) (*Module, error) {
 	if matchRes == nil {
 		return nil, fmt.Errorf("'%s' is invalid name for module: should match regex '%s'", dirName, ValidModuleNameRe.String())
 	}
-	name := matchRes[ModuleNameIdx]
 
+	return NewModuleWithNameValidation(matchRes[ModuleNameIdx], absPath, parseIntOrDefault(matchRes[ModuleOrderIdx], app.UnnumberedModuleOrder))
+}
+
+// NewModuleWithNameValidation creates module with the name validation: kebab-case and camelCase should be compatible
+func NewModuleWithNameValidation(name, path string, order int) (*Module, error) {
 	// Check if name is consistent for conversions between kebab-case and camelCase.
 	valuesKey := utils.ModuleNameToValuesKey(name)
 	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
@@ -153,9 +158,9 @@ func moduleFromDirName(dirName string, absPath string) (*Module, error) {
 		return nil, fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", name, restoredName)
 	}
 
-	module := NewModule(matchRes[ModuleNameIdx],
-		absPath,
-		parseIntOrDefault(matchRes[ModuleOrderIdx], app.UnnumberedModuleOrder),
+	module := NewModule(name,
+		path,
+		order,
 	)
 
 	return module, nil
