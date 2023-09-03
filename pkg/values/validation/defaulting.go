@@ -49,6 +49,13 @@ func ApplyDefaults(obj interface{}, s *spec.Schema) bool {
 			}
 		}
 	case []interface{}:
+		// If the 'items' section is not specified in the schema, addon-operator will panic here.
+		// The schema itself should be validated earlier before applying defaults,
+		// but having a panic in runtime is much bigger problem.
+		if s.Items == nil {
+			return res
+		}
+
 		// Only List validation is supported.
 		// See https://json-schema.org/understanding-json-schema/reference/array.html#list-validation
 		for _, v := range obj {

@@ -691,10 +691,10 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 	// 2. Add last element.
 	origDoc = newDoc
 	patch1, _ = DecodePatch([]byte(`
-[{"op":"add", "path":"/root/array/-", "value":"azaza"}]
+[{"op":"add", "path":"/root/array/-", "value":"testvalue1"}]
 `))
 
-	expectNewDoc = []byte(`{"root":{"array":["azaza"]}}`)
+	expectNewDoc = []byte(`{"root":{"array":["testvalue1"]}}`)
 
 	newDoc, err = patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch 2 apply")
@@ -704,13 +704,13 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 	origDoc = newDoc
 
 	patch1, _ = DecodePatch([]byte(`
-[ {"op":"add", "path":"/root/array/-", "value":"ololo"},
+[ {"op":"add", "path":"/root/array/-", "value":"randomvalue"},
   {"op":"add", "path":"/root/array/-", "value":"foobar"},
   {"op":"add", "path":"/root/array/-", "value":"baz"}
 ]
 `))
 
-	expectNewDoc = []byte(`{"root":{"array":["azaza", "ololo", "foobar", "baz"]}}`)
+	expectNewDoc = []byte(`{"root":{"array":["testvalue1", "randomvalue", "foobar", "baz"]}}`)
 
 	newDoc, err = patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch 3 apply")
@@ -728,9 +728,9 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 	// "remove 1, remove 2" actually do: "remove 1, remove 3"
 
 	// wrong expectation...
-	// expectNewDoc = []byte(`{"root":{"array":["azaza", "baz"]}}`)
+	// expectNewDoc = []byte(`{"root":{"array":["testvalue1", "baz"]}}`)
 	// Actual result
-	expectNewDoc = []byte(`{"root":{"array":["azaza", "foobar"]}}`)
+	expectNewDoc = []byte(`{"root":{"array":["testvalue1", "foobar"]}}`)
 
 	newDoc, err = patch1.Apply(origDoc)
 	g.Expect(err).ShouldNot(HaveOccurred(), "patch 4 apply")
