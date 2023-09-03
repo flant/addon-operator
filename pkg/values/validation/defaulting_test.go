@@ -19,6 +19,8 @@ func Test_ApplyDefaults(t *testing.T) {
 	moduleValues, err = utils.NewValuesFromBytes([]byte(`
 moduleName:
   param1: val1
+  arrayObjDefaultNoItems:
+  - test1
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -34,23 +36,23 @@ properties:
     - val1
   param2:
     type: string
-    default: azaza
+    default: testvalue1
   paramObj:
     type: object
     default:
       internal: 
-        azaza: qweqwe
+        testvalue1: qweqwe
   paramObjDeep:
     type: object
     default: {}
     properties:
       param1:
         type: string
-        default: ololo
+        default: randomvalue
   paramObjDeepDeep:
     default:
       deepParam1:
-        param1: ololo
+        param1: randomvalue
     type: object
     properties:
       deepParam1:
@@ -58,6 +60,9 @@ properties:
         properties:
           param1:
             type: string
+  arrayObjDefaultNoItems:
+    default: []
+    type: array
 `
 
 	v := NewValuesValidator()
@@ -81,17 +86,20 @@ properties:
 	q := moduleValues["moduleName"].(map[string]interface{})
 	p := q["paramObj"].(map[string]interface{})
 	p = p["internal"].(map[string]interface{})
-	g.Expect(p).Should(HaveKey("azaza"))
+	g.Expect(p).Should(HaveKey("testvalue1"))
 
 	p = q["paramObjDeep"].(map[string]interface{})
 	g.Expect(p["param1"]).Should(BeAssignableToTypeOf(""))
 	str := p["param1"].(string)
-	g.Expect(str).Should(Equal("ololo"))
+	g.Expect(str).Should(Equal("randomvalue"))
 
 	p = q["paramObjDeepDeep"].(map[string]interface{})
 	p = p["deepParam1"].(map[string]interface{})
 	str = p["param1"].(string)
-	g.Expect(str).Should(Equal("ololo"))
+	g.Expect(str).Should(Equal("randomvalue"))
+
+	a := q["arrayObjDefaultNoItems"].([]interface{})
+	g.Expect(a).Should(Equal([]interface{}{"test1"}))
 }
 
 // defaulter from go-openapi as a reference
@@ -112,23 +120,26 @@ additionalProperties: false
 required:
 - param1
 properties:
+  arrayObjDefaultNoItems:
+    default: ["abc"]
+    type: array
   param1:
     type: string
     enum:
     - val1
   param2:
     type: string
-    default: azaza
+    default: testvalue1
   paramObj:
     type: object
     default:
       internal: 
-        azaza: qweqwe
+        testvalue1: qweqwe
     properties:
       internal:
         type: object
         properties:
-          azaza:
+          testvalue1:
             type: string
   paramObjDeep:
     type: object
@@ -136,7 +147,7 @@ properties:
     properties:
       param1:
         type: string
-        default: ololo
+        default: randomvalue
   paramObjDeepDeep:
     type: object
     default:
@@ -147,7 +158,7 @@ properties:
         properties:
           param1:
             type: string
-            default: ololo
+            default: randomvalue
 `
 
 	v := NewValuesValidator()
@@ -183,14 +194,17 @@ properties:
 	q := moduleValues["moduleName"].(map[string]interface{})
 	p := q["paramObj"].(map[string]interface{})
 	p = p["internal"].(map[string]interface{})
-	g.Expect(p).Should(HaveKey("azaza"))
+	g.Expect(p).Should(HaveKey("testvalue1"))
 
 	p = q["paramObjDeep"].(map[string]interface{})
 	str := p["param1"].(string)
-	g.Expect(str).Should(Equal("ololo"))
+	g.Expect(str).Should(Equal("randomvalue"))
 
 	p = q["paramObjDeepDeep"].(map[string]interface{})
 	p = p["deepParam1"].(map[string]interface{})
 	str = p["param1"].(string)
-	g.Expect(str).Should(Equal("ololo"))
+	g.Expect(str).Should(Equal("randomvalue"))
+
+	a := q["arrayObjDefaultNoItems"].([]interface{})
+	g.Expect(a).Should(Equal([]interface{}{"abc"}))
 }

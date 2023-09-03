@@ -68,7 +68,7 @@ properties:
     - val1
   param2:
     type: object
-    default: { azaza: qweqweqw }
+    default: { testvalue1: qweqweqw }
     properties:
       aq:
         type: string
@@ -92,8 +92,8 @@ moduleName:
   param1: val1
   paramObj:
     p1:
-      p11: azaza
-      p12: ololo
+      p11: testvalue1
+      p12: randomvalue
       # deep forbidden property
       asd: qwe
     p2:

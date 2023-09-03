@@ -320,7 +320,7 @@ func Test_ModuleManager_LoadValues_ApplyDefaults(t *testing.T) {
 	graf := globVals["grafana"].(string)
 	assert.Equal(t, "grafana", graf)
 
-	// 'azaza' field from modules/values.yaml.
+	// 'testvalue1' field from modules/values.yaml.
 	assert.Contains(t, globVals, "init")
 	initVals := globVals["init"].(map[string]interface{})
 	assert.Contains(t, initVals, "param1")
