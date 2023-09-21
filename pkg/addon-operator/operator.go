@@ -1105,7 +1105,16 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 		t.WithQueuedAt(time.Now())
 	} else {
 		res.Status = queue.Success
-		tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
+		// TODO(nabokihms): This is a temporary workaround to prevent deckhouse deleting modules downloaded from sources.
+		// Purging modules is required to delete releases for modules that were renamed or deleted in a new release.
+		//
+		// However, because of a race between downloading modules and running installation tasks on multimaster clusters.
+		//
+		// In the future, we need to identify and figure out how to handle this race.
+		// Users want to rely that their modules will not be deleted.
+		log.Debugf("Modules to purge found (but they will not be purged): %v", state.ModulesToPurge)
+
+		tasks := op.CreatePurgeTasks([]string{}, t)
 		res.AfterTasks = tasks
 		op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 	}
