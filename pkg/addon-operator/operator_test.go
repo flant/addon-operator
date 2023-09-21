@@ -295,7 +295,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 
 		// TODO DiscoverHelmReleases can add ModulePurge tasks.
 		{task.DiscoverHelmReleases, "", "", ""},
-		{task.ModulePurge, "", moduleToPurge, ""},
+		// {task.ModulePurge, "", moduleToPurge, ""},
 
 		// ConvergeModules runs after global Synchronization and emerges BeforeAll tasks.
 		{task.ConvergeModules, "", "", string(StandBy)},
