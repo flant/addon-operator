@@ -1110,11 +1110,11 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 		t.WithQueuedAt(time.Now())
 	} else {
 		res.Status = queue.Success
-		purgeModules := append(state.ModulesToPurge, op.ExplicitlyPurgeModules...)
+		state.ModulesToPurge = append(state.ModulesToPurge, op.ExplicitlyPurgeModules...)
 
-		log.Debugf("Next Modules will be purged: %v", purgeModules)
+		log.Debugf("Next Modules will be purged: %v", state.ModulesToPurge)
 
-		tasks := op.CreatePurgeTasks(purgeModules, t)
+		tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
 		res.AfterTasks = tasks
 		op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 	}
