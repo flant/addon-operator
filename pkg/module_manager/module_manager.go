@@ -550,9 +550,19 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 
 	purge := utils.MapStringStructKeys(releasesMap)
 	purge = utils.SortReverse(purge)
+
+	log.Infof("Modules to purge found (but they will not be purged): %v", purge)
+	// TODO(nabokihms): This is a temporary workaround to prevent deckhouse deleting modules downloaded from sources.
+	// Purging modules is required to delete releases for modules that were renamed or deleted in a new release.
+	//
+	// However, because of a race between downloading modules and running installation tasks on multimaster clusters.
+	//
+	// In the future, we need to identify and figure out how to handle this race.
+	// Users want to rely that their modules will not be deleted.
+
 	return &ModulesState{
 		AllEnabledModules: enabledModules,
-		ModulesToPurge:    purge,
+		ModulesToPurge:    []string{},
 	}
 }
 

@@ -57,6 +57,10 @@ type AddonOperator struct {
 
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
+
+	// ExplicitlyPurgeModules temporary way to purge explicitly set modules
+	// linked with pkg/module_manager/module_manager.go#L555
+	ExplicitlyPurgeModules []string
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -65,10 +69,11 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 	so.WithContext(cctx)
 
 	ao := &AddonOperator{
-		ctx:           cctx,
-		cancel:        cancel,
-		ShellOperator: so,
-		ConvergeState: NewConvergeState(),
+		ctx:                    cctx,
+		cancel:                 cancel,
+		ShellOperator:          so,
+		ConvergeState:          NewConvergeState(),
+		ExplicitlyPurgeModules: make([]string, 0),
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
@@ -1105,16 +1110,10 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 		t.WithQueuedAt(time.Now())
 	} else {
 		res.Status = queue.Success
-		// TODO(nabokihms): This is a temporary workaround to prevent deckhouse deleting modules downloaded from sources.
-		// Purging modules is required to delete releases for modules that were renamed or deleted in a new release.
-		//
-		// However, because of a race between downloading modules and running installation tasks on multimaster clusters.
-		//
-		// In the future, we need to identify and figure out how to handle this race.
-		// Users want to rely that their modules will not be deleted.
-		log.Debugf("Modules to purge found (but they will not be purged): %v", state.ModulesToPurge)
+		log.Debugf("Next Modules will be purged: %v", state.ModulesToPurge)
 
-		tasks := op.CreatePurgeTasks([]string{}, t)
+		purgeModules := append(state.ModulesToPurge, op.ExplicitlyPurgeModules...)
+		tasks := op.CreatePurgeTasks(purgeModules, t)
 		res.AfterTasks = tasks
 		op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 	}
