@@ -1042,9 +1042,9 @@ func Test_ModuleManager_ModulesState_no_ConfigMap(t *testing.T) {
 
 				expectAllEnabled := []string{"module-1", "module-3", "module-9"}
 				// Note: purge in reversed order
-				//expectToPurge := []string{"module-6", "module-5", "module-2"}
+				// expectToPurge := []string{"module-6", "module-5", "module-2"}
 				require.Equal(t, expectAllEnabled, modulesState.AllEnabledModules)
-				//require.Equal(t, expectToPurge, modulesState.ModulesToPurge)
+				// require.Equal(t, expectToPurge, modulesState.ModulesToPurge)
 				require.Len(t, modulesState.ModulesToEnable, 0)
 				require.Len(t, modulesState.ModulesToDisable, 0)
 				require.Len(t, modulesState.ModulesToReload, 0)
