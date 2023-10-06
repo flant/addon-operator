@@ -10,6 +10,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook/status_collector"
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -178,18 +179,29 @@ func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 
 	metricsCollector := metrics.NewCollector(e.Hook.GetName())
 	patchCollector := object_patch.NewPatchCollector()
+	statusCollector := status_collector.NewCollector()
 
 	err = goHook.Run(&go_hook.HookInput{
 		Snapshots:        formattedSnapshots,
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
 		PatchCollector:   patchCollector,
+		StatusCollector:  statusCollector,
 		LogEntry:         logEntry,
 		MetricsCollector: metricsCollector,
 		BindingActions:   bindingActions,
 	})
+
+	// on error we have to check if status collector has any status patches to apply
 	if err != nil {
-		return nil, err
+		if len(statusCollector.Operations()) == 0 {
+			return nil, err
+		}
+
+		// return non-nil HookResult if there are status patches
+		return &HookResult{
+			ObjectPatcherOperations: statusCollector.Operations(),
+		}, err
 	}
 
 	result = &HookResult{
@@ -197,8 +209,9 @@ func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 			utils.MemoryValuesPatch: {Operations: patchableValues.GetPatches()},
 			utils.ConfigMapPatch:    {Operations: patchableConfigValues.GetPatches()},
 		},
-		Metrics:                 metricsCollector.CollectedMetrics(),
-		ObjectPatcherOperations: patchCollector.Operations(),
+		Metrics: metricsCollector.CollectedMetrics(),
+		// combine patches and status patches
+		ObjectPatcherOperations: append(patchCollector.Operations(), statusCollector.Operations()...),
 		BindingActions:          *bindingActions,
 	}
 
