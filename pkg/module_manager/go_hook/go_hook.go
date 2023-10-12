@@ -8,7 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook/status_collector"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 )
@@ -48,7 +47,6 @@ type HookInput struct {
 	ConfigValues     *PatchableValues
 	MetricsCollector MetricsCollector
 	PatchCollector   *object_patch.PatchCollector
-	StatusCollector  *status_collector.StatusCollector
 	LogEntry         *logrus.Entry
 	BindingActions   *[]BindingAction
 }

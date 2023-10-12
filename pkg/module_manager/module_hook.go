@@ -168,16 +168,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		h.moduleManager.dependencies.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
 		h.moduleManager.dependencies.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
-
 	if err != nil {
-		// we have to check if there are some status patches to apply
-		if hookResult != nil && len(hookResult.ObjectPatcherOperations) > 0 {
-			statusErr := h.moduleManager.dependencies.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
-			if statusErr != nil {
-				return fmt.Errorf("module hook '%s' failed: %s, update status operation failed: %s", h.Name, err, statusErr)
-			}
-		}
-
 		return fmt.Errorf("module hook '%s' failed: %s", h.Name, err)
 	}
 
