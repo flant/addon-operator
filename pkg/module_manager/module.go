@@ -39,7 +39,7 @@ type Module struct {
 	Path        string // MODULE_DIR env
 	Order       int    // MODULE_ORDER env
 	Tags        []string
-	description string //description from module.yaml
+	description string // description from module.yaml
 
 	// module values from modules/values.yaml file
 	CommonStaticConfig *utils.ModuleConfig
