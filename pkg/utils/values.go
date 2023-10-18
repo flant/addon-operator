@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/peterbourgon/mergemap"
+	"github.com/nabokihms/mergemap"
 	"github.com/segmentio/go-camelcase"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"

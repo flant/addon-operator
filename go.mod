@@ -14,8 +14,8 @@ require (
 	github.com/go-openapi/validate v0.19.12
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
+	github.com/nabokihms/mergemap v0.0.1
 	github.com/onsi/gomega v1.27.10
-	github.com/peterbourgon/mergemap v0.0.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
