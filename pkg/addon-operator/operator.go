@@ -3,7 +3,6 @@ package addon_operator
 import (
 	"context"
 	"fmt"
-	_ "net/http/pprof" // Webserver pprof endpoint injection
 	"path"
 	"runtime/trace"
 	"strings"
