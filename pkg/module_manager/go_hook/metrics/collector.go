@@ -34,7 +34,7 @@ func (dms *MemoryMetricsCollector) Add(name string, value float64, labels map[st
 		Name:   name,
 		Group:  opts.group,
 		Action: "add",
-		Value:  pointer.Float64Ptr(value),
+		Value:  pointer.Float64(value),
 		Labels: labels,
 	})
 }
@@ -51,7 +51,7 @@ func (dms *MemoryMetricsCollector) Set(name string, value float64, labels map[st
 		Name:   name,
 		Group:  opts.group,
 		Action: "set",
-		Value:  pointer.Float64Ptr(value),
+		Value:  pointer.Float64(value),
 		Labels: labels,
 	})
 }

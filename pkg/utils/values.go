@@ -115,12 +115,10 @@ func (v Values) DebugString() string {
 	return string(b)
 }
 
-func (v Values) Checksum() (string, error) {
-	valuesJson, err := json.Marshal(v)
-	if err != nil {
-		return "", err
-	}
-	return utils_checksum.CalculateChecksum(string(valuesJson)), nil
+func (v Values) Checksum() string {
+	valuesJson, _ := json.Marshal(v)
+
+	return utils_checksum.CalculateChecksum(string(valuesJson))
 }
 
 func (v Values) HasKey(key string) bool {

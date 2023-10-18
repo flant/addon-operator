@@ -12,7 +12,7 @@ import (
 
 type HelmResourcesManager interface {
 	WithContext(ctx context.Context)
-	WithKubeClient(client klient.Client)
+	WithKubeClient(client *klient.Client)
 	WithDefaultNamespace(namespace string)
 	Stop()
 	StopMonitors()
@@ -35,7 +35,7 @@ type helmResourcesManager struct {
 
 	Namespace string
 
-	kubeClient klient.Client
+	kubeClient *klient.Client
 
 	monitors map[string]*ResourcesMonitor
 
@@ -51,7 +51,7 @@ func NewHelmResourcesManager() HelmResourcesManager {
 	}
 }
 
-func (hm *helmResourcesManager) WithKubeClient(client klient.Client) {
+func (hm *helmResourcesManager) WithKubeClient(client *klient.Client) {
 	hm.kubeClient = client
 }
 

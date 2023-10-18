@@ -59,8 +59,11 @@ type BindingAction struct {
 }
 
 type HookConfig struct {
-	Schedule          []ScheduleConfig
-	Kubernetes        []KubernetesConfig
+	Schedule   []ScheduleConfig
+	Kubernetes []KubernetesConfig
+	// OnStartup runs hook on module/global startup
+	// Attention! During the startup you don't have snapshots available
+	// use native KubeClient to fetch resources
 	OnStartup         *OrderedConfig
 	OnBeforeHelm      *OrderedConfig
 	OnAfterHelm       *OrderedConfig

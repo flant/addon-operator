@@ -27,7 +27,7 @@ type Helm3Options struct {
 	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
-	KubeClient klient.Client
+	KubeClient *klient.Client
 }
 
 var Options *Helm3Options
@@ -46,7 +46,7 @@ func Init(options *Helm3Options) error {
 }
 
 type Helm3Client struct {
-	KubeClient klient.Client
+	KubeClient *klient.Client
 	LogEntry   *log.Entry
 	Namespace  string
 }
@@ -66,7 +66,7 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	}
 }
 
-func (h *Helm3Client) WithKubeClient(client klient.Client) {
+func (h *Helm3Client) WithKubeClient(client *klient.Client) {
 	h.KubeClient = client
 }
 

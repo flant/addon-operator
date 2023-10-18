@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+	"k8s.io/utils/pointer"
 )
 
 // Test_FromYaml creates ModuleConfig objects from different input yaml strings
@@ -45,7 +46,7 @@ testModule:
 			func() {
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(config).ToNot(BeNil())
-				g.Expect(config.Values).To(BeEmpty())
+				g.Expect(config.GetValues()).To(BeEmpty())
 				g.Expect(config.IsEnabled).To(Equal(&ModuleDisabled))
 			},
 		},
@@ -55,7 +56,7 @@ testModule:
 			func() {
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(config).ToNot(BeNil())
-				g.Expect(config.Values).To(BeEmpty())
+				g.Expect(config.GetValues()).To(BeEmpty())
 				g.Expect(config.IsEnabled).To(Equal(&ModuleEnabled))
 			},
 		},
@@ -78,11 +79,11 @@ testModuleEnabled: true
 				g.Expect(config).ToNot(BeNil())
 				g.Expect(config.IsEnabled).To(Equal(&ModuleEnabled))
 
-				g.Expect(config.Values).ToNot(BeEmpty())
-				g.Expect(config.Values).To(HaveKey("testModule"))
-				g.Expect(config.Values["testModule"]).To(BeAssignableToTypeOf(map[string]interface{}{}))
+				g.Expect(config.GetValues()).ToNot(BeEmpty())
+				g.Expect(config.GetValues()).To(HaveKey("testModule"))
+				g.Expect(config.GetValues()["testModule"]).To(BeAssignableToTypeOf(map[string]interface{}{}))
 
-				modValsMap := config.Values["testModule"].(map[string]interface{})
+				modValsMap := config.GetValues()["testModule"].(map[string]interface{})
 				g.Expect(modValsMap["hello"]).To(Equal("world"))
 				g.Expect(modValsMap["4"]).To(Equal("123"))
 				g.Expect(modValsMap["5"]).To(Equal(5.0))
@@ -112,7 +113,7 @@ testModule:
 					return (element.(map[string]interface{})["id"]).(string)
 				}
 
-				g.Expect(config.Values).To(MatchAllKeys(Keys{
+				g.Expect(config.GetValues()).To(MatchAllKeys(Keys{
 					"testModule": MatchAllElements(arrayID, Elements{
 						"0": MatchAllKeys(Keys{
 							"a":  Equal(1.0),
@@ -131,7 +132,7 @@ testModule:
 		t.Run(test.name, func(t *testing.T) {
 			config = nil
 			err = nil
-			config, err = NewModuleConfig("test-module").FromYaml([]byte(test.yaml))
+			config, err = NewModuleConfig("test-module", nil).FromYaml([]byte(test.yaml))
 			test.assertFn()
 		})
 	}
@@ -163,24 +164,6 @@ testModule:
 testModuleEnabled: true
 `
 
-	configMapDataMapValues := map[string]string{
-		"global": `asd: qwe`,
-		"test-module": `
-foo: bar
-`,
-		"testModule": `
-hello: world
-4: "123"
-5: 5
-aaa:
-  "no":
-  - one
-  - two
-  - three
-`,
-		"testModuleEnabled": "false",
-	}
-
 	expectedData := Values{
 		"testModule": map[string]interface{}{
 			"hello": "world", "4": "123", "5": 5.0,
@@ -188,24 +171,17 @@ aaa:
 		},
 	}
 
-	config, err = NewModuleConfig("test-module").LoadFromValues(inputData)
+	config, err = NewModuleConfig("test-module", nil).LoadFromValues(inputData)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(config).ToNot(BeNil())
-	g.Expect(config.Values).To(Equal(expectedData))
+	g.Expect(config.GetValues()).To(Equal(expectedData))
 
-	config, err = NewModuleConfig("test-module").FromYaml([]byte(inputValuesYaml))
+	config, err = NewModuleConfig("test-module", nil).FromYaml([]byte(inputValuesYaml))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(config).ToNot(BeNil())
-	g.Expect(config.Values).To(Equal(expectedData))
+	g.Expect(config.GetValues()).To(Equal(expectedData))
 	g.Expect(config.IsEnabled).ToNot(BeNil())
 	g.Expect(config.IsEnabled).To(Equal(&ModuleEnabled))
-
-	config, err = NewModuleConfig("test-module").FromConfigMapData(configMapDataMapValues)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(config).ToNot(BeNil())
-	g.Expect(config.Values).To(Equal(expectedData))
-	g.Expect(config.IsEnabled).ToNot(BeNil())
-	g.Expect(config.IsEnabled).To(Equal(&ModuleDisabled))
 }
 
 func Test_GetEnabled(t *testing.T) {
@@ -245,7 +221,7 @@ func Test_GetEnabled(t *testing.T) {
 			"nil",
 			func() {
 				config = &ModuleConfig{}
-				config.WithEnabled(true)
+				config.IsEnabled = pointer.Bool(true)
 			},
 			"true",
 		},
@@ -253,7 +229,7 @@ func Test_GetEnabled(t *testing.T) {
 			"nil",
 			func() {
 				config = &ModuleConfig{}
-				config.WithEnabled(false)
+				config.IsEnabled = pointer.Bool(false)
 			},
 			"false",
 		},

@@ -20,6 +20,8 @@ import (
 	mockhelmresmgr "github.com/flant/addon-operator/pkg/helm_resources_manager/test/mock"
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
+	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
+	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	_ "github.com/flant/addon-operator/pkg/module_manager/test/go_hooks/global-hooks"
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
@@ -33,8 +35,8 @@ type TestKubeConfigManager interface {
 	Init() error
 	Start()
 	Stop()
-	KubeConfigEventCh() chan kube_config_manager.KubeConfigEvent
-	SafeReadConfig(handler func(config *kube_config_manager.KubeConfig))
+	KubeConfigEventCh() chan config.KubeConfigEvent
+	SafeReadConfig(handler func(config *config.KubeConfig))
 }
 
 type initModuleManagerResult struct {
@@ -42,7 +44,7 @@ type initModuleManagerResult struct {
 	kubeConfigManager    TestKubeConfigManager
 	helmClient           *mockhelm.Client
 	helmResourcesManager *mockhelmresmgr.MockHelmResourcesManager
-	kubeClient           klient.Client
+	kubeClient           *klient.Client
 	initialState         *ModulesState
 	initialStateErr      error
 	cmName               string
@@ -102,13 +104,8 @@ func initModuleManager(t *testing.T, configPath string) (*ModuleManager, *initMo
 		require.NoError(t, err, "Should create ConfigMap/%s", result.cmName)
 	}
 
-	kcfg := kube_config_manager.Config{
-		Namespace:     result.cmNamespace,
-		ConfigMapName: result.cmName,
-		KubeClient:    result.kubeClient,
-		RuntimeConfig: nil,
-	}
-	manager := kube_config_manager.NewKubeConfigManager(context.Background(), &kcfg)
+	bk := configmap.New(nil, result.kubeClient, result.cmNamespace, result.cmName)
+	manager := kube_config_manager.NewKubeConfigManager(context.Background(), bk, nil)
 	result.kubeConfigManager = manager
 
 	err = result.kubeConfigManager.Init()
@@ -138,7 +135,7 @@ func initModuleManager(t *testing.T, configPath string) (*ModuleManager, *initMo
 	// Start KubeConfigManager to be able to change config values via patching ConfigMap.
 	result.kubeConfigManager.Start()
 
-	result.kubeConfigManager.SafeReadConfig(func(config *kube_config_manager.KubeConfig) {
+	result.kubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
 		result.initialState, result.initialStateErr = result.moduleManager.HandleNewKubeConfig(config)
 	})
 
@@ -191,11 +188,11 @@ func Test_ModuleManager_LoadValuesInInit(t *testing.T) {
 
 				with1 := mm.modules.Get("with-values-1")
 				assert.NotNil(t, with1.StaticConfig)
-				assert.Equal(t, modWithValues1Expected, with1.StaticConfig.Values)
+				assert.Equal(t, modWithValues1Expected, with1.StaticConfig.GetValues())
 
 				with2 := mm.modules.Get("with-values-2")
 				assert.NotNil(t, with2.StaticConfig)
-				assert.Equal(t, modWithValues2Expected, with2.StaticConfig.Values)
+				assert.Equal(t, modWithValues2Expected, with2.StaticConfig.GetValues())
 			},
 		},
 		{
@@ -227,19 +224,19 @@ func Test_ModuleManager_LoadValuesInInit(t *testing.T) {
 				assert.NotNil(t, with1.CommonStaticConfig)
 				assert.NotNil(t, with1.StaticConfig)
 				assert.Equal(t, "with-values-1", with1.CommonStaticConfig.ModuleName)
-				assert.Equal(t, "withValues1", with1.CommonStaticConfig.ModuleConfigKey)
-				assert.Equal(t, "withValues1Enabled", with1.CommonStaticConfig.ModuleEnabledKey)
+				assert.Equal(t, "withValues1", with1.CommonStaticConfig.ModuleConfigKey())
+				assert.Equal(t, "withValues1Enabled", with1.CommonStaticConfig.ModuleEnabledKey())
 				assert.Equal(t, "with-values-1", with1.StaticConfig.ModuleName)
 
 				// with-values-1 is enabled by common values.yaml
 				assert.True(t, *with1.CommonStaticConfig.IsEnabled)
 				assert.False(t, *with1.StaticConfig.IsEnabled)
 
-				assert.Len(t, with1.CommonStaticConfig.Values["withValues1"], 1)
-				assert.Len(t, with1.StaticConfig.Values["withValues1"], 3)
+				assert.Len(t, with1.CommonStaticConfig.GetValues()["withValues1"], 1)
+				assert.Len(t, with1.StaticConfig.GetValues()["withValues1"], 3)
 				// with-values-1 has "a" value in common and in module static values
-				assert.Contains(t, with1.CommonStaticConfig.Values["withValues1"], "a")
-				assert.Contains(t, with1.StaticConfig.Values["withValues1"], "a")
+				assert.Contains(t, with1.CommonStaticConfig.GetValues()["withValues1"], "a")
+				assert.Contains(t, with1.StaticConfig.GetValues()["withValues1"], "a")
 
 				assert.NotContains(t, mm.kubeModulesConfigValues, "with-values-1")
 
@@ -293,8 +290,8 @@ func Test_ModuleManager_LoadValues_ApplyDefaults(t *testing.T) {
 	assert.NotNil(t, modOne.StaticConfig)
 	assert.Equal(t, "module-one", modOne.CommonStaticConfig.ModuleName)
 	assert.Equal(t, "module-one", modOne.StaticConfig.ModuleName)
-	assert.Equal(t, "moduleOne", modOne.CommonStaticConfig.ModuleConfigKey)
-	assert.Equal(t, "moduleOneEnabled", modOne.CommonStaticConfig.ModuleEnabledKey)
+	assert.Equal(t, "moduleOne", modOne.CommonStaticConfig.ModuleConfigKey())
+	assert.Equal(t, "moduleOneEnabled", modOne.CommonStaticConfig.ModuleEnabledKey())
 
 	// module-one is not enabled in any of values.yaml
 	assert.Nil(t, modOne.CommonStaticConfig.IsEnabled)
@@ -1231,7 +1228,7 @@ func Test_ModuleManager_ModulesState_detect_ConfigMap_changes(t *testing.T) {
 		<-res.kubeConfigManager.KubeConfigEventCh()
 
 		var state *ModulesState
-		res.kubeConfigManager.SafeReadConfig(func(config *kube_config_manager.KubeConfig) {
+		res.kubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
 			state, err = mm.HandleNewKubeConfig(config)
 		})
 		require.Len(t, state.ModulesToReload, 0, "Enabled flag change should lead to reload all modules")
@@ -1271,7 +1268,7 @@ func Test_ModuleManager_ModulesState_detect_ConfigMap_changes(t *testing.T) {
 		<-res.kubeConfigManager.KubeConfigEventCh()
 
 		var state *ModulesState
-		res.kubeConfigManager.SafeReadConfig(func(config *kube_config_manager.KubeConfig) {
+		res.kubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
 			state, err = mm.HandleNewKubeConfig(config)
 		})
 		require.Len(t, state.ModulesToReload, 2, "Enabled flag change should lead to reload all modules")
@@ -1311,7 +1308,7 @@ func Test_ModuleManager_ModulesState_detect_ConfigMap_changes(t *testing.T) {
 		<-res.kubeConfigManager.KubeConfigEventCh()
 
 		var state *ModulesState
-		res.kubeConfigManager.SafeReadConfig(func(config *kube_config_manager.KubeConfig) {
+		res.kubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
 			state, err = mm.HandleNewKubeConfig(config)
 		})
 		require.NoError(t, err, "Should handle new ConfigMap")

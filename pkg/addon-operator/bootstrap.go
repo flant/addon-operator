@@ -1,13 +1,11 @@
 package addon_operator
 
 import (
-	"fmt"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
-	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
+	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/config"
@@ -17,42 +15,24 @@ import (
 
 // Bootstrap inits all dependencies for a full-fledged AddonOperator instance.
 func (op *AddonOperator) bootstrap() error {
-	runtimeConfig := config.NewConfig()
+	op.runtimeConfig = config.NewConfig()
 	// Init logging subsystem.
-	sh_app.SetupLogging(runtimeConfig)
+	sh_app.SetupLogging(op.runtimeConfig)
 	log.Infof(sh_app.AppStartMessage)
 
 	log.Infof("Search modules in: %s", app.ModulesDir)
 
-	globalHooksDir, err := shell_operator.RequireExistingDirectory(app.GlobalHooksDir)
-	if err != nil {
-		log.Errorf("Fatal: global hooks directory: %s", err)
-		return err
-	}
-	log.Infof("Global hooks directory: %s", globalHooksDir)
-
-	tempDir, err := shell_operator.EnsureTempDirectory(sh_app.TempDir)
-	if err != nil {
-		log.Errorf("Fatal: temp directory: %s", err)
-		return err
-	}
-
 	log.Infof("Addon-operator namespace: %s", app.Namespace)
 
 	// Debug server.
-	debugServer, err := shell_operator.InitDefaultDebugServer()
+	// TODO: rewrite sh_app global variables to the addon-operator ones
+	debugServer, err := shell_operator.RunDefaultDebugServer(sh_app.DebugUnixSocket, sh_app.DebugHttpServerAddr)
 	if err != nil {
 		log.Errorf("Fatal: start Debug server: %s", err)
 		return err
 	}
 
-	err = shell_operator.AssembleCommonOperator(op.ShellOperator)
-	if err != nil {
-		log.Errorf("Fatal: %s", err)
-		return err
-	}
-
-	err = op.Assemble(app.ModulesDir, globalHooksDir, tempDir, debugServer, runtimeConfig)
+	err = op.Assemble(debugServer)
 	if err != nil {
 		log.Errorf("Fatal: %s", err)
 		return err
@@ -61,38 +41,23 @@ func (op *AddonOperator) bootstrap() error {
 	return nil
 }
 
-func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, tempDir string, debugServer *debug.Server, runtimeConfig *config.Config) (err error) {
-	op.RegisterDefaultRoutes()
+func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
+	op.registerDefaultRoutes()
 	if app.AdmissionServerEnabled {
 		op.AdmissionServer.start(op.ctx)
 	}
-	RegisterAddonOperatorMetrics(op.MetricStorage)
-	StartLiveTicksUpdater(op.MetricStorage)
-	StartTasksQueueLengthUpdater(op.MetricStorage, op.TaskQueues)
+	RegisterAddonOperatorMetrics(op.engine.MetricStorage)
+	StartLiveTicksUpdater(op.engine.MetricStorage)
+	StartTasksQueueLengthUpdater(op.engine.MetricStorage, op.engine.TaskQueues)
 
 	// Register routes in debug server.
-	shell_operator.RegisterDebugQueueRoutes(debugServer, op.ShellOperator)
-	shell_operator.RegisterDebugConfigRoutes(debugServer, runtimeConfig)
+	op.engine.RegisterDebugQueueRoutes(debugServer)
+	op.engine.RegisterDebugConfigRoutes(debugServer, op.runtimeConfig)
 	op.RegisterDebugGlobalRoutes(debugServer)
 	op.RegisterDebugModuleRoutes(debugServer)
 	// service (kubernetes object) does not have endpoints before addon-operator is ready
 	// we have to wait readiness probe (linked on the first-converge) before manipulating in-cluster objects covered with validation webhook
 	op.OnFirstConvergeDone()
-
-	// Helm client factory.
-	op.Helm, err = helm.InitHelmClientFactory(op.KubeClient)
-	if err != nil {
-		return fmt.Errorf("initialize Helm: %s", err)
-	}
-
-	// Helm resources monitor.
-	// It uses a separate client-go instance. (Metrics are registered when 'main' client is initialized).
-	op.HelmResourcesManager, err = InitDefaultHelmResourcesManager(op.ctx, op.MetricStorage)
-	if err != nil {
-		return fmt.Errorf("initialize Helm resources manager: %s", err)
-	}
-
-	op.SetupModuleManager(modulesDir, globalHooksDir, tempDir, runtimeConfig)
 
 	err = op.InitModuleManager()
 	if err != nil {
@@ -102,17 +67,17 @@ func (op *AddonOperator) Assemble(modulesDir string, globalHooksDir string, temp
 	return nil
 }
 
-func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string, runtimeConfig *config.Config) {
-	// Create manager to check values in ConfigMap.
-	kcfg := kube_config_manager.Config{
-		Namespace:     app.Namespace,
-		ConfigMapName: app.ConfigMapName,
-		KubeClient:    op.KubeClient,
-		RuntimeConfig: runtimeConfig,
+// SetupKubeConfigManager sets manager, which reads configuration for Modules from a cluster
+func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
+	if op.KubeConfigManager != nil {
+		// return if kube config manager is already set
+		return
 	}
-	manager := kube_config_manager.NewKubeConfigManager(op.ctx, &kcfg)
-	op.KubeConfigManager = manager
 
+	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig)
+}
+
+func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string) {
 	// Create manager that runs modules and hooks.
 	dirConfig := module_manager.DirectoryConfig{
 		ModulesDir:     modulesDir,
@@ -120,14 +85,14 @@ func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir st
 		TempDir:        tempDir,
 	}
 	deps := module_manager.ModuleManagerDependencies{
-		KubeObjectPatcher:    op.ObjectPatcher,
-		KubeEventsManager:    op.KubeEventsManager,
-		KubeConfigManager:    manager,
-		ScheduleManager:      op.ScheduleManager,
+		KubeObjectPatcher:    op.engine.ObjectPatcher,
+		KubeEventsManager:    op.engine.KubeEventsManager,
+		KubeConfigManager:    op.KubeConfigManager,
+		ScheduleManager:      op.engine.ScheduleManager,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
-		MetricStorage:        op.MetricStorage,
-		HookMetricStorage:    op.HookMetricStorage,
+		MetricStorage:        op.engine.MetricStorage,
+		HookMetricStorage:    op.engine.HookMetricStorage,
 	}
 
 	cfg := module_manager.ModuleManagerConfig{

@@ -21,11 +21,11 @@ import (
 	mockhelmresmgr "github.com/flant/addon-operator/pkg/helm_resources_manager/test/mock"
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
+	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/kube-client/fake"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
@@ -103,7 +103,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	// Assemble AddonOperator.
 	op := NewAddonOperator(context.Background())
-	op.KubeClient = kubeClient
+	op.engine.KubeClient = kubeClient
 	// Mock helm client for ModuleManager
 	result.helmClient = &mockhelm.Client{}
 	op.Helm = mockhelm.NewClientFactory(result.helmClient)
@@ -111,15 +111,10 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	result.helmResourcesManager = &mockhelmresmgr.MockHelmResourcesManager{}
 	op.HelmResourcesManager = result.helmResourcesManager
 
-	shell_operator.SetupEventManagers(op.ShellOperator)
+	op.engine.SetupEventManagers()
 
-	kcfg := kube_config_manager.Config{
-		Namespace:     result.cmNamespace,
-		ConfigMapName: result.cmName,
-		KubeClient:    op.KubeClient,
-		RuntimeConfig: nil,
-	}
-	manager := kube_config_manager.NewKubeConfigManager(op.ctx, &kcfg)
+	bk := configmap.New(nil, op.engine.KubeClient, result.cmNamespace, result.cmName)
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig)
 	op.KubeConfigManager = manager
 
 	dirs := module_manager.DirectoryConfig{
@@ -129,9 +124,9 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	}
 	deps := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    nil,
-		KubeEventsManager:    op.KubeEventsManager,
+		KubeEventsManager:    op.engine.KubeEventsManager,
 		KubeConfigManager:    manager,
-		ScheduleManager:      op.ScheduleManager,
+		ScheduleManager:      op.engine.ScheduleManager,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
 		MetricStorage:        nil,
@@ -154,7 +149,7 @@ func convergeDone(op *AddonOperator) func(g Gomega) bool {
 		if op.IsStartupConvergeDone() {
 			return true
 		}
-		mainQueue := op.TaskQueues.GetMain()
+		mainQueue := op.engine.TaskQueues.GetMain()
 		g.Expect(func() bool {
 			if mainQueue.IsEmpty() {
 				return true
@@ -173,7 +168,7 @@ func Test_Operator_startup_tasks(t *testing.T) {
 
 	op, _ := assembleTestAddonOperator(t, "startup_tasks")
 
-	op.BootstrapMainQueue(op.TaskQueues)
+	op.BootstrapMainQueue(op.engine.TaskQueues)
 
 	expectTasks := []struct {
 		taskType    sh_task.TaskType
@@ -197,7 +192,7 @@ func Test_Operator_startup_tasks(t *testing.T) {
 	}
 
 	i := 0
-	op.TaskQueues.GetMain().Iterate(func(tsk sh_task.Task) {
+	op.engine.TaskQueues.GetMain().Iterate(func(tsk sh_task.Task) {
 		// Stop checking if no expects left.
 		if i >= len(expectTasks) {
 			return
@@ -221,7 +216,8 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 	log.SetLevel(log.ErrorLevel)
 
 	op, res := assembleTestAddonOperator(t, "converge__main_queue_only")
-	op.BootstrapMainQueue(op.TaskQueues)
+
+	op.BootstrapMainQueue(op.engine.TaskQueues)
 
 	// Fill mocked helm with two releases: one to purge and one to disable during converge process.
 	moduleToPurge := "moduleToPurge"
@@ -238,7 +234,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 	}
 
 	taskHandleHistory := make([]taskInfo, 0)
-	op.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -260,7 +256,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		return op.TaskHandler(tsk)
 	})
 
-	op.TaskQueues.StartMain()
+	op.engine.TaskQueues.StartMain()
 
 	// Wait until converge is done.
 	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
@@ -355,7 +351,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	op, res := assembleTestAddonOperator(t, "converge__main_queue_only")
 
 	// Prefill main queue and start required managers.
-	op.BootstrapMainQueue(op.TaskQueues)
+	op.BootstrapMainQueue(op.engine.TaskQueues)
 
 	op.KubeConfigManager.Start()
 	op.ModuleManager.Start()
@@ -377,7 +373,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 
 	historyMu := new(sync.Mutex)
 	taskHandleHistory := make([]taskInfo, 0)
-	op.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -410,7 +406,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	})
 
 	// Start 'main' queue and wait for first converge.
-	op.TaskQueues.StartMain()
+	op.engine.TaskQueues.StartMain()
 
 	// Emulate changing ConfigMap during converge.
 	go func() {
@@ -420,7 +416,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 "path": "/data/global",
 "value": "param: newValue"}]`
 
-		cmPatched, err := op.KubeClient.CoreV1().ConfigMaps(res.cmNamespace).Patch(context.TODO(),
+		cmPatched, err := op.engine.KubeClient.CoreV1().ConfigMaps(res.cmNamespace).Patch(context.TODO(),
 			res.cmName,
 			k8types.JSONPatchType,
 			[]byte(globalValuesChangePatch),
@@ -465,7 +461,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 
 	op, res := assembleTestAddonOperator(t, "converge__main_queue_only")
 
-	op.BootstrapMainQueue(op.TaskQueues)
+	op.BootstrapMainQueue(op.engine.TaskQueues)
 
 	op.KubeConfigManager.Start()
 	op.ModuleManager.Start()
@@ -482,7 +478,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 
 	historyMu := new(sync.Mutex)
 	taskHandleHistory := make([]taskInfo, 0)
-	op.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -509,7 +505,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		return op.TaskHandler(tsk)
 	})
 
-	op.TaskQueues.StartMain()
+	op.engine.TaskQueues.StartMain()
 
 	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
 
@@ -523,7 +519,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 "path": "/data/global",
 "value": "param: newValue"}]`
 
-	cmPatched, err := op.KubeClient.CoreV1().ConfigMaps(res.cmNamespace).Patch(context.TODO(),
+	cmPatched, err := op.engine.KubeClient.CoreV1().ConfigMaps(res.cmNamespace).Patch(context.TODO(),
 		res.cmName,
 		k8types.JSONPatchType,
 		[]byte(globalValuesChangePatch),
@@ -587,8 +583,8 @@ func Test_Operator_logTask(t *testing.T) {
 	log.AddHook(logHook)
 
 	op, _ := assembleTestAddonOperator(t, "log_task__wait_for_synchronization")
-	op.BootstrapMainQueue(op.TaskQueues)
-	op.TaskQueues.StartMain()
+	op.BootstrapMainQueue(op.engine.TaskQueues)
+	op.engine.TaskQueues.StartMain()
 	op.CreateAndStartQueuesForGlobalHooks()
 
 	// Wait until converge is done.
