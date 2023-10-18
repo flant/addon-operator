@@ -30,7 +30,7 @@ import (
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	utils2 "github.com/flant/shell-operator/pkg/utils/file"
+	fileUtils "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
@@ -109,13 +109,13 @@ func (op *AddonOperator) Setup() error {
 	op.Helm = helmClient
 	op.HelmResourcesManager = helmResourcesManager
 
-	globalHooksDir, err := utils2.RequireExistingDirectory(app.GlobalHooksDir)
+	globalHooksDir, err := fileUtils.RequireExistingDirectory(app.GlobalHooksDir)
 	if err != nil {
 		return fmt.Errorf("global hooks directory: %s", err)
 	}
 	log.Infof("Global hooks directory: %s", globalHooksDir)
 
-	tempDir, err := utils2.EnsureTempDirectory(sh_app.TempDir)
+	tempDir, err := fileUtils.EnsureTempDirectory(sh_app.TempDir)
 	if err != nil {
 		return fmt.Errorf("temp directory: %s", err)
 	}
