@@ -35,10 +35,12 @@ import (
 )
 
 type Module struct {
-	Name  string // MODULE_NAME env
-	Path  string // MODULE_DIR env
-	Order int    // MODULE_ORDER env
-	Tags  []string
+	Name        string // MODULE_NAME env
+	Path        string // MODULE_DIR env
+	Order       int    // MODULE_ORDER env
+	Tags        []string
+	description string // description from module.yaml
+
 	// module values from modules/values.yaml file
 	CommonStaticConfig *utils.ModuleConfig
 	// module values from modules/<module name>/values.yaml
@@ -1023,6 +1025,7 @@ func (mm *ModuleManager) createModuleOperations(module *Module) (object_patch.Op
 	mo.SetWeight(module.Order)
 	mo.SetSource(module.Source)
 	mo.SetTags(module.Tags)
+	mo.SetDescription(module.description)
 	mo.SetEnabledState(module.State.Enabled)
 
 	cop := object_patch.NewCreateOperation(mo, object_patch.UpdateIfExists())
@@ -1090,6 +1093,10 @@ func (m *Module) loadDefinition() (err error) {
 		m.Tags = def.Tags
 	}
 
+	if len(def.Description) > 0 {
+		m.description = def.Description
+	}
+
 	return nil
 }
 
@@ -1113,11 +1120,13 @@ type ModuleObject interface {
 	SetWeight(weight int)
 	SetTags(tags []string)
 	SetSource(source string)
+	SetDescription(description string)
 	SetEnabledState(state bool)
 }
 
 // ModuleDefinition describes module, some extra data loaded from module.yaml
 type ModuleDefinition struct {
-	Tags   []string `json:"tags"`
-	Weight int      `json:"weight"`
+	Tags        []string `json:"tags"`
+	Weight      int      `json:"weight"`
+	Description string   `json:"description"`
 }

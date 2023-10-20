@@ -188,7 +188,14 @@ func (e *HookExecutor) RunGoHook() (result *HookResult, err error) {
 		MetricsCollector: metricsCollector,
 		BindingActions:   bindingActions,
 	})
+	// on error we have to check if status collector has any status patches to apply
 	if err != nil {
+		// return non-nil HookResult if there are status patches
+		if statusPatches := object_patch.GetPatchStatusOperationsOnHookError(patchCollector.Operations()); len(statusPatches) > 0 {
+			return &HookResult{
+				ObjectPatcherOperations: statusPatches,
+			}, err
+		}
 		return nil, err
 	}
 

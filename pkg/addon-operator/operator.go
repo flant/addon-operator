@@ -57,6 +57,10 @@ type AddonOperator struct {
 
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
+
+	// ExplicitlyPurgeModules temporary way to purge explicitly set modules
+	// linked with pkg/module_manager/module_manager.go#L555
+	ExplicitlyPurgeModules []string
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -65,10 +69,11 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 	so.WithContext(cctx)
 
 	ao := &AddonOperator{
-		ctx:           cctx,
-		cancel:        cancel,
-		ShellOperator: so,
-		ConvergeState: NewConvergeState(),
+		ctx:                    cctx,
+		cancel:                 cancel,
+		ShellOperator:          so,
+		ConvergeState:          NewConvergeState(),
+		ExplicitlyPurgeModules: make([]string, 0),
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
@@ -1105,6 +1110,10 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 		t.WithQueuedAt(time.Now())
 	} else {
 		res.Status = queue.Success
+		state.ModulesToPurge = append(state.ModulesToPurge, op.ExplicitlyPurgeModules...)
+
+		log.Debugf("Next Modules will be purged: %v", state.ModulesToPurge)
+
 		tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
 		res.AfterTasks = tasks
 		op.logTaskAdd(logEntry, "after", res.AfterTasks...)

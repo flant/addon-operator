@@ -169,6 +169,13 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 		h.moduleManager.dependencies.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
 	if err != nil {
+		// we have to check if there are some status patches to apply
+		if hookResult != nil && len(hookResult.ObjectPatcherOperations) > 0 {
+			statusPatchesErr := h.moduleManager.dependencies.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
+			if statusPatchesErr != nil {
+				return fmt.Errorf("module hook '%s' failed: %s, update status operation failed: %s", h.Name, err, statusPatchesErr)
+			}
+		}
 		return fmt.Errorf("module hook '%s' failed: %s", h.Name, err)
 	}
 
