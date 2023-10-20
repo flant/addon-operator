@@ -83,7 +83,7 @@ func checkMergedValues(t *testing.T, expected, got map[string]interface{}) {
 		t.Error(err)
 		return
 	}
-	if bytes.Compare(expectedBuf, gotBuf) != 0 {
+	if !bytes.Equal(expectedBuf, gotBuf) {
 		t.Errorf("expected %s, got %s", string(expectedBuf), string(gotBuf))
 		return
 	}

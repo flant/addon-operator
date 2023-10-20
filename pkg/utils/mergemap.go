@@ -4,9 +4,7 @@ import (
 	"reflect"
 )
 
-var (
-	MaxDepth = 32
-)
+const maxDepth = 32
 
 // mergeMap recursively merges the src and dst maps. Key conflicts are resolved by
 // preferring src, or recursively descending, if both src and dst are maps.
@@ -15,7 +13,7 @@ func mergeMap(dst, src map[string]interface{}) map[string]interface{} {
 }
 
 func merge(dst, src map[string]interface{}, depth int) map[string]interface{} {
-	if depth > MaxDepth {
+	if depth > maxDepth {
 		panic("too deep!")
 	}
 	for key, srcVal := range src {
@@ -32,11 +30,11 @@ func merge(dst, src map[string]interface{}, depth int) map[string]interface{} {
 }
 
 func mapify(i interface{}) (map[string]interface{}, bool) {
-	switch i.(type) {
+	switch v := i.(type) {
 	case map[string]interface{}:
-		return i.(map[string]interface{}), true
+		return v, true
 	case Values:
-		return i.(Values), true
+		return v, true
 	}
 
 	value := reflect.ValueOf(i)
