@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -197,6 +198,14 @@ func ModuleEnabledValue(i interface{}) (*bool, error) {
 	switch v := i.(type) {
 	case string:
 		switch strings.ToLower(v) {
+		case "true":
+			return &ModuleEnabled, nil
+		case "false":
+			return &ModuleDisabled, nil
+		}
+	// TODO(nabokihms): we only need to check the json.RawMessage after the patch refactoring.
+	case json.RawMessage:
+		switch strings.ToLower(string(v)) {
 		case "true":
 			return &ModuleEnabled, nil
 		case "false":

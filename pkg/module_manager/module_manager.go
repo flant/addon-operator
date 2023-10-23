@@ -1137,7 +1137,7 @@ func (mm *ModuleManager) ApplyEnabledPatch(enabledPatch utils.ValuesPatch) error
 		case "add":
 			v, err := utils.ModuleEnabledValue(op.Value)
 			if err != nil {
-				return fmt.Errorf("apply enabled patch operation '%s' for %s: ", op.Op, op.Path)
+				return fmt.Errorf("apply enabled patch operation '%s' for %s: %v", op.Op, op.Path, err)
 			}
 			log.Debugf("apply dynamic enable: module %s set to '%v'", modName, *v)
 			newDynamicEnabled[modName] = v
