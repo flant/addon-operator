@@ -905,11 +905,18 @@ func (mm *ModuleManager) GlobalValues() (utils.Values, error) {
 
 	// Invariant: do not store patches that does not apply
 	// Give user error for patches early, after patch receive
+
+	// Compact patches so we could execute all at once.
+	// Each ApplyValuesPatch execution invokes json.Marshal for values.
+	ops := *utils.NewValuesPatch() // TODO(nabokihms): The values is always not nil, consider refactoring the method
+
 	for _, patch := range mm.globalDynamicValuesPatches {
-		res, _, err = utils.ApplyValuesPatch(res, patch, utils.IgnoreNonExistentPaths)
-		if err != nil {
-			return nil, fmt.Errorf("apply global patch error: %s", err)
-		}
+		ops.Operations = append(ops.Operations, patch.Operations...)
+	}
+
+	res, _, err = utils.ApplyValuesPatch(res, ops, utils.IgnoreNonExistentPaths)
+	if err != nil {
+		return nil, fmt.Errorf("apply global patch error: %s", err)
 	}
 
 	return res, nil
@@ -970,18 +977,20 @@ func (mm *ModuleManager) UpdateModuleDynamicValuesPatches(moduleName string, val
 }
 
 func (mm *ModuleManager) ApplyModuleDynamicValuesPatches(moduleName string, values utils.Values) (utils.Values, error) {
-	mm.valuesLayersLock.RLock()
-	defer mm.valuesLayersLock.RUnlock()
-
 	var err error
 	res := values
-	for _, patch := range mm.modulesDynamicValuesPatches[moduleName] {
-		// Invariant: do not store patches that does not apply
-		// Give user error for patches early, after patch receive
-		res, _, err = utils.ApplyValuesPatch(res, patch, utils.IgnoreNonExistentPaths)
-		if err != nil {
-			return nil, err
-		}
+
+	// Compact patches so we could execute all at once.
+	// Each ApplyValuesPatch execution invokes json.Marshal for values.
+	ops := *utils.NewValuesPatch() // TODO(nabokihms): The values is always not nil, consider refactoring the method
+
+	for _, patch := range mm.ModuleDynamicValuesPatches(moduleName) {
+		ops.Operations = append(ops.Operations, patch.Operations...)
+	}
+
+	res, _, err = utils.ApplyValuesPatch(res, ops, utils.IgnoreNonExistentPaths)
+	if err != nil {
+		return nil, err
 	}
 
 	return res, nil

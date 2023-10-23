@@ -88,9 +88,9 @@ func (p *ValuesPatch) MergeOperations(src *ValuesPatch) {
 }
 
 type ValuesPatchOperation struct {
-	Op    string      `json:"op,omitempty"`
-	Path  string      `json:"path,omitempty"`
-	Value interface{} `json:"value,omitempty"`
+	Op    string          `json:"op,omitempty"`
+	Path  string          `json:"path,omitempty"`
+	Value json.RawMessage `json:"value,omitempty"`
 }
 
 func (op *ValuesPatchOperation) ToString() string {

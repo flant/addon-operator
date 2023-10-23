@@ -61,10 +61,17 @@ func (p *PatchableValues) ArrayCount(path string) (int, error) {
 }
 
 func (p *PatchableValues) Set(path string, value interface{}) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		// The struct returned from a Go hook expected to be marshalable in all cases.
+		// TODO(nabokihms): return a meaningful error.
+		return
+	}
+
 	op := &utils.ValuesPatchOperation{
 		Op:    "add",
 		Path:  convertDotFilePathToSlashPath(path),
-		Value: value,
+		Value: data,
 	}
 
 	p.patchOperations = append(p.patchOperations, op)
