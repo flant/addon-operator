@@ -55,7 +55,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
-						Value: "baz",
+						Value: []byte(`"baz"`),
 					},
 				},
 			},
@@ -77,7 +77,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 					{
 						Op:    "remove",
 						Path:  "/test_key_3",
-						Value: "baz",
+						Value: []byte(`"baz"`),
 					},
 				},
 			},
@@ -98,7 +98,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
-						Value: "baz",
+						Value: []byte(`"baz"`),
 					},
 					{
 						Op:   "remove",
@@ -107,7 +107,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
-						Value: "baz",
+						Value: []byte(`"baz"`),
 					},
 					{
 						Op:   "remove",
@@ -116,7 +116,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
-						Value: "baz",
+						Value: []byte(`"baz"`),
 					},
 				},
 			},
@@ -165,7 +165,7 @@ func Test_ApplyValuesPatch_Strict(t *testing.T) {
 					{
 						Op:    "remove",
 						Path:  "/test_key_3",
-						Value: "baz",
+						Value: []byte(`"baz"`),
 					},
 				},
 			},
@@ -181,7 +181,7 @@ func Test_ApplyValuesPatch_Strict(t *testing.T) {
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
-						Value: "baz",
+						Value: []byte(`"baz"`),
 					},
 					{
 						Op:   "remove",
@@ -190,7 +190,7 @@ func Test_ApplyValuesPatch_Strict(t *testing.T) {
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
-						Value: "baz",
+						Value: []byte(`"baz"`),
 					},
 					{
 						Op:   "remove",
@@ -199,7 +199,7 @@ func Test_ApplyValuesPatch_Strict(t *testing.T) {
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
-						Value: "baz",
+						Value: []byte(`"baz"`),
 					},
 				},
 			},
