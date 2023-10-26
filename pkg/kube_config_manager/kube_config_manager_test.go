@@ -45,7 +45,7 @@ func initKubeConfigManager(t *testing.T, kubeClient *klient.Client, cmData map[s
 	err = kcm.Init()
 	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")
 
-	go kcm.Start()
+	kcm.Start()
 
 	return kcm
 }
