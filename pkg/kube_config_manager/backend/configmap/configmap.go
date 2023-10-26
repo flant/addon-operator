@@ -329,7 +329,7 @@ func (b Backend) StartInformer(ctx context.Context, eventC chan config.Event) {
 	}
 
 	cmInformer := corev1.NewFilteredConfigMapInformer(b.client, b.namespace, resyncPeriod, indexers, tweakListOptions)
-	cmInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, _ = cmInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			b.logConfigMapEvent(ctx, obj, "add")
 			err := b.handleConfigMapEvent(obj.(*v1.ConfigMap), eventC)
