@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/flant/addon-operator/pkg/app"
-
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/flant/addon-operator/pkg/app"
 )
 
 func (op *AddonOperator) registerDefaultRoutes() {
