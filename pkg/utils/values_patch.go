@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"sort"
 	"strings"
 )
@@ -293,8 +292,12 @@ const (
 
 // ApplyValuesPatch uses patched jsonpatch library to make the behavior of ApplyIgnoreNonExistentPaths
 // as fast as ApplyStrict.
-func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values, bool, error) {
+func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values /* valuesChanged */, bool, error) {
 	var err error
+
+	if len(valuesPatch.Operations) == 0 {
+		return values, false, nil
+	}
 
 	jsonDoc, err := json.Marshal(values)
 	if err != nil {
@@ -312,14 +315,21 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 		return nil, false, err
 	}
 
+	// I have no idea why, but reflect.DeepEqual returns false for objects like:
+	// map[global:map[highAvailability:false modules:map[publicDomainTemplate:%s.example.com]] prometheus:map[longtermRetentionDays:0 retentionDays:7]]
+	// map[global:map[highAvailability:false modules:map[publicDomainTemplate:%s.example.com]] prometheus:map[longtermRetentionDays:0 retentionDays:7]]
+	// probably it's because of some pointers to integers or something like that
+	// so, it's better to compare json bytes here
+	if bytes.Equal(jsonDoc, resJSONDoc) {
+		return values, false, nil
+	}
+
 	resValues := make(Values)
 	if err = json.Unmarshal(resJSONDoc, &resValues); err != nil {
 		return nil, false, err
 	}
 
-	valuesChanged := !reflect.DeepEqual(values, resValues)
-
-	return resValues, valuesChanged, nil
+	return resValues, true, nil
 }
 
 func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRootKey string) error {
