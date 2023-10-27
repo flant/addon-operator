@@ -39,6 +39,9 @@ var (
 	AdmissionServerListenPort = "9651"
 	AdmissionServerCertsDir   = ""
 	AdmissionServerEnabled    = false
+
+	// StrictModeEnabled fail with error if MODULES_DIR/values.yaml does not exist
+	StrictModeEnabled = true
 )
 
 const (
@@ -129,6 +132,11 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_ADMISSION_SERVER_ENABLED").
 		Default("false").
 		BoolVar(&AdmissionServerEnabled)
+
+	cmd.Flag("strict-check-values-mode-enabled", "Flat to enable admission http server.").
+		Envar("STRICT_CHECK_VALUES_MODE_ENABLED").
+		Default("true").
+		BoolVar(&StrictModeEnabled)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)
