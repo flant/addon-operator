@@ -298,6 +298,13 @@ const (
 func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values, bool, error) {
 	var err error
 
+	fmt.Println("PATCH2", len(valuesPatch.Operations))
+	if len(valuesPatch.Operations) > 0 {
+		fmt.Println("PATCH 2.1", valuesPatch.Operations[0].Op)
+		fmt.Println("PATCH 2.2", valuesPatch.Operations[0].Path)
+		fmt.Println("PATCH 2.3", valuesPatch.Operations[0].Value)
+	}
+
 	jsonDoc, err := json.Marshal(values)
 	if err != nil {
 		return nil, false, err
@@ -318,7 +325,7 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 	if err = json.Unmarshal(resJSONDoc, &resValues); err != nil {
 		return nil, false, err
 	}
-	fmt.Println("PATCH 2", values, resValues)
+	fmt.Println("PATCH2.5", reflect.TypeOf(values), reflect.TypeOf(resValues))
 
 	valuesChanged := !reflect.DeepEqual(values, resValues)
 
