@@ -37,12 +37,15 @@ linters-settings:
   goimports:
     local-prefixes: github.com/flant/
   depguard:
-    list-type: blacklist
-    include-go-root: true
-    packages:
-      - github.com/evanphx/json-patch
-    packages-with-error-message:
-      - github.com/evanphx/json-patch: "The 'github.com/evanphx/json-patch' package is superseded. Use pkg/utils/jsonpatch.go instead."
+    rules:
+      Main:
+        files:
+          - $all
+        deny:
+          - pkg: "github.com/evanphx/json-patch"
+            desc: "The 'github.com/evanphx/json-patch' package is superseded. Use pkg/utils/jsonpatch.go instead."
+          - pkg: "gopkg.in/satori/go.uuid.v1"
+            desc: "Use https://github.com/gofrs/uuid instead. Satori/go.uuid is no longer maintained and has critical vulnerabilities."
 issues:
   exclude:
   # Using underscores is a common practice, refactor in the future

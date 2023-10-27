@@ -17,7 +17,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/kube_config_manager"
+	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
@@ -54,8 +54,7 @@ type DirectoryConfig struct {
 }
 
 type KubeConfigManager interface {
-	SaveGlobalConfigValues(values utils.Values) error
-	SaveModuleConfigValues(moduleName string, values utils.Values) error
+	SaveConfigValues(key string, values utils.Values) error
 }
 
 // ModuleManagerDependencies pass dependencies for ModuleManager
@@ -221,7 +220,7 @@ func (mm *ModuleManager) runModulesEnabledScript(modules []string, logLabels map
 // - mm.enabledModulesByConfig
 // - mm.kubeGlobalConfigValues
 // - mm.kubeModulesConfigValues
-func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *kube_config_manager.KubeConfig) (*ModulesState, error) {
+func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*ModulesState, error) {
 	var err error
 
 	mm.warnAboutUnknownModules(kubeConfig)
@@ -243,15 +242,12 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *kube_config_manager.Kub
 		newGlobalValues = make(utils.Values)
 	}
 	if kubeConfig != nil && kubeConfig.Global != nil {
-		globalChecksum, err := mm.kubeGlobalConfigValues.Checksum()
-		if err != nil {
-			return nil, err
-		}
+		globalChecksum := mm.kubeGlobalConfigValues.Checksum()
 
 		if kubeConfig.Global.Checksum != globalChecksum {
 			hasGlobalChange = true
 		}
-		newGlobalValues = kubeConfig.Global.Values
+		newGlobalValues = kubeConfig.Global.GetValues()
 	}
 
 	// Full reload if enabled flags are changed.
@@ -277,7 +273,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *kube_config_manager.Kub
 			modValues, hasConfigValues := mm.kubeModulesConfigValues[moduleName]
 			// New module state from ConfigMap.
 			hasNewKubeConfig := false
-			var newModConfig *kube_config_manager.ModuleKubeConfig
+			var newModConfig *config.ModuleKubeConfig
 			if kubeConfig != nil {
 				newModConfig, hasNewKubeConfig = kubeConfig.Modules[moduleName]
 			}
@@ -290,14 +286,8 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *kube_config_manager.Kub
 
 			// Compare checksums for new and saved values.
 			if hasConfigValues && hasNewKubeConfig {
-				modValuesChecksum, err := modValues.Checksum()
-				if err != nil {
-					return nil, err
-				}
-				newModValuesChecksum, err := newModConfig.Values.Checksum()
-				if err != nil {
-					return nil, err
-				}
+				modValuesChecksum := modValues.Checksum()
+				newModValuesChecksum := newModConfig.GetValues().Checksum()
 				if modValuesChecksum != newModValuesChecksum {
 					modulesChanged = append(modulesChanged, moduleName)
 				}
@@ -309,7 +299,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *kube_config_manager.Kub
 	newKubeModuleConfigValues := make(map[string]utils.Values)
 	if kubeConfig != nil {
 		for moduleName, moduleConfig := range kubeConfig.Modules {
-			newKubeModuleConfigValues[moduleName] = moduleConfig.Values
+			newKubeModuleConfigValues[moduleName] = moduleConfig.GetValues()
 		}
 	}
 
@@ -338,7 +328,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *kube_config_manager.Kub
 }
 
 // warnAboutUnknownModules prints to log all unknown module section names.
-func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *kube_config_manager.KubeConfig) {
+func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *config.KubeConfig) {
 	// Ignore empty kube config.
 	if kubeConfig == nil {
 		return
@@ -361,7 +351,7 @@ func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *kube_config_manager
 //
 // Module is enabled by config if module section in ConfigMap is a map or an array
 // or ConfigMap has no module section and module has a map or an array in values.yaml
-func (mm *ModuleManager) calculateEnabledModulesByConfig(config *kube_config_manager.KubeConfig) map[string]struct{} {
+func (mm *ModuleManager) calculateEnabledModulesByConfig(config *config.KubeConfig) map[string]struct{} {
 	enabledByConfig := make(map[string]struct{})
 
 	for _, module := range mm.modules.List() {
@@ -433,7 +423,7 @@ func (mm *ModuleManager) Init() error {
 }
 
 // validateKubeConfig checks validity of all sections in ConfigMap with OpenAPI schemas.
-func (mm *ModuleManager) validateKubeConfig(kubeConfig *kube_config_manager.KubeConfig, enabledModules map[string]struct{}) error {
+func (mm *ModuleManager) validateKubeConfig(kubeConfig *config.KubeConfig, enabledModules map[string]struct{}) error {
 	// Ignore empty kube config.
 	if kubeConfig == nil {
 		mm.SetKubeConfigValuesValid(true)
@@ -442,7 +432,7 @@ func (mm *ModuleManager) validateKubeConfig(kubeConfig *kube_config_manager.Kube
 	// Validate values in global section merged with static values.
 	var validationErr error
 	if kubeConfig.Global != nil {
-		err := mm.ValuesValidator.ValidateGlobalConfigValues(mm.GlobalStaticAndNewValues(kubeConfig.Global.Values))
+		err := mm.ValuesValidator.ValidateGlobalConfigValues(mm.GlobalStaticAndNewValues(kubeConfig.Global.GetValues()))
 		if err != nil {
 			validationErr = multierror.Append(
 				validationErr,
@@ -459,11 +449,11 @@ func (mm *ModuleManager) validateKubeConfig(kubeConfig *kube_config_manager.Kube
 			continue
 		}
 		mod := mm.GetModule(moduleName)
-		moduleErr := mm.ValuesValidator.ValidateModuleConfigValues(mod.ValuesKey(), mod.StaticAndNewValues(modCfg.Values))
+		moduleErr := mm.ValuesValidator.ValidateModuleConfigValues(mod.ValuesKey(), mod.StaticAndNewValues(modCfg.GetValues()))
 		if moduleErr != nil {
 			validationErr = multierror.Append(
 				validationErr,
-				fmt.Errorf("'%s' module section in ConfigMap/%s is not valid", mod.ValuesKey(), app.ConfigMapName),
+				fmt.Errorf("'%s' module section in KubeConfig is not valid", mod.ValuesKey()),
 				moduleErr,
 			)
 		}
@@ -767,10 +757,7 @@ func (mm *ModuleManager) RunGlobalHook(hookName string, binding BindingType, bin
 	if err != nil {
 		return "", "", err
 	}
-	beforeChecksum, err := beforeValues.Checksum()
-	if err != nil {
-		return "", "", err
-	}
+	beforeChecksum := beforeValues.Checksum()
 
 	// Update kubernetes snapshots just before execute a hook
 	if binding == OnKubernetesEvent || binding == Schedule {
@@ -796,10 +783,7 @@ func (mm *ModuleManager) RunGlobalHook(hookName string, binding BindingType, bin
 	if err != nil {
 		return "", "", err
 	}
-	afterChecksum, err := afterValues.Checksum()
-	if err != nil {
-		return "", "", err
-	}
+	afterChecksum := afterValues.Checksum()
 
 	return beforeChecksum, afterChecksum, nil
 }
@@ -811,10 +795,7 @@ func (mm *ModuleManager) RunModuleHook(hookName string, binding BindingType, bin
 	if err != nil {
 		return "", "", err
 	}
-	valuesChecksum, err := values.Checksum()
-	if err != nil {
-		return "", "", err
-	}
+	valuesChecksum := values.Checksum()
 
 	// Update kubernetes snapshots just before execute a hook
 	// Note: BeforeHelm and AfterHelm are run by runHookByBinding
@@ -838,10 +819,7 @@ func (mm *ModuleManager) RunModuleHook(hookName string, binding BindingType, bin
 	if err != nil {
 		return "", "", err
 	}
-	newValuesChecksum, err := newValues.Checksum()
-	if err != nil {
-		return "", "", err
-	}
+	newValuesChecksum := newValues.Checksum()
 
 	return valuesChecksum, newValuesChecksum, nil
 }

@@ -14,8 +14,8 @@ var (
 	AppDescription = ""
 	Version        = "dev"
 
-	DefaultListenAddress = "0.0.0.0"
-	DefaultListenPort    = "9650"
+	ListenAddress = "0.0.0.0"
+	ListenPort    = "9650"
 
 	DefaultPrometheusMetricsPrefix = "addon_operator_"
 
@@ -76,21 +76,16 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 
 	cmd.Flag("prometheus-listen-address", "Address to use to serve metrics to Prometheus.").
 		Envar("ADDON_OPERATOR_LISTEN_ADDRESS").
-		Default(DefaultListenAddress).
-		StringVar(&sh_app.ListenAddress)
+		Default(ListenAddress).
+		StringVar(&ListenAddress)
 	cmd.Flag("prometheus-listen-port", "Port to use to serve metrics to Prometheus.").
 		Envar("ADDON_OPERATOR_LISTEN_PORT").
-		Default(DefaultListenPort).
-		StringVar(&sh_app.ListenPort)
+		Default(ListenPort).
+		StringVar(&ListenPort)
 	cmd.Flag("prometheus-metrics-prefix", "Prefix for Prometheus metrics.").
 		Envar("ADDON_OPERATOR_PROMETHEUS_METRICS_PREFIX").
 		Default(DefaultPrometheusMetricsPrefix).
 		StringVar(&sh_app.PrometheusMetricsPrefix)
-	cmd.Flag("hook-metrics-listen-port", "Port to use to serve hooks’ custom metrics to Prometheus. Can be set with $ADDON_OPERATOR_HOOK_METRICS_LISTEN_PORT. Equal to prometheus-listen-port if empty.").
-		Envar("ADDON_OPERATOR_HOOK_METRICS_LISTEN_PORT").
-		Default("").
-		StringVar(&sh_app.HookMetricsListenPort)
-
 	cmd.Flag("helm-history-max", "Helm: limit the maximum number of revisions saved per release. Use 0 for no limit.").
 		Envar("HELM_HISTORY_MAX").
 		Default(strconv.Itoa(int(Helm3HistoryMax))).

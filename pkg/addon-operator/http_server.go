@@ -6,30 +6,33 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/flant/addon-operator/pkg/app"
 )
 
-func (op *AddonOperator) RegisterDefaultRoutes() {
-	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = writer.Write([]byte(`<html>
+func (op *AddonOperator) registerDefaultRoutes() {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/", func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = writer.Write([]byte(fmt.Sprintf(`<html>
     <head><title>Addon-operator</title></head>
     <body>
     <h1>Addon-operator</h1>
-    <pre>go tool pprof goprofex http://ADDON_OPERATOR_IP:9115/debug/pprof/profile</pre>
+    <pre>go tool pprof http://ADDON_OPERATOR_IP:%s/debug/pprof/profile</pre>
     <p>
+      <a href="/discovery">show all possible routes</a>
       <a href="/metrics">prometheus metrics</a>
       <a href="/healthz">health url</a>
       <a href="/readyz">ready url</a>
     </p>
     </body>
-    </html>`))
+    </html>`, app.ListenPort)))
 	})
-	http.Handle("/metrics", promhttp.Handler())
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/metrics", promhttp.Handler().ServeHTTP)
 
-	http.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/healthz", func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusOK)
 	})
 
-	http.HandleFunc("/readyz", func(w http.ResponseWriter, request *http.Request) {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/readyz", func(w http.ResponseWriter, request *http.Request) {
 		if op.IsStartupConvergeDone() {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("Startup converge done.\n"))
@@ -39,8 +42,8 @@ func (op *AddonOperator) RegisterDefaultRoutes() {
 		}
 	})
 
-	http.HandleFunc("/status/converge", func(writer http.ResponseWriter, request *http.Request) {
-		convergeTasks := ConvergeTasksInQueue(op.TaskQueues.GetMain())
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/status/converge", func(writer http.ResponseWriter, request *http.Request) {
+		convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
 
 		statusLines := make([]string, 0)
 		switch op.ConvergeState.firstRunPhase {

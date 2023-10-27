@@ -37,7 +37,7 @@ func Init(opts *Options) {
 
 // LibClient use helm3 package as Go library.
 type LibClient struct {
-	KubeClient klient.Client
+	KubeClient *klient.Client
 	LogEntry   *log.Entry
 	Namespace  string
 }
@@ -46,7 +46,7 @@ type Options struct {
 	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
-	KubeClient klient.Client
+	KubeClient *klient.Client
 }
 
 var (

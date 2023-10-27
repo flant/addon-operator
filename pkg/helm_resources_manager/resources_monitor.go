@@ -28,7 +28,7 @@ type ResourcesMonitor struct {
 	manifests        []manifest.Manifest
 	defaultNamespace string
 
-	kubeClient klient.Client
+	kubeClient *klient.Client
 	logLabels  map[string]string
 
 	absentCb func(moduleName string, absent []manifest.Manifest, defaultNs string)
@@ -52,7 +52,7 @@ func (r *ResourcesMonitor) Stop() {
 	}
 }
 
-func (r *ResourcesMonitor) WithKubeClient(client klient.Client) {
+func (r *ResourcesMonitor) WithKubeClient(client *klient.Client) {
 	r.kubeClient = client
 }
 

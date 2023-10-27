@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	uuid "github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
-	uuid "gopkg.in/satori/go.uuid.v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/yaml"
@@ -454,10 +454,7 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 	if err != nil {
 		return false, err
 	}
-	valuesChecksum, err := values.Checksum()
-	if err != nil {
-		return false, err
-	}
+	valuesChecksum := values.Checksum()
 
 	for _, moduleHookName := range moduleHooks {
 		moduleHook := m.moduleManager.GetModuleHook(moduleHookName)
@@ -503,10 +500,7 @@ func (m *Module) runHooksByBindingAndCheckValues(binding BindingType, logLabels 
 	if err != nil {
 		return false, err
 	}
-	newValuesChecksum, err := newValues.Checksum()
-	if err != nil {
-		return false, err
-	}
+	newValuesChecksum := newValues.Checksum()
 
 	if newValuesChecksum != valuesChecksum {
 		return true, nil
@@ -522,7 +516,7 @@ func (m *Module) prepareConfigValuesJsonFile() (string, error) {
 		return "", err
 	}
 
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-config-values-%s.json", m.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-config-values-%s.json", m.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	err = dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -545,7 +539,7 @@ func (m *Module) PrepareValuesYamlFile() (string, error) {
 		return "", err
 	}
 
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.yaml-%s", m.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values.yaml-%s", m.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	err = dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -563,7 +557,7 @@ func (m *Module) prepareValuesJsonFileWith(values utils.Values) (string, error) 
 		return "", err
 	}
 
-	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values-%s.json", m.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(m.moduleManager.TempDir, fmt.Sprintf("%s.module-values-%s.json", m.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	err = dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -641,8 +635,8 @@ func (m *Module) StaticAndConfigValues() utils.Values {
 		// Init module section.
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		// Merge static values from various values.yaml files.
-		m.CommonStaticConfig.Values,
-		m.StaticConfig.Values,
+		m.CommonStaticConfig.GetValues(),
+		m.StaticConfig.GetValues(),
 		// Apply config values defaults before ConfigMap overrides.
 		&ApplyDefaultsForModule{
 			m.ValuesKey(),
@@ -664,8 +658,8 @@ func (m *Module) StaticAndNewValues(newValues utils.Values) utils.Values {
 		// Init module section.
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		// Merge static values from various values.yaml files.
-		m.CommonStaticConfig.Values,
-		m.StaticConfig.Values,
+		m.CommonStaticConfig.GetValues(),
+		m.StaticConfig.GetValues(),
 		// Apply config values defaults before overrides.
 		&ApplyDefaultsForModule{
 			m.ValuesKey(),
@@ -697,8 +691,8 @@ func (m *Module) Values() (utils.Values, error) {
 		// Init module section.
 		utils.Values{m.ValuesKey(): map[string]interface{}{}},
 		// Merge static values from various values.yaml files.
-		m.CommonStaticConfig.Values,
-		m.StaticConfig.Values,
+		m.CommonStaticConfig.GetValues(),
+		m.StaticConfig.GetValues(),
 		// Apply config values defaults before ConfigMap overrides.
 		&ApplyDefaultsForModule{
 			m.ValuesKey(),
@@ -971,7 +965,7 @@ func (mm *ModuleManager) ValidateModule(module *Module) error {
 }
 
 // SyncModulesCR synchronize modules CR from current modules list to the cluster one
-func (mm *ModuleManager) SyncModulesCR(client klient.Client) error {
+func (mm *ModuleManager) SyncModulesCR(client *klient.Client) error {
 	if mm.moduleProducer == nil {
 		return nil
 	}
@@ -1036,16 +1030,16 @@ func (mm *ModuleManager) createModuleOperations(module *Module) (object_patch.Op
 // loadStaticValues loads config for module from values.yaml
 // Module is enabled if values.yaml is not exists.
 func (m *Module) loadStaticValues() (err error) {
-	m.CommonStaticConfig, err = utils.NewModuleConfig(m.Name).LoadFromValues(m.moduleManager.commonStaticValues)
+	m.CommonStaticConfig, err = utils.NewModuleConfig(m.Name, nil).LoadFromValues(m.moduleManager.commonStaticValues)
 	if err != nil {
 		return err
 	}
-	log.Debugf("module %s static values in common file: %s", m.Name, m.CommonStaticConfig.Values.DebugString())
+	log.Debugf("module %s static values in common file: %s", m.Name, m.CommonStaticConfig.GetValues().DebugString())
 
 	valuesYamlPath := filepath.Join(m.Path, ValuesFileName)
 
 	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
-		m.StaticConfig = utils.NewModuleConfig(m.Name)
+		m.StaticConfig = utils.NewModuleConfig(m.Name, nil)
 		log.Debugf("module %s has no static values", m.Name)
 		return nil
 	}
@@ -1055,11 +1049,11 @@ func (m *Module) loadStaticValues() (err error) {
 		return fmt.Errorf("cannot read '%s': %s", m.Path, err)
 	}
 
-	m.StaticConfig, err = utils.NewModuleConfig(m.Name).FromYaml(data)
+	m.StaticConfig, err = utils.NewModuleConfig(m.Name, nil).FromYaml(data)
 	if err != nil {
 		return err
 	}
-	log.Debugf("module %s static values: %s", m.Name, m.StaticConfig.Values.DebugString())
+	log.Debugf("module %s static values: %s", m.Name, m.StaticConfig.GetValues().DebugString())
 	return nil
 }
 

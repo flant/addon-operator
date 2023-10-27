@@ -15,7 +15,7 @@ type MockHelmResourcesManager struct {
 
 func (h *MockHelmResourcesManager) WithContext(_ context.Context) {}
 
-func (h *MockHelmResourcesManager) WithKubeClient(_ klient.Client) {}
+func (h *MockHelmResourcesManager) WithKubeClient(_ *klient.Client) {}
 
 func (h *MockHelmResourcesManager) WithDefaultNamespace(_ string) {}
 

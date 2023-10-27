@@ -21,7 +21,7 @@ func (f *ClientFactory) NewClient(logLabels ...map[string]string) client.HelmCli
 	return nil
 }
 
-func InitHelmClientFactory(kubeClient klient.Client) (*ClientFactory, error) {
+func InitHelmClientFactory(kubeClient *klient.Client) (*ClientFactory, error) {
 	helmVersion, err := DetectHelmVersion()
 	if err != nil {
 		return nil, err

@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	uuid "github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
-	uuid "gopkg.in/satori/go.uuid.v1"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
@@ -227,7 +227,7 @@ func (h *ModuleHook) Run(bindingType BindingType, context []BindingContext, logL
 				)
 			}
 
-			err := h.moduleManager.dependencies.KubeConfigManager.SaveModuleConfigValues(moduleName, configValuesPatchResult.Values)
+			err := h.moduleManager.dependencies.KubeConfigManager.SaveConfigValues(moduleName, configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.Name, h.moduleManager.kubeModulesConfigValues[moduleName].DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.Name, err)
@@ -337,7 +337,7 @@ func (h *ModuleHook) prepareConfigValuesJsonFile() (string, error) {
 // BINDING_CONTEXT_PATH
 func (h *ModuleHook) prepareBindingContextJsonFile(bindingContext []byte) (string, error) {
 	// data := utils.MustDump(utils.DumpValuesJson(context))
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-%s-binding-context-%s.json", h.Module.SafeName(), h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-%s-binding-context-%s.json", h.Module.SafeName(), h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	err := dumpData(path, bindingContext)
 	if err != nil {
 		return "", err
@@ -351,7 +351,7 @@ func (h *ModuleHook) prepareBindingContextJsonFile(bindingContext []byte) (strin
 
 // CONFIG_VALUES_JSON_PATCH_PATH
 func (h *ModuleHook) prepareConfigValuesJsonPatchFile() (string, error) {
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-config-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-config-values-%s.json-patch", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
@@ -360,7 +360,7 @@ func (h *ModuleHook) prepareConfigValuesJsonPatchFile() (string, error) {
 
 // VALUES_JSON_PATCH_PATH
 func (h *ModuleHook) prepareValuesJsonPatchFile() (string, error) {
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-values-%s.json-patch", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
@@ -369,7 +369,7 @@ func (h *ModuleHook) prepareValuesJsonPatchFile() (string, error) {
 
 // METRICS_PATH
 func (h *ModuleHook) prepareMetricsFile() (string, error) {
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-metrics-%s.json", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-metrics-%s.json", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
@@ -378,7 +378,7 @@ func (h *ModuleHook) prepareMetricsFile() (string, error) {
 
 // KUBERNETES PATCH PATH
 func (h *ModuleHook) prepareKubernetesPatchFile() (string, error) {
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s-object-patch-%s", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s-object-patch-%s", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}

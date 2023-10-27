@@ -7,10 +7,12 @@ import (
 	"os"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/utils/stdliblogtologrus"
 	"github.com/flant/kube-client/klogtologrus"
 	sh_app "github.com/flant/shell-operator/pkg/app"
@@ -46,14 +48,23 @@ func main() {
 			rand.Seed(time.Now().UnixNano())
 
 			operator := addon_operator.NewAddonOperator(context.Background())
-			err := operator.Start()
+
+			bk := configmap.New(log.StandardLogger(), operator.KubeClient(), app.Namespace, app.ConfigMapName)
+			operator.SetupKubeConfigManager(bk)
+
+			err := operator.Setup()
+			if err != nil {
+				os.Exit(1)
+			}
+
+			err = operator.Start()
 			if err != nil {
 				os.Exit(1)
 			}
 
 			// Block action by waiting signals from OS.
 			utils_signal.WaitForProcessInterruption(func() {
-				operator.Shutdown()
+				operator.Stop()
 				os.Exit(1)
 			})
 

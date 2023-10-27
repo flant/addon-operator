@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	uuid "github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
-	uuid "gopkg.in/satori/go.uuid.v1"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
@@ -212,7 +212,7 @@ func (h *GlobalHook) Run(bindingType BindingType, bindingContext []BindingContex
 				)
 			}
 
-			err := h.moduleManager.dependencies.KubeConfigManager.SaveGlobalConfigValues(configValuesPatchResult.Values)
+			err := h.moduleManager.dependencies.KubeConfigManager.SaveConfigValues(utils.GlobalValuesKey, configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.Name, h.moduleManager.kubeGlobalConfigValues.DebugString())
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.Name, err)
@@ -327,7 +327,7 @@ func (h *GlobalHook) prepareConfigValuesJsonFile() (string, error) {
 		return "", err
 	}
 
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-config-values-%s.json", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-config-values-%s.json", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	err = dumpData(path, data)
 	if err != nil {
 		return "", err
@@ -353,7 +353,7 @@ func (h *GlobalHook) prepareValuesJsonFile() (filePath string, err error) {
 		return "", err
 	}
 
-	filePath = filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-values-%s.json", h.SafeName(), uuid.NewV4().String()))
+	filePath = filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-values-%s.json", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	err = dumpData(filePath, data)
 	if err != nil {
 		return "", err
@@ -366,7 +366,7 @@ func (h *GlobalHook) prepareValuesJsonFile() (filePath string, err error) {
 
 // BINDING_CONTEXT_PATH
 func (h *GlobalHook) prepareBindingContextJsonFile(bindingContext []byte) (string, error) {
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-binding-context-%s.json", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("global-hook-%s-binding-context-%s.json", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	err := dumpData(path, bindingContext)
 	if err != nil {
 		return "", err
@@ -380,7 +380,7 @@ func (h *GlobalHook) prepareBindingContextJsonFile(bindingContext []byte) (strin
 
 // CONFIG_VALUES_JSON_PATCH_PATH
 func (h *GlobalHook) prepareConfigValuesJsonPatchFile() (string, error) {
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-config-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-config-values-%s.json-patch", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
@@ -389,7 +389,7 @@ func (h *GlobalHook) prepareConfigValuesJsonPatchFile() (string, error) {
 
 // VALUES_JSON_PATCH_PATH
 func (h *GlobalHook) prepareValuesJsonPatchFile() (string, error) {
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-values-%s.json-patch", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-values-%s.json-patch", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
@@ -398,7 +398,7 @@ func (h *GlobalHook) prepareValuesJsonPatchFile() (string, error) {
 
 // METRICS_PATH
 func (h *GlobalHook) prepareMetricsFile() (string, error) {
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-metrics-%s.json", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.global-hook-metrics-%s.json", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
@@ -407,7 +407,7 @@ func (h *GlobalHook) prepareMetricsFile() (string, error) {
 
 // KUBERNETES PATCH PATH
 func (h *GlobalHook) prepareKubernetesPatchFile() (string, error) {
-	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s-object-patch-%s", h.SafeName(), uuid.NewV4().String()))
+	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s-object-patch-%s", h.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	if err := CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
