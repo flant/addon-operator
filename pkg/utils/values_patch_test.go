@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -141,6 +142,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 				return
 			}
 
+			fmt.Println(tt.expectedValues, newValues, reflect.DeepEqual(tt.expectedValues, newValues))
 			if !reflect.DeepEqual(tt.expectedValues, newValues) {
 				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", tt.expectedValues, newValues)
 			}

@@ -8,9 +8,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-
-	"github.com/nsf/jsondiff"
-	log "github.com/sirupsen/logrus"
 )
 
 type ValuesPatchType string
@@ -322,15 +319,10 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 	// map[global:map[highAvailability:false modules:map[publicDomainTemplate:%s.example.com]] prometheus:map[longtermRetentionDays:0 retentionDays:7]]
 	// map[global:map[highAvailability:false modules:map[publicDomainTemplate:%s.example.com]] prometheus:map[longtermRetentionDays:0 retentionDays:7]]
 	// probably it's because of some pointers to integers or something like that
-	// so, it's better to compare json here
-	opts := jsondiff.DefaultJSONOptions()
-	opts.SkipMatches = true
-	diff, diffstr := jsondiff.Compare(jsonDoc, resJSONDoc, &opts)
-	if diff == jsondiff.FullMatch {
+	// so, it's better to compare json bytes here
+	if bytes.Equal(jsonDoc, resJSONDoc) {
 		return values, false, nil
 	}
-
-	log.Debugf("Diff on applying values patch: %q", diffstr)
 
 	resValues := make(Values)
 	if err = json.Unmarshal(resJSONDoc, &resValues); err != nil {
