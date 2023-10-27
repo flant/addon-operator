@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/kylelemons/godebug/pretty"
 )
 
 type ValuesPatchType string
@@ -319,6 +321,15 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 	fmt.Println("PATCH 2", values, resValues)
 
 	valuesChanged := !reflect.DeepEqual(values, resValues)
+
+	if valuesChanged {
+		fmt.Println("PATCH3")
+		fmt.Printf("PATCH3 values: %+v\n", values)
+		fmt.Printf("PATCH3 values patch: %+v\n", valuesPatch)
+		fmt.Printf("PATCH3 res values: %+v\n", resValues)
+		fmt.Println("PATCH4")
+		fmt.Println(pretty.Compare(values, resValues))
+	}
 
 	return resValues, valuesChanged, nil
 }
