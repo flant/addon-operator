@@ -737,20 +737,3 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 
 	g.Expect(JSONEqual(newDoc, expectNewDoc)).Should(BeTrue(), "%v is not equal to %v", string(newDoc), string(expectNewDoc))
 }
-
-//func TestJSONDiff(t *testing.T) {
-//	t.Run("equal", func(t *testing.T) {
-//		one := []byte(`
-//{"global": {
-//  "highAvailability": false,
-//  "modules
-//}
-//`
-//
-//			)
-//	})
-//
-//	t.Run("not equal", func(t *testing.T) {
-//
-//	})
-//}

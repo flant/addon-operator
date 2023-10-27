@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"sort"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/nsf/jsondiff"
 )
@@ -295,14 +296,11 @@ const (
 
 // ApplyValuesPatch uses patched jsonpatch library to make the behavior of ApplyIgnoreNonExistentPaths
 // as fast as ApplyStrict.
-func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values, bool, error) {
+func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values /* valuesChanged */, bool, error) {
 	var err error
 
-	fmt.Println("PATCH2", len(valuesPatch.Operations))
-	if len(valuesPatch.Operations) > 0 {
-		fmt.Println("PATCH 2.1", valuesPatch.Operations[0].Op)
-		fmt.Println("PATCH 2.2", valuesPatch.Operations[0].Path)
-		fmt.Println("PATCH 2.3", valuesPatch.Operations[0].Value)
+	if len(valuesPatch.Operations) == 0 {
+		return values, false, nil
 	}
 
 	jsonDoc, err := json.Marshal(values)
@@ -321,28 +319,21 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 		return nil, false, err
 	}
 
+	opts := jsondiff.DefaultJSONOptions()
+	opts.SkipMatches = true
+	diff, diffstr := jsondiff.Compare(jsonDoc, resJSONDoc, &opts)
+	if diff == jsondiff.FullMatch {
+		return values, false, nil
+	}
+
+	log.Debugf("Diff on applying values patch: %q", diffstr)
+
 	resValues := make(Values)
 	if err = json.Unmarshal(resJSONDoc, &resValues); err != nil {
 		return nil, false, err
 	}
-	fmt.Println("PATCH4", string(jsonDoc), string(resJSONDoc))
 
-	valuesChanged := !reflect.DeepEqual(values, resValues)
-
-	opts := jsondiff.DefaultJSONOptions()
-	diff, diffstr := jsondiff.Compare(jsonDoc, resJSONDoc, &opts)
-	fmt.Println("PATCH222", diff.String(), diffstr)
-
-	if valuesChanged {
-		fmt.Println("PATCH3")
-		fmt.Printf("PATCH3 values: %+v\n", values)
-		fmt.Printf("PATCH3 values patch: %+v\n", valuesPatch)
-		fmt.Printf("PATCH3 res values: %+v\n", resValues)
-		fmt.Println("PATCH4", string(jsonDoc), string(resJSONDoc))
-
-	}
-
-	return resValues, valuesChanged, nil
+	return resValues, true, nil
 }
 
 func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRootKey string) error {
