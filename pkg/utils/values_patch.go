@@ -316,6 +316,7 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 	if err = json.Unmarshal(resJSONDoc, &resValues); err != nil {
 		return nil, false, err
 	}
+	fmt.Println("PATCH 2", values, resValues)
 
 	valuesChanged := !reflect.DeepEqual(values, resValues)
 
