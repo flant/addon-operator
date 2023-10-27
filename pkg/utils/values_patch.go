@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kylelemons/godebug/pretty"
+	"github.com/nsf/jsondiff"
 )
 
 type ValuesPatchType string
@@ -325,17 +325,21 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 	if err = json.Unmarshal(resJSONDoc, &resValues); err != nil {
 		return nil, false, err
 	}
-	fmt.Println("PATCH2.5", reflect.TypeOf(values), reflect.TypeOf(resValues))
+	fmt.Println("PATCH4", string(jsonDoc), string(resJSONDoc))
 
 	valuesChanged := !reflect.DeepEqual(values, resValues)
+
+	opts := jsondiff.DefaultJSONOptions()
+	diff, diffstr := jsondiff.Compare(jsonDoc, resJSONDoc, &opts)
+	fmt.Println("PATCH222", diff.String(), diffstr)
 
 	if valuesChanged {
 		fmt.Println("PATCH3")
 		fmt.Printf("PATCH3 values: %+v\n", values)
 		fmt.Printf("PATCH3 values patch: %+v\n", valuesPatch)
 		fmt.Printf("PATCH3 res values: %+v\n", resValues)
-		fmt.Println("PATCH4")
-		fmt.Println(pretty.Compare(values, resValues))
+		fmt.Println("PATCH4", string(jsonDoc), string(resJSONDoc))
+
 	}
 
 	return resValues, valuesChanged, nil
