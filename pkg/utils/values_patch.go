@@ -9,9 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/nsf/jsondiff"
+	log "github.com/sirupsen/logrus"
 )
 
 type ValuesPatchType string
