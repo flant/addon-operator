@@ -319,6 +319,11 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 		return nil, false, err
 	}
 
+	// I have no idea why, but reflect.DeepEqual returns false for objects like:
+	// map[global:map[highAvailability:false modules:map[publicDomainTemplate:%s.ndev.y-losev.hf.flant.com]] prometheus:map[longtermRetentionDays:0 retentionDays:7]]
+	// map[global:map[highAvailability:false modules:map[publicDomainTemplate:%s.ndev.y-losev.hf.flant.com]] prometheus:map[longtermRetentionDays:0 retentionDays:7]]
+	// probably it's because of some pointers to integers or something like that
+	// so, it's better to compare json here
 	opts := jsondiff.DefaultJSONOptions()
 	opts.SkipMatches = true
 	diff, diffstr := jsondiff.Compare(jsonDoc, resJSONDoc, &opts)
