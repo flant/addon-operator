@@ -4,22 +4,8 @@ import (
 	"time"
 
 	"github.com/flant/shell-operator/pkg/metric_storage"
-	sh_op "github.com/flant/shell-operator/pkg/shell-operator"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
-
-func RegisterAddonOperatorMetrics(metricStorage *metric_storage.MetricStorage) {
-	sh_op.RegisterCommonMetrics(metricStorage)
-	sh_op.RegisterTaskQueueMetrics(metricStorage)
-	sh_op.RegisterKubeEventsManagerMetrics(metricStorage, map[string]string{
-		"module":  "",
-		"hook":    "",
-		"binding": "",
-		"queue":   "",
-		"kind":    "",
-	})
-	RegisterHookMetrics(metricStorage)
-}
 
 var buckets_1msTo10s = []float64{
 	0.0,
@@ -30,7 +16,8 @@ var buckets_1msTo10s = []float64{
 	10, // 10 seconds
 }
 
-func RegisterHookMetrics(metricStorage *metric_storage.MetricStorage) {
+// registerHookMetrics register metrics specified for addon-operator
+func registerHookMetrics(metricStorage *metric_storage.MetricStorage) {
 	// configuration metrics
 	metricStorage.RegisterGauge(
 		"{PREFIX}binding_count",

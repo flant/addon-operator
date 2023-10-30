@@ -42,7 +42,6 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
 	if app.AdmissionServerEnabled {
 		op.AdmissionServer.start(op.ctx)
 	}
-	RegisterAddonOperatorMetrics(op.engine.MetricStorage)
 	StartLiveTicksUpdater(op.engine.MetricStorage)
 	StartTasksQueueLengthUpdater(op.engine.MetricStorage, op.engine.TaskQueues)
 

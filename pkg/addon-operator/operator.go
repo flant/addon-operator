@@ -84,6 +84,15 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		panic(err)
 	}
 
+	so.SetupMetricStorages(map[string]string{
+		"module":  "",
+		"hook":    "",
+		"binding": "",
+		"queue":   "",
+		"kind":    "",
+	})
+	registerHookMetrics(so.HookMetricStorage)
+
 	ao := &AddonOperator{
 		ctx:                    cctx,
 		cancel:                 cancel,
