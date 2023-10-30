@@ -183,6 +183,8 @@ github.com/flant/shell-operator v1.4.2-0.20231030192445-943fae69f235 h1:LFZc0+30
 github.com/flant/shell-operator v1.4.2-0.20231030192445-943fae69f235/go.mod h1:s5u0p4BtKMQAGoYU7x8qwwN/bD/eiY1gZ50XPGqHA+E=
 github.com/flant/shell-operator v1.4.2-0.20231030194213-959a35bae756 h1:4A3Y4pfSQHzyamDSNAr8rDMgZuJPwY9ISfNdrejuALk=
 github.com/flant/shell-operator v1.4.2-0.20231030194213-959a35bae756/go.mod h1:s5u0p4BtKMQAGoYU7x8qwwN/bD/eiY1gZ50XPGqHA+E=
+github.com/flant/shell-operator v1.4.2-0.20231030200330-92fc9c4c3df8 h1:rhvKuScVI3qp1YfzhBNnAb/qtYPSHZyH9HO5cWSVv+8=
+github.com/flant/shell-operator v1.4.2-0.20231030200330-92fc9c4c3df8/go.mod h1:s5u0p4BtKMQAGoYU7x8qwwN/bD/eiY1gZ50XPGqHA+E=
 github.com/form3tech-oss/jwt-go v3.2.3+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
