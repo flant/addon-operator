@@ -8,16 +8,12 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/config"
 	"github.com/flant/shell-operator/pkg/debug"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 )
 
 // Bootstrap inits all dependencies for a full-fledged AddonOperator instance.
 func (op *AddonOperator) bootstrap() error {
-	op.runtimeConfig = config.NewConfig()
-	// Init logging subsystem.
-	sh_app.SetupLogging(op.runtimeConfig)
 	log.Infof(sh_app.AppStartMessage)
 
 	log.Infof("Search modules in: %s", app.ModulesDir)

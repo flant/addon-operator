@@ -93,6 +93,10 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 }
 
 func (op *AddonOperator) Setup() error {
+	op.runtimeConfig = runtimeConfig.NewConfig()
+	// Init logging subsystem.
+	sh_app.SetupLogging(op.runtimeConfig)
+
 	// Helm client factory.
 	helmClient, err := helm.InitHelmClientFactory(op.engine.KubeClient)
 	if err != nil {
