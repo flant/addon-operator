@@ -73,6 +73,11 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 	so := shell_operator.NewShellOperator(cctx)
 
+	// initialize logging before Assemble
+	rc := runtimeConfig.NewConfig()
+	// Init logging subsystem.
+	sh_app.SetupLogging(rc)
+
 	// Have to initialize common operator to have all common dependencies below
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort)
 	if err != nil {
@@ -85,6 +90,7 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		engine:                 so,
 		ConvergeState:          NewConvergeState(),
 		ExplicitlyPurgeModules: make([]string, 0),
+		runtimeConfig:          rc,
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
@@ -93,10 +99,6 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 }
 
 func (op *AddonOperator) Setup() error {
-	op.runtimeConfig = runtimeConfig.NewConfig()
-	// Init logging subsystem.
-	sh_app.SetupLogging(op.runtimeConfig)
-
 	// Helm client factory.
 	helmClient, err := helm.InitHelmClientFactory(op.engine.KubeClient)
 	if err != nil {
