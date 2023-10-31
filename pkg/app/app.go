@@ -41,7 +41,7 @@ var (
 	AdmissionServerEnabled    = false
 
 	// StrictModeEnabled fail with error if MODULES_DIR/values.yaml does not exist
-	StrictModeEnabled = true
+	StrictModeEnabled = false
 )
 
 const (
