@@ -135,7 +135,7 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 
 	cmd.Flag("strict-check-values-mode-enabled", "Flat to enable admission http server.").
 		Envar("STRICT_CHECK_VALUES_MODE_ENABLED").
-		Default("true").
+		Default("false").
 		BoolVar(&StrictModeEnabled)
 
 	sh_app.DefineKubeClientFlags(cmd)
