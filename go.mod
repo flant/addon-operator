@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/distribution/distribution/v3 v3.0.0-20220526142353-ffbd94cbe269
 	github.com/flant/kube-client v1.0.1
-	github.com/flant/shell-operator v1.4.1
+	github.com/flant/shell-operator v1.4.2
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
@@ -16,9 +16,8 @@ require (
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
-	github.com/onsi/gomega v1.28.1
+	github.com/onsi/gomega v1.29.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.17.0
 	github.com/segmentio/go-camelcase v0.0.0-20160726192923-7085f1e3c734
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
@@ -33,7 +32,7 @@ require (
 	k8s.io/cli-runtime v0.25.5
 	k8s.io/client-go v0.26.9
 	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d
-	sigs.k8s.io/yaml v1.3.0
+	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
@@ -118,6 +117,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/prometheus/client_golang v1.17.0 // indirect
 	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect

@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"github.com/flant/addon-operator/pkg/app"
 )
 
@@ -19,14 +17,14 @@ func (op *AddonOperator) registerDefaultRoutes() {
     <pre>go tool pprof http://ADDON_OPERATOR_IP:%s/debug/pprof/profile</pre>
     <p>
       <a href="/discovery">show all possible routes</a>
-      <a href="/metrics">prometheus metrics</a>
+      <a href="/metrics">prometheus metrics for built-in parameters</a>
+      <a href="/metrics/hooks">prometheus metrics for user hooks</a>
       <a href="/healthz">health url</a>
       <a href="/readyz">ready url</a>
     </p>
     </body>
     </html>`, app.ListenPort)))
 	})
-	op.engine.APIServer.RegisterRoute(http.MethodGet, "/metrics", promhttp.Handler().ServeHTTP)
 
 	op.engine.APIServer.RegisterRoute(http.MethodGet, "/healthz", func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusOK)

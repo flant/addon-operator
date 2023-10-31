@@ -79,10 +79,18 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 	sh_app.SetupLogging(rc)
 
 	// Have to initialize common operator to have all common dependencies below
-	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort)
+	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, map[string]string{
+		"module":  "",
+		"hook":    "",
+		"binding": "",
+		"queue":   "",
+		"kind":    "",
+	})
 	if err != nil {
 		panic(err)
 	}
+
+	registerHookMetrics(so.HookMetricStorage)
 
 	ao := &AddonOperator{
 		ctx:                    cctx,
