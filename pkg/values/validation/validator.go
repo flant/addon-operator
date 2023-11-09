@@ -42,8 +42,8 @@ func (v *ValuesValidator) ValidateModuleHelmValues(moduleName string, values uti
 	return v.validateValues(ModuleSchema, HelmValuesSchema, moduleName, values)
 }
 
-// getSchema returns a schema from the schema storage.
-func (v *ValuesValidator) getSchema(schemaType SchemaType, valuesType SchemaType, modName string) *spec.Schema {
+// GetSchema returns a schema from the schema storage.
+func (v *ValuesValidator) GetSchema(schemaType SchemaType, valuesType SchemaType, modName string) *spec.Schema {
 	switch schemaType {
 	case GlobalSchema:
 		return v.SchemaStorage.GlobalValuesSchema(valuesType)
@@ -54,7 +54,7 @@ func (v *ValuesValidator) getSchema(schemaType SchemaType, valuesType SchemaType
 }
 
 func (v *ValuesValidator) validateValues(schemaType SchemaType, valuesType SchemaType, moduleName string, values utils.Values) error {
-	s := v.getSchema(schemaType, valuesType, moduleName)
+	s := v.GetSchema(schemaType, valuesType, moduleName)
 	if s == nil {
 		log.Debugf("%s schema (%s) for '%s' values is not found", schemaType, moduleName, valuesType)
 		return nil
