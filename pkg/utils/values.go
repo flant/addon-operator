@@ -144,6 +144,7 @@ func (v Values) Global() Values {
 	return make(Values)
 }
 
+// Deprecated: some useless copy here, probably we don't need that
 func (v Values) SectionByKey(key string) Values {
 	sectionValues, has := v[key]
 	if has {

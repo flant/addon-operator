@@ -1,13 +1,12 @@
-package module_manager
+package hooks
 
 import (
 	"fmt"
-
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/go-openapi/spec"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 )
@@ -47,7 +46,7 @@ type ModuleHookConfigV0 struct {
 	AfterDeleteHelm interface{} `json:"afterDeleteHelm"`
 }
 
-func GetModuleHookConfigSchema(version string) *spec.Schema {
+func getModuleHookConfigSchema(version string) *spec.Schema {
 	globalHookVersion := "module-hook-" + version
 	if _, ok := config.Schemas[globalHookVersion]; !ok {
 		schema := config.Schemas[version]
@@ -85,15 +84,15 @@ func GetModuleHookConfigSchema(version string) *spec.Schema {
 	return config.GetSchema(globalHookVersion)
 }
 
-// LoadAndValidate loads config from bytes and validate it. Returns multierror.
-func (c *ModuleHookConfig) LoadAndValidate(data []byte) error {
+// LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
+func (c *ModuleHookConfig) LoadAndValidateShellConfig(data []byte) error {
 	vu := config.NewDefaultVersionedUntyped()
 	err := vu.Load(data)
 	if err != nil {
 		return err
 	}
 
-	err = config.ValidateConfig(vu.Obj, GetModuleHookConfigSchema(vu.Version), "")
+	err = config.ValidateConfig(vu.Obj, getModuleHookConfigSchema(vu.Version), "")
 	if err != nil {
 		return err
 	}
@@ -108,6 +107,35 @@ func (c *ModuleHookConfig) LoadAndValidate(data []byte) error {
 	err = c.ConvertAndCheck(data)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (c *ModuleHookConfig) LoadAndValidateGoConfig(input *go_hook.HookConfig) error {
+	hookConfig, err := newHookConfigFromGoConfig(input)
+	if err != nil {
+		return err
+	}
+
+	c.HookConfig = hookConfig
+
+	if input.OnBeforeHelm != nil {
+		c.BeforeHelm = &BeforeHelmConfig{}
+		c.BeforeHelm.BindingName = string(BeforeHelm)
+		c.BeforeHelm.Order = input.OnBeforeHelm.Order
+	}
+
+	if input.OnAfterHelm != nil {
+		c.AfterHelm = &AfterHelmConfig{}
+		c.AfterHelm.BindingName = string(AfterHelm)
+		c.AfterHelm.Order = input.OnAfterHelm.Order
+	}
+
+	if input.OnAfterDeleteHelm != nil {
+		c.AfterDeleteHelm = &AfterDeleteHelmConfig{}
+		c.AfterDeleteHelm.BindingName = string(AfterDeleteHelm)
+		c.AfterDeleteHelm.Order = input.OnAfterDeleteHelm.Order
 	}
 
 	return nil
@@ -216,7 +244,7 @@ func (c *ModuleHookConfig) ConvertAfterDeleteHelm(value interface{}) (*AfterDele
 }
 
 func (c *ModuleHookConfig) Bindings() []BindingType {
-	res := []BindingType{}
+	res := make([]BindingType, 0)
 
 	for _, binding := range []BindingType{OnStartup, Schedule, OnKubernetesEvent, BeforeHelm, AfterHelm, AfterDeleteHelm} {
 		if c.HasBinding(binding) {
@@ -259,35 +287,4 @@ func (c *ModuleHookConfig) BindingsCount() int {
 		res += len(c.OnKubernetesEvents)
 	}
 	return res
-}
-
-func NewModuleHookConfigFromGoConfig(input *go_hook.HookConfig) (*ModuleHookConfig, error) {
-	hookConfig, err := NewHookConfigFromGoConfig(input)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := &ModuleHookConfig{
-		HookConfig: hookConfig,
-	}
-
-	if input.OnBeforeHelm != nil {
-		cfg.BeforeHelm = &BeforeHelmConfig{}
-		cfg.BeforeHelm.BindingName = string(BeforeHelm)
-		cfg.BeforeHelm.Order = input.OnBeforeHelm.Order
-	}
-
-	if input.OnAfterHelm != nil {
-		cfg.AfterHelm = &AfterHelmConfig{}
-		cfg.AfterHelm.BindingName = string(AfterHelm)
-		cfg.AfterHelm.Order = input.OnAfterHelm.Order
-	}
-
-	if input.OnAfterDeleteHelm != nil {
-		cfg.AfterDeleteHelm = &AfterDeleteHelmConfig{}
-		cfg.AfterDeleteHelm.BindingName = string(AfterDeleteHelm)
-		cfg.AfterDeleteHelm.Order = input.OnAfterDeleteHelm.Order
-	}
-
-	return cfg, nil
 }

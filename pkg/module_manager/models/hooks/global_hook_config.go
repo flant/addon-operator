@@ -1,4 +1,4 @@
-package module_manager
+package hooks
 
 import (
 	"errors"
@@ -51,7 +51,7 @@ type GlobalHookConfigV0 struct {
 	AfterAll  interface{} `json:"afterAll"`
 }
 
-func GetGlobalHookConfigSchema(version string) *spec.Schema {
+func getGlobalHookConfigSchema(version string) *spec.Schema {
 	globalHookVersion := "global-hook-" + version
 	if _, ok := config.Schemas[globalHookVersion]; !ok {
 		schema := config.Schemas[version]
@@ -83,15 +83,15 @@ func GetGlobalHookConfigSchema(version string) *spec.Schema {
 	return config.GetSchema(globalHookVersion)
 }
 
-// LoadAndValidate loads config from bytes and validate it. Returns multierror.
-func (c *GlobalHookConfig) LoadAndValidate(data []byte) error {
+// LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
+func (c *GlobalHookConfig) LoadAndValidateShellConfig(data []byte) error {
 	vu := config.NewDefaultVersionedUntyped()
 	err := vu.Load(data)
 	if err != nil {
 		return err
 	}
 
-	err = config.ValidateConfig(vu.Obj, GetGlobalHookConfigSchema(vu.Version), "")
+	err = config.ValidateConfig(vu.Obj, getGlobalHookConfigSchema(vu.Version), "")
 	if err != nil {
 		return err
 	}
@@ -106,6 +106,29 @@ func (c *GlobalHookConfig) LoadAndValidate(data []byte) error {
 	err = c.ConvertAndCheck(data)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (c *GlobalHookConfig) LoadAndValidateGoConfig(input *go_hook.HookConfig) error {
+	hookConfig, err := newHookConfigFromGoConfig(input)
+	if err != nil {
+		return err
+	}
+
+	c.HookConfig = hookConfig
+
+	if input.OnBeforeAll != nil {
+		c.BeforeAll = &BeforeAllConfig{}
+		c.BeforeAll.BindingName = string(BeforeAll)
+		c.BeforeAll.Order = input.OnBeforeAll.Order
+	}
+
+	if input.OnAfterAll != nil {
+		c.AfterAll = &AfterAllConfig{}
+		c.AfterAll.BindingName = string(AfterAll)
+		c.AfterAll.Order = input.OnAfterAll.Order
 	}
 
 	return nil
@@ -196,7 +219,7 @@ func (c *GlobalHookConfig) ConvertAfterAll(value interface{}) (*AfterAllConfig, 
 }
 
 func (c *GlobalHookConfig) Bindings() []BindingType {
-	res := []BindingType{}
+	res := make([]BindingType, 0)
 
 	for _, binding := range []BindingType{OnStartup, Schedule, OnKubernetesEvent, BeforeAll, AfterAll} {
 		if c.HasBinding(binding) {
@@ -238,32 +261,7 @@ func (c *GlobalHookConfig) BindingsCount() int {
 	return res
 }
 
-func NewGlobalHookConfigFromGoConfig(input *go_hook.HookConfig) (*GlobalHookConfig, error) {
-	hookConfig, err := NewHookConfigFromGoConfig(input)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := &GlobalHookConfig{
-		HookConfig: hookConfig,
-	}
-
-	if input.OnBeforeAll != nil {
-		cfg.BeforeAll = &BeforeAllConfig{}
-		cfg.BeforeAll.BindingName = string(BeforeAll)
-		cfg.BeforeAll.Order = input.OnBeforeAll.Order
-	}
-
-	if input.OnAfterAll != nil {
-		cfg.AfterAll = &AfterAllConfig{}
-		cfg.AfterAll.BindingName = string(AfterAll)
-		cfg.AfterAll.Order = input.OnAfterAll.Order
-	}
-
-	return cfg, nil
-}
-
-func NewHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, error) {
+func newHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, error) {
 	c := config.HookConfig{
 		Version:            "v1",
 		Schedules:          []ScheduleConfig{},

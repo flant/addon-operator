@@ -2,8 +2,8 @@ package addon_operator
 
 import (
 	"fmt"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"net/http"
-	"os"
 	"sort"
 	"strconv"
 
@@ -22,23 +22,24 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/values.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
-		return op.ModuleManager.GlobalValues()
+		return op.ModuleManager.GetGlobal().GetValues(), nil
 	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/config.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
-		return op.ModuleManager.GlobalConfigValues(), nil
+		return op.ModuleManager.GetGlobal().GetConfigValues(), nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/global/patches.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
-		return op.ModuleManager.GlobalValuesPatches(), nil
-	})
+	//// TODO(yalosev): restore this
+	//dbgSrv.RegisterHandler(http.MethodGet, "/global/patches.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
+	//	return op.ModuleManager.GlobalValuesPatches(), nil
+	//})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/snapshots.{format:(json|yaml)}", func(r *http.Request) (interface{}, error) {
 		kubeHookNames := op.ModuleManager.GetGlobalHooksInOrder(types.OnKubernetesEvent)
 		snapshots := make(map[string]interface{})
 		for _, hName := range kubeHookNames {
 			h := op.ModuleManager.GetGlobalHook(hName)
-			snapshots[hName] = h.HookController.SnapshotsDump()
+			snapshots[hName] = h.GetHookController().SnapshotsDump()
 		}
 
 		return snapshots, nil
@@ -63,9 +64,9 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 		switch valType {
 		case "config":
-			return m.ConfigValues(), nil
+			return m.GetConfigValues(), nil
 		case "values":
-			return m.Values()
+			return m.GetValues(), nil
 		}
 		return "no values", nil
 	})
@@ -83,25 +84,28 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 			return nil, fmt.Errorf("Module not found")
 		}
 
-		valuesPath, err := m.PrepareValuesYamlFile()
+		deps := &modules.HelmModuleDependencies{
+			ClientFactory: op.Helm,
+		}
+		hm, err := modules.NewHelmModule(op.ModuleManager.GetGlobal().GetValues(), m, op.ModuleManager.TempDir, deps)
 		if err != nil {
-			return nil, err
-		}
-		defer os.Remove(valuesPath)
-
-		return op.Helm.NewClient().Render(m.Name, m.Path, []string{valuesPath}, nil, app.Namespace, dbg)
-	})
-
-	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {
-		modName := chi.URLParam(r, "name")
-
-		m := op.ModuleManager.GetModule(modName)
-		if m == nil {
-			return nil, fmt.Errorf("Unknown module %s", modName)
+			return nil, fmt.Errorf("failed to create helm module: %w", err)
 		}
 
-		return op.ModuleManager.ModuleDynamicValuesPatches(modName), nil
+		return hm.Render(app.Namespace, dbg)
 	})
+
+	// TODO(yalosev): restore me
+	//dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {
+	//	modName := chi.URLParam(r, "name")
+	//
+	//	m := op.ModuleManager.GetModule(modName)
+	//	if m == nil {
+	//		return nil, fmt.Errorf("Unknown module %s", modName)
+	//	}
+	//
+	//	return op.ModuleManager.ModuleDynamicValuesPatches(modName), nil
+	//})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/resource-monitor.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
 		dump := map[string]interface{}{}
@@ -127,11 +131,10 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 			return nil, fmt.Errorf("Module not found")
 		}
 
-		mHookNames := op.ModuleManager.GetModuleHookNames(m.Name)
+		mHooks := m.GetHooks()
 		snapshots := make(map[string]interface{})
-		for _, hName := range mHookNames {
-			h := op.ModuleManager.GetModuleHook(hName)
-			snapshots[hName] = h.HookController.SnapshotsDump()
+		for _, h := range mHooks {
+			snapshots[h.GetName()] = h.GetHookController().SnapshotsDump()
 		}
 
 		return snapshots, nil

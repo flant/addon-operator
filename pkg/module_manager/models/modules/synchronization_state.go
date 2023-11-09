@@ -1,4 +1,4 @@
-package module_manager
+package modules
 
 import (
 	"fmt"
@@ -9,16 +9,16 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 )
 
-// KubernetesBindingSynchronizationState is a state of the single Synchronization task
+// kubernetesBindingSynchronizationState is a state of the single Synchronization task
 // for one kubernetes binding.
-type KubernetesBindingSynchronizationState struct {
+type kubernetesBindingSynchronizationState struct {
 	HookName    string
 	BindingName string
 	Queued      bool
 	Done        bool
 }
 
-func (k *KubernetesBindingSynchronizationState) String() string {
+func (k *kubernetesBindingSynchronizationState) String() string {
 	return fmt.Sprintf("queue=%v done=%v", k.Queued, k.Done)
 }
 
@@ -26,13 +26,13 @@ func (k *KubernetesBindingSynchronizationState) String() string {
 // tasks for kubernetes bindings either for all global hooks
 // or for module's hooks.
 type SynchronizationState struct {
-	state map[string]*KubernetesBindingSynchronizationState
+	state map[string]*kubernetesBindingSynchronizationState
 	m     sync.RWMutex
 }
 
 func NewSynchronizationState() *SynchronizationState {
 	return &SynchronizationState{
-		state: make(map[string]*KubernetesBindingSynchronizationState),
+		state: make(map[string]*kubernetesBindingSynchronizationState),
 	}
 }
 
@@ -65,10 +65,10 @@ func (s *SynchronizationState) IsComplete() bool {
 func (s *SynchronizationState) QueuedForBinding(metadata task.HookMetadata) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	var state *KubernetesBindingSynchronizationState
+	var state *kubernetesBindingSynchronizationState
 	state, ok := s.state[metadata.KubernetesBindingId]
 	if !ok {
-		state = &KubernetesBindingSynchronizationState{
+		state = &kubernetesBindingSynchronizationState{
 			HookName:    metadata.HookName,
 			BindingName: metadata.Binding,
 		}
@@ -80,10 +80,10 @@ func (s *SynchronizationState) QueuedForBinding(metadata task.HookMetadata) {
 func (s *SynchronizationState) DoneForBinding(id string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	var state *KubernetesBindingSynchronizationState
+	var state *kubernetesBindingSynchronizationState
 	state, ok := s.state[id]
 	if !ok {
-		state = &KubernetesBindingSynchronizationState{}
+		state = &kubernetesBindingSynchronizationState{}
 		s.state[id] = state
 	}
 	state.Done = true

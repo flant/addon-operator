@@ -1,14 +1,14 @@
-package module_manager
+package modules
 
 import "github.com/flant/addon-operator/pkg/utils"
 
-type ValuesTransform func(values utils.Values) utils.Values
+type valuesTransform func(values utils.Values) utils.Values
 
-type ValuesTransformer interface {
+type valuesTransformer interface {
 	Transform(values utils.Values) utils.Values
 }
 
-func MergeLayers(initial utils.Values, layers ...interface{}) utils.Values {
+func mergeLayers(initial utils.Values, layers ...interface{}) utils.Values {
 	res := utils.MergeValues(initial)
 
 	for _, layer := range layers {
@@ -21,9 +21,9 @@ func MergeLayers(initial utils.Values, layers ...interface{}) utils.Values {
 			// Ignore error to be handy for tests.
 			tmp, _ := utils.NewValuesFromBytes([]byte(layer))
 			res = utils.MergeValues(res, tmp)
-		case ValuesTransform:
+		case valuesTransform:
 			res = utils.MergeValues(res, layer(res))
-		case ValuesTransformer:
+		case valuesTransformer:
 			res = utils.MergeValues(res, layer.Transform(res))
 		}
 	}

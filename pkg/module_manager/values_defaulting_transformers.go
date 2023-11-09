@@ -5,12 +5,12 @@ import (
 	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
-type ApplyDefaultsForGlobal struct {
+type applyDefaultsForGlobal struct {
 	SchemaType      validation.SchemaType
 	ValuesValidator *validation.ValuesValidator
 }
 
-func (a *ApplyDefaultsForGlobal) Transform(values utils.Values) utils.Values {
+func (a *applyDefaultsForGlobal) Transform(values utils.Values) utils.Values {
 	s := a.ValuesValidator.SchemaStorage.GlobalValuesSchema(a.SchemaType)
 	if s == nil {
 		return values
@@ -21,13 +21,13 @@ func (a *ApplyDefaultsForGlobal) Transform(values utils.Values) utils.Values {
 	return values
 }
 
-type ApplyDefaultsForModule struct {
+type applyDefaultsForModule struct {
 	ModuleValuesKey string
 	SchemaType      validation.SchemaType
 	ValuesValidator *validation.ValuesValidator
 }
 
-func (a *ApplyDefaultsForModule) Transform(values utils.Values) utils.Values {
+func (a *applyDefaultsForModule) Transform(values utils.Values) utils.Values {
 	s := a.ValuesValidator.SchemaStorage.ModuleValuesSchema(a.ModuleValuesKey, a.SchemaType)
 	if s == nil {
 		return values

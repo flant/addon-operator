@@ -1,4 +1,4 @@
-package module_manager
+package hooks
 
 import (
 	"testing"

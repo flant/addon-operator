@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"regexp"
 	"runtime"
 	"sync"
@@ -24,19 +25,32 @@ var moduleRe = regexp.MustCompile(`(/modules/(([^/]+)/hooks/([^/]+/)*([^/]+)))$`
 // TODO: This regexp should be changed. We shouldn't force users to name modules with a number prefix.
 var moduleNameRe = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
 
-var RegisterFunc = func(config *go_hook.HookConfig, reconcileFunc reconcileFunc) bool {
-	Registry().Add(newCommonGoHook(config, reconcileFunc))
+var RegisterFunc = func(config *go_hook.HookConfig, reconcileFunc kind.ReconcileFunc) bool {
+	Registry().Add(kind.NewGoHook(config, reconcileFunc))
 	return true
 }
 
-type HookWithMetadata struct {
-	Hook     go_hook.GoHook
-	Metadata *go_hook.HookMetadata
-}
+//type HookWithMetadata struct {
+//	Hook     go_hook.GoHook
+//	Metadata *go_hook.HookMetadata
+//}
+//
+//func (hwm HookWithMetadata) GetPath() string {
+//	return hwm.Metadata.Path
+//}
+//
+//func (hwm HookWithMetadata) GetName() string {
+//	return hwm.Metadata.Name
+//}
+//
+//func (hwm HookWithMetadata) GetType() string {
+//	return "go"
+//}
 
 type HookRegistry struct {
-	hooks []HookWithMetadata
-	m     sync.Mutex
+	m            sync.Mutex
+	globalHooks  []*kind.GoHook
+	modulesHooks map[string][]*kind.GoHook // [<module-name>]<hook>
 }
 
 var (
@@ -46,20 +60,28 @@ var (
 
 func Registry() *HookRegistry {
 	once.Do(func() {
-		instance = new(HookRegistry)
+		instance = &HookRegistry{
+			globalHooks:  make([]*kind.GoHook, 0),
+			modulesHooks: make(map[string][]*kind.GoHook),
+		}
 	})
 	return instance
 }
 
-func (h *HookRegistry) Hooks() []HookWithMetadata {
-	return h.hooks
+//func (h *HookRegistry) Hooks() []HookWithMetadata {
+//	return h.hooks
+//}
+
+func (h *HookRegistry) GetModuleHooks(moduleName string) []*kind.GoHook {
+	return h.modulesHooks[moduleName]
 }
 
-func (h *HookRegistry) Add(hook go_hook.GoHook) {
-	h.m.Lock()
-	defer h.m.Unlock()
+func (h *HookRegistry) GetGlobalHooks() []*kind.GoHook {
+	return h.globalHooks
+}
 
-	config := hook.Config()
+func (h *HookRegistry) Add(hook *kind.GoHook) {
+	config := hook.GetConfig()
 	if config.OnStartup != nil && len(config.Kubernetes) > 0 {
 		panic(bindingsPanicMsg)
 	}
@@ -105,8 +127,15 @@ func (h *HookRegistry) Add(hook go_hook.GoHook) {
 		panic("cannot extract metadata from GoHook")
 	}
 
-	h.hooks = append(h.hooks, HookWithMetadata{
-		Hook:     hook,
-		Metadata: hookMeta,
-	})
+	hook.AddMetadata(hookMeta)
+
+	h.m.Lock()
+	defer h.m.Unlock()
+	if hookMeta.Global {
+		h.globalHooks = append(h.globalHooks, hook)
+	} else if hookMeta.Module {
+		h.modulesHooks[hookMeta.ModuleName] = append(h.modulesHooks[hookMeta.ModuleName], hook)
+	} else {
+		panic("neither module nor global hook. Who are you?")
+	}
 }

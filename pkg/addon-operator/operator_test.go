@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	"context"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"io"
 	"os"
 	"path/filepath"
@@ -242,7 +243,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		case task.ConvergeModules:
 			phase = string(op.ConvergeState.Phase)
 		case task.ModuleRun:
-			phase = string(op.ModuleManager.GetModule(hm.ModuleName).State.Phase)
+			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
 		taskHandleHistory = append(taskHandleHistory, taskInfo{
 			taskType:         tsk.GetType(),
@@ -303,14 +304,14 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		// ConvergeModules adds ModuleDelete and ModuleRun tasks.
 		{task.ModuleDelete, "", "module-beta", ""},
 
-		{task.ModuleRun, "", "module-alpha", string(module_manager.Startup)},
+		{task.ModuleRun, "", "module-alpha", string(modules.Startup)},
 
 		// Only one hook with kubernetes binding.
 		{task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook01", ""},
 		// {task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook02", ""},
 
 		// Skip waiting tasks in parallel queues, proceed to schedule bindings.
-		{task.ModuleRun, "", "module-alpha", string(module_manager.EnableScheduleBindings)},
+		{task.ModuleRun, "", "module-alpha", string(modules.EnableScheduleBindings)},
 
 		// ConvergeModules emerges afterAll tasks
 		{task.ConvergeModules, "", "", string(WaitDeleteAndRunModules)},
@@ -388,7 +389,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 				<-canHandleTasks
 				triggerPause = false
 			}
-			phase = string(op.ModuleManager.GetModule(hm.ModuleName).State.Phase)
+			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
 		historyMu.Lock()
 		taskHandleHistory = append(taskHandleHistory, taskInfo{
@@ -488,7 +489,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 			phase = string(op.ConvergeState.Phase)
 			convergeEvent = tsk.GetProp(ConvergeEventProp).(ConvergeEvent)
 		case task.ModuleRun:
-			phase = string(op.ModuleManager.GetModule(hm.ModuleName).State.Phase)
+			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
 		historyMu.Lock()
 		taskHandleHistory = append(taskHandleHistory, taskInfo{
