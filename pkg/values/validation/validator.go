@@ -23,23 +23,23 @@ func NewValuesValidator() *ValuesValidator {
 }
 
 func (v *ValuesValidator) ValidateGlobalConfigValues(values utils.Values) error {
-	return v.validateValues(GlobalSchema, ConfigValuesSchema, "", values)
+	return v.ValidateValues(GlobalSchema, ConfigValuesSchema, "", values)
 }
 
 func (v *ValuesValidator) ValidateGlobalValues(values utils.Values) error {
-	return v.validateValues(GlobalSchema, ValuesSchema, "", values)
+	return v.ValidateValues(GlobalSchema, ValuesSchema, "", values)
 }
 
 func (v *ValuesValidator) ValidateModuleConfigValues(moduleName string, values utils.Values) error {
-	return v.validateValues(ModuleSchema, ConfigValuesSchema, moduleName, values)
+	return v.ValidateValues(ModuleSchema, ConfigValuesSchema, moduleName, values)
 }
 
 func (v *ValuesValidator) ValidateModuleValues(moduleName string, values utils.Values) (multiErr error) {
-	return v.validateValues(ModuleSchema, ValuesSchema, moduleName, values)
+	return v.ValidateValues(ModuleSchema, ValuesSchema, moduleName, values)
 }
 
 func (v *ValuesValidator) ValidateModuleHelmValues(moduleName string, values utils.Values) (multiErr error) {
-	return v.validateValues(ModuleSchema, HelmValuesSchema, moduleName, values)
+	return v.ValidateValues(ModuleSchema, HelmValuesSchema, moduleName, values)
 }
 
 // GetSchema returns a schema from the schema storage.
@@ -53,7 +53,7 @@ func (v *ValuesValidator) GetSchema(schemaType SchemaType, valuesType SchemaType
 	return nil
 }
 
-func (v *ValuesValidator) validateValues(schemaType SchemaType, valuesType SchemaType, moduleName string, values utils.Values) error {
+func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType SchemaType, moduleName string, values utils.Values) error {
 	s := v.GetSchema(schemaType, valuesType, moduleName)
 	if s == nil {
 		log.Debugf("%s schema (%s) for '%s' values is not found", schemaType, moduleName, valuesType)
