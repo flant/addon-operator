@@ -317,7 +317,7 @@ func (bm *BasicModule) SetPhase(phase ModuleRunPhase) {
 }
 
 func (bm *BasicModule) SetError(err error) {
-	bm.state.LastModuleErr = err
+	bm.state.lastModuleErr = err
 }
 
 func (bm *BasicModule) SetStateEnabled(e bool) {
@@ -843,6 +843,23 @@ func (bm *BasicModule) GetHookByName(name string) *hooks2.ModuleHook {
 	return bm.hooks.getHookByName(name)
 }
 
+func (bm *BasicModule) GetLastHookError() error {
+	bm.state.hookErrorsLock.RLock()
+	defer bm.state.hookErrorsLock.RUnlock()
+
+	for name, err := range bm.state.hookErrors {
+		if err != nil {
+			return fmt.Errorf("%s: %v", name, err)
+		}
+	}
+
+	return nil
+}
+
+func (bm *BasicModule) GetModuleError() error {
+	return bm.state.lastModuleErr
+}
+
 type ModuleRunPhase string
 
 const (
@@ -863,7 +880,7 @@ const (
 type moduleState struct {
 	Enabled              bool
 	Phase                ModuleRunPhase
-	LastModuleErr        error
+	lastModuleErr        error
 	hookErrors           map[string]error
 	hookErrorsLock       sync.RWMutex
 	synchronizationState *SynchronizationState
