@@ -278,7 +278,7 @@ func parseUintOrDefault(num string, defaultValue uint32) uint32 {
 func loadValuesFileFromDir(dir string) (utils.Values, error) {
 	valuesFilePath := filepath.Join(dir, ValuesFileName)
 	valuesYaml, err := os.ReadFile(valuesFilePath)
-	if err != nil && os.IsNotExist(err) {
+	if err != nil && os.IsNotExist(err) && !app.StrictModeEnabled {
 		log.Debugf("No static values file '%s': %v", valuesFilePath, err)
 		return nil, nil
 	}
