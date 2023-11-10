@@ -169,12 +169,10 @@ func (v Values) AsBytes(format string) ([]byte, error) {
 	}
 }
 
-func (v Values) AsString(format string) (string, error) {
-	b, err := v.AsBytes(format)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
+func (v Values) AsString(format string) string {
+	b, _ := v.AsBytes(format)
+
+	return string(b)
 }
 
 // AsConfigMapData returns values as map that can be used as a 'data' field in the ConfigMap.
@@ -191,7 +189,7 @@ func (v Values) AsConfigMapData() (map[string]string, error) {
 	return res, nil
 }
 
-func (v Values) JsonString() (string, error) {
+func (v Values) JsonString() string {
 	return v.AsString("json")
 }
 
@@ -199,7 +197,7 @@ func (v Values) JsonBytes() ([]byte, error) {
 	return v.AsBytes("json")
 }
 
-func (v Values) YamlString() (string, error) {
+func (v Values) YamlString() string {
 	return v.AsString("yaml")
 }
 

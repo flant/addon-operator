@@ -2,10 +2,11 @@ package addon_operator
 
 import (
 	"fmt"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"net/http"
 	"sort"
 	"strconv"
+
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 
 	"github.com/go-chi/chi/v5"
 
@@ -59,7 +60,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
-			return nil, fmt.Errorf("Module not found")
+			return nil, fmt.Errorf("module not found")
 		}
 
 		switch valType {

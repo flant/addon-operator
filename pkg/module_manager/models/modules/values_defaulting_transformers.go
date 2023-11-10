@@ -1,4 +1,4 @@
-package module_manager
+package modules
 
 import (
 	"github.com/flant/addon-operator/pkg/utils"
@@ -11,29 +11,29 @@ type applyDefaultsForGlobal struct {
 }
 
 func (a *applyDefaultsForGlobal) Transform(values utils.Values) utils.Values {
-	s := a.ValuesValidator.SchemaStorage.GlobalValuesSchema(a.SchemaType)
+	s := a.ValuesValidator.GetSchema(validation.GlobalSchema, a.SchemaType, utils.GlobalValuesKey)
 	if s == nil {
 		return values
 	}
-	if values.HasGlobal() {
-		validation.ApplyDefaults(values[utils.GlobalValuesKey], s)
-	}
+
+	validation.ApplyDefaults(values, s)
+
 	return values
 }
 
 type applyDefaultsForModule struct {
-	ModuleValuesKey string
+	ModuleName      string
 	SchemaType      validation.SchemaType
-	ValuesValidator *validation.ValuesValidator
+	ValuesValidator validator
 }
 
 func (a *applyDefaultsForModule) Transform(values utils.Values) utils.Values {
-	s := a.ValuesValidator.SchemaStorage.ModuleValuesSchema(a.ModuleValuesKey, a.SchemaType)
+	s := a.ValuesValidator.GetSchema(validation.ModuleSchema, a.SchemaType, utils.ModuleNameToValuesKey(a.ModuleName))
 	if s == nil {
 		return values
 	}
-	if values.HasKey(a.ModuleValuesKey) {
-		validation.ApplyDefaults(values[a.ModuleValuesKey], s)
-	}
+
+	validation.ApplyDefaults(values, s)
+
 	return values
 }

@@ -2,6 +2,7 @@ package module_manager
 
 import (
 	"fmt"
+
 	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
 	log "github.com/sirupsen/logrus"
 )
@@ -896,6 +897,11 @@ func (mm *ModuleManager) RegisterModules() error {
 		return nil
 	}
 
+	if mm.moduleLoader == nil {
+		log.Errorf("no module loader set")
+		return fmt.Errorf("no module loader set")
+	}
+
 	log.Debug("Search and register modules")
 
 	mods, err := mm.moduleLoader.LoadModules()
@@ -907,7 +913,7 @@ func (mm *ModuleManager) RegisterModules() error {
 
 	for _, mod := range mods {
 		if set.Has(mod.GetName()) {
-			log.Warnf("module %q from path %q is not registered, because it has a duplicate", mod.GetName(), mod.GetPhase())
+			log.Warnf("module %q from path %q is not registered, because it has a duplicate", mod.GetName(), mod.GetPath())
 			continue
 		}
 

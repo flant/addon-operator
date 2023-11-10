@@ -57,12 +57,15 @@ type BasicModule struct {
 	dc *hooks.HookExecutionDependencyContainer
 }
 
-func NewBasicModule(name, path string, order uint32, enabled bool, initialValues utils.Values, validator validator) *BasicModule {
+func NewBasicModule(name, path string, order uint32, enabled bool, vs *ValuesStorage, validator validator) *BasicModule {
+	if vs == nil {
+		vs = NewValuesStorage(utils.Values{}, validator)
+	}
 	return &BasicModule{
 		Name:               name,
 		Order:              order,
 		Path:               path,
-		valuesStorage:      NewValuesStorage(initialValues, validator),
+		valuesStorage:      vs,
 		dynamicValuesPatch: nil,
 		enabledByConfig:    enabled,
 		state: &moduleState{
@@ -88,6 +91,10 @@ func (bm *BasicModule) IsEnabled() bool {
 
 func (bm *BasicModule) GetName() string {
 	return bm.Name
+}
+
+func (bm *BasicModule) GetPath() string {
+	return bm.Path
 }
 
 func (bm *BasicModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleHook {
@@ -694,7 +701,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		if configValuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Module hook '%s': validate module config values before update", h.GetName())
 			// Validate merged static and new values.
-			validationErr := bm.valuesStorage.SetNewConfigValues(bm.Name, configValuesPatchResult.Values)
+			validationErr := bm.valuesStorage.PreCommitConfigValues(bm.Name, configValuesPatchResult.Values)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply config values patch for module values"),
@@ -708,7 +715,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.GetName(), err)
 			}
 
-			bm.valuesStorage.ApplyDirtyConfigValues()
+			bm.valuesStorage.CommitConfigValues()
 
 			logEntry.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetConfigValues().DebugString())
 		}
@@ -726,7 +733,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		if valuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Module hook '%s': validate module values before update", h.GetName())
 			// Validate schema for updated module values
-			validationErr := bm.valuesStorage.SetNewValues(bm.Name, valuesPatchResult.Values)
+			validationErr := bm.valuesStorage.PreCommitValues(bm.Name, valuesPatchResult.Values)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply values patch for module values"),
@@ -736,7 +743,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 
 			// Save patch set if everything is ok.
 			//bm.dynamicValuesPatch = utils.AppendValuesPatch(bm.dynamicValuesPatch, valuesPatchResult.ValuesPatch)
-			bm.valuesStorage.ApplyDirtyValues()
+			bm.valuesStorage.CommitValues()
 			//newValues := bm.GetValues()
 
 			logEntry.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetValues().DebugString())
@@ -771,32 +778,33 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
 	}
 
+	// module values doesn't contain moduleName key as top level one
+	// but patches are still have, we have to use temporary map
+	// TODO: maybe we have to change ApplyValuesPatch function
+	tmpValues := utils.Values{
+		moduleValuesKey: currentValues,
+	}
+
 	// Apply new patches in Strict mode. Hook should not return 'remove' with nonexistent path.
-	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch, utils.Strict)
+	newValues, valuesChanged, err := utils.ApplyValuesPatch(tmpValues, valuesPatch, utils.Strict)
 	if err != nil {
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
 	}
 
+	newValues = newValues[moduleValuesKey].(map[string]interface{})
+
 	result := &moduleValuesMergeResult{
 		ModuleValuesKey: moduleValuesKey,
-		Values:          utils.Values{moduleValuesKey: make(map[string]interface{})},
+		Values:          newValues,
 		ValuesChanged:   valuesChanged,
 		ValuesPatch:     valuesPatch,
-	}
-
-	if newValues.HasKey(moduleValuesKey) {
-		_, ok := newValues[moduleValuesKey].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", result.ModuleValuesKey, newValues.SectionByKey(moduleValuesKey).DebugString())
-		}
-		result.Values = newValues.SectionByKey(moduleValuesKey)
 	}
 
 	return result, nil
 }
 
 func (bm *BasicModule) ValidateAndSaveConfigValues(v utils.Values) error {
-	return bm.valuesStorage.SetNewValues(bm.Name, v)
+	return bm.valuesStorage.PreCommitConfigValues(bm.Name, v)
 }
 
 func (bm *BasicModule) ConfigValuesHaveChanges() bool {
@@ -804,7 +812,7 @@ func (bm *BasicModule) ConfigValuesHaveChanges() bool {
 }
 
 func (bm *BasicModule) CommitConfigValuesChange() {
-	bm.valuesStorage.ApplyDirtyConfigValues()
+	bm.valuesStorage.CommitConfigValues()
 }
 
 func (bm *BasicModule) GetValues() utils.Values {
@@ -816,7 +824,7 @@ func (bm *BasicModule) GetConfigValues() utils.Values {
 }
 
 // Synchronization xxx
-// TODO: don't like this honestly, i think we can remove it
+// TODO: don't like this honestly, i think we can remake it
 func (bm *BasicModule) Synchronization() *SynchronizationState {
 	return bm.state.synchronizationState
 }

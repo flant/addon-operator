@@ -82,6 +82,7 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 			}
 
 			// 3. from openapi defaults
+			//TODO(yalosev): think about openapi
 			cb, vb, err := fl.readOpenAPIFiles(filepath.Join(module.Path, "openapi"))
 			if err != nil {
 				return nil, err
@@ -93,18 +94,18 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 					return nil, err
 				}
 
-				s := fl.valuesValidator.SchemaStorage.ModuleValuesSchema(valuesModuleName, validation.ModuleSchema)
-				if s != nil {
-					validation.ApplyDefaults(initialValues, s)
-				}
-
-				if moduleEnabled {
-					// we don't need to validate values for disabled modules
-					err = fl.valuesValidator.ValidateModuleValues(valuesModuleName, initialValues)
-					if err != nil {
-						return nil, fmt.Errorf("validation failed: %w", err)
-					}
-				}
+				//s := fl.valuesValidator.SchemaStorage.ModuleValuesSchema(valuesModuleName, validation.ModuleSchema)
+				//if s != nil {
+				//	validation.ApplyDefaults(initialValues, s)
+				//}
+				//
+				//if moduleEnabled {
+				//	// we don't need to validate values for disabled modules
+				//	err = fl.valuesValidator.ValidateModuleValues(valuesModuleName, initialValues)
+				//	if err != nil {
+				//		return nil, fmt.Errorf("validation failed: %w", err)
+				//	}
+				//}
 			}
 
 			//
@@ -115,7 +116,8 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 				panic("Here")
 			}
 
-			bm := modules.NewBasicModule(module.Name, module.Path, module.Order, moduleEnabled, moduleValues, fl.valuesValidator)
+			vs := modules.NewValuesStorage(moduleValues, fl.valuesValidator)
+			bm := modules.NewBasicModule(module.Name, module.Path, module.Order, moduleEnabled, vs, fl.valuesValidator)
 
 			result = append(result, bm)
 		}

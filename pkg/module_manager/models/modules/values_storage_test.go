@@ -48,6 +48,6 @@ default: {}
 		},
 	}
 
-	err = st.SetNewConfigValues("global", configV)
+	err = st.PreCommitConfigValues("global", configV)
 	assert.NoError(t, err)
 }

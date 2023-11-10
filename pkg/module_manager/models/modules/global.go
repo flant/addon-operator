@@ -35,12 +35,15 @@ type GlobalModule struct {
 	dc              *hooks.HookExecutionDependencyContainer
 }
 
-func NewGlobalModule(hooksDir string, validator validator, dc *hooks.HookExecutionDependencyContainer) *GlobalModule {
+func NewGlobalModule(hooksDir string, vs *ValuesStorage, validator validator, dc *hooks.HookExecutionDependencyContainer) *GlobalModule {
+	if vs == nil {
+		vs = NewValuesStorage(utils.Values{}, validator)
+	}
 	return &GlobalModule{
 		hooksDir:      hooksDir,
 		byBinding:     make(map[sh_op_types.BindingType][]*hooks.GlobalHook),
 		byName:        make(map[string]*hooks.GlobalHook),
-		valuesStorage: NewValuesStorage(nil, validator), // TODO(yalosev): initial
+		valuesStorage: vs,
 		dc:            dc,
 	}
 }
@@ -185,7 +188,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		if configValuesPatchResult != nil && configValuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Global hook '%s': validate global config values before update", h.GetName())
 			// Validate merged static and new values.
-			validationErr := gm.valuesStorage.SetNewConfigValues(gm.GetName(), configValuesPatchResult.Values)
+			validationErr := gm.valuesStorage.PreCommitConfigValues(gm.GetName(), configValuesPatchResult.Values)
 			//mergedValues := h.moduleManager.GlobalStaticAndNewValues(configValuesPatchResult.Values)
 			//validationErr := h.moduleManager.ValuesValidator.ValidateGlobalConfigValues(mergedValues)
 			if validationErr != nil {
@@ -198,7 +201,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.GetName(), err)
 			}
 
-			gm.valuesStorage.ApplyDirtyConfigValues()
+			gm.valuesStorage.CommitConfigValues()
 
 			//h.moduleManager.UpdateGlobalConfigValues(configValuesPatchResult.Values)
 			// TODO(yalosev): save patches - UpdateGlobalDynamicValuesPatches
@@ -231,12 +234,12 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		// and no patches for 'global' section — valuesPatchResult will be nil in this case.
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Global hook '%s': validate global values before update", h.GetName())
-			validationErr := gm.valuesStorage.SetNewValues(gm.GetName(), valuesPatchResult.Values)
+			validationErr := gm.valuesStorage.PreCommitValues(gm.GetName(), valuesPatchResult.Values)
 			if validationErr != nil {
 				return fmt.Errorf("cannot apply values patch for global values: %w", validationErr)
 			}
 
-			gm.valuesStorage.ApplyDirtyValues()
+			gm.valuesStorage.CommitValues()
 
 			logEntry.Debugf("Global hook '%s': kube global values updated", h.GetName())
 			logEntry.Debugf("New global values:\n%s", gm.valuesStorage.GetValues().DebugString())
@@ -256,7 +259,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 
 // TODO(yalosev): change name, because we don't save values here, just store them as dirty
 func (gm *GlobalModule) ValidateAndSaveConfigValues(v utils.Values) error {
-	return gm.valuesStorage.SetNewConfigValues(gm.GetName(), v)
+	return gm.valuesStorage.PreCommitConfigValues(gm.GetName(), v)
 }
 
 func (gm *GlobalModule) ConfigValuesHaveChanges() bool {
@@ -264,7 +267,7 @@ func (gm *GlobalModule) ConfigValuesHaveChanges() bool {
 }
 
 func (gm *GlobalModule) CommitConfigValuesChange() {
-	gm.valuesStorage.ApplyDirtyConfigValues()
+	gm.valuesStorage.CommitConfigValues()
 }
 func (gm *GlobalModule) GetValues() utils.Values {
 	return gm.valuesStorage.GetValues()
@@ -297,25 +300,25 @@ func (gm *GlobalModule) handlePatch(currentValues utils.Values, valuesPatch util
 		return nil, nil
 	}
 
+	// global values doesn't contain global key as top level one
+	// but patches are still have, we have to use temporary map
+	// TODO: maybe we have to change ApplyValuesPatch function
+	tmpValues := utils.Values{
+		utils.GlobalValuesKey: currentValues,
+	}
+
 	// Apply new patches in Strict mode. Hook should not return 'remove' with nonexistent path.
-	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, globalValuesPatch, utils.Strict)
+	newValues, valuesChanged, err := utils.ApplyValuesPatch(tmpValues, globalValuesPatch, utils.Strict)
 	if err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}
 
+	newValues = newValues[utils.GlobalValuesKey].(map[string]interface{})
+
 	result := &globalValuesPatchResult{
-		Values:        utils.Values{utils.GlobalValuesKey: make(map[string]interface{})},
+		Values:        newValues,
 		ValuesChanged: valuesChanged,
 		ValuesPatch:   globalValuesPatch,
-	}
-
-	if newValues.HasGlobal() {
-		_, ok := newValues[utils.GlobalValuesKey].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("expected map at key '%s', got:\n%s", utils.GlobalValuesKey, newValues.Global().DebugString())
-		}
-
-		result.Values = newValues.Global()
 	}
 
 	return result, nil

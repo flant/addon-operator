@@ -2,7 +2,9 @@ package module_manager
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
@@ -12,8 +14,35 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (mm *ModuleManager) RegisterGlobalHooks() error {
-	log.Debug("Search and register global hooks")
+func (mm *ModuleManager) RegisterGlobalModule() error {
+
+	// TODO(yalosev): tmp
+	index := strings.Index(mm.ModulesDir, ":")
+	first := mm.ModulesDir[:index]
+
+	valuesFilePath := filepath.Join(first, "values.yaml")
+	valuesYaml, err := os.ReadFile(valuesFilePath)
+	if err != nil && os.IsNotExist(err) {
+		log.Debugf("No static values file '%s': %v", valuesFilePath, err)
+		//return nil, nil
+	}
+	if err != nil {
+		return fmt.Errorf("load values file '%s': %s", valuesFilePath, err)
+	}
+
+	values, err := utils.NewValuesFromBytes(valuesYaml)
+	if err != nil {
+		return err
+	}
+
+	var globalValues utils.Values
+	switch v := values["global"].(type) {
+	case map[string]interface{}:
+		globalValues = utils.Values(v)
+
+	case utils.Values:
+		globalValues = v
+	}
 
 	// Load validation schemas
 	openApiDir := filepath.Join(mm.GlobalHooksDir, "openapi")
@@ -37,7 +66,16 @@ func (mm *ModuleManager) RegisterGlobalHooks() error {
 		MetricStorage:      mm.dependencies.MetricStorage,
 	}
 
-	gm := modules.NewGlobalModule(mm.GlobalHooksDir, mm.ValuesValidator, &dep)
+	vs := modules.NewValuesStorage(globalValues, mm.ValuesValidator)
+	// TODO(yalosev): load static values
+	gm := modules.NewGlobalModule(mm.GlobalHooksDir, vs, mm.ValuesValidator, &dep)
+	mm.global = gm
+
+	return mm.registerGlobalHooks(gm)
+}
+
+func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
+	log.Debug("Search and register global hooks")
 
 	hks, err := gm.RegisterHooks()
 	if err != nil {
@@ -60,8 +98,6 @@ func (mm *ModuleManager) RegisterGlobalHooks() error {
 				"module": "", // empty "module" label for label set consistency with module hooks
 			})
 	}
-
-	mm.global = gm
 
 	return nil
 }

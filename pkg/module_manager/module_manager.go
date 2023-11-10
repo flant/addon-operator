@@ -255,7 +255,7 @@ func (mm *ModuleManager) GetGlobal() *modules.GlobalModule {
 // - mm.kubeGlobalConfigValues
 // - mm.kubeModulesConfigValues
 func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*ModulesState, error) {
-	var validationErrors *multierror.Error
+	validationErrors := &multierror.Error{}
 
 	if kubeConfig == nil {
 		// have no idea, how it could be, just skip run
@@ -498,7 +498,7 @@ func (mm *ModuleManager) calculateEnabledModulesWithDynamic(enabledByConfig map[
 func (mm *ModuleManager) Init() error {
 	log.Debug("Init ModuleManager")
 
-	if err := mm.RegisterGlobalHooks(); err != nil {
+	if err := mm.RegisterGlobalModule(); err != nil {
 		return err
 	}
 

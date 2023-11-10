@@ -59,7 +59,7 @@ type HelmModuleDependencies struct {
 func NewHelmModule(globalValues utils.Values, bm *BasicModule, tmpDir string, deps *HelmModuleDependencies) (*HelmModule, error) {
 	moduleValues := bm.GetValues()
 
-	resultValues := map[string]interface{}{
+	chartValues := map[string]interface{}{
 		"global": globalValues,
 		utils.ModuleNameToValuesKey(bm.GetName()): moduleValues,
 	}
@@ -67,7 +67,7 @@ func NewHelmModule(globalValues utils.Values, bm *BasicModule, tmpDir string, de
 	hm := &HelmModule{
 		name:         bm.Name,
 		path:         bm.Path,
-		values:       resultValues,
+		values:       chartValues,
 		tmpDir:       tmpDir,
 		dependencies: deps,
 	}
