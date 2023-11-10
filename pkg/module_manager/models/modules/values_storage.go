@@ -61,15 +61,17 @@ type ValuesStorage struct {
 	dirtyConfigValues       utils.Values
 	dirtyMergedConfigValues utils.Values
 
-	validator validator
+	validator  validator
+	moduleName string
 }
 
 func NewValuesStorage(moduleName string, staticValues utils.Values, validator validator) *ValuesStorage {
 	vs := &ValuesStorage{
 		staticConfigValues: staticValues,
 		validator:          validator,
+		moduleName:         moduleName,
 	}
-	err := vs.calculateResultValues(moduleName)
+	err := vs.calculateResultValues()
 	if err != nil {
 		fmt.Println("ERR ON V Storage", err)
 		panic(err)
@@ -78,14 +80,14 @@ func NewValuesStorage(moduleName string, staticValues utils.Values, validator va
 	return vs
 }
 
-func (vs *ValuesStorage) calculateResultValues(moduleName string) error {
+func (vs *ValuesStorage) calculateResultValues() error {
 	merged := mergeLayers(
 		// Init static values (from modules/values.yaml and modules/XXX/values.yaml)
 		vs.staticConfigValues,
 
 		// from openapi config spec
 		&applyDefaultsForModule{
-			ModuleName:      moduleName,
+			ModuleName:      vs.moduleName,
 			SchemaType:      validation.ConfigValuesSchema,
 			ValuesValidator: vs.validator,
 		},
@@ -95,7 +97,7 @@ func (vs *ValuesStorage) calculateResultValues(moduleName string) error {
 
 		// from openapi values spec
 		&applyDefaultsForModule{
-			ModuleName:      moduleName,
+			ModuleName:      vs.moduleName,
 			SchemaType:      validation.ValuesSchema,
 			ValuesValidator: vs.validator,
 		},
@@ -114,13 +116,13 @@ func (vs *ValuesStorage) calculateResultValues(moduleName string) error {
 		return err
 	}
 
-	vs.dirtyResultValues = merged
+	vs.resultValues = merged
 
 	return nil
 }
 
-func (vs *ValuesStorage) PreCommitConfigValues(moduleName string, configV utils.Values) error {
-	fmt.Println("SET NEW CONFIG VALUES", moduleName, configV)
+func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values) error {
+	fmt.Println("SET NEW CONFIG VALUES", vs.moduleName, configV)
 
 	fmt.Println("STATIC ", vs.staticConfigValues)
 	fmt.Println("NEW ", configV)
@@ -130,7 +132,7 @@ func (vs *ValuesStorage) PreCommitConfigValues(moduleName string, configV utils.
 
 		// defaults from openapi
 		&applyDefaultsForModule{
-			ModuleName:      moduleName,
+			ModuleName:      vs.moduleName,
 			SchemaType:      validation.ConfigValuesSchema,
 			ValuesValidator: vs.validator,
 		},
@@ -142,25 +144,25 @@ func (vs *ValuesStorage) PreCommitConfigValues(moduleName string, configV utils.
 	vs.dirtyMergedConfigValues = merged
 	vs.dirtyConfigValues = configV
 
-	return vs.validateConfigValues(moduleName, merged)
+	return vs.validateConfigValues(merged)
 }
 
-func (vs *ValuesStorage) validateConfigValues(moduleName string, values utils.Values) error {
-	valuesModuleName := utils.ModuleNameToValuesKey(moduleName)
+func (vs *ValuesStorage) validateConfigValues(values utils.Values) error {
+	valuesModuleName := utils.ModuleNameToValuesKey(vs.moduleName)
 	validatableValues := utils.Values{valuesModuleName: values}
 
-	if moduleName == utils.GlobalValuesKey {
+	if vs.moduleName == utils.GlobalValuesKey {
 		return vs.validator.ValidateGlobalConfigValues(validatableValues)
 	}
 
 	return vs.validator.ValidateModuleConfigValues(valuesModuleName, validatableValues)
 }
 
-func (vs *ValuesStorage) validateValues(moduleName string, values utils.Values) error {
-	valuesModuleName := utils.ModuleNameToValuesKey(moduleName)
+func (vs *ValuesStorage) validateValues(values utils.Values) error {
+	valuesModuleName := utils.ModuleNameToValuesKey(vs.moduleName)
 	validatableValues := utils.Values{valuesModuleName: values}
 
-	if moduleName == utils.GlobalValuesKey {
+	if vs.moduleName == utils.GlobalValuesKey {
 		return vs.validator.ValidateGlobalConfigValues(validatableValues)
 	}
 
@@ -203,7 +205,7 @@ func (vs *ValuesStorage) PreCommitValues(moduleName string, v utils.Values) erro
 
 	vs.dirtyResultValues = merged
 
-	return vs.validateValues(moduleName, merged)
+	return vs.validateValues(merged)
 }
 
 func (vs *ValuesStorage) CommitConfigValues() {
@@ -216,6 +218,8 @@ func (vs *ValuesStorage) CommitConfigValues() {
 		vs.configValues = vs.dirtyConfigValues
 		vs.dirtyConfigValues = nil
 	}
+
+	_ = vs.calculateResultValues()
 }
 
 func (vs *ValuesStorage) CommitValues() {
