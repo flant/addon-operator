@@ -59,16 +59,9 @@ func (vs *ValuesStorage) SetNewConfigValues(moduleName string, configV utils.Val
 		configV,
 	)
 
-	var err error
-	if moduleName == utils.GlobalValuesKey {
-		err = vs.validator.ValidateGlobalConfigValues(merged)
-	} else {
-		err = vs.validator.ValidateModuleConfigValues(moduleName, merged)
-	}
-
 	vs.dirtyConfigValues = merged
 
-	return err
+	return vs.validateValues(moduleName, merged)
 
 	//return modules.mergeLayers(
 	//	// Init global section.
@@ -80,6 +73,17 @@ func (vs *ValuesStorage) SetNewConfigValues(moduleName string, configV utils.Val
 	//	// Merge overrides from newValues.
 	//	newValues,
 	//)
+}
+
+func (vs *ValuesStorage) validateValues(moduleName string, values utils.Values) error {
+	valuesModuleName := utils.ModuleNameToValuesKey(moduleName)
+	validatableValues := utils.Values{valuesModuleName: values}
+
+	if moduleName == utils.GlobalValuesKey {
+		return vs.validator.ValidateGlobalConfigValues(validatableValues)
+	}
+
+	return vs.validator.ValidateModuleConfigValues(valuesModuleName, validatableValues)
 }
 
 func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
@@ -115,16 +119,9 @@ func (vs *ValuesStorage) SetNewValues(moduleName string, v utils.Values) error {
 
 	fmt.Println("MERGED", merged)
 
-	var err error
-	if moduleName == utils.GlobalValuesKey {
-		err = vs.validator.ValidateGlobalValues(merged)
-	} else {
-		err = vs.validator.ValidateModuleValues(moduleName, merged)
-	}
-
 	vs.dirtyValues = v
 
-	return err
+	return vs.validateValues(moduleName, merged)
 }
 
 func (vs *ValuesStorage) ApplyDirtyConfigValues() {

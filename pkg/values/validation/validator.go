@@ -57,7 +57,7 @@ func (v *ValuesValidator) GetSchema(schemaType SchemaType, valuesType SchemaType
 func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType SchemaType, moduleName string, values utils.Values) error {
 	s := v.GetSchema(schemaType, valuesType, moduleName)
 	if s == nil {
-		log.Debugf("%s schema (%s) for '%s' values is not found", schemaType, moduleName, valuesType)
+		log.Warnf("%s schema (%s) for '%s' values is not found", schemaType, moduleName, valuesType)
 		return nil
 	}
 
@@ -92,6 +92,17 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) (multi
 	}
 
 	validator := validate.NewSchemaValidator(s, nil, rootName, strfmt.Default) // , validate.DisableObjectArrayTypeCheck(true)
+
+	switch v := dataObj.(type) {
+	case utils.Values:
+		dataObj = map[string]interface{}(v)
+
+	case map[string]interface{}:
+	// pass
+
+	default:
+		return fmt.Errorf("validated data object have to be utils.Values or map[string]interface{}, got %v instead", reflect.TypeOf(v))
+	}
 
 	result := validator.Validate(dataObj)
 	if result.IsValid() {

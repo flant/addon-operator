@@ -11,7 +11,7 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook/binding_context"
 
-	hooks2 "github.com/flant/addon-operator/pkg/module_manager/models/hooks"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/sdk"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
@@ -24,28 +24,28 @@ type GlobalModule struct {
 	hooksDir string
 
 	// probably we can use HookStorage here, but we have to add generics then
-	byBinding map[sh_op_types.BindingType][]*hooks2.GlobalHook
-	byName    map[string]*hooks2.GlobalHook
+	byBinding map[sh_op_types.BindingType][]*hooks.GlobalHook
+	byName    map[string]*hooks.GlobalHook
 
 	valuesStorage *ValuesStorage
 
 	// dependency
 	// DEPRECATED: move to values storage
 	valuesValidator validator
-	dc              *hooks2.HookExecutionDependencyContainer
+	dc              *hooks.HookExecutionDependencyContainer
 }
 
-func NewGlobalModule(hooksDir string, validator validator, dc *hooks2.HookExecutionDependencyContainer) *GlobalModule {
+func NewGlobalModule(hooksDir string, validator validator, dc *hooks.HookExecutionDependencyContainer) *GlobalModule {
 	return &GlobalModule{
 		hooksDir:      hooksDir,
-		byBinding:     make(map[sh_op_types.BindingType][]*hooks2.GlobalHook),
-		byName:        make(map[string]*hooks2.GlobalHook),
+		byBinding:     make(map[sh_op_types.BindingType][]*hooks.GlobalHook),
+		byName:        make(map[string]*hooks.GlobalHook),
 		valuesStorage: NewValuesStorage(nil, validator), // TODO(yalosev): initial
 		dc:            dc,
 	}
 }
 
-func (gm *GlobalModule) RegisterHooks() ([]*hooks2.GlobalHook, error) {
+func (gm *GlobalModule) RegisterHooks() ([]*hooks.GlobalHook, error) {
 	log.Debugf("Search and register global hooks")
 
 	hks, err := gm.searchAndRegisterHooks()
@@ -56,16 +56,16 @@ func (gm *GlobalModule) RegisterHooks() ([]*hooks2.GlobalHook, error) {
 	return hks, nil
 }
 
-func (gm *GlobalModule) GetHookByName(name string) *hooks2.GlobalHook {
+func (gm *GlobalModule) GetHookByName(name string) *hooks.GlobalHook {
 	return gm.byName[name]
 }
 
-func (gm *GlobalModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks2.GlobalHook {
+func (gm *GlobalModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.GlobalHook {
 	if len(bt) > 0 {
 		t := bt[0]
 		res, ok := gm.byBinding[t]
 		if !ok {
-			return []*hooks2.GlobalHook{}
+			return []*hooks.GlobalHook{}
 		}
 		sort.Slice(res, func(i, j int) bool {
 			return res[i].Order(t) < res[j].Order(t)
@@ -75,7 +75,7 @@ func (gm *GlobalModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks2.Global
 	}
 
 	// return all hooks
-	res := make([]*hooks2.GlobalHook, 0, len(gm.byName))
+	res := make([]*hooks.GlobalHook, 0, len(gm.byName))
 	for _, h := range gm.byName {
 		res = append(res, h)
 	}
@@ -128,7 +128,7 @@ func (gm *GlobalModule) GetName() string {
 	return utils.GlobalValuesKey
 }
 
-func (gm *GlobalModule) executeHook(h *hooks2.GlobalHook, bindingType sh_op_types.BindingType, bc []binding_context.BindingContext, logLabels map[string]string) error {
+func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types.BindingType, bc []binding_context.BindingContext, logLabels map[string]string) error {
 	// Convert bindingContext for version
 	// versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
@@ -254,6 +254,7 @@ func (gm *GlobalModule) executeHook(h *hooks2.GlobalHook, bindingType sh_op_type
 	return nil
 }
 
+// TODO(yalosev): change name, because we don't save values here, just store them as dirty
 func (gm *GlobalModule) ValidateAndSaveConfigValues(v utils.Values) error {
 	return gm.valuesStorage.SetNewConfigValues(gm.GetName(), v)
 }
@@ -320,7 +321,7 @@ func (gm *GlobalModule) handlePatch(currentValues utils.Values, valuesPatch util
 	return result, nil
 }
 
-func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks2.GlobalHook, error) {
+func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 	hks, err := gm.searchGlobalHooks()
 	if err != nil {
 		return nil, fmt.Errorf("search module hooks failed: %w", err)
@@ -369,7 +370,7 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks2.GlobalHook, error) {
 }
 
 // searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
-func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks2.GlobalHook, err error) {
+func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error) {
 	if gm.hooksDir == "" {
 		log.Warnf("Global hooks directory path is empty! No global hooks to load.")
 		return nil, nil
@@ -385,15 +386,15 @@ func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks2.GlobalHook, err error
 		return nil, err
 	}
 
-	hks = make([]*hooks2.GlobalHook, 0, len(shellHooks)+len(goHooks))
+	hks = make([]*hooks.GlobalHook, 0, len(shellHooks)+len(goHooks))
 
 	for _, sh := range shellHooks {
-		gh := hooks2.NewGlobalHook(sh, gm.dc)
+		gh := hooks.NewGlobalHook(sh, gm.dc)
 		hks = append(hks, gh)
 	}
 
 	for _, gh := range goHooks {
-		glh := hooks2.NewGlobalHook(gh, gm.dc)
+		glh := hooks.NewGlobalHook(gh, gm.dc)
 		hks = append(hks, glh)
 	}
 

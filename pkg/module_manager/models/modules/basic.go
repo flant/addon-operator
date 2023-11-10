@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	hooks2 "github.com/flant/addon-operator/pkg/module_manager/models/hooks"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 
 	sh_app "github.com/flant/shell-operator/pkg/app"
@@ -54,7 +54,7 @@ type BasicModule struct {
 	hooks *HooksStorage
 
 	// dependency
-	dc *hooks2.HookExecutionDependencyContainer
+	dc *hooks.HookExecutionDependencyContainer
 }
 
 func NewBasicModule(name, path string, order uint32, enabled bool, initialValues utils.Values, validator validator) *BasicModule {
@@ -90,7 +90,7 @@ func (bm *BasicModule) GetName() string {
 	return bm.Name
 }
 
-func (bm *BasicModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks2.ModuleHook {
+func (bm *BasicModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleHook {
 	return bm.hooks.getHooks(bt...)
 }
 
@@ -111,7 +111,7 @@ func (bm *BasicModule) ResetState() {
 //	bm.configValues = newValues
 //}
 
-func (bm *BasicModule) RegisterHooks(logger *log.Entry) ([]*hooks2.ModuleHook, error) {
+func (bm *BasicModule) RegisterHooks(logger *log.Entry) ([]*hooks.ModuleHook, error) {
 	if bm.hooks.registered {
 		logger.Debugf("Module hooks already registered")
 		return nil, nil
@@ -192,7 +192,7 @@ func (bm *BasicModule) RegisterHooks(logger *log.Entry) ([]*hooks2.ModuleHook, e
 //		},
 //	)
 
-func (bm *BasicModule) searchModuleHooks() ([]*hooks2.ModuleHook, error) {
+func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 	shellHooks, err := bm.searchModuleShellHooks()
 	if err != nil {
 		return nil, err
@@ -200,15 +200,15 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks2.ModuleHook, error) {
 
 	goHooks := bm.searchModuleGoHooks()
 
-	mHooks := make([]*hooks2.ModuleHook, 0, len(shellHooks)+len(goHooks))
+	mHooks := make([]*hooks.ModuleHook, 0, len(shellHooks)+len(goHooks))
 
 	for _, sh := range shellHooks {
-		mh := hooks2.NewModuleHook(sh)
+		mh := hooks.NewModuleHook(sh)
 		mHooks = append(mHooks, mh)
 	}
 
 	for _, gh := range goHooks {
-		mh := hooks2.NewModuleHook(gh)
+		mh := hooks.NewModuleHook(gh)
 		mHooks = append(mHooks, mh)
 	}
 
@@ -262,7 +262,7 @@ func (bm *BasicModule) searchModuleGoHooks() (hks []*kind.GoHook) {
 	return hks
 }
 
-func (bm *BasicModule) searchAndRegisterHooks(logger *log.Entry) ([]*hooks2.ModuleHook, error) {
+func (bm *BasicModule) searchAndRegisterHooks(logger *log.Entry) ([]*hooks.ModuleHook, error) {
 	hks, err := bm.searchModuleHooks()
 	if err != nil {
 		return nil, fmt.Errorf("search module hooks failed: %w", err)
@@ -619,7 +619,7 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 }
 
 // instead on ModuleHook.Run
-func (bm *BasicModule) executeHook(h *hooks2.ModuleHook, bindingType sh_op_types.BindingType, context []binding_context.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
+func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.BindingType, context []binding_context.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"hook":      h.GetName(),
 		"hook.type": "module",
@@ -839,7 +839,7 @@ func (bm *BasicModule) HasKubernetesHooks() bool {
 	return len(hks) > 0
 }
 
-func (bm *BasicModule) GetHookByName(name string) *hooks2.ModuleHook {
+func (bm *BasicModule) GetHookByName(name string) *hooks.ModuleHook {
 	return bm.hooks.getHookByName(name)
 }
 
