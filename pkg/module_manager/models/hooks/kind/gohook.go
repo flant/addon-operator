@@ -57,6 +57,12 @@ func (h *GoHook) GetHookController() controller.HookController {
 	return h.basicHook.HookController
 }
 
+// GetBasicHook returns hook for shell-operator
+// Deprecated: don't use it for production purposes. You don't need such a low level for working with hooks
+func (h *GoHook) GetBasicHook() sh_hook.Hook {
+	return h.basicHook
+}
+
 func (h *GoHook) WithTmpDir(tmpDir string) {
 	h.basicHook.TmpDir = tmpDir
 }

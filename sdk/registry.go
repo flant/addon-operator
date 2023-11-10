@@ -80,6 +80,22 @@ func (h *HookRegistry) GetGlobalHooks() []*kind.GoHook {
 	return h.globalHooks
 }
 
+// Hooks returns all (module and global) hooks
+// Deprecated: method exists for backward compatibility, use GetGlobalHooks or GetModuleHooks instead
+func (h *HookRegistry) Hooks() []*kind.GoHook {
+	res := make([]*kind.GoHook, 0, len(h.globalHooks)+len(h.modulesHooks))
+
+	for _, hooks := range h.modulesHooks {
+		res = append(res, hooks...)
+	}
+
+	for _, ghook := range h.globalHooks {
+		res = append(res, ghook)
+	}
+
+	return res
+}
+
 func (h *HookRegistry) Add(hook *kind.GoHook) {
 	config := hook.GetConfig()
 	if config.OnStartup != nil && len(config.Kubernetes) > 0 {
