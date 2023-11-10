@@ -177,10 +177,8 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 
 	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
-		currentConfigValuesForPatch := utils.Values{"global": configValues}
-
 		// Apply patch to get intermediate updated values.
-		configValuesPatchResult, err := gm.handlePatch(currentConfigValuesForPatch, *configValuesPatch)
+		configValuesPatchResult, err := gm.handlePatch(configValues, *configValuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': kube config global values update error: %s", h.GetName(), err)
 		}
@@ -219,11 +217,8 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 
 	valuesPatch, has := hookResult.Patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
-		// TODO: remove "global", move it to handlePatch
-		valuesForPatch := utils.Values{"global": values}
-
 		// Apply patch to get intermediate updated values.
-		valuesPatchResult, err := gm.handlePatch(valuesForPatch, *valuesPatch)
+		valuesPatchResult, err := gm.handlePatch(values, *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': dynamic global values update error: %s", h.GetName(), err)
 		}
