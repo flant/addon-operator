@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/flant/addon-operator/pkg/utils"
+
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 
 	"github.com/go-chi/chi/v5"
@@ -49,26 +51,51 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 
 func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (interface{}, error) {
-		modules := op.ModuleManager.GetEnabledModuleNames()
-		sort.Strings(modules)
-		return map[string][]string{"enabledModules": modules}, nil
+		mods := op.ModuleManager.GetEnabledModuleNames()
+		sort.Strings(mods)
+		return map[string][]string{"enabledModules": mods}, nil
 	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/{type:(config|values)}.{format:(json|yaml)}", func(r *http.Request) (interface{}, error) {
 		modName := chi.URLParam(r, "name")
 		valType := chi.URLParam(r, "type")
 
+		withGlobal := false
+		withGlobalStr := r.URL.Query().Get("global")
+		v, err := strconv.ParseBool(withGlobalStr)
+		if err == nil {
+			withGlobal = v
+		}
+
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
 			return nil, fmt.Errorf("module not found")
 		}
 
-		switch valType {
-		case "config":
-			return m.GetConfigValues(), nil
-		case "values":
-			return m.GetValues(), nil
+		if withGlobal {
+			global := op.ModuleManager.GetGlobal()
+
+			switch valType {
+			case "config":
+				return utils.Values{
+					"global":                                 global.GetConfigValues(),
+					utils.ModuleNameToValuesKey(m.GetName()): m.GetConfigValues(),
+				}, nil
+			case "values":
+				return utils.Values{
+					"global":                                 global.GetValues(),
+					utils.ModuleNameToValuesKey(m.GetName()): m.GetValues(),
+				}, nil
+			}
+		} else {
+			switch valType {
+			case "config":
+				return m.GetConfigValues(), nil
+			case "values":
+				return m.GetValues(), nil
+			}
 		}
+
 		return "no values", nil
 	})
 

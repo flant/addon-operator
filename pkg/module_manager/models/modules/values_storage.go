@@ -80,27 +80,34 @@ func NewValuesStorage(moduleName string, staticValues utils.Values, validator va
 	return vs
 }
 
+func (vs *ValuesStorage) openapiDefaultsTransformer(schemaType validation.SchemaType) transformer {
+	if vs.moduleName == utils.GlobalValuesKey {
+		return &applyDefaultsForGlobal{
+			SchemaType:      schemaType,
+			ValuesValidator: vs.validator,
+		}
+	}
+
+	return &applyDefaultsForModule{
+		ModuleName:      vs.moduleName,
+		SchemaType:      schemaType,
+		ValuesValidator: vs.validator,
+	}
+}
+
 func (vs *ValuesStorage) calculateResultValues() error {
 	merged := mergeLayers(
 		// Init static values (from modules/values.yaml and modules/XXX/values.yaml)
 		vs.staticConfigValues,
 
 		// from openapi config spec
-		&applyDefaultsForModule{
-			ModuleName:      vs.moduleName,
-			SchemaType:      validation.ConfigValuesSchema,
-			ValuesValidator: vs.validator,
-		},
+		vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
 
 		// from configValues
 		vs.configValues,
 
 		// from openapi values spec
-		&applyDefaultsForModule{
-			ModuleName:      vs.moduleName,
-			SchemaType:      validation.ValuesSchema,
-			ValuesValidator: vs.validator,
-		},
+		vs.openapiDefaultsTransformer(validation.ValuesSchema),
 	)
 	// from patches
 	// Compact patches so we could execute all at once.
@@ -114,6 +121,10 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	merged, _, err := utils.ApplyValuesPatch(merged, ops, utils.IgnoreNonExistentPaths)
 	if err != nil {
 		return err
+	}
+
+	if vs.moduleName == "global" {
+		fmt.Println("CALC GLOBAL", merged)
 	}
 
 	vs.resultValues = merged

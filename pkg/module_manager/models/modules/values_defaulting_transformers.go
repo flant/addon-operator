@@ -5,9 +5,13 @@ import (
 	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
+type transformer interface {
+	Transform(values utils.Values) utils.Values
+}
+
 type applyDefaultsForGlobal struct {
 	SchemaType      validation.SchemaType
-	ValuesValidator *validation.ValuesValidator
+	ValuesValidator validator
 }
 
 func (a *applyDefaultsForGlobal) Transform(values utils.Values) utils.Values {
