@@ -98,13 +98,22 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 					validation.ApplyDefaults(initialValues, s)
 				}
 
-				err = fl.valuesValidator.ValidateModuleValues(valuesModuleName, initialValues)
-				if err != nil {
-					return nil, fmt.Errorf("validation failed: %w", err)
+				if moduleEnabled {
+					// we don't need to validate values for disabled modules
+					err = fl.valuesValidator.ValidateModuleValues(valuesModuleName, initialValues)
+					if err != nil {
+						return nil, fmt.Errorf("validation failed: %w", err)
+					}
 				}
 			}
 
-			moduleValues := initialValues[valuesModuleName].(map[string]interface{})
+			//
+			moduleValues, ok := initialValues[valuesModuleName].(map[string]interface{})
+			if !ok {
+				// TODO: think about
+				fmt.Println(valuesModuleName, moduleValues)
+				panic("Here")
+			}
 
 			bm := modules.NewBasicModule(module.Name, module.Path, module.Order, moduleEnabled, moduleValues, fl.valuesValidator)
 
