@@ -142,11 +142,7 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values) error {
 		vs.staticConfigValues,
 
 		// defaults from openapi
-		&applyDefaultsForModule{
-			ModuleName:      vs.moduleName,
-			SchemaType:      validation.ConfigValuesSchema,
-			ValuesValidator: vs.validator,
-		},
+		vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
 
 		// User configured values (ConfigValues)
 		configV,
@@ -204,11 +200,7 @@ func (vs *ValuesStorage) PreCommitValues(moduleName string, v utils.Values) erro
 		vs.mergedConfigValues,
 
 		// defaults from openapi value
-		&applyDefaultsForModule{
-			ModuleName:      moduleName,
-			SchemaType:      validation.ValuesSchema,
-			ValuesValidator: vs.validator,
-		},
+		vs.openapiDefaultsTransformer(validation.ValuesSchema),
 
 		// new values
 		v,
