@@ -955,6 +955,9 @@ func (mm *ModuleManager) UpdateModuleDynamicValuesPatches(moduleName string, val
 }
 
 func (mm *ModuleManager) ApplyModuleDynamicValuesPatches(moduleName string, values utils.Values) (utils.Values, error) {
+	mm.valuesLayersLock.RLock()
+	defer mm.valuesLayersLock.RUnlock()
+
 	var err error
 	res := values
 
@@ -962,7 +965,7 @@ func (mm *ModuleManager) ApplyModuleDynamicValuesPatches(moduleName string, valu
 	// Each ApplyValuesPatch execution invokes json.Marshal for values.
 	ops := *utils.NewValuesPatch() // TODO(nabokihms): The values is always not nil, consider refactoring the method
 
-	for _, patch := range mm.ModuleDynamicValuesPatches(moduleName) {
+	for _, patch := range mm.modulesDynamicValuesPatches[moduleName] {
 		ops.Operations = append(ops.Operations, patch.Operations...)
 	}
 
