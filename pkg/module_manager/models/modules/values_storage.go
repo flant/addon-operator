@@ -48,6 +48,10 @@ func (vs *ValuesStorage) SetStaticConfigValues(v utils.Values) error {
 }
 
 func (vs *ValuesStorage) SetNewConfigValues(moduleName string, configV utils.Values) error {
+	fmt.Println("SET NEW CONFIG VALUES", moduleName, configV)
+
+	fmt.Println("STATIC ", vs.staticConfigValues)
+	fmt.Println("NEW ", configV)
 	merged := mergeLayers(
 		// Init static values (from modules/values.yaml)
 		vs.staticConfigValues,

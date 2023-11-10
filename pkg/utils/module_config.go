@@ -71,18 +71,17 @@ func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 //	testModule:
 //	  a: b
 //	  c: d
-/* TODO: since we have specified struct for module values, we don't need to encapsulate them into the map {"<moduleName>": ... }
-   we have to change this behavior somewhere in the module-manager */
 func (mc *ModuleConfig) GetValues() Values {
 	if len(mc.values) == 0 {
 		return mc.values
 	}
 
-	if mc.values.HasKey(ModuleNameToValuesKey(mc.ModuleName)) {
-		return mc.values
+	valuesModuleName := ModuleNameToValuesKey(mc.ModuleName)
+	if mc.values.HasKey(valuesModuleName) {
+		return mc.values[valuesModuleName].(Values)
 	}
 
-	return Values{ModuleNameToValuesKey(mc.ModuleName): mc.values}
+	return mc.values
 }
 
 // LoadFromValues loads module config from a map.

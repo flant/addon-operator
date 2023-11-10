@@ -255,7 +255,7 @@ func (gm *GlobalModule) executeHook(h *hooks2.GlobalHook, bindingType sh_op_type
 }
 
 func (gm *GlobalModule) ValidateAndSaveConfigValues(v utils.Values) error {
-	return gm.valuesStorage.SetNewValues(gm.GetName(), v)
+	return gm.valuesStorage.SetNewConfigValues(gm.GetName(), v)
 }
 
 func (gm *GlobalModule) ConfigValuesHaveChanges() bool {
