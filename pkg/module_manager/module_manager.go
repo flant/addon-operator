@@ -447,10 +447,10 @@ func (mm *ModuleManager) calculateEnabledModulesByConfig(config *config.KubeConf
 			}
 		}
 
-		moduleEnabledByConfig := ml.IsEnabled()
+		_, isEnabledByConfig := mm.enabledModulesByConfig[ml.GetName()]
 
 		isEnabled := mergeEnabled(
-			&moduleEnabledByConfig,
+			&isEnabledByConfig,
 			kubeConfigEnabled,
 		)
 
@@ -460,7 +460,7 @@ func (mm *ModuleManager) calculateEnabledModulesByConfig(config *config.KubeConf
 
 		log.Debugf("enabledByConfig: module '%s' enabled flags: moduleConfig'%v', kubeConfig '%v', result: '%v'",
 			ml.GetName(),
-			ml.IsEnabled(),
+			isEnabledByConfig,
 			kubeConfigEnabledStr,
 			isEnabled)
 	}
@@ -498,11 +498,18 @@ func (mm *ModuleManager) calculateEnabledModulesWithDynamic(enabledByConfig map[
 func (mm *ModuleManager) Init() error {
 	log.Debug("Init ModuleManager")
 
-	if err := mm.RegisterGlobalModule(); err != nil {
+	globalValues, enabledModules, err := mm.loadGlobalValues()
+	if err != nil {
 		return err
 	}
 
-	return mm.RegisterModules()
+	mm.enabledModulesByConfig = enabledModules
+
+	if err := mm.registerGlobalModule(globalValues); err != nil {
+		return err
+	}
+
+	return mm.registerModules()
 }
 
 //// validateKubeConfig checks validity of all sections in ConfigMap with OpenAPI schemas.

@@ -64,13 +64,18 @@ type ValuesStorage struct {
 	validator validator
 }
 
-func NewValuesStorage(staticValues utils.Values, validator validator) *ValuesStorage {
-	return &ValuesStorage{
+func NewValuesStorage(moduleName string, staticValues utils.Values, validator validator) *ValuesStorage {
+	vs := &ValuesStorage{
 		staticConfigValues: staticValues,
 		validator:          validator,
-		// TODO(yalosev): tmp
-		resultValues: staticValues,
 	}
+	err := vs.calculateResultValues(moduleName)
+	if err != nil {
+		fmt.Println("ERR ON V Storage", err)
+		panic(err)
+	}
+
+	return vs
 }
 
 func (vs *ValuesStorage) calculateResultValues(moduleName string) error {
@@ -106,7 +111,7 @@ func (vs *ValuesStorage) calculateResultValues(moduleName string) error {
 
 	merged, _, err := utils.ApplyValuesPatch(merged, ops, utils.IgnoreNonExistentPaths)
 	if err != nil {
-		panic("Should not have error here")
+		return err
 	}
 
 	vs.dirtyResultValues = merged
@@ -229,4 +234,8 @@ func (vs *ValuesStorage) GetValues() utils.Values {
 
 func (vs *ValuesStorage) GetConfigValues() utils.Values {
 	return vs.configValues
+}
+
+func (vs *ValuesStorage) AppendValuesPatch(patch utils.ValuesPatch) {
+	vs.valuesPatches = utils.AppendValuesPatch(vs.valuesPatches, patch)
 }

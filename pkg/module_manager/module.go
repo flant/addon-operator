@@ -890,8 +890,8 @@ import (
 //}
 //
 
-// RegisterModules load all available modules from modules directory.
-func (mm *ModuleManager) RegisterModules() error {
+// registerModules load all available modules from modules directory.
+func (mm *ModuleManager) registerModules() error {
 	if mm.ModulesDir == "" {
 		log.Warnf("Empty modules directory is passed! No modules to load.")
 		return nil

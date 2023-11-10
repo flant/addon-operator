@@ -2,8 +2,8 @@ package module_manager
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
@@ -14,48 +14,60 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (mm *ModuleManager) RegisterGlobalModule() error {
+func (mm *ModuleManager) loadGlobalValues() ( /* global values */ utils.Values /* enabled modules */, map[string]struct{}, error) {
+	resultGlobalValues := utils.Values{}
+	enabledModules := make(map[string]struct{})
 
-	// TODO(yalosev): tmp
-	index := strings.Index(mm.ModulesDir, ":")
-	first := mm.ModulesDir[:index]
+	dirs := utils.SplitToPaths(mm.ModulesDir)
+	for _, dir := range dirs {
+		commonStaticValues, err := utils.LoadValuesFileFromDir(dir)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	valuesFilePath := filepath.Join(first, "values.yaml")
-	valuesYaml, err := os.ReadFile(valuesFilePath)
-	if err != nil && os.IsNotExist(err) {
-		log.Debugf("No static values file '%s': %v", valuesFilePath, err)
-		//return nil, nil
+		for key, value := range commonStaticValues {
+			if key == utils.GlobalValuesKey {
+				section := commonStaticValues.GetKeySection(utils.GlobalValuesKey)
+				resultGlobalValues = utils.MergeValues(resultGlobalValues, section)
+				continue
+			}
+
+			if strings.HasSuffix(key, "Enabled") {
+				enabled := false
+
+				switch v := value.(type) {
+				case bool:
+					enabled = v
+				case string:
+					enabled, _ = strconv.ParseBool(v)
+				default:
+					return nil, nil, fmt.Errorf("unknown type for Enabled flag: %s: %T", key, value)
+				}
+
+				if enabled {
+					enabledModules[key] = struct{}{}
+				}
+			}
+		}
 	}
+
+	cb, vb, err := utils.ReadOpenAPIFiles(filepath.Join(mm.GlobalHooksDir, "openapi"))
 	if err != nil {
-		return fmt.Errorf("load values file '%s': %s", valuesFilePath, err)
+		return nil, nil, err
 	}
 
-	values, err := utils.NewValuesFromBytes(valuesYaml)
-	if err != nil {
-		return err
+	if cb != nil && vb != nil {
+		// set openapi global spec to storage
+		err = mm.ValuesValidator.SchemaStorage.AddGlobalValuesSchemas(cb, vb)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
-	var globalValues utils.Values
-	switch v := values["global"].(type) {
-	case map[string]interface{}:
-		globalValues = utils.Values(v)
+	return resultGlobalValues, enabledModules, nil
+}
 
-	case utils.Values:
-		globalValues = v
-	}
-
-	// Load validation schemas
-	openApiDir := filepath.Join(mm.GlobalHooksDir, "openapi")
-	configBytes, valuesBytes, err := readOpenAPIFiles(openApiDir)
-	if err != nil {
-		return fmt.Errorf("read global openAPI schemas: %v", err)
-	}
-
-	err = mm.ValuesValidator.SchemaStorage.AddGlobalValuesSchemas(configBytes, valuesBytes)
-	if err != nil {
-		return fmt.Errorf("add global schemas: %v", err)
-	}
-
+func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values) error {
 	log.Infof(mm.ValuesValidator.SchemaStorage.GlobalSchemasDescription())
 
 	// load and registry global hooks
@@ -66,9 +78,7 @@ func (mm *ModuleManager) RegisterGlobalModule() error {
 		MetricStorage:      mm.dependencies.MetricStorage,
 	}
 
-	vs := modules.NewValuesStorage(globalValues, mm.ValuesValidator)
-	// TODO(yalosev): load static values
-	gm := modules.NewGlobalModule(mm.GlobalHooksDir, vs, mm.ValuesValidator, &dep)
+	gm := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, mm.ValuesValidator, &dep)
 	mm.global = gm
 
 	return mm.registerGlobalHooks(gm)

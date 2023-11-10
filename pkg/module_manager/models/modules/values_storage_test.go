@@ -39,7 +39,7 @@ default: {}
 	vv := validation.NewValuesValidator()
 	err := vv.SchemaStorage.AddGlobalValuesSchemas([]byte(cfg), []byte(vcfg))
 	require.NoError(t, err)
-	st := NewValuesStorage(initial, vv)
+	st := NewValuesStorage("global", initial, vv)
 
 	configV := utils.Values{
 		"highAvailability": true,

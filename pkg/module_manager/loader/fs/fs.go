@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/values/validation"
@@ -18,11 +17,6 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-const (
-	PathsSeparator = ":"
-	ValuesFileName = "values.yaml"
-)
-
 type FileSystemLoader struct {
 	dirs []string
 
@@ -31,7 +25,7 @@ type FileSystemLoader struct {
 
 func NewFileSystemLoader(moduleDirs string, vv *validation.ValuesValidator) *FileSystemLoader {
 	return &FileSystemLoader{
-		dirs:            splitToPaths(moduleDirs),
+		dirs:            utils.SplitToPaths(moduleDirs),
 		valuesValidator: vv,
 	}
 }
@@ -40,7 +34,7 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 	result := make([]*modules.BasicModule, 0)
 
 	for _, dir := range fl.dirs {
-		commonStaticValues, err := loadValuesFileFromDir(dir)
+		commonStaticValues, err := utils.LoadValuesFileFromDir(dir)
 		if err != nil {
 			return nil, err
 		}
@@ -57,28 +51,21 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 			}
 
 			valuesModuleName := utils.ModuleNameToValuesKey(module.Name)
-			moduleEnabled := false
 			initialValues := utils.Values{valuesModuleName: map[string]interface{}{}}
 			// build initial values
 			// 1. from common static values
 			if commonStaticValues.HasKey(valuesModuleName) {
 				initialValues = utils.MergeValues(initialValues, commonStaticValues)
 			}
-			if commonStaticValues.HasKey(valuesModuleName + "Enabled") {
-				moduleEnabled = true
-			}
 
 			// 2. from module static values
-			moduleStaticValues, err := loadValuesFileFromDir(module.Path)
+			moduleStaticValues, err := utils.LoadValuesFileFromDir(module.Path)
 			if err != nil {
 				return nil, err
 			}
 
 			if moduleStaticValues != nil {
 				initialValues = utils.MergeValues(initialValues, moduleStaticValues)
-				if moduleStaticValues.HasKey(valuesModuleName + "Enabled") {
-					moduleEnabled = true
-				}
 			}
 
 			// 3. from openapi defaults
@@ -93,31 +80,17 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 				if err != nil {
 					return nil, err
 				}
-
-				//s := fl.valuesValidator.SchemaStorage.ModuleValuesSchema(valuesModuleName, validation.ModuleSchema)
-				//if s != nil {
-				//	validation.ApplyDefaults(initialValues, s)
-				//}
-				//
-				//if moduleEnabled {
-				//	// we don't need to validate values for disabled modules
-				//	err = fl.valuesValidator.ValidateModuleValues(valuesModuleName, initialValues)
-				//	if err != nil {
-				//		return nil, fmt.Errorf("validation failed: %w", err)
-				//	}
-				//}
 			}
 
 			//
 			moduleValues, ok := initialValues[valuesModuleName].(map[string]interface{})
 			if !ok {
-				// TODO: think about
+				// TODO(yalosev): think about
 				fmt.Println(valuesModuleName, moduleValues)
 				panic("Here")
 			}
 
-			vs := modules.NewValuesStorage(moduleValues, fl.valuesValidator)
-			bm := modules.NewBasicModule(module.Name, module.Path, module.Order, moduleEnabled, vs, fl.valuesValidator)
+			bm := modules.NewBasicModule(module.Name, module.Path, module.Order, moduleValues, fl.valuesValidator)
 
 			result = append(result, bm)
 		}
@@ -130,38 +103,6 @@ type moduleDefinition struct {
 	Name  string
 	Path  string
 	Order uint32
-}
-
-//func (fl *FileSystemLoader) searchModules(modulesDirs string) (*moduleset.ModulesSet, error) {
-//	paths := splitToPaths(modulesDirs)
-//	mset := new(moduleset.ModulesSet)
-//	for _, path := range paths {
-//		modulesInDir, err := fl.findModulesInDir(path)
-//		if err != nil {
-//			return nil, err
-//		}
-//
-//		// Add only "new" modules. Modules from first directories are in top priority as commands in $PATH.
-//		for _, module := range modulesInDir {
-//			if !mset.Has(module.Name) {
-//				mset.Add(module)
-//			}
-//		}
-//	}
-//
-//	return mset, nil
-//}
-
-func splitToPaths(dir string) []string {
-	res := make([]string, 0)
-	paths := strings.Split(dir, PathsSeparator)
-	for _, path := range paths {
-		if path == "" {
-			continue
-		}
-		res = append(res, path)
-	}
-	return res
 }
 
 func (fl *FileSystemLoader) findModulesInDir(modulesDir string) ([]moduleDefinition, error) {
@@ -219,7 +160,7 @@ func resolveDirEntry(dirPath string, entry os.DirEntry) (string, string, error) 
 		return name, targetPath, nil
 	}
 
-	if name != ValuesFileName {
+	if name != utils.ValuesFileName {
 		log.Warnf("Ignore '%s' while searching for modules", absPath)
 	}
 	return "", "", nil
@@ -285,26 +226,6 @@ func parseUintOrDefault(num string, defaultValue uint32) uint32 {
 	return uint32(val)
 }
 
-// finds values.yaml files in the specified directory.
-func loadValuesFileFromDir(dir string) (utils.Values, error) {
-	valuesFilePath := filepath.Join(dir, ValuesFileName)
-	valuesYaml, err := os.ReadFile(valuesFilePath)
-	if err != nil && os.IsNotExist(err) && !app.StrictModeEnabled {
-		log.Debugf("No static values file '%s': %v", valuesFilePath, err)
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("load values file '%s': %s", valuesFilePath, err)
-	}
-
-	values, err := utils.NewValuesFromBytes(valuesYaml)
-	if err != nil {
-		return nil, err
-	}
-
-	return values, nil
-}
-
 // readOpenAPIFiles reads config-values.yaml and values.yaml from the specified directory.
 // Global schemas:
 //
@@ -316,28 +237,5 @@ func loadValuesFileFromDir(dir string) (utils.Values, error) {
 //	/modules/XXX-module-name/openapi/config-values.yaml
 //	/modules/XXX-module-name/openapi/values.yaml
 func (fl *FileSystemLoader) readOpenAPIFiles(openApiDir string) (configValuesBytes, valuesBytes []byte, err error) {
-	if openApiDir == "" {
-		return nil, nil, nil
-	}
-	if _, err := os.Stat(openApiDir); os.IsNotExist(err) {
-		return nil, nil, nil
-	}
-
-	configPath := filepath.Join(openApiDir, "config-values.yaml")
-	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
-		configValuesBytes, err = os.ReadFile(configPath)
-		if err != nil {
-			return nil, nil, fmt.Errorf("read file '%s': %v", configPath, err)
-		}
-	}
-
-	valuesPath := filepath.Join(openApiDir, "values.yaml")
-	if _, err := os.Stat(valuesPath); !os.IsNotExist(err) {
-		valuesBytes, err = os.ReadFile(valuesPath)
-		if err != nil {
-			return nil, nil, fmt.Errorf("read file '%s': %v", valuesPath, err)
-		}
-	}
-
-	return
+	return utils.ReadOpenAPIFiles(openApiDir)
 }

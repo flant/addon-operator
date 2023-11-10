@@ -18,8 +18,7 @@ foo:
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))
 	require.NoError(t, err)
 	vv := validation.NewValuesValidator()
-	vs := NewValuesStorage(value, vv)
-	bm := NewBasicModule("test-1", "/tmp/test", 100, true, vs, vv)
+	bm := NewBasicModule("test-1", "/tmp/test", 100, value, vv)
 
 	patch := utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
 		{

@@ -35,15 +35,12 @@ type GlobalModule struct {
 	dc              *hooks.HookExecutionDependencyContainer
 }
 
-func NewGlobalModule(hooksDir string, vs *ValuesStorage, validator validator, dc *hooks.HookExecutionDependencyContainer) *GlobalModule {
-	if vs == nil {
-		vs = NewValuesStorage(utils.Values{}, validator)
-	}
+func NewGlobalModule(hooksDir string, staticValues utils.Values, validator validator, dc *hooks.HookExecutionDependencyContainer) *GlobalModule {
 	return &GlobalModule{
 		hooksDir:      hooksDir,
 		byBinding:     make(map[sh_op_types.BindingType][]*hooks.GlobalHook),
 		byName:        make(map[string]*hooks.GlobalHook),
-		valuesStorage: vs,
+		valuesStorage: NewValuesStorage("global", staticValues, validator),
 		dc:            dc,
 	}
 }
@@ -233,6 +230,8 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 			}
 
 			gm.valuesStorage.CommitValues()
+
+			gm.valuesStorage.AppendValuesPatch(valuesPatchResult.ValuesPatch)
 
 			logEntry.Debugf("Global hook '%s': kube global values updated", h.GetName())
 			logEntry.Debugf("New global values:\n%s", gm.valuesStorage.GetValues().DebugString())

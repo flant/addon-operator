@@ -126,6 +126,22 @@ func (v Values) HasKey(key string) bool {
 	return has
 }
 
+func (v Values) GetKeySection(key string) Values {
+	section, has := v[key]
+	if !has {
+		return Values{}
+	}
+	switch sec := section.(type) {
+	case map[string]interface{}:
+		return sec
+
+	case Values:
+		return sec
+	}
+
+	return Values{}
+}
+
 func (v Values) HasGlobal() bool {
 	_, has := v[GlobalValuesKey]
 	return has

@@ -41,14 +41,6 @@ type BasicModule struct {
 
 	valuesStorage *ValuesStorage
 
-	// TODO: rethink this
-	dynamicValuesPatch []utils.ValuesPatch
-
-	//Enabled bool
-
-	// TODO(yalosev): don't like this flag, have to think about it
-	enabledByConfig bool
-
 	state *moduleState
 
 	hooks *HooksStorage
@@ -57,17 +49,12 @@ type BasicModule struct {
 	dc *hooks.HookExecutionDependencyContainer
 }
 
-func NewBasicModule(name, path string, order uint32, enabled bool, vs *ValuesStorage, validator validator) *BasicModule {
-	if vs == nil {
-		vs = NewValuesStorage(utils.Values{}, validator)
-	}
+func NewBasicModule(name, path string, order uint32, staticValues utils.Values, validator validator) *BasicModule {
 	return &BasicModule{
-		Name:               name,
-		Order:              order,
-		Path:               path,
-		valuesStorage:      vs,
-		dynamicValuesPatch: nil,
-		enabledByConfig:    enabled,
+		Name:          name,
+		Order:         order,
+		Path:          path,
+		valuesStorage: NewValuesStorage(name, staticValues, validator),
 		state: &moduleState{
 			Phase:                Startup,
 			hookErrors:           make(map[string]error),
@@ -83,10 +70,6 @@ func (bm *BasicModule) GetBaseModule() *BasicModule {
 }
 func (bm *BasicModule) GetOrder() uint32 {
 	return bm.Order
-}
-
-func (bm *BasicModule) IsEnabled() bool {
-	return bm.enabledByConfig
 }
 
 func (bm *BasicModule) GetName() string {
@@ -742,9 +725,8 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 			}
 
 			// Save patch set if everything is ok.
-			//bm.dynamicValuesPatch = utils.AppendValuesPatch(bm.dynamicValuesPatch, valuesPatchResult.ValuesPatch)
+			bm.valuesStorage.AppendValuesPatch(valuesPatchResult.ValuesPatch)
 			bm.valuesStorage.CommitValues()
-			//newValues := bm.GetValues()
 
 			logEntry.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetValues().DebugString())
 		}
