@@ -224,8 +224,10 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		// and no patches for 'global' section — valuesPatchResult will be nil in this case.
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Global hook '%s': validate global values before update", h.GetName())
-			validationErr := gm.valuesStorage.PreCommitValues(gm.GetName(), valuesPatchResult.Values)
+			validationErr := gm.valuesStorage.PreCommitValues(valuesPatchResult.Values)
 			if validationErr != nil {
+				fmt.Println("BEFORE VALUES", gm.GetValues())
+				fmt.Println("PATCH", valuesPatchResult.Values)
 				return fmt.Errorf("cannot apply values patch for global values: %w", validationErr)
 			}
 

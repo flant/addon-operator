@@ -61,6 +61,8 @@ type ValuesStorage struct {
 	dirtyConfigValues       utils.Values
 	dirtyMergedConfigValues utils.Values
 
+	// TODO: acutally, we don't need the validator with all Schemas here,
+	// we can put a single openapi schema for the specified module
 	validator  validator
 	moduleName string
 }
@@ -97,6 +99,7 @@ func (vs *ValuesStorage) openapiDefaultsTransformer(schemaType validation.Schema
 
 func (vs *ValuesStorage) calculateResultValues() error {
 	merged := mergeLayers(
+		utils.Values{},
 		// Init static values (from modules/values.yaml and modules/XXX/values.yaml)
 		vs.staticConfigValues,
 
@@ -138,6 +141,7 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values) error {
 	fmt.Println("STATIC ", vs.staticConfigValues)
 	fmt.Println("NEW ", configV)
 	merged := mergeLayers(
+		utils.Values{},
 		// Init static values
 		vs.staticConfigValues,
 
@@ -150,6 +154,8 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values) error {
 
 	vs.dirtyMergedConfigValues = merged
 	vs.dirtyConfigValues = configV
+
+	fmt.Println("AFTER", vs.staticConfigValues)
 
 	return vs.validateConfigValues(merged)
 }
@@ -188,14 +194,23 @@ func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
 	return false
 }
 
-func (vs *ValuesStorage) PreCommitValues(moduleName string, v utils.Values) error {
-	fmt.Println("SET NEW VALUES", moduleName, v)
+func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
+	if vs.mergedConfigValues == nil {
+		vs.mergedConfigValues = mergeLayers(
+			utils.Values{},
+			// Init static values
+			vs.staticConfigValues,
 
-	fmt.Println("STATIC ", vs.staticConfigValues)
-	fmt.Println("CONFIG ", vs.configValues)
-	fmt.Println("NEW ", v)
+			// defaults from openapi
+			vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
+
+			// User configured values (ConfigValues)
+			vs.configValues,
+		)
+	}
 
 	merged := mergeLayers(
+		utils.Values{},
 		// Init static values (from modules/values.yaml)
 		vs.mergedConfigValues,
 

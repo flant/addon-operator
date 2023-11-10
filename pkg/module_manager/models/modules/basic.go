@@ -576,6 +576,7 @@ func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) 
 
 	// TODO: ??????
 	res = mergeLayers(
+		utils.Values{},
 		res,
 		utils.Values{
 			"global": map[string]interface{}{
@@ -716,7 +717,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		if valuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Module hook '%s': validate module values before update", h.GetName())
 			// Validate schema for updated module values
-			validationErr := bm.valuesStorage.PreCommitValues(bm.Name, valuesPatchResult.Values)
+			validationErr := bm.valuesStorage.PreCommitValues(valuesPatchResult.Values)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply values patch for module values"),

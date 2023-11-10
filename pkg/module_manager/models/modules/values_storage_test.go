@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,8 @@ type: object
 default: {}
 additionalProperties: false
 properties:
+  xxx:
+    type: string
   highAvailability:
     type: boolean
   modules:
@@ -33,9 +36,19 @@ x-extend:
   schema: config-values.yaml
 type: object
 default: {}
+properties:
+  internal:
+    type: object
+    default: {}
+    properties:
+      fooBar:
+        type: string
+        default: baz
 `
 
-	initial := utils.Values{}
+	initial := utils.Values{
+		"xxx": "yyy",
+	}
 	vv := validation.NewValuesValidator()
 	err := vv.SchemaStorage.AddGlobalValuesSchemas([]byte(cfg), []byte(vcfg))
 	require.NoError(t, err)
@@ -48,6 +61,9 @@ default: {}
 		},
 	}
 
-	err = st.PreCommitConfigValues("global", configV)
+	err = st.PreCommitConfigValues(configV)
 	assert.NoError(t, err)
+	st.CommitConfigValues()
+	st.calculateResultValues()
+	fmt.Println(st.GetValues())
 }
