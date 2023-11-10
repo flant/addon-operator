@@ -18,8 +18,8 @@ func merge(dst, src map[string]interface{}, depth int) map[string]interface{} {
 	}
 	for key, srcVal := range src {
 		if dstVal, ok := dst[key]; ok {
-			srcMap, srcMapOk := mapifyAlwaysCopy(srcVal)
-			dstMap, dstMapOk := mapifyAlwaysCopy(dstVal)
+			srcMap, srcMapOk := mapify(srcVal)
+			dstMap, dstMapOk := mapify(dstVal)
 			if srcMapOk && dstMapOk {
 				srcVal = merge(dstMap, srcMap, depth+1)
 			}
@@ -37,20 +37,6 @@ func mapify(i interface{}) (map[string]interface{}, bool) {
 		return v, true
 	}
 
-	value := reflect.ValueOf(i)
-	if value.Kind() == reflect.Map {
-		m := make(map[string]interface{}, value.Len())
-		for _, k := range value.MapKeys() {
-			m[k.String()] = value.MapIndex(k).Interface()
-		}
-		return m, true
-	}
-	return map[string]interface{}{}, false
-}
-
-// mapifyAlwaysCopy always copy the map
-// Deprecated: this method is expensive, we have to use mapify instead, but at now we are getting some race condition
-func mapifyAlwaysCopy(i interface{}) (map[string]interface{}, bool) {
 	value := reflect.ValueOf(i)
 	if value.Kind() == reflect.Map {
 		m := make(map[string]interface{}, value.Len())

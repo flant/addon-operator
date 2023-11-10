@@ -2,6 +2,7 @@ package validation
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"
@@ -65,10 +66,14 @@ func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType Schem
 		rootName = moduleName
 	}
 
+	fmt.Println("ROOT", rootName, values)
+
 	obj, ok := values[rootName]
 	if !ok {
 		return fmt.Errorf("root key '%s' not found in input values", rootName)
 	}
+
+	fmt.Println("GET OBJ", obj, reflect.TypeOf(obj))
 
 	validationErr := validateObject(obj, s, rootName)
 	if validationErr == nil {
