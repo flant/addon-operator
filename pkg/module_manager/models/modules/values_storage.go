@@ -91,6 +91,13 @@ func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
 }
 
 func (vs *ValuesStorage) SetNewValues(moduleName string, v utils.Values) error {
+	fmt.Println("SET NEW VALUES", moduleName, v)
+
+	fmt.Println("STATIC ", vs.staticConfigValues)
+	fmt.Println("CONFIG ", vs.configValues)
+	fmt.Println("NEW ", v)
+
+	// TODO(yalosev): do we really need moduleName here?
 	moduleName = utils.ModuleNameToValuesKey(moduleName)
 	// WHAT TO MERGE?
 	merged := mergeLayers(
@@ -101,6 +108,8 @@ func (vs *ValuesStorage) SetNewValues(moduleName string, v utils.Values) error {
 		// new values
 		v,
 	)
+
+	fmt.Println("MERGED", merged)
 
 	var err error
 	if moduleName == utils.GlobalValuesKey {
