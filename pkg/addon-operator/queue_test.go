@@ -172,6 +172,7 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := queue.NewTasksQueue()
+			//nolint:govet
 			for _, tsk := range tt.in {
 				tmpTsk := tsk
 				q.AddLast(&tmpTsk)
@@ -355,6 +356,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Fill queue from the test case.
 			q := queue.NewTasksQueue()
+			//nolint:govet
 			for _, tsk := range tt.initialTasks {
 				tmpTsk := tsk
 				// Set metadata to prevent "possible bug" errors.
