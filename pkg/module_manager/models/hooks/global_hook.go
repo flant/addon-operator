@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/flant/addon-operator/pkg/utils"
+
 	types2 "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/shell-operator/pkg/hook/types"
@@ -163,17 +165,19 @@ func (h *GlobalHook) Order(binding types.BindingType) float64 {
 //	return h.hook.GetHookController()
 //}
 
-//// Apply patches to enabled modules
-//func (h *GlobalHook) applyEnabledPatches(valuesPatch utils.ValuesPatch) error {
-//	enabledPatch := utils.EnabledFromValuesPatch(valuesPatch)
-//	if len(enabledPatch.Operations) != 0 {
-//		err := h.moduleManager.ApplyEnabledPatch(enabledPatch)
-//		if err != nil {
-//			return err
-//		}
-//	}
-//	return nil
-//}
+// Apply patches to enabled modules
+func (h *GlobalHook) ApplyEnabledPatches(valuesPatch utils.ValuesPatch) error {
+	enabledPatch := utils.EnabledFromValuesPatch(valuesPatch)
+	if len(enabledPatch.Operations) != 0 {
+		fmt.Println(enabledPatch)
+		panic("enable patch")
+		//err := h.moduleManager.ApplyEnabledPatch(enabledPatch)
+		//if err != nil {
+		//	return err
+		//}
+	}
+	return nil
+}
 
 func (h *GlobalHook) GetConfigVersion() string {
 	return h.config.Version

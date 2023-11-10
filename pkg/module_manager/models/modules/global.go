@@ -211,12 +211,10 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		}
 		// TODO(yalosev): Don't know what to do with this yet
 		// Apply patches for *Enabled keys.
-		//err = h.applyEnabledPatches(*configValuesPatch)
-		//if err != nil {
-		//	return fmt.Errorf("apply enabled patches from global config patch: %v", err)
-		//}
-		fmt.Println(*configValuesPatch)
-		panic("Apply Enabled patch for ConfigValues")
+		err = h.ApplyEnabledPatches(*configValuesPatch)
+		if err != nil {
+			return fmt.Errorf("apply enabled patches from global config patch: %v", err)
+		}
 	}
 
 	valuesPatch, has := hookResult.Patches[utils.MemoryValuesPatch]
@@ -246,12 +244,10 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		}
 		// TODO(yalosev): do something here
 		// Apply patches for *Enabled keys.
-		//err = h.applyEnabledPatches(*valuesPatch)
-		//if err != nil {
-		//	return fmt.Errorf("apply enabled patches from global values patch: %v", err)
-		//}
-		fmt.Println(*valuesPatch)
-		panic("Apply patch for values")
+		err = h.ApplyEnabledPatches(*valuesPatch)
+		if err != nil {
+			return fmt.Errorf("apply enabled patches from global values patch: %v", err)
+		}
 	}
 
 	return nil
