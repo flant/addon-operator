@@ -774,7 +774,7 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
 	}
 
-	newValues = newValues[moduleValuesKey].(map[string]interface{})
+	newValues = newValues[moduleValuesKey].(utils.Values)
 
 	result := &moduleValuesMergeResult{
 		ModuleValuesKey: moduleValuesKey,

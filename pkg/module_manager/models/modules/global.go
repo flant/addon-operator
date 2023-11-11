@@ -335,7 +335,7 @@ func (gm *GlobalModule) handlePatch(currentValues utils.Values, valuesPatch util
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}
 
-	newValues = newValues[utils.GlobalValuesKey].(map[string]interface{})
+	newValues = newValues[utils.GlobalValuesKey].(utils.Values)
 
 	result := &globalValuesPatchResult{
 		Values:        newValues,
