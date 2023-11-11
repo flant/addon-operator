@@ -176,10 +176,10 @@ func (vs *ValuesStorage) validateValues(values utils.Values) error {
 	validatableValues := utils.Values{valuesModuleName: values}
 
 	if vs.moduleName == utils.GlobalValuesKey {
-		return vs.validator.ValidateGlobalConfigValues(validatableValues)
+		return vs.validator.ValidateGlobalValues(validatableValues)
 	}
 
-	return vs.validator.ValidateModuleConfigValues(valuesModuleName, validatableValues)
+	return vs.validator.ValidateModuleValues(valuesModuleName, validatableValues)
 }
 
 func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
