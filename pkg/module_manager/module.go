@@ -3,6 +3,8 @@ package module_manager
 import (
 	"fmt"
 
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
+
 	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
 	log "github.com/sirupsen/logrus"
 )
@@ -911,11 +913,21 @@ func (mm *ModuleManager) registerModules() error {
 
 	set := &moduleset.ModulesSet{}
 
+	// load and registry global hooks
+	dep := &hooks.HookExecutionDependencyContainer{
+		HookMetricsStorage: mm.dependencies.HookMetricStorage,
+		KubeConfigManager:  mm.dependencies.KubeConfigManager,
+		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
+		MetricStorage:      mm.dependencies.MetricStorage,
+	}
+
 	for _, mod := range mods {
 		if set.Has(mod.GetName()) {
 			log.Warnf("module %q from path %q is not registered, because it has a duplicate", mod.GetName(), mod.GetPath())
 			continue
 		}
+
+		mod.WithDependencies(dep)
 
 		set.Add(mod)
 	}

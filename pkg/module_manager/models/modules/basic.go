@@ -64,6 +64,10 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 	}
 }
 
+func (bm *BasicModule) WithDependencies(dep *hooks.HookExecutionDependencyContainer) {
+	bm.dc = dep
+}
+
 // Deprecated: remove this
 func (bm *BasicModule) GetBaseModule() *BasicModule {
 	return bm
