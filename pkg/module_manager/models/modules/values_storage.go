@@ -3,6 +3,8 @@ package modules
 import (
 	"fmt"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/go-openapi/spec"
 
@@ -62,7 +64,7 @@ type ValuesStorage struct {
 	dirtyMergedConfigValues utils.Values
 
 	// TODO: acutally, we don't need the validator with all Schemas here,
-	// we can put a single openapi schema for the specified module
+	//   we can put a single openapi schema for the specified module
 	validator  validator
 	moduleName string
 }
@@ -195,6 +197,10 @@ func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
 }
 
 func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
+	dd, _ := yaml.Marshal(v)
+	fmt.Println("YAML PRE INPUT VALUES:---------")
+	fmt.Println(string(dd))
+
 	if vs.mergedConfigValues == nil {
 		vs.mergedConfigValues = mergeLayers(
 			utils.Values{},
@@ -208,6 +214,10 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 			vs.configValues,
 		)
 	}
+
+	fmt.Println("PRE MERGED CONFIG:-----")
+	dd, _ = yaml.Marshal(vs.mergedConfigValues)
+	fmt.Println(string(dd))
 
 	merged := mergeLayers(
 		utils.Values{},
