@@ -79,7 +79,6 @@ fooBar:
 	loader := NewFileSystemLoader(filepath.Join(tmpDir, "modules"), vv)
 	modules, err := loader.LoadModules()
 	require.NoError(t, err)
-	fmt.Println("--------++++++++++-0-------")
 	m := modules[0]
 	fmt.Println(m.Name)
 	fmt.Println(m.GetValues())

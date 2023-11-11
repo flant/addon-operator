@@ -67,3 +67,68 @@ properties:
 	st.calculateResultValues()
 	fmt.Println(st.GetValues())
 }
+
+func TestPreCommitValues(t *testing.T) {
+	vv := validation.NewValuesValidator()
+	cb, vb, err := utils.ReadOpenAPIFiles("./testdata/global/openapi")
+	require.NoError(t, err)
+	err = vv.SchemaStorage.AddGlobalValuesSchemas(cb, vb)
+	require.NoError(t, err)
+
+	vs := NewValuesStorage("global", utils.Values{}, vv)
+
+	mcv, err := utils.NewValuesFromBytes([]byte(`
+highAvailability: false
+modules:
+  https:
+    certManager:
+      clusterIssuerName: letsencrypt
+    mode: CertManager
+  ingressClass: nginx
+  placement: {}
+  publicDomainTemplate: '%s.example.com'
+  resourcesRequests:
+    controlPlane: {}
+    everyNode:
+      cpu: 300m
+      memory: 512Mi
+`))
+	require.NoError(t, err)
+
+	patchValues, err := utils.NewValuesFromBytes([]byte(`
+clusterIsBootstrapped: true
+deckhouseEdition: FE
+deckhouseVersion: dev
+discovery:
+  clusterControlPlaneIsHighlyAvailable: false
+  d8SpecificNodeCountByRole: {}
+  kubernetesCA: XXX
+  prometheusScrapeInterval: 30
+highAvailability: false
+internal:
+  modules:
+    kubeRBACProxyCA: {}
+    resourcesRequests:
+      memoryControlPlane: 3086170981
+      milliCpuControlPlane: 1480
+modules:
+  https:
+    certManager:
+      clusterIssuerName: letsencrypt
+    mode: CertManager
+  ingressClass: nginx
+  placement: {}
+  publicDomainTemplate: '%s.exmaple.com'
+  resourcesRequests:
+    controlPlane: {}
+    everyNode:
+      cpu: 300m
+      memory: 512Mi
+`))
+	require.NoError(t, err)
+
+	vs.mergedConfigValues = mcv
+
+	err = vs.PreCommitValues(patchValues)
+	require.NoError(t, err)
+}

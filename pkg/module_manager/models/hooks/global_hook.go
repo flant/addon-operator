@@ -169,7 +169,10 @@ func (h *GlobalHook) Order(binding types.BindingType) float64 {
 func (h *GlobalHook) ApplyEnabledPatches(valuesPatch utils.ValuesPatch) error {
 	enabledPatch := utils.EnabledFromValuesPatch(valuesPatch)
 	if len(enabledPatch.Operations) != 0 {
-		fmt.Println(enabledPatch)
+
+		for _, p := range enabledPatch.Operations {
+			fmt.Println("Patch", p.ToString())
+		}
 		panic("enable patch")
 		//err := h.moduleManager.ApplyEnabledPatch(enabledPatch)
 		//if err != nil {

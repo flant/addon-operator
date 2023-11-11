@@ -1,8 +1,6 @@
 package config
 
 import (
-	"fmt"
-
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
@@ -21,10 +19,8 @@ func (gkc GlobalKubeConfig) GetValues() utils.Values {
 	if len(gkc.Values) == 0 {
 		return gkc.Values
 	}
-	fmt.Println("GKC", gkc.Values)
 
 	if gkc.Values.HasKey("global") {
-		fmt.Println("GET FROM KEY")
 		return gkc.Values["global"].(utils.Values)
 	}
 
