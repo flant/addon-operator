@@ -1285,6 +1285,8 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 	defer trace.StartRegion(context.Background(), "ModuleDelete").End()
 
 	hm := task.HookMetadataAccessor(t)
+	// TODO(yalosev): remove this after fix
+	log.Errorf("trying to delete module %s. Skippig", hm.ModuleName)
 	module := op.ModuleManager.GetModule(hm.ModuleName)
 	baseModule := module.GetBaseModule()
 
