@@ -25,11 +25,11 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/values.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
-		return op.ModuleManager.GetGlobal().GetValues(), nil
+		return op.ModuleManager.GetGlobal().GetValues(false), nil
 	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/config.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
-		return op.ModuleManager.GetGlobal().GetConfigValues(), nil
+		return op.ModuleManager.GetGlobal().GetConfigValues(false), nil
 	})
 
 	//// TODO(yalosev): restore this
@@ -78,21 +78,21 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 			switch valType {
 			case "config":
 				return utils.Values{
-					"global":                                 global.GetConfigValues(),
-					utils.ModuleNameToValuesKey(m.GetName()): m.GetConfigValues(),
+					"global":                                 global.GetConfigValues(false),
+					utils.ModuleNameToValuesKey(m.GetName()): m.GetConfigValues(false),
 				}, nil
 			case "values":
 				return utils.Values{
-					"global":                                 global.GetValues(),
-					utils.ModuleNameToValuesKey(m.GetName()): m.GetValues(),
+					"global":                                 global.GetValues(false),
+					utils.ModuleNameToValuesKey(m.GetName()): m.GetValues(false),
 				}, nil
 			}
 		} else {
 			switch valType {
 			case "config":
-				return m.GetConfigValues(), nil
+				return m.GetConfigValues(false), nil
 			case "values":
-				return m.GetValues(), nil
+				return m.GetValues(false), nil
 			}
 		}
 
@@ -115,7 +115,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		deps := &modules.HelmModuleDependencies{
 			ClientFactory: op.Helm,
 		}
-		hm, err := modules.NewHelmModule(op.ModuleManager.GetGlobal().GetValues(), m, op.ModuleManager.TempDir, deps)
+		hm, err := modules.NewHelmModule(m, op.ModuleManager.TempDir, deps)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create helm module: %w", err)
 		}

@@ -23,9 +23,15 @@ type kubeObjectPatcher interface {
 	ExecuteOperations([]object_patch.Operation) error
 }
 
+type globalValuesGetter interface {
+	GetValues(bool) utils.Values
+	GetConfigValues(bool) utils.Values
+}
+
 type HookExecutionDependencyContainer struct {
 	HookMetricsStorage hooksMetricsStorage
 	KubeConfigManager  kubeConfigManager
 	KubeObjectPatcher  kubeObjectPatcher
 	MetricStorage      metricStorage
+	GlobalValuesGetter globalValuesGetter
 }

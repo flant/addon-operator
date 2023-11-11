@@ -817,7 +817,7 @@ func (op *AddonOperator) CreateAfterAllTasks(logLabels map[string]string, eventD
 		}
 		if i == len(afterAllHooks)-1 {
 			taskMetadata.LastAfterAllHook = true
-			globalValues := op.ModuleManager.GetGlobal().GetValues()
+			globalValues := op.ModuleManager.GetGlobal().GetValues(false)
 			taskMetadata.ValuesChecksum = globalValues.Checksum()
 			taskMetadata.DynamicEnabledChecksum = op.ModuleManager.DynamicEnabledChecksum()
 		}

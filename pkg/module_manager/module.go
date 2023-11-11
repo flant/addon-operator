@@ -919,6 +919,7 @@ func (mm *ModuleManager) registerModules() error {
 		KubeConfigManager:  mm.dependencies.KubeConfigManager,
 		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
 		MetricStorage:      mm.dependencies.MetricStorage,
+		GlobalValuesGetter: mm.global,
 	}
 
 	for _, mod := range mods {

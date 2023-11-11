@@ -237,11 +237,23 @@ func (vs *ValuesStorage) CommitValues() {
 }
 
 // GetValues return current values with applied patches
-func (vs *ValuesStorage) GetValues() utils.Values {
+func (vs *ValuesStorage) GetValues(withPrefix bool) utils.Values {
+	if withPrefix {
+		return utils.Values{
+			utils.ModuleNameToValuesKey(vs.moduleName): vs.resultValues,
+		}
+	}
+
 	return vs.resultValues
 }
 
-func (vs *ValuesStorage) GetConfigValues() utils.Values {
+func (vs *ValuesStorage) GetConfigValues(withPrefix bool) utils.Values {
+	if withPrefix {
+		return utils.Values{
+			utils.ModuleNameToValuesKey(vs.moduleName): vs.configValues,
+		}
+	}
+
 	return vs.configValues
 }
 

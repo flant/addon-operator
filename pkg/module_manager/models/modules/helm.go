@@ -56,11 +56,11 @@ type HelmModuleDependencies struct {
 	HelmValuesValidator
 }
 
-func NewHelmModule(globalValues utils.Values, bm *BasicModule, tmpDir string, deps *HelmModuleDependencies) (*HelmModule, error) {
-	moduleValues := bm.GetValues()
+func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies) (*HelmModule, error) {
+	moduleValues := bm.GetValues(false)
 
 	chartValues := map[string]interface{}{
-		"global": globalValues,
+		"global": bm.dc.GlobalValuesGetter.GetValues(false),
 		utils.ModuleNameToValuesKey(bm.GetName()): moduleValues,
 	}
 

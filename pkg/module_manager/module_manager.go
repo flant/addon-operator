@@ -839,7 +839,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			MetricsStorage:      mm.dependencies.MetricStorage,
 			HelmValuesValidator: mm.ValuesValidator,
 		}
-		helmModule, _ := modules.NewHelmModule(mm.global.GetValues(), ml.GetBaseModule(), mm.TempDir, &hmdeps)
+		helmModule, _ := modules.NewHelmModule(ml.GetBaseModule(), mm.TempDir, &hmdeps)
 		if helmModule != nil {
 			releaseExists, err := mm.dependencies.Helm.NewClient(deleteLogLabels).IsReleaseExists(ml.GetName())
 			if !releaseExists {
@@ -905,7 +905,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 		mm.dependencies.MetricStorage,
 		mm.ValuesValidator,
 	}
-	helmModule, err := modules.NewHelmModule(mm.global.GetValues(), bm, mm.TempDir, deps)
+	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps)
 	if err != nil {
 		return false, err
 	}
@@ -918,7 +918,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 		return false, err
 	}
 
-	oldValues := bm.GetValues()
+	oldValues := bm.GetValues(false)
 	oldValuesChecksum := oldValues.Checksum()
 	treg = trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-afterHelm")
 	err = bm.RunHooksByBinding(AfterHelm, logLabels)
@@ -927,7 +927,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 		return false, err
 	}
 
-	newValues := bm.GetValues()
+	newValues := bm.GetValues(false)
 	newValuesChecksum := newValues.Checksum()
 
 	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.

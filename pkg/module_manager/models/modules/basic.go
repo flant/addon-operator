@@ -379,8 +379,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 }
 
 func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.BindingType, bindingContext []binding_context.BindingContext, logLabels map[string]string) (string, string, error) {
-	values := bm.valuesStorage.GetValues()
-
+	values := bm.valuesStorage.GetValues(false)
 	valuesChecksum := values.Checksum()
 
 	moduleHook := bm.hooks.getHookByName(hookName)
@@ -404,7 +403,7 @@ func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.Bindin
 		return "", "", err
 	}
 
-	newValuesChecksum := bm.valuesStorage.GetValues().Checksum()
+	newValuesChecksum := bm.valuesStorage.GetValues(false).Checksum()
 
 	return valuesChecksum, newValuesChecksum, nil
 
@@ -576,12 +575,12 @@ func (bm *BasicModule) prepareValuesJsonFileWith(tmpdir string, values utils.Val
 // ValuesForEnabledScript returns effective values for enabled script.
 // There is enabledModules key in global section with previously enabled modules.
 func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) (utils.Values, error) {
-	res := bm.valuesStorage.GetValues()
+	res := bm.valuesStorage.GetValues(true)
 
-	// TODO: ??????
 	res = mergeLayers(
 		utils.Values{},
 		res,
+		bm.dc.GlobalValuesGetter.GetValues(true),
 		utils.Values{
 			"global": map[string]interface{}{
 				"enabledModules": precedingEnabledModules,
@@ -597,7 +596,12 @@ func (bm *BasicModule) SafeName() string {
 
 // CONFIG_VALUES_PATH
 func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error) {
-	data, err := bm.valuesStorage.GetConfigValues().JsonBytes()
+	v := utils.Values{
+		"global":                 bm.dc.GlobalValuesGetter.GetConfigValues(false),
+		bm.moduleNameForValues(): bm.GetConfigValues(false),
+	}
+
+	data, err := v.JsonBytes()
 	if err != nil {
 		return "", err
 	}
@@ -608,7 +612,7 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s hook config values:\n%s", bm.Name, bm.valuesStorage.GetConfigValues().DebugString())
+	log.Debugf("Prepared module %s hook config values:\n%s", bm.Name, v.DebugString())
 
 	return path, nil
 }
@@ -638,10 +642,12 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 	// TODO(yalosev): add some description here
 	// why we have to add a module name key at top level
 	hookConfigValues := utils.Values{
-		bm.moduleNameForValues(): bm.valuesStorage.GetConfigValues(),
+		utils.GlobalValuesKey:    bm.dc.GlobalValuesGetter.GetConfigValues(false),
+		bm.moduleNameForValues(): bm.valuesStorage.GetConfigValues(false),
 	}
 	hookValues := utils.Values{
-		bm.moduleNameForValues(): bm.valuesStorage.GetValues(),
+		utils.GlobalValuesKey:    bm.dc.GlobalValuesGetter.GetValues(false),
+		bm.moduleNameForValues(): bm.valuesStorage.GetValues(false),
 	}
 
 	hookResult, err := h.Execute(h.GetConfigVersion(), context, bm.SafeName(), hookConfigValues, hookValues, logLabels)
@@ -687,7 +693,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 
 	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
-		configValues := bm.valuesStorage.GetConfigValues()
+		configValues := bm.valuesStorage.GetConfigValues(false)
 
 		// Apply patch to get intermediate updated values.
 		configValuesPatchResult, err := bm.handleModuleValuesPatch(configValues, *configValuesPatch)
@@ -708,19 +714,19 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 
 			err := bm.dc.KubeConfigManager.SaveConfigValues(bm.Name, configValuesPatchResult.Values)
 			if err != nil {
-				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.GetName(), bm.valuesStorage.GetConfigValues().DebugString())
+				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.GetName(), bm.valuesStorage.GetConfigValues(false).DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.GetName(), err)
 			}
 
 			bm.valuesStorage.CommitConfigValues()
 
-			logEntry.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetConfigValues().DebugString())
+			logEntry.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetConfigValues(false).DebugString())
 		}
 	}
 
 	valuesPatch, has := hookResult.Patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
-		currentValues := bm.valuesStorage.GetValues()
+		currentValues := bm.valuesStorage.GetValues(false)
 
 		// Apply patch to get intermediate updated values.
 		valuesPatchResult, err := bm.handleModuleValuesPatch(currentValues, *valuesPatch)
@@ -742,7 +748,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 			bm.valuesStorage.AppendValuesPatch(valuesPatchResult.ValuesPatch)
 			bm.valuesStorage.CommitValues()
 
-			logEntry.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetValues().DebugString())
+			logEntry.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetValues(false).DebugString())
 		}
 	}
 
@@ -818,12 +824,12 @@ func (bm *BasicModule) CommitConfigValuesChange() {
 	bm.valuesStorage.CommitConfigValues()
 }
 
-func (bm *BasicModule) GetValues() utils.Values {
-	return bm.valuesStorage.GetValues()
+func (bm *BasicModule) GetValues(withPrefix bool) utils.Values {
+	return bm.valuesStorage.GetValues(withPrefix)
 }
 
-func (bm *BasicModule) GetConfigValues() utils.Values {
-	return bm.valuesStorage.GetConfigValues()
+func (bm *BasicModule) GetConfigValues(withPrefix bool) utils.Values {
+	return bm.valuesStorage.GetConfigValues(withPrefix)
 }
 
 // Synchronization xxx
