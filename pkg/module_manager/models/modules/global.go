@@ -337,6 +337,15 @@ func (gm *GlobalModule) handlePatch(currentValues utils.Values, valuesPatch util
 
 	newValues = newValues[utils.GlobalValuesKey].(utils.Values)
 
+	switch v := newValues[utils.GlobalValuesKey].(type) {
+	case utils.Values:
+		newValues = v
+	case map[string]interface{}:
+		newValues = utils.Values(v)
+	default:
+		return nil, fmt.Errorf("unknown global values type: %T", v)
+	}
+
 	result := &globalValuesPatchResult{
 		Values:        newValues,
 		ValuesChanged: valuesChanged,

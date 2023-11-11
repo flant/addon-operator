@@ -774,7 +774,14 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
 	}
 
-	newValues = newValues[moduleValuesKey].(utils.Values)
+	switch v := newValues[moduleValuesKey].(type) {
+	case utils.Values:
+		newValues = v
+	case map[string]interface{}:
+		newValues = utils.Values(v)
+	default:
+		return nil, fmt.Errorf("unknown module values type: %T", v)
+	}
 
 	result := &moduleValuesMergeResult{
 		ModuleValuesKey: moduleValuesKey,
