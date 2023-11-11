@@ -1220,8 +1220,16 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks2.G
 	}
 }
 
-// ApplyEnabledPatch changes "dynamicEnabled" map with patches.
-func (mm *ModuleManager) ApplyEnabledPatch(enabledPatch utils.ValuesPatch) error {
+func (mm *ModuleManager) runDynamicEnabledLoop() {
+	for report := range mm.global.EnabledReportChannel() {
+		err := mm.applyEnabledPatch(report.Patch)
+		report.Done <- err
+	}
+}
+
+// applyEnabledPatch changes "dynamicEnabled" map with patches.
+// TODO: can add some optimization here
+func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch) error {
 	newDynamicEnabled := map[string]*bool{}
 	for k, v := range mm.dynamicEnabled {
 		newDynamicEnabled[k] = v

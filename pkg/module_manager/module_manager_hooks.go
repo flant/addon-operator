@@ -81,6 +81,9 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values) error {
 	gm := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, mm.ValuesValidator, &dep)
 	mm.global = gm
 
+	// catch dynamin Enabled patches from global hooks
+	go mm.runDynamicEnabledLoop()
+
 	return mm.registerGlobalHooks(gm)
 }
 

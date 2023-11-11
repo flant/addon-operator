@@ -29,19 +29,27 @@ type GlobalModule struct {
 
 	valuesStorage *ValuesStorage
 
+	enabledByHookC chan *EnabledPatchReport
+
 	// dependency
 	// DEPRECATED: move to values storage
 	valuesValidator validator
 	dc              *hooks.HookExecutionDependencyContainer
 }
 
+// EnabledReportChannel returns channel with dynamic modules enabling by global hooks
+func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
+	return gm.enabledByHookC
+}
+
 func NewGlobalModule(hooksDir string, staticValues utils.Values, validator validator, dc *hooks.HookExecutionDependencyContainer) *GlobalModule {
 	return &GlobalModule{
-		hooksDir:      hooksDir,
-		byBinding:     make(map[sh_op_types.BindingType][]*hooks.GlobalHook),
-		byName:        make(map[string]*hooks.GlobalHook),
-		valuesStorage: NewValuesStorage("global", staticValues, validator),
-		dc:            dc,
+		hooksDir:       hooksDir,
+		byBinding:      make(map[sh_op_types.BindingType][]*hooks.GlobalHook),
+		byName:         make(map[string]*hooks.GlobalHook),
+		valuesStorage:  NewValuesStorage("global", staticValues, validator),
+		dc:             dc,
+		enabledByHookC: make(chan *EnabledPatchReport, 10),
 	}
 }
 
@@ -206,7 +214,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		}
 		// TODO(yalosev): Don't know what to do with this yet
 		// Apply patches for *Enabled keys.
-		err = h.ApplyEnabledPatches(*configValuesPatch)
+		err = gm.applyEnabledPatches(*configValuesPatch)
 		if err != nil {
 			return fmt.Errorf("apply enabled patches from global config patch: %v", err)
 		}
@@ -238,13 +246,37 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		}
 		// TODO(yalosev): do something here
 		// Apply patches for *Enabled keys.
-		err = h.ApplyEnabledPatches(*valuesPatch)
+		err = gm.applyEnabledPatches(*valuesPatch)
 		if err != nil {
 			return fmt.Errorf("apply enabled patches from global values patch: %v", err)
 		}
 	}
 
 	return nil
+}
+
+type EnabledPatchReport struct {
+	Patch utils.ValuesPatch
+	Done  chan error
+}
+
+// applyEnabledPatches apply patches for enabled modules
+func (gm *GlobalModule) applyEnabledPatches(valuesPatch utils.ValuesPatch) error {
+	enabledPatch := utils.EnabledFromValuesPatch(valuesPatch)
+	if len(enabledPatch.Operations) == 0 {
+		return nil
+	}
+
+	report := &EnabledPatchReport{
+		Patch: valuesPatch,
+		Done:  make(chan error),
+	}
+
+	gm.enabledByHookC <- report
+
+	err := <-report.Done
+
+	return err
 }
 
 // TODO(yalosev): change name, because we don't save values here, just store them as dirty

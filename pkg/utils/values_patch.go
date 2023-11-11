@@ -380,7 +380,7 @@ func FilterValuesPatch(valuesPatch ValuesPatch, rootPath string) ValuesPatch {
 }
 
 func EnabledFromValuesPatch(valuesPatch ValuesPatch) ValuesPatch {
-	resOps := []*ValuesPatchOperation{}
+	resOps := make([]*ValuesPatchOperation, 0)
 
 	for _, op := range valuesPatch.Operations {
 		pathParts := strings.Split(op.Path, "/")
