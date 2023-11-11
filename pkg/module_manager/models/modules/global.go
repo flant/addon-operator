@@ -335,8 +335,6 @@ func (gm *GlobalModule) handlePatch(currentValues utils.Values, valuesPatch util
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}
 
-	newValues = newValues[utils.GlobalValuesKey].(utils.Values)
-
 	switch v := newValues[utils.GlobalValuesKey].(type) {
 	case utils.Values:
 		newValues = v
