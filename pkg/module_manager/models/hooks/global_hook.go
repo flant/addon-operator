@@ -171,7 +171,7 @@ func (h *GlobalHook) ApplyEnabledPatches(valuesPatch utils.ValuesPatch) error {
 	if len(enabledPatch.Operations) != 0 {
 
 		for _, p := range enabledPatch.Operations {
-			fmt.Println("Patch", p.ToString())
+			fmt.Printf("Patch: %+v\n", p)
 		}
 		panic("enable patch")
 		//err := h.moduleManager.ApplyEnabledPatch(enabledPatch)
