@@ -1,0 +1,20 @@
+global:
+  modules:
+    ingressClass: nginx
+    placement: {}
+    https:
+      mode: CertManager
+      certManager:
+        clusterIssuerName: letsencrypt
+    resourcesRequests:
+      everyNode:
+        cpu: 300m
+        memory: 512Mi
+admissionPolicyEngineEnabled: true
+certManagerEnabled: true
+chronyEnabled: true
+ciliumEnabled: false
+cloudDataCrdEnabled: true
+controlPlaneManagerEnabled: true
+dashboardEnabled: true
+deckhouseEnabled: true

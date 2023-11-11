@@ -45,7 +45,7 @@ func (mm *ModuleManager) loadGlobalValues() ( /* global values */ utils.Values /
 				}
 
 				if enabled {
-					enabledModules[key] = struct{}{}
+					enabledModules[strings.TrimSuffix(key, "Enabled")] = struct{}{}
 				}
 			}
 		}

@@ -1,5 +1,51 @@
 package module_manager
 
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestLoadModules(t *testing.T) {
+	cfg := &ModuleManagerConfig{
+		DirectoryConfig: DirectoryConfig{
+			ModulesDir:     "./testdata/loader",
+			GlobalHooksDir: "./testdata/loader",
+		},
+		Dependencies: ModuleManagerDependencies{},
+	}
+	mm := NewModuleManager(context.Background(), cfg)
+	v, en, err := mm.loadGlobalValues()
+	require.NoError(t, err)
+
+	assert.YAMLEq(t, `
+modules:
+  ingressClass: nginx
+  placement: {}
+  https:
+    mode: CertManager
+    certManager:
+      clusterIssuerName: letsencrypt
+  resourcesRequests:
+    everyNode:
+      cpu: 300m
+      memory: 512Mi
+`, v.AsString("yaml"))
+
+	assert.Equal(t, map[string]struct{}{
+		"admissionPolicyEngine": {},
+		"certManager":           {},
+		"chrony":                {},
+		"cloudDataCrd":          {},
+		"controlPlaneManager":   {},
+		"dashboard":             {},
+		"deckhouse":             {},
+	}, en)
+}
+
 //
 //import (
 //	"context"

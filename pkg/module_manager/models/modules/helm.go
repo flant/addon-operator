@@ -70,6 +70,7 @@ func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies,
 		values:       chartValues,
 		tmpDir:       tmpDir,
 		dependencies: deps,
+		validator:    validator,
 	}
 
 	isHelm, err := hm.isHelmChart()

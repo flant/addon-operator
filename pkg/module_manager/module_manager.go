@@ -704,12 +704,11 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 
 	// TODO: remove me
 	tmp := map[string]interface{}{
-		"AllEnabledModules":  mm.enabledModules,
-		"ModulesToDisable":   disabledModules,
-		"ModulesToEnable":    newlyEnabledModules,
-		"byConfig":           mm.enabledModulesByConfig,
-		"mm-enabled-modules": mm.enabledModules,
-		"dynamic":            enabledByDynamic,
+		"AllEnabledModules": mm.enabledModules,
+		"ModulesToDisable":  disabledModules,
+		"ModulesToEnable":   newlyEnabledModules,
+		"byConfig":          mm.enabledModulesByConfig,
+		"dynamic":           enabledByDynamic,
 	}
 
 	data, _ := yaml.Marshal(tmp)
