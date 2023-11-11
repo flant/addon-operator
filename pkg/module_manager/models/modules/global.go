@@ -145,10 +145,16 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		logEntry.Debugf("snapshot info: %s", info)
 	}
 
-	configValues := gm.valuesStorage.GetConfigValues()
-	values := gm.valuesStorage.GetValues()
+	// TODO(yalosev): add some description here
+	// why we have to add a module name key at top level
+	hookConfigValues := utils.Values{
+		utils.GlobalValuesKey: gm.valuesStorage.GetConfigValues(),
+	}
+	hookValues := utils.Values{
+		utils.GlobalValuesKey: gm.valuesStorage.GetValues(),
+	}
 
-	hookResult, err := h.Execute(h.GetConfigVersion(), bc, "global", configValues, values, logLabels)
+	hookResult, err := h.Execute(h.GetConfigVersion(), bc, "global", hookConfigValues, hookValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
 			"hook":       h.GetName(),
@@ -183,7 +189,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
 		// Apply patch to get intermediate updated values.
-		configValuesPatchResult, err := gm.handlePatch(configValues, *configValuesPatch)
+		configValuesPatchResult, err := gm.handlePatch(gm.valuesStorage.GetConfigValues(), *configValuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': kube config global values update error: %s", h.GetName(), err)
 		}
@@ -212,7 +218,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 			logEntry.Debugf("Global hook '%s': kube config global values updated", h.GetName())
 			logEntry.Debugf("New kube config global values:\n%s\n", gm.valuesStorage.GetConfigValues().DebugString())
 		}
-		// TODO(yalosev): Don't know what to do with this yet
+
 		// Apply patches for *Enabled keys.
 		err = gm.applyEnabledPatches(*configValuesPatch)
 		if err != nil {
@@ -223,7 +229,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 	valuesPatch, has := hookResult.Patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
 		// Apply patch to get intermediate updated values.
-		valuesPatchResult, err := gm.handlePatch(values, *valuesPatch)
+		valuesPatchResult, err := gm.handlePatch(gm.valuesStorage.GetValues(), *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': dynamic global values update error: %s", h.GetName(), err)
 		}
@@ -244,7 +250,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 			logEntry.Debugf("Global hook '%s': kube global values updated", h.GetName())
 			logEntry.Debugf("New global values:\n%s", gm.valuesStorage.GetValues().DebugString())
 		}
-		// TODO(yalosev): do something here
+
 		// Apply patches for *Enabled keys.
 		err = gm.applyEnabledPatches(*valuesPatch)
 		if err != nil {

@@ -635,7 +635,16 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		logEntry.Debugf("snapshot info: %s", info)
 	}
 
-	hookResult, err := h.Execute(h.GetConfigVersion(), context, bm.SafeName(), bm.valuesStorage.GetConfigValues(), bm.valuesStorage.GetValues(), logLabels)
+	// TODO(yalosev): add some description here
+	// why we have to add a module name key at top level
+	hookConfigValues := utils.Values{
+		bm.moduleNameForValues(): bm.valuesStorage.GetConfigValues(),
+	}
+	hookValues := utils.Values{
+		bm.moduleNameForValues(): bm.valuesStorage.GetValues(),
+	}
+
+	hookResult, err := h.Execute(h.GetConfigVersion(), context, bm.SafeName(), hookConfigValues, hookValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
