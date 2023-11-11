@@ -81,7 +81,7 @@ fooBar:
 	require.NoError(t, err)
 	m := modules[0]
 	fmt.Println(m.Name)
-	fmt.Println(m.GetValues())
+	fmt.Println(m.GetValues(false))
 }
 
 func TestDirWithSymlinks(t *testing.T) {

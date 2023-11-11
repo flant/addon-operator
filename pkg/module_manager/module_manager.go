@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/flant/addon-operator/pkg/module_manager/loader"
 	"github.com/flant/addon-operator/pkg/module_manager/loader/fs"
 
@@ -700,6 +702,19 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	// Update state
 	mm.enabledModules = enabledModules
 
+	// TODO: remove me
+	tmp := map[string]interface{}{
+		"AllEnabledModules":  mm.enabledModules,
+		"ModulesToDisable":   disabledModules,
+		"ModulesToEnable":    newlyEnabledModules,
+		"byConfig":           mm.enabledModulesByConfig,
+		"mm-enabled-modules": mm.enabledModules,
+		"dynamic":            enabledByDynamic,
+	}
+
+	data, _ := yaml.Marshal(tmp)
+	fmt.Println("DEBUGME+\n", string(data))
+
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
 		AllEnabledModules: mm.enabledModules,
@@ -839,7 +854,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			MetricsStorage:      mm.dependencies.MetricStorage,
 			HelmValuesValidator: mm.ValuesValidator,
 		}
-		helmModule, _ := modules.NewHelmModule(ml.GetBaseModule(), mm.TempDir, &hmdeps)
+		helmModule, _ := modules.NewHelmModule(ml.GetBaseModule(), mm.TempDir, &hmdeps, mm.ValuesValidator)
 		if helmModule != nil {
 			releaseExists, err := mm.dependencies.Helm.NewClient(deleteLogLabels).IsReleaseExists(ml.GetName())
 			if !releaseExists {
@@ -905,7 +920,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 		mm.dependencies.MetricStorage,
 		mm.ValuesValidator,
 	}
-	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps)
+	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps, mm.ValuesValidator)
 	if err != nil {
 		return false, err
 	}

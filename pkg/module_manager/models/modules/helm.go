@@ -56,7 +56,7 @@ type HelmModuleDependencies struct {
 	HelmValuesValidator
 }
 
-func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies) (*HelmModule, error) {
+func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator) (*HelmModule, error) {
 	moduleValues := bm.GetValues(false)
 
 	chartValues := map[string]interface{}{

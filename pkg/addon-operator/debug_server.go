@@ -115,7 +115,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		deps := &modules.HelmModuleDependencies{
 			ClientFactory: op.Helm,
 		}
-		hm, err := modules.NewHelmModule(m, op.ModuleManager.TempDir, deps)
+		hm, err := modules.NewHelmModule(m, op.ModuleManager.TempDir, deps, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create helm module: %w", err)
 		}
