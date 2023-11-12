@@ -221,9 +221,9 @@ func (op *AddonOperator) InitModuleManager() error {
 		return fmt.Errorf("init module manager: %s", err)
 	}
 
-	// Load existing config values from ConfigMap.
+	// Load existing config values from KubeConfigManager.
 	// Also, it is possible to override initial KubeConfig to give global hooks a chance
-	// to handle the ConfigMap content later.
+	// to handle the KubeConfigManager content later.
 	if op.InitialKubeConfig == nil {
 		op.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
 			_, err = op.ModuleManager.HandleNewKubeConfig(config)

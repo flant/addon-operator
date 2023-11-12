@@ -303,31 +303,11 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		return &ModulesState{}, validationErrors.ErrorOrNil()
 	}
 
-	//// Check if values in new KubeConfig are valid. Return error to prevent poisoning caches with invalid values.
-	//err = mm.validateKubeConfig(kubeConfig, newEnabledByConfig)
-	//if err != nil {
-	//	return nil, fmt.Errorf("config not valid: %v", err)
-	//}
-
 	// Detect changes in global section.
 	hasGlobalChange := false
 	if kubeConfig.Global != nil && globalModule.ConfigValuesHaveChanges() {
 		hasGlobalChange = true
 	}
-
-	//newGlobalValues := mm.kubeGlobalConfigValues
-	//if (kubeConfig == nil || kubeConfig.Global == nil) && mm.kubeGlobalConfigValues.HasGlobal() {
-	//	hasGlobalChange = true
-	//	newGlobalValues = make(utils.Values)
-	//}
-	//if kubeConfig != nil && kubeConfig.Global != nil {
-	//	globalChecksum := mm.kubeGlobalConfigValues.Checksum()
-	//
-	//	if kubeConfig.Global.Checksum != globalChecksum {
-	//		hasGlobalChange = true
-	//	}
-	//	newGlobalValues = kubeConfig.Global.GetValues()
-	//}
 
 	// Full reload if enabled flags are changed.
 	isEnabledChanged := false
@@ -342,6 +322,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		}
 	}
 
+	fmt.Println("ENABLED", mm.enabledModules)
 	// Detect changed module sections for enabled modules.
 	modulesChanged := make([]string, 0)
 	if !isEnabledChanged {
@@ -349,7 +330,8 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		// Module can be enabled by config, but disabled with enabled script.
 		// So check only sections for effectively enabled modules.
 		for _, moduleName := range mm.enabledModules {
-			mod := mm.GetModule(moduleName).GetBaseModule()
+			mod := mm.GetModule(moduleName)
+			fmt.Println("MODULE XXXX", moduleName)
 			//modValues, hasConfigValues := mm.kubeModulesConfigValues[moduleName]
 			// New module state from ConfigMap.
 			//hasNewKubeConfig := false
@@ -360,6 +342,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 			if mod.ConfigValuesHaveChanges() {
 				modulesChanged = append(modulesChanged, moduleName)
+				fmt.Println("COMMIT MODULE", moduleName)
 				mod.CommitConfigValuesChange()
 			}
 
