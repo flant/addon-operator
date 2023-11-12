@@ -103,6 +103,10 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 		if err == nil {
 			return true, hm.createChartYaml(chartPath)
 		}
+		if err != nil && os.IsNotExist(err) {
+			// if templates not exists - it's not a helm module
+			return false, nil
+		}
 	}
 
 	return false, err
@@ -110,7 +114,7 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 
 func (hm *HelmModule) createChartYaml(chartPath string) error {
 	data := fmt.Sprintf(`name: %s
-version: 0.1.0`, hm.name)
+version: 0.2.0`, hm.name)
 
 	return os.WriteFile(chartPath, []byte(data), 0644)
 }
