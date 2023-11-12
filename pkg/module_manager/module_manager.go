@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"sigs.k8s.io/yaml"
-
 	"github.com/flant/addon-operator/pkg/module_manager/loader"
 	"github.com/flant/addon-operator/pkg/module_manager/loader/fs"
 
@@ -706,17 +704,6 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 
 	// Update state
 	mm.enabledModules = enabledModules
-
-	// TODO: remove me
-	tmp := map[string]interface{}{
-		"AllEnabledModules": mm.enabledModules,
-		"ModulesToDisable":  disabledModules,
-		"ModulesToEnable":   newlyEnabledModules,
-		"byConfig":          mm.enabledModulesByConfig,
-		"dynamic":           enabledByDynamic,
-	}
-
-	data, _ := yaml.Marshal(tmp)
 
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
