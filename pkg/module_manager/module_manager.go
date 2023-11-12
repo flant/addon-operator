@@ -894,7 +894,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 }
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
-func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]string) (bool, error) {
+func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]string) ( /*valuesChanged*/ bool, error) {
 	ml := mm.GetModule(moduleName)
 	bm := ml.GetBaseModule()
 
@@ -952,7 +952,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	newValuesChecksum := newValues.Checksum()
 
 	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
-	return oldValuesChecksum == newValuesChecksum, nil
+	return oldValuesChecksum != newValuesChecksum, nil
 }
 
 func (mm *ModuleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, string, error) {
