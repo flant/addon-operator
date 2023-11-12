@@ -493,6 +493,14 @@ func (mm *ModuleManager) Init() error {
 
 	mm.enabledModulesByConfig = enabledModules
 
+	moduleNames := make([]string, 0, len(enabledModules))
+	for moduleName := range enabledModules {
+		moduleNames = append(moduleNames, moduleName)
+	}
+
+	// enable all modules on startup
+	mm.enabledModules = moduleNames
+
 	if err := mm.registerGlobalModule(globalValues); err != nil {
 		return err
 	}
