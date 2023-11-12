@@ -1,8 +1,6 @@
 package modules
 
 import (
-	"fmt"
-
 	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/go-openapi/spec"
 
@@ -144,7 +142,6 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bo
 	)
 
 	vs.dirtyMergedConfigValues = merged
-	fmt.Println("SET DIRTY", configV)
 	vs.dirtyConfigValues = configV
 
 	if validate {
@@ -223,12 +220,10 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 func (vs *ValuesStorage) CommitConfigValues() {
 	if vs.dirtyMergedConfigValues != nil {
 		vs.mergedConfigValues = vs.dirtyMergedConfigValues
-		fmt.Println("COMMIT MERGED", vs.dirtyMergedConfigValues)
 		vs.dirtyMergedConfigValues = nil
 	}
 
 	if vs.dirtyConfigValues != nil {
-		fmt.Println("COMMIT VALUES", vs.dirtyConfigValues)
 		vs.configValues = vs.dirtyConfigValues
 		vs.dirtyConfigValues = nil
 	}
