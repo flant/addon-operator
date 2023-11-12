@@ -460,7 +460,7 @@ func (mm *ModuleManager) calculateEnabledModulesByConfig(config *config.KubeConf
 			kubeConfigEnabled,
 		)
 
-		fmt.Printf("Module %q. EnabledByConfig: %t. KubeConfig: %v. Merge: %t ", ml.GetName(), isEnabledByConfig, kubeConfigEnabled, isEnabled)
+		fmt.Printf("Module %q. EnabledByConfig: %t. KubeConfig: %v. Merge: %t\n", ml.GetName(), isEnabledByConfig, kubeConfigEnabled, isEnabled)
 
 		if isEnabled {
 			enabledByConfig[ml.GetName()] = struct{}{}
