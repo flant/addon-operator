@@ -3,11 +3,12 @@ package hooks
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
+
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook/binding_context"
-	"reflect"
-	"strings"
 
 	"github.com/flant/shell-operator/pkg/hook/config"
 
@@ -168,4 +169,13 @@ func (mh *ModuleHook) GetConfigDescription() string {
 	bd.WriteString(", " + mh.executableHook.GetHookConfigDescription())
 
 	return bd.String()
+}
+
+func (mh *ModuleHook) GetGoHookInputSettings() *go_hook.HookConfigSettings {
+	if mh.GetKind() != kind.HookKindGo {
+		return nil
+	}
+
+	gohook := mh.executableHook.(*kind.GoHook)
+	return gohook.UserInputConfig().Settings
 }

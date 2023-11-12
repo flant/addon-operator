@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+
 	hooks2 "github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
@@ -248,6 +250,7 @@ func (op *AddonOperator) InitModuleManager() error {
 // TODO(yalosev): rename this
 type executableHook interface {
 	GetKind() kind.HookKind
+	GetGoHookInputSettings() *go_hook.HookConfigSettings
 }
 
 // AllowHandleScheduleEvent returns false if the Schedule event can be ignored.
@@ -268,18 +271,17 @@ func shouldEnableSchedulesOnStartup(hk executableHook) bool {
 	if hk.GetKind() != kind.HookKindGo {
 		return false
 	}
-	// TODO: cast go-hook is safety?
-	s := hk.(*kind.GoHook).UserInputConfig().Settings
 
-	if s != nil && s.EnableSchedulesOnStartup {
+	settings := hk.GetGoHookInputSettings()
+	if settings == nil {
+		return false
+	}
+
+	if settings.EnableSchedulesOnStartup {
 		return true
 	}
 
 	return false
-}
-
-type namer interface {
-	GetName() string
 }
 
 func (op *AddonOperator) RegisterManagerEventsHandlers() {

@@ -65,6 +65,7 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
 // SetupKubeConfigManager sets manager, which reads configuration for Modules from a cluster
 func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
 	if op.KubeConfigManager != nil {
+		log.Warnf("KubeConfigManager is already set")
 		// return if kube config manager is already set
 		return
 	}

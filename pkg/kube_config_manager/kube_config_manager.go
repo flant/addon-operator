@@ -39,7 +39,7 @@ type KubeConfigManager struct {
 func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config) *KubeConfigManager {
 	cctx, cancel := context.WithCancel(ctx)
 	logger := log.WithField("component", "KubeConfigManager")
-	logger.WithField("backend", reflect.TypeOf(bk)).Infof("Setup KubeConfigManager backend")
+	logger.WithField("backend", fmt.Sprintf("%T", bk)).Infof("Setup KubeConfigManager backend")
 
 	// Runtime config to enable logging all events from the ConfigMap at runtime.
 	if runtimeConfig != nil {

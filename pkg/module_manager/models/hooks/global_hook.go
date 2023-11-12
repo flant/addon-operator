@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"fmt"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"reflect"
 	"strings"
 
@@ -305,6 +306,15 @@ func (h *GlobalHook) SynchronizationNeeded() bool {
 		}
 	}
 	return false
+}
+
+func (h *GlobalHook) GetGoHookInputSettings() *go_hook.HookConfigSettings {
+	if h.GetKind() != kind.HookKindGo {
+		return nil
+	}
+
+	gohook := h.executableHook.(*kind.GoHook)
+	return gohook.UserInputConfig().Settings
 }
 
 //// PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths

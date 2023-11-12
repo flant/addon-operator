@@ -22,7 +22,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/hook/types"
@@ -267,8 +266,9 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	mm.warnAboutUnknownModules(kubeConfig)
 
-	// Get map of enabled modules after ConfigMap changes.
+	// Get map of enabled modules after KubeConfig changes.
 	newEnabledByConfig := mm.calculateEnabledModulesByConfig(kubeConfig)
+	fmt.Printf("NEW ENABLED BY CONFIG: \n%v", newEnabledByConfig)
 
 	// Check if global config values are valid
 	globalModule := mm.global
@@ -332,6 +332,8 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		// Current module state.
 		_, wasEnabled := mm.enabledModulesByConfig[moduleName]
 		_, isEnabled := newEnabledByConfig[moduleName]
+
+		fmt.Printf("MODULE %q. wasEnabled: %t, isEnabled: %t", moduleName, wasEnabled, isEnabled)
 
 		if wasEnabled != isEnabled {
 			isEnabledChanged = true
@@ -426,16 +428,16 @@ func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *config.KubeConfig) 
 		}
 	}
 	if len(unknownNames) > 0 {
-		log.Warnf("ConfigMap/%s has values for unknown modules: %+v", app.ConfigMapName, unknownNames)
+		log.Warnf("KubeConfigManager has values for unknown modules: %+v", unknownNames)
 	}
 }
 
 // calculateEnabledModulesByConfig determine enable state for all modules
-// by checking *Enabled fields in values.yaml, ConfigMap and dynamicEnable map.
+// by checking *Enabled fields in values.yaml, KubeConfig and dynamicEnable map.
 // Method returns list of enabled modules.
 //
-// Module is enabled by config if module section in ConfigMap is a map or an array
-// or ConfigMap has no module section and module has a map or an array in values.yaml
+// Module is enabled by config if module section in KubeConfig is a map or an array
+// or KubeConfig has no module section and module has a map or an array in values.yaml
 func (mm *ModuleManager) calculateEnabledModulesByConfig(config *config.KubeConfig) map[string]struct{} {
 	enabledByConfig := make(map[string]struct{})
 
@@ -451,10 +453,14 @@ func (mm *ModuleManager) calculateEnabledModulesByConfig(config *config.KubeConf
 
 		_, isEnabledByConfig := mm.enabledModulesByConfig[ml.GetName()]
 
+		fmt.Println("############")
+
 		isEnabled := mergeEnabled(
 			&isEnabledByConfig,
 			kubeConfigEnabled,
 		)
+
+		fmt.Printf("Module %q. EnabledByConfig: %t. KubeConfig: %v. Merge: %t ", ml.GetName(), isEnabledByConfig, kubeConfigEnabled, isEnabled)
 
 		if isEnabled {
 			enabledByConfig[ml.GetName()] = struct{}{}
@@ -506,6 +512,7 @@ func (mm *ModuleManager) Init() error {
 	}
 
 	mm.enabledModulesByConfig = enabledModules
+	fmt.Printf("ENABLED BY CONFIG1: \n%v", enabledModules)
 
 	if err := mm.registerGlobalModule(globalValues); err != nil {
 		return err
