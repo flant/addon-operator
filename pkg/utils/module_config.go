@@ -78,7 +78,7 @@ func (mc *ModuleConfig) GetValues() Values {
 
 	valuesModuleName := ModuleNameToValuesKey(mc.ModuleName)
 	if mc.values.HasKey(valuesModuleName) {
-		return mc.values[valuesModuleName].(Values)
+		return mc.values.GetKeySection(valuesModuleName)
 	}
 
 	return mc.values

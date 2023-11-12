@@ -268,7 +268,8 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Get map of enabled modules after KubeConfig changes.
 	newEnabledByConfig := mm.calculateEnabledModulesByConfig(kubeConfig)
-	fmt.Printf("NEW ENABLED BY CONFIG: \n%v", newEnabledByConfig)
+
+	fmt.Println("KUBE CONFIG GLOBAL VLAUES", kubeConfig.Global.GetValues())
 
 	// Check if global config values are valid
 	globalModule := mm.global
@@ -279,6 +280,8 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		}
 	}
 
+	fmt.Println("KUBECONFIG MODUKES", kubeConfig.Modules)
+
 	// Check if enabledModules are valid
 	for moduleName := range newEnabledByConfig {
 		modCfg, has := kubeConfig.Modules[moduleName]
@@ -286,6 +289,8 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 			continue
 		}
 		mod := mm.GetModule(moduleName)
+
+		fmt.Printf("KubeConfig: Module %q, values:%v", moduleName, modCfg.GetValues())
 
 		validationErr = mod.GetBaseModule().ValidateAndSaveConfigValues(modCfg.GetValues())
 		if validationErr != nil {
@@ -332,8 +337,6 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		// Current module state.
 		_, wasEnabled := mm.enabledModulesByConfig[moduleName]
 		_, isEnabled := newEnabledByConfig[moduleName]
-
-		fmt.Printf("MODULE %q. wasEnabled: %t, isEnabled: %t", moduleName, wasEnabled, isEnabled)
 
 		if wasEnabled != isEnabled {
 			isEnabledChanged = true
@@ -453,14 +456,10 @@ func (mm *ModuleManager) calculateEnabledModulesByConfig(config *config.KubeConf
 
 		_, isEnabledByConfig := mm.enabledModulesByConfig[ml.GetName()]
 
-		fmt.Println("############")
-
 		isEnabled := mergeEnabled(
 			&isEnabledByConfig,
 			kubeConfigEnabled,
 		)
-
-		fmt.Printf("Module %q. EnabledByConfig: %t. KubeConfig: %v. Merge: %t\n", ml.GetName(), isEnabledByConfig, kubeConfigEnabled, isEnabled)
 
 		if isEnabled {
 			enabledByConfig[ml.GetName()] = struct{}{}
@@ -512,7 +511,6 @@ func (mm *ModuleManager) Init() error {
 	}
 
 	mm.enabledModulesByConfig = enabledModules
-	fmt.Printf("ENABLED BY CONFIG1: \n%v", enabledModules)
 
 	if err := mm.registerGlobalModule(globalValues); err != nil {
 		return err
@@ -719,7 +717,6 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	}
 
 	data, _ := yaml.Marshal(tmp)
-	fmt.Println("DEBUGME+\n", string(data))
 
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
