@@ -271,7 +271,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Check if global config values are valid
 	globalModule := mm.global
-	validationErr := globalModule.ValidateAndSaveConfigValues(kubeConfig.Global.GetValues())
+	validationErr := globalModule.SaveConfigValues(kubeConfig.Global.GetValues(), true)
 	if validationErr != nil {
 		if e := multierror.Append(validationErrors, validationErr); e != nil {
 			return &ModulesState{}, e
@@ -280,20 +280,23 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	fmt.Println("KUBECONFIG MODUKES", kubeConfig.Modules)
 
-	// Check if enabledModules are valid
-	for moduleName := range newEnabledByConfig {
-		modCfg, has := kubeConfig.Modules[moduleName]
-		if !has {
-			continue
-		}
-		mod := mm.GetModule(moduleName)
+	if kubeConfig != nil {
+		for moduleName, moduleConfig := range kubeConfig.Modules {
+			mod := mm.GetModule(moduleName)
+			validateConfig := false
 
-		fmt.Printf("KubeConfig: Module %q, values:%v", moduleName, modCfg.GetValues())
+			// Check if enabledModules are valid
+			// if module is enabled, we have to check config is valid
+			// otherwise we have to just save the config, because we can have some absent defaults or something like that
+			if _, has := newEnabledByConfig[moduleName]; has {
+				validateConfig = true
+			}
 
-		validationErr = mod.GetBaseModule().ValidateAndSaveConfigValues(modCfg.GetValues())
-		if validationErr != nil {
-			if e := multierror.Append(validationErrors, validationErr); e != nil {
-				return &ModulesState{}, e
+			validationErr = mod.SaveConfigValues(moduleConfig.GetValues(), validateConfig)
+			if validationErr != nil {
+				if e := multierror.Append(validationErrors, validationErr); e != nil {
+					return &ModulesState{}, e
+				}
 			}
 		}
 	}
@@ -331,35 +334,11 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		// So check only sections for effectively enabled modules.
 		for _, moduleName := range mm.enabledModules {
 			mod := mm.GetModule(moduleName)
-			fmt.Println("MODULE XXXX", moduleName)
-			//modValues, hasConfigValues := mm.kubeModulesConfigValues[moduleName]
-			// New module state from ConfigMap.
-			//hasNewKubeConfig := false
-			//var newModConfig *config.ModuleKubeConfig
-			//if kubeConfig != nil {
-			//	newModConfig, hasNewKubeConfig = kubeConfig.Modules[moduleName]
-			//}
 
 			if mod.ConfigValuesHaveChanges() {
 				modulesChanged = append(modulesChanged, moduleName)
-				fmt.Println("COMMIT MODULE", moduleName)
 				mod.CommitConfigValuesChange()
 			}
-
-			//// Section added or disappeared from ConfigMap, values changed.
-			//if hasConfigValues != hasNewKubeConfig {
-			//	modulesChanged = append(modulesChanged, moduleName)
-			//	continue
-			//}
-			//
-			//// Compare checksums for new and saved values.
-			//if hasConfigValues && hasNewKubeConfig {
-			//	modValuesChecksum := modValues.Checksum()
-			//	newModValuesChecksum := newModConfig.GetValues().Checksum()
-			//	if modValuesChecksum != newModValuesChecksum {
-			//		modulesChanged = append(modulesChanged, moduleName)
-			//	}
-			//}
 		}
 	}
 

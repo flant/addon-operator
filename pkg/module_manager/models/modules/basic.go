@@ -704,7 +704,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		if configValuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Module hook '%s': validate module config values before update", h.GetName())
 			// Validate merged static and new values.
-			validationErr := bm.valuesStorage.PreCommitConfigValues(configValuesPatchResult.Values)
+			validationErr := bm.valuesStorage.PreCommitConfigValues(configValuesPatchResult.Values, true)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply config values patch for module values"),
@@ -812,8 +812,8 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 	return result, nil
 }
 
-func (bm *BasicModule) ValidateAndSaveConfigValues(v utils.Values) error {
-	return bm.valuesStorage.PreCommitConfigValues(v)
+func (bm *BasicModule) SaveConfigValues(v utils.Values, validate bool) error {
+	return bm.valuesStorage.PreCommitConfigValues(v, validate)
 }
 
 func (bm *BasicModule) ConfigValuesHaveChanges() bool {

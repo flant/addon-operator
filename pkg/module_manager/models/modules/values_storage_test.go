@@ -61,11 +61,11 @@ properties:
 		},
 	}
 
-	err = st.PreCommitConfigValues(configV)
+	err = st.PreCommitConfigValues(configV, true)
 	assert.NoError(t, err)
 	st.CommitConfigValues()
 	st.calculateResultValues()
-	fmt.Println(st.GetValues())
+	fmt.Println(st.GetValues(false))
 }
 
 func TestPreCommitValues(t *testing.T) {

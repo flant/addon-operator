@@ -188,7 +188,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		if configValuesPatchResult != nil && configValuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Global hook '%s': validate global config values before update", h.GetName())
 			// Validate merged static and new values.
-			validationErr := gm.valuesStorage.PreCommitConfigValues(configValuesPatchResult.Values)
+			validationErr := gm.valuesStorage.PreCommitConfigValues(configValuesPatchResult.Values, true)
 			//mergedValues := h.moduleManager.GlobalStaticAndNewValues(configValuesPatchResult.Values)
 			//validationErr := h.moduleManager.ValuesValidator.ValidateGlobalConfigValues(mergedValues)
 			if validationErr != nil {
@@ -277,8 +277,8 @@ func (gm *GlobalModule) applyEnabledPatches(valuesPatch utils.ValuesPatch) error
 }
 
 // TODO(yalosev): change name, because we don't save values here, just store them as dirty
-func (gm *GlobalModule) ValidateAndSaveConfigValues(v utils.Values) error {
-	return gm.valuesStorage.PreCommitConfigValues(v)
+func (gm *GlobalModule) SaveConfigValues(v utils.Values, validate bool) error {
+	return gm.valuesStorage.PreCommitConfigValues(v, validate)
 }
 
 func (gm *GlobalModule) ConfigValuesHaveChanges() bool {

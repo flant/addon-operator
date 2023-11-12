@@ -130,7 +130,7 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	return nil
 }
 
-func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values) error {
+func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bool) error {
 	merged := mergeLayers(
 		utils.Values{},
 		// Init static values
@@ -147,7 +147,11 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values) error {
 	fmt.Println("SET DIRTY", configV)
 	vs.dirtyConfigValues = configV
 
-	return vs.validateConfigValues(merged)
+	if validate {
+		return vs.validateConfigValues(merged)
+	}
+
+	return nil
 }
 
 func (vs *ValuesStorage) validateConfigValues(values utils.Values) error {
