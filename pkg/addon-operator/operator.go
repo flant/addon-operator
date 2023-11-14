@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
+
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 
 	hooks2 "github.com/flant/addon-operator/pkg/module_manager/models/hooks"
@@ -71,10 +73,6 @@ type AddonOperator struct {
 
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
-
-	// ExplicitlyPurgeModules temporary way to purge explicitly set modules
-	// linked with pkg/module_manager/module_manager.go#L555
-	ExplicitlyPurgeModules []string
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -101,12 +99,11 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 	registerHookMetrics(so.HookMetricStorage)
 
 	ao := &AddonOperator{
-		ctx:                    cctx,
-		cancel:                 cancel,
-		engine:                 so,
-		ConvergeState:          NewConvergeState(),
-		ExplicitlyPurgeModules: make([]string, 0),
-		runtimeConfig:          rc,
+		ctx:           cctx,
+		cancel:        cancel,
+		engine:        so,
+		ConvergeState: NewConvergeState(),
+		runtimeConfig: rc,
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
@@ -452,6 +449,23 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 	for _, tsk := range tasks {
 		op.engine.TaskQueues.GetMain().AddLast(tsk)
 	}
+
+	go func() {
+		<-op.ConvergeState.firstRunDoneC
+		// Add "DiscoverHelmReleases" task to detect unknown releases and purge them.
+		// this task will run only after the first converge, to keep all modules
+		discoverLabels := utils.MergeLabels(logLabels, map[string]string{
+			"queue":   "main",
+			"binding": string(task.DiscoverHelmReleases),
+		})
+		discoverTask := sh_task.NewTask(task.DiscoverHelmReleases).
+			WithLogLabels(discoverLabels).
+			WithQueueName("main").
+			WithMetadata(task.HookMetadata{
+				EventDescription: "Operator-PostConvergeCleanup",
+			})
+		op.engine.TaskQueues.GetMain().AddLast(discoverTask.WithQueuedAt(time.Now()))
+	}()
 }
 
 func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_task.Task {
@@ -537,19 +551,6 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 			EventDescription: eventDescription,
 		})
 	tasks = append(tasks, waitTask.WithQueuedAt(queuedAt))
-
-	// Add "DiscoverHelmReleases" task to detect unknown releases and purge them.
-	discoverLabels := utils.MergeLabels(logLabels, map[string]string{
-		"queue":   "main",
-		"binding": string(task.DiscoverHelmReleases),
-	})
-	discoverTask := sh_task.NewTask(task.DiscoverHelmReleases).
-		WithLogLabels(discoverLabels).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{
-			EventDescription: eventDescription,
-		})
-	tasks = append(tasks, discoverTask.WithQueuedAt(queuedAt))
 
 	// Add "ConvergeModules" task to run modules converge sequence for the first time.
 	convergeLabels := utils.MergeLabels(logLabels, map[string]string{
@@ -1254,9 +1255,6 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 	}
 
 	res.Status = queue.Success
-	state.ModulesToPurge = append(state.ModulesToPurge, op.ExplicitlyPurgeModules...)
-
-	log.Debugf("Next Modules will be purged: %v", state.ModulesToPurge)
 
 	tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
 	res.AfterTasks = tasks
@@ -1272,6 +1270,7 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	logEntry.Debugf("Module purge start")
 
 	hm := task.HookMetadataAccessor(t)
+	fmt.Println("MMMPURGE", hm.ModuleName)
 	err := op.Helm.NewClient(t.GetLogLabels()).DeleteRelease(hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
@@ -1281,6 +1280,11 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	}
 
 	status = queue.Success
+	event := events.ModuleEvent{
+		ModuleName: hm.ModuleName,
+		EventType:  events.ModulePurged,
+	}
+	op.ModuleManager.SendModuleEvent(event)
 	return
 }
 
@@ -1345,11 +1349,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
 
 	hm := task.HookMetadataAccessor(t)
-	module := op.ModuleManager.GetModule(hm.ModuleName)
-	baseModule := module.GetBaseModule()
+	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
 	// Break error loop when module becomes disabled.
-	if !op.ModuleManager.IsModuleEnabled(module.GetName()) {
+	if !op.ModuleManager.IsModuleEnabled(baseModule.GetName()) {
 		res.Status = queue.Success
 		return
 	}
@@ -1377,7 +1380,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
 
 				// Start queues for module hooks.
-				op.CreateAndStartQueuesForModuleHooks(module.GetName())
+				op.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
 
 				// Run onStartup hooks.
 				moduleRunErr = op.ModuleManager.RunModuleHooks(baseModule, htypes.OnStartup, t.GetLogLabels())
@@ -1579,14 +1582,13 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
 
 	hm := task.HookMetadataAccessor(t)
-	module := op.ModuleManager.GetModule(hm.ModuleName)
-	baseModule := module.GetBaseModule()
+	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 	// TODO: check if module exists
-	taskHook := module.GetHookByName(hm.HookName)
+	taskHook := baseModule.GetHookByName(hm.HookName)
 	//taskHook := op.ModuleManager.GetModuleHook(hm.HookName)
 
 	// Prevent hook running in parallel queue if module is disabled in "main" queue.
-	if !op.ModuleManager.IsModuleEnabled(module.GetName()) {
+	if !op.ModuleManager.IsModuleEnabled(baseModule.GetName()) {
 		res.Status = queue.Success
 		return
 	}
@@ -2025,6 +2027,11 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 
 	// Add ModuleDelete tasks to delete helm releases of disabled modules.
 	for _, moduleName := range state.ModulesToDisable {
+		ev := events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleDisabled,
+		}
+		op.ModuleManager.SendModuleEvent(ev)
 		newLogLabels := utils.MergeLabels(logLabels)
 		newLogLabels["module"] = moduleName
 		delete(newLogLabels, "task.id")
@@ -2042,6 +2049,11 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
 	for _, moduleName := range state.AllEnabledModules {
+		ev := events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleEnabled,
+		}
+		op.ModuleManager.SendModuleEvent(ev)
 		newLogLabels := utils.MergeLabels(logLabels)
 		newLogLabels["module"] = moduleName
 		delete(newLogLabels, "task.id")
@@ -2240,8 +2252,7 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
 	}
 	if tsk.GetType() == task.ModuleRun {
 		hm := task.HookMetadataAccessor(tsk)
-		module := op.ModuleManager.GetModule(hm.ModuleName)
-		baseModule := module.GetBaseModule()
+		baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
 		if baseModule.GetPhase() == modules.WaitForSynchronization {
 			return

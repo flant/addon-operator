@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
+
 	"github.com/flant/addon-operator/pkg/module_manager/loader"
 	"github.com/flant/addon-operator/pkg/module_manager/loader/fs"
 
@@ -119,7 +121,7 @@ type ModuleManager struct {
 	// Static and config values are valid using OpenAPI schemas.
 	kubeConfigValuesValid bool
 
-	moduleEventC chan ModuleEvent
+	moduleEventC chan events.ModuleEvent
 }
 
 // NewModuleManager returns new MainModuleManager
@@ -151,7 +153,7 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 		dynamicEnabled:         make(map[string]*bool),
 
 		globalSynchronizationState: modules.NewSynchronizationState(),
-		moduleEventC:               make(chan ModuleEvent, 50),
+		moduleEventC:               make(chan events.ModuleEvent, 50),
 	}
 }
 
@@ -542,18 +544,11 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 	purge := utils.MapStringStructKeys(releasesMap)
 	purge = utils.SortReverse(purge)
 
-	log.Infof("Modules to purge found (but they will not be purged): %v", purge)
-	// TODO(nabokihms): This is a temporary workaround to prevent deckhouse deleting modules downloaded from sources.
-	// Purging modules is required to delete releases for modules that were renamed or deleted in a new release.
-	//
-	// However, because of a race between downloading modules and running installation tasks on multimaster clusters.
-	//
-	// In the future, we need to identify and figure out how to handle this race.
-	// Users want to rely that their modules will not be deleted.
+	log.Infof("Modules to purge found: %v", purge)
 
 	return &ModulesState{
 		AllEnabledModules: enabledModules,
-		ModulesToPurge:    []string{},
+		ModulesToPurge:    purge,
 	}
 }
 
@@ -610,19 +605,6 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 
 	// Update state
 	mm.enabledModules = enabledModules
-
-	for _, moduleName := range enabledModules {
-		mm.moduleEventC <- ModuleEvent{
-			ModuleName: moduleName,
-			EventType:  ModuleEnabled,
-		}
-	}
-	for _, moduleName := range disabledModules {
-		mm.moduleEventC <- ModuleEvent{
-			ModuleName: moduleName,
-			EventType:  ModuleDisabled,
-		}
-	}
 
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
@@ -1066,6 +1048,10 @@ func (mm *ModuleManager) ApplyBindingActions(moduleHook *hooks2.ModuleHook, bind
 		}
 	}
 	return nil
+}
+
+func (mm *ModuleManager) SendModuleEvent(ev events.ModuleEvent) {
+	mm.moduleEventC <- ev
 }
 
 // mergeEnabled merges enabled flags. Enabled flag can be nil.

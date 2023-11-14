@@ -2,6 +2,7 @@ package module_manager
 
 import (
 	"fmt"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 
@@ -932,9 +933,9 @@ func (mm *ModuleManager) registerModules() error {
 
 		set.Add(mod)
 
-		mm.moduleEventC <- ModuleEvent{
+		mm.moduleEventC <- events.ModuleEvent{
 			ModuleName: mod.GetName(),
-			EventType:  ModuleRegistered,
+			EventType:  events.ModuleRegistered,
 		}
 		fmt.Println("MODULE REGISTERED", mod.Name)
 	}
@@ -946,7 +947,7 @@ func (mm *ModuleManager) registerModules() error {
 	return nil
 }
 
-func (mm *ModuleManager) GetModuleEventsChannel() chan ModuleEvent {
+func (mm *ModuleManager) GetModuleEventsChannel() chan events.ModuleEvent {
 	return mm.moduleEventC
 }
 
