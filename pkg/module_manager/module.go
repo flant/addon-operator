@@ -936,6 +936,7 @@ func (mm *ModuleManager) registerModules() error {
 			ModuleName: mod.GetName(),
 			EventType:  ModuleRegistered,
 		}
+		fmt.Println("MODULE REGISTERED", mod.Name)
 	}
 
 	log.Debugf("Found modules: %v", set.NamesInOrder())

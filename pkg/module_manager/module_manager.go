@@ -219,8 +219,6 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	// Get map of enabled modules after KubeConfig changes.
 	newEnabledByConfig := mm.calculateEnabledModulesByConfig(kubeConfig)
 
-	fmt.Println("KUBE CONFIG GLOBAL VLAUES", kubeConfig.Global.GetValues())
-
 	// Check if global config values are valid
 	globalModule := mm.global
 	validationErr := globalModule.SaveConfigValues(kubeConfig.Global.GetValues(), true)
@@ -229,8 +227,6 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 			return &ModulesState{}, e
 		}
 	}
-
-	fmt.Println("KUBECONFIG MODUKES", kubeConfig.Modules)
 
 	if kubeConfig != nil {
 		for moduleName, moduleConfig := range kubeConfig.Modules {
@@ -277,7 +273,6 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		}
 	}
 
-	fmt.Println("ENABLED", mm.enabledModules)
 	// Detect changed module sections for enabled modules.
 	modulesChanged := make([]string, 0)
 	if !isEnabledChanged {

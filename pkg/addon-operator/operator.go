@@ -1250,16 +1250,17 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 		logEntry.Errorf("Discover helm releases failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 		t.UpdateFailureMessage(err.Error())
 		t.WithQueuedAt(time.Now())
-	} else {
-		res.Status = queue.Success
-		state.ModulesToPurge = append(state.ModulesToPurge, op.ExplicitlyPurgeModules...)
-
-		log.Debugf("Next Modules will be purged: %v", state.ModulesToPurge)
-
-		tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
-		res.AfterTasks = tasks
-		op.logTaskAdd(logEntry, "after", res.AfterTasks...)
+		return
 	}
+
+	res.Status = queue.Success
+	state.ModulesToPurge = append(state.ModulesToPurge, op.ExplicitlyPurgeModules...)
+
+	log.Debugf("Next Modules will be purged: %v", state.ModulesToPurge)
+
+	tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
+	res.AfterTasks = tasks
+	op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 	return
 }
 
@@ -1278,6 +1279,7 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	} else {
 		logEntry.Debugf("Module purge success")
 	}
+
 	status = queue.Success
 	return
 }
@@ -1287,13 +1289,9 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 	defer trace.StartRegion(context.Background(), "ModuleDelete").End()
 
 	hm := task.HookMetadataAccessor(t)
-	// TODO(yalosev): remove this after fix
-	log.Errorf("trying to delete module %s. Skippig", hm.ModuleName)
 	status = queue.Success
-	return
 
-	module := op.ModuleManager.GetModule(hm.ModuleName)
-	baseModule := module.GetBaseModule()
+	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
 	logEntry.Debugf("Module delete '%s'", hm.ModuleName)
