@@ -101,12 +101,6 @@ type ModuleManager struct {
 
 	global *modules.GlobalModule
 
-	// TODO new layer of values for *Enabled values
-	// commonStaticEnabledValues utils.Values // modules/values.yaml
-	// kubeEnabledValues utils.Values // ConfigMap
-	// dynamicEnabledValues utils.Values // patches from global hooks
-	// scriptEnabledValues utils.Values // enabled script results
-
 	// values::set "moduleNameEnabled" "\"true\""
 	// module enable values from global hooks
 	dynamicEnabled map[string]*bool
@@ -118,39 +112,14 @@ type ModuleManager struct {
 	// List of effectively enabled modules after running enabled scripts.
 	enabledModules []string
 
-	// Index of all global hooks. Key is global hook name
-	//globalHooksByName map[string]hooks2.GlobalHook
-	// Index for searching global hooks by their bindings.
-	//globalHooksOrder map[BindingType][]hooks2.GlobalHook
-
-	// module hooks by module name and binding type ordered by name
-	// Note: one module hook can have several binding types.
-	//modulesHooksOrderByName map[string]map[BindingType][]*ModuleHook
-
 	globalSynchronizationState *modules.SynchronizationState
-
-	// VALUE STORAGES
-
-	// Values from modules/values.yaml file
-	//commonStaticValues utils.Values
-
-	// A lock to synchronize access to *ConfigValues and *DynamicValuesPatches maps.
-	//valuesLayersLock sync.RWMutex
-
-	// global values from ConfigMap
-	//kubeGlobalConfigValues utils.Values
-	// module values from ConfigMap, only for enabled modules
-	//kubeModulesConfigValues map[string]utils.Values
 
 	// addon-operator config is valid.
 	kubeConfigValid bool
 	// Static and config values are valid using OpenAPI schemas.
 	kubeConfigValuesValid bool
 
-	// Patches for dynamic global values
-	//globalDynamicValuesPatches []utils.ValuesPatch
-	// Patches for dynamic module values
-	//modulesDynamicValuesPatches map[string][]utils.ValuesPatch
+	moduleEventC chan ModuleEvent
 }
 
 // NewModuleManager returns new MainModuleManager
@@ -180,16 +149,9 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 		enabledModulesByConfig: make(map[string]struct{}),
 		enabledModules:         make([]string, 0),
 		dynamicEnabled:         make(map[string]*bool),
-		//globalHooksByName:      make(map[string]*hooks2.GlobalHook),
-		//globalHooksOrder:       make(map[BindingType][]*hooks2.GlobalHook),
-		//modulesHooksOrderByName:     make(map[string]map[BindingType][]*ModuleHook),
-		//commonStaticValues: make(utils.Values),
-		//kubeGlobalConfigValues:      make(utils.Values),
-		//kubeModulesConfigValues:     make(map[string]utils.Values),
-		//globalDynamicValuesPatches:  make([]utils.ValuesPatch, 0),
-		//modulesDynamicValuesPatches: make(map[string][]utils.ValuesPatch),
 
 		globalSynchronizationState: modules.NewSynchronizationState(),
+		moduleEventC:               make(chan ModuleEvent, 50),
 	}
 }
 
@@ -199,24 +161,15 @@ func (mm *ModuleManager) Stop() {
 	}
 }
 
-//// SetupModuleProducer registers foreign Module producer, which provides Module for storing in a cluster
-//func (mm *ModuleManager) SetupModuleProducer(producer ModuleProducer) {
-//	mm.moduleProducer = producer
-//}
+func (mm *ModuleManager) SetModuleLoader(ld loader.ModuleLoader) {
+	mm.moduleLoader = ld
+}
 
 // GetDependencies fetch dependencies struct from ModuleManager
 // note: not the best way but it's required in some hooks
 func (mm *ModuleManager) GetDependencies() *ModuleManagerDependencies {
 	return mm.dependencies
 }
-
-//// GetKubeConfigValues returns config values (from KubeConfigManager) for desired moduleName
-//func (mm *ModuleManager) GetKubeConfigValues(moduleName string) utils.Values {
-//	if moduleName == utils.GlobalValuesKey {
-//		return mm.kubeGlobalConfigValues
-//	}
-//	return mm.kubeModulesConfigValues[moduleName]
-//}
 
 // runModulesEnabledScript runs enable script for each module from the list.
 // Each 'enabled' script receives a list of previously enabled modules.
@@ -225,8 +178,7 @@ func (mm *ModuleManager) runModulesEnabledScript(modules []string, logLabels map
 
 	for _, moduleName := range modules {
 		ml := mm.GetModule(moduleName)
-		baseModule := ml.GetBaseModule()
-		isEnabled, err := baseModule.RunEnabledScript(mm.TempDir, enabled, logLabels)
+		isEnabled, err := ml.RunEnabledScript(mm.TempDir, enabled, logLabels)
 		if err != nil {
 			return nil, err
 		}
@@ -355,20 +307,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	globalModule.CommitConfigValuesChange()
 	mm.SetKubeConfigValuesValid(true)
 
-	//// Create new map with config values.
-	//newKubeModuleConfigValues := make(map[string]utils.Values)
-	//if kubeConfig != nil {
-	//	for moduleName, moduleConfig := range kubeConfig.Modules {
-	//		newKubeModuleConfigValues[moduleName] = moduleConfig.GetValues()
-	//	}
-	//}
-
-	// Update caches from ConfigMap content.
-	//mm.valuesLayersLock.Lock()
 	mm.enabledModulesByConfig = newEnabledByConfig
-	//mm.kubeGlobalConfigValues = newGlobalValues
-	//mm.kubeModulesConfigValues = newKubeModuleConfigValues
-	//mm.valuesLayersLock.Unlock()
 
 	// Return empty state on global change.
 	if hasGlobalChange || isEnabledChanged {
@@ -481,14 +420,6 @@ func (mm *ModuleManager) Init() error {
 	}
 
 	mm.enabledModulesByConfig = enabledModules
-
-	//moduleNames := make([]string, 0, len(enabledModules))
-	//for moduleName := range enabledModules {
-	//	moduleNames = append(moduleNames, moduleName)
-	//}
-	//
-	//// enable all modules on startup
-	//mm.enabledModules = moduleNames
 
 	if err := mm.registerGlobalModule(globalValues); err != nil {
 		return err
@@ -685,6 +616,19 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	// Update state
 	mm.enabledModules = enabledModules
 
+	for _, moduleName := range enabledModules {
+		mm.moduleEventC <- ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  ModuleEnabled,
+		}
+	}
+	for _, moduleName := range disabledModules {
+		mm.moduleEventC <- ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  ModuleDisabled,
+		}
+	}
+
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
 		AllEnabledModules: mm.enabledModules,
@@ -705,8 +649,7 @@ func (mm *ModuleManager) GetEnabledModuleNames() []string {
 	return mm.enabledModules
 }
 
-// IsModuleEnabled xx
-// Deprecated: remove
+// IsModuleEnabled ...
 func (mm *ModuleManager) IsModuleEnabled(moduleName string) bool {
 	for _, modName := range mm.enabledModules {
 		if modName == moduleName {
@@ -719,19 +662,6 @@ func (mm *ModuleManager) IsModuleEnabled(moduleName string) bool {
 func (mm *ModuleManager) GetGlobalHook(name string) *hooks2.GlobalHook {
 	return mm.global.GetHookByName(name)
 }
-
-//func (mm *ModuleManager) GetModuleHook(name string) *ModuleHook {
-//	for _, bindingHooks := range mm.modulesHooksOrderByName {
-//		for _, hooks := range bindingHooks {
-//			for _, hook := range hooks {
-//				if hook.Name == name {
-//					return hook
-//				}
-//			}
-//		}
-//	}
-//	return nil
-//}
 
 func (mm *ModuleManager) GetGlobalHooksNames() []string {
 	hks := mm.global.GetHooks()
@@ -755,45 +685,6 @@ func (mm *ModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []string
 
 	return names
 }
-
-//func (mm *ModuleManager) GetModuleHooksInOrder(moduleName string, bindingType BindingType) []string {
-//	moduleHooksByBinding, ok := mm.modulesHooksOrderByName[moduleName]
-//	if !ok {
-//		return []string{}
-//	}
-//
-//	moduleBindingHooks, ok := moduleHooksByBinding[bindingType]
-//	if !ok {
-//		return []string{}
-//	}
-//
-//	sort.Slice(moduleBindingHooks, func(i, j int) bool {
-//		return moduleBindingHooks[i].Order(bindingType) < moduleBindingHooks[j].Order(bindingType)
-//	})
-//
-//	moduleHooksNames := make([]string, 0, len(moduleBindingHooks))
-//	for _, moduleHook := range moduleBindingHooks {
-//		moduleHooksNames = append(moduleHooksNames, moduleHook.Name)
-//	}
-//
-//	return moduleHooksNames
-//}
-
-//func (mm *ModuleManager) GetModuleHookNames(moduleName string) []string {
-//	moduleHooksByBinding, ok := mm.modulesHooksOrderByName[moduleName]
-//	if !ok {
-//		return []string{}
-//	}
-//
-//	moduleHookNamesMap := make(map[string]struct{})
-//	for _, moduleHooks := range moduleHooksByBinding {
-//		for _, moduleHook := range moduleHooks {
-//			moduleHookNamesMap[moduleHook.Name] = struct{}{}
-//		}
-//	}
-//
-//	return utils.MapStringStructKeys(moduleHookNamesMap)
-//}
 
 func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]string) error {
 	ml := mm.GetModule(moduleName)
@@ -824,7 +715,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			MetricsStorage:      mm.dependencies.MetricStorage,
 			HelmValuesValidator: mm.ValuesValidator,
 		}
-		helmModule, _ := modules.NewHelmModule(ml.GetBaseModule(), mm.TempDir, &hmdeps, mm.ValuesValidator)
+		helmModule, _ := modules.NewHelmModule(ml, mm.TempDir, &hmdeps, mm.ValuesValidator)
 		if helmModule != nil {
 			releaseExists, err := mm.dependencies.Helm.NewClient(deleteLogLabels).IsReleaseExists(ml.GetName())
 			if !releaseExists {
@@ -842,37 +733,36 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			}
 		}
 
-		err := ml.GetBaseModule().RunHooksByBinding(AfterDeleteHelm, deleteLogLabels)
+		err := ml.RunHooksByBinding(AfterDeleteHelm, deleteLogLabels)
 		if err != nil {
 			return err
 		}
 
 		// Cleanup state.
-		ml.GetBaseModule().ResetState()
+		ml.ResetState()
 	}
 
 	// Unregister module hooks.
-	ml.GetBaseModule().DeregisterHooks()
+	ml.DeregisterHooks()
 
 	return nil
 }
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
 func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]string) ( /*valuesChanged*/ bool, error) {
-	ml := mm.GetModule(moduleName)
-	bm := ml.GetBaseModule()
+	bm := mm.GetModule(moduleName)
 
 	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
 	defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase").End()
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		"module": ml.GetName(),
+		"module": bm.GetName(),
 		"queue":  "main",
 	})
 
 	// Hooks can delete release resources, so pause resources monitor before run hooks.
-	mm.dependencies.HelmResourcesManager.PauseMonitor(ml.GetName())
-	defer mm.dependencies.HelmResourcesManager.ResumeMonitor(ml.GetName())
+	mm.dependencies.HelmResourcesManager.PauseMonitor(bm.GetName())
+	defer mm.dependencies.HelmResourcesManager.ResumeMonitor(bm.GetName())
 
 	var err error
 
@@ -926,159 +816,8 @@ func (mm *ModuleManager) RunGlobalHook(hookName string, binding BindingType, bin
 func (mm *ModuleManager) RunModuleHook(moduleName, hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (beforeChecksum string, afterChecksum string, err error) {
 	ml := mm.GetModule(moduleName)
 
-	return ml.GetBaseModule().RunHookByName(hookName, binding, bindingContext, logLabels)
+	return ml.RunHookByName(hookName, binding, bindingContext, logLabels)
 }
-
-//// GlobalConfigValues return raw global values only from a ConfigMap.
-//func (mm *ModuleManager) GlobalConfigValues() utils.Values {
-//	return modules.mergeLayers(
-//		// Init global section.
-//		utils.Values{"global": map[string]interface{}{}},
-//		// Merge overrides from ConfigMap.
-//		mm.kubeGlobalConfigValues,
-//	)
-//}
-//
-//// GlobalStaticAndConfigValues return global values defined in
-//// various values.yaml files and in a ConfigMap
-//func (mm *ModuleManager) GlobalStaticAndConfigValues() utils.Values {
-//	return modules.mergeLayers(
-//		// Init global section.
-//		utils.Values{"global": map[string]interface{}{}},
-//		// Merge static values from modules/values.yaml.
-//		mm.commonStaticValues.Global(),
-//		// Apply config values defaults before ConfigMap overrides.
-//		&applyDefaultsForGlobal{validation.ConfigValuesSchema, mm.ValuesValidator},
-//		// Merge overrides from ConfigMap.
-//		mm.kubeGlobalConfigValues,
-//	)
-//}
-
-//// GlobalStaticAndNewValues return global values defined in
-//// various values.yaml files merged with newValues
-//func (mm *ModuleManager) GlobalStaticAndNewValues(newValues utils.Values) utils.Values {
-//	return modules.mergeLayers(
-//		// Init global section.
-//		utils.Values{"global": map[string]interface{}{}},
-//		// Merge static values from modules/values.yaml.
-//		mm.commonStaticValues.Global(),
-//		// Apply config values defaults before overrides.
-//		&applyDefaultsForGlobal{validation.ConfigValuesSchema, mm.ValuesValidator},
-//		// Merge overrides from newValues.
-//		newValues,
-//	)
-//}
-
-//// GlobalValues return current global values with applied patches
-//func (mm *ModuleManager) GlobalValues() (utils.Values, error) {
-//	var err error
-//
-//	res := modules.mergeLayers(
-//		// Init global section.
-//		utils.Values{"global": map[string]interface{}{}},
-//		// Merge static values from modules/values.yaml.
-//		mm.commonStaticValues.Global(),
-//		// Apply config values defaults before ConfigMap overrides.
-//		&applyDefaultsForGlobal{validation.ConfigValuesSchema, mm.ValuesValidator},
-//		// Merge overrides from ConfigMap.
-//		mm.kubeGlobalConfigValues,
-//		// Apply dynamic values defaults before patches.
-//		&applyDefaultsForGlobal{validation.ValuesSchema, mm.ValuesValidator},
-//	)
-//
-//	// Invariant: do not store patches that does not apply
-//	// Give user error for patches early, after patch receive
-//
-//	// Compact patches so we could execute all at once.
-//	// Each ApplyValuesPatch execution invokes json.Marshal for values.
-//	ops := *utils.NewValuesPatch() // TODO(nabokihms): The values is always not nil, consider refactoring the method
-//
-//	for _, patch := range mm.globalDynamicValuesPatches {
-//		ops.Operations = append(ops.Operations, patch.Operations...)
-//	}
-//
-//	res, _, err = utils.ApplyValuesPatch(res, ops, utils.IgnoreNonExistentPaths)
-//	if err != nil {
-//		return nil, fmt.Errorf("apply global patch error: %s", err)
-//	}
-//
-//	return res, nil
-//}
-
-//// GlobalValuesPatches return patches for global values.
-//// Deprecated: think something about this
-//func (mm *ModuleManager) GlobalValuesPatches() []utils.ValuesPatch {
-//	return mm.globalDynamicValuesPatches
-//}
-
-//// UpdateGlobalConfigValues sets updated global config values.
-//func (mm *ModuleManager) UpdateGlobalConfigValues(configValues utils.Values) {
-//	mm.valuesLayersLock.Lock()
-//	defer mm.valuesLayersLock.Unlock()
-//
-//	mm.kubeGlobalConfigValues = configValues
-//}
-//
-//// UpdateGlobalDynamicValuesPatches appends patches for global dynamic values.
-//func (mm *ModuleManager) UpdateGlobalDynamicValuesPatches(valuesPatch utils.ValuesPatch) {
-//	mm.valuesLayersLock.Lock()
-//	defer mm.valuesLayersLock.Unlock()
-//
-//	mm.globalDynamicValuesPatches = utils.AppendValuesPatch(
-//		mm.globalDynamicValuesPatches,
-//		valuesPatch)
-//}
-
-//// ModuleConfigValues returns config values for module.
-//func (mm *ModuleManager) ModuleConfigValues(moduleName string) utils.Values {
-//	mm.valuesLayersLock.RLock()
-//	defer mm.valuesLayersLock.RUnlock()
-//	return mm.kubeModulesConfigValues[moduleName]
-//}
-
-//// ModuleDynamicValuesPatches returns all patches for dynamic values.
-//func (mm *ModuleManager) ModuleDynamicValuesPatches(moduleName string) []utils.ValuesPatch {
-//	mm.valuesLayersLock.RLock()
-//	defer mm.valuesLayersLock.RUnlock()
-//	return mm.modulesDynamicValuesPatches[moduleName]
-//}
-
-//// UpdateModuleConfigValues sets updated config values for module.
-//func (mm *ModuleManager) UpdateModuleConfigValues(moduleName string, configValues utils.Values) {
-//	mm.valuesLayersLock.Lock()
-//	defer mm.valuesLayersLock.Unlock()
-//	mm.kubeModulesConfigValues[moduleName] = configValues
-//}
-
-// UpdateModuleDynamicValuesPatches appends patches for dynamic values for module.
-//func (mm *ModuleManager) UpdateModuleDynamicValuesPatches(moduleName string, valuesPatch utils.ValuesPatch) {
-//	mm.valuesLayersLock.Lock()
-//	defer mm.valuesLayersLock.Unlock()
-//
-//	mm.modulesDynamicValuesPatches[moduleName] = utils.AppendValuesPatch(
-//		mm.modulesDynamicValuesPatches[moduleName],
-//		valuesPatch)
-//}
-
-//func (mm *ModuleManager) ApplyModuleDynamicValuesPatches(moduleName string, values utils.Values) (utils.Values, error) {
-//	var err error
-//	res := values
-//
-//	// Compact patches so we could execute all at once.
-//	// Each ApplyValuesPatch execution invokes json.Marshal for values.
-//	ops := *utils.NewValuesPatch() // TODO(nabokihms): The values is always not nil, consider refactoring the method
-//
-//	for _, patch := range mm.ModuleDynamicValuesPatches(moduleName) {
-//		ops.Operations = append(ops.Operations, patch.Operations...)
-//	}
-//
-//	res, _, err = utils.ApplyValuesPatch(res, ops, utils.IgnoreNonExistentPaths)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return res, nil
-//}
 
 func (mm *ModuleManager) GetValuesValidator() *validation.ValuesValidator {
 	return mm.ValuesValidator

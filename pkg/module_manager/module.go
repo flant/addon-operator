@@ -931,28 +931,22 @@ func (mm *ModuleManager) registerModules() error {
 		mod.WithDependencies(dep)
 
 		set.Add(mod)
+
+		mm.moduleEventC <- ModuleEvent{
+			ModuleName: mod.GetName(),
+			EventType:  ModuleRegistered,
+		}
 	}
-
-	//// load global and modules common static values from modules/values.yaml
-	//commonStaticValues, err := LoadCommonStaticValues(mm.ModulesDir)
-	//if err != nil {
-	//	return fmt.Errorf("load common values for modules: %s", err)
-	//}
-	//mm.commonStaticValues = commonStaticValues
-
-	// TODO(yalosev): write me
-	//modules, err := searchModules(mm.ModulesDir)
-	//if err != nil {
-	//	return err
-	//}
-
-	//modules := &*BasicModulesSet{}
 
 	log.Debugf("Found modules: %v", set.NamesInOrder())
 
 	mm.modules = set
 
 	return nil
+}
+
+func (mm *ModuleManager) GetModuleEventsChannel() chan ModuleEvent {
+	return mm.moduleEventC
 }
 
 //func (mm *ModuleManager) RegisterModule(module *modules.BasicModule) error {
