@@ -451,6 +451,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 	}
 
 	go func() {
+		fmt.Println("XXXX WAITING FOR CONVERGE")
 		<-op.ConvergeState.firstRunDoneC
 		// Add "DiscoverHelmReleases" task to detect unknown releases and purge them.
 		// this task will run only after the first converge, to keep all modules
@@ -464,6 +465,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 			WithMetadata(task.HookMetadata{
 				EventDescription: "Operator-PostConvergeCleanup",
 			})
+		fmt.Println("XXXX ADD TASK", discoverTask)
 		op.engine.TaskQueues.GetMain().AddLast(discoverTask.WithQueuedAt(time.Now()))
 	}()
 }
@@ -1240,6 +1242,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 
 // HandleDiscoverHelmReleases runs RefreshStateFromHelmReleases to detect modules state at start.
 func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+	fmt.Println("XXXX handle discover")
 	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
@@ -1255,7 +1258,7 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 	}
 
 	res.Status = queue.Success
-
+	fmt.Println("XXXX to purge", state.ModulesToPurge)
 	tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
 	res.AfterTasks = tasks
 	op.logTaskAdd(logEntry, "after", res.AfterTasks...)
@@ -1270,7 +1273,7 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	logEntry.Debugf("Module purge start")
 
 	hm := task.HookMetadataAccessor(t)
-	fmt.Println("MMMPURGE", hm.ModuleName)
+	fmt.Println("XXXX PURGE", hm.ModuleName)
 	err := op.Helm.NewClient(t.GetLogLabels()).DeleteRelease(hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
