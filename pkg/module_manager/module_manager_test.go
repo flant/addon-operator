@@ -35,13 +35,13 @@ modules:
 `, v.AsString("yaml"))
 
 	assert.Equal(t, map[string]struct{}{
-		"admissionPolicyEngine": {},
-		"certManager":           {},
-		"chrony":                {},
-		"cloudDataCrd":          {},
-		"controlPlaneManager":   {},
-		"dashboard":             {},
-		"deckhouse":             {},
+		"admission-policy-engine": {},
+		"cert-manager":            {},
+		"chrony":                  {},
+		"cloud-data-crd":          {},
+		"control-plane-manager":   {},
+		"dashboard":               {},
+		"deckhouse":               {},
 	}, en)
 }
 
