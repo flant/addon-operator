@@ -112,8 +112,6 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	// Each ApplyValuesPatch execution invokes json.Marshal for values.
 	ops := *utils.NewValuesPatch()
 
-	fmt.Println("X OATCHES", len(vs.valuesPatches))
-
 	for _, patch := range vs.valuesPatches {
 		ops.Operations = append(ops.Operations, patch.Operations...)
 	}
@@ -122,6 +120,9 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("AFTER X PATCHES", len(vs.valuesPatches))
+	fmt.Println("MERGED", merged.AsString("yaml"))
 
 	vs.resultValues = merged
 
