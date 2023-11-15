@@ -48,5 +48,5 @@ func TestBasicModuleSet(t *testing.T) {
 
 	g.Expect(ms.NamesInOrder()).Should(Equal(expectNames))
 	g.Expect(ms.Has("BasicModule-four")).Should(BeTrue(), "should have BasicModule-four")
-	g.Expect(ms.Get("BasicModule-four").Order).Should(Equal(20), "should have BasicModule-four with order:20")
+	g.Expect(ms.Get("BasicModule-four").Order).Should(Equal(uint32(20)), "should have BasicModule-four with order:20")
 }

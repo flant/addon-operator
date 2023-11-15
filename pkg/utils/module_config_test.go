@@ -165,10 +165,8 @@ testModuleEnabled: true
 `
 
 	expectedData := Values{
-		"testModule": map[string]interface{}{
-			"hello": "world", "4": "123", "5": 5.0,
-			"aaa": map[string]interface{}{"no": []interface{}{"one", "two", "three"}},
-		},
+		"hello": "world", "4": "123", "5": 5.0,
+		"aaa": map[string]interface{}{"no": []interface{}{"one", "two", "three"}},
 	}
 
 	config, err = NewModuleConfig("test-module", nil).LoadFromValues(inputData)
