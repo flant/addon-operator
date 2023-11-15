@@ -291,7 +291,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		{task.GlobalHookWaitKubernetesSynchronization, "", "", ""},
 
 		// TODO DiscoverHelmReleases can add ModulePurge tasks.
-		//{task.DiscoverHelmReleases, "", "", ""},
+		// {task.DiscoverHelmReleases, "", "", ""},
 		//{task.ModulePurge, "", moduleToPurge, ""},
 
 		// ConvergeModules runs after global Synchronization and emerges BeforeAll tasks.
@@ -303,7 +303,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 
 		// ConvergeModules adds ModuleDelete and ModuleRun tasks.
 		{task.ModuleRun, "", "module-alpha", string(modules.Startup)},
-		//{task.ModuleDelete, "", "module-beta", ""},
+		// {task.ModuleDelete, "", "module-beta", ""},
 
 		// Only one hook with kubernetes binding.
 		{task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook01", ""},

@@ -80,10 +80,10 @@ testModuleEnabled: true
 				g.Expect(config.IsEnabled).To(Equal(&ModuleEnabled))
 
 				g.Expect(config.GetValues()).ToNot(BeEmpty())
-				g.Expect(config.GetValues()).To(HaveKey("testModule"))
-				g.Expect(config.GetValues()["testModule"]).To(BeAssignableToTypeOf(map[string]interface{}{}))
+				g.Expect(config.GetValues()).ToNot(HaveKey("testModule"))
+				g.Expect(config.GetValues()).To(BeAssignableToTypeOf(map[string]interface{}{}))
 
-				modValsMap := config.GetValues()["testModule"].(map[string]interface{})
+				modValsMap := config.GetValues()
 				g.Expect(modValsMap["hello"]).To(Equal("world"))
 				g.Expect(modValsMap["4"]).To(Equal("123"))
 				g.Expect(modValsMap["5"]).To(Equal(5.0))
@@ -113,7 +113,7 @@ testModule:
 					return (element.(map[string]interface{})["id"]).(string)
 				}
 
-				g.Expect(config.GetValues()).To(MatchAllKeys(Keys{
+				g.Expect(config.GetValuesWithModuleName()).To(MatchAllKeys(Keys{
 					"testModule": MatchAllElements(arrayID, Elements{
 						"0": MatchAllKeys(Keys{
 							"a":  Equal(1.0),
