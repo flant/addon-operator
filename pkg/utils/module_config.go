@@ -64,13 +64,23 @@ func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 	}
 }
 
-// GetValues enrich module values with module's name top level key
+// GetValuesWithModuleName enrich module values with module's name top level key
 // if key is already present - returns values as it
 // module: test-module with values {"a": "b", "c": "d} will return:
 //
 //	testModule:
 //	  a: b
 //	  c: d
+//
+// Deprecated: use GetValues instead
+func (mc *ModuleConfig) GetValuesWithModuleName() Values {
+	return mc.values
+}
+
+// GetValues returns values but without moduleName
+//
+//	a: b
+//	c: d
 func (mc *ModuleConfig) GetValues() Values {
 	if len(mc.values) == 0 {
 		return mc.values

@@ -1075,6 +1075,13 @@ func (mm *ModuleManager) GetModuleEventsChannel() chan events.ModuleEvent {
 // Deprecated: move it to module constructor
 // TODO: rethink this
 func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
+	valuesKey := utils.ModuleNameToValuesKey(mod.GetName())
+	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
+
+	if mod.GetName() != restoredName {
+		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", mod.GetName(), restoredName)
+	}
+
 	// load static config from values.yaml
 	staticValues, err := loadStaticValues(mod.GetName(), mod.GetPath())
 	if err != nil {

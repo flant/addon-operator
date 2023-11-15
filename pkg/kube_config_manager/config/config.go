@@ -14,6 +14,12 @@ type GlobalKubeConfig struct {
 	Checksum string
 }
 
+// GetValuesWithGlobalName
+// Deprecated: use GetValues instead
+func (gkc GlobalKubeConfig) GetValuesWithGlobalName() utils.Values {
+	return gkc.Values
+}
+
 // GetValues returns global values, enrich them with top level key 'global'
 func (gkc GlobalKubeConfig) GetValues() utils.Values {
 	if len(gkc.Values) == 0 {
@@ -21,7 +27,13 @@ func (gkc GlobalKubeConfig) GetValues() utils.Values {
 	}
 
 	if gkc.Values.HasKey("global") {
-		return gkc.Values["global"].(utils.Values)
+		switch v := gkc.Values["global"].(type) {
+		case map[string]interface{}:
+			return utils.Values(v)
+
+		case utils.Values:
+			return v
+		}
 	}
 
 	return gkc.Values
