@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/go-openapi/spec"
@@ -145,10 +146,13 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bo
 		configV,
 	)
 
+	fmt.Println("CLOCK 0")
 	vs.clock.Lock()
+	fmt.Println("AFTER CLOCK 0")
 	vs.dirtyMergedConfigValues = merged
 	vs.dirtyConfigValues = configV
 	vs.clock.Unlock()
+	fmt.Println("UNLOCK CLOCK 0")
 
 	if validate {
 		return vs.validateConfigValues(merged)
@@ -180,8 +184,13 @@ func (vs *ValuesStorage) validateValues(values utils.Values) error {
 }
 
 func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
+	fmt.Println("CLOCK 1")
+	defer func() {
+		fmt.Println("UCLOCK 1")
+	}()
 	vs.clock.RLock()
 	defer vs.clock.RUnlock()
+	fmt.Println("AFTER CLOCK 1")
 
 	if vs.dirtyConfigValues == nil {
 		return false
@@ -224,16 +233,21 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 		v,
 	)
 
+	fmt.Println("VLOCK 1")
 	vs.vlock.Lock()
+	fmt.Println("AFTER VLOCK 1")
 	vs.dirtyResultValues = merged
 	vs.vlock.Unlock()
+	fmt.Println("UNLOCK VLOCK 1")
 
 	return vs.validateValues(merged)
 }
 
 // CommitConfigValues move config values from 'dirty' state to the actual
 func (vs *ValuesStorage) CommitConfigValues() {
+	fmt.Println("CLOCK 2")
 	vs.clock.Lock()
+	fmt.Println(" AFTER CLOCK 2")
 	if vs.dirtyMergedConfigValues != nil {
 		vs.mergedConfigValues = vs.dirtyMergedConfigValues
 		vs.dirtyMergedConfigValues = nil
@@ -244,14 +258,20 @@ func (vs *ValuesStorage) CommitConfigValues() {
 		vs.dirtyConfigValues = nil
 	}
 	vs.clock.Unlock()
+	fmt.Println("UNLOCK CLOCK 2")
 
 	_ = vs.calculateResultValues()
 }
 
 // CommitValues move result values from the 'dirty' state
 func (vs *ValuesStorage) CommitValues() {
+	fmt.Println("VLOCK 2")
 	vs.vlock.Lock()
+	fmt.Println("AFTER VLOCK 2")
 	defer vs.vlock.Unlock()
+	defer func() {
+		fmt.Println("UNLOCK VLOCK 2")
+	}()
 
 	if vs.dirtyResultValues == nil {
 		return
@@ -284,8 +304,13 @@ with prefix:
 	```
 */
 func (vs *ValuesStorage) GetValues(withPrefix bool) utils.Values {
+	fmt.Println("VLOCK 3")
 	vs.vlock.RLock()
+	fmt.Println("AFTER VLOCK 3")
 	defer vs.vlock.RLock()
+	defer func() {
+		fmt.Println("UNLOCK VLOCK 3")
+	}()
 
 	if withPrefix {
 		return utils.Values{
@@ -298,8 +323,13 @@ func (vs *ValuesStorage) GetValues(withPrefix bool) utils.Values {
 
 // GetConfigValues returns only user defined values
 func (vs *ValuesStorage) GetConfigValues(withPrefix bool) utils.Values {
+	fmt.Println("CLOCK 3")
 	vs.clock.RLock()
+	fmt.Println("AFTER CLOCK 3")
 	defer vs.clock.RUnlock()
+	defer func() {
+		fmt.Println("UNLOCK CLOCK 3")
+	}()
 
 	if withPrefix {
 		return utils.Values{
