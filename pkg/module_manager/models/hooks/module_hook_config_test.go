@@ -123,7 +123,7 @@ afterDeleteHelm: 18
 		t.Run(tt.name, func(t *testing.T) {
 			g = NewWithT(t)
 			config = &ModuleHookConfig{}
-			err = config.LoadAndValidate([]byte(tt.configText))
+			err = config.LoadAndValidateShellConfig([]byte(tt.configText))
 			tt.assertion()
 		})
 	}
