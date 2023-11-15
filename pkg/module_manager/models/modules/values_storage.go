@@ -2,13 +2,13 @@ package modules
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/go-openapi/spec"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	"github.com/sasha-s/go-deadlock"
 )
 
 type validator interface {
@@ -48,7 +48,7 @@ type ValuesStorage struct {
 	moduleName string
 
 	// lock for any config changes
-	clock sync.RWMutex
+	clock deadlock.RWMutex
 	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
 	// without merge with static and openapi values
 	configValues utils.Values
@@ -58,7 +58,7 @@ type ValuesStorage struct {
 	dirtyMergedConfigValues utils.Values
 
 	// lock of values changes
-	vlock sync.RWMutex
+	vlock deadlock.RWMutex
 	// result of the merging all input values
 	resultValues utils.Values
 	// dirtyResultValues pre-commit stage of result values, used for two-phase commit with validation
@@ -126,7 +126,9 @@ func (vs *ValuesStorage) calculateResultValues() error {
 		return err
 	}
 
+	vs.vlock.Lock()
 	vs.resultValues = merged
+	vs.vlock.Unlock()
 
 	return nil
 }
@@ -207,6 +209,7 @@ func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
 // you have to commit them with CommitValues
 // Probably, we don't need the method, we can use patches instead
 func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
+	vs.clock.Lock()
 	if vs.mergedConfigValues == nil {
 		vs.mergedConfigValues = mergeLayers(
 			utils.Values{},
@@ -220,7 +223,9 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 			vs.configValues,
 		)
 	}
+	vs.clock.Unlock()
 
+	vs.clock.RLock()
 	merged := mergeLayers(
 		utils.Values{},
 		// Init static values (from modules/values.yaml)
@@ -232,6 +237,7 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 		// new values
 		v,
 	)
+	vs.clock.RUnlock()
 
 	fmt.Println("VLOCK 1")
 	vs.vlock.Lock()
@@ -247,6 +253,8 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 func (vs *ValuesStorage) CommitConfigValues() {
 	fmt.Println("CLOCK 2")
 	vs.clock.Lock()
+	defer vs.clock.Unlock()
+
 	fmt.Println(" AFTER CLOCK 2")
 	if vs.dirtyMergedConfigValues != nil {
 		vs.mergedConfigValues = vs.dirtyMergedConfigValues
@@ -257,7 +265,6 @@ func (vs *ValuesStorage) CommitConfigValues() {
 		vs.configValues = vs.dirtyConfigValues
 		vs.dirtyConfigValues = nil
 	}
-	vs.clock.Unlock()
 	fmt.Println("UNLOCK CLOCK 2")
 
 	_ = vs.calculateResultValues()
