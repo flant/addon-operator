@@ -36,7 +36,8 @@ func (h *GoHook) BackportHookConfig(cfg *config.HookConfig) {
 	h.basicHook.RateLimiter = sh_hook.CreateRateLimiter(cfg)
 }
 
-func (h *GoHook) run(input *go_hook.HookInput) error {
+// Run start ReconcileFunc
+func (h *GoHook) Run(input *go_hook.HookInput) error {
 	return h.reconcileFunc(input)
 }
 
@@ -108,7 +109,7 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 	metricsCollector := metrics.NewCollector(h.GetName())
 	patchCollector := object_patch.NewPatchCollector()
 
-	err = h.run(&go_hook.HookInput{
+	err = h.Run(&go_hook.HookInput{
 		Snapshots:        formattedSnapshots,
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
