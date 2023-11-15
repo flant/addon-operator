@@ -33,7 +33,7 @@ foo:
 			Value: json.RawMessage(`"zxc"`),
 		},
 	}}
-	res, err := bm.handleModuleValuesPatch(bm.GetValues(false), patch)
+	res, err := bm.handleModuleValuesPatch(bm.GetValues(true), patch)
 	require.NoError(t, err)
 	assert.True(t, res.ValuesChanged)
 	assert.YAMLEq(t, `
