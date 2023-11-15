@@ -1,12 +1,14 @@
 package modules
 
 import (
+	"fmt"
+	"sync"
+
 	"github.com/go-openapi/spec"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
-	"github.com/sasha-s/go-deadlock"
 )
 
 type validator interface {
@@ -45,7 +47,7 @@ type ValuesStorage struct {
 	validator  validator
 	moduleName string
 
-	lock deadlock.Mutex
+	lock sync.Mutex
 	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
 	// without merge with static and openapi values
 	configValues utils.Values
@@ -251,6 +253,10 @@ func (vs *ValuesStorage) CommitConfigValues() {
 func (vs *ValuesStorage) CommitValues() {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
+
+	if vs.moduleName == "node-manager" {
+		fmt.Println("DIRTY", vs.dirtyResultValues.AsString("yaml"))
+	}
 
 	if vs.dirtyResultValues == nil {
 		return

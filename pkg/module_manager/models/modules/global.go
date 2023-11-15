@@ -229,9 +229,8 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 				return fmt.Errorf("cannot apply values patch for global values: %w", validationErr)
 			}
 
-			gm.valuesStorage.CommitValues()
-
 			gm.valuesStorage.appendValuesPatch(valuesPatchResult.ValuesPatch)
+			gm.valuesStorage.CommitValues()
 
 			logEntry.Debugf("Global hook '%s': kube global values updated", h.GetName())
 			logEntry.Debugf("New global values:\n%s", gm.valuesStorage.GetValues(false).DebugString())
