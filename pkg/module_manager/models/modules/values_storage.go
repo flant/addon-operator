@@ -116,7 +116,9 @@ func (vs *ValuesStorage) calculateResultValues() error {
 		ops.Operations = append(ops.Operations, patch.Operations...)
 	}
 
-	merged, _, err := utils.ApplyValuesPatch(merged, ops, utils.IgnoreNonExistentPaths)
+	moduleValuesKey := utils.ModuleNameToValuesKey(vs.moduleName)
+
+	merged, _, err := utils.ApplyValuesPatch(utils.Values{moduleValuesKey: merged}, ops, utils.IgnoreNonExistentPaths)
 	if err != nil {
 		return err
 	}
@@ -124,7 +126,7 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	fmt.Println("AFTER X PATCHES", len(vs.valuesPatches))
 	fmt.Println("MERGED", merged.AsString("yaml"))
 
-	vs.resultValues = merged
+	vs.resultValues = merged.GetKeySection(moduleValuesKey)
 
 	return nil
 }

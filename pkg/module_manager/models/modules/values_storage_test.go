@@ -80,9 +80,6 @@ func TestPatchValues(t *testing.T) {
 	require.NoError(t, err)
 	err = vv.SchemaStorage.AddGlobalValuesSchemas(cb, vb)
 	require.NoError(t, err)
-
-	vs := NewValuesStorage("global", utils.Values{}, vv)
-
 	mcv, err := utils.NewValuesFromBytes([]byte(`
 highAvailability: false
 modules:
@@ -100,18 +97,20 @@ modules:
       memory: 512Mi
 `))
 	require.NoError(t, err)
-	vs.mergedConfigValues = mcv
+
+	vs := NewValuesStorage("global", mcv, vv)
 
 	vp := utils.NewValuesPatch()
 	vp.Operations = append(vp.Operations, &utils.ValuesPatchOperation{
 		Op:    "add",
-		Path:  "/modules/resourcesRequests/everyNode/cpu",
+		Path:  "/global/modules/resourcesRequests/everyNode/cpu",
 		Value: json.RawMessage(`"500m"`),
 	})
 
 	vs.appendValuesPatch(*vp)
 
-	vs.CommitValues()
+	err = vs.CommitValues()
+	require.NoError(t, err)
 	v := vs.GetValues(false)
 
 	assert.YAMLEq(t, `
@@ -119,6 +118,7 @@ discovery:
     clusterControlPlaneIsHighlyAvailable: false
     d8SpecificNodeCountByRole: {}
     prometheusScrapeInterval: 30
+highAvailability: false
 internal:
     modules:
         kubeRBACProxyCA: {}
@@ -126,8 +126,13 @@ internal:
             memoryControlPlane: 0
             milliCpuControlPlane: 0
 modules:
+    https:
+        certManager:
+            clusterIssuerName: letsencrypt
+        mode: CertManager
     ingressClass: nginx
     placement: {}
+    publicDomainTemplate: '%s.example.com'
     resourcesRequests:
         controlPlane: {}
         everyNode:
