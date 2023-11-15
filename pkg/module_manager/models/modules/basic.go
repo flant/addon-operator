@@ -2,7 +2,6 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -682,11 +681,6 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		if valuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Module hook '%s': validate module values before update", h.GetName())
 
-			if bm.Name == "node-manager" {
-				fmt.Println("PATCH VALUES", valuesPatchResult.Values.AsString("yaml"))
-				d, _ := json.Marshal(valuesPatchResult.ValuesPatch)
-				fmt.Println("PATCH", string(d))
-			}
 			// Validate schema for updated module values
 			validationErr := bm.valuesStorage.validateValues(valuesPatchResult.Values)
 			if validationErr != nil {

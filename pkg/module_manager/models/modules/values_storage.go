@@ -123,9 +123,6 @@ func (vs *ValuesStorage) calculateResultValues() error {
 		return err
 	}
 
-	fmt.Println("AFTER X PATCHES", len(vs.valuesPatches))
-	fmt.Println("MERGED", merged.AsString("yaml"))
-
 	vs.resultValues = merged.GetKeySection(moduleValuesKey)
 
 	return nil
@@ -216,8 +213,6 @@ func (vs *ValuesStorage) CommitConfigValues() {
 func (vs *ValuesStorage) CommitValues() error {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
-
-	fmt.Println("COMMIT VALUES", vs.moduleName)
 
 	return vs.calculateResultValues()
 }

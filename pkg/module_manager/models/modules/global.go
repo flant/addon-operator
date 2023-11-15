@@ -1,7 +1,6 @@
 package modules
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -228,9 +227,6 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		// and no patches for 'global' section — valuesPatchResult will be nil in this case.
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Global hook '%s': validate global values before update", h.GetName())
-			fmt.Println("VALIDATE VALUES", h.GetName(), valuesPatchResult.Values.AsString("yaml"))
-			d, _ := json.Marshal(valuesPatchResult.ValuesPatch)
-			fmt.Println("PATCH", string(d))
 			validationErr := gm.valuesStorage.validateValues(valuesPatchResult.Values)
 			if validationErr != nil {
 				return fmt.Errorf("cannot apply values patch for global values: %w", validationErr)
