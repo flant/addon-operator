@@ -1,6 +1,8 @@
 package modules
 
 import (
+	"sync"
+
 	"github.com/go-openapi/spec"
 	log "github.com/sirupsen/logrus"
 
@@ -36,28 +38,28 @@ type ValuesStorage struct {
 	// are set only on module init phase
 	staticConfigValues utils.Values
 
-	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
-	// without merge with static and openapi values
-	configValues utils.Values
-
-	// patches from hooks, have top priority
+	// patches from hooks, have top priority over values
 	valuesPatches []utils.ValuesPatch
-
-	// OUTPUTS:
-
-	mergedConfigValues utils.Values
-	// result of the merging all input values
-	resultValues utils.Values
-
-	// dirtyResultValues pre-commit stage of result values, used for two-phase commit with validation
-	dirtyResultValues       utils.Values
-	dirtyConfigValues       utils.Values
-	dirtyMergedConfigValues utils.Values
 
 	// TODO: actually, we don't need the validator with all Schemas here,
 	//   we can put a single openapi schema for the specified module
 	validator  validator
 	moduleName string
+
+	clock sync.RWMutex
+	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
+	// without merge with static and openapi values
+	configValues utils.Values
+	// OUTPUTS:
+	mergedConfigValues      utils.Values
+	dirtyConfigValues       utils.Values
+	dirtyMergedConfigValues utils.Values
+
+	vlock sync.RWMutex
+	// result of the merging all input values
+	resultValues utils.Values
+	// dirtyResultValues pre-commit stage of result values, used for two-phase commit with validation
+	dirtyResultValues utils.Values
 }
 
 // NewValuesStorage build a new storage for module values
@@ -93,6 +95,7 @@ func (vs *ValuesStorage) openapiDefaultsTransformer(schemaType validation.Schema
 }
 
 func (vs *ValuesStorage) calculateResultValues() error {
+	vs.clock.RLock()
 	merged := mergeLayers(
 		utils.Values{},
 		// Init static values (from modules/values.yaml and modules/XXX/values.yaml)
@@ -115,13 +118,16 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	for _, patch := range vs.valuesPatches {
 		ops.Operations = append(ops.Operations, patch.Operations...)
 	}
+	vs.clock.RUnlock()
 
 	merged, _, err := utils.ApplyValuesPatch(merged, ops, utils.IgnoreNonExistentPaths)
 	if err != nil {
 		return err
 	}
 
+	vs.vlock.Lock()
 	vs.resultValues = merged
+	vs.vlock.Unlock()
 
 	return nil
 }
@@ -141,8 +147,10 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bo
 		configV,
 	)
 
+	vs.clock.Lock()
 	vs.dirtyMergedConfigValues = merged
 	vs.dirtyConfigValues = configV
+	vs.clock.Unlock()
 
 	if validate {
 		return vs.validateConfigValues(merged)
@@ -174,6 +182,9 @@ func (vs *ValuesStorage) validateValues(values utils.Values) error {
 }
 
 func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
+	vs.clock.RLock()
+	defer vs.clock.RUnlock()
+
 	if vs.dirtyConfigValues == nil {
 		return false
 	}
@@ -189,6 +200,7 @@ func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
 // you have to commit them with CommitValues
 // Probably, we don't need the method, we can use patches instead
 func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
+	vs.clock.Lock()
 	if vs.mergedConfigValues == nil {
 		vs.mergedConfigValues = mergeLayers(
 			utils.Values{},
@@ -202,7 +214,9 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 			vs.configValues,
 		)
 	}
+	vs.clock.Unlock()
 
+	vs.clock.RLock()
 	merged := mergeLayers(
 		utils.Values{},
 		// Init static values (from modules/values.yaml)
@@ -214,14 +228,18 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 		// new values
 		v,
 	)
+	vs.clock.RUnlock()
 
+	vs.vlock.Lock()
 	vs.dirtyResultValues = merged
+	vs.vlock.Unlock()
 
 	return vs.validateValues(merged)
 }
 
 // CommitConfigValues move config values from 'dirty' state to the actual
 func (vs *ValuesStorage) CommitConfigValues() {
+	vs.clock.Lock()
 	if vs.dirtyMergedConfigValues != nil {
 		vs.mergedConfigValues = vs.dirtyMergedConfigValues
 		vs.dirtyMergedConfigValues = nil
@@ -231,12 +249,16 @@ func (vs *ValuesStorage) CommitConfigValues() {
 		vs.configValues = vs.dirtyConfigValues
 		vs.dirtyConfigValues = nil
 	}
+	vs.clock.Unlock()
 
 	_ = vs.calculateResultValues()
 }
 
 // CommitValues move result values from the 'dirty' state
 func (vs *ValuesStorage) CommitValues() {
+	vs.vlock.Lock()
+	defer vs.vlock.Unlock()
+
 	if vs.dirtyResultValues == nil {
 		return
 	}
@@ -268,6 +290,9 @@ with prefix:
 	```
 */
 func (vs *ValuesStorage) GetValues(withPrefix bool) utils.Values {
+	vs.vlock.RLock()
+	defer vs.vlock.RLock()
+
 	if withPrefix {
 		return utils.Values{
 			utils.ModuleNameToValuesKey(vs.moduleName): vs.resultValues,
@@ -279,6 +304,9 @@ func (vs *ValuesStorage) GetValues(withPrefix bool) utils.Values {
 
 // GetConfigValues returns only user defined values
 func (vs *ValuesStorage) GetConfigValues(withPrefix bool) utils.Values {
+	vs.clock.RLock()
+	defer vs.clock.RUnlock()
+
 	if withPrefix {
 		return utils.Values{
 			utils.ModuleNameToValuesKey(vs.moduleName): vs.configValues,
