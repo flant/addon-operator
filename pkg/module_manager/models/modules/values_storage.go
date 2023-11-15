@@ -211,13 +211,13 @@ func (vs *ValuesStorage) CommitConfigValues() {
 }
 
 // CommitValues apply all patches and create up-to-date values for module
-func (vs *ValuesStorage) CommitValues() {
+func (vs *ValuesStorage) CommitValues() error {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
 	fmt.Println("COMMIT VALUES", vs.moduleName)
 
-	_ = vs.calculateResultValues()
+	return vs.calculateResultValues()
 }
 
 /*

@@ -146,7 +146,10 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		logEntry.Debugf("snapshot info: %s", info)
 	}
 
-	hookResult, err := h.Execute(h.GetConfigVersion(), bc, "global", gm.valuesStorage.GetConfigValues(true), gm.valuesStorage.GetValues(true), logLabels)
+	prefixedConfigValues := gm.valuesStorage.GetConfigValues(true)
+	prefixedValues := gm.valuesStorage.GetValues(true)
+
+	hookResult, err := h.Execute(h.GetConfigVersion(), bc, "global", prefixedConfigValues, prefixedValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
 			"hook":       h.GetName(),
@@ -181,7 +184,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
 		// Apply patch to get intermediate updated values.
-		configValuesPatchResult, err := gm.handlePatch(gm.valuesStorage.GetConfigValues(false), *configValuesPatch)
+		configValuesPatchResult, err := gm.handlePatch(prefixedConfigValues, *configValuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': kube config global values update error: %s", h.GetName(), err)
 		}
@@ -216,7 +219,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 	valuesPatch, has := hookResult.Patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
 		// Apply patch to get intermediate updated values.
-		valuesPatchResult, err := gm.handlePatch(gm.valuesStorage.GetValues(false), *valuesPatch)
+		valuesPatchResult, err := gm.handlePatch(prefixedValues, *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("global hook '%s': dynamic global values update error: %s", h.GetName(), err)
 		}
@@ -234,7 +237,10 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 			}
 
 			gm.valuesStorage.appendValuesPatch(valuesPatchResult.ValuesPatch)
-			gm.valuesStorage.CommitValues()
+			err = gm.valuesStorage.CommitValues()
+			if err != nil {
+				return fmt.Errorf("error on commit values: %w", err)
+			}
 
 			logEntry.Debugf("Global hook '%s': kube global values updated", h.GetName())
 			logEntry.Debugf("New global values:\n%s", gm.valuesStorage.GetValues(false).DebugString())
@@ -323,15 +329,8 @@ func (gm *GlobalModule) handlePatch(currentValues utils.Values, valuesPatch util
 		return nil, nil
 	}
 
-	// global values doesn't contain global key as top level one
-	// but patches are still have, we have to use temporary map
-	// TODO: maybe we have to change ApplyValuesPatch function
-	tmpValues := utils.Values{
-		utils.GlobalValuesKey: currentValues,
-	}
-
 	// Apply new patches in Strict mode. Hook should not return 'remove' with nonexistent path.
-	newValues, valuesChanged, err := utils.ApplyValuesPatch(tmpValues, globalValuesPatch, utils.Strict)
+	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, globalValuesPatch, utils.Strict)
 	if err != nil {
 		return nil, fmt.Errorf("merge global values failed: %s", err)
 	}

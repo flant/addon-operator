@@ -583,15 +583,21 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		logEntry.Debugf("snapshot info: %s", info)
 	}
 
+	prefixedConfigValues := bm.valuesStorage.GetConfigValues(true)
+	prefixedValues := bm.valuesStorage.GetValues(true)
+	valuesModuleName := bm.moduleNameForValues()
+	configValues := prefixedConfigValues.GetKeySection(valuesModuleName)
+	values := prefixedValues.GetKeySection(valuesModuleName)
+
 	// we have to add a module name key at top level
 	// because all hooks are living with an old scheme
 	hookConfigValues := utils.Values{
 		utils.GlobalValuesKey:    bm.dc.GlobalValuesGetter.GetConfigValues(false),
-		bm.moduleNameForValues(): bm.valuesStorage.GetConfigValues(false),
+		bm.moduleNameForValues(): configValues,
 	}
 	hookValues := utils.Values{
 		utils.GlobalValuesKey:    bm.dc.GlobalValuesGetter.GetValues(false),
-		bm.moduleNameForValues(): bm.valuesStorage.GetValues(false),
+		bm.moduleNameForValues(): values,
 	}
 
 	hookResult, err := h.Execute(h.GetConfigVersion(), context, bm.safeName(), hookConfigValues, hookValues, logLabels)
@@ -637,10 +643,8 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 
 	configValuesPatch, has := hookResult.Patches[utils.ConfigMapPatch]
 	if has && configValuesPatch != nil {
-		configValues := bm.valuesStorage.GetConfigValues(false)
-
 		// Apply patch to get intermediate updated values.
-		configValuesPatchResult, err := bm.handleModuleValuesPatch(configValues, *configValuesPatch)
+		configValuesPatchResult, err := bm.handleModuleValuesPatch(prefixedConfigValues, *configValuesPatch)
 		if err != nil {
 			return fmt.Errorf("module hook '%s': kube module config values update error: %s", h.GetName(), err)
 		}
@@ -670,10 +674,8 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 
 	valuesPatch, has := hookResult.Patches[utils.MemoryValuesPatch]
 	if has && valuesPatch != nil {
-		currentValues := bm.valuesStorage.GetValues(false)
-
 		// Apply patch to get intermediate updated values.
-		valuesPatchResult, err := bm.handleModuleValuesPatch(currentValues, *valuesPatch)
+		valuesPatchResult, err := bm.handleModuleValuesPatch(prefixedValues, *valuesPatch)
 		if err != nil {
 			return fmt.Errorf("module hook '%s': dynamic module values update error: %s", h.GetName(), err)
 		}
@@ -696,7 +698,10 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 
 			// Save patch set if everything is ok.
 			bm.valuesStorage.appendValuesPatch(valuesPatchResult.ValuesPatch)
-			bm.valuesStorage.CommitValues()
+			err = bm.valuesStorage.CommitValues()
+			if err != nil {
+				return fmt.Errorf("error on commit values: %w", err)
+			}
 
 			logEntry.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetValues(false).DebugString())
 		}
@@ -730,15 +735,8 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
 	}
 
-	// module values doesn't contain moduleName key as top level one
-	// but patches are still have, we have to use temporary map
-	// TODO: maybe we have to change ApplyValuesPatch function
-	tmpValues := utils.Values{
-		moduleValuesKey: currentValues,
-	}
-
 	// Apply new patches in Strict mode. Hook should not return 'remove' with nonexistent path.
-	newValues, valuesChanged, err := utils.ApplyValuesPatch(tmpValues, valuesPatch, utils.Strict)
+	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch, utils.Strict)
 	if err != nil {
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
 	}
