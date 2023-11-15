@@ -54,9 +54,7 @@ type ValuesStorage struct {
 	// without merge with static and openapi values
 	configValues utils.Values
 	// OUTPUTS:
-	mergedConfigValues      utils.Values
-	dirtyConfigValues       utils.Values
-	dirtyMergedConfigValues utils.Values
+	dirtyConfigValues utils.Values
 
 	// result of the merging all input values
 	resultValues utils.Values
@@ -114,6 +112,8 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	// Each ApplyValuesPatch execution invokes json.Marshal for values.
 	ops := *utils.NewValuesPatch()
 
+	fmt.Println("X OATCHES", len(vs.valuesPatches))
+
 	for _, patch := range vs.valuesPatches {
 		ops.Operations = append(ops.Operations, patch.Operations...)
 	}
@@ -150,7 +150,6 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bo
 		configV,
 	)
 
-	vs.dirtyMergedConfigValues = merged
 	vs.dirtyConfigValues = configV
 
 	if validate {
@@ -202,11 +201,6 @@ func (vs *ValuesStorage) CommitConfigValues() {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
-	if vs.dirtyMergedConfigValues != nil {
-		vs.mergedConfigValues = vs.dirtyMergedConfigValues
-		vs.dirtyMergedConfigValues = nil
-	}
-
 	if vs.dirtyConfigValues != nil {
 		vs.configValues = vs.dirtyConfigValues
 		vs.dirtyConfigValues = nil
@@ -219,6 +213,8 @@ func (vs *ValuesStorage) CommitConfigValues() {
 func (vs *ValuesStorage) CommitValues() {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
+
+	fmt.Println("COMMIT VALUES", vs.moduleName)
 
 	_ = vs.calculateResultValues()
 }
