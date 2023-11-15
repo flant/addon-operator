@@ -123,7 +123,7 @@ modules:
     mode: CertManager
   ingressClass: nginx
   placement: {}
-  publicDomainTemplate: '%s.exmaple.com'
+  publicDomainTemplate: '%s.example.com'
   resourcesRequests:
     controlPlane: {}
     everyNode:
