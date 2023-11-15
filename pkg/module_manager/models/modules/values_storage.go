@@ -47,6 +47,8 @@ type ValuesStorage struct {
 	validator  validator
 	moduleName string
 
+	// we are locking the whole storage on any concurrent operation
+	// because it could be called from concurrent hooks (goroutines) and we will have a deadlock on RW mutex
 	lock sync.Mutex
 	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
 	// without merge with static and openapi values
@@ -58,8 +60,6 @@ type ValuesStorage struct {
 
 	// result of the merging all input values
 	resultValues utils.Values
-	// dirtyResultValues pre-commit stage of result values, used for two-phase commit with validation
-	dirtyResultValues utils.Values
 }
 
 // NewValuesStorage build a new storage for module values
@@ -134,6 +134,10 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bo
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
+	if vs.dirtyConfigValues != nil {
+		return fmt.Errorf("config values are blocked by another hook. Try one more time")
+	}
+
 	merged := mergeLayers(
 		utils.Values{},
 		// Init static values
@@ -193,44 +197,6 @@ func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
 	return false
 }
 
-// PreCommitValues can set values after a hook execution, but they are not committed automatically
-// you have to commit them with CommitValues
-// Probably, we don't need the method, we can use patches instead
-func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
-	vs.lock.Lock()
-	defer vs.lock.Unlock()
-
-	if vs.mergedConfigValues == nil {
-		vs.mergedConfigValues = mergeLayers(
-			utils.Values{},
-			// Init static values
-			vs.staticConfigValues,
-
-			// defaults from openapi
-			vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
-
-			// User configured values (ConfigValues)
-			vs.configValues,
-		)
-	}
-
-	merged := mergeLayers(
-		utils.Values{},
-		// Init static values (from modules/values.yaml)
-		vs.mergedConfigValues,
-
-		// defaults from openapi value
-		vs.openapiDefaultsTransformer(validation.ValuesSchema),
-
-		// new values
-		v,
-	)
-
-	vs.dirtyResultValues = merged
-
-	return vs.validateValues(merged)
-}
-
 // CommitConfigValues move config values from 'dirty' state to the actual
 func (vs *ValuesStorage) CommitConfigValues() {
 	vs.lock.Lock()
@@ -249,21 +215,12 @@ func (vs *ValuesStorage) CommitConfigValues() {
 	_ = vs.calculateResultValues()
 }
 
-// CommitValues move result values from the 'dirty' state
+// CommitValues apply all patches and create up-to-date values for module
 func (vs *ValuesStorage) CommitValues() {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
-	if vs.moduleName == "node-manager" {
-		fmt.Println("DIRTY", vs.dirtyResultValues.AsString("yaml"))
-	}
-
-	if vs.dirtyResultValues == nil {
-		return
-	}
-
-	vs.resultValues = vs.dirtyResultValues
-	vs.dirtyResultValues = nil
+	_ = vs.calculateResultValues()
 }
 
 /*
@@ -316,9 +273,14 @@ func (vs *ValuesStorage) GetConfigValues(withPrefix bool) utils.Values {
 }
 
 func (vs *ValuesStorage) appendValuesPatch(patch utils.ValuesPatch) {
+	vs.lock.Lock()
 	vs.valuesPatches = utils.AppendValuesPatch(vs.valuesPatches, patch)
+	vs.lock.Unlock()
 }
 
 func (vs *ValuesStorage) getValuesPatches() []utils.ValuesPatch {
+	vs.lock.Lock()
+	defer vs.lock.Unlock()
+
 	return vs.valuesPatches
 }

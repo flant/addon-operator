@@ -683,10 +683,10 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 			if bm.Name == "node-manager" {
 				fmt.Println("PATCH VALUES", valuesPatchResult.Values.AsString("yaml"))
 				d, _ := json.Marshal(valuesPatchResult.ValuesPatch)
-				fmt.Println("PATCH", d)
+				fmt.Println("PATCH", string(d))
 			}
 			// Validate schema for updated module values
-			validationErr := bm.valuesStorage.PreCommitValues(valuesPatchResult.Values)
+			validationErr := bm.valuesStorage.validateValues(valuesPatchResult.Values)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply values patch for module values"),

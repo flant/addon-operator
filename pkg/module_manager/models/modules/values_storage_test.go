@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,7 +74,7 @@ xxx: yyy
 `, st.GetValues(false).AsString("yaml"))
 }
 
-func TestPreCommitValues(t *testing.T) {
+func TestPatchValues(t *testing.T) {
 	vv := validation.NewValuesValidator()
 	cb, vb, err := utils.ReadOpenAPIFiles("./testdata/global/openapi")
 	require.NoError(t, err)
@@ -99,41 +100,41 @@ modules:
       memory: 512Mi
 `))
 	require.NoError(t, err)
-
-	patchValues, err := utils.NewValuesFromBytes([]byte(`
-clusterIsBootstrapped: true
-deckhouseEdition: FE
-deckhouseVersion: dev
-discovery:
-  clusterControlPlaneIsHighlyAvailable: false
-  d8SpecificNodeCountByRole: {}
-  kubernetesCA: XXX
-  prometheusScrapeInterval: 30
-highAvailability: false
-internal:
-  modules:
-    kubeRBACProxyCA: {}
-    resourcesRequests:
-      memoryControlPlane: 3086170981
-      milliCpuControlPlane: 1480
-modules:
-  https:
-    certManager:
-      clusterIssuerName: letsencrypt
-    mode: CertManager
-  ingressClass: nginx
-  placement: {}
-  publicDomainTemplate: '%s.example.com'
-  resourcesRequests:
-    controlPlane: {}
-    everyNode:
-      cpu: 300m
-      memory: 512Mi
-`))
-	require.NoError(t, err)
-
 	vs.mergedConfigValues = mcv
 
-	err = vs.PreCommitValues(patchValues)
-	require.NoError(t, err)
+	vp := utils.NewValuesPatch()
+	vp.Operations = append(vp.Operations, &utils.ValuesPatchOperation{
+		Op:    "add",
+		Path:  "/modules/resourcesRequests/everyNode/cpu",
+		Value: json.RawMessage(`"500m"`),
+	})
+
+	vs.appendValuesPatch(*vp)
+
+	vs.CommitValues()
+	v := vs.GetValues(false)
+
+	assert.YAMLEq(t, `
+discovery:
+    clusterControlPlaneIsHighlyAvailable: false
+    d8SpecificNodeCountByRole: {}
+    prometheusScrapeInterval: 30
+internal:
+    modules:
+        kubeRBACProxyCA: {}
+        resourcesRequests:
+            memoryControlPlane: 0
+            milliCpuControlPlane: 0
+modules:
+    ingressClass: nginx
+    placement: {}
+    resourcesRequests:
+        controlPlane: {}
+        everyNode:
+            cpu: 500m
+            memory: 512Mi
+modulesImages:
+    registry: {}
+    tags: {}
+`, v.AsString("yaml"))
 }
