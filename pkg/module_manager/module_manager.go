@@ -4,19 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime/trace"
 	"strings"
 	"time"
-
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
-
-	"github.com/flant/addon-operator/pkg/module_manager/loader"
-	"github.com/flant/addon-operator/pkg/module_manager/loader/fs"
-
-	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
-
-	hooks2 "github.com/flant/addon-operator/pkg/module_manager/models/hooks"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 
 	// bindings constants and binding configs
 	"github.com/hashicorp/go-multierror"
@@ -27,6 +19,12 @@ import (
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/module_manager/loader"
+	"github.com/flant/addon-operator/pkg/module_manager/loader/fs"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
+	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -223,7 +221,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Check if global config values are valid
 	globalModule := mm.global
-	validationErr := globalModule.SaveConfigValues(kubeConfig.Global.GetValues(), true)
+	validationErr := globalModule.PrepareConfigValues(kubeConfig.Global.GetValues(), true)
 	if validationErr != nil {
 		if e := multierror.Append(validationErrors, validationErr); e != nil {
 			return &ModulesState{}, e
@@ -242,7 +240,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 				validateConfig = true
 			}
 
-			validationErr = mod.SaveConfigValues(moduleConfig.GetValues(), validateConfig)
+			validationErr = mod.PrepareConfigValues(moduleConfig.GetValues(), validateConfig)
 			if validationErr != nil {
 				if e := multierror.Append(validationErrors, validationErr); e != nil {
 					return &ModulesState{}, e
@@ -258,7 +256,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Detect changes in global section.
 	hasGlobalChange := false
-	if kubeConfig.Global != nil && globalModule.ConfigValuesHaveChanges() {
+	if kubeConfig != nil && kubeConfig.Global != nil && globalModule.ConfigValuesHaveChanges() {
 		hasGlobalChange = true
 	}
 
@@ -424,49 +422,6 @@ func (mm *ModuleManager) Init() error {
 
 	return mm.registerModules()
 }
-
-//// validateKubeConfig checks validity of all sections in ConfigMap with OpenAPI schemas.
-//func (mm *ModuleManager) validateKubeConfig(kubeConfig *config.KubeConfig, enabledModules map[string]struct{}) error {
-//	// Ignore empty kube config.
-//	if kubeConfig == nil {
-//		mm.SetKubeConfigValuesValid(true)
-//		return nil
-//	}
-//	// Validate values in global section merged with static values.
-//	var validationErr error
-//	if kubeConfig.Global != nil {
-//		err := mm.ValuesValidator.ValidateGlobalConfigValues(mm.GlobalStaticAndNewValues(kubeConfig.Global.GetValues()))
-//		if err != nil {
-//			validationErr = multierror.Append(
-//				validationErr,
-//				fmt.Errorf("'global' section in ConfigMap/%s is not valid", app.ConfigMapName),
-//				err,
-//			)
-//		}
-//	}
-//
-//	// Validate config values for enabled modules.
-//	for moduleName := range enabledModules {
-//		modCfg, has := kubeConfig.Modules[moduleName]
-//		if !has {
-//			continue
-//		}
-//		mod := mm.GetModule(moduleName)
-//		moduleErr := mm.ValuesValidator.ValidateModuleConfigValues(mod.ValuesKey(), mod.StaticAndNewValues(modCfg.GetValues()))
-//		if moduleErr != nil {
-//			validationErr = multierror.Append(
-//				validationErr,
-//				fmt.Errorf("'%s' module section in KubeConfig is not valid", mod.ValuesKey()),
-//				moduleErr,
-//			)
-//		}
-//	}
-//
-//	// Set valid flag to false if there is validation error
-//	mm.SetKubeConfigValuesValid(validationErr == nil)
-//
-//	return validationErr
-//}
 
 func (mm *ModuleManager) GetKubeConfigValid() bool {
 	return mm.kubeConfigValid
@@ -636,7 +591,7 @@ func (mm *ModuleManager) IsModuleEnabled(moduleName string) bool {
 	return false
 }
 
-func (mm *ModuleManager) GetGlobalHook(name string) *hooks2.GlobalHook {
+func (mm *ModuleManager) GetGlobalHook(name string) *hooks.GlobalHook {
 	return mm.global.GetHookByName(name)
 }
 
@@ -685,9 +640,8 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 
 		// Module has chart, but there is no release -> log a warning.
 		// Module has chart and release -> execute helm delete.
-		// TODO: check helm chart exists
 		hmdeps := modules.HelmModuleDependencies{
-			ClientFactory:       mm.dependencies.Helm,
+			HelmClientFactory:   mm.dependencies.Helm,
 			HelmResourceManager: mm.dependencies.HelmResourcesManager,
 			MetricsStorage:      mm.dependencies.MetricStorage,
 			HelmValuesValidator: mm.ValuesValidator,
@@ -752,10 +706,10 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 
 	treg = trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm")
 	deps := &modules.HelmModuleDependencies{
-		mm.dependencies.Helm,
-		mm.dependencies.HelmResourcesManager,
-		mm.dependencies.MetricStorage,
-		mm.ValuesValidator,
+		HelmClientFactory:   mm.dependencies.Helm,
+		HelmResourceManager: mm.dependencies.HelmResourcesManager,
+		MetricsStorage:      mm.dependencies.MetricStorage,
+		HelmValuesValidator: mm.ValuesValidator,
 	}
 	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps, mm.ValuesValidator)
 	if err != nil {
@@ -800,8 +754,8 @@ func (mm *ModuleManager) GetValuesValidator() *validation.ValuesValidator {
 	return mm.ValuesValidator
 }
 
-func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks2.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks2.ModuleHook, controller.BindingExecutionInfo)) {
-	mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks2.GlobalHook, m *modules.BasicModule, mh *hooks2.ModuleHook) {
+func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) {
+	mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
 		if gh != nil {
 			if gh.GetHookController().CanHandleKubeEvent(kubeEvent) {
 				gh.GetHookController().HandleKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) {
@@ -822,7 +776,7 @@ func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn
 	})
 }
 
-func (mm *ModuleManager) HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*hooks2.GlobalHook, controller.BindingExecutionInfo)) error {
+func (mm *ModuleManager) HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo)) error {
 	gh := mm.GetGlobalHook(hookName)
 
 	err := gh.GetHookController().HandleEnableKubernetesBindings(func(info controller.BindingExecutionInfo) {
@@ -837,7 +791,7 @@ func (mm *ModuleManager) HandleGlobalEnableKubernetesBindings(hookName string, c
 	return nil
 }
 
-func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(moduleName string, createTaskFn func(*hooks2.ModuleHook, controller.BindingExecutionInfo)) error {
+func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(moduleName string, createTaskFn func(*hooks.ModuleHook, controller.BindingExecutionInfo)) error {
 	ml := mm.GetModule(moduleName)
 
 	kubeHooks := ml.GetHooks(OnKubernetesEvent)
@@ -880,8 +834,8 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 	}
 }
 
-func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks2.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks2.ModuleHook, controller.BindingExecutionInfo)) error {
-	mm.LoopByBinding(Schedule, func(gh *hooks2.GlobalHook, m *modules.BasicModule, mh *hooks2.ModuleHook) {
+func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
+	mm.LoopByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
 		if gh != nil {
 			if gh.GetHookController().CanHandleScheduleEvent(crontab) {
 				gh.GetHookController().HandleScheduleEvent(crontab, func(info controller.BindingExecutionInfo) {
@@ -904,7 +858,7 @@ func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn 
 	return nil
 }
 
-func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks2.GlobalHook, m *modules.BasicModule, mh *hooks2.ModuleHook)) {
+func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook)) {
 	globalHooks := mm.GetGlobalHooksInOrder(binding)
 
 	for _, hookName := range globalHooks {
@@ -1004,17 +958,7 @@ func (mm *ModuleManager) GlobalSynchronizationState() *modules.SynchronizationSt
 	return mm.globalSynchronizationState
 }
 
-//// SetModuleSource set source (external or embedded repository) for a module
-//func (mm *ModuleManager) SetModuleSource(moduleName, source string) {
-//	if !mm.modules.Has(moduleName) {
-//		return
-//	}
-//
-//	module := mm.modules.Get(moduleName)
-//	module.Source = source
-//}
-
-func (mm *ModuleManager) ApplyBindingActions(moduleHook *hooks2.ModuleHook, bindingActions []go_hook.BindingAction) error {
+func (mm *ModuleManager) ApplyBindingActions(moduleHook *hooks.ModuleHook, bindingActions []go_hook.BindingAction) error {
 	for _, action := range bindingActions {
 		bindingIdx := -1
 		for i, binding := range moduleHook.GetHookConfig().OnKubernetesEvents {
@@ -1067,4 +1011,114 @@ func mergeEnabled(enabledFlags ...*bool) bool {
 	}
 
 	return result
+}
+
+// registerModules load all available modules from modules directory.
+func (mm *ModuleManager) registerModules() error {
+	if mm.ModulesDir == "" {
+		log.Warnf("Empty modules directory is passed! No modules to load.")
+		return nil
+	}
+
+	if mm.moduleLoader == nil {
+		log.Errorf("no module loader set")
+		return fmt.Errorf("no module loader set")
+	}
+
+	log.Debug("Search and register modules")
+
+	mods, err := mm.moduleLoader.LoadModules()
+	if err != nil {
+		return fmt.Errorf("failed to load modules: %w", err)
+	}
+
+	set := &moduleset.ModulesSet{}
+
+	// load and registry global hooks
+	dep := &hooks.HookExecutionDependencyContainer{
+		HookMetricsStorage: mm.dependencies.HookMetricStorage,
+		KubeConfigManager:  mm.dependencies.KubeConfigManager,
+		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
+		MetricStorage:      mm.dependencies.MetricStorage,
+		GlobalValuesGetter: mm.global,
+	}
+
+	for _, mod := range mods {
+		if set.Has(mod.GetName()) {
+			log.Warnf("module %q from path %q is not registered, because it has a duplicate", mod.GetName(), mod.GetPath())
+			continue
+		}
+
+		mod.WithDependencies(dep)
+
+		set.Add(mod)
+
+		mm.moduleEventC <- events.ModuleEvent{
+			ModuleName: mod.GetName(),
+			EventType:  events.ModuleRegistered,
+		}
+		fmt.Println("MODULE REGISTERED", mod.Name)
+	}
+
+	log.Debugf("Found modules: %v", set.NamesInOrder())
+
+	mm.modules = set
+
+	return nil
+}
+
+func (mm *ModuleManager) GetModuleEventsChannel() chan events.ModuleEvent {
+	return mm.moduleEventC
+}
+
+// ValidateModule this method is outdated, have to change it with module validation
+// Deprecated: move it to module constructor
+// TODO: rethink this
+func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
+	// load static config from values.yaml
+	staticValues, err := loadStaticValues(mod.GetName(), mod.GetPath())
+	if err != nil {
+		return fmt.Errorf("load values.yaml failed: %v", err)
+	}
+
+	if staticValues != nil {
+		return fmt.Errorf("please use openapi schema instead of values.yaml")
+	}
+
+	valuesModuleName := utils.ModuleNameToValuesKey(mod.GetName())
+
+	// if staticValues.HasKey(valuesModuleName) {
+	//	staticValues = staticValues.GetKeySection(valuesModuleName)
+	//}
+
+	// Load validation schemas
+	openAPIPath := filepath.Join(mod.GetPath(), "openapi")
+	configBytes, valuesBytes, err := readOpenAPIFiles(openAPIPath)
+	if err != nil {
+		return fmt.Errorf("read openAPI schemas failed: %v", err)
+	}
+
+	err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
+		valuesModuleName,
+		configBytes,
+		valuesBytes,
+	)
+	if err != nil {
+		return fmt.Errorf("add schemas failed: %v", err)
+	}
+
+	return nil
+}
+
+// loadStaticValues loads config for module from values.yaml
+// Module is enabled if values.yaml is not exists.
+func loadStaticValues(moduleName, modulePath string) (utils.Values, error) {
+	valuesYamlPath := filepath.Join(modulePath, utils.ValuesFileName)
+
+	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
+		log.Debugf("module %s has no static values", moduleName)
+		return nil, nil
+	}
+
+	return utils.LoadValuesFileFromDir(modulePath)
 }

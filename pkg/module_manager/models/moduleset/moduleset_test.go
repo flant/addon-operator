@@ -3,9 +3,9 @@ package moduleset
 import (
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-
 	. "github.com/onsi/gomega"
+
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 )
 
 func TestBasicModuleSet(t *testing.T) {

@@ -1,45 +1,26 @@
 package hooks
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"strings"
 
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
-
-	"github.com/flant/shell-operator/pkg/hook/config"
-
 	types2 "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/hook/types"
 )
 
-type executableHook interface {
-	GetName() string
-	GetPath() string
-
-	Execute(configVersion string, bContext []binding_context.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (result *kind.HookResult, err error)
-	RateLimitWait(ctx context.Context) error
-
-	WithHookController(ctrl controller.HookController)
-	GetHookController() controller.HookController
-	WithTmpDir(tmpDir string)
-
-	GetKind() kind.HookKind
-
-	BackportHookConfig(cfg *config.HookConfig)
-	GetHookConfigDescription() string
-}
-
+// ModuleHook hook which belongs to some module
 type ModuleHook struct {
 	executableHook
 	config *ModuleHookConfig
 }
 
+// NewModuleHook build new hook for a module
+//
+//	ex - some kind of executable hook (GoHook or ShellHook)
 func NewModuleHook(ex executableHook) *ModuleHook {
 	return &ModuleHook{
 		executableHook: ex,
@@ -47,14 +28,17 @@ func NewModuleHook(ex executableHook) *ModuleHook {
 	}
 }
 
+// GetConfigVersion returns config version
 func (mh *ModuleHook) GetConfigVersion() string {
 	return mh.config.Version
 }
 
+// GetHookConfig returns config for the module hook, it has some difference with global hook
 func (mh *ModuleHook) GetHookConfig() *ModuleHookConfig {
 	return mh.config
 }
 
+// Order returns hook order
 func (mh *ModuleHook) Order(binding types.BindingType) float64 {
 	if mh.config.HasBinding(binding) {
 		switch binding {
@@ -71,6 +55,9 @@ func (mh *ModuleHook) Order(binding types.BindingType) float64 {
 	return 0.0
 }
 
+// InitializeHookConfig initializes the global hook config
+// for GoHook config is precompiled, so we just have to fetch it
+// for ShellHook, that hook will be run with `--config` flag, returns and parses the config
 func (mh *ModuleHook) InitializeHookConfig() (err error) {
 	switch hk := mh.executableHook.(type) {
 	case *kind.GoHook:
@@ -110,14 +97,17 @@ func (mh *ModuleHook) SynchronizationNeeded() bool {
 	return false
 }
 
+// WithHookController set HookController for shell-operator
 func (mh *ModuleHook) WithHookController(ctrl controller.HookController) {
 	mh.executableHook.WithHookController(ctrl)
 }
 
+// WithTmpDir proxy method to set temp directory for the executable hook
 func (mh *ModuleHook) WithTmpDir(tmpDir string) {
 	mh.executableHook.WithTmpDir(tmpDir)
 }
 
+// ApplyBindingActions some kind of runtime monitor bindings update
 func (mh *ModuleHook) ApplyBindingActions(bindingActions []go_hook.BindingAction) error {
 	for _, action := range bindingActions {
 		bindingIdx := -1
@@ -154,6 +144,7 @@ func (mh *ModuleHook) ApplyBindingActions(bindingActions []go_hook.BindingAction
 	return nil
 }
 
+// GetConfigDescription returns config description for debugging/logging
 func (mh *ModuleHook) GetConfigDescription() string {
 	bd := strings.Builder{}
 
@@ -171,11 +162,12 @@ func (mh *ModuleHook) GetConfigDescription() string {
 	return bd.String()
 }
 
+// GetGoHookInputSettings proxy method to extract GoHook config settings
 func (mh *ModuleHook) GetGoHookInputSettings() *go_hook.HookConfigSettings {
 	if mh.GetKind() != kind.HookKindGo {
 		return nil
 	}
 
 	gohook := mh.executableHook.(*kind.GoHook)
-	return gohook.UserInputConfig().Settings
+	return gohook.GetConfig().Settings
 }

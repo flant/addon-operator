@@ -1,11 +1,13 @@
 package modules
 
 import (
+	"sort"
+
 	hooks2 "github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
-	"sort"
 )
 
+// HooksStorage keep module hooks in order
 type HooksStorage struct {
 	registered bool
 	byBinding  map[sh_op_types.BindingType][]*hooks2.ModuleHook

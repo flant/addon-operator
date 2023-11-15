@@ -3,6 +3,8 @@ package kind
 import (
 	"context"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -11,7 +13,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
-	log "github.com/sirupsen/logrus"
 )
 
 type GoHook struct {
@@ -19,12 +20,9 @@ type GoHook struct {
 
 	config        *go_hook.HookConfig
 	reconcileFunc ReconcileFunc
-
-	//metadata *go_hook.HookMetadata
-
-	//mhk *hooks.ModuleHookConfig
 }
 
+// NewGoHook creates a new go hook
 func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc) *GoHook {
 	return &GoHook{
 		config:        config,
@@ -32,27 +30,28 @@ func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc) *GoHook {
 	}
 }
 
-// BackportHookConfig for shell-operator to make HookController and GetConfigDescription workable.
+// BackportHookConfig passes config for shell-operator to make HookController and GetConfigDescription workable.
 func (h *GoHook) BackportHookConfig(cfg *config.HookConfig) {
 	h.basicHook.Config = cfg
 	h.basicHook.RateLimiter = sh_hook.CreateRateLimiter(cfg)
 }
 
-func (h *GoHook) Run(input *go_hook.HookInput) error {
+func (h *GoHook) run(input *go_hook.HookInput) error {
 	return h.reconcileFunc(input)
 }
 
+// AddMetadata add hook metadata, name and path which are resolved by SDK registry
 func (h *GoHook) AddMetadata(meta *go_hook.HookMetadata) {
-	//h.metadata = meta
-
 	h.basicHook.Name = meta.Name
 	h.basicHook.Path = meta.Path
 }
 
+// WithHookController sets dependency "hook controller" for shell-operator
 func (h *GoHook) WithHookController(hookController controller.HookController) {
 	h.basicHook.HookController = hookController
 }
 
+// GetHookController returns HookController
 func (h *GoHook) GetHookController() controller.HookController {
 	return h.basicHook.HookController
 }
@@ -63,22 +62,22 @@ func (h *GoHook) GetBasicHook() sh_hook.Hook {
 	return h.basicHook
 }
 
+// WithTmpDir injects temp directory from operator
 func (h *GoHook) WithTmpDir(tmpDir string) {
 	h.basicHook.TmpDir = tmpDir
 }
 
-func (h *GoHook) UserInputConfig() *go_hook.HookConfig {
-	return h.config
-}
-
+// RateLimitWait runs query rate limiter pause
 func (h *GoHook) RateLimitWait(ctx context.Context) error {
 	return h.basicHook.RateLimitWait(ctx)
 }
 
+// GetHookConfigDescription get part of hook config for logging/debugging
 func (h *GoHook) GetHookConfigDescription() string {
 	return h.basicHook.GetConfigDescription()
 }
 
+// Execute runs the hook and return the result of the execution
 func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (result *HookResult, err error) {
 	// Values are patched in-place, so an error can occur.
 	patchableValues, err := go_hook.NewPatchableValues(values)
@@ -109,7 +108,7 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 	metricsCollector := metrics.NewCollector(h.GetName())
 	patchCollector := object_patch.NewPatchCollector()
 
-	err = h.Run(&go_hook.HookInput{
+	err = h.run(&go_hook.HookInput{
 		Snapshots:        formattedSnapshots,
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
@@ -142,19 +141,25 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 	return result, nil
 }
 
+// GetConfig returns hook config, which was set by user, while defining the hook
 func (h *GoHook) GetConfig() *go_hook.HookConfig {
 	return h.config
 }
 
+// GetName returns the hook's name
 func (h *GoHook) GetName() string {
 	return h.basicHook.Name
 }
 
+// GetPath returns hook's path on the filesystem
 func (h *GoHook) GetPath() string {
 	return h.basicHook.Path
 }
+
+// GetKind returns kind of the hook
 func (h *GoHook) GetKind() HookKind {
 	return HookKindGo
 }
 
+// ReconcileFunc function which holds the main logic of the hook
 type ReconcileFunc func(input *go_hook.HookInput) error

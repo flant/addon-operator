@@ -6,25 +6,25 @@ import (
 	"path/filepath"
 	"strings"
 
-	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
-	"github.com/flant/shell-operator/pkg/hook/config"
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
-	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
+	"github.com/gofrs/uuid/v5"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/shell-operator/pkg/hook/controller"
-	"github.com/gofrs/uuid/v5"
-
+	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
-	log "github.com/sirupsen/logrus"
+	"github.com/flant/shell-operator/pkg/hook/binding_context"
+	"github.com/flant/shell-operator/pkg/hook/config"
+	"github.com/flant/shell-operator/pkg/hook/controller"
+	"github.com/flant/shell-operator/pkg/kube/object_patch"
+	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 type ShellHook struct {
 	sh_hook.Hook
 }
 
+// NewShellHook new hook, which runs via the OS interpreter like bash/python/etc
 func NewShellHook(name, path string) *ShellHook {
 	return &ShellHook{
 		Hook: sh_hook.Hook{
@@ -40,34 +40,42 @@ func (sh *ShellHook) BackportHookConfig(cfg *config.HookConfig) {
 	sh.RateLimiter = sh_hook.CreateRateLimiter(cfg)
 }
 
+// WithHookController sets dependency "hook controller" for shell-operator
 func (sh *ShellHook) WithHookController(hookController controller.HookController) {
 	sh.HookController = hookController
 }
 
+// WithTmpDir injects temp directory from operator
 func (sh *ShellHook) WithTmpDir(tmpDir string) {
 	sh.TmpDir = tmpDir
 }
 
+// GetPath returns hook's path on the filesystem
 func (sh *ShellHook) GetPath() string {
 	return sh.Path
 }
 
+// GetHookController returns HookController
 func (sh *ShellHook) GetHookController() controller.HookController {
 	return sh.HookController
 }
 
+// GetName returns the hook's name
 func (sh *ShellHook) GetName() string {
 	return sh.Name
 }
 
+// GetKind returns kind of the hook
 func (sh *ShellHook) GetKind() HookKind {
 	return HookKindShell
 }
 
+// GetHookConfigDescription get part of hook config for logging/debugging
 func (sh *ShellHook) GetHookConfigDescription() string {
 	return sh.Hook.GetConfigDescription()
 }
 
+// Execute runs the hook via the OS interpreter and returns the result of the execution
 func (sh *ShellHook) Execute(configVersion string, bContext []binding_context.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (result *HookResult, err error) {
 	result = &HookResult{
 		Patches: make(map[utils.ValuesPatchType]*utils.ValuesPatch),
@@ -163,6 +171,7 @@ func (sh *ShellHook) getConfig() (configOutput []byte, err error) {
 	return output, nil
 }
 
+// GetConfig returns config
 func (sh *ShellHook) GetConfig() ([]byte, error) {
 	return sh.getConfig()
 }

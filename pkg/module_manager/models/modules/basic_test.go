@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 func TestHandleModulePatch(t *testing.T) {
@@ -33,6 +34,7 @@ foo:
 		},
 	}}
 	res, err := bm.handleModuleValuesPatch(bm.GetValues(false), patch)
+	require.NoError(t, err)
 	assert.True(t, res.ValuesChanged)
 	assert.YAMLEq(t, `
 foo: 

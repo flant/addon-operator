@@ -9,18 +9,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/manifest"
 	"github.com/flant/shell-operator/pkg/utils/measure"
-	log "github.com/sirupsen/logrus"
 )
 
+// HelmModule representation of the module, which has Helm Chart and could be installed with the helm lib
 type HelmModule struct {
 	// Name of the module
 	name string
@@ -50,12 +51,13 @@ type MetricsStorage interface {
 }
 
 type HelmModuleDependencies struct {
-	*helm.ClientFactory
-	HelmResourceManager
-	MetricsStorage
-	HelmValuesValidator
+	HelmClientFactory   *helm.ClientFactory
+	HelmResourceManager HelmResourceManager
+	MetricsStorage      MetricsStorage
+	HelmValuesValidator HelmValuesValidator
 }
 
+// NewHelmModule build HelmModule from the Module templates and values + global values
 func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator) (*HelmModule, error) {
 	moduleValues := bm.GetValues(false)
 
@@ -116,7 +118,7 @@ func (hm *HelmModule) createChartYaml(chartPath string) error {
 	data := fmt.Sprintf(`name: %s
 version: 0.2.0`, hm.name)
 
-	return os.WriteFile(chartPath, []byte(data), 0644)
+	return os.WriteFile(chartPath, []byte(data), 0o644)
 }
 
 // checkHelmValues returns error if there is a wrong patch or values are not satisfied
@@ -151,7 +153,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 	defer os.Remove(valuesPath)
 
-	helmClient := hm.dependencies.ClientFactory.NewClient(logLabels)
+	helmClient := hm.dependencies.HelmClientFactory.NewClient(logLabels)
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
@@ -338,5 +340,5 @@ func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
 	}
 	defer os.Remove(valuesPath)
 
-	return hm.dependencies.NewClient().Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
+	return hm.dependencies.HelmClientFactory.NewClient().Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
 }

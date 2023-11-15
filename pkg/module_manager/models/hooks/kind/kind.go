@@ -8,13 +8,17 @@ import (
 	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
+// HookKind kind of the hook
 type HookKind string
 
 var (
-	HookKindGo    HookKind = "go"
+	// HookKindGo for go hooks
+	HookKindGo HookKind = "go"
+	// HookKindShell for shell hooks (bash, python, etc)
 	HookKindShell HookKind = "shell"
 )
 
+// HookResult returns result of a hook execution
 type HookResult struct {
 	Usage                   *executor.CmdUsage
 	Patches                 map[utils.ValuesPatchType]*utils.ValuesPatch

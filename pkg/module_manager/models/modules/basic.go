@@ -10,27 +10,32 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
-	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
-
-	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/gofrs/uuid/v5"
-	"github.com/kennygrant/sanitize"
-
 	"github.com/hashicorp/go-multierror"
+	"github.com/kennygrant/sanitize"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
-	"github.com/flant/shell-operator/pkg/utils/measure"
-
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/sdk"
+	sh_app "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/executor"
+	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
-	log "github.com/sirupsen/logrus"
+	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
+// BasicModule is a basic representation of the Module, which addon-operator works with
+// any Module has the next parameters:
+//   - name of the module
+//   - order of the module execution
+//   - path of the module on a filesystem
+//   - values storage - config and calculated values for the module
+//   - hooks of the module
+//   - current module state
 type BasicModule struct {
 	// required
 	Name string
@@ -49,6 +54,8 @@ type BasicModule struct {
 	dc *hooks.HookExecutionDependencyContainer
 }
 
+// NewBasicModule creates new BasicModule
+// staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
 func NewBasicModule(name, path string, order uint32, staticValues utils.Values, validator validator) *BasicModule {
 	return &BasicModule{
 		Name:          name,
@@ -64,34 +71,37 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 	}
 }
 
+// WithDependencies unject module dependencies
 func (bm *BasicModule) WithDependencies(dep *hooks.HookExecutionDependencyContainer) {
 	bm.dc = dep
 }
 
-// Deprecated: remove this
-func (bm *BasicModule) GetBaseModule() *BasicModule {
-	return bm
-}
+// GetOrder returns the module order
 func (bm *BasicModule) GetOrder() uint32 {
 	return bm.Order
 }
 
+// GetName returns the module name
 func (bm *BasicModule) GetName() string {
 	return bm.Name
 }
 
+// GetPath returns the module path on a filesystem
 func (bm *BasicModule) GetPath() string {
 	return bm.Path
 }
 
+// GetHooks returns module hooks, they could be filtered by BindingType optionally
 func (bm *BasicModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleHook {
 	return bm.hooks.getHooks(bt...)
 }
 
+// DeregisterHooks clean up all module hooks
 func (bm *BasicModule) DeregisterHooks() {
 	bm.hooks.clean()
 }
 
+// ResetState drops the module state
 func (bm *BasicModule) ResetState() {
 	bm.state = &moduleState{
 		Phase:                Startup,
@@ -100,11 +110,7 @@ func (bm *BasicModule) ResetState() {
 	}
 }
 
-//func (bm *BasicModule) UpdateConfigValues(newValues utils.Values) {
-//	// TODO: merge with values?
-//	bm.configValues = newValues
-//}
-
+// RegisterHooks find and registers all module hooks from a filesystem or GoHook Registry
 func (bm *BasicModule) RegisterHooks(logger *log.Entry) ([]*hooks.ModuleHook, error) {
 	if bm.hooks.registered {
 		logger.Debugf("Module hooks already registered")
@@ -122,69 +128,6 @@ func (bm *BasicModule) RegisterHooks(logger *log.Entry) ([]*hooks.ModuleHook, er
 
 	return hks, nil
 }
-
-//// ConfigValues returns raw values from ConfigMap:
-//// - global section
-//// - module section
-//func (m *Module) ConfigValues() utils.Values {
-//	return mergeLayers(
-//		// Global values from ConfigMap with defaults from schema.
-//		m.moduleManager.GlobalConfigValues(),
-//		// Init module section.
-//		utils.Values{m.ValuesKey(): map[string]interface{}{}},
-//		// Merge overrides from ConfigMap.
-//		m.moduleManager.ModuleConfigValues(m.Name),
-//	)
-//}
-
-//func (bm *BasicModule) GetConfigValues() utils.Values {
-//	return bm.configValues
-//	// TODO: was merged here
-//}
-
-// // Values returns effective values for module hook or helm chart:
-// //
-// // global section: static + config + defaults + patches from hooks
-// //
-// // module section: static + config + defaults + patches from hooks
-//// TODO: patch
-//func (bm *BasicModule) GetValues() utils.Values {
-//	return bm.values
-//}
-
-// there was
-//func (m *Module) Values() (utils.Values, error) {
-//	var err error
-//
-//	globalValues, err := m.moduleManager.GlobalValues()
-//	if err != nil {
-//		return nil, fmt.Errorf("construct module values: %s", err)
-//	}
-//
-//	// Apply global and module values defaults before applying patches.
-//	res := mergeLayers(
-//		// Global values with patches and defaults.
-//		globalValues,
-//		// Init module section.
-//		utils.Values{m.ValuesKey(): map[string]interface{}{}},
-//		// Merge static values from various values.yaml files.
-//		m.CommonStaticConfig.GetValues(),
-//		m.StaticConfig.GetValues(),
-//		// Apply config values defaults before ConfigMap overrides.
-//		&applyDefaultsForModule{
-//			m.ValuesKey(),
-//			validation.ConfigValuesSchema,
-//			m.moduleManager.ValuesValidator,
-//		},
-//		// Merge overrides from ConfigMap.
-//		m.moduleManager.ModuleConfigValues(m.Name),
-//		// Apply dynamic values defaults before patches.
-//		&applyDefaultsForModule{
-//			m.ValuesKey(),
-//			validation.ValuesSchema,
-//			m.moduleManager.ValuesValidator,
-//		},
-//	)
 
 func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 	shellHooks, err := bm.searchModuleShellHooks()
@@ -246,14 +189,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 
 func (bm *BasicModule) searchModuleGoHooks() (hks []*kind.GoHook) {
 	// find module hooks in go hooks registry
-	goHooks := sdk.Registry().GetModuleHooks(bm.Name)
-	hks = make([]*kind.GoHook, 0, len(goHooks))
-
-	for _, h := range goHooks {
-		hks = append(hks, h)
-	}
-
-	return hks
+	return sdk.Registry().GetModuleHooks(bm.Name)
 }
 
 func (bm *BasicModule) searchAndRegisterHooks(logger *log.Entry) ([]*hooks.ModuleHook, error) {
@@ -302,22 +238,27 @@ func (bm *BasicModule) searchAndRegisterHooks(logger *log.Entry) ([]*hooks.Modul
 	return hks, nil
 }
 
+// GetPhase ...
 func (bm *BasicModule) GetPhase() ModuleRunPhase {
 	return bm.state.Phase
 }
 
+// SetPhase ...
 func (bm *BasicModule) SetPhase(phase ModuleRunPhase) {
 	bm.state.Phase = phase
 }
 
+// SetError ...
 func (bm *BasicModule) SetError(err error) {
 	bm.state.lastModuleErr = err
 }
 
+// SetStateEnabled ...
 func (bm *BasicModule) SetStateEnabled(e bool) {
 	bm.state.Enabled = e
 }
 
+// SaveHookError ...
 func (bm *BasicModule) SaveHookError(hookName string, err error) {
 	bm.state.hookErrorsLock.Lock()
 	defer bm.state.hookErrorsLock.Unlock()
@@ -378,6 +319,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 	return nil
 }
 
+// RunHookByName runs some specified hook by its name
 func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.BindingType, bindingContext []binding_context.BindingContext, logLabels map[string]string) (string, string, error) {
 	values := bm.valuesStorage.GetValues(false)
 	valuesChecksum := values.Checksum()
@@ -406,8 +348,9 @@ func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.Bindin
 	newValuesChecksum := bm.valuesStorage.GetValues(false).Checksum()
 
 	return valuesChecksum, newValuesChecksum, nil
-
 }
+
+// RunEnabledScript executate enabled script
 func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules []string, logLabels map[string]string) (bool, error) {
 	// Copy labels and set 'module' label.
 	logLabels = utils.MergeLabels(logLabels)
@@ -561,7 +504,7 @@ func (bm *BasicModule) prepareValuesJsonFileWith(tmpdir string, values utils.Val
 		return "", err
 	}
 
-	path := filepath.Join(tmpdir, fmt.Sprintf("%s.module-values-%s.json", bm.SafeName(), uuid.Must(uuid.NewV4()).String()))
+	path := filepath.Join(tmpdir, fmt.Sprintf("%s.module-values-%s.json", bm.safeName(), uuid.Must(uuid.NewV4()).String()))
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
@@ -590,7 +533,7 @@ func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) 
 	return res, nil
 }
 
-func (bm *BasicModule) SafeName() string {
+func (bm *BasicModule) safeName() string {
 	return sanitize.BaseName(bm.Name)
 }
 
@@ -606,7 +549,7 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 		return "", err
 	}
 
-	path := filepath.Join(tmpDir, fmt.Sprintf("%s.module-config-values-%s.json", bm.SafeName(), uuid.Must(uuid.NewV4()).String()))
+	path := filepath.Join(tmpDir, fmt.Sprintf("%s.module-config-values-%s.json", bm.safeName(), uuid.Must(uuid.NewV4()).String()))
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
@@ -639,8 +582,8 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		logEntry.Debugf("snapshot info: %s", info)
 	}
 
-	// TODO(yalosev): add some description here
-	// why we have to add a module name key at top level
+	// we have to add a module name key at top level
+	// because all hooks are living with an old scheme
 	hookConfigValues := utils.Values{
 		utils.GlobalValuesKey:    bm.dc.GlobalValuesGetter.GetConfigValues(false),
 		bm.moduleNameForValues(): bm.valuesStorage.GetConfigValues(false),
@@ -650,7 +593,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		bm.moduleNameForValues(): bm.valuesStorage.GetValues(false),
 	}
 
-	hookResult, err := h.Execute(h.GetConfigVersion(), context, bm.SafeName(), hookConfigValues, hookValues, logLabels)
+	hookResult, err := h.Execute(h.GetConfigVersion(), context, bm.safeName(), hookConfigValues, hookValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
@@ -745,7 +688,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 			}
 
 			// Save patch set if everything is ok.
-			bm.valuesStorage.AppendValuesPatch(valuesPatchResult.ValuesPatch)
+			bm.valuesStorage.appendValuesPatch(valuesPatchResult.ValuesPatch)
 			bm.valuesStorage.CommitValues()
 
 			logEntry.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetValues(false).DebugString())
@@ -812,7 +755,7 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 	return result, nil
 }
 
-func (bm *BasicModule) SaveConfigValues(v utils.Values, validate bool) error {
+func (bm *BasicModule) PrepareConfigValues(v utils.Values, validate bool) error {
 	return bm.valuesStorage.PreCommitConfigValues(v, validate)
 }
 
@@ -856,10 +799,17 @@ func (bm *BasicModule) HasKubernetesHooks() bool {
 	return len(hks) > 0
 }
 
+// GetHookByName returns hook by its name
 func (bm *BasicModule) GetHookByName(name string) *hooks.ModuleHook {
 	return bm.hooks.getHookByName(name)
 }
 
+// GetValuesPatches returns patches for debug output
+func (bm *BasicModule) GetValuesPatches() []utils.ValuesPatch {
+	return bm.valuesStorage.getValuesPatches()
+}
+
+// GetLastHookError get error of the last executed hook
 func (bm *BasicModule) GetLastHookError() error {
 	bm.state.hookErrorsLock.RLock()
 	defer bm.state.hookErrorsLock.RUnlock()
@@ -902,29 +852,3 @@ type moduleState struct {
 	hookErrorsLock       sync.RWMutex
 	synchronizationState *SynchronizationState
 }
-
-//
-//// StaticAndNewValues returns global values defined in
-//// various values.yaml files and in a ConfigMap and module values
-//// defined in various values.yaml files merged with newValues.
-//// Deprecated: think about it
-//// TODO(yalosev): old style stuff, have to redo
-//func (bm *BasicModule) StaticAndNewValues(newValues utils.Values) utils.Values {
-//	return mergeLayers(
-//		// Global values from values.yaml and ConfigMap with defaults from schema.
-//		m.moduleManager.GlobalStaticAndConfigValues(),
-//		// Init module section.
-//		utils.Values{m.ValuesKey(): map[string]interface{}{}},
-//		// Merge static values from various values.yaml files.
-//		m.CommonStaticConfig.GetValues(),
-//		m.StaticConfig.GetValues(),
-//		// Apply config values defaults before overrides.
-//		&applyDefaultsForModule{
-//			m.ValuesKey(),
-//			validation.ConfigValuesSchema,
-//			m.moduleManager.ValuesValidator,
-//		},
-//		// Merge overrides from newValues.
-//		newValues,
-//	)
-//}

@@ -2,11 +2,13 @@ package utils
 
 import (
 	"fmt"
-	"github.com/flant/addon-operator/pkg/app"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/flant/addon-operator/pkg/app"
 )
 
 const (

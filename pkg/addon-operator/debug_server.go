@@ -6,13 +6,11 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/flant/addon-operator/pkg/utils"
-
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-
 	"github.com/go-chi/chi/v5"
 
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/debug"
 	"github.com/flant/shell-operator/pkg/hook/types"
 )
@@ -32,10 +30,9 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 		return op.ModuleManager.GetGlobal().GetConfigValues(false), nil
 	})
 
-	//// TODO(yalosev): restore this
-	//dbgSrv.RegisterHandler(http.MethodGet, "/global/patches.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
-	//	return op.ModuleManager.GlobalValuesPatches(), nil
-	//})
+	dbgSrv.RegisterHandler(http.MethodGet, "/global/patches.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
+		return op.ModuleManager.GetGlobal().GetValuesPatches(), nil
+	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/snapshots.{format:(json|yaml)}", func(r *http.Request) (interface{}, error) {
 		kubeHookNames := op.ModuleManager.GetGlobalHooksInOrder(types.OnKubernetesEvent)
@@ -113,7 +110,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		}
 
 		deps := &modules.HelmModuleDependencies{
-			ClientFactory: op.Helm,
+			HelmClientFactory: op.Helm,
 		}
 		hm, err := modules.NewHelmModule(m, op.ModuleManager.TempDir, deps, nil)
 		if err != nil {
@@ -123,17 +120,16 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		return hm.Render(app.Namespace, dbg)
 	})
 
-	// TODO(yalosev): restore me
-	//dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {
-	//	modName := chi.URLParam(r, "name")
-	//
-	//	m := op.ModuleManager.GetModule(modName)
-	//	if m == nil {
-	//		return nil, fmt.Errorf("Unknown module %s", modName)
-	//	}
-	//
-	//	return op.ModuleManager.ModuleDynamicValuesPatches(modName), nil
-	//})
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {
+		modName := chi.URLParam(r, "name")
+
+		m := op.ModuleManager.GetModule(modName)
+		if m == nil {
+			return nil, fmt.Errorf("Unknown module %s", modName)
+		}
+
+		return m.GetValuesPatches(), nil
+	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/resource-monitor.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
 		dump := map[string]interface{}{}

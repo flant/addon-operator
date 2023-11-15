@@ -1,12 +1,12 @@
 package sdk
 
 import (
-	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"regexp"
 	"runtime"
 	"sync"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 )
 
 const bindingsPanicMsg = "OnStartup hook always has binding context without Kubernetes snapshots. To prevent logic errors, don't use OnStartup and Kubernetes bindings in the same Go hook configuration."
@@ -30,23 +30,6 @@ var RegisterFunc = func(config *go_hook.HookConfig, reconcileFunc kind.Reconcile
 	return true
 }
 
-//type HookWithMetadata struct {
-//	Hook     go_hook.GoHook
-//	Metadata *go_hook.HookMetadata
-//}
-//
-//func (hwm HookWithMetadata) GetPath() string {
-//	return hwm.Metadata.Path
-//}
-//
-//func (hwm HookWithMetadata) GetName() string {
-//	return hwm.Metadata.Name
-//}
-//
-//func (hwm HookWithMetadata) GetType() string {
-//	return "go"
-//}
-
 type HookRegistry struct {
 	m            sync.Mutex
 	globalHooks  []*kind.GoHook
@@ -68,10 +51,6 @@ func Registry() *HookRegistry {
 	return instance
 }
 
-//func (h *HookRegistry) Hooks() []HookWithMetadata {
-//	return h.hooks
-//}
-
 func (h *HookRegistry) GetModuleHooks(moduleName string) []*kind.GoHook {
 	return h.modulesHooks[moduleName]
 }
@@ -89,9 +68,7 @@ func (h *HookRegistry) Hooks() []*kind.GoHook {
 		res = append(res, hooks...)
 	}
 
-	for _, ghook := range h.globalHooks {
-		res = append(res, ghook)
-	}
+	res = append(res, h.globalHooks...)
 
 	return res
 }
@@ -147,11 +124,15 @@ func (h *HookRegistry) Add(hook *kind.GoHook) {
 
 	h.m.Lock()
 	defer h.m.Unlock()
-	if hookMeta.Global {
+
+	switch {
+	case hookMeta.Global:
 		h.globalHooks = append(h.globalHooks, hook)
-	} else if hookMeta.Module {
+
+	case hookMeta.Module:
 		h.modulesHooks[hookMeta.ModuleName] = append(h.modulesHooks[hookMeta.ModuleName], hook)
-	} else {
+
+	default:
 		panic("neither module nor global hook. Who are you?")
 	}
 }

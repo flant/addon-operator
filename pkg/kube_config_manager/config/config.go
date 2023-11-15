@@ -66,6 +66,7 @@ func ParseModuleKubeConfigFromValues(moduleName string, values utils.Values) *Mo
 		return nil
 	}
 
+	//nolint: staticcheck
 	moduleValues := values.SectionByKey(valuesKey)
 
 	checksum := moduleValues.Checksum()

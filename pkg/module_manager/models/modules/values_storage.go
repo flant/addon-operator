@@ -1,10 +1,10 @@
 package modules
 
 import (
-	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/go-openapi/spec"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 type validator interface {
@@ -25,6 +25,7 @@ type validator interface {
 	6. JSON patches (in-memory for GoHook or VALUES_JSON_PATCH_PATH for ShellHook) - dynamic, from hooks, have top priority
 */
 
+// ValuesStorage keeps Module's values in order
 type ValuesStorage struct {
 	// INPUTS:
 
@@ -33,13 +34,6 @@ type ValuesStorage struct {
 	//   /modules/001-module/values.yaml
 	// are set only on module init phase
 	staticConfigValues utils.Values
-
-	// config values from openapi schema:
-	//   /modules/001-module/openapi/config-values.yaml
-	//openapiConfigValues utils.Values
-	// values from openapi schema:
-	//   /modules/001-module/openapi/values.yaml
-	//openapiValues utils.Values
 
 	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
 	// without merge with static and openapi values
@@ -59,12 +53,15 @@ type ValuesStorage struct {
 	dirtyConfigValues       utils.Values
 	dirtyMergedConfigValues utils.Values
 
-	// TODO: acutally, we don't need the validator with all Schemas here,
+	// TODO: actually, we don't need the validator with all Schemas here,
 	//   we can put a single openapi schema for the specified module
 	validator  validator
 	moduleName string
 }
 
+// NewValuesStorage build a new storage for module values
+//
+//	staticValues - values from /modules/<module-name>/values.yaml, which couldn't be reloaded during the runtime
 func NewValuesStorage(moduleName string, staticValues utils.Values, validator validator) *ValuesStorage {
 	vs := &ValuesStorage{
 		staticConfigValues: staticValues,
@@ -128,6 +125,8 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	return nil
 }
 
+// PreCommitConfigValues save new config values in a dirty state, they are not applied automatically, you have to
+// commit them with CommitConfigValues
 func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bool) error {
 	merged := mergeLayers(
 		utils.Values{},
@@ -185,6 +184,9 @@ func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
 	return false
 }
 
+// PreCommitValues can set values after a hook execution, but they are not committed automatically
+// you have to commit them with CommitValues
+// Probably, we don't need the method, we can use patches instead
 func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 	if vs.mergedConfigValues == nil {
 		vs.mergedConfigValues = mergeLayers(
@@ -217,6 +219,7 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 	return vs.validateValues(merged)
 }
 
+// CommitConfigValues move config values from 'dirty' state to the actual
 func (vs *ValuesStorage) CommitConfigValues() {
 	if vs.dirtyMergedConfigValues != nil {
 		vs.mergedConfigValues = vs.dirtyMergedConfigValues
@@ -231,6 +234,7 @@ func (vs *ValuesStorage) CommitConfigValues() {
 	_ = vs.calculateResultValues()
 }
 
+// CommitValues move result values from the 'dirty' state
 func (vs *ValuesStorage) CommitValues() {
 	if vs.dirtyResultValues == nil {
 		return
@@ -240,7 +244,28 @@ func (vs *ValuesStorage) CommitValues() {
 	vs.dirtyResultValues = nil
 }
 
-// GetValues return current values with applied patches
+/*
+GetValues return current values with applied patches
+withPrefix means, that values will be returned with module name prefix
+example:
+
+without prefix:
+
+	```yaml
+	replicas: 1
+	foo:
+	  bar: hello-world
+	```
+
+with prefix:
+
+	```yaml
+	mySuperModule:
+		replicas: 1
+		foo:
+		  bar: hello-world
+	```
+*/
 func (vs *ValuesStorage) GetValues(withPrefix bool) utils.Values {
 	if withPrefix {
 		return utils.Values{
@@ -251,6 +276,7 @@ func (vs *ValuesStorage) GetValues(withPrefix bool) utils.Values {
 	return vs.resultValues
 }
 
+// GetConfigValues returns only user defined values
 func (vs *ValuesStorage) GetConfigValues(withPrefix bool) utils.Values {
 	if withPrefix {
 		return utils.Values{
@@ -261,6 +287,10 @@ func (vs *ValuesStorage) GetConfigValues(withPrefix bool) utils.Values {
 	return vs.configValues
 }
 
-func (vs *ValuesStorage) AppendValuesPatch(patch utils.ValuesPatch) {
+func (vs *ValuesStorage) appendValuesPatch(patch utils.ValuesPatch) {
 	vs.valuesPatches = utils.AppendValuesPatch(vs.valuesPatches, patch)
+}
+
+func (vs *ValuesStorage) getValuesPatches() []utils.ValuesPatch {
+	return vs.valuesPatches
 }

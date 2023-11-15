@@ -7,16 +7,16 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
+	log "github.com/sirupsen/logrus"
 
+	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/sdk"
+	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
-	log "github.com/sirupsen/logrus"
 )
 
 // GlobalModule is an ephemeral container for global hooks
@@ -32,9 +32,7 @@ type GlobalModule struct {
 	enabledByHookC chan *EnabledPatchReport
 
 	// dependency
-	// DEPRECATED: move to values storage
-	valuesValidator validator
-	dc              *hooks.HookExecutionDependencyContainer
+	dc *hooks.HookExecutionDependencyContainer
 }
 
 // EnabledReportChannel returns channel with dynamic modules enabling by global hooks
@@ -42,6 +40,7 @@ func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
 	return gm.enabledByHookC
 }
 
+// NewGlobalModule build ephemeral global container for global hooks and values
 func NewGlobalModule(hooksDir string, staticValues utils.Values, validator validator, dc *hooks.HookExecutionDependencyContainer) *GlobalModule {
 	return &GlobalModule{
 		hooksDir:       hooksDir,
@@ -53,6 +52,7 @@ func NewGlobalModule(hooksDir string, staticValues utils.Values, validator valid
 	}
 }
 
+// RegisterHooks finds and registers global hooks
 func (gm *GlobalModule) RegisterHooks() ([]*hooks.GlobalHook, error) {
 	log.Debugf("Search and register global hooks")
 
@@ -64,10 +64,12 @@ func (gm *GlobalModule) RegisterHooks() ([]*hooks.GlobalHook, error) {
 	return hks, nil
 }
 
+// GetHookByName ...
 func (gm *GlobalModule) GetHookByName(name string) *hooks.GlobalHook {
 	return gm.byName[name]
 }
 
+// GetHooks returns module hooks, they could be filtered by BindingType optionally
 func (gm *GlobalModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.GlobalHook {
 	if len(bt) > 0 {
 		t := bt[0]
@@ -95,10 +97,7 @@ func (gm *GlobalModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.GlobalH
 	return res
 }
 
-//func (gm *GlobalModule) RunHooksByBinding(binding sh_op_types.BindingType, logLabels map[string]string) error {
-//
-//}
-
+// RunHookByName runs some specified hook by its name
 func (gm *GlobalModule) RunHookByName(hookName string, binding sh_op_types.BindingType, bindingContext []binding_context.BindingContext, logLabels map[string]string) (string, string, error) {
 	globalHook := gm.byName[hookName]
 
@@ -132,6 +131,7 @@ func (gm *GlobalModule) RunHookByName(hookName string, binding sh_op_types.Bindi
 	return beforeChecksum, afterChecksum, nil
 }
 
+// GetName ...
 func (gm *GlobalModule) GetName() string {
 	return utils.GlobalValuesKey
 }
@@ -189,8 +189,6 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 			logEntry.Debugf("Global hook '%s': validate global config values before update", h.GetName())
 			// Validate merged static and new values.
 			validationErr := gm.valuesStorage.PreCommitConfigValues(configValuesPatchResult.Values, true)
-			//mergedValues := h.moduleManager.GlobalStaticAndNewValues(configValuesPatchResult.Values)
-			//validationErr := h.moduleManager.ValuesValidator.ValidateGlobalConfigValues(mergedValues)
 			if validationErr != nil {
 				return fmt.Errorf("cannot apply config values patch for global values: %w", validationErr)
 			}
@@ -202,9 +200,6 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 			}
 
 			gm.valuesStorage.CommitConfigValues()
-
-			//h.moduleManager.UpdateGlobalConfigValues(configValuesPatchResult.Values)
-			// TODO(yalosev): save patches - UpdateGlobalDynamicValuesPatches
 
 			logEntry.Debugf("Global hook '%s': kube config global values updated", h.GetName())
 			logEntry.Debugf("New kube config global values:\n%s\n", gm.valuesStorage.GetConfigValues(false).DebugString())
@@ -236,7 +231,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 
 			gm.valuesStorage.CommitValues()
 
-			gm.valuesStorage.AppendValuesPatch(valuesPatchResult.ValuesPatch)
+			gm.valuesStorage.appendValuesPatch(valuesPatchResult.ValuesPatch)
 
 			logEntry.Debugf("Global hook '%s': kube global values updated", h.GetName())
 			logEntry.Debugf("New global values:\n%s", gm.valuesStorage.GetValues(false).DebugString())
@@ -276,8 +271,9 @@ func (gm *GlobalModule) applyEnabledPatches(valuesPatch utils.ValuesPatch) error
 	return err
 }
 
-// TODO(yalosev): change name, because we don't save values here, just store them as dirty
-func (gm *GlobalModule) SaveConfigValues(v utils.Values, validate bool) error {
+// PrepareConfigValues set config values in 'dirty' state
+// it is a proxy method for values storage, read detailed description there
+func (gm *GlobalModule) PrepareConfigValues(v utils.Values, validate bool) error {
 	return gm.valuesStorage.PreCommitConfigValues(v, validate)
 }
 
@@ -288,12 +284,17 @@ func (gm *GlobalModule) ConfigValuesHaveChanges() bool {
 func (gm *GlobalModule) CommitConfigValuesChange() {
 	gm.valuesStorage.CommitConfigValues()
 }
+
 func (gm *GlobalModule) GetValues(withPrefix bool) utils.Values {
 	return gm.valuesStorage.GetValues(withPrefix)
 }
 
 func (gm *GlobalModule) GetConfigValues(withPrefix bool) utils.Values {
 	return gm.valuesStorage.GetConfigValues(withPrefix)
+}
+
+func (gm *GlobalModule) GetValuesPatches() []utils.ValuesPatch {
+	return gm.valuesStorage.getValuesPatches()
 }
 
 type globalValuesPatchResult struct {

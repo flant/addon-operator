@@ -8,13 +8,12 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-	"github.com/flant/addon-operator/pkg/values/validation"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 type FileSystemLoader struct {
@@ -69,7 +68,7 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 			}
 
 			// 3. from openapi defaults
-			//TODO(yalosev): think about openapi
+
 			cb, vb, err := fl.readOpenAPIFiles(filepath.Join(module.Path, "openapi"))
 			if err != nil {
 				return nil, err
@@ -85,9 +84,7 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 			//
 			moduleValues, ok := initialValues[valuesModuleName].(map[string]interface{})
 			if !ok {
-				// TODO(yalosev): think about
-				fmt.Println(valuesModuleName, moduleValues)
-				panic("Here")
+				return nil, fmt.Errorf("expect map[string]interface{} in module values")
 			}
 
 			bm := modules.NewBasicModule(module.Name, module.Path, module.Order, moduleValues, fl.valuesValidator)

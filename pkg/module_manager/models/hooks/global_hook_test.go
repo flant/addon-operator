@@ -1,7 +1,7 @@
-package module_manager
+package hooks
 
 //
-//import (
+// import (
 //	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 //	"testing"
 //
@@ -11,7 +11,7 @@ package module_manager
 //	. "github.com/flant/shell-operator/pkg/hook/types"
 //)
 //
-//func Test_GlobalHook_WithConfig(t *testing.T) {
+// func Test_GlobalHook_WithConfig(t *testing.T) {
 //	g := NewWithT(t)
 //
 //	var gh *hooks.GlobalHook
@@ -34,7 +34,7 @@ package module_manager
 //  crontab: '* * * * *'
 //afterAll: 22
 //beforeAll: 23
-//`,
+// `,
 //			func() {
 //				g.Expect(err).ShouldNot(HaveOccurred())
 //				g.Expect(gh).ShouldNot(BeNil())

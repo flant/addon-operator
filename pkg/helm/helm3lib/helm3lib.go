@@ -191,7 +191,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		_, err = instClient.Run(chart, resultValues)
 		return err
 	}
-	h.LogEntry.Infof("%d old releases found", len(releases))
+	h.LogEntry.Debugf("%d old releases found", len(releases))
 	if len(releases) > 0 {
 		// https://github.com/fluxcd/helm-controller/issues/149
 		// looking through this issue you can find the common error: another operation (install/upgrade/rollback) is in progress
@@ -199,7 +199,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		releaseutil.Reverse(releases, releaseutil.SortByRevision)
 		latestRelease := releases[0]
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
-		h.LogEntry.Infof("Latest release '%s': revision: %d has status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
+		h.LogEntry.Debugf("Latest release '%s': revision: %d has status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
 		if latestRelease.Info.Status.IsPending() {
 			h.rollbackLatestRelease(releases)
 		}

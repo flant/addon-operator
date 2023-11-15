@@ -8,17 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
-
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-
-	hooks2 "github.com/flant/addon-operator/pkg/module_manager/models/hooks"
-	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-
-	"github.com/flant/addon-operator/pkg/module_manager"
-	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
-
 	"github.com/gofrs/uuid/v5"
 	log "github.com/sirupsen/logrus"
 
@@ -28,6 +17,12 @@ import (
 	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
@@ -244,14 +239,13 @@ func (op *AddonOperator) InitModuleManager() error {
 	return nil
 }
 
-// TODO(yalosev): rename this
-type executableHook interface {
+type typedHook interface {
 	GetKind() kind.HookKind
 	GetGoHookInputSettings() *go_hook.HookConfigSettings
 }
 
 // AllowHandleScheduleEvent returns false if the Schedule event can be ignored.
-func (op *AddonOperator) AllowHandleScheduleEvent(hook executableHook) bool {
+func (op *AddonOperator) AllowHandleScheduleEvent(hook typedHook) bool {
 	// Always allow if first converge is done.
 	if op.IsStartupConvergeDone() {
 		return true
@@ -264,7 +258,7 @@ func (op *AddonOperator) AllowHandleScheduleEvent(hook executableHook) bool {
 
 // ShouldEnableSchedulesOnStartup returns true for Go hooks if EnableSchedulesOnStartup is set.
 // This flag for schedule hooks that start after onStartup hooks.
-func shouldEnableSchedulesOnStartup(hk executableHook) bool {
+func shouldEnableSchedulesOnStartup(hk typedHook) bool {
 	if hk.GetKind() != kind.HookKindGo {
 		return false
 	}
@@ -292,7 +286,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 		var tasks []sh_task.Task
 		err := op.ModuleManager.HandleScheduleEvent(crontab,
-			func(globalHook *hooks2.GlobalHook, info controller.BindingExecutionInfo) {
+			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
 				if !op.AllowHandleScheduleEvent(globalHook) {
 					return
 				}
@@ -367,7 +361,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 		var tasks []sh_task.Task
 		op.ModuleManager.HandleKubeEvent(kubeEvent,
-			func(globalHook *hooks2.GlobalHook, info controller.BindingExecutionInfo) {
+			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
 				hookLabels := utils.MergeLabels(logLabels, map[string]string{
 					"hook":      globalHook.GetName(),
 					"hook.type": "global",
@@ -896,7 +890,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 	// TODO: probably we have some duplications here
 
-	//for _, hookName := range op.ModuleManager.GetModuleHookNames(moduleName) {
+	// for _, hookName := range op.ModuleManager.GetModuleHookNames(moduleName) {
 	//	h := op.ModuleManager.GetModuleHook(hookName)
 	//	for _, hookBinding := range h.Config.Schedules {
 	//		if op.CreateAndStartQueue(hookBinding.Queue) {
@@ -941,7 +935,7 @@ func (op *AddonOperator) DrainModuleQueues(modName string) {
 	}
 
 	// TODO: duplication here?
-	//for _, hookName := range op.ModuleManager.GetModuleHookNames(modName) {
+	// for _, hookName := range op.ModuleManager.GetModuleHookNames(modName) {
 	//	h := op.ModuleManager.GetModuleHook(hookName)
 	//	for _, hookBinding := range h.Get.Schedules {
 	//		DrainNonMainQueue(op.engine.TaskQueues.GetByName(hookBinding.Queue))
@@ -1144,7 +1138,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 	newLogLabels := utils.MergeLabels(t.GetLogLabels())
 	delete(newLogLabels, "task.id")
 
-	err := op.ModuleManager.HandleGlobalEnableKubernetesBindings(hm.HookName, func(hook *hooks2.GlobalHook, info controller.BindingExecutionInfo) {
+	err := op.ModuleManager.HandleGlobalEnableKubernetesBindings(hm.HookName, func(hook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
 		taskLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
 			"binding":   string(htypes.OnKubernetesEvent) + "Synchronization",
 			"hook":      hook.GetName(),
@@ -1305,7 +1299,7 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 
 	// Register module hooks to run afterHelmDelete hooks on startup.
 	// It's a noop if registration is done before.
-	// TODO(yalosev): add filter for afterHelmDelete
+	// TODO: add filter to register only afterHelmDelete hooks
 	err := op.ModuleManager.RegisterModuleHooks(baseModule, t.GetLogLabels())
 
 	// TODO disable events and drain queues here or earlier during ConvergeModules.RunBeforeAll phase?
@@ -1495,11 +1489,11 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 			if len(parallelSyncTasksToWait) == 0 {
 				// Skip waiting tasks in parallel queues, proceed to schedule bindings.
-				//module.State.Phase = module_manager.EnableScheduleBindings
+
 				baseModule.SetPhase(modules.EnableScheduleBindings)
 			} else {
 				// There are tasks to wait.
-				//module.State.Phase = module_manager.WaitForSynchronization
+
 				baseModule.SetPhase(modules.WaitForSynchronization)
 				logEntry.WithField("module.state", "wait-for-synchronization").
 					Debugf("ModuleRun wait for Synchronization")
@@ -1588,7 +1582,6 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 	// TODO: check if module exists
 	taskHook := baseModule.GetHookByName(hm.HookName)
-	//taskHook := op.ModuleManager.GetModuleHook(hm.HookName)
 
 	// Prevent hook running in parallel queue if module is disabled in "main" queue.
 	if !op.ModuleManager.IsModuleEnabled(baseModule.GetName()) {
@@ -2291,15 +2284,15 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 		return string(op.ConvergeState.Phase)
 	case task.ModuleRun:
 		hm := task.HookMetadataAccessor(tsk)
-		module := op.ModuleManager.GetModule(hm.ModuleName)
-		return string(module.GetBaseModule().GetPhase())
+		mod := op.ModuleManager.GetModule(hm.ModuleName)
+		return string(mod.GetPhase())
 	}
 	return ""
 }
 
 //
 //// OnFirstConvergeDone run addon-operator business logic when first converge is done and operator is ready
-//func (op *AddonOperator) OnFirstConvergeDone() {
+// func (op *AddonOperator) OnFirstConvergeDone() {
 //	go func() {
 //		<-op.ConvergeState.firstRunDoneC
 //		// after the first convergence, the service endpoints do not appear instantly.
@@ -2314,7 +2307,7 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 //}
 //
 //// EmitModulesSync emit modules CR synchronization
-//func (op *AddonOperator) EmitModulesSync() {
+// func (op *AddonOperator) EmitModulesSync() {
 //	if !op.IsStartupConvergeDone() {
 //		return
 //	}

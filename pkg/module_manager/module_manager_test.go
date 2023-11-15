@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +46,7 @@ modules:
 }
 
 //
-//import (
+// import (
 //	"context"
 //	"fmt"
 //	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
@@ -79,7 +78,7 @@ modules:
 //	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 //)
 //
-//type TestKubeConfigManager interface {
+// type TestKubeConfigManager interface {
 //	Init() error
 //	Start()
 //	Stop()
@@ -87,7 +86,7 @@ modules:
 //	SafeReadConfig(handler func(config *config.KubeConfig))
 //}
 //
-//type initModuleManagerResult struct {
+// type initModuleManagerResult struct {
 //	moduleManager        *ModuleManager
 //	kubeConfigManager    TestKubeConfigManager
 //	helmClient           *mockhelm.Client
@@ -100,7 +99,7 @@ modules:
 //}
 //
 //// initModuleManager creates a ready-to-use ModuleManager instance and some dependencies.
-//func initModuleManager(t *testing.T, configPath string) (*ModuleManager, *initModuleManagerResult) {
+// func initModuleManager(t *testing.T, configPath string) (*ModuleManager, *initModuleManagerResult) {
 //	const defaultNamespace = "default"
 //	const defaultName = "addon-operator"
 //

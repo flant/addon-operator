@@ -2,7 +2,6 @@ package addon_operator
 
 import (
 	"context"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"io"
 	"os"
 	"path/filepath"
@@ -24,6 +23,7 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/kube-client/fake"
 	. "github.com/flant/shell-operator/pkg/hook/types"

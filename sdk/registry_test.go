@@ -1,13 +1,13 @@
 package sdk
 
 import (
-	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 )
 
 func TestRegister(t *testing.T) {
