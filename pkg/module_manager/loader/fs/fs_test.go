@@ -1,10 +1,11 @@
 package fs
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
@@ -45,42 +46,18 @@ fooBar:
 `), 0o666)
 	require.NoError(t, err)
 
-	//	err = os.WriteFile(filepath.Join(tmpDir, "modules", "001-foo-bar", "openapi", "config-values.yaml"), []byte(`
-	//type: object
-	//properties:
-	//  replicas:
-	//    type: integer
-	//    default: 1
-	//  hello:
-	//    type: object
-	//    default: {}
-	//    description: "Pod Security Standards policy settings."
-	//    properties:
-	//      world:
-	//        type: string
-	//        default: "Hello world"
-	// `), 0666)
-	//	require.NoError(t, err)
-	//
-	//	err = os.WriteFile(filepath.Join(tmpDir, "modules", "001-foo-bar", "openapi", "values.yaml"), []byte(`
-	//x-extend:
-	//  schema: config-values.yaml
-	//type: object
-	//properties:
-	//  internal:
-	//    type: object
-	//    default: {}
-	// `), 0666)
-	//	require.NoError(t, err)
-
 	vv := validation.NewValuesValidator()
 
 	loader := NewFileSystemLoader(filepath.Join(tmpDir, "modules"), vv)
 	modules, err := loader.LoadModules()
 	require.NoError(t, err)
 	m := modules[0]
-	fmt.Println(m.Name)
-	fmt.Println(m.GetValues(false))
+	assert.Equal(t, "foo-bar", m.Name)
+	assert.YAMLEq(t, `
+hello:
+    world: xxx
+replicas: 3
+`, m.GetValues(false).AsString("yaml"))
 }
 
 func TestDirWithSymlinks(t *testing.T) {
@@ -93,19 +70,6 @@ func TestDirWithSymlinks(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(mods).Should(HaveLen(2))
-
-	// g.Expect(mods.Has("module-two")).Should(BeTrue())
-
-	// g.Expect(err).ShouldNot(HaveOccurred(), "should load common values")
-	// g.Expect(vals).Should(MatchAllKeys(Keys{
-	//	"moduleOne": MatchAllKeys(Keys{
-	//		"param1": Equal("val1"),
-	//		"param2": Equal("val2"),
-	//	}),
-	//	"moduleTwo": MatchAllKeys(Keys{
-	//		"param1": Equal("val1"),
-	//	}),
-	// }), "should load values for module-one and module-two")
 }
 
 func TestLoadMultiDir(t *testing.T) {
@@ -118,26 +82,4 @@ func TestLoadMultiDir(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(mods).Should(HaveLen(2))
-
-	// g.Expect(mods.Has("module-one")).ShouldNot(BeTrue(), "should not load module-one")
-	// g.Expect(mods.Has("module-two")).ShouldNot(BeTrue())
-	//
-	// g.Expect(mods.Has("mod-one")).Should(BeTrue(), "should load module-one as mod-one")
-	// g.Expect(mods.Has("mod-two")).Should(BeTrue(), "should load module-one as mod-two")
-
-	// vals, err := LoadCommonStaticValues(dirs)
-	// g.Expect(err).ShouldNot(HaveOccurred(), "should load common values")
-	// g.Expect(vals).Should(MatchAllKeys(Keys{
-	//	"modOne": MatchAllKeys(Keys{
-	//		"param1": Equal("val2"),
-	//		"param2": Equal("val2"),
-	//	}),
-	//	"modTwo": MatchAllKeys(Keys{
-	//		"param1": Equal("val2"),
-	//		"param2": Equal("val2"),
-	//	}),
-	//	"moduleThree": MatchAllKeys(Keys{
-	//		"param1": Equal("val3"),
-	//	}),
-	// }), "should load values for mod-one and mod-two from dir2 and values for module-three from dir3")
 }

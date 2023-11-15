@@ -221,14 +221,17 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Check if global config values are valid
 	globalModule := mm.global
-	validationErr := globalModule.PrepareConfigValues(kubeConfig.Global.GetValues(), true)
-	if validationErr != nil {
-		if e := multierror.Append(validationErrors, validationErr); e != nil {
-			return &ModulesState{}, e
-		}
-	}
 
 	if kubeConfig != nil {
+		if kubeConfig.Global != nil {
+			validationErr := globalModule.PrepareConfigValues(kubeConfig.Global.GetValues(), true)
+			if validationErr != nil {
+				if e := multierror.Append(validationErrors, validationErr); e != nil {
+					return &ModulesState{}, e
+				}
+			}
+		}
+
 		for moduleName, moduleConfig := range kubeConfig.Modules {
 			mod := mm.GetModule(moduleName)
 			validateConfig := false
@@ -240,7 +243,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 				validateConfig = true
 			}
 
-			validationErr = mod.PrepareConfigValues(moduleConfig.GetValues(), validateConfig)
+			validationErr := mod.PrepareConfigValues(moduleConfig.GetValues(), validateConfig)
 			if validationErr != nil {
 				if e := multierror.Append(validationErrors, validationErr); e != nil {
 					return &ModulesState{}, e
@@ -1057,7 +1060,6 @@ func (mm *ModuleManager) registerModules() error {
 			ModuleName: mod.GetName(),
 			EventType:  events.ModuleRegistered,
 		}
-		fmt.Println("MODULE REGISTERED", mod.Name)
 	}
 
 	log.Debugf("Found modules: %v", set.NamesInOrder())

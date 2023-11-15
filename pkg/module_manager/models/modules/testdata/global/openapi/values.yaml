@@ -162,7 +162,7 @@ properties:
           The CA for verification requests to our custom modules from clients inside cluster.
           It gets from kube-system/extension-apiserver-authentication config map
         x-examples:
-        - "extention\nCA\nMultiline"
+        - "extension\nCA\nMultiline"
   modulesImages:
     additionalProperties: true
     type: object

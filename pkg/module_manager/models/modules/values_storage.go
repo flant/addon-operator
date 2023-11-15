@@ -2,6 +2,7 @@ package modules
 
 import (
 	"github.com/go-openapi/spec"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
@@ -70,7 +71,7 @@ func NewValuesStorage(moduleName string, staticValues utils.Values, validator va
 	}
 	err := vs.calculateResultValues()
 	if err != nil {
-		panic(err)
+		log.Errorf("Critical error occurred with calculating values for %q: %s", moduleName, err)
 	}
 
 	return vs

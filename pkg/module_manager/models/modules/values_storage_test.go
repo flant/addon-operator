@@ -1,7 +1,6 @@
 package modules
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -64,8 +63,14 @@ properties:
 	err = st.PreCommitConfigValues(configV, true)
 	assert.NoError(t, err)
 	st.CommitConfigValues()
-	st.calculateResultValues()
-	fmt.Println(st.GetValues(false))
+	assert.YAMLEq(t, `
+highAvailability: true
+internal:
+    fooBar: baz
+modules:
+    publicDomainTemplate: '%s.foo.bar'
+xxx: yyy
+`, st.GetValues(false).AsString("yaml"))
 }
 
 func TestPreCommitValues(t *testing.T) {

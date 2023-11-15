@@ -81,7 +81,7 @@ func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies,
 	}
 
 	if !isHelm {
-		log.Infof("module %q has neither Chart.yaml not templates/ dir, is't not a helm chart", bm.Name)
+		log.Infof("module %q has neither Chart.yaml nor templates/ dir, is't not a helm chart", bm.Name)
 		return nil, nil
 	}
 

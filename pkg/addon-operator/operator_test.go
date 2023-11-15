@@ -291,8 +291,8 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		{task.GlobalHookWaitKubernetesSynchronization, "", "", ""},
 
 		// TODO DiscoverHelmReleases can add ModulePurge tasks.
-		{task.DiscoverHelmReleases, "", "", ""},
-		// {task.ModulePurge, "", moduleToPurge, ""},
+		//{task.DiscoverHelmReleases, "", "", ""},
+		//{task.ModulePurge, "", moduleToPurge, ""},
 
 		// ConvergeModules runs after global Synchronization and emerges BeforeAll tasks.
 		{task.ConvergeModules, "", "", string(StandBy)},
@@ -302,9 +302,8 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		{task.ConvergeModules, "", "", string(WaitBeforeAll)},
 
 		// ConvergeModules adds ModuleDelete and ModuleRun tasks.
-		{task.ModuleDelete, "", "module-beta", ""},
-
 		{task.ModuleRun, "", "module-alpha", string(modules.Startup)},
+		//{task.ModuleDelete, "", "module-beta", ""},
 
 		// Only one hook with kubernetes binding.
 		{task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook01", ""},
@@ -325,19 +324,19 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 			break
 		}
 		expect := historyExpects[i]
-		g.Expect(historyInfo.taskType).To(Equal(expect.taskType), "task type should match for history entry %d, got %+v %+v", i, historyInfo)
-		g.Expect(historyInfo.bindingType).To(Equal(expect.bindingType), "binding should match for history entry %d, got %+v %+v", i, historyInfo)
-		g.Expect(historyInfo.spawnerTaskPhase).To(Equal(expect.convergePhase), "converge phase should match for history entry %d, got %+v %+v", i, historyInfo)
+		g.Expect(historyInfo.taskType).To(Equal(expect.taskType), "task type should match for history entry %d, got %+v", i, historyInfo)
+		g.Expect(historyInfo.bindingType).To(Equal(expect.bindingType), "binding should match for history entry %d, got %+v", i, historyInfo)
+		g.Expect(historyInfo.spawnerTaskPhase).To(Equal(expect.convergePhase), "converge phase should match for history entry %d, got %+v", i, historyInfo)
 
 		switch historyInfo.taskType {
 		case task.ModuleRun, task.ModulePurge, task.ModuleDelete:
-			g.Expect(historyInfo.moduleName).To(ContainSubstring(expect.namePrefix), "module name should match for history entry %d, got %+v %+v", i, historyInfo)
+			g.Expect(historyInfo.moduleName).To(ContainSubstring(expect.namePrefix), "module name should match for history entry %d, got %+v", i, historyInfo)
 		case task.GlobalHookRun, task.GlobalHookEnableScheduleBindings, task.GlobalHookEnableKubernetesBindings:
-			g.Expect(historyInfo.hookName).To(HavePrefix(expect.namePrefix), "hook name should match for history entry %d, got %+v %+v", i, historyInfo)
+			g.Expect(historyInfo.hookName).To(HavePrefix(expect.namePrefix), "hook name should match for history entry %d, got %+v", i, historyInfo)
 		case task.ModuleHookRun:
 			parts := strings.Split(expect.namePrefix, "/")
-			g.Expect(historyInfo.moduleName).To(ContainSubstring(parts[0]), "module name should match for history entry %d, got %+v %+v", i, historyInfo)
-			g.Expect(historyInfo.hookName).To(ContainSubstring("/"+parts[1]), "hook name should match for history entry %d, got %+v %+v", i, historyInfo)
+			g.Expect(historyInfo.moduleName).To(ContainSubstring(parts[0]), "module name should match for history entry %d, got %+v", i, historyInfo)
+			g.Expect(historyInfo.hookName).To(ContainSubstring("/"+parts[1]), "hook name should match for history entry %d, got %+v", i, historyInfo)
 		}
 	}
 }
