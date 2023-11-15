@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime/trace"
 	"strings"
+	"sync"
 	"time"
 
 	// bindings constants and binding configs
@@ -114,6 +115,7 @@ type ModuleManager struct {
 
 	globalSynchronizationState *modules.SynchronizationState
 
+	kubeConfigLock sync.RWMutex
 	// addon-operator config is valid.
 	kubeConfigValid bool
 	// Static and config values are valid using OpenAPI schemas.
@@ -427,15 +429,22 @@ func (mm *ModuleManager) Init() error {
 }
 
 func (mm *ModuleManager) GetKubeConfigValid() bool {
+	mm.kubeConfigLock.RLock()
+	defer mm.kubeConfigLock.RUnlock()
+
 	return mm.kubeConfigValid
 }
 
 func (mm *ModuleManager) SetKubeConfigValid(valid bool) {
+	mm.kubeConfigLock.Lock()
 	mm.kubeConfigValid = valid
+	mm.kubeConfigLock.Unlock()
 }
 
 func (mm *ModuleManager) SetKubeConfigValuesValid(valid bool) {
+	mm.kubeConfigLock.Lock()
 	mm.kubeConfigValuesValid = valid
+	mm.kubeConfigLock.Unlock()
 }
 
 // checkConfig increases config_values_errors_total metric when kubeConfig becomes invalid.
@@ -444,9 +453,11 @@ func (mm *ModuleManager) checkConfig() {
 		if mm.ctx.Err() != nil {
 			return
 		}
+		mm.kubeConfigLock.RLock()
 		if !mm.kubeConfigValid || !mm.kubeConfigValuesValid {
 			mm.dependencies.MetricStorage.CounterAdd("{PREFIX}config_values_errors_total", 1.0, map[string]string{})
 		}
+		mm.kubeConfigLock.RUnlock()
 		time.Sleep(5 * time.Second)
 	}
 }

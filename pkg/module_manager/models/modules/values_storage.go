@@ -46,6 +46,7 @@ type ValuesStorage struct {
 	validator  validator
 	moduleName string
 
+	// lock for any config changes
 	clock sync.RWMutex
 	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
 	// without merge with static and openapi values
@@ -55,6 +56,7 @@ type ValuesStorage struct {
 	dirtyConfigValues       utils.Values
 	dirtyMergedConfigValues utils.Values
 
+	// lock of values changes
 	vlock sync.RWMutex
 	// result of the merging all input values
 	resultValues utils.Values
@@ -95,7 +97,6 @@ func (vs *ValuesStorage) openapiDefaultsTransformer(schemaType validation.Schema
 }
 
 func (vs *ValuesStorage) calculateResultValues() error {
-	vs.clock.RLock()
 	merged := mergeLayers(
 		utils.Values{},
 		// Init static values (from modules/values.yaml and modules/XXX/values.yaml)
@@ -118,16 +119,13 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	for _, patch := range vs.valuesPatches {
 		ops.Operations = append(ops.Operations, patch.Operations...)
 	}
-	vs.clock.RUnlock()
 
 	merged, _, err := utils.ApplyValuesPatch(merged, ops, utils.IgnoreNonExistentPaths)
 	if err != nil {
 		return err
 	}
 
-	vs.vlock.Lock()
 	vs.resultValues = merged
-	vs.vlock.Unlock()
 
 	return nil
 }
@@ -200,7 +198,6 @@ func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
 // you have to commit them with CommitValues
 // Probably, we don't need the method, we can use patches instead
 func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
-	vs.clock.Lock()
 	if vs.mergedConfigValues == nil {
 		vs.mergedConfigValues = mergeLayers(
 			utils.Values{},
@@ -214,9 +211,7 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 			vs.configValues,
 		)
 	}
-	vs.clock.Unlock()
 
-	vs.clock.RLock()
 	merged := mergeLayers(
 		utils.Values{},
 		// Init static values (from modules/values.yaml)
@@ -228,7 +223,6 @@ func (vs *ValuesStorage) PreCommitValues(v utils.Values) error {
 		// new values
 		v,
 	)
-	vs.clock.RUnlock()
 
 	vs.vlock.Lock()
 	vs.dirtyResultValues = merged
