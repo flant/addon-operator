@@ -15,6 +15,9 @@ type applyDefaultsForGlobal struct {
 }
 
 func (a *applyDefaultsForGlobal) Transform(values utils.Values) utils.Values {
+	if a.ValuesValidator == nil {
+		return values
+	}
 	s := a.ValuesValidator.GetSchema(validation.GlobalSchema, a.SchemaType, utils.GlobalValuesKey)
 	if s == nil {
 		return values
@@ -32,6 +35,9 @@ type applyDefaultsForModule struct {
 }
 
 func (a *applyDefaultsForModule) Transform(values utils.Values) utils.Values {
+	if a.ValuesValidator == nil {
+		return values
+	}
 	s := a.ValuesValidator.GetSchema(validation.ModuleSchema, a.SchemaType, utils.ModuleNameToValuesKey(a.ModuleName))
 	if s == nil {
 		return values

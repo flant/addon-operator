@@ -755,6 +755,7 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 }
 
 func (bm *BasicModule) PrepareConfigValues(v utils.Values, validate bool) error {
+	fmt.Println("STORE", bm.valuesStorage, v)
 	return bm.valuesStorage.PreCommitConfigValues(v, validate)
 }
 
