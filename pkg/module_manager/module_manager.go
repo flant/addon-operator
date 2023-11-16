@@ -236,6 +236,9 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 		for moduleName, moduleConfig := range kubeConfig.Modules {
 			mod := mm.GetModule(moduleName)
+			if mod == nil {
+				continue
+			}
 			validateConfig := false
 
 			// Check if enabledModules are valid
@@ -297,6 +300,9 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	if kubeConfig != nil {
 		for moduleName := range kubeConfig.Modules {
 			mod := mm.GetModule(moduleName)
+			if mod == nil {
+				continue
+			}
 			if mod.ConfigValuesHaveChanges() {
 				mod.CommitConfigValuesChange()
 				modulesChanged = append(modulesChanged, moduleName)
