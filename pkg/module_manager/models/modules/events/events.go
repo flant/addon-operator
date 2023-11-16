@@ -8,6 +8,8 @@ const (
 	ModulePurged
 	ModuleEnabled
 	ModuleDisabled
+
+	FirstConvergeDone
 )
 
 // ModuleEvent event model for hooks

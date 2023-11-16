@@ -459,6 +459,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 				EventDescription: "Operator-PostConvergeCleanup",
 			})
 		op.engine.TaskQueues.GetMain().AddLast(discoverTask.WithQueuedAt(time.Now()))
+		op.ModuleManager.SendModuleEvent(events.ModuleEvent{EventType: events.FirstConvergeDone})
 	}()
 }
 
