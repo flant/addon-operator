@@ -661,6 +661,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 
 			err := bm.dc.KubeConfigManager.SaveConfigValues(bm.Name, configValuesPatchResult.Values)
 			if err != nil {
+				bm.valuesStorage.cleanupDirtyConfig()
 				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.GetName(), bm.valuesStorage.GetConfigValues(false).DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.GetName(), err)
 			}

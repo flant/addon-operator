@@ -150,13 +150,23 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bo
 		configV,
 	)
 
-	vs.dirtyConfigValues = configV
-
 	if validate {
-		return vs.validateConfigValues(merged)
+		err := vs.validateConfigValues(merged)
+		if err != nil {
+			return err
+		}
 	}
 
+	vs.dirtyConfigValues = configV
+
 	return nil
+}
+
+func (vs *ValuesStorage) cleanupDirtyConfig() {
+	vs.lock.Lock()
+	defer vs.lock.Unlock()
+
+	vs.dirtyConfigValues = nil
 }
 
 func (vs *ValuesStorage) validateConfigValues(values utils.Values) error {

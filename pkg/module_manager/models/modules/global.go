@@ -198,6 +198,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 
 			err := gm.dc.KubeConfigManager.SaveConfigValues(utils.GlobalValuesKey, configValuesPatchResult.Values)
 			if err != nil {
+				gm.valuesStorage.cleanupDirtyConfig()
 				logEntry.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.GetName(), gm.valuesStorage.GetConfigValues(false).DebugString())
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.GetName(), err)
 			}
