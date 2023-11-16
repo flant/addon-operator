@@ -1273,11 +1273,6 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	}
 
 	status = queue.Success
-	event := events.ModuleEvent{
-		ModuleName: hm.ModuleName,
-		EventType:  events.ModulePurged,
-	}
-	op.ModuleManager.SendModuleEvent(event)
 	return
 }
 
