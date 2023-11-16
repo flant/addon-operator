@@ -224,6 +224,8 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	// Check if global config values are valid
 	globalModule := mm.global
 
+	preparedModules := make([]*modules.BasicModule, 0)
+
 	if kubeConfig != nil {
 		if kubeConfig.Global != nil {
 			validationErr := globalModule.PrepareConfigValues(kubeConfig.Global.GetValues(), true)
@@ -254,10 +256,17 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 					return &ModulesState{}, e
 				}
 			}
+			preparedModules = append(preparedModules, mod)
 		}
 	}
 
 	if validationErrors.Len() > 0 {
+		// Not the best way imho, but have to remake all this method
+		globalModule.CleanupPreparedConfigValues()
+		for _, mod := range preparedModules {
+			mod.CleanupPreparedConfigValues()
+		}
+
 		mm.SetKubeConfigValuesValid(false)
 		return &ModulesState{}, validationErrors.ErrorOrNil()
 	}

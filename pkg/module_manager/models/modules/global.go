@@ -284,6 +284,10 @@ func (gm *GlobalModule) PrepareConfigValues(v utils.Values, validate bool) error
 	return gm.valuesStorage.PreCommitConfigValues(v, validate)
 }
 
+func (gm *GlobalModule) CleanupPreparedConfigValues() {
+	gm.valuesStorage.cleanupDirtyConfig()
+}
+
 func (gm *GlobalModule) ConfigValuesHaveChanges() bool {
 	return gm.valuesStorage.dirtyConfigValuesHasDiff()
 }

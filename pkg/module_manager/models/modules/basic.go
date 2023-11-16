@@ -759,6 +759,10 @@ func (bm *BasicModule) PrepareConfigValues(v utils.Values, validate bool) error 
 	return bm.valuesStorage.PreCommitConfigValues(v, validate)
 }
 
+func (bm *BasicModule) CleanupPreparedConfigValues() {
+	bm.valuesStorage.cleanupDirtyConfig()
+}
+
 func (bm *BasicModule) ConfigValuesHaveChanges() bool {
 	return bm.valuesStorage.dirtyConfigValuesHasDiff()
 }
