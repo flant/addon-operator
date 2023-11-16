@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -733,6 +734,12 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch, utils.Strict)
 	if err != nil {
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
+	}
+	if valuesChanged {
+		fmt.Println("NEW VALUES", newValues.AsString("yaml"))
+		fmt.Println("OLD VALUES", currentValues.AsString("yaml"))
+		d, _ := json.Marshal(valuesPatch)
+		fmt.Println("PATCH", string(d))
 	}
 
 	switch v := newValues[moduleValuesKey].(type) {
