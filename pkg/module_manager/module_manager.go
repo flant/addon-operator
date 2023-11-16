@@ -208,7 +208,6 @@ func (mm *ModuleManager) GetGlobal() *modules.GlobalModule {
 // - mm.kubeGlobalConfigValues
 // - mm.kubeModulesConfigValues
 func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*ModulesState, error) {
-	fmt.Println("RUN HANDLE NEW KUBE CONFIG")
 	if kubeConfig == nil {
 		// have no idea, how it could be, just skip run
 		log.Warnf("No KubeConfig is set")

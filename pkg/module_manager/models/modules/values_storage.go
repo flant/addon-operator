@@ -54,7 +54,6 @@ type ValuesStorage struct {
 	configValues utils.Values
 	// OUTPUTS:
 
-
 	// result of the merging all input values
 	resultValues utils.Values
 }
@@ -127,50 +126,6 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	return nil
 }
 
-//// PreCommitConfigValues save new config values in a dirty state, they are not applied automatically, you have to
-//// commit them with CommitConfigValues
-// func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bool) error {
-//	vs.lock.Lock()
-//	defer vs.lock.Unlock()
-//
-//	if vs.dirtyConfigValues != nil {
-//		fmt.Println("EXIST CHECKSUM", vs.dirtyConfigValues.Checksum())
-//		return fmt.Errorf("config values for %q are blocked by another hook. Try one more time", vs.moduleName)
-//	}
-//
-//	merged := mergeLayers(
-//		utils.Values{},
-//		// Init static values
-//		vs.staticConfigValues,
-//
-//		// defaults from openapi
-//		vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
-//
-//		// User configured values (ConfigValues)
-//		configV,
-//	)
-//
-//	if validate {
-//		err := vs.validateConfigValues(merged)
-//		if err != nil {
-//			return err
-//		}
-//	}
-//
-//	fmt.Println("SET CHECKSUM", configV.Checksum())
-//
-//	vs.dirtyConfigValues = configV
-//
-//	return nil
-//}
-//
-//func (vs *ValuesStorage) cleanupDirtyConfig() {
-//	vs.lock.Lock()
-//	defer vs.lock.Unlock()
-//
-//	vs.dirtyConfigValues = nil
-//}
-
 func (vs *ValuesStorage) validateConfigValues(values utils.Values) error {
 	valuesModuleName := utils.ModuleNameToValuesKey(vs.moduleName)
 	validatableValues := utils.Values{valuesModuleName: values}
@@ -192,34 +147,6 @@ func (vs *ValuesStorage) validateValues(values utils.Values) error {
 
 	return vs.validator.ValidateModuleValues(valuesModuleName, validatableValues)
 }
-
-// func (vs *ValuesStorage) dirtyConfigValuesHasDiff() bool {
-//	vs.lock.Lock()
-//	defer vs.lock.Unlock()
-//
-//	if vs.dirtyConfigValues == nil {
-//		return false
-//	}
-//
-//	if vs.configValues.Checksum() != vs.dirtyConfigValues.Checksum() {
-//		return true
-//	}
-//
-//	return false
-//}
-//
-//// CommitConfigValues move config values from 'dirty' state to the actual
-//func (vs *ValuesStorage) CommitConfigValues() {
-//	vs.lock.Lock()
-//	defer vs.lock.Unlock()
-//
-//	if vs.dirtyConfigValues != nil {
-//		vs.configValues = vs.dirtyConfigValues
-//		vs.dirtyConfigValues = nil
-//	}
-//
-//	_ = vs.calculateResultValues()
-//}
 
 // CommitValues apply all patches and create up-to-date values for module
 func (vs *ValuesStorage) CommitValues() error {

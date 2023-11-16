@@ -2,7 +2,6 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -735,12 +734,6 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 	if err != nil {
 		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
 	}
-	if valuesChanged {
-		fmt.Println("NEW VALUES", newValues.AsString("yaml"))
-		fmt.Println("OLD VALUES", currentValues.AsString("yaml"))
-		d, _ := json.Marshal(valuesPatch)
-		fmt.Println("PATCH", string(d))
-	}
 
 	switch v := newValues[moduleValuesKey].(type) {
 	case utils.Values:
@@ -761,18 +754,6 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 	return result, nil
 }
 
-// func (bm *BasicModule) PrepareConfigValues(v utils.Values, validate bool) error {
-//	return bm.valuesStorage.PreCommitConfigValues(v, validate)
-//}
-//
-//func (bm *BasicModule) CleanupPreparedConfigValues() {
-//	bm.valuesStorage.cleanupDirtyConfig()
-//}
-//
-//func (bm *BasicModule) ConfigValuesHaveChanges() bool {
-//	return bm.valuesStorage.dirtyConfigValuesHasDiff()
-//}
-
 func (bm *BasicModule) GenerateNewConfigValues(kubeConfigValues utils.Values, validate bool) (utils.Values, error) {
 	return bm.valuesStorage.GenerateNewConfigValues(kubeConfigValues, validate)
 }
@@ -780,10 +761,6 @@ func (bm *BasicModule) GenerateNewConfigValues(kubeConfigValues utils.Values, va
 func (bm *BasicModule) SaveConfigValues(configV utils.Values) {
 	bm.valuesStorage.SaveConfigValues(configV)
 }
-
-// func (bm *BasicModule) CommitConfigValuesChange() {
-//	bm.valuesStorage.CommitConfigValues()
-//}
 
 func (bm *BasicModule) GetValues(withPrefix bool) utils.Values {
 	return bm.valuesStorage.GetValues(withPrefix)

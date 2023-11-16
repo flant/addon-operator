@@ -277,24 +277,6 @@ func (gm *GlobalModule) applyEnabledPatches(valuesPatch utils.ValuesPatch) error
 	return err
 }
 
-// PrepareConfigValues set config values in 'dirty' state
-// it is a proxy method for values storage, read detailed description there
-// func (gm *GlobalModule) PrepareConfigValues(v utils.Values, validate bool) error {
-//	return gm.valuesStorage.PreCommitConfigValues(v, validate)
-//}
-//
-//func (gm *GlobalModule) CleanupPreparedConfigValues() {
-//	gm.valuesStorage.cleanupDirtyConfig()
-//}
-//
-//func (gm *GlobalModule) ConfigValuesHaveChanges() bool {
-//	return gm.valuesStorage.dirtyConfigValuesHasDiff()
-//}
-//
-//func (gm *GlobalModule) CommitConfigValuesChange() {
-//	gm.valuesStorage.CommitConfigValues()
-//}
-
 func (gm *GlobalModule) GetValues(withPrefix bool) utils.Values {
 	return gm.valuesStorage.GetValues(withPrefix)
 }
