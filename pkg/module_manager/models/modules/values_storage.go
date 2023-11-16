@@ -158,7 +158,7 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bo
 		}
 	}
 
-	fmt.Println("SET CHECKSSUM", configV.Checksum())
+	fmt.Println("SET CHECKSUM", configV.Checksum())
 
 	vs.dirtyConfigValues = configV
 
