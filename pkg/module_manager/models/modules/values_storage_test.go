@@ -61,9 +61,9 @@ properties:
 		},
 	}
 
-	err = st.PreCommitConfigValues(configV, true)
+	newValues, err := st.GenerateNewConfigValues(configV, true)
 	assert.NoError(t, err)
-	st.CommitConfigValues()
+	st.SaveConfigValues(newValues)
 	assert.YAMLEq(t, `
 highAvailability: true
 internal:

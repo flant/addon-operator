@@ -192,19 +192,18 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 			logEntry.Debugf("Global hook '%s': validate global config values before update", h.GetName())
 			// Validate merged static and new values.
 			// TODO: probably, we have to replace with with some transaction method on valuesStorage
-			validationErr := gm.valuesStorage.PreCommitConfigValues(configValuesPatchResult.Values, true)
+			newValues, validationErr := gm.valuesStorage.GenerateNewConfigValues(configValuesPatchResult.Values, true)
 			if validationErr != nil {
 				return fmt.Errorf("cannot apply config values patch for global values: %w", validationErr)
 			}
 
 			err := gm.dc.KubeConfigManager.SaveConfigValues(utils.GlobalValuesKey, configValuesPatchResult.Values)
 			if err != nil {
-				gm.valuesStorage.cleanupDirtyConfig()
 				logEntry.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.GetName(), gm.valuesStorage.GetConfigValues(false).DebugString())
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.GetName(), err)
 			}
 
-			gm.valuesStorage.CommitConfigValues()
+			gm.valuesStorage.SaveConfigValues(newValues)
 
 			logEntry.Debugf("Global hook '%s': kube config global values updated", h.GetName())
 			logEntry.Debugf("New kube config global values:\n%s\n", gm.valuesStorage.GetConfigValues(false).DebugString())
@@ -280,21 +279,21 @@ func (gm *GlobalModule) applyEnabledPatches(valuesPatch utils.ValuesPatch) error
 
 // PrepareConfigValues set config values in 'dirty' state
 // it is a proxy method for values storage, read detailed description there
-func (gm *GlobalModule) PrepareConfigValues(v utils.Values, validate bool) error {
-	return gm.valuesStorage.PreCommitConfigValues(v, validate)
-}
-
-func (gm *GlobalModule) CleanupPreparedConfigValues() {
-	gm.valuesStorage.cleanupDirtyConfig()
-}
-
-func (gm *GlobalModule) ConfigValuesHaveChanges() bool {
-	return gm.valuesStorage.dirtyConfigValuesHasDiff()
-}
-
-func (gm *GlobalModule) CommitConfigValuesChange() {
-	gm.valuesStorage.CommitConfigValues()
-}
+// func (gm *GlobalModule) PrepareConfigValues(v utils.Values, validate bool) error {
+//	return gm.valuesStorage.PreCommitConfigValues(v, validate)
+//}
+//
+//func (gm *GlobalModule) CleanupPreparedConfigValues() {
+//	gm.valuesStorage.cleanupDirtyConfig()
+//}
+//
+//func (gm *GlobalModule) ConfigValuesHaveChanges() bool {
+//	return gm.valuesStorage.dirtyConfigValuesHasDiff()
+//}
+//
+//func (gm *GlobalModule) CommitConfigValuesChange() {
+//	gm.valuesStorage.CommitConfigValues()
+//}
 
 func (gm *GlobalModule) GetValues(withPrefix bool) utils.Values {
 	return gm.valuesStorage.GetValues(withPrefix)
@@ -302,6 +301,14 @@ func (gm *GlobalModule) GetValues(withPrefix bool) utils.Values {
 
 func (gm *GlobalModule) GetConfigValues(withPrefix bool) utils.Values {
 	return gm.valuesStorage.GetConfigValues(withPrefix)
+}
+
+func (gm *GlobalModule) GenerateNewConfigValues(kubeConfigValues utils.Values, validate bool) (utils.Values, error) {
+	return gm.valuesStorage.GenerateNewConfigValues(kubeConfigValues, validate)
+}
+
+func (gm *GlobalModule) SaveConfigValues(configV utils.Values) {
+	gm.valuesStorage.SaveConfigValues(configV)
 }
 
 func (gm *GlobalModule) GetValuesPatches() []utils.ValuesPatch {

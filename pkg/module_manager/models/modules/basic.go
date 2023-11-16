@@ -651,7 +651,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		if configValuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Module hook '%s': validate module config values before update", h.GetName())
 			// Validate merged static and new values.
-			validationErr := bm.valuesStorage.PreCommitConfigValues(configValuesPatchResult.Values, true)
+			newValues, validationErr := bm.valuesStorage.GenerateNewConfigValues(configValuesPatchResult.Values, true)
 			if validationErr != nil {
 				return multierror.Append(
 					fmt.Errorf("cannot apply config values patch for module values"),
@@ -661,12 +661,11 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 
 			err := bm.dc.KubeConfigManager.SaveConfigValues(bm.Name, configValuesPatchResult.Values)
 			if err != nil {
-				bm.valuesStorage.cleanupDirtyConfig()
 				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.GetName(), bm.valuesStorage.GetConfigValues(false).DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.GetName(), err)
 			}
 
-			bm.valuesStorage.CommitConfigValues()
+			bm.valuesStorage.SaveConfigValues(newValues)
 
 			logEntry.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetConfigValues(false).DebugString())
 		}
@@ -755,21 +754,29 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 	return result, nil
 }
 
-func (bm *BasicModule) PrepareConfigValues(v utils.Values, validate bool) error {
-	return bm.valuesStorage.PreCommitConfigValues(v, validate)
+// func (bm *BasicModule) PrepareConfigValues(v utils.Values, validate bool) error {
+//	return bm.valuesStorage.PreCommitConfigValues(v, validate)
+//}
+//
+//func (bm *BasicModule) CleanupPreparedConfigValues() {
+//	bm.valuesStorage.cleanupDirtyConfig()
+//}
+//
+//func (bm *BasicModule) ConfigValuesHaveChanges() bool {
+//	return bm.valuesStorage.dirtyConfigValuesHasDiff()
+//}
+
+func (bm *BasicModule) GenerateNewConfigValues(kubeConfigValues utils.Values, validate bool) (utils.Values, error) {
+	return bm.valuesStorage.GenerateNewConfigValues(kubeConfigValues, validate)
 }
 
-func (bm *BasicModule) CleanupPreparedConfigValues() {
-	bm.valuesStorage.cleanupDirtyConfig()
+func (bm *BasicModule) SaveConfigValues(configV utils.Values) {
+	bm.valuesStorage.SaveConfigValues(configV)
 }
 
-func (bm *BasicModule) ConfigValuesHaveChanges() bool {
-	return bm.valuesStorage.dirtyConfigValuesHasDiff()
-}
-
-func (bm *BasicModule) CommitConfigValuesChange() {
-	bm.valuesStorage.CommitConfigValues()
-}
+// func (bm *BasicModule) CommitConfigValuesChange() {
+//	bm.valuesStorage.CommitConfigValues()
+//}
 
 func (bm *BasicModule) GetValues(withPrefix bool) utils.Values {
 	return bm.valuesStorage.GetValues(withPrefix)

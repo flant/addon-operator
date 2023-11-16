@@ -209,8 +209,6 @@ func (mm *ModuleManager) GetGlobal() *modules.GlobalModule {
 // - mm.kubeModulesConfigValues
 func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*ModulesState, error) {
 	fmt.Println("RUN HANDLE NEW KUBE CONFIG")
-	validationErrors := &multierror.Error{}
-
 	if kubeConfig == nil {
 		// have no idea, how it could be, just skip run
 		log.Warnf("No KubeConfig is set")
@@ -222,61 +220,22 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	// Get map of enabled modules after KubeConfig changes.
 	newEnabledByConfig := mm.calculateEnabledModulesByConfig(kubeConfig)
 
-	// Check if global config values are valid
-	globalModule := mm.global
-	defer globalModule.CleanupPreparedConfigValues()
-
-	preparedModules := make([]*modules.BasicModule, 0)
-
-	if kubeConfig != nil {
-		if kubeConfig.Global != nil {
-			validationErr := globalModule.PrepareConfigValues(kubeConfig.Global.GetValues(), true)
-			if validationErr != nil {
-				if e := multierror.Append(validationErrors, validationErr); e != nil {
-					return &ModulesState{}, e
-				}
-			}
-		}
-
-		for moduleName, moduleConfig := range kubeConfig.Modules {
-			mod := mm.GetModule(moduleName)
-			if mod == nil {
-				continue
-			}
-			validateConfig := false
-
-			// Check if enabledModules are valid
-			// if module is enabled, we have to check config is valid
-			// otherwise we have to just save the config, because we can have some absent defaults or something like that
-			if _, has := newEnabledByConfig[moduleName]; has {
-				validateConfig = true
-			}
-
-			validationErr := mod.PrepareConfigValues(moduleConfig.GetValues(), validateConfig)
-			if validationErr != nil {
-				if e := multierror.Append(validationErrors, validationErr); e != nil {
-					return &ModulesState{}, e
-				}
-			}
-			preparedModules = append(preparedModules, mod)
-		}
-	}
-
-	if validationErrors.Len() > 0 {
-		// Not the best way imho, but have to remake all this method
-		for _, mod := range preparedModules {
-			mod.CleanupPreparedConfigValues()
-		}
-
+	valuesMap, validationErr := mm.validateNewKubeConfig(kubeConfig, newEnabledByConfig)
+	if validationErr != nil {
 		mm.SetKubeConfigValuesValid(false)
-		return &ModulesState{}, validationErrors.ErrorOrNil()
+		return &ModulesState{}, validationErr
 	}
+
+	mm.SetKubeConfigValuesValid(true)
 
 	// Detect changes in global section.
 	hasGlobalChange := false
-	if kubeConfig != nil && kubeConfig.Global != nil && globalModule.ConfigValuesHaveChanges() {
+	newGlobalValues := valuesMap[mm.global.GetName()]
+	if newGlobalValues.Checksum() != mm.global.GetConfigValues(false).Checksum() {
 		hasGlobalChange = true
+		mm.global.SaveConfigValues(newGlobalValues)
 	}
+	delete(valuesMap, mm.global.GetName())
 
 	// Full reload if enabled flags are changed.
 	isEnabledChanged := false
@@ -293,35 +252,47 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Detect changed module sections for enabled modules.
 	modulesChanged := make([]string, 0)
-	if !isEnabledChanged {
-		// enabledModules is a subset of enabledModulesByConfig.
-		// Module can be enabled by config, but disabled with enabled script.
-		// So check only sections for effectively enabled modules.
-		for _, moduleName := range mm.enabledModules {
-			mod := mm.GetModule(moduleName)
 
-			if mod.ConfigValuesHaveChanges() {
-				modulesChanged = append(modulesChanged, moduleName)
-				mod.CommitConfigValuesChange()
-			}
+	for moduleName, values := range valuesMap {
+		mod := mm.GetModule(moduleName)
+		if mod == nil {
+			continue
+		}
+
+		if mod.GetConfigValues(false).Checksum() != values.Checksum() {
+			modulesChanged = append(modulesChanged, moduleName)
+			mod.SaveConfigValues(values)
 		}
 	}
 
-	if kubeConfig != nil {
-		for moduleName := range kubeConfig.Modules {
-			mod := mm.GetModule(moduleName)
-			if mod == nil {
-				continue
-			}
-			if mod.ConfigValuesHaveChanges() {
-				mod.CommitConfigValuesChange()
-				modulesChanged = append(modulesChanged, moduleName)
-			}
-		}
-	}
+	// if !isEnabledChanged {
+	//	// enabledModules is a subset of enabledModulesByConfig.
+	//	// Module can be enabled by config, but disabled with enabled script.
+	//	// So check only sections for effectively enabled modules.
+	//	for _, moduleName := range mm.enabledModules {
+	//		mod := mm.GetModule(moduleName)
+	//
+	//		if mod.ConfigValuesHaveChanges() {
+	//			modulesChanged = append(modulesChanged, moduleName)
+	//			mod.CommitConfigValuesChange()
+	//		}
+	//	}
+	//}
 
-	globalModule.CommitConfigValuesChange()
-	mm.SetKubeConfigValuesValid(true)
+	// if kubeConfig != nil {
+	//	for moduleName := range kubeConfig.Modules {
+	//		mod := mm.GetModule(moduleName)
+	//		if mod == nil {
+	//			continue
+	//		}
+	//		if mod.ConfigValuesHaveChanges() {
+	//			mod.CommitConfigValuesChange()
+	//			modulesChanged = append(modulesChanged, moduleName)
+	//		}
+	//	}
+	//}
+	//
+	//globalModule.CommitConfigValuesChange()
 
 	mm.enabledModulesByConfig = newEnabledByConfig
 
@@ -340,6 +311,50 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Return nil if cached state is not changed by ConfigMap.
 	return nil, nil
+}
+
+func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, newEnabledByConfig map[string]struct{}) (map[string]utils.Values, error) {
+	validationErrors := &multierror.Error{}
+
+	checksums := make(map[string]utils.Values)
+
+	checksums[mm.global.GetName()] = mm.global.GetConfigValues(false)
+
+	// validate global config
+	if kubeConfig.Global != nil {
+		newValues, validationErr := mm.global.GenerateNewConfigValues(kubeConfig.Global.GetValues(), true)
+		if validationErr != nil {
+			_ = multierror.Append(validationErrors, validationErr)
+		}
+		checksums[mm.global.GetName()] = newValues
+	}
+
+	// validate module configs
+	for moduleName, moduleConfig := range kubeConfig.Modules {
+		mod := mm.GetModule(moduleName)
+		if mod == nil {
+			// unknown module
+			continue
+		}
+
+		validateConfig := false
+		// Check if enabledModules are valid
+		// if module is enabled, we have to check config is valid
+		// otherwise we have to just save the config, because we can have some absent defaults or something like that
+		if _, has := newEnabledByConfig[moduleName]; has {
+			validateConfig = true
+		}
+
+		if validateConfig {
+			newValues, validationErr := mod.GenerateNewConfigValues(moduleConfig.GetValues(), true)
+			if validationErr != nil {
+				_ = multierror.Append(validationErrors, validationErr)
+			}
+			checksums[mod.GetName()] = newValues
+		}
+	}
+
+	return checksums, validationErrors.ErrorOrNil()
 }
 
 // warnAboutUnknownModules prints to log all unknown module section names.
