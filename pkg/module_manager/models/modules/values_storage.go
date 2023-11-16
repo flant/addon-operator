@@ -135,7 +135,8 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bo
 	defer vs.lock.Unlock()
 
 	if vs.dirtyConfigValues != nil {
-		return fmt.Errorf("config values are blocked by another hook. Try one more time")
+		fmt.Println("EXIST CHECKSUM", vs.dirtyConfigValues.Checksum())
+		return fmt.Errorf("config values for %q are blocked by another hook. Try one more time", vs.moduleName)
 	}
 
 	merged := mergeLayers(
@@ -156,6 +157,8 @@ func (vs *ValuesStorage) PreCommitConfigValues(configV utils.Values, validate bo
 			return err
 		}
 	}
+
+	fmt.Println("SET CHECKSSUM", configV.Checksum())
 
 	vs.dirtyConfigValues = configV
 

@@ -191,6 +191,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		if configValuesPatchResult != nil && configValuesPatchResult.ValuesChanged {
 			logEntry.Debugf("Global hook '%s': validate global config values before update", h.GetName())
 			// Validate merged static and new values.
+			// TODO: probably, we have to replace with with some transaction method on valuesStorage
 			validationErr := gm.valuesStorage.PreCommitConfigValues(configValuesPatchResult.Values, true)
 			if validationErr != nil {
 				return fmt.Errorf("cannot apply config values patch for global values: %w", validationErr)
