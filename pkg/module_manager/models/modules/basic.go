@@ -278,7 +278,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 	moduleHooks := bm.GetHooks(binding)
 
 	for _, moduleHook := range moduleHooks {
-		// TODO: baga - тут будут блокироваться все хуки
+		// TODO: This looks like a bug. It will block all hooks of the module
 		err = moduleHook.RateLimitWait(context.Background())
 		if err != nil {
 			// This could happen when the Context is

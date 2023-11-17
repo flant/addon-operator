@@ -264,35 +264,6 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		}
 	}
 
-	// if !isEnabledChanged {
-	//	// enabledModules is a subset of enabledModulesByConfig.
-	//	// Module can be enabled by config, but disabled with enabled script.
-	//	// So check only sections for effectively enabled modules.
-	//	for _, moduleName := range mm.enabledModules {
-	//		mod := mm.GetModule(moduleName)
-	//
-	//		if mod.ConfigValuesHaveChanges() {
-	//			modulesChanged = append(modulesChanged, moduleName)
-	//			mod.CommitConfigValuesChange()
-	//		}
-	//	}
-	//}
-
-	// if kubeConfig != nil {
-	//	for moduleName := range kubeConfig.Modules {
-	//		mod := mm.GetModule(moduleName)
-	//		if mod == nil {
-	//			continue
-	//		}
-	//		if mod.ConfigValuesHaveChanges() {
-	//			mod.CommitConfigValuesChange()
-	//			modulesChanged = append(modulesChanged, moduleName)
-	//		}
-	//	}
-	//}
-	//
-	//globalModule.CommitConfigValuesChange()
-
 	mm.enabledModulesByConfig = newEnabledByConfig
 
 	// Return empty state on global change.
