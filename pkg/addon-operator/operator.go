@@ -916,6 +916,7 @@ func (op *AddonOperator) CreateAndStartQueuesForAllModuleHooks() {
 func (op *AddonOperator) DrainModuleQueues(modName string) {
 	m := op.ModuleManager.GetModule(modName)
 	if m == nil {
+		log.Warnf("Module %q is absent when we try to drain its queue", modName)
 		return
 	}
 

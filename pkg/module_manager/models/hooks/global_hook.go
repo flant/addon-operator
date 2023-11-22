@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"strings"
 
-	types2 "github.com/flant/addon-operator/pkg/hook/types"
+	addon_op_types "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
-	"github.com/flant/shell-operator/pkg/hook/types"
+	shell_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
 
 // GlobalHook is a representation of the hook, which not belongs to any module
@@ -82,14 +82,14 @@ func (h *GlobalHook) GetConfigDescription() string {
 }
 
 // Order return float order number for bindings with order.
-func (h *GlobalHook) Order(binding types.BindingType) float64 {
+func (h *GlobalHook) Order(binding shell_op_types.BindingType) float64 {
 	if h.config.HasBinding(binding) {
 		switch binding {
-		case types2.BeforeAll:
+		case addon_op_types.BeforeAll:
 			return h.config.BeforeAll.Order
-		case types2.AfterAll:
+		case addon_op_types.AfterAll:
 			return h.config.AfterAll.Order
-		case types.OnStartup:
+		case shell_op_types.OnStartup:
 			return h.config.OnStartup.Order
 		}
 	}
