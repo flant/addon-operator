@@ -78,7 +78,7 @@ func (mh *ModuleHook) InitializeHookConfig() (err error) {
 		}
 
 	default:
-		return fmt.Errorf("unknown hook kind: %s", reflect.TypeOf(hk))
+		return fmt.Errorf("unknown hook kind: %T", hk)
 	}
 
 	// Make HookController and GetConfigDescription work.
