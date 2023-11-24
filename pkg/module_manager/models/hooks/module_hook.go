@@ -2,14 +2,13 @@ package hooks
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
-	types2 "github.com/flant/addon-operator/pkg/hook/types"
+	addon_op_types "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	"github.com/flant/shell-operator/pkg/hook/types"
+	shell_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
 
 // ModuleHook hook which belongs to some module
@@ -39,16 +38,16 @@ func (mh *ModuleHook) GetHookConfig() *ModuleHookConfig {
 }
 
 // Order returns hook order
-func (mh *ModuleHook) Order(binding types.BindingType) float64 {
+func (mh *ModuleHook) Order(binding shell_op_types.BindingType) float64 {
 	if mh.config.HasBinding(binding) {
 		switch binding {
-		case types.OnStartup:
+		case shell_op_types.OnStartup:
 			return mh.config.OnStartup.Order
-		case types2.BeforeHelm:
+		case addon_op_types.BeforeHelm:
 			return mh.config.BeforeHelm.Order
-		case types2.AfterHelm:
+		case addon_op_types.AfterHelm:
 			return mh.config.AfterHelm.Order
-		case types2.AfterDeleteHelm:
+		case addon_op_types.AfterDeleteHelm:
 			return mh.config.AfterDeleteHelm.Order
 		}
 	}
