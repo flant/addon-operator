@@ -115,6 +115,9 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 }
 
 func (hm *HelmModule) createChartYaml(chartPath string) error {
+	// we already have versions like 0.1.0 or 0.1.1
+	// to keep helm updatable, we have to increment this version
+	// new minor version of addon-operator seems reasonable to increase minor version of a helm chart
 	data := fmt.Sprintf(`name: %s
 version: 0.2.0`, hm.name)
 

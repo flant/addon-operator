@@ -171,7 +171,7 @@ func (sh *ShellHook) getConfig() (configOutput []byte, err error) {
 	return output, nil
 }
 
-// GetConfig returns config
+// GetConfig returns config via executing the hook with `--config` param
 func (sh *ShellHook) GetConfig() ([]byte, error) {
 	return sh.getConfig()
 }
