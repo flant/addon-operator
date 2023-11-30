@@ -64,25 +64,34 @@ func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 	}
 }
 
-// GetValues enrich module values with module's name top level key
+// GetValuesWithModuleName enrich module values with module's name top level key
 // if key is already present - returns values as it
 // module: test-module with values {"a": "b", "c": "d} will return:
 //
 //	testModule:
 //	  a: b
 //	  c: d
-/* TODO: since we have specified struct for module values, we don't need to encapsulate them into the map {"<moduleName>": ... }
-   we have to change this behavior somewhere in the module-manager */
+//
+// Deprecated: use GetValues instead
+func (mc *ModuleConfig) GetValuesWithModuleName() Values {
+	return mc.values
+}
+
+// GetValues returns values but without moduleName
+//
+//	a: b
+//	c: d
 func (mc *ModuleConfig) GetValues() Values {
 	if len(mc.values) == 0 {
 		return mc.values
 	}
 
-	if mc.values.HasKey(ModuleNameToValuesKey(mc.ModuleName)) {
-		return mc.values
+	valuesModuleName := ModuleNameToValuesKey(mc.ModuleName)
+	if mc.values.HasKey(valuesModuleName) {
+		return mc.values.GetKeySection(valuesModuleName)
 	}
 
-	return Values{ModuleNameToValuesKey(mc.ModuleName): mc.values}
+	return mc.values
 }
 
 // LoadFromValues loads module config from a map.

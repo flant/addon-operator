@@ -14,19 +14,29 @@ type GlobalKubeConfig struct {
 	Checksum string
 }
 
+// GetValuesWithGlobalName
+// Deprecated: use GetValues instead
+func (gkc GlobalKubeConfig) GetValuesWithGlobalName() utils.Values {
+	return gkc.Values
+}
+
 // GetValues returns global values, enrich them with top level key 'global'
-/* TODO: since we have specified struct for global values, we don't need to encapsulate them into the map {"global": ... }
-but we have to change this behavior somewhere in the module-manager */
 func (gkc GlobalKubeConfig) GetValues() utils.Values {
 	if len(gkc.Values) == 0 {
 		return gkc.Values
 	}
 
 	if gkc.Values.HasKey("global") {
-		return gkc.Values
+		switch v := gkc.Values["global"].(type) {
+		case map[string]interface{}:
+			return utils.Values(v)
+
+		case utils.Values:
+			return v
+		}
 	}
 
-	return utils.Values{"global": gkc.Values}
+	return gkc.Values
 }
 
 type ModuleKubeConfig struct {
@@ -68,6 +78,7 @@ func ParseModuleKubeConfigFromValues(moduleName string, values utils.Values) *Mo
 		return nil
 	}
 
+	//nolint: staticcheck
 	moduleValues := values.SectionByKey(valuesKey)
 
 	checksum := moduleValues.Checksum()

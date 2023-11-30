@@ -143,7 +143,7 @@ grafanaEnabled: "false"
 					moduleConfig, hasConfig := config.Modules[name]
 					assert.True(t, hasConfig)
 					assert.Equal(t, expect.isEnabled, moduleConfig.IsEnabled)
-					assert.Equal(t, expect.values, moduleConfig.GetValues())
+					assert.Equal(t, expect.values, moduleConfig.GetValuesWithModuleName()) //nolint: staticcheck
 				})
 			}
 		})
@@ -433,7 +433,7 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 		// g.Expect(config.IsInvalid).To(Equal(false), "Current config should be valid")
 		g.Expect(config.Modules).To(HaveLen(1), "Current config should have module sections")
 		g.Expect(config.Modules).To(HaveKey("valid-module-name"), "Current config should have module section for 'valid-module-name'")
-		modValues := config.Modules["valid-module-name"].GetValues()
+		modValues := config.Modules["valid-module-name"].GetValuesWithModuleName() //nolint: staticcheck
 		g.Expect(modValues.HasKey("validModuleName")).To(BeTrue())
 		m := modValues["validModuleName"]
 		vals := m.(map[string]interface{})

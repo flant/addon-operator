@@ -18,6 +18,11 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
@@ -63,10 +68,6 @@ type AddonOperator struct {
 
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
-
-	// ExplicitlyPurgeModules temporary way to purge explicitly set modules
-	// linked with pkg/module_manager/module_manager.go#L555
-	ExplicitlyPurgeModules []string
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -93,12 +94,11 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 	registerHookMetrics(so.HookMetricStorage)
 
 	ao := &AddonOperator{
-		ctx:                    cctx,
-		cancel:                 cancel,
-		engine:                 so,
-		ConvergeState:          NewConvergeState(),
-		ExplicitlyPurgeModules: make([]string, 0),
-		runtimeConfig:          rc,
+		ctx:           cctx,
+		cancel:        cancel,
+		engine:        so,
+		ConvergeState: NewConvergeState(),
+		runtimeConfig: rc,
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
@@ -213,9 +213,9 @@ func (op *AddonOperator) InitModuleManager() error {
 		return fmt.Errorf("init module manager: %s", err)
 	}
 
-	// Load existing config values from ConfigMap.
+	// Load existing config values from KubeConfigManager.
 	// Also, it is possible to override initial KubeConfig to give global hooks a chance
-	// to handle the ConfigMap content later.
+	// to handle the KubeConfigManager content later.
 	if op.InitialKubeConfig == nil {
 		op.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
 			_, err = op.ModuleManager.HandleNewKubeConfig(config)
@@ -239,8 +239,14 @@ func (op *AddonOperator) InitModuleManager() error {
 	return nil
 }
 
-// AllowHandleScheduleEvent returns false if the Schedule event can be ignored.
-func (op *AddonOperator) AllowHandleScheduleEvent(hook *module_manager.CommonHook) bool {
+type typedHook interface {
+	GetKind() kind.HookKind
+	GetGoHookInputSettings() *go_hook.HookConfigSettings
+}
+
+// allowHandleScheduleEvent returns false if the Schedule event can be ignored.
+// TODO: this method is compatible opnly with Go hooks, probably we want shell hooks to support this logic also
+func (op *AddonOperator) allowHandleScheduleEvent(hook typedHook) bool {
 	// Always allow if first converge is done.
 	if op.IsStartupConvergeDone() {
 		return true
@@ -248,7 +254,26 @@ func (op *AddonOperator) AllowHandleScheduleEvent(hook *module_manager.CommonHoo
 
 	// Allow when first converge is still in progress,
 	// but hook explicitly enable schedules after OnStartup.
-	return hook.ShouldEnableSchedulesOnStartup()
+	return shouldEnableSchedulesOnStartup(hook)
+}
+
+// ShouldEnableSchedulesOnStartup returns true for Go hooks if EnableSchedulesOnStartup is set.
+// This flag for schedule hooks that start after onStartup hooks.
+func shouldEnableSchedulesOnStartup(hk typedHook) bool {
+	if hk.GetKind() != kind.HookKindGo {
+		return false
+	}
+
+	settings := hk.GetGoHookInputSettings()
+	if settings == nil {
+		return false
+	}
+
+	if settings.EnableSchedulesOnStartup {
+		return true
+	}
+
+	return false
 }
 
 func (op *AddonOperator) RegisterManagerEventsHandlers() {
@@ -262,8 +287,8 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 		var tasks []sh_task.Task
 		err := op.ModuleManager.HandleScheduleEvent(crontab,
-			func(globalHook *module_manager.GlobalHook, info controller.BindingExecutionInfo) {
-				if !op.AllowHandleScheduleEvent(globalHook.CommonHook) {
+			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
+				if !op.allowHandleScheduleEvent(globalHook) {
 					return
 				}
 
@@ -290,13 +315,13 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 				tasks = append(tasks, newTask)
 			},
-			func(module *module_manager.Module, moduleHook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
-				if !op.AllowHandleScheduleEvent(moduleHook.CommonHook) {
+			func(module *modules.BasicModule, moduleHook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
+				if !op.allowHandleScheduleEvent(moduleHook) {
 					return
 				}
 
 				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"module":    module.Name,
+					"module":    module.GetName(),
 					"hook":      moduleHook.GetName(),
 					"hook.type": "module",
 					"queue":     info.QueueName,
@@ -310,7 +335,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 					WithQueueName(info.QueueName).
 					WithMetadata(task.HookMetadata{
 						EventDescription: "Schedule",
-						ModuleName:       module.Name,
+						ModuleName:       module.GetName(),
 						HookName:         moduleHook.GetName(),
 						BindingType:      htypes.Schedule,
 						BindingContext:   info.BindingContext,
@@ -324,7 +349,6 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 			return []sh_task.Task{}
 		}
 
-		op.logTaskAdd(logEntry, "Schedule event received, append", tasks...)
 		return tasks
 	})
 
@@ -338,7 +362,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 		var tasks []sh_task.Task
 		op.ModuleManager.HandleKubeEvent(kubeEvent,
-			func(globalHook *module_manager.GlobalHook, info controller.BindingExecutionInfo) {
+			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
 				hookLabels := utils.MergeLabels(logLabels, map[string]string{
 					"hook":      globalHook.GetName(),
 					"hook.type": "global",
@@ -364,9 +388,9 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 				tasks = append(tasks, newTask)
 			},
-			func(module *module_manager.Module, moduleHook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
+			func(module *modules.BasicModule, moduleHook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
 				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"module":    module.Name,
+					"module":    module.GetName(),
 					"hook":      moduleHook.GetName(),
 					"hook.type": "module",
 					"queue":     info.QueueName,
@@ -381,7 +405,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 					WithQueueName(info.QueueName).
 					WithMetadata(task.HookMetadata{
 						EventDescription: "Kubernetes",
-						ModuleName:       module.Name,
+						ModuleName:       module.GetName(),
 						HookName:         moduleHook.GetName(),
 						Binding:          info.Binding,
 						BindingType:      htypes.OnKubernetesEvent,
@@ -392,7 +416,6 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 				tasks = append(tasks, newTask)
 			})
 
-		op.logTaskAdd(logEntry, "Kubernetes event received, append", tasks...)
 		return tasks
 	})
 }
@@ -421,6 +444,24 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 	for _, tsk := range tasks {
 		op.engine.TaskQueues.GetMain().AddLast(tsk)
 	}
+
+	go func() {
+		<-op.ConvergeState.firstRunDoneC
+		// Add "DiscoverHelmReleases" task to detect unknown releases and purge them.
+		// this task will run only after the first converge, to keep all modules
+		discoverLabels := utils.MergeLabels(logLabels, map[string]string{
+			"queue":   "main",
+			"binding": string(task.DiscoverHelmReleases),
+		})
+		discoverTask := sh_task.NewTask(task.DiscoverHelmReleases).
+			WithLogLabels(discoverLabels).
+			WithQueueName("main").
+			WithMetadata(task.HookMetadata{
+				EventDescription: "Operator-PostConvergeCleanup",
+			})
+		op.engine.TaskQueues.GetMain().AddLast(discoverTask.WithQueuedAt(time.Now()))
+		op.ModuleManager.SendModuleEvent(events.ModuleEvent{EventType: events.FirstConvergeDone})
+	}()
 }
 
 func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_task.Task {
@@ -506,19 +547,6 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 			EventDescription: eventDescription,
 		})
 	tasks = append(tasks, waitTask.WithQueuedAt(queuedAt))
-
-	// Add "DiscoverHelmReleases" task to detect unknown releases and purge them.
-	discoverLabels := utils.MergeLabels(logLabels, map[string]string{
-		"queue":   "main",
-		"binding": string(task.DiscoverHelmReleases),
-	})
-	discoverTask := sh_task.NewTask(task.DiscoverHelmReleases).
-		WithLogLabels(discoverLabels).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{
-			EventDescription: eventDescription,
-		})
-	tasks = append(tasks, discoverTask.WithQueuedAt(queuedAt))
 
 	// Add "ConvergeModules" task to run modules converge sequence for the first time.
 	convergeLabels := utils.MergeLabels(logLabels, map[string]string{
@@ -697,7 +725,6 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			op.ConvergeState.Phase = StandBy
 			logEntry.Infof("ConvergeModules task done")
 			res.Status = queue.Success
-			op.EmitModulesSync()
 			return res
 		}
 	}
@@ -789,10 +816,7 @@ func (op *AddonOperator) CreateAfterAllTasks(logLabels map[string]string, eventD
 		}
 		if i == len(afterAllHooks)-1 {
 			taskMetadata.LastAfterAllHook = true
-			globalValues, err := op.ModuleManager.GlobalValues()
-			if err != nil {
-				return nil, err
-			}
+			globalValues := op.ModuleManager.GetGlobal().GetValues(false)
 			taskMetadata.ValuesChecksum = globalValues.Checksum()
 			taskMetadata.DynamicEnabledChecksum = op.ModuleManager.DynamicEnabledChecksum()
 		}
@@ -824,12 +848,12 @@ func (op *AddonOperator) CreateAndStartQueue(queueName string) bool {
 func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 	for _, hookName := range op.ModuleManager.GetGlobalHooksNames() {
 		h := op.ModuleManager.GetGlobalHook(hookName)
-		for _, hookBinding := range h.Config.Schedules {
+		for _, hookBinding := range h.GetHookConfig().Schedules {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
 				log.Debugf("Queue '%s' started for global 'schedule' hook %s", hookBinding.Queue, hookName)
 			}
 		}
-		for _, hookBinding := range h.Config.OnKubernetesEvents {
+		for _, hookBinding := range h.GetHookConfig().OnKubernetesEvents {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
 				log.Debugf("Queue '%s' started for global 'kubernetes' hook %s", hookBinding.Queue, hookName)
 			}
@@ -841,19 +865,44 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 // It is safe to run this method multiple times, as it checks
 // for existing queues.
 func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
-	for _, hookName := range op.ModuleManager.GetModuleHookNames(moduleName) {
-		h := op.ModuleManager.GetModuleHook(hookName)
-		for _, hookBinding := range h.Config.Schedules {
+	m := op.ModuleManager.GetModule(moduleName)
+	if m == nil {
+		return
+	}
+
+	scheduleHooks := m.GetHooks(htypes.Schedule)
+	for _, hook := range scheduleHooks {
+		for _, hookBinding := range hook.GetHookConfig().Schedules {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
-				log.Debugf("Queue '%s' started for module 'schedule' hook %s", hookBinding.Queue, hookName)
-			}
-		}
-		for _, hookBinding := range h.Config.OnKubernetesEvents {
-			if op.CreateAndStartQueue(hookBinding.Queue) {
-				log.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hookName)
+				log.Debugf("Queue '%s' started for module 'schedule' hook %s", hookBinding.Queue, hook.GetName())
 			}
 		}
 	}
+
+	kubeEventsHooks := m.GetHooks(htypes.OnKubernetesEvent)
+	for _, hook := range kubeEventsHooks {
+		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
+			if op.CreateAndStartQueue(hookBinding.Queue) {
+				log.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hook.GetName())
+			}
+		}
+	}
+
+	// TODO: probably we have some duplications here
+
+	// for _, hookName := range op.ModuleManager.GetModuleHookNames(moduleName) {
+	//	h := op.ModuleManager.GetModuleHook(hookName)
+	//	for _, hookBinding := range h.Config.Schedules {
+	//		if op.CreateAndStartQueue(hookBinding.Queue) {
+	//			log.Debugf("Queue '%s' started for module 'schedule' hook %s", hookBinding.Queue, hookName)
+	//		}
+	//	}
+	//	for _, hookBinding := range h.Config.OnKubernetesEvents {
+	//		if op.CreateAndStartQueue(hookBinding.Queue) {
+	//			log.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hookName)
+	//		}
+	//	}
+	//}
 }
 
 // CreateAndStartQueuesForAllModuleHooks creates queues for all registered modules.
@@ -866,15 +915,36 @@ func (op *AddonOperator) CreateAndStartQueuesForAllModuleHooks() {
 }
 
 func (op *AddonOperator) DrainModuleQueues(modName string) {
-	for _, hookName := range op.ModuleManager.GetModuleHookNames(modName) {
-		h := op.ModuleManager.GetModuleHook(hookName)
-		for _, hookBinding := range h.Config.Schedules {
-			DrainNonMainQueue(op.engine.TaskQueues.GetByName(hookBinding.Queue))
-		}
-		for _, hookBinding := range h.Config.OnKubernetesEvents {
+	m := op.ModuleManager.GetModule(modName)
+	if m == nil {
+		log.Warnf("Module %q is absent when we try to drain its queue", modName)
+		return
+	}
+
+	scheduleHooks := m.GetHooks(htypes.Schedule)
+	for _, hook := range scheduleHooks {
+		for _, hookBinding := range hook.GetHookConfig().Schedules {
 			DrainNonMainQueue(op.engine.TaskQueues.GetByName(hookBinding.Queue))
 		}
 	}
+
+	kubeEventsHooks := m.GetHooks(htypes.OnKubernetesEvent)
+	for _, hook := range kubeEventsHooks {
+		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
+			DrainNonMainQueue(op.engine.TaskQueues.GetByName(hookBinding.Queue))
+		}
+	}
+
+	// TODO: duplication here?
+	// for _, hookName := range op.ModuleManager.GetModuleHookNames(modName) {
+	//	h := op.ModuleManager.GetModuleHook(hookName)
+	//	for _, hookBinding := range h.Get.Schedules {
+	//		DrainNonMainQueue(op.engine.TaskQueues.GetByName(hookBinding.Queue))
+	//	}
+	//	for _, hookBinding := range h.Config.OnKubernetesEvents {
+	//		DrainNonMainQueue(op.engine.TaskQueues.GetByName(hookBinding.Queue))
+	//	}
+	//}
 }
 
 func (op *AddonOperator) StartModuleManagerEventHandler() {
@@ -956,7 +1026,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 	case task.GlobalHookEnableScheduleBindings:
 		hm := task.HookMetadataAccessor(t)
 		globalHook := op.ModuleManager.GetGlobalHook(hm.HookName)
-		globalHook.HookController.EnableScheduleBindings()
+		globalHook.GetHookController().EnableScheduleBindings()
 		res.Status = queue.Success
 
 	case task.GlobalHookEnableKubernetesBindings:
@@ -1069,7 +1139,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 	newLogLabels := utils.MergeLabels(t.GetLogLabels())
 	delete(newLogLabels, "task.id")
 
-	err := op.ModuleManager.HandleGlobalEnableKubernetesBindings(hm.HookName, func(hook *module_manager.GlobalHook, info controller.BindingExecutionInfo) {
+	err := op.ModuleManager.HandleGlobalEnableKubernetesBindings(hm.HookName, func(hook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
 		taskLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
 			"binding":   string(htypes.OnKubernetesEvent) + "Synchronization",
 			"hook":      hook.GetName(),
@@ -1113,7 +1183,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 		}
 	})
 	if err != nil {
-		hookLabel := path.Base(globalHook.Path)
+		hookLabel := path.Base(globalHook.GetPath())
 		// TODO use separate metric, as in shell-operator?
 		op.engine.MetricStorage.CounterAdd("{PREFIX}global_hook_errors_total", 1.0, map[string]string{
 			"hook":       hookLabel,
@@ -1178,16 +1248,13 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 		logEntry.Errorf("Discover helm releases failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 		t.UpdateFailureMessage(err.Error())
 		t.WithQueuedAt(time.Now())
-	} else {
-		res.Status = queue.Success
-		state.ModulesToPurge = append(state.ModulesToPurge, op.ExplicitlyPurgeModules...)
-
-		log.Debugf("Next Modules will be purged: %v", state.ModulesToPurge)
-
-		tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
-		res.AfterTasks = tasks
-		op.logTaskAdd(logEntry, "after", res.AfterTasks...)
+		return
 	}
+
+	res.Status = queue.Success
+	tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
+	res.AfterTasks = tasks
+	op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 	return
 }
 
@@ -1206,6 +1273,7 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	} else {
 		logEntry.Debugf("Module purge success")
 	}
+
 	status = queue.Success
 	return
 }
@@ -1215,14 +1283,17 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 	defer trace.StartRegion(context.Background(), "ModuleDelete").End()
 
 	hm := task.HookMetadataAccessor(t)
-	module := op.ModuleManager.GetModule(hm.ModuleName)
+	status = queue.Success
+
+	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
 	logEntry.Debugf("Module delete '%s'", hm.ModuleName)
 
 	// Register module hooks to run afterHelmDelete hooks on startup.
 	// It's a noop if registration is done before.
-	err := op.ModuleManager.RegisterModuleHooks(module, t.GetLogLabels())
+	// TODO: add filter to register only afterHelmDelete hooks
+	err := op.ModuleManager.RegisterModuleHooks(baseModule, t.GetLogLabels())
 
 	// TODO disable events and drain queues here or earlier during ConvergeModules.RunBeforeAll phase?
 	if err == nil {
@@ -1233,7 +1304,8 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 		err = op.ModuleManager.DeleteModule(hm.ModuleName, t.GetLogLabels())
 	}
 
-	module.State.LastModuleErr = err
+	baseModule.SetError(err)
+
 	if err != nil {
 		op.engine.MetricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
 		logEntry.Errorf("Module delete failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
@@ -1267,10 +1339,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
 
 	hm := task.HookMetadataAccessor(t)
-	module := op.ModuleManager.GetModule(hm.ModuleName)
+	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
 	// Break error loop when module becomes disabled.
-	if !op.ModuleManager.IsModuleEnabled(module.Name) {
+	if !op.ModuleManager.IsModuleEnabled(baseModule.GetName()) {
 		res.Status = queue.Success
 		return
 	}
@@ -1288,43 +1360,43 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	valuesChanged := false
 
 	// First module run on operator startup or when module is enabled.
-	if module.State.Phase == module_manager.Startup {
+	if baseModule.GetPhase() == modules.Startup {
 		// Register module hooks on every enable.
-		moduleRunErr = op.ModuleManager.RegisterModuleHooks(module, labels)
+		moduleRunErr = op.ModuleManager.RegisterModuleHooks(baseModule, labels)
 		if moduleRunErr == nil {
 			if hm.DoModuleStartup {
-				logEntry.Debugf("ModuleRun '%s' phase", module.State.Phase)
+				logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
 
 				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
 
 				// Start queues for module hooks.
-				op.CreateAndStartQueuesForModuleHooks(module.Name)
+				op.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
 
 				// Run onStartup hooks.
-				moduleRunErr = module.RunOnStartup(t.GetLogLabels())
+				moduleRunErr = op.ModuleManager.RunModuleHooks(baseModule, htypes.OnStartup, t.GetLogLabels())
 				if moduleRunErr == nil {
-					module.State.Phase = module_manager.OnStartupDone
+					baseModule.SetPhase(modules.OnStartupDone)
 				}
 				treg.End()
 			} else {
-				module.State.Phase = module_manager.OnStartupDone
+				baseModule.SetPhase(modules.OnStartupDone)
 			}
 		}
 	}
 
-	if module.State.Phase == module_manager.OnStartupDone {
-		logEntry.Debugf("ModuleRun '%s' phase", module.State.Phase)
-		if module.HasKubernetesHooks() {
-			module.State.Phase = module_manager.QueueSynchronizationTasks
+	if baseModule.GetPhase() == modules.OnStartupDone {
+		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
+		if baseModule.HasKubernetesHooks() {
+			baseModule.SetPhase(modules.QueueSynchronizationTasks)
 		} else {
 			// Skip Synchronization process if there are no kubernetes hooks.
-			module.State.Phase = module_manager.EnableScheduleBindings
+			baseModule.SetPhase(modules.EnableScheduleBindings)
 		}
 	}
 
 	// Note: All hooks should be queued to fill snapshots before proceed to beforeHelm hooks.
-	if module.State.Phase == module_manager.QueueSynchronizationTasks {
-		logEntry.Debugf("ModuleRun '%s' phase", module.State.Phase)
+	if baseModule.GetPhase() == modules.QueueSynchronizationTasks {
+		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
 
 		// ModuleHookRun.Synchronization tasks for bindings with the "main" queue.
 		mainSyncTasks := make([]sh_task.Task, 0)
@@ -1334,7 +1406,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		parallelSyncTasksToWait := make([]sh_task.Task, 0)
 
 		// Start monitors for each kubernetes binding in each module hook.
-		err := op.ModuleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *module_manager.ModuleHook, info controller.BindingExecutionInfo) {
+		err := op.ModuleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
 			queueName := info.QueueName
 			taskLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
 				"binding":   string(htypes.OnKubernetesEvent) + "Synchronization",
@@ -1392,7 +1464,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				} else {
 					thm := task.HookMetadataAccessor(tsk)
 					q.AddLast(tsk)
-					module.State.Synchronization().QueuedForBinding(thm)
+					baseModule.Synchronization().QueuedForBinding(thm)
 				}
 			}
 			op.logTaskAdd(logEntry, "append", parallelSyncTasksToWait...)
@@ -1410,10 +1482,12 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 			if len(parallelSyncTasksToWait) == 0 {
 				// Skip waiting tasks in parallel queues, proceed to schedule bindings.
-				module.State.Phase = module_manager.EnableScheduleBindings
+
+				baseModule.SetPhase(modules.EnableScheduleBindings)
 			} else {
 				// There are tasks to wait.
-				module.State.Phase = module_manager.WaitForSynchronization
+
+				baseModule.SetPhase(modules.WaitForSynchronization)
 				logEntry.WithField("module.state", "wait-for-synchronization").
 					Debugf("ModuleRun wait for Synchronization")
 			}
@@ -1429,16 +1503,16 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	}
 
 	// Repeat ModuleRun if there are running Synchronization tasks to wait.
-	if module.State.Phase == module_manager.WaitForSynchronization {
-		if module.State.Synchronization().IsComplete() {
+	if baseModule.GetPhase() == modules.WaitForSynchronization {
+		if baseModule.Synchronization().IsComplete() {
 			// Proceed with the next phase.
-			module.State.Phase = module_manager.EnableScheduleBindings
+			baseModule.SetPhase(modules.EnableScheduleBindings)
 			logEntry.Info("Synchronization done for module hooks")
 		} else {
 			// Debug messages every fifth second: print Synchronization state.
 			if time.Now().UnixNano()%5000000000 == 0 {
-				logEntry.Debugf("ModuleRun wait Synchronization state: moduleStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.DoModuleStartup, module.SynchronizationNeeded(), module.State.Synchronization().HasQueued(), module.State.Synchronization().IsComplete())
-				module.State.Synchronization().DebugDumpState(logEntry)
+				logEntry.Debugf("ModuleRun wait Synchronization state: moduleStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.DoModuleStartup, baseModule.SynchronizationNeeded(), baseModule.Synchronization().HasQueued(), baseModule.Synchronization().IsComplete())
+				baseModule.Synchronization().DebugDumpState(logEntry)
 			}
 			logEntry.Debugf("Synchronization not complete, keep ModuleRun task in repeat mode")
 			t.WithQueuedAt(time.Now())
@@ -1448,24 +1522,24 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	}
 
 	// Enable schedule events once at module start.
-	if module.State.Phase == module_manager.EnableScheduleBindings {
-		logEntry.Debugf("ModuleRun '%s' phase", module.State.Phase)
+	if baseModule.GetPhase() == modules.EnableScheduleBindings {
+		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
 
 		op.ModuleManager.EnableModuleScheduleBindings(hm.ModuleName)
-		module.State.Phase = module_manager.CanRunHelm
+		baseModule.SetPhase(modules.CanRunHelm)
 	}
 
 	// Module start is done, module is ready to run hooks and helm chart.
-	if module.State.Phase == module_manager.CanRunHelm {
-		logEntry.Debugf("ModuleRun '%s' phase", module.State.Phase)
+	if baseModule.GetPhase() == modules.CanRunHelm {
+		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
 		// run beforeHelm, helm, afterHelm
-		valuesChanged, moduleRunErr = module.Run(t.GetLogLabels())
+		valuesChanged, moduleRunErr = op.ModuleManager.RunModule(baseModule.Name, t.GetLogLabels())
 	}
 
-	module.State.LastModuleErr = moduleRunErr
+	baseModule.SetError(moduleRunErr)
 	if moduleRunErr != nil {
 		res.Status = queue.Fail
-		logEntry.Errorf("ModuleRun failed in phase '%s'. Requeue task to retry after delay. Failed count is %d. Error: %s", module.State.Phase, t.GetFailureCount()+1, moduleRunErr)
+		logEntry.Errorf("ModuleRun failed in phase '%s'. Requeue task to retry after delay. Failed count is %d. Error: %s", baseModule.GetPhase(), t.GetFailureCount()+1, moduleRunErr)
 		op.engine.MetricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
 		t.UpdateFailureMessage(moduleRunErr.Error())
 		t.WithQueuedAt(time.Now())
@@ -1498,10 +1572,12 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
 
 	hm := task.HookMetadataAccessor(t)
-	taskHook := op.ModuleManager.GetModuleHook(hm.HookName)
+	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
+	// TODO: check if module exists
+	taskHook := baseModule.GetHookByName(hm.HookName)
 
 	// Prevent hook running in parallel queue if module is disabled in "main" queue.
-	if !op.ModuleManager.IsModuleEnabled(taskHook.Module.Name) {
+	if !op.ModuleManager.IsModuleEnabled(baseModule.GetName()) {
 		res.Status = queue.Success
 		return
 	}
@@ -1532,7 +1608,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	isSynchronization := hm.IsSynchronization()
 	if isSynchronization {
 		// Synchronization is not a part of v0 contract, skip hook execution.
-		if taskHook.Config.Version == "v0" {
+		if taskHook.GetHookConfig().Version == "v0" {
 			shouldRunHook = false
 			res.Status = queue.Success
 		}
@@ -1544,7 +1620,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	}
 
 	// Combine tasks in the queue and compact binding contexts for v1 hooks.
-	if shouldRunHook && taskHook.Config.Version == "v1" {
+	if shouldRunHook && taskHook.GetHookConfig().Version == "v1" {
 		combineResult := op.engine.CombineBindingContextForHook(op.engine.TaskQueues.GetByName(t.GetQueueName()), t, func(tsk sh_task.Task) bool {
 			thm := task.HookMetadataAccessor(tsk)
 			// Stop combine process when Synchronization tasks have different
@@ -1560,7 +1636,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 			// Task 'tsk' will be combined, so remove it from the SynchronizationState.
 			if thm.IsSynchronization() {
 				logEntry.Debugf("Synchronization task for %s/%s is combined, mark it as Done: id=%s", thm.HookName, thm.Binding, thm.KubernetesBindingId)
-				taskHook.Module.State.Synchronization().DoneForBinding(thm.KubernetesBindingId)
+				baseModule.Synchronization().DoneForBinding(thm.KubernetesBindingId)
 			}
 			return false // do not stop combine process on this task
 		})
@@ -1589,26 +1665,26 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 		success := 0.0
 		allowed := 0.0
 
-		beforeChecksum, afterChecksum, err := op.ModuleManager.RunModuleHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
+		beforeChecksum, afterChecksum, err := op.ModuleManager.RunModuleHook(hm.ModuleName, hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
 		if err != nil {
 			if hm.AllowFailure {
 				allowed = 1.0
 				logEntry.Infof("Module hook failed, but allowed to fail. Error: %v", err)
 				res.Status = queue.Success
-				taskHook.Module.State.SetLastHookErr(hm.HookName, nil)
+				baseModule.SaveHookError(hm.HookName, nil)
 			} else {
 				errors = 1.0
 				logEntry.Errorf("Module hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 				t.UpdateFailureMessage(err.Error())
 				t.WithQueuedAt(time.Now())
 				res.Status = queue.Fail
-				taskHook.Module.State.SetLastHookErr(hm.HookName, err)
+				baseModule.SaveHookError(hm.HookName, err)
 			}
 		} else {
 			success = 1.0
 			logEntry.Debugf("Module hook success '%s'", hm.HookName)
 			res.Status = queue.Success
-			taskHook.Module.State.SetLastHookErr(hm.HookName, nil)
+			baseModule.SaveHookError(hm.HookName, nil)
 
 			// Handle module values change.
 			reloadModule := false
@@ -1674,11 +1750,11 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	}
 
 	if isSynchronization && res.Status == queue.Success {
-		taskHook.Module.State.Synchronization().DoneForBinding(hm.KubernetesBindingId)
+		baseModule.Synchronization().DoneForBinding(hm.KubernetesBindingId)
 		// Unlock Kubernetes events for all monitors when Synchronization task is done.
 		logEntry.Debug("Synchronization done, unlock Kubernetes events")
 		for _, monitorID := range hm.MonitorIDs {
-			taskHook.HookController.UnlockKubernetesEventsFor(monitorID)
+			taskHook.GetHookController().UnlockKubernetesEventsFor(monitorID)
 		}
 	}
 
@@ -1718,7 +1794,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 	shouldRunHook := true
 	if isSynchronization {
 		// Synchronization is not a part of v0 contract, skip hook execution.
-		if taskHook.Config.Version == "v0" {
+		if taskHook.GetHookConfig().Version == "v0" {
 			logEntry.Infof("Execute on Synchronization ignored for v0 hooks")
 			shouldRunHook = false
 			res.Status = queue.Success
@@ -1731,7 +1807,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		}
 	}
 
-	if shouldRunHook && taskHook.Config.Version == "v1" {
+	if shouldRunHook && taskHook.GetHookConfig().Version == "v1" {
 		// Combine binding contexts in the queue.
 		combineResult := op.engine.CombineBindingContextForHook(op.engine.TaskQueues.GetByName(t.GetQueueName()), t, func(tsk sh_task.Task) bool {
 			thm := task.HookMetadataAccessor(tsk)
@@ -1897,7 +1973,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		// Unlock Kubernetes events for all monitors when Synchronization task is done.
 		logEntry.Debugf("Synchronization done, unlock Kubernetes events")
 		for _, monitorID := range hm.MonitorIDs {
-			taskHook.HookController.UnlockKubernetesEventsFor(monitorID)
+			taskHook.GetHookController().UnlockKubernetesEventsFor(monitorID)
 		}
 	}
 
@@ -1940,6 +2016,11 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 
 	// Add ModuleDelete tasks to delete helm releases of disabled modules.
 	for _, moduleName := range state.ModulesToDisable {
+		ev := events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleDisabled,
+		}
+		op.ModuleManager.SendModuleEvent(ev)
 		newLogLabels := utils.MergeLabels(logLabels)
 		newLogLabels["module"] = moduleName
 		delete(newLogLabels, "task.id")
@@ -1957,6 +2038,11 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
 	for _, moduleName := range state.AllEnabledModules {
+		ev := events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleEnabled,
+		}
+		op.ModuleManager.SendModuleEvent(ev)
 		newLogLabels := utils.MergeLabels(logLabels)
 		newLogLabels["module"] = moduleName
 		delete(newLogLabels, "task.id")
@@ -2155,8 +2241,9 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
 	}
 	if tsk.GetType() == task.ModuleRun {
 		hm := task.HookMetadataAccessor(tsk)
-		module := op.ModuleManager.GetModule(hm.ModuleName)
-		if module.State.Phase == module_manager.WaitForSynchronization {
+		baseModule := op.ModuleManager.GetModule(hm.ModuleName)
+
+		if baseModule.GetPhase() == modules.WaitForSynchronization {
 			return
 		}
 	}
@@ -2190,35 +2277,8 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 		return string(op.ConvergeState.Phase)
 	case task.ModuleRun:
 		hm := task.HookMetadataAccessor(tsk)
-		module := op.ModuleManager.GetModule(hm.ModuleName)
-		return string(module.State.Phase)
+		mod := op.ModuleManager.GetModule(hm.ModuleName)
+		return string(mod.GetPhase())
 	}
 	return ""
-}
-
-// OnFirstConvergeDone run addon-operator business logic when first converge is done and operator is ready
-func (op *AddonOperator) OnFirstConvergeDone() {
-	go func() {
-		<-op.ConvergeState.firstRunDoneC
-		// after the first convergence, the service endpoints do not appear instantly.
-		// Let's add a short pause so that the service gets online and we don't get a rejection from the validation webhook (timeout reason)
-		time.Sleep(3 * time.Second) // wait for service to be resolved
-
-		err := op.ModuleManager.SyncModulesCR(op.KubeClient())
-		if err != nil {
-			log.Errorf("Modules CR registration failed: %s", err)
-		}
-	}()
-}
-
-// EmitModulesSync emit modules CR synchronization
-func (op *AddonOperator) EmitModulesSync() {
-	if !op.IsStartupConvergeDone() {
-		return
-	}
-
-	err := op.ModuleManager.SyncModulesCR(op.KubeClient())
-	if err != nil {
-		log.Errorf("Modules CR registration failed: %s", err)
-	}
 }

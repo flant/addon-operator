@@ -2,6 +2,7 @@ package validation
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"
@@ -56,7 +57,7 @@ func (v *ValuesValidator) GetSchema(schemaType SchemaType, valuesType SchemaType
 func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType SchemaType, moduleName string, values utils.Values) error {
 	s := v.GetSchema(schemaType, valuesType, moduleName)
 	if s == nil {
-		log.Debugf("%s schema (%s) for '%s' values is not found", schemaType, moduleName, valuesType)
+		log.Warnf("%s schema (%s) for '%s' values is not found", schemaType, moduleName, valuesType)
 		return nil
 	}
 
@@ -70,7 +71,7 @@ func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType Schem
 		return fmt.Errorf("root key '%s' not found in input values", rootName)
 	}
 
-	validationErr := ValidateObject(obj, s, rootName)
+	validationErr := validateObject(obj, s, rootName)
 	if validationErr == nil {
 		log.Debugf("'%s' '%s' values are valid", schemaType, valuesType)
 	} else {
@@ -79,14 +80,25 @@ func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType Schem
 	return validationErr
 }
 
-// ValidateObject uses schema to validate data structure in the dataObj.
+// validateObject uses schema to validate data structure in the dataObj.
 // See https://github.com/kubernetes/apiextensions-apiserver/blob/1bb376f70aa2c6f2dec9a8c7f05384adbfac7fbb/pkg/apiserver/validation/validation.go#L47
-func ValidateObject(dataObj interface{}, s *spec.Schema, rootName string) (multiErr error) {
+func validateObject(dataObj interface{}, s *spec.Schema, rootName string) (multiErr error) {
 	if s == nil {
 		return fmt.Errorf("validate config: schema is not provided")
 	}
 
 	validator := validate.NewSchemaValidator(s, nil, rootName, strfmt.Default) // , validate.DisableObjectArrayTypeCheck(true)
+
+	switch v := dataObj.(type) {
+	case utils.Values:
+		dataObj = map[string]interface{}(v)
+
+	case map[string]interface{}:
+	// pass
+
+	default:
+		return fmt.Errorf("validated data object have to be utils.Values or map[string]interface{}, got %v instead", reflect.TypeOf(v))
+	}
 
 	result := validator.Validate(dataObj)
 	if result.IsValid() {

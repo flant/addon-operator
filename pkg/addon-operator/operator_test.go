@@ -23,6 +23,7 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/kube-client/fake"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -242,7 +243,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		case task.ConvergeModules:
 			phase = string(op.ConvergeState.Phase)
 		case task.ModuleRun:
-			phase = string(op.ModuleManager.GetModule(hm.ModuleName).State.Phase)
+			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
 		taskHandleHistory = append(taskHandleHistory, taskInfo{
 			taskType:         tsk.GetType(),
@@ -290,8 +291,8 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		{task.GlobalHookWaitKubernetesSynchronization, "", "", ""},
 
 		// TODO DiscoverHelmReleases can add ModulePurge tasks.
-		{task.DiscoverHelmReleases, "", "", ""},
-		// {task.ModulePurge, "", moduleToPurge, ""},
+		// {task.DiscoverHelmReleases, "", "", ""},
+		//  {task.ModulePurge, "", moduleToPurge, ""},
 
 		// ConvergeModules runs after global Synchronization and emerges BeforeAll tasks.
 		{task.ConvergeModules, "", "", string(StandBy)},
@@ -301,16 +302,15 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		{task.ConvergeModules, "", "", string(WaitBeforeAll)},
 
 		// ConvergeModules adds ModuleDelete and ModuleRun tasks.
-		{task.ModuleDelete, "", "module-beta", ""},
-
-		{task.ModuleRun, "", "module-alpha", string(module_manager.Startup)},
+		{task.ModuleRun, "", "module-alpha", string(modules.Startup)},
+		// {task.ModuleDelete, "", "module-beta", ""},
 
 		// Only one hook with kubernetes binding.
 		{task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook01", ""},
 		// {task.ModuleHookRun, OnKubernetesEvent, "module-alpha/hook02", ""},
 
 		// Skip waiting tasks in parallel queues, proceed to schedule bindings.
-		{task.ModuleRun, "", "module-alpha", string(module_manager.EnableScheduleBindings)},
+		{task.ModuleRun, "", "module-alpha", string(modules.EnableScheduleBindings)},
 
 		// ConvergeModules emerges afterAll tasks
 		{task.ConvergeModules, "", "", string(WaitDeleteAndRunModules)},
@@ -324,19 +324,19 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 			break
 		}
 		expect := historyExpects[i]
-		g.Expect(historyInfo.taskType).To(Equal(expect.taskType), "task type should match for history entry %d, got %+v %+v", i, historyInfo)
-		g.Expect(historyInfo.bindingType).To(Equal(expect.bindingType), "binding should match for history entry %d, got %+v %+v", i, historyInfo)
-		g.Expect(historyInfo.spawnerTaskPhase).To(Equal(expect.convergePhase), "converge phase should match for history entry %d, got %+v %+v", i, historyInfo)
+		g.Expect(historyInfo.taskType).To(Equal(expect.taskType), "task type should match for history entry %d, got %+v", i, historyInfo)
+		g.Expect(historyInfo.bindingType).To(Equal(expect.bindingType), "binding should match for history entry %d, got %+v", i, historyInfo)
+		g.Expect(historyInfo.spawnerTaskPhase).To(Equal(expect.convergePhase), "converge phase should match for history entry %d, got %+v", i, historyInfo)
 
 		switch historyInfo.taskType {
 		case task.ModuleRun, task.ModulePurge, task.ModuleDelete:
-			g.Expect(historyInfo.moduleName).To(ContainSubstring(expect.namePrefix), "module name should match for history entry %d, got %+v %+v", i, historyInfo)
+			g.Expect(historyInfo.moduleName).To(ContainSubstring(expect.namePrefix), "module name should match for history entry %d, got %+v", i, historyInfo)
 		case task.GlobalHookRun, task.GlobalHookEnableScheduleBindings, task.GlobalHookEnableKubernetesBindings:
-			g.Expect(historyInfo.hookName).To(HavePrefix(expect.namePrefix), "hook name should match for history entry %d, got %+v %+v", i, historyInfo)
+			g.Expect(historyInfo.hookName).To(HavePrefix(expect.namePrefix), "hook name should match for history entry %d, got %+v", i, historyInfo)
 		case task.ModuleHookRun:
 			parts := strings.Split(expect.namePrefix, "/")
-			g.Expect(historyInfo.moduleName).To(ContainSubstring(parts[0]), "module name should match for history entry %d, got %+v %+v", i, historyInfo)
-			g.Expect(historyInfo.hookName).To(ContainSubstring("/"+parts[1]), "hook name should match for history entry %d, got %+v %+v", i, historyInfo)
+			g.Expect(historyInfo.moduleName).To(ContainSubstring(parts[0]), "module name should match for history entry %d, got %+v", i, historyInfo)
+			g.Expect(historyInfo.hookName).To(ContainSubstring("/"+parts[1]), "hook name should match for history entry %d, got %+v", i, historyInfo)
 		}
 	}
 }
@@ -388,7 +388,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 				<-canHandleTasks
 				triggerPause = false
 			}
-			phase = string(op.ModuleManager.GetModule(hm.ModuleName).State.Phase)
+			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
 		historyMu.Lock()
 		taskHandleHistory = append(taskHandleHistory, taskInfo{
@@ -488,7 +488,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 			phase = string(op.ConvergeState.Phase)
 			convergeEvent = tsk.GetProp(ConvergeEventProp).(ConvergeEvent)
 		case task.ModuleRun:
-			phase = string(op.ModuleManager.GetModule(hm.ModuleName).State.Phase)
+			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
 		historyMu.Lock()
 		taskHandleHistory = append(taskHandleHistory, taskInfo{

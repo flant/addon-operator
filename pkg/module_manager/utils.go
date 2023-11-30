@@ -6,17 +6,7 @@ import (
 	"path/filepath"
 )
 
-func CreateEmptyWritableFile(filePath string) error {
-	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o666)
-	if err != nil {
-		return nil
-	}
-
-	_ = file.Close()
-	return nil
-}
-
-// ReadOpenAPIFiles reads config-values.yaml and values.yaml from the specified directory.
+// readOpenAPIFiles reads config-values.yaml and values.yaml from the specified directory.
 // Global schemas:
 //
 //	/global/openapi/config-values.yaml
@@ -26,7 +16,7 @@ func CreateEmptyWritableFile(filePath string) error {
 //
 //	/modules/XXX-module-name/openapi/config-values.yaml
 //	/modules/XXX-module-name/openapi/values.yaml
-func ReadOpenAPIFiles(openApiDir string) (configSchemaBytes, valuesSchemaBytes []byte, err error) {
+func readOpenAPIFiles(openApiDir string) (configSchemaBytes, valuesSchemaBytes []byte, err error) {
 	if openApiDir == "" {
 		return nil, nil, nil
 	}

@@ -86,7 +86,7 @@ func (b Backend) saveGlobalConfigValues(ctx context.Context, values utils.Values
 		b.logger.Infof("Save global values to ConfigMap/%s", b.name)
 	}
 
-	err = b.mergeValues(ctx, globalKubeConfig.GetValues())
+	err = b.mergeValues(ctx, globalKubeConfig.GetValuesWithGlobalName())
 
 	return globalKubeConfig.Checksum, err
 }
@@ -115,7 +115,7 @@ func (b Backend) saveModuleConfigValues(ctx context.Context, moduleName string, 
 		b.logger.Infof("Save module '%s' values to ConfigMap/%s", moduleName, b.name)
 	}
 
-	err := b.mergeValues(ctx, moduleKubeConfig.GetValues())
+	err := b.mergeValues(ctx, moduleKubeConfig.GetValuesWithModuleName()) //nolint: staticcheck
 
 	return moduleKubeConfig.Checksum, err
 }

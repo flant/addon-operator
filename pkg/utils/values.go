@@ -126,6 +126,22 @@ func (v Values) HasKey(key string) bool {
 	return has
 }
 
+func (v Values) GetKeySection(key string) Values {
+	section, has := v[key]
+	if !has {
+		return Values{}
+	}
+	switch sec := section.(type) {
+	case map[string]interface{}:
+		return sec
+
+	case Values:
+		return sec
+	}
+
+	return Values{}
+}
+
 func (v Values) HasGlobal() bool {
 	_, has := v[GlobalValuesKey]
 	return has
@@ -144,6 +160,7 @@ func (v Values) Global() Values {
 	return make(Values)
 }
 
+// Deprecated: some useless copy here, probably we don't need that
 func (v Values) SectionByKey(key string) Values {
 	sectionValues, has := v[key]
 	if has {
@@ -168,12 +185,10 @@ func (v Values) AsBytes(format string) ([]byte, error) {
 	}
 }
 
-func (v Values) AsString(format string) (string, error) {
-	b, err := v.AsBytes(format)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
+func (v Values) AsString(format string) string {
+	b, _ := v.AsBytes(format)
+
+	return string(b)
 }
 
 // AsConfigMapData returns values as map that can be used as a 'data' field in the ConfigMap.
@@ -190,7 +205,7 @@ func (v Values) AsConfigMapData() (map[string]string, error) {
 	return res, nil
 }
 
-func (v Values) JsonString() (string, error) {
+func (v Values) JsonString() string {
 	return v.AsString("json")
 }
 
@@ -198,7 +213,7 @@ func (v Values) JsonBytes() ([]byte, error) {
 	return v.AsBytes("json")
 }
 
-func (v Values) YamlString() (string, error) {
+func (v Values) YamlString() string {
 	return v.AsString("yaml")
 }
 

@@ -292,6 +292,7 @@ const (
 
 // ApplyValuesPatch uses patched jsonpatch library to make the behavior of ApplyIgnoreNonExistentPaths
 // as fast as ApplyStrict.
+// This function does not mutate input Values
 func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMode) (Values /* valuesChanged */, bool, error) {
 	var err error
 
@@ -379,7 +380,7 @@ func FilterValuesPatch(valuesPatch ValuesPatch, rootPath string) ValuesPatch {
 }
 
 func EnabledFromValuesPatch(valuesPatch ValuesPatch) ValuesPatch {
-	resOps := []*ValuesPatchOperation{}
+	resOps := make([]*ValuesPatchOperation, 0)
 
 	for _, op := range valuesPatch.Operations {
 		pathParts := strings.Split(op.Path, "/")

@@ -50,9 +50,6 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
 	op.engine.RegisterDebugConfigRoutes(debugServer, op.runtimeConfig)
 	op.RegisterDebugGlobalRoutes(debugServer)
 	op.RegisterDebugModuleRoutes(debugServer)
-	// service (kubernetes object) does not have endpoints before addon-operator is ready
-	// we have to wait readiness probe (linked on the first-converge) before manipulating in-cluster objects covered with validation webhook
-	op.OnFirstConvergeDone()
 
 	err = op.InitModuleManager()
 	if err != nil {
@@ -65,6 +62,7 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
 // SetupKubeConfigManager sets manager, which reads configuration for Modules from a cluster
 func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
 	if op.KubeConfigManager != nil {
+		log.Warnf("KubeConfigManager is already set")
 		// return if kube config manager is already set
 		return
 	}

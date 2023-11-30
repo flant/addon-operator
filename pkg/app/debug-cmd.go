@@ -85,10 +85,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			return nil
 		})
 
-	var moduleName string
+	var (
+		moduleName string
+		showGlobal bool
+	)
+
 	moduleValuesCmd := moduleCmd.Command("values", "Dump module values by name.").
 		Action(func(c *kingpin.ParseContext) error {
-			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Values(outputFormat)
+			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Values(outputFormat, showGlobal)
 			if err != nil {
 				return err
 			}
@@ -96,6 +100,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			return nil
 		})
 	moduleValuesCmd.Arg("module_name", "").Required().StringVar(&moduleName)
+	moduleValuesCmd.Flag("global", "Also show global values").Short('g').BoolVar(&showGlobal)
 
 	var debug bool
 	moduleRenderCmd := moduleCmd.Command("render", "Render module manifests.").
@@ -112,7 +117,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleConfigCmd := moduleCmd.Command("config", "Dump module config values by name.").
 		Action(func(c *kingpin.ParseContext) error {
-			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Config(outputFormat)
+			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Config(outputFormat, showGlobal)
 			if err != nil {
 				return err
 			}
@@ -120,6 +125,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			return nil
 		})
 	moduleConfigCmd.Arg("module_name", "").Required().StringVar(&moduleName)
+	moduleConfigCmd.Flag("global", "Also show global config").Short('g').BoolVar(&showGlobal)
 
 	modulePatchesCmd := moduleCmd.Command("patches", "Dump module value patches by name.").
 		Action(func(c *kingpin.ParseContext) error {
@@ -211,8 +217,8 @@ func (mr *cliModuleSectionRequest) Name(name string) *cliModuleSectionRequest {
 	return mr
 }
 
-func (mr *cliModuleSectionRequest) Values(format string) ([]byte, error) {
-	url := fmt.Sprintf("http://unix/module/%s/values.%s", mr.name, format)
+func (mr *cliModuleSectionRequest) Values(format string, withGlobal bool) ([]byte, error) {
+	url := fmt.Sprintf("http://unix/module/%s/values.%s?global=%t", mr.name, format, withGlobal)
 	return mr.client.Get(url)
 }
 
@@ -226,8 +232,8 @@ func (mr *cliModuleSectionRequest) Patches() ([]byte, error) {
 	return mr.client.Get(url)
 }
 
-func (mr *cliModuleSectionRequest) Config(format string) ([]byte, error) {
-	url := fmt.Sprintf("http://unix/module/%s/config.%s", mr.name, format)
+func (mr *cliModuleSectionRequest) Config(format string, withGlobal bool) ([]byte, error) {
+	url := fmt.Sprintf("http://unix/module/%s/config.%s?global=%t", mr.name, format, withGlobal)
 	return mr.client.Get(url)
 }
 
