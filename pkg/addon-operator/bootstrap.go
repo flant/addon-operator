@@ -50,6 +50,7 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
 	op.engine.RegisterDebugConfigRoutes(debugServer, op.runtimeConfig)
 	op.RegisterDebugGlobalRoutes(debugServer)
 	op.RegisterDebugModuleRoutes(debugServer)
+	op.RegisterDiscoveryRoute(debugServer)
 
 	err = op.InitModuleManager()
 	if err != nil {

@@ -18,24 +18,6 @@ import (
 )
 
 func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
-	dbgSrv.RegisterHandler(http.MethodGet, "/global/discovery", func(_ *http.Request) (interface{}, error) {
-		buf := bytes.NewBuffer(nil)
-		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-			if strings.HasPrefix(route, "/global/") {
-				_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
-				return nil
-			}
-			return nil
-		}
-
-		err := chi.Walk(dbgSrv.Router, walkFn)
-		if err != nil {
-			return nil, err
-		}
-
-		return buf, nil
-	})
-
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/list.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
 		return map[string]interface{}{
 			"globalHooks": op.ModuleManager.GetGlobalHooksNames(),
@@ -67,24 +49,6 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 }
 
 func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
-	dbgSrv.RegisterHandler(http.MethodGet, "/module/discovery", func(_ *http.Request) (interface{}, error) {
-		buf := bytes.NewBuffer(nil)
-		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-			if strings.HasPrefix(route, "/module/") {
-				_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
-				return nil
-			}
-			return nil
-		}
-
-		err := chi.Walk(dbgSrv.Router, walkFn)
-		if err != nil {
-			return nil, err
-		}
-
-		return buf, nil
-	})
-
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (interface{}, error) {
 		mods := op.ModuleManager.GetEnabledModuleNames()
 		sort.Strings(mods)
@@ -200,5 +164,25 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		}
 
 		return snapshots, nil
+	})
+}
+
+func (op *AddonOperator) RegisterDiscoveryRoute(dbgSrv *debug.Server) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/discovery", func(_ *http.Request) (interface{}, error) {
+		buf := bytes.NewBuffer(nil)
+		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+			if strings.HasPrefix(route, "/global/") || strings.HasPrefix(route, "/module/") {
+				_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
+				return nil
+			}
+			return nil
+		}
+
+		err := chi.Walk(dbgSrv.Router, walkFn)
+		if err != nil {
+			return nil, err
+		}
+
+		return buf, nil
 	})
 }
