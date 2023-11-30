@@ -18,7 +18,7 @@ import (
 )
 
 func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
-	dbgSrv.RegisterHandler(http.MethodGet, "/global/discovery", func(request *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/global/discovery", func(_ *http.Request) (interface{}, error) {
 		buf := bytes.NewBuffer(nil)
 		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 			if strings.HasPrefix(route, "/global/") {
@@ -28,18 +28,11 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 			return nil
 		}
 
-		// request.Write()
-
 		err := chi.Walk(dbgSrv.Router, walkFn)
 		if err != nil {
-			// writer.WriteHeader(http.StatusInternalServerError)
-			// return
 			return nil, err
 		}
 
-		// writer.WriteHeader(http.StatusOK)
-		// _, _ = writer.Write(buf.Bytes())
-		// _ = request.Write(buf)
 		return buf, nil
 	})
 
@@ -74,29 +67,8 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 }
 
 func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
-	dbgSrv.RegisterHandler(http.MethodGet, "/module/discovery", func(request *http.Request) (interface{}, error) {
-		buf := bytes.NewBuffer(nil)
-		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-			if strings.HasPrefix(route, "/module/") {
-				return nil
-			}
-			_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
-			return nil
-		}
-
-		// request.Write()
-
-		err := chi.Walk(dbgSrv.Router, walkFn)
-		if err != nil {
-			// writer.WriteHeader(http.StatusInternalServerError)
-			// return
-			return nil, err
-		}
-
-		// writer.WriteHeader(http.StatusOK)
-		// _, _ = writer.Write(buf.Bytes())
-		// _ = request.Write(buf)
-		return buf, nil
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/discovery", func(_ *http.Request) (interface{}, error) {
+		return "TEST /module/discovery", nil
 	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (interface{}, error) {
