@@ -412,12 +412,12 @@ func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error)
 	hks = make([]*hooks.GlobalHook, 0, len(shellHooks)+len(goHooks))
 
 	for _, sh := range shellHooks {
-		gh := hooks.NewGlobalHook(sh, gm.dc)
+		gh := hooks.NewGlobalHook(sh)
 		hks = append(hks, gh)
 	}
 
 	for _, gh := range goHooks {
-		glh := hooks.NewGlobalHook(gh, gm.dc)
+		glh := hooks.NewGlobalHook(gh)
 		hks = append(hks, glh)
 	}
 

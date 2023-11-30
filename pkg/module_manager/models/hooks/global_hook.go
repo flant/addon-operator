@@ -15,19 +15,15 @@ import (
 type GlobalHook struct {
 	executableHook
 	config *GlobalHookConfig
-
-	dc *HookExecutionDependencyContainer
 }
 
 // NewGlobalHook constructs a new global hook
 //
 //	ex - is an executable hook instance (GoHook or ShellHook)
-func NewGlobalHook(ex executableHook, dc *HookExecutionDependencyContainer) *GlobalHook {
+func NewGlobalHook(ex executableHook) *GlobalHook {
 	return &GlobalHook{
 		executableHook: ex,
 		config:         &GlobalHookConfig{},
-
-		dc: dc,
 	}
 }
 

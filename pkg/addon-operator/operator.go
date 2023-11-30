@@ -244,8 +244,9 @@ type typedHook interface {
 	GetGoHookInputSettings() *go_hook.HookConfigSettings
 }
 
-// AllowHandleScheduleEvent returns false if the Schedule event can be ignored.
-func (op *AddonOperator) AllowHandleScheduleEvent(hook typedHook) bool {
+// allowHandleScheduleEvent returns false if the Schedule event can be ignored.
+// TODO: this method is compatible opnly with Go hooks, probably we want shell hooks to support this logic also
+func (op *AddonOperator) allowHandleScheduleEvent(hook typedHook) bool {
 	// Always allow if first converge is done.
 	if op.IsStartupConvergeDone() {
 		return true
@@ -287,7 +288,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 		var tasks []sh_task.Task
 		err := op.ModuleManager.HandleScheduleEvent(crontab,
 			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
-				if !op.AllowHandleScheduleEvent(globalHook) {
+				if !op.allowHandleScheduleEvent(globalHook) {
 					return
 				}
 
@@ -315,7 +316,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 				tasks = append(tasks, newTask)
 			},
 			func(module *modules.BasicModule, moduleHook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
-				if !op.AllowHandleScheduleEvent(moduleHook) {
+				if !op.allowHandleScheduleEvent(moduleHook) {
 					return
 				}
 
