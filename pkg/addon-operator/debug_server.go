@@ -1,10 +1,12 @@
 package addon_operator
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -16,6 +18,31 @@ import (
 )
 
 func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/global/discovery", func(request *http.Request) (interface{}, error) {
+		buf := bytes.NewBuffer(nil)
+		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+			if strings.HasPrefix(route, "/global/") {
+				return nil
+			}
+			_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
+			return nil
+		}
+
+		// request.Write()
+
+		err := chi.Walk(dbgSrv.Router, walkFn)
+		if err != nil {
+			// writer.WriteHeader(http.StatusInternalServerError)
+			// return
+			return nil, err
+		}
+
+		// writer.WriteHeader(http.StatusOK)
+		// _, _ = writer.Write(buf.Bytes())
+		// _ = request.Write(buf)
+		return buf, nil
+	})
+
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/list.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
 		return map[string]interface{}{
 			"globalHooks": op.ModuleManager.GetGlobalHooksNames(),
@@ -47,6 +74,31 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 }
 
 func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/discovery", func(request *http.Request) (interface{}, error) {
+		buf := bytes.NewBuffer(nil)
+		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+			if strings.HasPrefix(route, "/module/") {
+				return nil
+			}
+			_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
+			return nil
+		}
+
+		// request.Write()
+
+		err := chi.Walk(dbgSrv.Router, walkFn)
+		if err != nil {
+			// writer.WriteHeader(http.StatusInternalServerError)
+			// return
+			return nil, err
+		}
+
+		// writer.WriteHeader(http.StatusOK)
+		// _, _ = writer.Write(buf.Bytes())
+		// _ = request.Write(buf)
+		return buf, nil
+	})
+
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (interface{}, error) {
 		mods := op.ModuleManager.GetEnabledModuleNames()
 		sort.Strings(mods)
