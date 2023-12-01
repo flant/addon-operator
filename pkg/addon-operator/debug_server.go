@@ -1,10 +1,12 @@
 package addon_operator
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -162,5 +164,25 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		}
 
 		return snapshots, nil
+	})
+}
+
+func (op *AddonOperator) RegisterDiscoveryRoute(dbgSrv *debug.Server) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/discovery", func(_ *http.Request) (interface{}, error) {
+		buf := bytes.NewBuffer(nil)
+		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+			if strings.HasPrefix(route, "/global/") || strings.HasPrefix(route, "/module/") {
+				_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
+				return nil
+			}
+			return nil
+		}
+
+		err := chi.Walk(dbgSrv.Router, walkFn)
+		if err != nil {
+			return nil, err
+		}
+
+		return buf, nil
 	})
 }
