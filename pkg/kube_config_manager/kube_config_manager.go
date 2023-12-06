@@ -72,6 +72,15 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 	}
 }
 
+func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) bool {
+	moduleConfig, found := kcm.currentConfig.Modules[moduleName]
+	if !found {
+		return false
+	}
+
+	return *moduleConfig.IsEnabled
+}
+
 func (kcm *KubeConfigManager) Init() error {
 	kcm.logEntry.Debug("Init: KubeConfigManager")
 

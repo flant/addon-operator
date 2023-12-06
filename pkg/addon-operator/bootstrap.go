@@ -87,6 +87,7 @@ func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir st
 		HelmResourcesManager: op.HelmResourcesManager,
 		MetricStorage:        op.engine.MetricStorage,
 		HookMetricStorage:    op.engine.HookMetricStorage,
+		TaskQueues:           op.engine.TaskQueues,
 	}
 
 	cfg := module_manager.ModuleManagerConfig{

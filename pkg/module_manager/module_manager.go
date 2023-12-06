@@ -26,6 +26,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
+	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -36,6 +37,8 @@ import (
 	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/flant/shell-operator/pkg/metric_storage"
 	"github.com/flant/shell-operator/pkg/schedule_manager"
+	sh_task "github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
@@ -62,6 +65,7 @@ type DirectoryConfig struct {
 
 type KubeConfigManager interface {
 	SaveConfigValues(key string, values utils.Values) error
+	IsModuleEnabled(moduleName string) bool
 }
 
 // ModuleManagerDependencies pass dependencies for ModuleManager
@@ -74,6 +78,7 @@ type ModuleManagerDependencies struct {
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	MetricStorage        *metric_storage.MetricStorage
 	HookMetricStorage    *metric_storage.MetricStorage
+	TaskQueues           *queue.TaskQueueSet
 }
 
 type ModuleManagerConfig struct {
@@ -606,6 +611,28 @@ func (mm *ModuleManager) GetEnabledModuleNames() []string {
 	return mm.enabledModules
 }
 
+func (mm *ModuleManager) AddEnabledModuleName(name string) {
+	mm.enabledModules = append(mm.enabledModules, name)
+}
+
+func (mm *ModuleManager) DeleteEnabledModuleName(name string) {
+	for i, n := range mm.enabledModules {
+		if n == name {
+			mm.enabledModules[i] = mm.enabledModules[len(mm.enabledModules)-1]
+			mm.enabledModules = mm.enabledModules[:len(mm.enabledModules)-1]
+			break
+		}
+	}
+}
+
+func (mm *ModuleManager) AddEnabledModuleByConfigName(name string) {
+	mm.enabledModulesByConfig[name] = struct{}{}
+}
+
+func (mm *ModuleManager) DeleteEnabledModuleByConfigName(name string) {
+	delete(mm.enabledModulesByConfig, name)
+}
+
 // IsModuleEnabled ...
 func (mm *ModuleManager) IsModuleEnabled(moduleName string) bool {
 	for _, modName := range mm.enabledModules {
@@ -1042,6 +1069,160 @@ func mergeEnabled(enabledFlags ...*bool) bool {
 	return result
 }
 
+// PushDeleteModule push moduleDelete task for a module into the main queue
+func (mm *ModuleManager) PushDeleteModule(moduleName string) {
+	// check if there is already moduleDelete task in the main queue for the module
+	if queueHasPendingModuleDeleteTask(mm.dependencies.TaskQueues.GetMain(), moduleName) {
+		return
+	}
+
+	newTask := sh_task.NewTask(task.ModuleDelete).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription: "ModuleManager-Delete-Module",
+			ModuleName:       moduleName,
+		})
+	newTask.SetProp("triggered-by", "ModuleManager")
+
+	mm.dependencies.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
+}
+
+// PushRerunModule push moduleRun task for a module into the main queue
+func (mm *ModuleManager) PushRerunModule(moduleName string) {
+	// check if there is already moduleRun task in the main queue for the module
+	if queueHasPendingModuleRunTaskWithStartup(mm.dependencies.TaskQueues.GetMain(), moduleName) {
+		return
+	}
+
+	newTask := sh_task.NewTask(task.ModuleRun).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription: "ModuleManager-Update-Module",
+			ModuleName:       moduleName,
+			DoModuleStartup:  true,
+		})
+	newTask.SetProp("triggered-by", "ModuleManager")
+
+	mm.dependencies.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
+}
+
+// ReregisterModule disable and deregister modules' hooks, and reload module config
+func (mm *ModuleManager) ReregisterModule(moduleName, modulePath string) error {
+	if !mm.modules.IsInited() {
+		return moduleset.ErrNotInited
+	}
+
+	if mm.ModulesDir == "" {
+		log.Warnf("Empty modules directory is passed! No modules to load.")
+		return nil
+	}
+
+	if mm.moduleLoader == nil {
+		log.Errorf("no module loader set")
+		return fmt.Errorf("no module loader set")
+	}
+
+	mod, err := mm.moduleLoader.ReloadModule(moduleName, modulePath)
+	if err != nil {
+		return fmt.Errorf("failed to get module's definition: %w", err)
+	}
+
+	// load and registry global hooks
+	dep := &hooks.HookExecutionDependencyContainer{
+		HookMetricsStorage: mm.dependencies.HookMetricStorage,
+		KubeConfigManager:  mm.dependencies.KubeConfigManager,
+		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
+		MetricStorage:      mm.dependencies.MetricStorage,
+		GlobalValuesGetter: mm.global,
+	}
+
+	mod.WithDependencies(dep)
+
+	// check if module exists
+	if mm.modules.Has(mod.GetName()) {
+		// if module is disabled in module manager
+		if !mm.IsModuleEnabled(mod.GetName()) {
+			// and disabled in the module kube config - update and exit
+			if !mm.dependencies.KubeConfigManager.IsModuleEnabled(mod.GetName()) {
+				mm.modules.Add(mod)
+				return nil
+			}
+			// if the module kube config has enabled true, check enable scripts
+			mm.modules.Add(mod)
+			module := mm.GetModule(mod.GetName())
+			isEnabled, err := module.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
+			if err != nil {
+				return err
+			}
+
+			if isEnabled {
+				mm.AddEnabledModuleName(mod.GetName())
+				mm.AddEnabledModuleByConfigName(mod.GetName())
+				// enqueue module startup sequence if it is enabled
+				mm.PushRerunModule(mod.GetName())
+				mm.SendModuleEvent(events.ModuleEvent{
+					ModuleName: mod.GetName(),
+					EventType:  events.ModuleEnabled,
+				})
+			}
+
+			return nil
+		}
+
+		// module is enabled, disable its hooks
+		mm.DisableModuleHooks(mod.GetName())
+
+		module := mm.GetModule(mod.GetName())
+		// check for nil to prevent operator from panicking
+		if module == nil {
+			return fmt.Errorf("couldn't get %s module configuration", mod.GetName())
+		}
+
+		// deregister modules' hooks
+		module.DeregisterHooks()
+
+		// upsert a new module in the moduleset
+		mm.modules.Add(mod)
+
+		// get new module version
+		module = mm.GetModule(mod.GetName())
+
+		// check if module is enabled via enabled scripts
+		isEnabled, err := module.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
+		if err != nil {
+			return err
+		}
+
+		if isEnabled {
+			// enqueue module startup sequence if it is enabled
+			mm.PushRerunModule(mod.GetName())
+		} else {
+			mm.DeleteEnabledModuleName(mod.GetName())
+			// enqueue module delete sequence if it is disabled
+			mm.PushDeleteModule(mod.GetName())
+			// throw disable module event
+			mm.SendModuleEvent(events.ModuleEvent{
+				ModuleName: mod.GetName(),
+				EventType:  events.ModuleDisabled,
+			})
+		}
+
+		return nil
+	}
+
+	// module doesn't exist
+	mm.modules.Add(mod)
+
+	// a new module requires to be registered, possibly fast
+	mm.SendModuleEvent(events.ModuleEvent{
+		ModuleName: mod.GetName(),
+		EventType:  events.ModuleRegistered,
+		Reregister: true,
+	})
+
+	return nil
+}
+
 // registerModules load all available modules from modules directory.
 func (mm *ModuleManager) registerModules() error {
 	if mm.ModulesDir == "" {
@@ -1091,6 +1272,7 @@ func (mm *ModuleManager) registerModules() error {
 	log.Debugf("Found modules: %v", set.NamesInOrder())
 
 	mm.modules = set
+	mm.modules.SetInited()
 
 	return nil
 }
@@ -1160,4 +1342,51 @@ func loadStaticValues(moduleName, modulePath string) (utils.Values, error) {
 	}
 
 	return utils.LoadValuesFileFromDir(modulePath)
+}
+
+// queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
+// with the type "ModuleRun" related to the module "moduleName" and DoModuleStartup is set to true.
+func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName string) bool {
+	if q == nil {
+		return false
+	}
+	modules := modulesWithPendingTasks(q, task.ModuleRun)
+	meta, has := modules[moduleName]
+	return has && meta.doStartup
+}
+
+// queueHasPendingModuleDeleteTask returns true if queue has pending tasks
+// with the type "ModuleDelete" related to the module "moduleName"
+func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool {
+	if q == nil {
+		return false
+	}
+	modules := modulesWithPendingTasks(q, task.ModuleDelete)
+	meta, has := modules[moduleName]
+	return has && meta.doStartup
+}
+
+func modulesWithPendingTasks(q *queue.TaskQueue, taskType sh_task.TaskType) map[string]struct{ doStartup bool } {
+	if q == nil {
+		return nil
+	}
+
+	modules := make(map[string]struct{ doStartup bool })
+
+	skipFirstTask := true
+
+	q.Iterate(func(t sh_task.Task) {
+		// Skip the first task in the queue as it can be executed already, i.e. "not pending".
+		if skipFirstTask {
+			skipFirstTask = false
+			return
+		}
+
+		if t.GetType() == taskType {
+			hm := task.HookMetadataAccessor(t)
+			modules[hm.ModuleName] = struct{ doStartup bool }{doStartup: hm.DoModuleStartup}
+		}
+	})
+
+	return modules
 }

@@ -1,18 +1,35 @@
 package moduleset
 
 import (
+	"errors"
 	"sort"
 	"sync"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 )
 
+var ErrNotInited = errors.New("modules haven't been initialized yet")
+
 type ModulesSet struct {
 	lck          sync.RWMutex
 	modules      map[string]*modules.BasicModule
 	orderedNames []string
+	inited       bool
 }
 
+func (s *ModulesSet) SetInited() {
+	s.lck.Lock()
+	defer s.lck.Unlock()
+	s.inited = true
+}
+
+func (s *ModulesSet) IsInited() bool {
+	s.lck.RLock()
+	defer s.lck.RUnlock()
+	return s.inited
+}
+
+// adds a new module or overwrite an existing
 func (s *ModulesSet) Add(mods ...*modules.BasicModule) {
 	if len(mods) == 0 {
 		return
@@ -27,7 +44,7 @@ func (s *ModulesSet) Add(mods ...*modules.BasicModule) {
 
 	for _, module := range mods {
 		// Invalidate ordered names cache.
-		if _, ok := s.modules[module.GetName()]; ok {
+		if _, ok := s.modules[module.GetName()]; !ok {
 			s.orderedNames = nil
 		}
 		s.modules[module.GetName()] = module
