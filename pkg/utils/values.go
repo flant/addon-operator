@@ -247,17 +247,20 @@ func valueDeepCopy(item interface{}) interface{} {
 	typ := reflect.TypeOf(item)
 	val := reflect.ValueOf(item)
 
-	if typ.Kind() == reflect.Ptr {
+	switch typ.Kind() {
+	case reflect.Ptr:
 		newVal := reflect.New(typ.Elem())
 		newVal.Elem().Set(reflect.ValueOf(valueDeepCopy(val.Elem().Interface())))
 		return newVal.Interface()
-	} else if typ.Kind() == reflect.Map {
+
+	case reflect.Map:
 		newMap := reflect.MakeMap(typ)
 		for _, k := range val.MapKeys() {
 			newMap.SetMapIndex(k, reflect.ValueOf(valueDeepCopy(val.MapIndex(k).Interface())))
 		}
 		return newMap.Interface()
-	} else if typ.Kind() == reflect.Slice {
+
+	case reflect.Slice:
 		newSlice := reflect.MakeSlice(typ, val.Len(), val.Cap())
 		for i := 0; i < val.Len(); i++ {
 			newSlice.Index(i).Set(reflect.ValueOf(valueDeepCopy(val.Index(i).Interface())))
