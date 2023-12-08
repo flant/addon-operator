@@ -100,8 +100,6 @@ func (st *SchemaStorage) AddModuleValuesSchemas(moduleName string, configBytes, 
 		return fmt.Errorf("prepare module '%s' schemas: %s", moduleName, err)
 	}
 
-	fmt.Println("S", schemas)
-
 	if _, ok := st.ModuleSchemas[moduleName]; !ok {
 		st.ModuleSchemas[moduleName] = map[SchemaType]*spec.Schema{}
 	}

@@ -1117,8 +1117,6 @@ func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
 		return fmt.Errorf("read openAPI schemas failed: %v", err)
 	}
 
-	fmt.Println("SCHEMA on Validation", valuesModuleName, string(configBytes), string(valuesBytes))
-
 	err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
 		valuesModuleName,
 		configBytes,

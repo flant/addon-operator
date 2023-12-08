@@ -2,11 +2,8 @@ package validation
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/go-openapi/swag"
 	. "github.com/onsi/gomega"
@@ -132,16 +129,4 @@ func toGJSON(obj interface{}) (*gjson.Result, error) {
 
 	res := gjson.ParseBytes(schemaBytes)
 	return &res, nil
-}
-
-func TestMe(t *testing.T) {
-	cb := ``
-
-	vb := ``
-
-	vv := NewValuesValidator()
-	err := vv.SchemaStorage.AddModuleValuesSchemas("parca", []byte(cb), []byte(vb))
-	require.NoError(t, err)
-
-	fmt.Println(vv.SchemaStorage.ModuleValuesSchema("parca", ConfigValuesSchema))
 }
