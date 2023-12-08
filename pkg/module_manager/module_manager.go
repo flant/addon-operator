@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"sigs.k8s.io/yaml"
+
 	// bindings constants and binding configs
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
@@ -230,7 +232,13 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	// Detect changes in global section.
 	hasGlobalChange := false
 	newGlobalValues := valuesMap[mm.global.GetName()]
+	dd1, _ := yaml.Marshal(mm.global.GetConfigValues(false))
+	dd2, _ := yaml.Marshal(newGlobalValues)
+	fmt.Println("OLD VALUES", dd1)
+	fmt.Println("NEW VALUES", dd2)
+	fmt.Println("CHECKSUM", newGlobalValues.Checksum(), mm.global.GetConfigValues(false).Checksum())
 	if newGlobalValues.Checksum() != mm.global.GetConfigValues(false).Checksum() {
+		fmt.Println("CHECKSUM CHANGED")
 		hasGlobalChange = true
 		mm.global.SaveConfigValues(newGlobalValues)
 	}
