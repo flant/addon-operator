@@ -146,8 +146,26 @@ modulesImages:
 }
 
 func TestGenerateNewConfigValues(t *testing.T) {
+	configSchema := `
+type: object
+default: {}
+additionalProperties: false
+properties:
+  fieldA:
+    type: string
+  someField:
+    type: string
+`
+	schema := `
+x-extend:
+  schema: config-values.yaml
+`
+
 	vv := validation.NewValuesValidator()
-	vs := NewValuesStorage("test", utils.Values{"fieldA": "foo", "someField": "val1"}, vv)
+	err := vv.SchemaStorage.AddGlobalValuesSchemas([]byte(configSchema), []byte(schema))
+	require.NoError(t, err)
+
+	vs := NewValuesStorage("global", utils.Values{"fieldA": "foo", "someField": "val1"}, vv)
 	fmt.Println(vs.GetConfigValues(false))
 
 	newValues := utils.Values{"someField": "val2"}
@@ -159,7 +177,7 @@ func TestGenerateNewConfigValues(t *testing.T) {
 	vs.SaveConfigValues(newCalculated)
 	fmt.Println(vs.GetConfigValues(false))
 
-	newCalculated, err = vs.GenerateNewConfigValues(newValues, false)
+	newCalculated, err = vs.GenerateNewConfigValues(newValues, true)
 	require.NoError(t, err)
 	fmt.Println("NEW", newCalculated)
 	fmt.Println(vs.GetConfigValues(false))
