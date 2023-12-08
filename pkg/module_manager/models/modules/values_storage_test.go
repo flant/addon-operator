@@ -152,6 +152,14 @@ func TestGenerateNewConfigValues(t *testing.T) {
 
 	newValues := utils.Values{"someField": "val2"}
 	newCalculated, err := vs.GenerateNewConfigValues(newValues, false)
+	fmt.Printf("Address of %p\n", newValues)
+	fmt.Printf("Address of %p\n", newCalculated)
+	require.NoError(t, err)
+	fmt.Println("NEW", newCalculated)
+	vs.SaveConfigValues(newCalculated)
+	fmt.Println(vs.GetConfigValues(false))
+
+	newCalculated, err = vs.GenerateNewConfigValues(newValues, false)
 	require.NoError(t, err)
 	fmt.Println("NEW", newCalculated)
 	fmt.Println(vs.GetConfigValues(false))

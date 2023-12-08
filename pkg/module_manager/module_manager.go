@@ -231,18 +231,20 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Detect changes in global section.
 	hasGlobalChange := false
-	newGlobalValues := valuesMap[mm.global.GetName()]
-	dd1, _ := yaml.Marshal(mm.global.GetConfigValues(false))
-	dd2, _ := yaml.Marshal(newGlobalValues)
-	fmt.Println("OLD VALUES", string(dd1))
-	fmt.Println("NEW VALUES", string(dd2))
-	fmt.Println("CHECKSUM", newGlobalValues.Checksum(), mm.global.GetConfigValues(false).Checksum())
-	if newGlobalValues.Checksum() != mm.global.GetConfigValues(false).Checksum() {
-		fmt.Println("CHECKSUM CHANGED")
-		hasGlobalChange = true
-		mm.global.SaveConfigValues(newGlobalValues)
+	newGlobalValues, ok := valuesMap[mm.global.GetName()]
+	if ok {
+		dd1, _ := yaml.Marshal(mm.global.GetConfigValues(false))
+		dd2, _ := yaml.Marshal(newGlobalValues)
+		fmt.Println("OLD VALUES", string(dd1))
+		fmt.Println("NEW VALUES", string(dd2))
+		fmt.Println("CHECKSUM", newGlobalValues.Checksum(), mm.global.GetConfigValues(false).Checksum())
+		if newGlobalValues.Checksum() != mm.global.GetConfigValues(false).Checksum() {
+			fmt.Println("CHECKSUM CHANGED")
+			hasGlobalChange = true
+			mm.global.SaveConfigValues(newGlobalValues)
+		}
+		delete(valuesMap, mm.global.GetName())
 	}
-	delete(valuesMap, mm.global.GetName())
 
 	// Full reload if enabled flags are changed.
 	isEnabledChanged := false
@@ -294,9 +296,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, newEnabledByConfig map[string]struct{}) (map[string]utils.Values, error) {
 	validationErrors := &multierror.Error{}
 
-	checksums := make(map[string]utils.Values)
-
-	checksums[mm.global.GetName()] = mm.global.GetConfigValues(false)
+	valuesMap := make(map[string]utils.Values)
 
 	// validate global config
 	if kubeConfig.Global != nil {
@@ -308,7 +308,7 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, ne
 		}
 		fmt.Println("CALCULATED NEW", newValues.AsString("yaml"))
 		fmt.Println("AFTER NEW", mm.global.GetConfigValues(false))
-		checksums[mm.global.GetName()] = newValues
+		valuesMap[mm.global.GetName()] = newValues
 	}
 
 	// validate module configs
@@ -332,11 +332,11 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, ne
 			if validationErr != nil {
 				_ = multierror.Append(validationErrors, validationErr)
 			}
-			checksums[mod.GetName()] = newValues
+			valuesMap[mod.GetName()] = newValues
 		}
 	}
 
-	return checksums, validationErrors.ErrorOrNil()
+	return valuesMap, validationErrors.ErrorOrNil()
 }
 
 // warnAboutUnknownModules prints to log all unknown module section names.
