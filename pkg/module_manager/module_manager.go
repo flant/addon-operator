@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"sigs.k8s.io/yaml"
-
 	// bindings constants and binding configs
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
@@ -233,13 +231,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	hasGlobalChange := false
 	newGlobalValues, ok := valuesMap[mm.global.GetName()]
 	if ok {
-		dd1, _ := yaml.Marshal(mm.global.GetConfigValues(false))
-		dd2, _ := yaml.Marshal(newGlobalValues)
-		fmt.Println("OLD VALUES", string(dd1))
-		fmt.Println("NEW VALUES", string(dd2))
-		fmt.Println("CHECKSUM", newGlobalValues.Checksum(), mm.global.GetConfigValues(false).Checksum())
 		if newGlobalValues.Checksum() != mm.global.GetConfigValues(false).Checksum() {
-			fmt.Println("CHECKSUM CHANGED")
 			hasGlobalChange = true
 			mm.global.SaveConfigValues(newGlobalValues)
 		}
@@ -300,21 +292,10 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, ne
 
 	// validate global config
 	if kubeConfig.Global != nil {
-		// JUST DEBUG INFO
-		fmt.Println("BEFORE NEW1", mm.global.GetConfigValues(false))
-		aValues, err := mm.global.GenerateNewConfigValues(kubeConfig.Global.GetValues(), false)
-		fmt.Println("A VALUES", aValues, err)
-		fmt.Println("AFTER NEW1", mm.global.GetConfigValues(false))
-		// END DEBUG
-
-		fmt.Println("BEFORE NEW", mm.global.GetConfigValues(false))
-		fmt.Println("KUBECONFIG GLOBAL NEW", kubeConfig.Global.GetValues().AsString("yaml"))
 		newValues, validationErr := mm.global.GenerateNewConfigValues(kubeConfig.Global.GetValues(), true)
 		if validationErr != nil {
 			_ = multierror.Append(validationErrors, validationErr)
 		}
-		fmt.Println("CALCULATED NEW", newValues.AsString("yaml"))
-		fmt.Println("AFTER NEW", mm.global.GetConfigValues(false))
 		valuesMap[mm.global.GetName()] = newValues
 	}
 
