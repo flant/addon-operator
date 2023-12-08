@@ -1,7 +1,7 @@
 package modules
 
 import (
-	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/go-openapi/spec"
@@ -210,8 +210,6 @@ func (vs *ValuesStorage) SaveConfigValues(configV utils.Values) {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
-	fmt.Println("SAVING CONFIG VALUES", vs.moduleName, configV)
-
 	vs.configValues = configV
 	err := vs.calculateResultValues()
 	if err != nil {
@@ -235,6 +233,8 @@ func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate 
 		configV,
 	)
 
+	merged = deepCopyMap(merged)
+
 	if validate {
 		err := vs.validateConfigValues(merged)
 		if err != nil {
@@ -243,6 +243,43 @@ func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate 
 	}
 
 	return merged, nil
+}
+
+func deepCopyMap(originalMap map[string]interface{}) map[string]interface{} {
+	copiedMap := make(map[string]interface{})
+	for key, value := range originalMap {
+		copiedMap[key] = deepCopy(value)
+	}
+	return copiedMap
+}
+
+func deepCopy(item interface{}) interface{} {
+	if item == nil {
+		return nil
+	}
+
+	typ := reflect.TypeOf(item)
+	val := reflect.ValueOf(item)
+
+	if typ.Kind() == reflect.Ptr {
+		newVal := reflect.New(typ.Elem())
+		newVal.Elem().Set(reflect.ValueOf(deepCopy(val.Elem().Interface())))
+		return newVal.Interface()
+	} else if typ.Kind() == reflect.Map {
+		newMap := reflect.MakeMap(typ)
+		for _, k := range val.MapKeys() {
+			newMap.SetMapIndex(k, reflect.ValueOf(deepCopy(val.MapIndex(k).Interface())))
+		}
+		return newMap.Interface()
+	} else if typ.Kind() == reflect.Slice {
+		newSlice := reflect.MakeSlice(typ, val.Len(), val.Cap())
+		for i := 0; i < val.Len(); i++ {
+			newSlice.Index(i).Set(reflect.ValueOf(deepCopy(val.Index(i).Interface())))
+		}
+		return newSlice.Interface()
+	}
+
+	return item
 }
 
 func (vs *ValuesStorage) appendValuesPatch(patch utils.ValuesPatch) {

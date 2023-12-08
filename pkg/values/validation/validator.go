@@ -58,6 +58,7 @@ func (v *ValuesValidator) ValidateValues(schemaType SchemaType, valuesType Schem
 	s := v.GetSchema(schemaType, valuesType, moduleName)
 	if s == nil {
 		log.Warnf("%s schema (%s) for '%s' values is not found", schemaType, moduleName, valuesType)
+		fmt.Println(v.SchemaStorage.ModuleSchemas)
 		return nil
 	}
 
