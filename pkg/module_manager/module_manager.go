@@ -1092,6 +1092,8 @@ func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
 	valuesKey := utils.ModuleNameToValuesKey(mod.GetName())
 	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
 
+	log.Infof("Validating module %q from %q", mod.GetName(), mod.GetPath())
+
 	if mod.GetName() != restoredName {
 		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", mod.GetName(), restoredName)
 	}
@@ -1118,6 +1120,8 @@ func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
 	if err != nil {
 		return fmt.Errorf("read openAPI schemas failed: %v", err)
 	}
+
+	fmt.Println("SCHEMA on Validation", valuesModuleName, string(configBytes), string(valuesBytes))
 
 	err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
 		valuesModuleName,
