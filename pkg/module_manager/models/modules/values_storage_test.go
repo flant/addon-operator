@@ -2,6 +2,7 @@ package modules
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -142,4 +143,16 @@ modulesImages:
     registry: {}
     tags: {}
 `, v.AsString("yaml"))
+}
+
+func TestGenerateNewConfigValues(t *testing.T) {
+	vv := validation.NewValuesValidator()
+	vs := NewValuesStorage("test", utils.Values{"fieldA": "foo", "someField": "val1"}, vv)
+	fmt.Println(vs.GetConfigValues(false))
+
+	newValues := utils.Values{"someField": "val2"}
+	newCalculated, err := vs.GenerateNewConfigValues(newValues, false)
+	require.NoError(t, err)
+	fmt.Println("NEW", newCalculated)
+	fmt.Println(vs.GetConfigValues(false))
 }

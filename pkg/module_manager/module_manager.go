@@ -300,12 +300,14 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, ne
 
 	// validate global config
 	if kubeConfig.Global != nil {
+		fmt.Println("BEFORE NEW", mm.global.GetConfigValues(false))
 		fmt.Println("KUBECONFIG GLOBAL NEW", kubeConfig.Global.GetValues().AsString("yaml"))
 		newValues, validationErr := mm.global.GenerateNewConfigValues(kubeConfig.Global.GetValues(), true)
 		if validationErr != nil {
 			_ = multierror.Append(validationErrors, validationErr)
 		}
 		fmt.Println("CALCULATED NEW", newValues.AsString("yaml"))
+		fmt.Println("AFTER NEW", mm.global.GetConfigValues(false))
 		checksums[mm.global.GetName()] = newValues
 	}
 
