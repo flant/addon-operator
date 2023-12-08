@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/segmentio/go-camelcase"
@@ -223,4 +224,49 @@ func (v Values) YamlBytes() ([]byte, error) {
 
 func (v Values) IsEmpty() bool {
 	return len(v) == 0
+}
+
+// Copy returns full deep copy of the Values
+func (v Values) Copy() Values {
+	return deepCopyMap(v)
+}
+
+func deepCopyMap(originalMap map[string]interface{}) map[string]interface{} {
+	copiedMap := make(map[string]interface{})
+	for key, value := range originalMap {
+		copiedMap[key] = valueDeepCopy(value)
+	}
+	return copiedMap
+}
+
+func valueDeepCopy(item interface{}) interface{} {
+	if item == nil {
+		return nil
+	}
+
+	typ := reflect.TypeOf(item)
+	val := reflect.ValueOf(item)
+
+	switch typ.Kind() {
+	case reflect.Ptr:
+		newVal := reflect.New(typ.Elem())
+		newVal.Elem().Set(reflect.ValueOf(valueDeepCopy(val.Elem().Interface())))
+		return newVal.Interface()
+
+	case reflect.Map:
+		newMap := reflect.MakeMap(typ)
+		for _, k := range val.MapKeys() {
+			newMap.SetMapIndex(k, reflect.ValueOf(valueDeepCopy(val.MapIndex(k).Interface())))
+		}
+		return newMap.Interface()
+
+	case reflect.Slice:
+		newSlice := reflect.MakeSlice(typ, val.Len(), val.Cap())
+		for i := 0; i < val.Len(); i++ {
+			newSlice.Index(i).Set(reflect.ValueOf(valueDeepCopy(val.Index(i).Interface())))
+		}
+		return newSlice.Interface()
+	}
+
+	return item
 }

@@ -216,6 +216,8 @@ func (vs *ValuesStorage) SaveConfigValues(configV utils.Values) {
 	}
 }
 
+// GenerateNewConfigValues generated new config values, based on static and openapi specs
+// this method always makes a copy of the result values to prevent pointers shallow copying
 func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate bool) (utils.Values, error) {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
@@ -231,6 +233,9 @@ func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate 
 		// User configured values (ConfigValues)
 		configV,
 	)
+
+	// we are making deep copy here to avoid any pointers copying
+	merged = merged.Copy()
 
 	if validate {
 		err := vs.validateConfigValues(merged)
