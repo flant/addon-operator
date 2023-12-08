@@ -91,16 +91,16 @@ func (st *SchemaStorage) AddGlobalValuesSchemas(configBytes, valuesBytes []byte)
 
 // AddModuleValuesSchemas creates schema for module values.
 func (st *SchemaStorage) AddModuleValuesSchemas(moduleName string, configBytes, valuesBytes []byte) error {
+	if len(configBytes) == 0 && len(valuesBytes) == 0 {
+		return nil
+	}
+
 	schemas, err := PrepareSchemas(configBytes, valuesBytes)
 	if err != nil {
 		return fmt.Errorf("prepare module '%s' schemas: %s", moduleName, err)
 	}
 
-	if moduleName == "parca" {
-		fmt.Println("CB", string(configBytes))
-		fmt.Println("VB", string(valuesBytes))
-		fmt.Println("FOUND SCHEMAS", schemas)
-	}
+	fmt.Println("S", schemas)
 
 	if _, ok := st.ModuleSchemas[moduleName]; !ok {
 		st.ModuleSchemas[moduleName] = map[SchemaType]*spec.Schema{}
@@ -185,7 +185,7 @@ func LoadSchemaFromBytes(openApiContent []byte) (*spec.Schema, error) {
 // PrepareSchemas loads schemas for config values, values and helm values.
 func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*spec.Schema, err error) {
 	res := make(map[SchemaType]*spec.Schema)
-	if configBytes != nil {
+	if len(configBytes) > 0 {
 		schemaObj, err := LoadSchemaFromBytes(configBytes)
 		if err != nil {
 			return nil, fmt.Errorf("load global '%s' schema: %s", ConfigValuesSchema, err)
@@ -196,7 +196,7 @@ func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*sp
 		)
 	}
 
-	if valuesBytes != nil {
+	if len(valuesBytes) > 0 {
 		schemaObj, err := LoadSchemaFromBytes(valuesBytes)
 		if err != nil {
 			return nil, fmt.Errorf("load global '%s' schema: %s", ValuesSchema, err)

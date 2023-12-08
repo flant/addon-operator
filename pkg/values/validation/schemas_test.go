@@ -135,41 +135,9 @@ func toGJSON(obj interface{}) (*gjson.Result, error) {
 }
 
 func TestMe(t *testing.T) {
-	cb := `
-type: object
-required: []
-properties:
-  agent:
-    type: object
-    default: {}
-    properties:
-      enabled:
-        type: boolean
-        default: false
-        description: Enable the parca agent`
+	cb := ``
 
-	vb := `
-type: object
-x-extend:
-  schema: config-values.yaml
-properties:
-  registry:
-    type: object
-    default: {}
-    properties:
-      base:
-        type: string
-        default: registry.flant.com/team/foxtrot/parca
-      dockercfg:
-        type: string
-        default: eyJhdXRocyI6eyJyZWdpc3RyeS5mbGFudC5jb20iOnsidXNlcm5hbWUiOiJvYXV0aDIiLCJwYXNzd29yZCI6IldzTXplM1c3TDE5LVprVlRVVG5zIiwiYXV0aCI6ImIyRjFkR2d5T2xkelRYcGxNMWMzVERFNUxWcHJWbFJWVkc1eiIsImVtYWlsIjoiZmxhbnQtZ2ctMjU2QGZsYW50LmNvbSJ9fX0K
-  internal:
-    default: {}
-    properties:
-      deckhouseAddress:
-        type: string
-    type: object
-`
+	vb := ``
 
 	vv := NewValuesValidator()
 	err := vv.SchemaStorage.AddModuleValuesSchemas("parca", []byte(cb), []byte(vb))

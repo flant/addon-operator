@@ -1110,10 +1110,6 @@ func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
 
 	valuesModuleName := utils.ModuleNameToValuesKey(mod.GetName())
 
-	// if staticValues.HasKey(valuesModuleName) {
-	//	staticValues = staticValues.GetKeySection(valuesModuleName)
-	//}
-
 	// Load validation schemas
 	openAPIPath := filepath.Join(mod.GetPath(), "openapi")
 	configBytes, valuesBytes, err := readOpenAPIFiles(openAPIPath)

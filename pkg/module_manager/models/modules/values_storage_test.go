@@ -2,7 +2,6 @@ package modules
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -143,42 +142,4 @@ modulesImages:
     registry: {}
     tags: {}
 `, v.AsString("yaml"))
-}
-
-func TestGenerateNewConfigValues(t *testing.T) {
-	configSchema := `
-type: object
-default: {}
-additionalProperties: false
-properties:
-  fieldA:
-    type: string
-  someField:
-    type: string
-`
-	schema := `
-x-extend:
-  schema: config-values.yaml
-`
-
-	vv := validation.NewValuesValidator()
-	err := vv.SchemaStorage.AddGlobalValuesSchemas([]byte(configSchema), []byte(schema))
-	require.NoError(t, err)
-
-	vs := NewValuesStorage("global", utils.Values{"fieldA": "foo", "someField": "val1"}, vv)
-	fmt.Println(vs.GetConfigValues(false))
-
-	newValues := utils.Values{"someField": "val2"}
-	newCalculated, err := vs.GenerateNewConfigValues(newValues, false)
-	fmt.Printf("Address of %p\n", newValues)
-	fmt.Printf("Address of %p\n", newCalculated)
-	require.NoError(t, err)
-	fmt.Println("NEW", newCalculated)
-	vs.SaveConfigValues(newCalculated)
-	fmt.Println(vs.GetConfigValues(false))
-
-	newCalculated, err = vs.GenerateNewConfigValues(newValues, true)
-	require.NoError(t, err)
-	fmt.Println("NEW", newCalculated)
-	fmt.Println(vs.GetConfigValues(false))
 }
