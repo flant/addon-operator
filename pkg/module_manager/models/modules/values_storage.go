@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/go-openapi/spec"
@@ -208,6 +209,8 @@ func (vs *ValuesStorage) GetConfigValues(withPrefix bool) utils.Values {
 func (vs *ValuesStorage) SaveConfigValues(configV utils.Values) {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
+
+	fmt.Println("SAVING CONFIG VALUES", vs.moduleName, configV)
 
 	vs.configValues = configV
 	err := vs.calculateResultValues()
