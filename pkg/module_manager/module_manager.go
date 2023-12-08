@@ -234,8 +234,8 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	newGlobalValues := valuesMap[mm.global.GetName()]
 	dd1, _ := yaml.Marshal(mm.global.GetConfigValues(false))
 	dd2, _ := yaml.Marshal(newGlobalValues)
-	fmt.Println("OLD VALUES", dd1)
-	fmt.Println("NEW VALUES", dd2)
+	fmt.Println("OLD VALUES", string(dd1))
+	fmt.Println("NEW VALUES", string(dd2))
 	fmt.Println("CHECKSUM", newGlobalValues.Checksum(), mm.global.GetConfigValues(false).Checksum())
 	if newGlobalValues.Checksum() != mm.global.GetConfigValues(false).Checksum() {
 		fmt.Println("CHECKSUM CHANGED")
@@ -300,10 +300,12 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, ne
 
 	// validate global config
 	if kubeConfig.Global != nil {
+		fmt.Println("KUBECONFIG GLOBAL NEW", kubeConfig.Global.GetValues().AsString("yaml"))
 		newValues, validationErr := mm.global.GenerateNewConfigValues(kubeConfig.Global.GetValues(), true)
 		if validationErr != nil {
 			_ = multierror.Append(validationErrors, validationErr)
 		}
+		fmt.Println("CALCULATED NEW", newValues.AsString("yaml"))
 		checksums[mm.global.GetName()] = newValues
 	}
 
