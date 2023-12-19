@@ -576,6 +576,8 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	// Update state
 	mm.enabledModules = enabledModules
 
+	mm.global.SetEnabledModules(mm.enabledModules)
+
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
 		AllEnabledModules: mm.enabledModules,
