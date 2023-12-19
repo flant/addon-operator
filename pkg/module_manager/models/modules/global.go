@@ -295,6 +295,7 @@ func (gm *GlobalModule) SaveConfigValues(configV utils.Values) {
 }
 
 func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
+	fmt.Println("UUUU enabled modules", enabledModules)
 	data, _ := json.Marshal(enabledModules)
 	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
 		{
