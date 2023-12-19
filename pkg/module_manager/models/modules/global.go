@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -291,6 +292,19 @@ func (gm *GlobalModule) GenerateNewConfigValues(kubeConfigValues utils.Values, v
 
 func (gm *GlobalModule) SaveConfigValues(configV utils.Values) {
 	gm.valuesStorage.SaveConfigValues(configV)
+}
+
+func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
+	data, _ := json.Marshal(enabledModules)
+	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
+		{
+			Op:    "replace",
+			Path:  "enabledModules",
+			Value: data,
+		},
+	}})
+
+	fmt.Println("UUU", gm.valuesStorage.calculateResultValues())
 }
 
 func (gm *GlobalModule) GetValuesPatches() []utils.ValuesPatch {
