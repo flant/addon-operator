@@ -116,7 +116,7 @@ type ModuleManager struct {
 	enabledModulesByConfig map[string]struct{}
 
 	// List of effectively enabled modules after running enabled scripts.
-	enabledModules []string
+	enabledModules *eModules
 
 	globalSynchronizationState *modules.SynchronizationState
 
@@ -127,6 +127,47 @@ type ModuleManager struct {
 	kubeConfigValuesValid bool
 
 	moduleEventC chan events.ModuleEvent
+}
+
+type eModules struct {
+	lock    sync.RWMutex
+	modules []string
+}
+
+func (m *eModules) Add(name string) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.modules = append(m.modules, name)
+}
+
+func (m *eModules) Delete(name string) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	for i, n := range m.modules {
+		if n == name {
+			m.modules[i] = m.modules[len(m.modules)-1]
+			m.modules = m.modules[:len(m.modules)-1]
+			break
+		}
+	}
+}
+
+func (m *eModules) Replace(modules []string) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.modules = modules
+}
+
+func (m *eModules) GetAll() []string {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	return m.modules
+}
+
+func (m *eModules) String() string {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	return fmt.Sprintf("%v", m.modules)
 }
 
 // NewModuleManager returns new MainModuleManager
@@ -154,7 +195,7 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 		modules: new(moduleset.ModulesSet),
 
 		enabledModulesByConfig: make(map[string]struct{}),
-		enabledModules:         make([]string, 0),
+		enabledModules:         &eModules{modules: make([]string, 0)},
 		dynamicEnabled:         make(map[string]*bool),
 
 		globalSynchronizationState: modules.NewSynchronizationState(),
@@ -286,7 +327,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	// Return list of changed modules when only values are changed.
 	if len(modulesChanged) > 0 {
 		return &ModulesState{
-			AllEnabledModules: mm.enabledModules,
+			AllEnabledModules: mm.enabledModules.GetAll(),
 			ModulesToReload:   modulesChanged,
 		}, nil
 	}
@@ -497,7 +538,7 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	state := mm.stateFromHelmReleases(releasedModules)
 
 	// Initiate enabled modules list.
-	mm.enabledModules = state.AllEnabledModules
+	mm.enabledModules.Replace(state.AllEnabledModules)
 
 	return state, nil
 }
@@ -569,11 +610,11 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	// of enabled modules after running enabled scripts.
 	// Newly enabled modules are that present in the list after running enabled scripts
 	// but not present in the list of currently enabled modules.
-	newlyEnabledModules := utils.ListSubtract(enabledModules, mm.enabledModules)
+	newlyEnabledModules := utils.ListSubtract(enabledModules, mm.enabledModules.GetAll())
 
 	// Disabled modules are that present in the list of currently enabled modules
 	// but not present in the list after running enabled scripts
-	disabledModules := utils.ListSubtract(mm.enabledModules, enabledModules)
+	disabledModules := utils.ListSubtract(mm.enabledModules.GetAll(), enabledModules)
 	disabledModules = utils.SortReverseByReference(disabledModules, mm.modules.NamesInOrder())
 
 	logEntry.Debugf("Refresh state results:\n"+
@@ -587,13 +628,13 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 		newlyEnabledModules)
 
 	// Update state
-	mm.enabledModules = enabledModules
+	mm.enabledModules.Replace(enabledModules)
 
-	mm.global.SetEnabledModules(mm.enabledModules)
+	mm.global.SetEnabledModules(mm.enabledModules.GetAll())
 
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
-		AllEnabledModules: mm.enabledModules,
+		AllEnabledModules: mm.enabledModules.GetAll(),
 		ModulesToDisable:  disabledModules,
 		ModulesToEnable:   newlyEnabledModules,
 	}, nil
@@ -608,21 +649,15 @@ func (mm *ModuleManager) GetModuleNames() []string {
 }
 
 func (mm *ModuleManager) GetEnabledModuleNames() []string {
-	return mm.enabledModules
+	return mm.enabledModules.GetAll()
 }
 
 func (mm *ModuleManager) AddEnabledModuleName(name string) {
-	mm.enabledModules = append(mm.enabledModules, name)
+	mm.enabledModules.Add(name)
 }
 
 func (mm *ModuleManager) DeleteEnabledModuleName(name string) {
-	for i, n := range mm.enabledModules {
-		if n == name {
-			mm.enabledModules[i] = mm.enabledModules[len(mm.enabledModules)-1]
-			mm.enabledModules = mm.enabledModules[:len(mm.enabledModules)-1]
-			break
-		}
-	}
+	mm.enabledModules.Delete(name)
 }
 
 func (mm *ModuleManager) AddEnabledModuleByConfigName(name string) {
@@ -635,7 +670,7 @@ func (mm *ModuleManager) DeleteEnabledModuleByConfigName(name string) {
 
 // IsModuleEnabled ...
 func (mm *ModuleManager) IsModuleEnabled(moduleName string) bool {
-	for _, modName := range mm.enabledModules {
+	for _, modName := range mm.enabledModules.GetAll() {
 		if modName == moduleName {
 			return true
 		}
@@ -918,7 +953,7 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 		fn(gh, nil, nil)
 	}
 
-	for _, moduleName := range mm.enabledModules {
+	for _, moduleName := range mm.enabledModules.GetAll() {
 		m := mm.GetModule(moduleName)
 		moduleHooks := m.GetHooks(binding)
 		for _, mh := range moduleHooks {
@@ -1104,6 +1139,11 @@ func (mm *ModuleManager) PushRerunModule(moduleName string) {
 	newTask.SetProp("triggered-by", "ModuleManager")
 
 	mm.dependencies.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
+}
+
+// AreModulesInited returns true if moduleset has already been initialized
+func (mm *ModuleManager) AreModulesInited() bool {
+	return mm.modules.IsInited()
 }
 
 // ReregisterModule disable and deregister modules' hooks, and reload module config

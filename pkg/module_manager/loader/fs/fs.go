@@ -77,7 +77,7 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 }
 
 // read single directory and return BasicModule for loading
-func (fl *FileSystemLoader) ReloadModule(moduleName, modulePath string) (*modules.BasicModule, error) {
+func (fl *FileSystemLoader) ReloadModule(_, modulePath string) (*modules.BasicModule, error) {
 	_, err := readDir(modulePath)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (fl *FileSystemLoader) ReloadModule(moduleName, modulePath string) (*module
 		return nil, err
 	}
 
-	modDef, err := moduleFromDirName(moduleName, modulePath)
+	modDef, err := moduleFromDirName(filepath.Base(modulePath), modulePath)
 	if err != nil {
 		return nil, err
 	}
