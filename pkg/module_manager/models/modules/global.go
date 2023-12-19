@@ -302,8 +302,8 @@ func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
 	data, _ := json.Marshal(enabledModules)
 	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
 		{
-			Op:    "replace",
-			Path:  "/enabledModules",
+			Op:    "add",
+			Path:  "/global/enabledModules",
 			Value: data,
 		},
 	}})
