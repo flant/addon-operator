@@ -299,7 +299,7 @@ func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
 	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
 		{
 			Op:    "replace",
-			Path:  "enabledModules",
+			Path:  "/enabledModules",
 			Value: data,
 		},
 	}})
