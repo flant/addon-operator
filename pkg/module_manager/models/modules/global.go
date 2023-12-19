@@ -300,7 +300,7 @@ func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
 	if len(enabledModules) == 0 {
 		return
 	}
-	sort.Strings(enabledModules)
+
 	data, _ := json.Marshal(enabledModules)
 	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
 		{
