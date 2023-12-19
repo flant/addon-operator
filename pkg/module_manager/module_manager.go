@@ -153,7 +153,6 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 		dynamicEnabled:         make(map[string]*bool),
 
 		globalSynchronizationState: modules.NewSynchronizationState(),
-		moduleEventC:               make(chan events.ModuleEvent, 50),
 	}
 }
 
@@ -1012,6 +1011,10 @@ func (mm *ModuleManager) ApplyBindingActions(moduleHook *hooks.ModuleHook, bindi
 }
 
 func (mm *ModuleManager) SendModuleEvent(ev events.ModuleEvent) {
+	if mm.moduleEventC == nil {
+		return
+	}
+
 	mm.moduleEventC <- ev
 }
 
@@ -1070,10 +1073,10 @@ func (mm *ModuleManager) registerModules() error {
 
 		set.Add(mod)
 
-		mm.moduleEventC <- events.ModuleEvent{
+		mm.SendModuleEvent(events.ModuleEvent{
 			ModuleName: mod.GetName(),
 			EventType:  events.ModuleRegistered,
-		}
+		})
 	}
 
 	log.Debugf("Found modules: %v", set.NamesInOrder())
@@ -1083,7 +1086,13 @@ func (mm *ModuleManager) registerModules() error {
 	return nil
 }
 
+// GetModuleEventsChannel returns a channel with events that occur during module processing
+// events channel is created only if someone is reading it
 func (mm *ModuleManager) GetModuleEventsChannel() chan events.ModuleEvent {
+	if mm.moduleEventC == nil {
+		mm.moduleEventC = make(chan events.ModuleEvent, 50)
+	}
+
 	return mm.moduleEventC
 }
 
