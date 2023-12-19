@@ -486,8 +486,6 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	// Initiate enabled modules list.
 	mm.enabledModules = state.AllEnabledModules
 
-	fmt.Println("UUU2 ", mm.enabledModules)
-
 	return state, nil
 }
 
@@ -578,7 +576,6 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	// Update state
 	mm.enabledModules = enabledModules
 
-	fmt.Println("UUU1", mm.enabledModules)
 	mm.global.SetEnabledModules(mm.enabledModules)
 
 	// Return lists for ConvergeModules task.

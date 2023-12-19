@@ -294,11 +294,13 @@ func (gm *GlobalModule) SaveConfigValues(configV utils.Values) {
 	gm.valuesStorage.SaveConfigValues(configV)
 }
 
+// SetEnabledModules inject enabledModules to the global values
+// enabledModules are injected as a patch, to recalculate on every global values change
 func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
 	if len(enabledModules) == 0 {
 		return
 	}
-	fmt.Println("UUUU enabled modules", enabledModules)
+	sort.Strings(enabledModules)
 	data, _ := json.Marshal(enabledModules)
 	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
 		{
@@ -308,7 +310,7 @@ func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
 		},
 	}})
 
-	fmt.Println("UUU", gm.valuesStorage.calculateResultValues())
+	_ = gm.valuesStorage.calculateResultValues()
 }
 
 func (gm *GlobalModule) GetValuesPatches() []utils.ValuesPatch {
