@@ -117,6 +117,24 @@ func (kcm *KubeConfigManager) KubeConfigEventCh() chan config.KubeConfigEvent {
 	return kcm.configEventCh
 }
 
+// UpdateModuleConfig updates a single module config
+func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
+	newConfig, err := kcm.backend.LoadConfig(kcm.ctx)
+	if err != nil {
+		return err
+	}
+
+	if moduleConfig, found := newConfig.Modules[moduleName]; found {
+		if kcm.knownChecksums != nil {
+			kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
+		}
+
+		kcm.currentConfig.Modules[moduleName] = moduleConfig
+	}
+
+	return nil
+}
+
 // loadConfig gets config from ConfigMap before starting informer.
 // Set checksums for global section and modules.
 func (kcm *KubeConfigManager) loadConfig() error {

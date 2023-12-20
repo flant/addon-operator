@@ -66,6 +66,8 @@ type DirectoryConfig struct {
 type KubeConfigManager interface {
 	SaveConfigValues(key string, values utils.Values) error
 	IsModuleEnabled(moduleName string) bool
+	UpdateModuleConfig(moduleName string) error
+	SafeReadConfig(handler func(config *config.KubeConfig))
 }
 
 // ModuleManagerDependencies pass dependencies for ModuleManager
@@ -1123,10 +1125,22 @@ func (mm *ModuleManager) PushDeleteModule(moduleName string) {
 }
 
 // PushRerunModule push moduleRun task for a module into the main queue
-func (mm *ModuleManager) PushRerunModule(moduleName string) {
+func (mm *ModuleManager) PushRerunModule(moduleName string) error {
+	err := mm.dependencies.KubeConfigManager.UpdateModuleConfig(moduleName)
+	if err != nil {
+		return fmt.Errorf("couldn't update module %s kube config: %w", moduleName, err)
+	}
+
+	mm.dependencies.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
+		_, err = mm.HandleNewKubeConfig(config)
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't reload kube config: %s", err)
+	}
+
 	// check if there is already moduleRun task in the main queue for the module
 	if queueHasPendingModuleRunTaskWithStartup(mm.dependencies.TaskQueues.GetMain(), moduleName) {
-		return
+		return nil
 	}
 
 	newTask := sh_task.NewTask(task.ModuleRun).
@@ -1139,6 +1153,8 @@ func (mm *ModuleManager) PushRerunModule(moduleName string) {
 	newTask.SetProp("triggered-by", "ModuleManager")
 
 	mm.dependencies.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
+
+	return nil
 }
 
 // AreModulesInited returns true if moduleset has already been initialized
@@ -1199,7 +1215,10 @@ func (mm *ModuleManager) ReregisterModule(moduleName, modulePath string) error {
 				mm.AddEnabledModuleName(mod.GetName())
 				mm.AddEnabledModuleByConfigName(mod.GetName())
 				// enqueue module startup sequence if it is enabled
-				mm.PushRerunModule(mod.GetName())
+				err := mm.PushRerunModule(mod.GetName())
+				if err != nil {
+					return err
+				}
 				mm.SendModuleEvent(events.ModuleEvent{
 					ModuleName: mod.GetName(),
 					EventType:  events.ModuleEnabled,
@@ -1236,6 +1255,9 @@ func (mm *ModuleManager) ReregisterModule(moduleName, modulePath string) error {
 		if isEnabled {
 			// enqueue module startup sequence if it is enabled
 			mm.PushRerunModule(mod.GetName())
+			if err != nil {
+				return err
+			}
 		} else {
 			mm.DeleteEnabledModuleName(mod.GetName())
 			// enqueue module delete sequence if it is disabled
