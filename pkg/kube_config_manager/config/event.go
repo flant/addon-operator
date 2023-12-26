@@ -1,5 +1,13 @@
 package config
 
+type Op string
+
+const (
+	EventDelete Op = "Delete"
+	EventUpdate Op = "Update"
+	EventAdd    Op = "Add"
+)
+
 type Event struct {
 	// Key possible values
 	// "" - reset the whole config
@@ -9,4 +17,5 @@ type Event struct {
 	Key    string
 	Config *KubeConfig
 	Err    error
+	Op     Op
 }

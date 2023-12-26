@@ -94,6 +94,11 @@ func (mc *ModuleConfig) GetValues() Values {
 	return mc.values
 }
 
+// DropValues removes values from module config
+func (mc *ModuleConfig) DropValues() {
+	mc.values = Values{}
+}
+
 // LoadFromValues loads module config from a map.
 //
 // Values for module in `values` map are addressed by a key.

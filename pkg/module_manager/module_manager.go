@@ -217,8 +217,12 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Get map of enabled modules after KubeConfig changes.
 	newEnabledByConfig := mm.calculateEnabledModulesByConfig(kubeConfig)
+	allModules := make(map[string]struct{})
+	for _, module := range mm.modules.NamesInOrder() {
+		allModules[module] = struct{}{}
+	}
 
-	valuesMap, validationErr := mm.validateNewKubeConfig(kubeConfig, newEnabledByConfig)
+	valuesMap, validationErr := mm.validateNewKubeConfig(kubeConfig, allModules)
 	if validationErr != nil {
 		mm.SetKubeConfigValuesValid(false)
 		return &ModulesState{}, validationErr
@@ -260,7 +264,9 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		}
 
 		if mod.GetConfigValues(false).Checksum() != values.Checksum() {
-			modulesChanged = append(modulesChanged, moduleName)
+			if mm.IsModuleEnabled(moduleName) {
+				modulesChanged = append(modulesChanged, moduleName)
+			}
 			mod.SaveConfigValues(values)
 		}
 	}
@@ -315,11 +321,16 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, ne
 		}
 
 		if validateConfig {
-			newValues, validationErr := mod.GenerateNewConfigValues(moduleConfig.GetValues(), true)
-			if validationErr != nil {
-				_ = multierror.Append(validationErrors, validationErr)
+			// if module config values are empty - return empty values (without static and openapi default values)
+			if len(moduleConfig.GetValues()) == 0 {
+				valuesMap[mod.GetName()] = utils.Values{}
+			} else {
+				newValues, validationErr := mod.GenerateNewConfigValues(moduleConfig.GetValues(), true)
+				if validationErr != nil {
+					_ = multierror.Append(validationErrors, validationErr)
+				}
+				valuesMap[mod.GetName()] = newValues
 			}
-			valuesMap[mod.GetName()] = newValues
 		}
 	}
 
