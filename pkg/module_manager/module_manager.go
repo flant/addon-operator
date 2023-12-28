@@ -290,7 +290,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	return nil, nil
 }
 
-func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, newEnabledByConfig map[string]struct{}) (map[string]utils.Values, error) {
+func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, allModules map[string]struct{}) (map[string]utils.Values, error) {
 	validationErrors := &multierror.Error{}
 
 	valuesMap := make(map[string]utils.Values)
@@ -316,7 +316,7 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, ne
 		// Check if enabledModules are valid
 		// if module is enabled, we have to check config is valid
 		// otherwise we have to just save the config, because we can have some absent defaults or something like that
-		if _, has := newEnabledByConfig[moduleName]; has {
+		if _, has := allModules[moduleName]; has && mm.IsModuleEnabled(moduleName) {
 			validateConfig = true
 		}
 
