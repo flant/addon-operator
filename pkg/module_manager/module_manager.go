@@ -316,21 +316,19 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 		// Check if enabledModules are valid
 		// if module is enabled, we have to check config is valid
 		// otherwise we have to just save the config, because we can have some absent defaults or something like that
-		if _, has := allModules[moduleName]; has && mm.IsModuleEnabled(moduleName) {
+		if _, has := allModules[moduleName]; has && moduleConfig.GetEnabled() != "false" {
 			validateConfig = true
 		}
 
-		if validateConfig {
-			// if module config values are empty - return empty values (without static and openapi default values)
-			if len(moduleConfig.GetValues()) == 0 {
-				valuesMap[mod.GetName()] = utils.Values{}
-			} else {
-				newValues, validationErr := mod.GenerateNewConfigValues(moduleConfig.GetValues(), true)
-				if validationErr != nil {
-					_ = multierror.Append(validationErrors, validationErr)
-				}
-				valuesMap[mod.GetName()] = newValues
+		// if module config values are empty - return empty values (without static and openapi default values)
+		if len(moduleConfig.GetValues()) == 0 {
+			valuesMap[mod.GetName()] = utils.Values{}
+		} else {
+			newValues, validationErr := mod.GenerateNewConfigValues(moduleConfig.GetValues(), validateConfig)
+			if validationErr != nil {
+				_ = multierror.Append(validationErrors, validationErr)
 			}
+			valuesMap[mod.GetName()] = newValues
 		}
 	}
 
