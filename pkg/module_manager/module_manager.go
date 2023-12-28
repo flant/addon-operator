@@ -316,7 +316,7 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 		// Check if enabledModules are valid
 		// if module is enabled, we have to check config is valid
 		// otherwise we have to just save the config, because we can have some absent defaults or something like that
-		if _, has := allModules[moduleName]; has && moduleConfig.GetEnabled() != "false" {
+		if _, moduleExists := allModules[moduleName]; moduleExists && (moduleConfig.GetEnabled() == "true" || mm.IsModuleEnabled(moduleName)) {
 			validateConfig = true
 		}
 
