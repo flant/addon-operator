@@ -217,7 +217,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Get map of enabled modules after KubeConfig changes.
 	newEnabledByConfig := mm.calculateEnabledModulesByConfig(kubeConfig)
-	allModules := make(map[string]struct{})
+	allModules := make(map[string]struct{}, len(mm.modules.NamesInOrder()))
 	for _, module := range mm.modules.NamesInOrder() {
 		allModules[module] = struct{}{}
 	}
