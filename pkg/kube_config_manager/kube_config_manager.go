@@ -78,7 +78,7 @@ func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) bool {
 		return false
 	}
 
-	return *moduleConfig.IsEnabled
+	return moduleConfig.IsEnabled != nil && *moduleConfig.IsEnabled
 }
 
 func (kcm *KubeConfigManager) Init() error {
@@ -119,12 +119,12 @@ func (kcm *KubeConfigManager) KubeConfigEventCh() chan config.KubeConfigEvent {
 
 // UpdateModuleConfig updates a single module config
 func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
-	newConfig, err := kcm.backend.LoadConfig(kcm.ctx)
+	newModuleConfig, err := kcm.backend.LoadConfig(kcm.ctx, moduleName)
 	if err != nil {
 		return err
 	}
 
-	if moduleConfig, found := newConfig.Modules[moduleName]; found {
+	if moduleConfig, found := newModuleConfig.Modules[moduleName]; found {
 		if kcm.knownChecksums != nil {
 			kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
 		}

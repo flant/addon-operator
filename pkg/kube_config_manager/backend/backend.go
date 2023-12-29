@@ -13,7 +13,7 @@ type ConfigHandler interface {
 	StartInformer(ctx context.Context, eventC chan config.Event)
 
 	// LoadConfig loads initial modules config before starting the informer
-	LoadConfig(ctx context.Context) (*config.KubeConfig, error)
+	LoadConfig(ctx context.Context, modulesNames ...string) (*config.KubeConfig, error)
 
 	// SaveConfigValues saves patches for modules in backend (if supported), overriding the configuration
 	// Deprecated: saving values in the values source is not recommended and shouldn't be used anymore
