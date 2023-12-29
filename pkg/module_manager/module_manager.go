@@ -217,8 +217,12 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 
 	// Get map of enabled modules after KubeConfig changes.
 	newEnabledByConfig := mm.calculateEnabledModulesByConfig(kubeConfig)
+	allModules := make(map[string]struct{}, len(mm.modules.NamesInOrder()))
+	for _, module := range mm.modules.NamesInOrder() {
+		allModules[module] = struct{}{}
+	}
 
-	valuesMap, validationErr := mm.validateNewKubeConfig(kubeConfig, newEnabledByConfig)
+	valuesMap, validationErr := mm.validateNewKubeConfig(kubeConfig, allModules)
 	if validationErr != nil {
 		mm.SetKubeConfigValuesValid(false)
 		return &ModulesState{}, validationErr
@@ -260,7 +264,9 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		}
 
 		if mod.GetConfigValues(false).Checksum() != values.Checksum() {
-			modulesChanged = append(modulesChanged, moduleName)
+			if mm.IsModuleEnabled(moduleName) {
+				modulesChanged = append(modulesChanged, moduleName)
+			}
 			mod.SaveConfigValues(values)
 		}
 	}
@@ -284,7 +290,7 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	return nil, nil
 }
 
-func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, newEnabledByConfig map[string]struct{}) (map[string]utils.Values, error) {
+func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, allModules map[string]struct{}) (map[string]utils.Values, error) {
 	validationErrors := &multierror.Error{}
 
 	valuesMap := make(map[string]utils.Values)
@@ -310,12 +316,15 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, ne
 		// Check if enabledModules are valid
 		// if module is enabled, we have to check config is valid
 		// otherwise we have to just save the config, because we can have some absent defaults or something like that
-		if _, has := newEnabledByConfig[moduleName]; has {
+		if _, moduleExists := allModules[moduleName]; moduleExists && (moduleConfig.GetEnabled() == "true" || mm.IsModuleEnabled(moduleName)) {
 			validateConfig = true
 		}
 
-		if validateConfig {
-			newValues, validationErr := mod.GenerateNewConfigValues(moduleConfig.GetValues(), true)
+		// if module config values are empty - return empty values (without static and openapi default values)
+		if len(moduleConfig.GetValues()) == 0 {
+			valuesMap[mod.GetName()] = utils.Values{}
+		} else {
+			newValues, validationErr := mod.GenerateNewConfigValues(moduleConfig.GetValues(), validateConfig)
 			if validationErr != nil {
 				_ = multierror.Append(validationErrors, validationErr)
 			}

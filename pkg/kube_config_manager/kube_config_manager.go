@@ -209,13 +209,16 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 
 		// module update
 		kcm.m.Lock()
+		defer kcm.m.Unlock()
 		moduleName := obj.Key
 		moduleCfg := obj.Config.Modules[obj.Key]
-		currentModuleNames := kcm.currentModuleNames()
-		_, exists := currentModuleNames[obj.Key]
-		if !exists {
-			kcm.logEntry.Infof("Module sections deleted: %+v", moduleName)
-			modulesChanged = true
+		if obj.Op == config.EventDelete {
+			kcm.logEntry.Infof("Module section deleted: %+v", moduleName)
+			moduleCfg.DropValues()
+			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
+			kcm.currentConfig.Modules[obj.Key] = moduleCfg
+			kcm.configEventCh <- config.KubeConfigChanged
+			return
 		}
 		// Module section is changed if new checksum not equal to saved one and not in known checksums.
 		if kcm.knownChecksums.HasEqualChecksum(moduleName, moduleCfg.Checksum) {
@@ -241,7 +244,6 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigChanged
 		}
-		kcm.m.Unlock()
 	}
 }
 

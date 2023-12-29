@@ -25,6 +25,8 @@ func mergeLayers(initial utils.Values, layers ...interface{}) utils.Values {
 			res = utils.MergeValues(res, layer(res))
 		case valuesTransformer:
 			res = utils.MergeValues(res, layer.Transform(res))
+		case nil:
+			continue
 		}
 	}
 
