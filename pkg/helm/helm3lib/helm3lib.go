@@ -27,12 +27,12 @@ import (
 	klient "github.com/flant/kube-client/client"
 )
 
-func Init(opts *Options) {
-	hc := &LibClient{
-		LogEntry: log.WithField("operator.component", "helm3lib"),
-	}
-	options = opts
-	hc.initAndVersion()
+type Options struct {
+	Namespace  string
+	HistoryMax int32
+	Timeout    time.Duration
+	LogEntry   *log.Entry
+	KubeClient *klient.Client
 }
 
 // LibClient use helm3 package as Go library.
@@ -40,31 +40,33 @@ type LibClient struct {
 	KubeClient *klient.Client
 	LogEntry   *log.Entry
 	Namespace  string
-}
-
-type Options struct {
-	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
-	KubeClient *klient.Client
 }
 
 var (
 	_            client.HelmClient = &LibClient{}
-	options      *Options
 	actionConfig *action.Configuration
 )
 
-func NewClient(logLabels ...map[string]string) client.HelmClient {
+func NewClient(options *Options, logLabels ...map[string]string) client.HelmClient {
+	if options.LogEntry == nil {
+		options.LogEntry = log.WithField("operator.component", "helm3lib")
+	}
+	hc := &LibClient{}
+
+	hc.initAndVersion()
 	logEntry := log.WithField("operator.component", "helm3lib")
 	if len(logLabels) > 0 {
 		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
 	}
 
 	return &LibClient{
-		LogEntry:   logEntry,
+		LogEntry:   options.LogEntry,
 		KubeClient: options.KubeClient,
 		Namespace:  options.Namespace,
+		HistoryMax: options.HistoryMax,
+		Timeout:    options.Timeout,
 	}
 }
 
@@ -94,9 +96,9 @@ func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioption
 func (h *LibClient) actionConfigInit() {
 	ac := new(action.Configuration)
 
-	getter := buildConfigFlagsFromEnv(&options.Namespace, cli.New())
+	getter := buildConfigFlagsFromEnv(&h.Namespace, cli.New())
 	// Error is not possible for secrets driver
-	_ = ac.Init(getter, options.Namespace, "secrets", h.LogEntry.Debugf)
+	_ = ac.Init(getter, h.Namespace, "secrets", h.LogEntry.Debugf)
 
 	actionConfig = ac
 }
@@ -144,8 +146,8 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	upg.Install = true
-	upg.MaxHistory = int(options.HistoryMax)
-	upg.Timeout = options.Timeout
+	upg.MaxHistory = int(h.HistoryMax)
+	upg.Timeout = h.Timeout
 
 	chart, err := loader.Load(chartName)
 	if err != nil {
@@ -184,9 +186,10 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		if namespace != "" {
 			instClient.Namespace = namespace
 		}
-		instClient.Timeout = options.Timeout
+		instClient.Timeout = h.Timeout
 		instClient.ReleaseName = releaseName
 		instClient.UseReleaseName = true
+		instClient.CreateNamespace = true
 
 		_, err = instClient.Run(chart, resultValues)
 		return err
@@ -220,7 +223,7 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 
 	h.LogEntry.Infof("Trying to rollback '%s'", nsReleaseName)
 
-	if latestRelease.Version == 1 || options.HistoryMax == 1 || len(releases) == 1 {
+	if latestRelease.Version == 1 || h.HistoryMax == 1 || len(releases) == 1 {
 		rb := action.NewUninstall(actionConfig)
 		rb.KeepHistory = false
 		_, err := rb.Run(latestRelease.Name)

@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 
+	app "github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -44,6 +46,8 @@ type BasicModule struct {
 	// required
 	Path string
 
+	Namespace string
+
 	valuesStorage *ValuesStorage
 
 	state *moduleState
@@ -61,6 +65,7 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		Name:          name,
 		Order:         order,
 		Path:          path,
+		Namespace:     searchModuleNamespace(path),
 		valuesStorage: NewValuesStorage(name, staticValues, validator),
 		state: &moduleState{
 			Phase:                Startup,
@@ -69,6 +74,26 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		},
 		hooks: newHooksStorage(),
 	}
+}
+
+func searchModuleNamespace(modulePath string) string {
+	nsFilePath := filepath.Join(modulePath, "namespace")
+	if _, err := os.Stat(nsFilePath); err == nil {
+		bNamespace, err := os.ReadFile(nsFilePath)
+		if err != nil {
+			log.Errorf("  Error while read namespace file (%s): %s", nsFilePath, err)
+		}
+		namespace := strings.Trim(string(bNamespace), " \n\r")
+		if namespace != "" {
+			log.Debugf("  searchModuleNamespace: use namespace from file file (%s): %s", nsFilePath, namespace)
+			return namespace
+		}
+	} else if errors.Is(err, os.ErrNotExist) {
+		log.Debugf("  searchModuleNamespace: no namespace file (%s)", nsFilePath)
+	} else {
+		log.Errorf("  Error while read namespace file (%s): %s", nsFilePath, err)
+	}
+	return app.Namespace
 }
 
 // WithDependencies unject module dependencies
@@ -84,6 +109,11 @@ func (bm *BasicModule) GetOrder() uint32 {
 // GetName returns the module name
 func (bm *BasicModule) GetName() string {
 	return bm.Name
+}
+
+// GetNamespace returns the module namespace
+func (bm *BasicModule) GetNamespace() string {
+	return bm.Namespace
 }
 
 // GetPath returns the module path on a filesystem

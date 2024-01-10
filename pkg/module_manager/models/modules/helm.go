@@ -13,7 +13,6 @@ import (
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -27,6 +26,8 @@ type HelmModule struct {
 	name string
 	// Path of the module on the fs
 	path string
+
+	namespace string
 
 	values utils.Values
 
@@ -69,6 +70,7 @@ func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies,
 	hm := &HelmModule{
 		name:         bm.Name,
 		path:         bm.Path,
+		namespace:    bm.Namespace,
 		values:       chartValues,
 		tmpDir:       tmpDir,
 		dependencies: deps,
@@ -156,7 +158,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 	defer os.Remove(valuesPath)
 
-	helmClient := hm.dependencies.HelmClientFactory.NewClient(logLabels)
+	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.namespace, logLabels)
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
@@ -177,7 +179,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 			hm.path,
 			[]string{valuesPath},
 			[]string{},
-			app.Namespace,
+			hm.namespace,
 			false,
 		)
 	}()
@@ -215,7 +217,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	if !runUpgradeRelease {
 		// Start resources monitor if release is not changed
 		if !hm.dependencies.HelmResourceManager.HasMonitor(hm.name) {
-			hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace)
+			hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, hm.namespace)
 		}
 		return nil
 	}
@@ -238,7 +240,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 			hm.path,
 			[]string{valuesPath},
 			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
-			app.Namespace,
+			hm.namespace,
 		)
 	}()
 
@@ -247,7 +249,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 
 	// Start monitor resources if release was successful
-	hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace)
+	hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, hm.namespace)
 
 	return nil
 }
@@ -297,7 +299,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	}
 
 	// Check if there are absent resources
-	absent, err := hm.dependencies.HelmResourceManager.GetAbsentResources(manifests, app.Namespace)
+	absent, err := hm.dependencies.HelmResourceManager.GetAbsentResources(manifests, hm.namespace)
 	if err != nil {
 		return false, err
 	}
@@ -343,5 +345,5 @@ func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
 	}
 	defer os.Remove(valuesPath)
 
-	return hm.dependencies.HelmClientFactory.NewClient().Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
+	return hm.dependencies.HelmClientFactory.NewClient(hm.namespace).Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
 }

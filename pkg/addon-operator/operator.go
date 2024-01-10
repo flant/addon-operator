@@ -1266,7 +1266,13 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	logEntry.Debugf("Module purge start")
 
 	hm := task.HookMetadataAccessor(t)
-	err := op.Helm.NewClient(t.GetLogLabels()).DeleteRelease(hm.ModuleName)
+	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
+	if baseModule == nil {
+		logEntry.Warnf("Module purge failed, module not found")
+		status = queue.Success
+		return
+	}
+	err := op.Helm.NewClient(baseModule.Namespace, t.GetLogLabels()).DeleteRelease(hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
 		logEntry.Warnf("Module purge failed, no retry. Error: %s", err)

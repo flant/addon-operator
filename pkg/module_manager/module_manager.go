@@ -484,9 +484,15 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	if mm.dependencies.Helm == nil {
 		return &ModulesState{}, nil
 	}
-	releasedModules, err := mm.dependencies.Helm.NewClient(logLabels).ListReleasesNames(nil)
-	if err != nil {
-		return nil, err
+
+	releasedModules := []string{}
+	for _, moduleName := range mm.enabledModules {
+		m := mm.GetModule(moduleName)
+		modules, err := mm.dependencies.Helm.NewClient(m.GetNamespace(), logLabels).ListReleasesNames(nil)
+		if err != nil {
+			return nil, err
+		}
+		releasedModules = append(releasedModules, modules...)
 	}
 
 	state := mm.stateFromHelmReleases(releasedModules)
@@ -673,7 +679,9 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 		}
 		helmModule, _ := modules.NewHelmModule(ml, mm.TempDir, &hmdeps, mm.ValuesValidator)
 		if helmModule != nil {
-			releaseExists, err := mm.dependencies.Helm.NewClient(deleteLogLabels).IsReleaseExists(ml.GetName())
+			releaseExists, err := mm.dependencies.Helm.NewClient(ml.GetNamespace(), deleteLogLabels).IsReleaseExists(
+				ml.GetName(),
+			)
 			if !releaseExists {
 				if err != nil {
 					logEntry.Warnf("Cannot find helm release '%s' for module '%s'. Helm error: %s", ml.GetName(), ml.GetName(), err)
@@ -682,7 +690,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 				}
 			} else {
 				// Chart and release are existed, so run helm delete command
-				err := mm.dependencies.Helm.NewClient(deleteLogLabels).DeleteRelease(ml.GetName())
+				err := mm.dependencies.Helm.NewClient(ml.GetNamespace(), deleteLogLabels).DeleteRelease(ml.GetName())
 				if err != nil {
 					return err
 				}

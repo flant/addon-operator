@@ -26,44 +26,50 @@ var Helm3Path = "helm"
 type Helm3Options struct {
 	Namespace  string
 	HistoryMax int32
-	Timeout    time.Duration
 	KubeClient *klient.Client
+	LogEntry   *log.Entry
+	Timeout    time.Duration
 }
-
-var Options *Helm3Options
 
 // Init runs
 func Init(options *Helm3Options) error {
+	return nil
+}
+
+type Helm3Client struct {
+	Namespace  string
+	HistoryMax int32
+	KubeClient *klient.Client
+	LogEntry   *log.Entry
+	Timeout    time.Duration
+}
+
+var _ client.HelmClient = &Helm3Client{}
+
+func NewClient(options *Helm3Options, logLabels ...map[string]string) (client.HelmClient, error) {
 	hc := &Helm3Client{
 		LogEntry: log.WithField("operator.component", "helm"),
 	}
 	err := hc.initAndVersion()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	Options = options
-	return nil
-}
 
-type Helm3Client struct {
-	KubeClient *klient.Client
-	LogEntry   *log.Entry
-	Namespace  string
-}
+	if options.LogEntry == nil {
+		options.LogEntry = log.WithField("operator.component", "helm")
+	}
 
-var _ client.HelmClient = &Helm3Client{}
-
-func NewClient(logLabels ...map[string]string) client.HelmClient {
-	logEntry := log.WithField("operator.component", "helm")
 	if len(logLabels) > 0 {
-		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
+		options.LogEntry = options.LogEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
 	}
 
 	return &Helm3Client{
-		LogEntry:   logEntry,
-		KubeClient: Options.KubeClient,
-		Namespace:  Options.Namespace,
-	}
+		Namespace:  options.Namespace,
+		HistoryMax: options.HistoryMax,
+		KubeClient: options.KubeClient,
+		LogEntry:   options.LogEntry,
+		Timeout:    options.Timeout,
+	}, nil
 }
 
 func (h *Helm3Client) WithKubeClient(client *klient.Client) {
@@ -105,7 +111,7 @@ func (h *Helm3Client) initAndVersion() error {
 //	REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
 //	1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
 func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
-	stdout, stderr, err := h.cmd("history", releaseName, "--max", "1", "--output", "yaml")
+	stdout, stderr, err := h.cmd("history", releaseName, "--max", "1", "--output", "yaml", "--namespace", h.Namespace)
 	if err != nil {
 		errLine := strings.Split(stderr, "\n")[0]
 		if strings.Contains(errLine, "Error:") && strings.Contains(errLine, "not found") {
@@ -150,14 +156,15 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 	args = append(args, "--install")
 
 	args = append(args, "--history-max")
-	args = append(args, fmt.Sprintf("%d", Options.HistoryMax))
+	args = append(args, fmt.Sprintf("%d", h.HistoryMax))
 
 	args = append(args, "--timeout")
-	args = append(args, Options.Timeout.String())
+	args = append(args, h.Timeout.String())
 
 	if namespace != "" {
 		args = append(args, "--namespace")
 		args = append(args, namespace)
+		args = append(args, "--create-namespace")
 	}
 
 	for _, valuesPath := range valuesPaths {
@@ -285,6 +292,7 @@ func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []str
 	if namespace != "" {
 		args = append(args, "--namespace")
 		args = append(args, namespace)
+		args = append(args, "--create-namespace")
 	}
 
 	for _, valuesPath := range valuesPaths {
