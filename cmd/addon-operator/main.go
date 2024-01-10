@@ -54,11 +54,13 @@ func main() {
 
 			err := operator.Setup()
 			if err != nil {
+                fmt.Printf("Setup is failed: %s\n", err)
 				os.Exit(1)
 			}
 
 			err = operator.Start()
 			if err != nil {
+                fmt.Printf("Start is failed: %s\n", err)
 				os.Exit(1)
 			}
 
