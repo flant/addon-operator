@@ -31,11 +31,6 @@ type Helm3Options struct {
 	Timeout    time.Duration
 }
 
-// Init runs
-func Init(options *Helm3Options) error {
-	return nil
-}
-
 type Helm3Client struct {
 	Namespace  string
 	HistoryMax int32

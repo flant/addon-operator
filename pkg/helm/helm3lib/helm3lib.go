@@ -62,7 +62,7 @@ func NewClient(options *Options, logLabels ...map[string]string) client.HelmClie
 	}
 
 	return &LibClient{
-		LogEntry:   options.LogEntry,
+		LogEntry:   logEntry,
 		KubeClient: options.KubeClient,
 		Namespace:  options.Namespace,
 		HistoryMax: options.HistoryMax,
