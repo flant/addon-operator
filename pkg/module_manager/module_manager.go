@@ -14,7 +14,10 @@ import (
 	// bindings constants and binding configs
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kblabels "k8s.io/apimachinery/pkg/labels"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/hook/types"
@@ -28,6 +31,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	klient "github.com/flant/kube-client/client"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -74,6 +78,7 @@ type ModuleManagerDependencies struct {
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	MetricStorage        *metric_storage.MetricStorage
 	HookMetricStorage    *metric_storage.MetricStorage
+	KubeClient           *klient.Client
 }
 
 type ModuleManagerConfig struct {
@@ -154,6 +159,10 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 
 		globalSynchronizationState: modules.NewSynchronizationState(),
 	}
+}
+
+func (mm *ModuleManager) WithKubeClient(client *klient.Client) {
+	mm.dependencies.KubeClient = client
 }
 
 func (mm *ModuleManager) Stop() {
@@ -482,13 +491,32 @@ func (mm *ModuleManager) Start() {
 // Run this method once at startup.
 func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]string) (*ModulesState, error) {
 	if mm.dependencies.Helm == nil {
+		log.Debugf("ModuleManager: no Helm in dependencies, skip RefreshStateFromHelmReleases")
 		return &ModulesState{}, nil
 	}
 
-	releasedModules := []string{}
-	for _, moduleName := range mm.enabledModules {
-		m := mm.GetModule(moduleName)
-		modules, err := mm.dependencies.Helm.NewClient(m.GetNamespace(), logLabels).ListReleasesNames(nil)
+	if mm.dependencies.KubeClient == nil {
+		log.Debugf("ModuleManager: no KubeClient in dependencies, skip RefreshStateFromHelmReleases")
+		return &ModulesState{}, nil
+	}
+
+	releasedModules, err := mm.dependencies.Helm.NewClient(app.Namespace, logLabels).ListReleasesNames(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	labelsSet := make(kblabels.Set)
+	labelsSet[app.ManagedResourceLabelKey] = app.ManagedResourceLabelValue
+	namespaces, err := mm.dependencies.KubeClient.CoreV1().Namespaces().List(
+		context.TODO(),
+		metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, namespace := range namespaces.Items {
+		modules, err := mm.dependencies.Helm.NewClient(namespace.Name, logLabels).ListReleasesNames(nil)
 		if err != nil {
 			return nil, err
 		}
@@ -528,6 +556,8 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 	purge := utils.MapStringStructKeys(releasesMap)
 	purge = utils.SortReverse(purge)
 
+	log.Debugf("Modules found: %v", releases)
+	log.Debugf("Modules NameInOrder : %v", mm.modules.NamesInOrder())
 	log.Infof("Modules to purge found: %v", purge)
 
 	return &ModulesState{
@@ -602,6 +632,42 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 
 func (mm *ModuleManager) GetModule(name string) *modules.BasicModule {
 	return mm.modules.Get(name)
+}
+
+// Returns namespace if found
+func (mm *ModuleManager) FindModuleNamespace(moduleName string) (string, error) {
+	labelsSet := make(kblabels.Set)
+	labelsSet[app.ManagedResourceLabelKey] = app.ManagedResourceLabelValue
+
+	namespacesList, err := mm.dependencies.KubeClient.CoreV1().Namespaces().List(
+		context.TODO(),
+		metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	namespaces := []string{}
+	namespaces = append(namespaces, app.Namespace)
+
+	for _, namespace := range namespacesList.Items {
+		if namespace.Name != app.Namespace {
+			namespaces = append(namespaces, namespace.Name)
+		}
+	}
+
+	for _, namespace := range namespaces {
+		modules, err := mm.dependencies.Helm.NewClient(namespace).ListReleasesNames(nil)
+		if err != nil {
+			return "", err
+		}
+		for _, module := range modules {
+			if module == moduleName {
+				return namespace, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 func (mm *ModuleManager) GetModuleNames() []string {

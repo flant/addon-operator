@@ -213,6 +213,8 @@ func (op *AddonOperator) InitModuleManager() error {
 		return fmt.Errorf("init module manager: %s", err)
 	}
 
+	op.ModuleManager.WithKubeClient(op.KubeClient())
+
 	// Load existing config values from KubeConfigManager.
 	// Also, it is possible to override initial KubeConfig to give global hooks a chance
 	// to handle the KubeConfigManager content later.
@@ -1266,13 +1268,26 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	logEntry.Debugf("Module purge start")
 
 	hm := task.HookMetadataAccessor(t)
+
+	moduleNamespace := app.Namespace
+
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
-	if baseModule == nil {
-		logEntry.Warnf("Module purge failed, module not found")
-		status = queue.Success
-		return
+	if baseModule != nil {
+		moduleNamespace = baseModule.Namespace
+	} else {
+		ns, err := op.ModuleManager.FindModuleNamespace(hm.ModuleName)
+		if ns != "" {
+			moduleNamespace = ns
+		} else {
+			if err == nil {
+				logEntry.Warnf("Namespace not found for module '%s'", hm.ModuleName)
+			} else {
+				logEntry.Errorf("FindModuleNamespace failed: %s", err)
+			}
+		}
 	}
-	err := op.Helm.NewClient(baseModule.Namespace, t.GetLogLabels()).DeleteRelease(hm.ModuleName)
+
+	err := op.Helm.NewClient(moduleNamespace, t.GetLogLabels()).DeleteRelease(hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
 		logEntry.Warnf("Module purge failed, no retry. Error: %s", err)

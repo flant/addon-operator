@@ -2,8 +2,9 @@ package helm
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
@@ -56,6 +57,7 @@ func (f *ClientFactory) NewClient(namespace string, logLabels ...map[string]stri
 			KubeClient: f.kubeClient,
 		}, logLabels...)
 		if err != nil {
+			//!!! TODO Remove os.Exit and return error
 			fmt.Printf("Error while init helm3: %s\n", err)
 			os.Exit(1)
 		}

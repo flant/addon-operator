@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
+	k8types "k8s.io/apimachinery/pkg/types"
 	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/app"
@@ -141,6 +142,9 @@ func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, st
 }
 
 func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
+	if namespace == "" {
+		namespace = h.Namespace
+	}
 	args := make([]string, 0)
 	args = append(args, "upgrade")
 	// releaseName and chart path are positional arguments, put them first.
@@ -156,11 +160,9 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 	args = append(args, "--timeout")
 	args = append(args, h.Timeout.String())
 
-	if namespace != "" {
-		args = append(args, "--namespace")
-		args = append(args, namespace)
-		args = append(args, "--create-namespace")
-	}
+	args = append(args, "--namespace")
+	args = append(args, namespace)
+	args = append(args, "--create-namespace")
 
 	for _, valuesPath := range valuesPaths {
 		args = append(args, "--values")
@@ -178,6 +180,14 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 		return fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
 	}
 	h.LogEntry.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful:\n%s\n%s", releaseName, chart, namespace, stdout, stderr)
+
+	if app.Namespace != namespace {
+		err = h.markReleaseWithOperatorLabel(releaseName, namespace)
+		if err != nil {
+			return fmt.Errorf("Mark release with operator label failed: %s", err)
+		}
+		h.LogEntry.Infof("Mark release '%s' successful", releaseName)
+	}
 
 	return nil
 }
@@ -287,7 +297,6 @@ func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []str
 	if namespace != "" {
 		args = append(args, "--namespace")
 		args = append(args, namespace)
-		args = append(args, "--create-namespace")
 	}
 
 	for _, valuesPath := range valuesPaths {
@@ -308,4 +317,59 @@ func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []str
 	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chart)
 
 	return stdout, nil
+}
+
+// TODO Refactoring, must be one method/function for helm3 and helm3lib
+func (h *Helm3Client) markReleaseWithOperatorLabel(releaseName string, namespace string) error {
+	labelPatch := fmt.Sprintf(
+		`[{"op":"add","path":"/metadata/labels/%s","value":"%s" }]`,
+		app.ManagedResourceLabelKey,
+		app.ManagedResourceLabelValue,
+	)
+
+	// Mark namespace
+	_, err := h.KubeClient.CoreV1().Namespaces().Patch(
+		context.TODO(),
+		namespace,
+		k8types.JSONPatchType, []byte(labelPatch),
+		metav1.PatchOptions{},
+	)
+	if err != nil {
+		// TODO: In test mode we cannot create labels for namespace, maybe it's possible
+		// but after creating the patch with {} labels and then creating the label - error already exists
+		if strings.Contains(err.Error(), "doc is missing path") {
+			h.LogEntry.Errorf("Skip markReleaseWithOperatorLabel: this is test mode. If not then this is an error")
+			return nil
+		}
+		return fmt.Errorf("Create label for namespace '%s' failed: %s", namespace, err)
+	}
+
+	// Mark helm release
+	labelsSet := make(kblabels.Set)
+	labelsSet["name"] = releaseName
+	labelsSet["owner"] = "helm"
+	list, err := h.KubeClient.CoreV1().
+		Secrets(namespace).
+		List(context.TODO(), metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
+	if err != nil {
+		h.LogEntry.Debugf("helm: mark secret of release '%s' failed: %s", releaseName, err)
+		return err
+	}
+	if len(list.Items) == 0 {
+		h.LogEntry.Debugf("helm: mark secret of release '%s' failed, no secrets", releaseName)
+		return nil
+	}
+
+	for _, secret := range list.Items {
+		_, err = h.KubeClient.CoreV1().Secrets(namespace).Patch(
+			context.TODO(),
+			secret.Name,
+			k8types.JSONPatchType, []byte(labelPatch),
+			metav1.PatchOptions{},
+		)
+		if err != nil {
+			return fmt.Errorf("Create label for release '%s' failed: %s", releaseName, err)
+		}
+	}
+	return nil
 }

@@ -42,10 +42,32 @@ func TestHelm3LibUpgradeDelete(t *testing.T) {
 
 	err := cl.UpgradeRelease("test-release", "testdata/chart", nil, nil, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// We can not create labels, see comments in markReleaseWithOperatorLabel
+
+	// namespaces, _ := cl.KubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+	// nsExists := false
+	// labelsExists := false
+	// for _, ns := range namespaces.Items {
+	// 	if ns.Name != "test-ns" {
+	// 		continue
+	// 	}
+	// 	nsExists = true
+	// 	labels := ns.GetLabels()
+	// 	t.Logf("Labels: %v", labels)
+	// 	value, ok := labels[app.ManagedResourceLabelKey]
+	// 	if ok && value == app.ManagedResourceLabelValue {
+	// 		labelsExists = true
+	// 	}
+	// 	break
+	// }
+	// g.Expect(nsExists).Should(BeTrue(), "namespace doesn't exists")
+	// g.Expect(labelsExists).Should(BeTrue(), "namespace should contain operator labels")
 }
 
 func initHelmClient(t *testing.T) *LibClient {
 	fCluster := fake.NewFakeCluster(fake.ClusterVersionV125)
+	fCluster.CreateNs("test-ns")
 
 	actionConfig = actionConfigFixture(t)
 

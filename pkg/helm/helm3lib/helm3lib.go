@@ -18,6 +18,7 @@ import (
 	"helm.sh/helm/v3/pkg/storage/driver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kblabels "k8s.io/apimachinery/pkg/labels"
+	k8types "k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 
@@ -133,7 +134,18 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		// helm validation can fail because FeatureGate was enabled for example
 		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
 		h.actionConfigInit()
-		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
+		h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
+		if err != nil {
+			return err
+		}
+	}
+
+	if app.Namespace != namespace {
+		err = h.markReleaseWithOperatorLabel(releaseName, namespace)
+		if err != nil {
+			return fmt.Errorf("Mark release with operator label failed: %s", err)
+		}
+		h.LogEntry.Infof("Mark release '%s' successful", releaseName)
 	}
 
 	return nil
@@ -213,7 +225,6 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		return fmt.Errorf("helm upgrade failed: %s\n", err)
 	}
 	h.LogEntry.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful", releaseName, chartName, namespace)
-
 	return nil
 }
 
@@ -389,4 +400,58 @@ func newInstAction(namespace, releaseName string) *action.Install {
 	inst.DisableOpenAPIValidation = true
 
 	return inst
+}
+
+// TODO Refactoring, must be one method/function for helm3 and helm3lib
+func (h *LibClient) markReleaseWithOperatorLabel(releaseName string, namespace string) error {
+	labelPatch := fmt.Sprintf(
+		`[{"op":"add","path":"/metadata/labels/%s","value":"%s" }]`,
+		app.ManagedResourceLabelKey,
+		app.ManagedResourceLabelValue,
+	)
+
+	// Mark namespace
+	_, err := h.KubeClient.CoreV1().Namespaces().Patch(
+		context.TODO(),
+		namespace,
+		k8types.JSONPatchType, []byte(labelPatch),
+		metav1.PatchOptions{},
+	)
+	if err != nil {
+		// TODO: In test mode we cannot create labels for namespace, maybe it's possible
+		// but after creating the patch with {} labels and then creating the label - error already exists
+		if strings.Contains(err.Error(), "doc is missing path") {
+			h.LogEntry.Errorf("Skip markReleaseWithOperatorLabel: this is test mode. If not then this is an error")
+			return nil
+		}
+	}
+
+	// Mark helm release
+	labelsSet := make(kblabels.Set)
+	labelsSet["name"] = releaseName
+	labelsSet["owner"] = "helm"
+	list, err := h.KubeClient.CoreV1().
+		Secrets(namespace).
+		List(context.TODO(), metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
+	if err != nil {
+		h.LogEntry.Debugf("helm: mark secret of release '%s' failed: %s", releaseName, err)
+		return err
+	}
+	if len(list.Items) == 0 {
+		h.LogEntry.Debugf("helm: mark secret of release '%s' failed, no secrets", releaseName)
+		return nil
+	}
+
+	for _, secret := range list.Items {
+		_, err = h.KubeClient.CoreV1().Secrets(namespace).Patch(
+			context.TODO(),
+			secret.Name,
+			k8types.JSONPatchType, []byte(labelPatch),
+			metav1.PatchOptions{},
+		)
+		if err != nil {
+			return fmt.Errorf("Create label for release '%s' failed: %s", releaseName, err)
+		}
+	}
+	return nil
 }

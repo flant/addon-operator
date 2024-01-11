@@ -42,6 +42,10 @@ var (
 
 	// StrictModeEnabled fail with error if MODULES_DIR/values.yaml does not exist
 	StrictModeEnabled = false
+
+	// For discovery operator's resources
+	ManagedResourceLabelKey   = "addon-operator"
+	ManagedResourceLabelValue = "true"
 )
 
 const (
