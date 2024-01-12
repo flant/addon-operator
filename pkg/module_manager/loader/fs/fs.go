@@ -29,6 +29,78 @@ func NewFileSystemLoader(moduleDirs string, vv *validation.ValuesValidator) *Fil
 	}
 }
 
+func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonStaticValues utils.Values) (*modules.BasicModule, error) {
+	err := validateModuleName(definition.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	valuesModuleName := utils.ModuleNameToValuesKey(definition.Name)
+	initialValues := utils.Values{valuesModuleName: map[string]interface{}{}}
+	// build initial values
+	// 1. from common static values
+	if commonStaticValues.HasKey(valuesModuleName) {
+		initialValues = utils.MergeValues(initialValues, commonStaticValues)
+	}
+
+	// 2. from module static values
+	moduleStaticValues, err := utils.LoadValuesFileFromDir(definition.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	if moduleStaticValues != nil {
+		initialValues = utils.MergeValues(initialValues, moduleStaticValues)
+	}
+
+	// 3. from openapi defaults
+
+	cb, vb, err := fl.readOpenAPIFiles(filepath.Join(definition.Path, "openapi"))
+	if err != nil {
+		return nil, err
+	}
+
+	if cb != nil && vb != nil {
+		err = fl.valuesValidator.SchemaStorage.AddModuleValuesSchemas(valuesModuleName, cb, vb)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	//
+	moduleValues, ok := initialValues[valuesModuleName].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("expect map[string]interface{} in module values")
+	}
+
+	return modules.NewBasicModule(definition.Name, definition.Path, definition.Order, moduleValues, fl.valuesValidator), nil
+}
+
+// read single directory and return BasicModule for loading
+func (fl *FileSystemLoader) ReloadModule(_, modulePath string) (*modules.BasicModule, error) {
+	_, err := readDir(modulePath)
+	if err != nil {
+		return nil, err
+	}
+
+	commonStaticValues, err := utils.LoadValuesFileFromDir(modulePath)
+	if err != nil {
+		return nil, err
+	}
+
+	modDef, err := moduleFromDirName(filepath.Base(modulePath), modulePath)
+	if err != nil {
+		return nil, err
+	}
+
+	bm, err := fl.getBasicModule(modDef, commonStaticValues)
+	if err != nil {
+		return nil, err
+	}
+
+	return bm, nil
+}
+
 func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 	result := make([]*modules.BasicModule, 0)
 
@@ -44,51 +116,10 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 		}
 
 		for _, module := range modDefs {
-			err = validateModuleName(module.Name)
+			bm, err := fl.getBasicModule(module, commonStaticValues)
 			if err != nil {
 				return nil, err
 			}
-
-			valuesModuleName := utils.ModuleNameToValuesKey(module.Name)
-			initialValues := utils.Values{valuesModuleName: map[string]interface{}{}}
-			// build initial values
-			// 1. from common static values
-			if commonStaticValues.HasKey(valuesModuleName) {
-				initialValues = utils.MergeValues(initialValues, commonStaticValues)
-			}
-
-			// 2. from module static values
-			moduleStaticValues, err := utils.LoadValuesFileFromDir(module.Path)
-			if err != nil {
-				return nil, err
-			}
-
-			if moduleStaticValues != nil {
-				initialValues = utils.MergeValues(initialValues, moduleStaticValues)
-			}
-
-			// 3. from openapi defaults
-
-			cb, vb, err := fl.readOpenAPIFiles(filepath.Join(module.Path, "openapi"))
-			if err != nil {
-				return nil, err
-			}
-
-			if cb != nil && vb != nil {
-				err = fl.valuesValidator.SchemaStorage.AddModuleValuesSchemas(valuesModuleName, cb, vb)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			//
-			moduleValues, ok := initialValues[valuesModuleName].(map[string]interface{})
-			if !ok {
-				return nil, fmt.Errorf("expect map[string]interface{} in module values")
-			}
-
-			bm := modules.NewBasicModule(module.Name, module.Path, module.Order, moduleValues, fl.valuesValidator)
-
 			result = append(result, bm)
 		}
 	}
@@ -102,13 +133,23 @@ type moduleDefinition struct {
 	Order uint32
 }
 
-func (fl *FileSystemLoader) findModulesInDir(modulesDir string) ([]moduleDefinition, error) {
+// checks if dir exists and returns entries
+func readDir(modulesDir string) ([]os.DirEntry, error) {
 	dirEntries, err := os.ReadDir(modulesDir)
 	if err != nil && os.IsNotExist(err) {
 		return nil, fmt.Errorf("path '%s' does not exist", modulesDir)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("listing modules directory '%s': %s", modulesDir, err)
+	}
+
+	return dirEntries, nil
+}
+
+func (fl *FileSystemLoader) findModulesInDir(modulesDir string) ([]moduleDefinition, error) {
+	dirEntries, err := readDir(modulesDir)
+	if err != nil {
+		return nil, err
 	}
 
 	mods := make([]moduleDefinition, 0)

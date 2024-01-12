@@ -72,6 +72,15 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 	}
 }
 
+func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) bool {
+	moduleConfig, found := kcm.currentConfig.Modules[moduleName]
+	if !found {
+		return false
+	}
+
+	return moduleConfig.IsEnabled != nil && *moduleConfig.IsEnabled
+}
+
 func (kcm *KubeConfigManager) Init() error {
 	kcm.logEntry.Debug("Init: KubeConfigManager")
 
@@ -106,6 +115,24 @@ func (kcm *KubeConfigManager) SaveConfigValues(key string, values utils.Values) 
 // KubeConfigEventCh return a channel that emits new KubeConfig on ConfigMap changes in global section or enabled modules.
 func (kcm *KubeConfigManager) KubeConfigEventCh() chan config.KubeConfigEvent {
 	return kcm.configEventCh
+}
+
+// UpdateModuleConfig updates a single module config
+func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
+	newModuleConfig, err := kcm.backend.LoadConfig(kcm.ctx, moduleName)
+	if err != nil {
+		return err
+	}
+
+	if moduleConfig, found := newModuleConfig.Modules[moduleName]; found {
+		if kcm.knownChecksums != nil {
+			kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
+		}
+
+		kcm.currentConfig.Modules[moduleName] = moduleConfig
+	}
+
+	return nil
 }
 
 // loadConfig gets config from ConfigMap before starting informer.

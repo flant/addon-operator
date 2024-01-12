@@ -15,4 +15,7 @@ const (
 type ModuleEvent struct {
 	ModuleName string
 	EventType  ModuleEventType
+
+	// an option for registering a module without reload
+	Reregister bool
 }

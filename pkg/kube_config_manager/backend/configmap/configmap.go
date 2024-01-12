@@ -46,9 +46,9 @@ func New(logger dlogger.Logger, kubeClient *client.Client, namespace, name strin
 	return backend
 }
 
-// LoadConfig gets config from ConfigMap before starting informer.
+// LoadConfig gets config from ConfigMap before starting informer (selective loading configs for a list of modules isn't implemented).
 // Set checksums for global section and modules.
-func (b Backend) LoadConfig(ctx context.Context) (*config.KubeConfig, error) {
+func (b Backend) LoadConfig(ctx context.Context, _ ...string) (*config.KubeConfig, error) {
 	obj, err := b.getConfigMap(ctx)
 	if err != nil {
 		return nil, err
