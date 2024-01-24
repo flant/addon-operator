@@ -491,9 +491,6 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 
 	state := mm.stateFromHelmReleases(releasedModules)
 
-	// Initiate enabled modules list.
-	mm.enabledModules = state.AllEnabledModules
-
 	return state, nil
 }
 
