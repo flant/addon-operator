@@ -525,8 +525,7 @@ func (mm *ModuleManager) Start() {
 	go mm.checkConfig()
 }
 
-// RefreshStateFromHelmReleases retrieves all Helm releases. It treats releases for known modules as
-// an initial list of enabled modules.
+// RefreshStateFromHelmReleases retrieves all Helm releases. It marks all unknown modules as needed to be purged.
 // Run this method once at startup.
 func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]string) (*ModulesState, error) {
 	if mm.dependencies.Helm == nil {
@@ -539,24 +538,16 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 
 	state := mm.stateFromHelmReleases(releasedModules)
 
-	// Initiate enabled modules list.
-	mm.enabledModules.Replace(state.AllEnabledModules)
-
 	return state, nil
 }
 
-// stateFromHelmReleases calculates enabled modules and modules to purge from Helm releases.
+// stateFromHelmReleases calculates modules to purge from Helm releases.
 func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState {
 	releasesMap := utils.ListToMapStringStruct(releases)
 
 	// Filter out known modules.
-	enabledModules := make([]string, 0)
 	for _, modName := range mm.modules.NamesInOrder() {
 		// Remove known module to detect unknown ones.
-		if _, has := releasesMap[modName]; has {
-			// Treat known module as enabled module.
-			enabledModules = append(enabledModules, modName)
-		}
 		delete(releasesMap, modName)
 	}
 
@@ -573,8 +564,7 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 	log.Infof("Modules to purge found: %v", purge)
 
 	return &ModulesState{
-		AllEnabledModules: enabledModules,
-		ModulesToPurge:    purge,
+		ModulesToPurge: purge,
 	}
 }
 
