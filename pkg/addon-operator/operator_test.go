@@ -17,6 +17,7 @@ import (
 	k8types "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
+	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	mockhelm "github.com/flant/addon-operator/pkg/helm/test/mock"
 	mockhelmresmgr "github.com/flant/addon-operator/pkg/helm_resources_manager/test/mock"
 	. "github.com/flant/addon-operator/pkg/hook/types"
@@ -295,11 +296,11 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		//  {task.ModulePurge, "", moduleToPurge, ""},
 
 		// ConvergeModules runs after global Synchronization and emerges BeforeAll tasks.
-		{task.ConvergeModules, "", "", string(StandBy)},
+		{task.ConvergeModules, "", "", string(converge.StandBy)},
 		{task.GlobalHookRun, BeforeAll, "hook02", ""},
 		{task.GlobalHookRun, BeforeAll, "hook01", ""},
 
-		{task.ConvergeModules, "", "", string(WaitBeforeAll)},
+		{task.ConvergeModules, "", "", string(converge.WaitBeforeAll)},
 
 		// ConvergeModules adds ModuleDelete and ModuleRun tasks.
 		{task.ModuleRun, "", "module-alpha", string(modules.Startup)},
@@ -313,10 +314,10 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		{task.ModuleRun, "", "module-alpha", string(modules.EnableScheduleBindings)},
 
 		// ConvergeModules emerges afterAll tasks
-		{task.ConvergeModules, "", "", string(WaitDeleteAndRunModules)},
+		{task.ConvergeModules, "", "", string(converge.WaitDeleteAndRunModules)},
 		{task.GlobalHookRun, AfterAll, "hook03", ""},
 
-		{task.ConvergeModules, "", "", string(WaitAfterAll)},
+		{task.ConvergeModules, "", "", string(converge.WaitAfterAll)},
 	}
 
 	for i, historyInfo := range taskHandleHistory {
@@ -364,7 +365,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		moduleName       string
 		hookName         string
 		spawnerTaskPhase string
-		convergeEvent    ConvergeEvent
+		convergeEvent    converge.ConvergeEvent
 	}
 
 	canChangeConfigMap := make(chan struct{})
@@ -377,11 +378,11 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
-		var convergeEvent ConvergeEvent
+		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ConvergeModules:
 			phase = string(op.ConvergeState.Phase)
-			convergeEvent = tsk.GetProp(ConvergeEventProp).(ConvergeEvent)
+			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			if triggerPause {
 				close(canChangeConfigMap)
@@ -439,11 +440,11 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		if tsk.taskType != task.ConvergeModules {
 			continue
 		}
-		if tsk.convergeEvent == KubeConfigChanged {
+		if tsk.convergeEvent == converge.KubeConfigChanged {
 			g.Expect(len(taskHandleHistory) > i+1).Should(BeTrue(), "history should not ends on KubeConfigChanged")
 			next := taskHandleHistory[i+1]
-			g.Expect(next.convergeEvent).Should(Equal(ReloadAllModules))
-			g.Expect(next.spawnerTaskPhase).Should(Equal(string(StandBy)))
+			g.Expect(next.convergeEvent).Should(Equal(converge.ReloadAllModules))
+			g.Expect(next.spawnerTaskPhase).Should(Equal(string(converge.StandBy)))
 			hasReloadAllInStandby = true
 			break
 		}
@@ -473,7 +474,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		moduleName       string
 		hookName         string
 		spawnerTaskPhase string
-		convergeEvent    ConvergeEvent
+		convergeEvent    converge.ConvergeEvent
 	}
 
 	historyMu := new(sync.Mutex)
@@ -482,11 +483,11 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
-		var convergeEvent ConvergeEvent
+		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ConvergeModules:
 			phase = string(op.ConvergeState.Phase)
-			convergeEvent = tsk.GetProp(ConvergeEventProp).(ConvergeEvent)
+			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
@@ -543,7 +544,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 			if tsk.taskType != task.ConvergeModules {
 				continue
 			}
-			if tsk.convergeEvent == KubeConfigChanged {
+			if tsk.convergeEvent == converge.KubeConfigChanged {
 				return true
 			}
 		}
@@ -561,7 +562,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 			if tsk.taskType != task.ConvergeModules {
 				continue
 			}
-			if tsk.convergeEvent == ReloadAllModules {
+			if tsk.convergeEvent == converge.ReloadAllModules {
 				return true
 			}
 		}

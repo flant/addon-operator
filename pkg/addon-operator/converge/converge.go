@@ -1,4 +1,4 @@
-package addon_operator
+package converge
 
 import (
 	"time"
@@ -10,8 +10,8 @@ import (
 
 type ConvergeState struct {
 	Phase         ConvergePhase
-	firstRunPhase firstConvergePhase
-	firstRunDoneC chan struct{}
+	FirstRunPhase firstConvergePhase
+	FirstRunDoneC chan struct{}
 	StartedAt     int64
 	Activation    string
 }
@@ -29,23 +29,23 @@ const (
 type firstConvergePhase int
 
 const (
-	firstNotStarted firstConvergePhase = iota
-	firstStarted
-	firstDone
+	FirstNotStarted firstConvergePhase = iota
+	FirstStarted
+	FirstDone
 )
 
 func NewConvergeState() *ConvergeState {
 	return &ConvergeState{
 		Phase:         StandBy,
-		firstRunPhase: firstNotStarted,
-		firstRunDoneC: make(chan struct{}),
+		FirstRunPhase: FirstNotStarted,
+		FirstRunDoneC: make(chan struct{}),
 	}
 }
 
-func (cs *ConvergeState) setFirstRunPhase(ph firstConvergePhase) {
-	cs.firstRunPhase = ph
-	if ph == firstDone {
-		close(cs.firstRunDoneC)
+func (cs *ConvergeState) SetFirstRunPhase(ph firstConvergePhase) {
+	cs.FirstRunPhase = ph
+	if ph == FirstDone {
+		close(cs.FirstRunDoneC)
 	}
 }
 

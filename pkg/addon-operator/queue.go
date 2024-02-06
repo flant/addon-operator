@@ -1,6 +1,7 @@
 package addon_operator
 
 import (
+	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -51,7 +52,7 @@ func ConvergeTasksInQueue(q *queue.TaskQueue) int {
 
 	convergeTasks := 0
 	q.Iterate(func(t sh_task.Task) {
-		if IsConvergeTask(t) || IsFirstConvergeTask(t) {
+		if converge.IsConvergeTask(t) || converge.IsFirstConvergeTask(t) {
 			convergeTasks++
 		}
 	})
@@ -67,7 +68,7 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 	tasks := 0
 	q.Iterate(func(t sh_task.Task) {
 		taskType := t.GetType()
-		if IsConvergeTask(t) && (taskType == task.ModuleRun || taskType == task.ModuleDelete) {
+		if converge.IsConvergeTask(t) && (taskType == task.ModuleRun || taskType == task.ModuleDelete) {
 			tasks++
 		}
 	})
@@ -100,7 +101,7 @@ func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
 		}
 
 		// Return false to remove converge task right after the specified task.
-		if IsConvergeTask(t) {
+		if converge.IsConvergeTask(t) {
 			convergeDrained = true
 			// Stop draining when ConvergeModules task is found.
 			if t.GetType() == task.ConvergeModules {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 )
 
@@ -44,16 +45,16 @@ func (op *AddonOperator) registerDefaultRoutes() {
 		convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
 
 		statusLines := make([]string, 0)
-		switch op.ConvergeState.firstRunPhase {
-		case firstNotStarted:
+		switch op.ConvergeState.FirstRunPhase {
+		case converge.FirstNotStarted:
 			statusLines = append(statusLines, "STARTUP_CONVERGE_NOT_STARTED")
-		case firstStarted:
+		case converge.FirstStarted:
 			if convergeTasks > 0 {
 				statusLines = append(statusLines, fmt.Sprintf("STARTUP_CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
 			} else {
 				statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
 			}
-		case firstDone:
+		case converge.FirstDone:
 			statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
 			if convergeTasks > 0 {
 				statusLines = append(statusLines, fmt.Sprintf("CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))

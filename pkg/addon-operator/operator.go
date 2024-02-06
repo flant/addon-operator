@@ -11,6 +11,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -61,7 +62,7 @@ type AddonOperator struct {
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 
 	// converge state
-	ConvergeState *ConvergeState
+	ConvergeState *converge.ConvergeState
 
 	// Initial KubeConfig to bypass initial loading from the ConfigMap.
 	InitialKubeConfig *config.KubeConfig
@@ -97,7 +98,7 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		ctx:           cctx,
 		cancel:        cancel,
 		engine:        so,
-		ConvergeState: NewConvergeState(),
+		ConvergeState: converge.NewConvergeState(),
 		runtimeConfig: rc,
 	}
 
@@ -193,7 +194,7 @@ func (op *AddonOperator) KubeClient() *client.Client {
 }
 
 func (op *AddonOperator) IsStartupConvergeDone() bool {
-	return op.ConvergeState.firstRunPhase == firstDone
+	return op.ConvergeState.FirstRunPhase == converge.FirstDone
 }
 
 // InitModuleManager initialize KubeConfigManager and ModuleManager,
@@ -446,7 +447,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 	}
 
 	go func() {
-		<-op.ConvergeState.firstRunDoneC
+		<-op.ConvergeState.FirstRunDoneC
 		// Add "DiscoverHelmReleases" task to detect unknown releases and purge them.
 		// this task will run only after the first converge, to keep all modules
 		discoverLabels := utils.MergeLabels(logLabels, map[string]string{
@@ -553,7 +554,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 		"queue":   "main",
 		"binding": string(task.ConvergeModules),
 	})
-	convergeTask := NewConvergeModulesTask(eventDescription, OperatorStartup, convergeLabels)
+	convergeTask := converge.NewConvergeModulesTask(eventDescription, converge.OperatorStartup, convergeLabels)
 	tasks = append(tasks, convergeTask.WithQueuedAt(queuedAt))
 
 	return tasks
@@ -590,7 +591,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 	defer trace.StartRegion(context.Background(), "ConvergeModules").End()
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
-	taskEvent, ok := t.GetProp(ConvergeEventProp).(ConvergeEvent)
+	taskEvent, ok := t.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 	if !ok {
 		logEntry.Errorf("Possible bug! Wrong prop type in ConvergeModules: got %T(%#[1]v) instead string.", t.GetProp("event"))
 		res.Status = queue.Fail
@@ -600,7 +601,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 
 	var handleErr error
 
-	if taskEvent == KubeConfigChanged {
+	if taskEvent == converge.KubeConfigChanged {
 		logEntry.Debugf("ConvergeModules: handle KubeConfigChanged")
 		var state *module_manager.ModulesState
 		op.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
@@ -616,7 +617,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			}
 
 			// Skip queueing additional Converge tasks during run global hooks at startup.
-			if op.ConvergeState.firstRunPhase == firstNotStarted {
+			if op.ConvergeState.FirstRunPhase == converge.FirstNotStarted {
 				logEntry.Infof("ConvergeModules: kube config modification detected, ignore until starting first converge")
 				return
 			}
@@ -642,35 +643,35 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			if convergeDrained {
 				logEntry.Infof("ConvergeModules: kube config modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
 				res.AfterTasks = []sh_task.Task{
-					NewConvergeModulesTask("InPlace-ReloadAll-After-KubeConfigChange", ReloadAllModules, t.GetLogLabels()),
+					converge.NewConvergeModulesTask("InPlace-ReloadAll-After-KubeConfigChange", converge.ReloadAllModules, t.GetLogLabels()),
 				}
 				op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 			} else {
 				logEntry.Infof("ConvergeModules: kube config modification detected, reload all modules required")
 				res.TailTasks = []sh_task.Task{
-					NewConvergeModulesTask("Delayed-ReloadAll-After-KubeConfigChange", ReloadAllModules, t.GetLogLabels()),
+					converge.NewConvergeModulesTask("Delayed-ReloadAll-After-KubeConfigChange", converge.ReloadAllModules, t.GetLogLabels()),
 				}
 				op.logTaskAdd(logEntry, "tail", res.TailTasks...)
 			}
 			// ConvergeModules may be in progress Reset converge state.
-			op.ConvergeState.Phase = StandBy
+			op.ConvergeState.Phase = converge.StandBy
 			return
 		}
 	} else {
 		// Handle other converge events: OperatorStartup, GlobalValuesChanged, ReloadAllModules.
-		if op.ConvergeState.Phase == StandBy {
+		if op.ConvergeState.Phase == converge.StandBy {
 			logEntry.Debugf("ConvergeModules: start")
 
 			// Deduplicate tasks: remove ConvergeModules tasks right after the current task.
 			RemoveAdjacentConvergeModules(op.engine.TaskQueues.GetByName(t.GetQueueName()), t.GetId())
 
-			op.ConvergeState.Phase = RunBeforeAll
+			op.ConvergeState.Phase = converge.RunBeforeAll
 		}
 
-		if op.ConvergeState.Phase == RunBeforeAll {
+		if op.ConvergeState.Phase == converge.RunBeforeAll {
 			// Put BeforeAll tasks before current task.
 			tasks := op.CreateBeforeAllTasks(t.GetLogLabels(), hm.EventDescription)
-			op.ConvergeState.Phase = WaitBeforeAll
+			op.ConvergeState.Phase = converge.WaitBeforeAll
 			if len(tasks) > 0 {
 				res.HeadTasks = tasks
 				res.Status = queue.Keep
@@ -679,7 +680,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			}
 		}
 
-		if op.ConvergeState.Phase == WaitBeforeAll {
+		if op.ConvergeState.Phase == converge.WaitBeforeAll {
 			logEntry.Infof("ConvergeModules: beforeAll hooks done, run modules")
 			var state *module_manager.ModulesState
 			state, handleErr = op.ModuleManager.RefreshEnabledState(t.GetLogLabels())
@@ -695,7 +696,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 					state.ModulesToEnable = state.AllEnabledModules
 				}
 				tasks := op.CreateConvergeModulesTasks(state, t.GetLogLabels(), string(taskEvent))
-				op.ConvergeState.Phase = WaitDeleteAndRunModules
+				op.ConvergeState.Phase = converge.WaitDeleteAndRunModules
 				if len(tasks) > 0 {
 					res.HeadTasks = tasks
 					res.Status = queue.Keep
@@ -705,12 +706,12 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			}
 		}
 
-		if op.ConvergeState.Phase == WaitDeleteAndRunModules {
+		if op.ConvergeState.Phase == converge.WaitDeleteAndRunModules {
 			logEntry.Infof("ConvergeModules: ModuleRun tasks done, execute AfterAll global hooks")
 			// Put AfterAll tasks before current task.
 			tasks, handleErr := op.CreateAfterAllTasks(t.GetLogLabels(), hm.EventDescription)
 			if handleErr == nil {
-				op.ConvergeState.Phase = WaitAfterAll
+				op.ConvergeState.Phase = converge.WaitAfterAll
 				if len(tasks) > 0 {
 					res.HeadTasks = tasks
 					res.Status = queue.Keep
@@ -721,8 +722,8 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 		}
 
 		// It is the last phase of ConvergeModules task, reset operator's Converge phase.
-		if op.ConvergeState.Phase == WaitAfterAll {
-			op.ConvergeState.Phase = StandBy
+		if op.ConvergeState.Phase == converge.WaitAfterAll {
+			op.ConvergeState.Phase = converge.StandBy
 			logEntry.Infof("ConvergeModules task done")
 			res.Status = queue.Success
 			return res
@@ -970,9 +971,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					// Config is valid now, add task to update ModuleManager state.
 					op.ModuleManager.SetKubeConfigValid(true)
 					// Run ConvergeModules task asap.
-					convergeTask := NewConvergeModulesTask(
+					convergeTask := converge.NewConvergeModulesTask(
 						fmt.Sprintf("ConfigMap-%s", kubeConfigEvent),
-						KubeConfigChanged,
+						converge.KubeConfigChanged,
 						logLabels,
 					)
 					op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
@@ -1952,7 +1953,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 				delete(logLabels, "watchEvent")
 
 				// Reload all using "ConvergeModules" task.
-				newTask := NewConvergeModulesTask(eventDescription, GlobalValuesChanged, logLabels)
+				newTask := converge.NewConvergeModulesTask(eventDescription, converge.GlobalValuesChanged, logLabels)
 				newTask.SetProp("triggered-by", triggeredBy)
 				op.engine.TaskQueues.GetMain().AddLast(newTask)
 				op.logTaskAdd(logEntry, "global values are changed, append", newTask)
@@ -2104,19 +2105,19 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 // UpdateFirstConvergeStatus checks first converge status and prints log messages if first converge
 // is in progress.
 func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
-	switch op.ConvergeState.firstRunPhase {
-	case firstDone:
+	switch op.ConvergeState.FirstRunPhase {
+	case converge.FirstDone:
 		return
-	case firstNotStarted:
+	case converge.FirstNotStarted:
 		// Switch to 'started' state if there are 'converge' tasks in the queue.
 		if convergeTasks > 0 {
-			op.ConvergeState.setFirstRunPhase(firstStarted)
+			op.ConvergeState.SetFirstRunPhase(converge.FirstStarted)
 		}
-	case firstStarted:
+	case converge.FirstStarted:
 		// Switch to 'done' state after first converge is started and when no 'converge' tasks left in the queue.
 		if convergeTasks == 0 {
 			log.Infof("First converge is finished. Operator is ready now.")
-			op.ConvergeState.setFirstRunPhase(firstDone)
+			op.ConvergeState.SetFirstRunPhase(converge.FirstDone)
 		}
 	}
 }
@@ -2187,9 +2188,9 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 		// ConvergeModules task for ReloadAllModules in phase 'WaitBeforeAll', trigger Operator-Startup
 		// ConvergeModules task for KubeConfigChanged, trigger Operator-Startup
 		// ConvergeModules task done, result is 'Keep' for converge phase 'WaitBeforeAll', trigger Operator-Startup
-		if taskEvent, ok := tsk.GetProp(ConvergeEventProp).(ConvergeEvent); ok {
+		if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
 			parts = append(parts, string(taskEvent))
-			if taskEvent != KubeConfigChanged {
+			if taskEvent != converge.KubeConfigChanged {
 				parts = append(parts, fmt.Sprintf("in phase '%s'", phase))
 			}
 		}
