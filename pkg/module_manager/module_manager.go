@@ -835,6 +835,22 @@ func (mm *ModuleManager) GetValuesValidator() *validation.ValuesValidator {
 
 func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) {
 	mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
+		defer func() {
+			if err := recover(); err != nil {
+				logEntry := log.WithField("function", "HandleKubeEvent").WithField("event", "OnKubernetesEvent")
+
+				if gh != nil {
+					logEntry.WithField("GlobalHook name", gh.GetName()).WithField("GlobakHook path", gh.GetPath())
+				}
+
+				if mh != nil {
+					logEntry.WithField("ModuleHook name", mh.GetName()).WithField("ModuleHook path", mh.GetPath())
+				}
+
+				logEntry.Errorf("panic occurred: %s", err)
+			}
+		}()
+
 		if gh != nil {
 			if gh.GetHookController().CanHandleKubeEvent(kubeEvent) {
 				gh.GetHookController().HandleKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) {
