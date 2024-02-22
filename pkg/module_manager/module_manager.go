@@ -927,6 +927,8 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 	for _, mh := range schHooks {
 		mh.GetHookController().DisableScheduleBindings()
 	}
+
+	ml.SetPhase(modules.HooksDisabled)
 }
 
 func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
