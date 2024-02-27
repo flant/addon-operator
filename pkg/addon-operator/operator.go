@@ -150,9 +150,6 @@ func (op *AddonOperator) Start() error {
 		return err
 	}
 
-	// start http server with metrics
-	op.engine.APIServer.Start(op.ctx)
-
 	log.Info("Start first converge for modules")
 	// Loading the onStartup hooks into the queue and running all modules.
 	// Turning tracking changes on only after startup ends.
@@ -186,6 +183,11 @@ func (op *AddonOperator) Stop() {
 	if op.cancel != nil {
 		op.cancel()
 	}
+}
+
+func (op *AddonOperator) StartAPIServer() {
+	// start http server with metrics
+	op.engine.APIServer.Start(op.ctx)
 }
 
 // KubeClient returns default common kubernetes client initialized by shell-operator
