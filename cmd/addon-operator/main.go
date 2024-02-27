@@ -58,6 +58,8 @@ func main() {
 				os.Exit(1)
 			}
 
+			operator.StartAPIServer()
+
 			err = operator.Start()
 			if err != nil {
 				fmt.Printf("Start is failed: %s\n", err)
