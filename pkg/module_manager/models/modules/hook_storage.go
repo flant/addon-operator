@@ -10,10 +10,11 @@ import (
 
 // HooksStorage keep module hooks in order
 type HooksStorage struct {
-	registered bool
-	lock       sync.RWMutex
-	byBinding  map[sh_op_types.BindingType][]*hooks.ModuleHook
-	byName     map[string]*hooks.ModuleHook
+	registered       bool
+	controllersReady bool
+	lock             sync.RWMutex
+	byBinding        map[sh_op_types.BindingType][]*hooks.ModuleHook
+	byName           map[string]*hooks.ModuleHook
 }
 
 func newHooksStorage() *HooksStorage {

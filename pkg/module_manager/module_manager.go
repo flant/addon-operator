@@ -966,6 +966,11 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 
 	for _, moduleName := range mm.enabledModules.GetAll() {
 		m := mm.GetModule(moduleName)
+		// skip module if its hooks don't have hook controllers set
+		if !m.HooksControllersReady() {
+			continue
+		}
+
 		moduleHooks := m.GetHooks(binding)
 		for _, mh := range moduleHooks {
 			fn(nil, m, mh)
