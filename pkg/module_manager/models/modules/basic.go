@@ -101,6 +101,16 @@ func (bm *BasicModule) DeregisterHooks() {
 	bm.hooks.clean()
 }
 
+// HooksControllersReady returns controllersReady status of the hook storage
+func (bm *BasicModule) HooksControllersReady() bool {
+	return bm.hooks.controllersReady
+}
+
+// SetHooksControllersReady sets controllersReady status of the hook storage to true
+func (bm *BasicModule) SetHooksControllersReady() {
+	bm.hooks.controllersReady = true
+}
+
 // ResetState drops the module state
 func (bm *BasicModule) ResetState() {
 	bm.state = &moduleState{
@@ -837,6 +847,8 @@ const (
 	EnableScheduleBindings ModuleRunPhase = "EnableScheduleBindings"
 	// CanRunHelm - module is ready to run its Helm chart.
 	CanRunHelm ModuleRunPhase = "CanRunHelm"
+	// HooksDisabled - module has its hooks disabled (before update or deletion).
+	HooksDisabled ModuleRunPhase = "HooksDisabled"
 )
 
 type moduleState struct {
