@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/client-go/tools/leaderelection"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
@@ -69,6 +70,9 @@ type AddonOperator struct {
 
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
+
+	// LeaderElector represents leaderelection client for HA mode
+	LeaderElector *leaderelection.LeaderElector
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -105,6 +109,16 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
 
 	return ao
+}
+
+func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElectionConfig) error {
+	var err error
+	op.LeaderElector, err = leaderelection.NewLeaderElector(*config)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (op *AddonOperator) Setup() error {
@@ -150,9 +164,6 @@ func (op *AddonOperator) Start() error {
 		return err
 	}
 
-	// start http server with metrics
-	op.engine.APIServer.Start(op.ctx)
-
 	log.Info("Start first converge for modules")
 	// Loading the onStartup hooks into the queue and running all modules.
 	// Turning tracking changes on only after startup ends.
@@ -186,6 +197,12 @@ func (op *AddonOperator) Stop() {
 	if op.cancel != nil {
 		op.cancel()
 	}
+}
+
+func (op *AddonOperator) StartAPIServer() {
+	// start http server with metrics
+	op.engine.APIServer.Start(op.ctx)
+	op.registerReadyzRoute()
 }
 
 // KubeClient returns default common kubernetes client initialized by shell-operator

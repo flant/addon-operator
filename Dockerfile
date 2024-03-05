@@ -51,6 +51,7 @@ COPY --from=builder /app/shell-operator-clone/frameworks/shell/ /framework/shell
 COPY --from=builder /app/shell-operator-clone/shell_lib.sh /
 WORKDIR /
 
+RUN mkdir /global-hooks /modules
 ENV MODULES_DIR /modules
 ENV GLOBAL_HOOKS_DIR /global-hooks
 ENTRYPOINT ["/sbin/tini", "--", "/addon-operator"]
