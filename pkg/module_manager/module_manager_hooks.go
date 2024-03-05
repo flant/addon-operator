@@ -142,6 +142,9 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 			})
 	}
 
+	// set controllersReady to true
+	ml.SetHooksControllersReady()
+
 	return nil
 }
 
