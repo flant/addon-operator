@@ -90,7 +90,7 @@ func start(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
+func run(_ context.Context, operator *addon_operator.AddonOperator) error {
 	bk := configmap.New(log.StandardLogger(), operator.KubeClient(), app.Namespace, app.ConfigMapName)
 	operator.SetupKubeConfigManager(bk)
 
