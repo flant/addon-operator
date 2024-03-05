@@ -34,6 +34,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	"github.com/flant/shell-operator/pkg/metric_storage"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -71,6 +72,9 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
+
+	MetricStorage *metric_storage.MetricStorage
+
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
 }
@@ -104,6 +108,7 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		engine:        so,
 		ConvergeState: converge.NewConvergeState(),
 		runtimeConfig: rc,
+		MetricStorage: so.MetricStorage,
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
