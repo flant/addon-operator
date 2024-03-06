@@ -273,11 +273,6 @@ func (bm *BasicModule) SaveHookError(hookName string, err error) {
 	bm.state.hookErrorsLock.Lock()
 	defer bm.state.hookErrorsLock.Unlock()
 
-	if err == nil {
-		delete(bm.state.hookErrors, hookName)
-		return
-	}
-
 	bm.state.hookErrors[hookName] = err
 }
 
@@ -812,6 +807,25 @@ func (bm *BasicModule) GetHookByName(name string) *hooks.ModuleHook {
 // GetValuesPatches returns patches for debug output
 func (bm *BasicModule) GetValuesPatches() []utils.ValuesPatch {
 	return bm.valuesStorage.getValuesPatches()
+}
+
+// GetHookErrorsSummary get hooks errors summary report
+func (bm *BasicModule) GetHookErrorsSummary() string {
+	bm.state.hookErrorsLock.RLock()
+	defer bm.state.hookErrorsLock.RUnlock()
+
+	hooksState := make([]string, 0, len(bm.state.hookErrors))
+	for name, err := range bm.state.hookErrors {
+		errorMsg := fmt.Sprint(err)
+		if err == nil {
+			errorMsg = "ok"
+		}
+
+		hooksState = append(hooksState, fmt.Sprintf("%s: %s", name, errorMsg))
+	}
+
+	sort.Strings(hooksState)
+	return strings.Join(hooksState, "\n")
 }
 
 // GetLastHookError get error of the last executed hook

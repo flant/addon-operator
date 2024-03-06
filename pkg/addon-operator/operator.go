@@ -72,7 +72,6 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
-
 	MetricStorage *metric_storage.MetricStorage
 
 	// LeaderElector represents leaderelection client for HA mode
@@ -1327,7 +1326,7 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 		err = op.ModuleManager.DeleteModule(hm.ModuleName, t.GetLogLabels())
 	}
 
-	baseModule.SetError(err)
+	op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, err)
 
 	if err != nil {
 		op.engine.MetricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
@@ -1398,11 +1397,11 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				// Run onStartup hooks.
 				moduleRunErr = op.ModuleManager.RunModuleHooks(baseModule, htypes.OnStartup, t.GetLogLabels())
 				if moduleRunErr == nil {
-					baseModule.SetPhase(modules.OnStartupDone)
+					op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 				}
 				treg.End()
 			} else {
-				baseModule.SetPhase(modules.OnStartupDone)
+				op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 			}
 		}
 	}
@@ -1410,10 +1409,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	if baseModule.GetPhase() == modules.OnStartupDone {
 		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
 		if baseModule.HasKubernetesHooks() {
-			baseModule.SetPhase(modules.QueueSynchronizationTasks)
+			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.QueueSynchronizationTasks)
 		} else {
 			// Skip Synchronization process if there are no kubernetes hooks.
-			baseModule.SetPhase(modules.EnableScheduleBindings)
+			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.EnableScheduleBindings)
 		}
 	}
 
@@ -1506,11 +1505,11 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			if len(parallelSyncTasksToWait) == 0 {
 				// Skip waiting tasks in parallel queues, proceed to schedule bindings.
 
-				baseModule.SetPhase(modules.EnableScheduleBindings)
+				op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.EnableScheduleBindings)
 			} else {
 				// There are tasks to wait.
 
-				baseModule.SetPhase(modules.WaitForSynchronization)
+				op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.WaitForSynchronization)
 				logEntry.WithField("module.state", "wait-for-synchronization").
 					Debugf("ModuleRun wait for Synchronization")
 			}
@@ -1529,7 +1528,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	if baseModule.GetPhase() == modules.WaitForSynchronization {
 		if baseModule.Synchronization().IsComplete() {
 			// Proceed with the next phase.
-			baseModule.SetPhase(modules.EnableScheduleBindings)
+			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.EnableScheduleBindings)
 			logEntry.Info("Synchronization done for module hooks")
 		} else {
 			// Debug messages every fifth second: print Synchronization state.
@@ -1549,7 +1548,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
 
 		op.ModuleManager.EnableModuleScheduleBindings(hm.ModuleName)
-		baseModule.SetPhase(modules.CanRunHelm)
+		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
 	}
 
 	// Module start is done, module is ready to run hooks and helm chart.
@@ -1559,7 +1558,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		valuesChanged, moduleRunErr = op.ModuleManager.RunModule(baseModule.Name, t.GetLogLabels())
 	}
 
-	baseModule.SetError(moduleRunErr)
+	op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
 	if moduleRunErr != nil {
 		res.Status = queue.Fail
 		logEntry.Errorf("ModuleRun failed in phase '%s'. Requeue task to retry after delay. Failed count is %d. Error: %s", baseModule.GetPhase(), t.GetFailureCount()+1, moduleRunErr)
@@ -1694,20 +1693,20 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 				allowed = 1.0
 				logEntry.Infof("Module hook failed, but allowed to fail. Error: %v", err)
 				res.Status = queue.Success
-				baseModule.SaveHookError(hm.HookName, nil)
+				op.ModuleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, nil)
 			} else {
 				errors = 1.0
 				logEntry.Errorf("Module hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 				t.UpdateFailureMessage(err.Error())
 				t.WithQueuedAt(time.Now())
 				res.Status = queue.Fail
-				baseModule.SaveHookError(hm.HookName, err)
+				op.ModuleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, err)
 			}
 		} else {
 			success = 1.0
 			logEntry.Debugf("Module hook success '%s'", hm.HookName)
 			res.Status = queue.Success
-			baseModule.SaveHookError(hm.HookName, nil)
+			op.ModuleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, nil)
 
 			// Handle module values change.
 			reloadModule := false

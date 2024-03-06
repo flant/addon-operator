@@ -7,6 +7,8 @@ const (
 	ModuleRegistered ModuleEventType = iota
 	ModuleEnabled
 	ModuleDisabled
+	ModuleStateChanged
+	ModuleConfigChanged
 
 	FirstConvergeDone
 )
