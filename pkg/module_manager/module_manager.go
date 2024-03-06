@@ -369,6 +369,11 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 			validateConfig = true
 		}
 
+		// Allow to disable module with invalid config
+		if mm.IsModuleEnabled(moduleName) && moduleConfig.GetEnabled() == "false" {
+			validateConfig = false
+		}
+
 		// if module config values are empty - return empty values (without static and openapi default values)
 		if len(moduleConfig.GetValues()) == 0 {
 			valuesMap[mod.GetName()] = utils.Values{}
