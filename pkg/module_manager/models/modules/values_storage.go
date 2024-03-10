@@ -235,6 +235,19 @@ func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate 
 	// we are making deep copy here to avoid any pointers copying
 	merged = merged.Copy()
 
+	log.Debug("TODO RM", validate)
+
+	mergedWithOpenapiDefault := mergeLayers(
+		utils.Values{},
+		vs.staticConfigValues,
+		vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
+		configV,
+	)
+
+	log.Debug("TODO RM", mergedWithOpenapiDefault)
+
+	log.Debug("TODO RM", vs.validateConfigValues(mergedWithOpenapiDefault))
+
 	if validate {
 		mergedWithOpenapiDefault := mergeLayers(
 			utils.Values{},
