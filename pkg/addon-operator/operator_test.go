@@ -116,7 +116,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	op.engine.SetupEventManagers()
 
 	bk := configmap.New(nil, op.engine.KubeClient, result.cmNamespace, result.cmName)
-	manager := kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig)
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, op)
 	op.KubeConfigManager = manager
 
 	dirs := module_manager.DirectoryConfig{

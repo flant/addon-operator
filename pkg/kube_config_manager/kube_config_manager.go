@@ -15,6 +15,10 @@ import (
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 )
 
+type ModulePurger interface {
+	PurgeModule(moduleName string)
+}
+
 // KubeConfigManager watches for changes in ConfigMap/addon-operator and provides
 // methods to change its content.
 // It stores values parsed from ConfigMap data. OpenAPI validation of these config values
@@ -31,12 +35,13 @@ type KubeConfigManager struct {
 	// Channel to emit events.
 	configEventCh chan config.KubeConfigEvent
 	backend       backend.ConfigHandler
+	modulePurger  ModulePurger
 
 	m             sync.Mutex
 	currentConfig *config.KubeConfig
 }
 
-func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config) *KubeConfigManager {
+func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config, modulePurger ModulePurger) *KubeConfigManager {
 	cctx, cancel := context.WithCancel(ctx)
 	logger := log.WithField("component", "KubeConfigManager")
 	logger.WithField("backend", fmt.Sprintf("%T", bk)).Infof("Setup KubeConfigManager backend")
@@ -69,6 +74,7 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 		configEventCh:  make(chan config.KubeConfigEvent, 1),
 		logEntry:       logger,
 		backend:        bk,
+		modulePurger:   modulePurger,
 	}
 }
 
@@ -241,6 +247,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		moduleCfg := obj.Config.Modules[obj.Key]
 		if obj.Op == config.EventDelete {
 			kcm.logEntry.Infof("Module section deleted: %+v", moduleName)
+			kcm.modulePurger.PurgeModule(moduleName)
 			moduleCfg.DropValues()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg

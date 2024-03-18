@@ -68,7 +68,7 @@ func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
 		return
 	}
 
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig)
+	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, op)
 }
 
 func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string) {
