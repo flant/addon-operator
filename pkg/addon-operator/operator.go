@@ -2312,12 +2312,4 @@ func (op *AddonOperator) RemoveModule(moduleName string) {
 	if err != nil {
 		log.Errorf("remove module %s: %s", moduleName, err.Error())
 	}
-
-	//t := sh_task.NewTask(task.ModulePurge).
-	//	WithLogLabels(map[string]string{"module": moduleName}).
-	//	WithQueueName("main").
-	//	WithMetadata(task.HookMetadata{ModuleName: moduleName}).
-	//	WithQueuedAt(time.Now())
-	//
-	//op.engine.TaskQueues.GetMain().AddLast(t)
 }
