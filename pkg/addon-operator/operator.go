@@ -72,7 +72,6 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
-
 	MetricStorage *metric_storage.MetricStorage
 
 	// LeaderElector represents leaderelection client for HA mode
@@ -2304,4 +2303,13 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 		return string(mod.GetPhase())
 	}
 	return ""
+}
+
+func (op *AddonOperator) RemoveModule(moduleName string) {
+	op.ModuleManager.DeleteEnabledModuleName(moduleName)
+
+	err := op.ModuleManager.DeleteModule(moduleName, nil)
+	if err != nil {
+		log.Errorf("remove module %s: %s", moduleName, err.Error())
+	}
 }

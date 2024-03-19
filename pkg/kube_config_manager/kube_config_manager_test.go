@@ -40,7 +40,7 @@ func initKubeConfigManager(t *testing.T, kubeClient *klient.Client, cmData map[s
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
 
 	bk := configmap.New(nil, kubeClient, "default", testConfigMapName)
-	kcm := NewKubeConfigManager(context.Background(), bk, nil)
+	kcm := NewKubeConfigManager(context.Background(), bk, nil, nil)
 
 	err = kcm.Init()
 	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")
