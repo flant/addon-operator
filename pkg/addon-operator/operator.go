@@ -2306,6 +2306,8 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 }
 
 func (op *AddonOperator) RemoveModule(moduleName string) {
+	op.ModuleManager.DeleteEnabledModuleName(moduleName)
+
 	err := op.ModuleManager.DeleteModule(moduleName, nil)
 	if err != nil {
 		log.Errorf("remove module %s: %s", moduleName, err.Error())
