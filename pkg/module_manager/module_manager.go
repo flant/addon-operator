@@ -233,16 +233,9 @@ func (mm *ModuleManager) runModulesEnabledScript(modules []string, logLabels map
 			return nil, err
 		}
 
-		ev := events.ModuleEvent{
-			ModuleName: moduleName,
-			EventType:  events.ModuleDisabled,
-		}
-
 		if isEnabled {
-			ev.EventType = events.ModuleEnabled
 			enabled = append(enabled, moduleName)
 		}
-		mm.SendModuleEvent(ev)
 	}
 
 	return enabled, nil
@@ -1289,13 +1282,11 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 				return err
 			}
 
-			ev := events.ModuleEvent{
-				ModuleName: moduleName,
-				EventType:  events.ModuleDisabled,
-			}
-
 			if isEnabled {
-				ev.EventType = events.ModuleEnabled
+				mm.SendModuleEvent(events.ModuleEvent{
+					ModuleName: moduleName,
+					EventType:  events.ModuleEnabled,
+				})
 				err := mm.UpdateModuleKubeConfig(moduleName)
 				if err != nil {
 					return err
@@ -1303,7 +1294,6 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 				log.Infof("Push ConvergeModules task because %q Module was re-enabled", moduleName)
 				mm.PushConvergeModulesTask(moduleName, "re-enabled")
 			}
-			mm.SendModuleEvent(ev)
 			return nil
 		}
 		// module is enabled, disable its hooks
@@ -1327,24 +1317,21 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 			return err
 		}
 
+		ev := events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleEnabled,
+		}
+
 		if isEnabled {
-			ev := events.ModuleEvent{
-				ModuleName: moduleName,
-				EventType:  events.ModuleEnabled,
-			}
-			mm.SendModuleEvent(ev)
 			// enqueue module startup sequence if it is enabled
 			mm.PushRunModuleTask(moduleName)
 		} else {
-			ev := events.ModuleEvent{
-				ModuleName: moduleName,
-				EventType:  events.ModuleDisabled,
-			}
-			mm.SendModuleEvent(ev)
+			ev.EventType = events.ModuleDisabled
 			mm.PushDeleteModuleTask(moduleName)
 			// modules is disabled - update modulemanager's state
 			mm.DeleteEnabledModuleName(moduleName)
 		}
+		mm.SendModuleEvent(ev)
 		return nil
 	}
 
@@ -1376,6 +1363,10 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 		}
 		log.Infof("Push ConvergeModules task because %q Module was enabled", moduleName)
 		mm.PushConvergeModulesTask(moduleName, "registered-and-enabled")
+		mm.SendModuleEvent(events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleEnabled,
+		})
 	}
 	return nil
 }
