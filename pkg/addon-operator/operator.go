@@ -72,7 +72,6 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
-
 	MetricStorage *metric_storage.MetricStorage
 
 	// LeaderElector represents leaderelection client for HA mode
