@@ -2305,11 +2305,12 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 	return ""
 }
 
-func (op *AddonOperator) RemoveModule(moduleName string) {
-	op.ModuleManager.DeleteEnabledModuleName(moduleName)
+func (op *AddonOperator) PurgeModule(moduleName string) {
+	t := sh_task.NewTask(task.ModulePurge).
+		WithLogLabels(map[string]string{"module": moduleName}).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{ModuleName: moduleName}).
+		WithQueuedAt(time.Now())
 
-	err := op.ModuleManager.DeleteModule(moduleName, nil)
-	if err != nil {
-		log.Errorf("remove module %s: %s", moduleName, err.Error())
-	}
+	op.engine.TaskQueues.GetMain().AddFirst(t)
 }

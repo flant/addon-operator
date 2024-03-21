@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
+	"k8s.io/utils/pointer"
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
@@ -15,8 +16,8 @@ import (
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 )
 
-type ModuleRemover interface {
-	RemoveModule(moduleName string)
+type ModulePurger interface {
+	PurgeModule(moduleName string)
 }
 
 // KubeConfigManager watches for changes in ConfigMap/addon-operator and provides
@@ -35,13 +36,13 @@ type KubeConfigManager struct {
 	// Channel to emit events.
 	configEventCh chan config.KubeConfigEvent
 	backend       backend.ConfigHandler
-	moduleRemover ModuleRemover
+	modulePurger  ModulePurger
 
 	m             sync.Mutex
 	currentConfig *config.KubeConfig
 }
 
-func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config, moduleRemover ModuleRemover) *KubeConfigManager {
+func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config, modulePurger ModulePurger) *KubeConfigManager {
 	cctx, cancel := context.WithCancel(ctx)
 	logger := log.WithField("component", "KubeConfigManager")
 	logger.WithField("backend", fmt.Sprintf("%T", bk)).Infof("Setup KubeConfigManager backend")
@@ -74,7 +75,7 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 		configEventCh:  make(chan config.KubeConfigEvent, 1),
 		logEntry:       logger,
 		backend:        bk,
-		moduleRemover:  moduleRemover,
+		modulePurger:   modulePurger,
 	}
 }
 
@@ -247,11 +248,12 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		moduleCfg := obj.Config.Modules[obj.Key]
 		if obj.Op == config.EventDelete {
 			kcm.logEntry.Infof("Module section deleted: %+v", moduleName)
-			kcm.moduleRemover.RemoveModule(moduleName)
 			moduleCfg.DropValues()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
+			moduleCfg.IsEnabled = pointer.Bool(false)
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigChanged
+			kcm.modulePurger.PurgeModule(moduleName)
 			return
 		}
 		// Module section is changed if new checksum not equal to saved one and not in known checksums.
