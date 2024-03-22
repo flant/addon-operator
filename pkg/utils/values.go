@@ -6,7 +6,7 @@ import (
 	"reflect"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/segmentio/go-camelcase"
+	"github.com/ettle/strcase"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
@@ -23,38 +23,12 @@ type Values map[string]interface{}
 
 // ModuleNameToValuesKey returns camelCased name from kebab-cased (very-simple-module become verySimpleModule)
 func ModuleNameToValuesKey(moduleName string) string {
-	return camelcase.Camelcase(moduleName)
+	return strcase.ToCamel(moduleName)
 }
 
-// ModuleNameFromValuesKey returns kebab-cased name from camelCased (verySimpleModule become ver-simple-module)
+// ModuleNameFromValuesKey returns kebab-cased name from camelCased (verySimpleModule become very-simple-module)
 func ModuleNameFromValuesKey(moduleValuesKey string) string {
-	b := make([]byte, 0, 64)
-	l := len(moduleValuesKey)
-	i := 0
-
-	for i < l {
-		c := moduleValuesKey[i]
-		switch {
-		case c >= 'A' && c <= 'Z':
-			if i > 0 {
-				// Appends dash module name parts delimiter.
-				b = append(b, '-')
-			}
-			// Appends lowercased symbol.
-			b = append(b, c+('a'-'A'))
-		case c >= '0' && c <= '9':
-			if i > 0 {
-				// Appends dash module name parts delimiter.
-				b = append(b, '-')
-			}
-			b = append(b, c)
-		default:
-			b = append(b, c)
-		}
-		i++
-	}
-
-	return string(b)
+	return strcase.ToKebab(moduleValuesKey)
 }
 
 // NewValuesFromBytes loads values sections from maps in yaml or json format

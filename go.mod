@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/distribution/distribution/v3 v3.0.0-20221208165359-362910506bc2
+	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.1.0
 	github.com/flant/shell-operator v1.4.4
 	github.com/go-chi/chi/v5 v5.0.10

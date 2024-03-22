@@ -58,11 +58,13 @@ func Test_ModuleName_Conversions(t *testing.T) {
 	var err error
 
 	for _, strs := range [][]string{
-		{"module-1", "module1"},
+		{"module1", "module1"},
 		{"prometheus", "prometheus"},
 		{"prometheus-operator", "prometheusOperator"},
 		{"hello-world-module", "helloWorldModule"},
 		{"cert-manager-crd", "certManagerCrd"},
+		{"l2-load-balancer", "l2LoadBalancer"},
+		{"2-module-name", "2ModuleName"},
 	} {
 		moduleName := strs[0]
 		moduleValuesKey := strs[1]
@@ -200,9 +202,9 @@ func TestNameValuesKeyNameConsistence(t *testing.T) {
 			"module-one",
 		},
 		{
-			"module-one-0-1",
+			"module-one01",
 			"moduleOne01",
-			"module-one-0-1",
+			"module-one01",
 		},
 		{
 			// Inconsistent module name!
