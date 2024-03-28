@@ -273,11 +273,6 @@ func (bm *BasicModule) SaveHookError(hookName string, err error) {
 	bm.state.hookErrorsLock.Lock()
 	defer bm.state.hookErrorsLock.Unlock()
 
-	if err == nil {
-		delete(bm.state.hookErrors, hookName)
-		return
-	}
-
 	bm.state.hookErrors[hookName] = err
 }
 
@@ -471,6 +466,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		result = "Enabled"
 	}
 	logEntry.Infof("Enabled script run successful, result '%v', module '%s'", moduleEnabled, result)
+	bm.state.enabledScriptResult = &moduleEnabled
 	return moduleEnabled, nil
 }
 
@@ -814,6 +810,30 @@ func (bm *BasicModule) GetValuesPatches() []utils.ValuesPatch {
 	return bm.valuesStorage.getValuesPatches()
 }
 
+// GetHookErrorsSummary get hooks errors summary report
+func (bm *BasicModule) GetHookErrorsSummary() string {
+	bm.state.hookErrorsLock.RLock()
+	defer bm.state.hookErrorsLock.RUnlock()
+
+	hooksState := make([]string, 0, len(bm.state.hookErrors))
+	for name, err := range bm.state.hookErrors {
+		errorMsg := fmt.Sprint(err)
+		if err == nil {
+			errorMsg = "ok"
+		}
+
+		hooksState = append(hooksState, fmt.Sprintf("%s: %s", name, errorMsg))
+	}
+
+	sort.Strings(hooksState)
+	return strings.Join(hooksState, "\n")
+}
+
+// GetEnabledScriptResult returns a bool pointer to the enabled script results
+func (bm *BasicModule) GetEnabledScriptResult() *bool {
+	return bm.state.enabledScriptResult
+}
+
 // GetLastHookError get error of the last executed hook
 func (bm *BasicModule) GetLastHookError() error {
 	bm.state.hookErrorsLock.RLock()
@@ -858,4 +878,5 @@ type moduleState struct {
 	hookErrors           map[string]error
 	hookErrorsLock       sync.RWMutex
 	synchronizationState *SynchronizationState
+	enabledScriptResult  *bool
 }

@@ -929,7 +929,7 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 		mh.GetHookController().DisableScheduleBindings()
 	}
 
-	ml.SetPhase(modules.HooksDisabled)
+	mm.SetModulePhaseAndNotify(ml, modules.HooksDisabled)
 }
 
 func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
@@ -1105,6 +1105,30 @@ func (mm *ModuleManager) SendModuleEvent(ev events.ModuleEvent) {
 	mm.moduleEventC <- ev
 }
 
+func (mm *ModuleManager) SetModulePhaseAndNotify(module *modules.BasicModule, phase modules.ModuleRunPhase) {
+	module.SetPhase(phase)
+	mm.SendModuleEvent(events.ModuleEvent{
+		ModuleName: module.GetName(),
+		EventType:  events.ModuleStateChanged,
+	})
+}
+
+func (mm *ModuleManager) UpdateModuleHookStatusAndNotify(module *modules.BasicModule, hookName string, err error) {
+	module.SaveHookError(hookName, err)
+	mm.SendModuleEvent(events.ModuleEvent{
+		ModuleName: module.GetName(),
+		EventType:  events.ModuleStateChanged,
+	})
+}
+
+func (mm *ModuleManager) UpdateModuleLastErrorAndNotify(module *modules.BasicModule, err error) {
+	module.SetError(err)
+	mm.SendModuleEvent(events.ModuleEvent{
+		ModuleName: module.GetName(),
+		EventType:  events.ModuleStateChanged,
+	})
+}
+
 // mergeEnabled merges enabled flags. Enabled flag can be nil.
 //
 // If all flags are nil, then false is returned — module is disabled by default.
@@ -1259,12 +1283,10 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 			}
 
 			if isEnabled {
-				ev := events.ModuleEvent{
+				mm.SendModuleEvent(events.ModuleEvent{
 					ModuleName: moduleName,
 					EventType:  events.ModuleEnabled,
-				}
-				mm.SendModuleEvent(ev)
-
+				})
 				err := mm.UpdateModuleKubeConfig(moduleName)
 				if err != nil {
 					return err
@@ -1295,24 +1317,21 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 			return err
 		}
 
+		ev := events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleEnabled,
+		}
+
 		if isEnabled {
-			ev := events.ModuleEvent{
-				ModuleName: moduleName,
-				EventType:  events.ModuleEnabled,
-			}
-			mm.SendModuleEvent(ev)
 			// enqueue module startup sequence if it is enabled
 			mm.PushRunModuleTask(moduleName)
 		} else {
-			ev := events.ModuleEvent{
-				ModuleName: moduleName,
-				EventType:  events.ModuleDisabled,
-			}
-			mm.SendModuleEvent(ev)
+			ev.EventType = events.ModuleDisabled
 			mm.PushDeleteModuleTask(moduleName)
 			// modules is disabled - update modulemanager's state
 			mm.DeleteEnabledModuleName(moduleName)
 		}
+		mm.SendModuleEvent(ev)
 		return nil
 	}
 
@@ -1344,6 +1363,10 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 		}
 		log.Infof("Push ConvergeModules task because %q Module was enabled", moduleName)
 		mm.PushConvergeModulesTask(moduleName, "registered-and-enabled")
+		mm.SendModuleEvent(events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleEnabled,
+		})
 	}
 	return nil
 }
@@ -1400,6 +1423,13 @@ func (mm *ModuleManager) registerModules() error {
 	mm.modules.SetInited()
 
 	return nil
+}
+
+// SetModuleEventsChannel sets an event channel for Module Manager
+func (mm *ModuleManager) SetModuleEventsChannel(ec chan events.ModuleEvent) {
+	if mm.moduleEventC == nil {
+		mm.moduleEventC = ec
+	}
 }
 
 // GetModuleEventsChannel returns a channel with events that occur during module processing
