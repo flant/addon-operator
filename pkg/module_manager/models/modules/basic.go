@@ -382,7 +382,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 
 	f, err := os.Stat(enabledScriptPath)
 	if os.IsNotExist(err) {
-		logEntry.Debugf("MODULE '%s' is ENABLED. Enabled script is not exist!", bm.Name)
+		logEntry.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", bm.Name)
 		return true, nil
 	} else if err != nil {
 		logEntry.Errorf("Cannot stat enabled script '%s': %s", enabledScriptPath, err)
@@ -681,7 +681,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 				)
 			}
 
-			err := bm.dc.KubeConfigManager.SaveConfigValues(bm.Name, configValuesPatchResult.Values)
+			err := bm.dc.KubeConfigManager.DeprecatedSaveConfigValues(bm.Name, configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.GetName(), bm.valuesStorage.GetConfigValues(false).DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.GetName(), err)
