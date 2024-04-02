@@ -25,6 +25,12 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
+	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -62,10 +68,11 @@ type DirectoryConfig struct {
 }
 
 type KubeConfigManager interface {
-	SaveConfigValues(key string, values utils.Values) error
-	IsModuleEnabled(moduleName string) bool
+	DeprecatedSaveConfigValues(key string, values utils.Values) error
+	IsModuleEnabled(moduleName string) *bool
 	UpdateModuleConfig(moduleName string) error
 	SafeReadConfig(handler func(config *config.KubeConfig))
+	KubeConfigEventCh() chan config.KubeConfigEvent
 }
 
 // ModuleManagerDependencies pass dependencies for ModuleManager
@@ -105,17 +112,6 @@ type ModuleManager struct {
 
 	global *modules.GlobalModule
 
-	// values::set "moduleNameEnabled" "\"true\""
-	// module enable values from global hooks
-	dynamicEnabled map[string]*bool
-
-	// List of modules enabled by values.yaml or by kube config.
-	// This list is changed on ConfigMap updates.
-	enabledModulesByConfig map[string]struct{}
-
-	// List of effectively enabled modules after running enabled scripts.
-	enabledModules *eModules
-
 	globalSynchronizationState *modules.SynchronizationState
 
 	kubeConfigLock sync.RWMutex
@@ -125,47 +121,8 @@ type ModuleManager struct {
 	kubeConfigValuesValid bool
 
 	moduleEventC chan events.ModuleEvent
-}
 
-type eModules struct {
-	lock    sync.RWMutex
-	modules []string
-}
-
-func (m *eModules) Add(name string) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.modules = append(m.modules, name)
-}
-
-func (m *eModules) Delete(name string) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	for i, n := range m.modules {
-		if n == name {
-			m.modules[i] = m.modules[len(m.modules)-1]
-			m.modules = m.modules[:len(m.modules)-1]
-			break
-		}
-	}
-}
-
-func (m *eModules) Replace(modules []string) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.modules = modules
-}
-
-func (m *eModules) GetAll() []string {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
-	return m.modules
-}
-
-func (m *eModules) String() string {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
-	return fmt.Sprintf("%v", m.modules)
+	moduleScheduler *scheduler.Scheduler
 }
 
 // NewModuleManager returns new MainModuleManager
@@ -189,11 +146,9 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 
 		modules: new(moduleset.ModulesSet),
 
-		enabledModulesByConfig: make(map[string]struct{}),
-		enabledModules:         &eModules{modules: make([]string, 0)},
-		dynamicEnabled:         make(map[string]*bool),
-
 		globalSynchronizationState: modules.NewSynchronizationState(),
+
+		moduleScheduler: scheduler.NewScheduler(cctx),
 	}
 }
 
@@ -213,51 +168,20 @@ func (mm *ModuleManager) GetDependencies() *ModuleManagerDependencies {
 	return mm.dependencies
 }
 
-// runModulesEnabledScript runs enable script for each module from the list.
-// Each 'enabled' script receives a list of previously enabled modules.
-func (mm *ModuleManager) runModulesEnabledScript(modules []string, logLabels map[string]string) ([]string, error) {
-	enabled := make([]string, 0)
-
-	for _, moduleName := range modules {
-		ml := mm.GetModule(moduleName)
-		isEnabled, err := ml.RunEnabledScript(mm.TempDir, enabled, logLabels)
-		if err != nil {
-			return nil, err
-		}
-
-		if isEnabled {
-			enabled = append(enabled, moduleName)
-		}
-	}
-
-	return enabled, nil
-}
-
 func (mm *ModuleManager) GetGlobal() *modules.GlobalModule {
 	return mm.global
 }
 
-// HandleNewKubeConfig validates new config values with config schemas,
-// checks which parts changed and returns state with AllEnabledModules and
-// ModulesToReload list if only module sections are changed.
-// It returns a nil state if new KubeConfig not changing
-// config values or 'enabled by config' state.
-//
-// This method updates 'config values' caches:
-// - mm.enabledModulesByConfig
-// - mm.kubeGlobalConfigValues
-// - mm.kubeModulesConfigValues
-func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*ModulesState, error) {
+// ApplyNewKubeConfigValues validates and applies new config values with config schemas.
+func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig) error {
 	if kubeConfig == nil {
 		// have no idea, how it could be, just skip run
 		log.Warnf("No KubeConfig is set")
-		return &ModulesState{}, nil
+		return nil
 	}
 
 	mm.warnAboutUnknownModules(kubeConfig)
 
-	// Get map of enabled modules after KubeConfig changes.
-	newEnabledByConfig := mm.calculateEnabledModulesByConfig(kubeConfig)
 	allModules := make(map[string]struct{}, len(mm.modules.NamesInOrder()))
 	for _, module := range mm.modules.NamesInOrder() {
 		allModules[module] = struct{}{}
@@ -266,38 +190,12 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 	valuesMap, validationErr := mm.validateNewKubeConfig(kubeConfig, allModules)
 	if validationErr != nil {
 		mm.SetKubeConfigValuesValid(false)
-		return &ModulesState{}, validationErr
+		return validationErr
 	}
 
 	mm.SetKubeConfigValuesValid(true)
 
-	// Detect changes in global section.
-	hasGlobalChange := false
-	newGlobalValues, ok := valuesMap[mm.global.GetName()]
-	if ok {
-		if newGlobalValues.Checksum() != mm.global.GetConfigValues(false).Checksum() {
-			hasGlobalChange = true
-			mm.global.SaveConfigValues(newGlobalValues)
-		}
-		delete(valuesMap, mm.global.GetName())
-	}
-
-	// Full reload if enabled flags are changed.
-	isEnabledChanged := false
-	for _, moduleName := range mm.modules.NamesInOrder() {
-		// Current module state.
-		_, wasEnabled := mm.enabledModulesByConfig[moduleName]
-		_, isEnabled := newEnabledByConfig[moduleName]
-
-		if wasEnabled != isEnabled {
-			isEnabledChanged = true
-			break
-		}
-	}
-
 	// Detect changed module sections for enabled modules.
-	modulesChanged := make([]string, 0)
-
 	for moduleName, values := range valuesMap {
 		mod := mm.GetModule(moduleName)
 		if mod == nil {
@@ -305,30 +203,11 @@ func (mm *ModuleManager) HandleNewKubeConfig(kubeConfig *config.KubeConfig) (*Mo
 		}
 
 		if mod.GetConfigValues(false).Checksum() != values.Checksum() {
-			if mm.IsModuleEnabled(moduleName) {
-				modulesChanged = append(modulesChanged, moduleName)
-			}
 			mod.SaveConfigValues(values)
 		}
 	}
 
-	mm.enabledModulesByConfig = newEnabledByConfig
-
-	// Return empty state on global change.
-	if hasGlobalChange || isEnabledChanged {
-		return &ModulesState{}, nil
-	}
-
-	// Return list of changed modules when only values are changed.
-	if len(modulesChanged) > 0 {
-		return &ModulesState{
-			AllEnabledModules: mm.enabledModules.GetAll(),
-			ModulesToReload:   modulesChanged,
-		}, nil
-	}
-
-	// Return nil if cached state is not changed by ConfigMap.
-	return nil, nil
+	return nil
 }
 
 func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, allModules map[string]struct{}) (map[string]utils.Values, error) {
@@ -394,72 +273,6 @@ func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *config.KubeConfig) 
 	}
 }
 
-// calculateEnabledModulesByConfig determine enable state for all modules
-// by checking *Enabled fields in values.yaml, KubeConfig and dynamicEnable map.
-// Method returns list of enabled modules.
-//
-// Module is enabled by config if module section in KubeConfig is a map or an array
-// or KubeConfig has no module section and module has a map or an array in values.yaml
-func (mm *ModuleManager) calculateEnabledModulesByConfig(config *config.KubeConfig) map[string]struct{} {
-	enabledByConfig := make(map[string]struct{})
-
-	for _, ml := range mm.modules.List() {
-		var kubeConfigEnabled *bool
-		var kubeConfigEnabledStr string
-		if config != nil {
-			if kubeConfig, hasKubeConfig := config.Modules[ml.GetName()]; hasKubeConfig {
-				kubeConfigEnabled = kubeConfig.IsEnabled
-				kubeConfigEnabledStr = kubeConfig.GetEnabled()
-			}
-		}
-
-		_, isEnabledByConfig := mm.enabledModulesByConfig[ml.GetName()]
-
-		isEnabled := mergeEnabled(
-			&isEnabledByConfig,
-			kubeConfigEnabled,
-		)
-
-		if isEnabled {
-			enabledByConfig[ml.GetName()] = struct{}{}
-		}
-
-		log.Debugf("enabledByConfig: module '%s' enabled flags: moduleConfig'%v', kubeConfig '%v', result: '%v'",
-			ml.GetName(),
-			isEnabledByConfig,
-			kubeConfigEnabledStr,
-			isEnabled)
-	}
-
-	return enabledByConfig
-}
-
-// calculateEnabledModulesWithDynamic determine enable state for all modules
-// by checking *Enabled fields in values.yaml, ConfigMap and dynamicEnable map.
-// Method returns list of enabled modules.
-//
-// Module is enabled by config if module section in ConfigMap is a map or an array
-// or ConfigMap has no module section and module has a map or an array in values.yaml
-func (mm *ModuleManager) calculateEnabledModulesWithDynamic(enabledByConfig map[string]struct{}) []string {
-	log.Debugf("calculateEnabled: dynamicEnabled is %s", mm.DumpDynamicEnabled())
-
-	enabled := make([]string, 0)
-	for _, moduleName := range mm.modules.NamesInOrder() {
-		_, isEnabledByConfig := enabledByConfig[moduleName]
-
-		isEnabled := mergeEnabled(
-			&isEnabledByConfig,
-			mm.dynamicEnabled[moduleName],
-		)
-
-		if isEnabled {
-			enabled = append(enabled, moduleName)
-		}
-	}
-
-	return enabled
-}
-
 // Init — initialize module manager
 func (mm *ModuleManager) Init() error {
 	log.Debug("Init ModuleManager")
@@ -469,9 +282,38 @@ func (mm *ModuleManager) Init() error {
 		return err
 	}
 
-	mm.enabledModulesByConfig = gv.enabledModules
+	staticExtender, err := static.NewExtender(mm.ModulesDir)
+	if err != nil {
+		return err
+	}
+	if staticExtender != nil {
+		if err := mm.moduleScheduler.AddExtender(staticExtender); err != nil {
+			return err
+		}
+	}
 
-	if err := mm.registerGlobalModule(gv.globalValues, gv.configSchema, gv.valuesSchema); err != nil {
+	dynamicExtender, err := mm.registerGlobalModule(gv.globalValues, gv.configSchema, gv.valuesSchema)
+	if err != nil {
+		return err
+	}
+
+	if dynamicExtender != nil {
+		if err := mm.moduleScheduler.AddExtender(dynamicExtender); err != nil {
+			return err
+		}
+	}
+
+	kubeConfigExtender := kube_config_extender.NewExtender(mm.dependencies.KubeConfigManager)
+	if err := mm.moduleScheduler.AddExtender(kubeConfigExtender); err != nil {
+		return err
+	}
+
+	scriptEnabledExtender, err := script_enabled.NewExtender(mm.TempDir)
+	if err != nil {
+		return err
+	}
+
+	if err := mm.moduleScheduler.AddExtender(scriptEnabledExtender); err != nil {
 		return err
 	}
 
@@ -529,26 +371,19 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 		return nil, err
 	}
 
-	state := mm.stateFromHelmReleases(releasedModules)
-
-	return state, nil
+	return mm.stateFromHelmReleases(releasedModules)
 }
 
 // stateFromHelmReleases calculates modules to purge from Helm releases.
-func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState {
+func (mm *ModuleManager) stateFromHelmReleases(releases []string) (*ModulesState, error) {
 	releasesMap := utils.ListToMapStringStruct(releases)
-
-	// Filter out known modules.
-	for _, modName := range mm.modules.NamesInOrder() {
-		// Remove known module to detect unknown ones.
-		delete(releasesMap, modName)
+	enabledModules, err := mm.GetEnabledModuleNames()
+	if err != nil {
+		return nil, err
 	}
 
-	// Filter out dynamically enabled modules (a way to save unknown releases).
-	for modName, dynEnable := range mm.dynamicEnabled {
-		if dynEnable != nil && *dynEnable {
-			delete(releasesMap, modName)
-		}
+	for _, moduleName := range enabledModules {
+		delete(releasesMap, moduleName)
 	}
 
 	purge := utils.MapStringStructKeys(releasesMap)
@@ -558,7 +393,7 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 
 	return &ModulesState{
 		ModulesToPurge: purge,
-	}
+	}, nil
 }
 
 // RefreshEnabledState runs enabled hooks for all 'enabled by config' modules and
@@ -571,57 +406,52 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 // This method updates caches:
 // - mm.enabledModules
 func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*ModulesState, error) {
+	moduleDiff, err := mm.moduleScheduler.UpdateAndApplyNewState()
+	if err != nil {
+		return nil, err
+	}
+
 	refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
 		"operator.component": "ModuleManager.RefreshEnabledState",
 	})
 	logEntry := log.WithFields(utils.LabelsToLogFields(refreshLogLabels))
 
-	logEntry.Debugf("Refresh state current:\n"+
-		"    mm.enabledModulesByConfig: %v\n"+
-		"    mm.enabledModules: %v\n",
-		mm.enabledModulesByConfig,
-		mm.enabledModules)
-
-	// Correct enabled modules list with dynamic enabled.
-	enabledByDynamic := mm.calculateEnabledModulesWithDynamic(mm.enabledModulesByConfig)
-	// Calculate final enabled modules list by running 'enabled' scripts.
-	enabledModules, err := mm.runModulesEnabledScript(enabledByDynamic, logLabels)
+	enabledModules, err := mm.GetEnabledModuleNames()
 	if err != nil {
 		return nil, err
 	}
-	logEntry.Infof("Modules enabled by scripts: %+v", enabledModules)
 
-	// Difference between the list of currently enabled modules and the list
-	// of enabled modules after running enabled scripts.
-	// Newly enabled modules are that present in the list after running enabled scripts
-	// but not present in the list of currently enabled modules.
-	newlyEnabledModules := utils.ListSubtract(enabledModules, mm.enabledModules.GetAll())
+	logEntry.Infof("Enabled modules: %+v", enabledModules)
 
-	// Disabled modules are that present in the list of currently enabled modules
-	// but not present in the list after running enabled scripts
-	disabledModules := utils.ListSubtract(mm.enabledModules.GetAll(), enabledModules)
-	disabledModules = utils.SortReverseByReference(disabledModules, mm.modules.NamesInOrder())
+	var (
+		modulesToEnable  []string
+		modulesToDisable []string
+	)
+
+	for module, enabled := range moduleDiff {
+		if enabled {
+			modulesToEnable = append(modulesToEnable, module)
+		} else {
+			modulesToDisable = append(modulesToDisable, module)
+		}
+	}
+	modulesToDisable = utils.SortReverseByReference(modulesToDisable, mm.modules.NamesInOrder())
 
 	logEntry.Debugf("Refresh state results:\n"+
-		"    mm.enabledModulesByConfig: %v\n"+
-		"    mm.enabledModules: %v\n"+
-		"    ModulesToDisable: %v\n"+
-		"    ModulesToEnable: %v\n",
-		mm.enabledModulesByConfig,
-		mm.enabledModules,
-		disabledModules,
-		newlyEnabledModules)
+		"    enabledModules: %v\n"+
+		"    modulesToDisable: %v\n"+
+		"    modulesToEnable: %v\n",
+		enabledModules,
+		modulesToDisable,
+		modulesToEnable)
 
-	// Update state
-	mm.enabledModules.Replace(enabledModules)
-
-	mm.global.SetEnabledModules(mm.enabledModules.GetAll())
+	mm.global.SetEnabledModules(enabledModules)
 
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
-		AllEnabledModules: mm.enabledModules.GetAll(),
-		ModulesToDisable:  disabledModules,
-		ModulesToEnable:   newlyEnabledModules,
+		AllEnabledModules: enabledModules,
+		ModulesToDisable:  modulesToDisable,
+		ModulesToEnable:   modulesToEnable,
 	}, nil
 }
 
@@ -633,34 +463,13 @@ func (mm *ModuleManager) GetModuleNames() []string {
 	return mm.modules.NamesInOrder()
 }
 
-func (mm *ModuleManager) GetEnabledModuleNames() []string {
-	return mm.enabledModules.GetAll()
-}
-
-func (mm *ModuleManager) AddEnabledModuleName(name string) {
-	mm.enabledModules.Add(name)
-}
-
-func (mm *ModuleManager) DeleteEnabledModuleName(name string) {
-	mm.enabledModules.Delete(name)
-}
-
-func (mm *ModuleManager) AddEnabledModuleByConfigName(name string) {
-	mm.enabledModulesByConfig[name] = struct{}{}
-}
-
-func (mm *ModuleManager) DeleteEnabledModuleByConfigName(name string) {
-	delete(mm.enabledModulesByConfig, name)
+func (mm *ModuleManager) GetEnabledModuleNames() ([]string, error) {
+	return mm.moduleScheduler.GetEnabledModuleNames()
 }
 
 // IsModuleEnabled ...
 func (mm *ModuleManager) IsModuleEnabled(moduleName string) bool {
-	for _, modName := range mm.enabledModules.GetAll() {
-		if modName == moduleName {
-			return true
-		}
-	}
-	return false
+	return mm.moduleScheduler.IsModuleEnabled(moduleName)
 }
 
 func (mm *ModuleManager) GetGlobalHook(name string) *hooks.GlobalHook {
@@ -823,8 +632,8 @@ func (mm *ModuleManager) RunModuleHook(moduleName, hookName string, binding Bind
 	return ml.RunHookByName(hookName, binding, bindingContext, logLabels)
 }
 
-func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) {
-	mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
+func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
+	return mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
 		defer func() {
 			if err := recover(); err != nil {
 				logEntry := log.WithField("function", "HandleKubeEvent").WithField("event", "OnKubernetesEvent")
@@ -928,7 +737,7 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 }
 
 func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
-	mm.LoopByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
+	return mm.LoopByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
 		if gh != nil {
 			if gh.GetHookController().CanHandleScheduleEvent(crontab) {
 				gh.GetHookController().HandleScheduleEvent(crontab, func(info controller.BindingExecutionInfo) {
@@ -947,11 +756,9 @@ func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn 
 			}
 		}
 	})
-
-	return nil
 }
 
-func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook)) {
+func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook)) error {
 	globalHooks := mm.GetGlobalHooksInOrder(binding)
 
 	for _, hookName := range globalHooks {
@@ -959,7 +766,12 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 		fn(gh, nil, nil)
 	}
 
-	for _, moduleName := range mm.enabledModules.GetAll() {
+	mods, err := mm.moduleScheduler.GetEnabledModuleNames()
+	if err != nil {
+		return err
+	}
+
+	for _, moduleName := range mods {
 		m := mm.GetModule(moduleName)
 		// skip module if its hooks don't have hook controllers set
 		if !m.HooksControllersReady() {
@@ -971,44 +783,43 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 			fn(nil, m, mh)
 		}
 	}
+
+	return nil
 }
 
-func (mm *ModuleManager) runDynamicEnabledLoop() {
+func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamically_enabled.Extender) {
 	for report := range mm.global.EnabledReportChannel() {
-		err := mm.applyEnabledPatch(report.Patch)
+		err := mm.applyEnabledPatch(report.Patch, extender)
 		report.Done <- err
 	}
 }
 
 // applyEnabledPatch changes "dynamicEnabled" map with patches.
 // TODO: can add some optimization here
-func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch) error {
-	newDynamicEnabled := map[string]*bool{}
-	for k, v := range mm.dynamicEnabled {
-		newDynamicEnabled[k] = v
-	}
-
+func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, extender *dynamically_enabled.Extender) error {
 	for _, op := range enabledPatch.Operations {
 		// Extract module name from json patch: '"path": "/moduleNameEnabled"'
 		modName := strings.TrimSuffix(op.Path, "Enabled")
 		modName = strings.TrimPrefix(modName, "/")
 		modName = utils.ModuleNameFromValuesKey(modName)
 
+		var (
+			v   *bool
+			err error
+		)
+
 		switch op.Op {
 		case "add":
-			v, err := utils.ModuleEnabledValue(op.Value)
+			v, err = utils.ModuleEnabledValue(op.Value)
 			if err != nil {
 				return fmt.Errorf("apply enabled patch operation '%s' for %s: %v", op.Op, op.Path, err)
 			}
 			log.Debugf("apply dynamic enable: module %s set to '%v'", modName, *v)
-			newDynamicEnabled[modName] = v
 		case "remove":
 			log.Debugf("apply dynamic enable: module %s removed from dynamic enable", modName)
-			delete(newDynamicEnabled, modName)
 		}
+		extender.UpdateStatus(modName, op.Op, *v)
 	}
-
-	mm.dynamicEnabled = newDynamicEnabled
 
 	log.Infof("dynamic enabled modules list after patch: %s", mm.DumpDynamicEnabled())
 
@@ -1017,7 +828,7 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch) error
 
 // DynamicEnabledChecksum returns checksum for dynamicEnabled map
 func (mm *ModuleManager) DynamicEnabledChecksum() string {
-	jsonBytes, err := json.Marshal(mm.dynamicEnabled)
+	jsonBytes, err := json.Marshal(mm.moduleScheduler.DumpExtender(extenders.DynamicallyEnabledExtender))
 	if err != nil {
 		log.Errorf("dynamicEnabled checksum calculate from '%s': %v", mm.DumpDynamicEnabled(), err)
 	}
@@ -1026,16 +837,8 @@ func (mm *ModuleManager) DynamicEnabledChecksum() string {
 
 func (mm *ModuleManager) DumpDynamicEnabled() string {
 	dump := "["
-	for k, v := range mm.dynamicEnabled {
-		enabled := "nil"
-		if v != nil {
-			if *v {
-				enabled = "true"
-			} else {
-				enabled = "false"
-			}
-		}
-		dump += fmt.Sprintf("%s(%s), ", k, enabled)
+	for k, v := range mm.moduleScheduler.DumpExtender(extenders.DynamicallyEnabledExtender) {
+		dump += fmt.Sprintf("%s(%t), ", k, v)
 	}
 	return dump + "]"
 }
@@ -1124,21 +927,6 @@ func (mm *ModuleManager) UpdateModuleLastErrorAndNotify(module *modules.BasicMod
 	})
 }
 
-// mergeEnabled merges enabled flags. Enabled flag can be nil.
-//
-// If all flags are nil, then false is returned — module is disabled by default.
-func mergeEnabled(enabledFlags ...*bool) bool {
-	result := false
-	for _, enabled := range enabledFlags {
-		if enabled == nil {
-			continue
-		}
-		result = *enabled
-	}
-
-	return result
-}
-
 // PushDeleteModule pushes moduleDelete task for a module into the main queue
 func (mm *ModuleManager) PushDeleteModuleTask(moduleName string) {
 	// check if there is already moduleDelete task in the main queue for the module
@@ -1210,7 +998,7 @@ func (mm *ModuleManager) UpdateModuleKubeConfig(moduleName string) error {
 	}
 
 	mm.dependencies.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
-		_, err = mm.HandleNewKubeConfig(config)
+		err = mm.ApplyNewKubeConfigValues(config)
 	})
 	if err != nil {
 		return fmt.Errorf("couldn't reload kube config: %s", err)
@@ -1249,148 +1037,164 @@ func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, 
 }
 
 // RegisterModule checks if a module already exists and reapplies(reloads) its configuration.
-// If it's a new module - converges all modules
-func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
-	if !mm.modules.IsInited() {
-		return moduleset.ErrNotInited
-	}
+// If it's a new module - converges all modules - EXPERIMENTAL
+func (mm *ModuleManager) RegisterModule(_, _ string) error {
+	return fmt.Errorf("Not implemented yet")
+	/*
+	   	if !mm.modules.IsInited() {
+	   		return moduleset.ErrNotInited
+	   	}
 
-	if mm.ModulesDir == "" {
-		log.Warnf("Empty modules directory is passed! No modules to load.")
-		return nil
-	}
+	   	if mm.ModulesDir == "" {
+	   		log.Warnf("Empty modules directory is passed! No modules to load.")
+	   		return nil
+	   	}
 
-	if mm.moduleLoader == nil {
-		log.Errorf("no module loader set")
-		return fmt.Errorf("no module loader set")
-	}
+	   	if mm.moduleLoader == nil {
+	   		log.Errorf("no module loader set")
+	   		return fmt.Errorf("no module loader set")
+	   	}
 
-	// get basic module definition
-	basicModule, err := mm.moduleLoader.LoadModule(moduleSource, modulePath)
-	if err != nil {
-		return fmt.Errorf("failed to get basic module's definition: %w", err)
-	}
-	moduleName := basicModule.GetName()
+	   // get basic module definition
+	   basicModule, err := mm.moduleLoader.LoadModule(moduleSource, modulePath)
 
-	// load and registry global hooks
-	dep := &hooks.HookExecutionDependencyContainer{
-		HookMetricsStorage: mm.dependencies.HookMetricStorage,
-		KubeConfigManager:  mm.dependencies.KubeConfigManager,
-		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
-		MetricStorage:      mm.dependencies.MetricStorage,
-		GlobalValuesGetter: mm.global,
-	}
+	   	if err != nil {
+	   		return fmt.Errorf("failed to get basic module's definition: %w", err)
+	   	}
 
-	basicModule.WithDependencies(dep)
+	   moduleName := basicModule.GetName()
 
-	// check if module already exists
-	if mm.modules.Has(moduleName) {
-		// if module is disabled in module manager
-		if !mm.IsModuleEnabled(moduleName) {
-			// update(upsert) module config in moduleset
-			mm.modules.Add(basicModule)
-			// if module is disabled in the module kube config - exit
-			if !mm.dependencies.KubeConfigManager.IsModuleEnabled(moduleName) {
-				return nil
-			}
-			mm.AddEnabledModuleByConfigName(moduleName)
+	   // load and registry global hooks
 
-			// if the module kube config has enabled true, check enable script
-			isEnabled, err := basicModule.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
-			if err != nil {
-				return err
-			}
+	   	dep := &hooks.HookExecutionDependencyContainer{
+	   		HookMetricsStorage: mm.dependencies.HookMetricStorage,
+	   		KubeConfigManager:  mm.dependencies.KubeConfigManager,
+	   		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
+	   		MetricStorage:      mm.dependencies.MetricStorage,
+	   		GlobalValuesGetter: mm.global,
+	   	}
 
-			if isEnabled {
-				mm.SendModuleEvent(events.ModuleEvent{
-					ModuleName: moduleName,
-					EventType:  events.ModuleEnabled,
-				})
-				err := mm.UpdateModuleKubeConfig(moduleName)
-				if err != nil {
-					return err
-				}
-				log.Infof("Push ConvergeModules task because %q Module was re-enabled", moduleName)
-				mm.PushConvergeModulesTask(moduleName, "re-enabled")
-			}
-			return nil
-		}
-		// module is enabled, disable its hooks
-		mm.DisableModuleHooks(moduleName)
+	   basicModule.WithDependencies(dep)
 
-		module := mm.GetModule(moduleName)
-		// check for nil to prevent operator from panicking
-		if module == nil {
-			return fmt.Errorf("couldn't get %s module configuration", moduleName)
-		}
+	   // check if module already exists
 
-		// deregister modules' hooks
-		module.DeregisterHooks()
+	   	if mm.modules.Has(moduleName) {
+	   		// if module is disabled in module manager
+	   		if !mm.IsModuleEnabled(moduleName) {
+	   			// update(upsert) module config in moduleset
+	   			mm.modules.Add(basicModule)
+	   			// get kube config for the module to check if it has enabled: true
+	   			moduleKubeConfigEnabled := mm.dependencies.KubeConfigManager.IsModuleEnabled(moduleName)
+	   			// if module isn't explicitly enabled in the module kube config - exit
+	   			if moduleKubeConfigEnabled == nil || (moduleKubeConfigEnabled != nil && !*moduleKubeConfigEnabled) {
+	   				return nil
+	   			}
+	   			mm.AddEnabledModuleByConfigName(moduleName)
 
-		// upsert a new module in the moduleset
-		mm.modules.Add(basicModule)
+	   			// if the module kube config has enabled true, check enable script
+	   			isEnabled, err := basicModule.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
+	   			if err != nil {
+	   				return err
+	   			}
 
-		// check if module is enabled via enabled scripts
-		isEnabled, err := basicModule.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
-		if err != nil {
-			return err
-		}
+	   			if isEnabled {
+	   				mm.SendModuleEvent(events.ModuleEvent{
+	   					ModuleName: moduleName,
+	   					EventType:  events.ModuleEnabled,
+	   				})
+	   				err := mm.UpdateModuleKubeConfig(moduleName)
+	   				if err != nil {
+	   					return err
+	   				}
+	   				log.Infof("Push ConvergeModules task because %q Module was re-enabled", moduleName)
+	   				mm.PushConvergeModulesTask(moduleName, "re-enabled")
+	   			}
+	   			return nil
+	   		}
+	   		// module is enabled, disable its hooks
+	   		mm.DisableModuleHooks(moduleName)
 
-		ev := events.ModuleEvent{
-			ModuleName: moduleName,
-			EventType:  events.ModuleEnabled,
-		}
+	   		module := mm.GetModule(moduleName)
+	   		// check for nil to prevent operator from panicking
+	   		if module == nil {
+	   			return fmt.Errorf("couldn't get %s module configuration", moduleName)
+	   		}
 
-		if isEnabled {
-			// enqueue module startup sequence if it is enabled
-			err := mm.PushRunModuleTask(moduleName, false)
-			if err != nil {
-				return err
-			}
-		} else {
-			ev.EventType = events.ModuleDisabled
-			mm.PushDeleteModuleTask(moduleName)
-			// modules is disabled - update modulemanager's state
-			mm.DeleteEnabledModuleName(moduleName)
-		}
-		mm.SendModuleEvent(ev)
-		return nil
-	}
+	   		// deregister modules' hooks
+	   		module.DeregisterHooks()
 
-	// module doesn't exist
-	mm.modules.Add(basicModule)
+	   		// upsert a new module in the moduleset
+	   		mm.modules.Add(basicModule)
 
-	// a new module requires to be registered
-	mm.SendModuleEvent(events.ModuleEvent{
-		ModuleName: moduleName,
-		EventType:  events.ModuleRegistered,
-	})
+	   		// check if module is enabled via enabled scripts
+	   		isEnabled, err := basicModule.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
+	   		if err != nil {
+	   			return err
+	   		}
 
-	// if module is disabled in the module kube config - exit
-	if !mm.dependencies.KubeConfigManager.IsModuleEnabled(moduleName) {
-		return nil
-	}
-	mm.AddEnabledModuleByConfigName(moduleName)
+	   		ev := events.ModuleEvent{
+	   			ModuleName: moduleName,
+	   			EventType:  events.ModuleEnabled,
+	   		}
 
-	// if the module kube config has enabled true, check enable script
-	isEnabled, err := basicModule.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
-	if err != nil {
-		return err
-	}
+	   		if isEnabled {
+	   			// enqueue module startup sequence if it is enabled
+	   			err := mm.PushRunModuleTask(moduleName, false)
+	   			if err != nil {
+	   				return err
+	   			}
+	   		} else {
+	   			ev.EventType = events.ModuleDisabled
+	   			mm.PushDeleteModuleTask(moduleName)
+	   			// modules is disabled - update modulemanager's state
+	   			mm.DeleteEnabledModuleName(moduleName)
+	   		}
+	   		mm.SendModuleEvent(ev)
+	   		return nil
+	   	}
 
-	if isEnabled {
-		err := mm.UpdateModuleKubeConfig(moduleName)
-		if err != nil {
-			return err
-		}
-		log.Infof("Push ConvergeModules task because %q Module was enabled", moduleName)
-		mm.PushConvergeModulesTask(moduleName, "registered-and-enabled")
-		mm.SendModuleEvent(events.ModuleEvent{
-			ModuleName: moduleName,
-			EventType:  events.ModuleEnabled,
-		})
-	}
-	return nil
+	   // module doesn't exist
+	   mm.modules.Add(basicModule)
+
+	   // a new module requires to be registered
+
+	   	mm.SendModuleEvent(events.ModuleEvent{
+	   		ModuleName: moduleName,
+	   		EventType:  events.ModuleRegistered,
+	   	})
+
+	   // get kube config for the module to check if it has enabled: true
+	   moduleKubeConfigEnabled := mm.dependencies.KubeConfigManager.IsModuleEnabled(moduleName)
+	   // if module isn't explicitly enabled in the module kube config - exit
+
+	   	if moduleKubeConfigEnabled == nil || (moduleKubeConfigEnabled != nil && !*moduleKubeConfigEnabled) {
+	   		return nil
+	   	}
+
+	   mm.AddEnabledModuleByConfigName(moduleName)
+
+	   // if the module kube config has enabled true, check enable script
+	   isEnabled, err := basicModule.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
+
+	   	if err != nil {
+	   		return err
+	   	}
+
+	   	if isEnabled {
+	   		err := mm.UpdateModuleKubeConfig(moduleName)
+	   		if err != nil {
+	   			return err
+	   		}
+	   		log.Infof("Push ConvergeModules task because %q Module was enabled", moduleName)
+	   		mm.PushConvergeModulesTask(moduleName, "registered-and-enabled")
+	   		mm.SendModuleEvent(events.ModuleEvent{
+	   			ModuleName: moduleName,
+	   			EventType:  events.ModuleEnabled,
+	   		})
+	   	}
+
+	   return nil
+	*/
 }
 
 // registerModules load all available modules from modules directory.
@@ -1432,6 +1236,10 @@ func (mm *ModuleManager) registerModules() error {
 		mod.WithDependencies(dep)
 
 		set.Add(mod)
+		err := mm.moduleScheduler.AddModuleVertex(mod)
+		if err != nil {
+			return err
+		}
 
 		mm.SendModuleEvent(events.ModuleEvent{
 			ModuleName: mod.GetName(),
@@ -1462,6 +1270,14 @@ func (mm *ModuleManager) GetModuleEventsChannel() chan events.ModuleEvent {
 	}
 
 	return mm.moduleEventC
+}
+
+func (mm *ModuleManager) SchedulerEventCh() chan extenders.ExtenderEvent {
+	return mm.moduleScheduler.EventCh()
+}
+
+func (mm *ModuleManager) StateChangedByExtender(extName extenders.ExtenderName, moduleName string) (bool, error) {
+	return mm.moduleScheduler.StateChanged(extName, moduleName)
 }
 
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks

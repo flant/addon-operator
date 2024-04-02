@@ -206,7 +206,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 				return fmt.Errorf("cannot apply config values patch for global values: %w", validationErr)
 			}
 
-			err := gm.dc.KubeConfigManager.SaveConfigValues(utils.GlobalValuesKey, configValuesPatchResult.Values)
+			err := gm.dc.KubeConfigManager.DeprecatedSaveConfigValues(utils.GlobalValuesKey, configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.GetName(), gm.valuesStorage.GetConfigValues(false).DebugString())
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.GetName(), err)

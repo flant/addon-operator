@@ -106,3 +106,14 @@ func NewConvergeModulesTask(description string, convergeEvent ConvergeEvent, log
 	convergeTask.SetProp(ConvergeEventProp, convergeEvent)
 	return convergeTask
 }
+
+func NewApplyKubeConfigValuesTask(description string, logLabels map[string]string) sh_task.Task {
+	convergeTask := sh_task.NewTask(task.ApplyKubeConfigValues).
+		WithLogLabels(logLabels).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription: description,
+		}).
+		WithQueuedAt(time.Now())
+	return convergeTask
+}

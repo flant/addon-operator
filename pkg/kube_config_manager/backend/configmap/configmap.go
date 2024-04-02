@@ -62,8 +62,8 @@ func (b Backend) LoadConfig(ctx context.Context, _ ...string) (*config.KubeConfi
 	return parseConfigMapData(obj.Data)
 }
 
-// SaveConfigValues saves patches in the ConfigMap
-func (b Backend) SaveConfigValues(ctx context.Context, key string, values utils.Values) ( /*checksum*/ string, error) {
+// DeprecatedSaveConfigValues saves patches in the ConfigMap
+func (b Backend) DeprecatedSaveConfigValues(ctx context.Context, key string, values utils.Values) ( /*checksum*/ string, error) {
 	if key == utils.GlobalValuesKey {
 		return b.saveGlobalConfigValues(ctx, values)
 	}
