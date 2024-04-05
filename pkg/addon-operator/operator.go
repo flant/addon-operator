@@ -2324,6 +2324,7 @@ func (op *AddonOperator) PurgeModule(moduleName string) {
 		WithQueueName("main").
 		WithMetadata(task.HookMetadata{ModuleName: moduleName}).
 		WithQueuedAt(time.Now())
+	ct.SetProp(converge.ConvergeEventProp, converge.ReloadAllModules)
 
 	q.AddLast(ct)
 }
