@@ -1,8 +1,8 @@
 package helm3lib
 
 import (
-	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,37 +16,33 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage/driver"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kblabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
-	klient "github.com/flant/kube-client/client"
 )
 
-func Init(opts *Options) {
+func Init(opts *Options) error {
 	hc := &LibClient{
 		LogEntry: log.WithField("operator.component", "helm3lib"),
 	}
 	options = opts
-	hc.initAndVersion()
+
+	return hc.initAndVersion()
 }
 
 // LibClient use helm3 package as Go library.
 type LibClient struct {
-	KubeClient *klient.Client
-	LogEntry   *log.Entry
-	Namespace  string
+	LogEntry  *log.Entry
+	Namespace string
 }
 
 type Options struct {
 	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
-	KubeClient *klient.Client
 }
 
 var (
@@ -62,9 +58,8 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	}
 
 	return &LibClient{
-		LogEntry:   logEntry,
-		KubeClient: options.KubeClient,
-		Namespace:  options.Namespace,
+		LogEntry:  logEntry,
+		Namespace: options.Namespace,
 	}
 }
 
@@ -91,20 +86,31 @@ func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioption
 	return flags
 }
 
-func (h *LibClient) actionConfigInit() {
+func (h *LibClient) actionConfigInit() error {
 	ac := new(action.Configuration)
 
 	getter := buildConfigFlagsFromEnv(&options.Namespace, cli.New())
-	// Error is not possible for secrets driver
-	_ = ac.Init(getter, options.Namespace, "secrets", h.LogEntry.Debugf)
+
+	// If env is empty - default storage backend ('secrets') will be used
+	helmDriver := os.Getenv("HELM_DRIVER")
+	err := ac.Init(getter, options.Namespace, helmDriver, h.LogEntry.Debugf)
+	if err != nil {
+		return fmt.Errorf("init helm action config: %v", err)
+	}
 
 	actionConfig = ac
+
+	return nil
 }
 
 // initAndVersion runs helm version command.
-func (h *LibClient) initAndVersion() {
-	h.actionConfigInit()
+func (h *LibClient) initAndVersion() error {
+	if err := h.actionConfigInit(); err != nil {
+		return err
+	}
+
 	log.Infof("Helm 3 version: %s", chartutil.DefaultCapabilities.HelmVersion.Version)
+	return nil
 }
 
 // LastReleaseStatus returns last known revision for release and its status
@@ -130,7 +136,9 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	if err != nil {
 		// helm validation can fail because FeatureGate was enabled for example
 		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
-		h.actionConfigInit()
+		if err := h.actionConfigInit(); err != nil {
+			return err
+		}
 		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
 	}
 
@@ -278,40 +286,25 @@ func (h *LibClient) IsReleaseExists(releaseName string) (bool, error) {
 }
 
 // ListReleasesNames returns list of release names.
-// Names are extracted from label "name" in Secrets with label "owner"=="helm".
-func (h *LibClient) ListReleasesNames(labelSelector map[string]string) ([]string, error) {
-	labelsSet := make(kblabels.Set)
-	for k, v := range labelSelector {
-		labelsSet[k] = v
-	}
-	labelsSet["owner"] = "helm"
-
-	list, err := h.KubeClient.CoreV1().
-		Secrets(h.Namespace).
-		List(context.TODO(), metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
+func (h *LibClient) ListReleasesNames() ([]string, error) {
+	l := action.NewList(actionConfig)
+	list, err := l.Run()
 	if err != nil {
-		h.LogEntry.Debugf("helm: list of release Secrets failed: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("helm list failed: %s", err)
 	}
 
-	uniqNamesMap := make(map[string]struct{})
-	for _, secret := range list.Items {
-		releaseName, hasKey := secret.Labels["name"]
-		if hasKey && releaseName != "" {
-			uniqNamesMap[releaseName] = struct{}{}
+	releases := make([]string, 0, len(list))
+	for _, release := range list {
+		// Do not return ignored release or empty string.
+		if release.Name == app.HelmIgnoreRelease || release.Name == "" {
+			continue
 		}
+
+		releases = append(releases, release.Name)
 	}
 
-	// Do not return ignored release.
-	delete(uniqNamesMap, app.HelmIgnoreRelease)
-
-	uniqNames := make([]string, 0)
-	for name := range uniqNamesMap {
-		uniqNames = append(uniqNames, name)
-	}
-
-	sort.Strings(uniqNames)
-	return uniqNames, nil
+	sort.Strings(releases)
+	return releases, nil
 }
 
 func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {

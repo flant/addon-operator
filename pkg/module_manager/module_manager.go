@@ -532,7 +532,7 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	if mm.dependencies.Helm == nil {
 		return &ModulesState{}, nil
 	}
-	releasedModules, err := mm.dependencies.Helm.NewClient(logLabels).ListReleasesNames(nil)
+	releasedModules, err := mm.dependencies.Helm.NewClient(logLabels).ListReleasesNames()
 	if err != nil {
 		return nil, err
 	}
@@ -929,7 +929,7 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 		mh.GetHookController().DisableScheduleBindings()
 	}
 
-	ml.SetPhase(modules.HooksDisabled)
+	mm.SetModulePhaseAndNotify(ml, modules.HooksDisabled)
 }
 
 func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
@@ -1105,6 +1105,30 @@ func (mm *ModuleManager) SendModuleEvent(ev events.ModuleEvent) {
 	mm.moduleEventC <- ev
 }
 
+func (mm *ModuleManager) SetModulePhaseAndNotify(module *modules.BasicModule, phase modules.ModuleRunPhase) {
+	module.SetPhase(phase)
+	mm.SendModuleEvent(events.ModuleEvent{
+		ModuleName: module.GetName(),
+		EventType:  events.ModuleStateChanged,
+	})
+}
+
+func (mm *ModuleManager) UpdateModuleHookStatusAndNotify(module *modules.BasicModule, hookName string, err error) {
+	module.SaveHookError(hookName, err)
+	mm.SendModuleEvent(events.ModuleEvent{
+		ModuleName: module.GetName(),
+		EventType:  events.ModuleStateChanged,
+	})
+}
+
+func (mm *ModuleManager) UpdateModuleLastErrorAndNotify(module *modules.BasicModule, err error) {
+	module.SetError(err)
+	mm.SendModuleEvent(events.ModuleEvent{
+		ModuleName: module.GetName(),
+		EventType:  events.ModuleStateChanged,
+	})
+}
+
 // mergeEnabled merges enabled flags. Enabled flag can be nil.
 //
 // If all flags are nil, then false is returned — module is disabled by default.
@@ -1157,7 +1181,7 @@ func (mm *ModuleManager) PushConvergeModulesTask(moduleName, moduleState string)
 }
 
 // PushRunModuleTask pushes moduleRun task for a module into the main queue if there is no such a task for the module
-func (mm *ModuleManager) PushRunModuleTask(moduleName string) error {
+func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bool) error {
 	// update module's kube config
 	err := mm.UpdateModuleKubeConfig(moduleName)
 	if err != nil {
@@ -1174,7 +1198,7 @@ func (mm *ModuleManager) PushRunModuleTask(moduleName string) error {
 		WithMetadata(task.HookMetadata{
 			EventDescription: "ModuleManager-Update-Module",
 			ModuleName:       moduleName,
-			DoModuleStartup:  true,
+			DoModuleStartup:  doModuleStartup,
 		})
 	newTask.SetProp("triggered-by", "ModuleManager")
 
@@ -1203,6 +1227,30 @@ func (mm *ModuleManager) UpdateModuleKubeConfig(moduleName string) error {
 // AreModulesInited returns true if modulemanager's moduleset has already been initialized
 func (mm *ModuleManager) AreModulesInited() bool {
 	return mm.modules.IsInited()
+}
+
+// RunModuleWithNewStaticValues updates the module's values by rebasing them from static values from modulePath directory and pushes RunModuleTask if the module is enabled
+func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, modulePath string) error {
+	currentModule := mm.modules.Get(moduleName)
+	if currentModule == nil {
+		return fmt.Errorf("failed to get basic module - not found")
+	}
+
+	basicModule, err := mm.moduleLoader.LoadModule(moduleSource, modulePath)
+	if err != nil {
+		return err
+	}
+
+	err = currentModule.ApplyNewStaticValues(basicModule.GetStaticValues())
+	if err != nil {
+		return err
+	}
+
+	if mm.IsModuleEnabled(moduleName) {
+		return mm.PushRunModuleTask(moduleName, false)
+	}
+
+	return nil
 }
 
 // RegisterModule checks if a module already exists and reapplies(reloads) its configuration.
@@ -1259,12 +1307,10 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 			}
 
 			if isEnabled {
-				ev := events.ModuleEvent{
+				mm.SendModuleEvent(events.ModuleEvent{
 					ModuleName: moduleName,
 					EventType:  events.ModuleEnabled,
-				}
-				mm.SendModuleEvent(ev)
-
+				})
 				err := mm.UpdateModuleKubeConfig(moduleName)
 				if err != nil {
 					return err
@@ -1295,24 +1341,24 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 			return err
 		}
 
+		ev := events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleEnabled,
+		}
+
 		if isEnabled {
-			ev := events.ModuleEvent{
-				ModuleName: moduleName,
-				EventType:  events.ModuleEnabled,
-			}
-			mm.SendModuleEvent(ev)
 			// enqueue module startup sequence if it is enabled
-			mm.PushRunModuleTask(moduleName)
-		} else {
-			ev := events.ModuleEvent{
-				ModuleName: moduleName,
-				EventType:  events.ModuleDisabled,
+			err := mm.PushRunModuleTask(moduleName, false)
+			if err != nil {
+				return err
 			}
-			mm.SendModuleEvent(ev)
+		} else {
+			ev.EventType = events.ModuleDisabled
 			mm.PushDeleteModuleTask(moduleName)
 			// modules is disabled - update modulemanager's state
 			mm.DeleteEnabledModuleName(moduleName)
 		}
+		mm.SendModuleEvent(ev)
 		return nil
 	}
 
@@ -1344,6 +1390,10 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 		}
 		log.Infof("Push ConvergeModules task because %q Module was enabled", moduleName)
 		mm.PushConvergeModulesTask(moduleName, "registered-and-enabled")
+		mm.SendModuleEvent(events.ModuleEvent{
+			ModuleName: moduleName,
+			EventType:  events.ModuleEnabled,
+		})
 	}
 	return nil
 }
@@ -1400,6 +1450,13 @@ func (mm *ModuleManager) registerModules() error {
 	mm.modules.SetInited()
 
 	return nil
+}
+
+// SetModuleEventsChannel sets an event channel for Module Manager
+func (mm *ModuleManager) SetModuleEventsChannel(ec chan events.ModuleEvent) {
+	if mm.moduleEventC == nil {
+		mm.moduleEventC = ec
+	}
 }
 
 // GetModuleEventsChannel returns a channel with events that occur during module processing

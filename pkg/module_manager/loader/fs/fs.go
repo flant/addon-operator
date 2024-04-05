@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -78,12 +79,20 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 
 // reads single directory and returns BasicModule
 func (fl *FileSystemLoader) LoadModule(_, modulePath string) (*modules.BasicModule, error) {
-	_, err := readDir(modulePath)
+	// the module's parent directory
+	var modulesDir string
+	if strings.HasSuffix(modulePath, "/") {
+		modulesDir = filepath.Dir(strings.TrimRight(modulePath, "/"))
+	} else {
+		modulesDir = filepath.Dir(modulePath)
+	}
+
+	commonStaticValues, err := utils.LoadValuesFileFromDir(modulesDir)
 	if err != nil {
 		return nil, err
 	}
 
-	commonStaticValues, err := utils.LoadValuesFileFromDir(modulePath)
+	_, err = readDir(modulePath)
 	if err != nil {
 		return nil, err
 	}

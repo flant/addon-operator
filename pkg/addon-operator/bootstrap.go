@@ -22,13 +22,14 @@ func (op *AddonOperator) bootstrap() error {
 
 	// Debug server.
 	// TODO: rewrite sh_app global variables to the addon-operator ones
-	debugServer, err := shell_operator.RunDefaultDebugServer(sh_app.DebugUnixSocket, sh_app.DebugHttpServerAddr)
+	var err error
+	op.DebugServer, err = shell_operator.RunDefaultDebugServer(sh_app.DebugUnixSocket, sh_app.DebugHttpServerAddr)
 	if err != nil {
 		log.Errorf("Fatal: start Debug server: %s", err)
 		return err
 	}
 
-	err = op.Assemble(debugServer)
+	err = op.Assemble(op.DebugServer)
 	if err != nil {
 		log.Errorf("Fatal: %s", err)
 		return err

@@ -319,7 +319,7 @@ param2: val2
 
 	kcm.SafeReadConfig(func(config *config.KubeConfig) {
 		g.Expect(config.Modules).To(HaveLen(1), "Module section should appear after ConfigMap update")
-		g.Expect(config.Modules).To(HaveKey("module-2"), "module-2 section should appear after ConfigMap update")
+		g.Expect(config.Modules).To(HaveKey("module2"), "module2 section should appear after ConfigMap update")
 	})
 
 	// Update ConfigMap with global section.
