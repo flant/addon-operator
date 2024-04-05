@@ -2306,11 +2306,21 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 }
 
 func (op *AddonOperator) PurgeModule(moduleName string) {
-	t := sh_task.NewTask(task.ModulePurge).
+	q := op.engine.TaskQueues.GetMain()
+
+	pt := sh_task.NewTask(task.ModulePurge).
 		WithLogLabels(map[string]string{"module": moduleName}).
 		WithQueueName("main").
 		WithMetadata(task.HookMetadata{ModuleName: moduleName}).
 		WithQueuedAt(time.Now())
 
-	op.engine.TaskQueues.GetMain().AddFirst(t)
+	q.AddLast(pt)
+
+	ct := sh_task.NewTask(task.ConvergeModules).
+		WithLogLabels(map[string]string{"module": moduleName}).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{ModuleName: moduleName}).
+		WithQueuedAt(time.Now())
+
+	q.AddLast(ct)
 }
