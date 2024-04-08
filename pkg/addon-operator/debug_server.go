@@ -171,7 +171,7 @@ func (op *AddonOperator) RegisterDiscoveryRoute(dbgSrv *debug.Server) {
 	dbgSrv.RegisterHandler(http.MethodGet, "/discovery", func(_ *http.Request) (interface{}, error) {
 		buf := bytes.NewBuffer(nil)
 		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-			if strings.HasPrefix(route, "/global/") || strings.HasPrefix(route, "/module/") {
+			if strings.HasPrefix(route, "/global/") || strings.HasPrefix(route, "/module/") || true {
 				_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
 				return nil
 			}
