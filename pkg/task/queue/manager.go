@@ -3,11 +3,10 @@ package queue
 import (
 	"time"
 
-	"github.com/flant/shell-operator/pkg/task/queue"
-
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 func NewManager(queues *queue.TaskQueueSet) *Manager {
