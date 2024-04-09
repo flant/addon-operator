@@ -26,10 +26,11 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
+	"github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/kube-client/fake"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
+	sh_queue "github.com/flant/shell-operator/pkg/task/queue"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 )
 
@@ -116,7 +117,8 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	op.engine.SetupEventManagers()
 
 	bk := configmap.New(nil, op.engine.KubeClient, result.cmNamespace, result.cmName)
-	manager := kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, op)
+	qm := queue.NewManager(op.engine.TaskQueues)
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, qm)
 	op.KubeConfigManager = manager
 
 	dirs := module_manager.DirectoryConfig{
@@ -236,7 +238,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 	}
 
 	taskHandleHistory := make([]taskInfo, 0)
-	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) sh_queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -374,7 +376,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 
 	historyMu := new(sync.Mutex)
 	taskHandleHistory := make([]taskInfo, 0)
-	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) sh_queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -479,7 +481,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 
 	historyMu := new(sync.Mutex)
 	taskHandleHistory := make([]taskInfo, 0)
-	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) sh_queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""

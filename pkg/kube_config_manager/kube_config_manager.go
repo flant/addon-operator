@@ -12,13 +12,10 @@ import (
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 )
-
-type ModulePurger interface {
-	PurgeModule(moduleName string)
-}
 
 // KubeConfigManager watches for changes in ConfigMap/addon-operator and provides
 // methods to change its content.
@@ -36,13 +33,13 @@ type KubeConfigManager struct {
 	// Channel to emit events.
 	configEventCh chan config.KubeConfigEvent
 	backend       backend.ConfigHandler
-	modulePurger  ModulePurger
+	queueManager  *queue.Manager
 
 	m             sync.Mutex
 	currentConfig *config.KubeConfig
 }
 
-func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config, modulePurger ModulePurger) *KubeConfigManager {
+func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config, queueManager *queue.Manager) *KubeConfigManager {
 	cctx, cancel := context.WithCancel(ctx)
 	logger := log.WithField("component", "KubeConfigManager")
 	logger.WithField("backend", fmt.Sprintf("%T", bk)).Infof("Setup KubeConfigManager backend")
@@ -75,7 +72,7 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 		configEventCh:  make(chan config.KubeConfigEvent, 1),
 		logEntry:       logger,
 		backend:        bk,
-		modulePurger:   modulePurger,
+		queueManager:   queueManager,
 	}
 }
 
@@ -253,7 +250,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			moduleCfg.IsEnabled = pointer.Bool(false)
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigChanged
-			kcm.modulePurger.PurgeModule(moduleName)
+			kcm.queueManager.PurgeModule(moduleName)
 			return
 		}
 		// Module section is changed if new checksum not equal to saved one and not in known checksums.

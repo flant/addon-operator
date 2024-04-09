@@ -3,6 +3,8 @@ package addon_operator
 import (
 	log "github.com/sirupsen/logrus"
 
+	"github.com/flant/addon-operator/pkg/task/queue"
+
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
@@ -69,7 +71,8 @@ func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
 		return
 	}
 
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, op)
+	qm := queue.NewManager(op.engine.TaskQueues)
+	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, qm)
 }
 
 func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string) {
