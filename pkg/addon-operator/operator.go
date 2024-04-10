@@ -30,6 +30,7 @@ import (
 	"github.com/flant/kube-client/client"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
+	"github.com/flant/shell-operator/pkg/debug"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
@@ -50,6 +51,8 @@ type AddonOperator struct {
 	cancel context.CancelFunc
 
 	runtimeConfig *runtimeConfig.Config
+
+	DebugServer *debug.Server
 
 	// KubeConfigManager monitors changes in ConfigMap.
 	KubeConfigManager *kube_config_manager.KubeConfigManager
