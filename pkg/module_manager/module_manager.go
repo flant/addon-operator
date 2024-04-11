@@ -1181,7 +1181,7 @@ func (mm *ModuleManager) PushConvergeModulesTask(moduleName, moduleState string)
 }
 
 // PushRunModuleTask pushes moduleRun task for a module into the main queue if there is no such a task for the module
-func (mm *ModuleManager) PushRunModuleTask(moduleName string) error {
+func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bool) error {
 	// update module's kube config
 	err := mm.UpdateModuleKubeConfig(moduleName)
 	if err != nil {
@@ -1198,7 +1198,7 @@ func (mm *ModuleManager) PushRunModuleTask(moduleName string) error {
 		WithMetadata(task.HookMetadata{
 			EventDescription: "ModuleManager-Update-Module",
 			ModuleName:       moduleName,
-			DoModuleStartup:  true,
+			DoModuleStartup:  doModuleStartup,
 		})
 	newTask.SetProp("triggered-by", "ModuleManager")
 
@@ -1228,6 +1228,11 @@ func (mm *ModuleManager) UpdateModuleKubeConfig(moduleName string) error {
 func (mm *ModuleManager) AreModulesInited() bool {
 	return mm.modules.IsInited()
 }
+
+// ReapplyModuleStaticValues
+//func (mm *ModuleManager) ReapplyModuleStaticValues(moduleSource, modulePath string) error {
+//
+//}
 
 // RegisterModule checks if a module already exists and reapplies(reloads) its configuration.
 // If it's a new module - converges all modules
@@ -1324,7 +1329,7 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 
 		if isEnabled {
 			// enqueue module startup sequence if it is enabled
-			mm.PushRunModuleTask(moduleName)
+			mm.PushRunModuleTask(moduleName, false)
 		} else {
 			ev.EventType = events.ModuleDisabled
 			mm.PushDeleteModuleTask(moduleName)
