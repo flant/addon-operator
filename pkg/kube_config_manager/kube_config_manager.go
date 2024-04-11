@@ -12,6 +12,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules/modulefilter"
 	"github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
@@ -37,9 +38,12 @@ type KubeConfigManager struct {
 
 	m             sync.Mutex
 	currentConfig *config.KubeConfig
+	moduleFilter  modulefilter.Filter
 }
 
-func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config, queueManager *queue.Manager) *KubeConfigManager {
+func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config,
+	queueManager *queue.Manager, moduleFilter modulefilter.Filter,
+) *KubeConfigManager {
 	cctx, cancel := context.WithCancel(ctx)
 	logger := log.WithField("component", "KubeConfigManager")
 	logger.WithField("backend", fmt.Sprintf("%T", bk)).Infof("Setup KubeConfigManager backend")
@@ -73,6 +77,7 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 		logEntry:       logger,
 		backend:        bk,
 		queueManager:   queueManager,
+		moduleFilter:   moduleFilter,
 	}
 }
 
@@ -247,10 +252,14 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			kcm.logEntry.Infof("Module section deleted: %+v", moduleName)
 			moduleCfg.DropValues()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
-			moduleCfg.IsEnabled = pointer.Bool(false)
+
+			if !kcm.moduleFilter.IsEmbeddedModule(moduleName) {
+				moduleCfg.IsEnabled = pointer.Bool(false)
+				kcm.queueManager.PurgeModule(moduleName)
+			}
+
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigChanged
-			kcm.queueManager.PurgeModule(moduleName)
 			return
 		}
 		// Module section is changed if new checksum not equal to saved one and not in known checksums.
