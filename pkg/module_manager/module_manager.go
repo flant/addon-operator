@@ -1229,10 +1229,29 @@ func (mm *ModuleManager) AreModulesInited() bool {
 	return mm.modules.IsInited()
 }
 
-// ReapplyModuleStaticValues
-//func (mm *ModuleManager) ReapplyModuleStaticValues(moduleSource, modulePath string) error {
-//
-//}
+// RunModuleWithNewStaticValues updates the module's values by rebasing them from static values from modulePath directory and pushes RunModuleTask if the module is enabled
+func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, modulePath string) error {
+	currentModule := mm.modules.Get(moduleName)
+	if currentModule == nil {
+		return fmt.Errorf("failed to get basic module - not found")
+	}
+
+	basicModule, err := mm.moduleLoader.LoadModule(moduleSource, modulePath)
+	if err != nil {
+		return err
+	}
+
+	err = currentModule.SetStaticValuesAndRecalculate(basicModule.GetStaticValues())
+	if err != nil {
+		return err
+	}
+
+	if mm.IsModuleEnabled(moduleName) {
+		return mm.PushRunModuleTask(moduleName, false)
+	}
+
+	return nil
+}
 
 // RegisterModule checks if a module already exists and reapplies(reloads) its configuration.
 // If it's a new module - converges all modules
@@ -1329,7 +1348,10 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 
 		if isEnabled {
 			// enqueue module startup sequence if it is enabled
-			mm.PushRunModuleTask(moduleName, false)
+			err := mm.PushRunModuleTask(moduleName, false)
+			if err != nil {
+				return err
+			}
 		} else {
 			ev.EventType = events.ModuleDisabled
 			mm.PushDeleteModuleTask(moduleName)
