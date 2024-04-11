@@ -5,7 +5,7 @@ func New() *AddonOperatorFilter {
 }
 
 type Filter interface {
-	IsEmbeddedModule(_ string) bool
+	IsEmbeddedModule(moduleName string) bool
 }
 
 type AddonOperatorFilter struct{}
