@@ -12,7 +12,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules/modulefilter"
+	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
@@ -38,11 +38,11 @@ type KubeConfigManager struct {
 
 	m             sync.Mutex
 	currentConfig *config.KubeConfig
-	moduleFilter  modulefilter.Filter
+	moduleManager *module_manager.ModuleManager
 }
 
 func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config,
-	queueManager *queue.Manager, moduleFilter modulefilter.Filter,
+	queueManager *queue.Manager,
 ) *KubeConfigManager {
 	cctx, cancel := context.WithCancel(ctx)
 	logger := log.WithField("component", "KubeConfigManager")
@@ -77,7 +77,6 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 		logEntry:       logger,
 		backend:        bk,
 		queueManager:   queueManager,
-		moduleFilter:   moduleFilter,
 	}
 }
 
@@ -253,7 +252,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			moduleCfg.DropValues()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 
-			if !kcm.moduleFilter.IsEmbeddedModule(moduleName) {
+			if kcm.moduleManager != nil && !kcm.moduleManager.IsEmbeddedModule(moduleName) {
 				moduleCfg.IsEnabled = pointer.Bool(false)
 				kcm.queueManager.PurgeModule(moduleName)
 			}
@@ -407,4 +406,8 @@ func (kcm *KubeConfigManager) withLock(fn func()) {
 	kcm.m.Lock()
 	fn()
 	kcm.m.Unlock()
+}
+
+func (kcm *KubeConfigManager) SetModuleManager(mm *module_manager.ModuleManager) {
+	kcm.moduleManager = mm
 }

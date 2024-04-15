@@ -18,7 +18,6 @@ import (
 	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules/modulefilter"
 	"github.com/flant/addon-operator/pkg/utils/stdliblogtologrus"
 	"github.com/flant/kube-client/klogtologrus"
 	sh_app "github.com/flant/shell-operator/pkg/app"
@@ -93,7 +92,7 @@ func start(_ *kingpin.ParseContext) error {
 
 func run(_ context.Context, operator *addon_operator.AddonOperator) error {
 	bk := configmap.New(log.StandardLogger(), operator.KubeClient(), app.Namespace, app.ConfigMapName)
-	operator.SetupKubeConfigManager(bk, modulefilter.New())
+	operator.SetupKubeConfigManager(bk)
 
 	err := operator.Setup()
 	if err != nil {

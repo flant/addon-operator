@@ -7,7 +7,6 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/module_manager"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules/modulefilter"
 	"github.com/flant/addon-operator/pkg/task/queue"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
@@ -64,7 +63,7 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
 }
 
 // SetupKubeConfigManager sets manager, which reads configuration for Modules from a cluster
-func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler, filter modulefilter.Filter) {
+func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
 	if op.KubeConfigManager != nil {
 		log.Warnf("KubeConfigManager is already set")
 		// return if kube config manager is already set
@@ -72,7 +71,7 @@ func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler, filter
 	}
 
 	qm := queue.NewManager(op.engine.TaskQueues)
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, qm, filter)
+	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, qm)
 }
 
 func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string) {

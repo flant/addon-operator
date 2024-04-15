@@ -162,6 +162,13 @@ func (op *AddonOperator) Setup() error {
 
 	op.SetupModuleManager(app.ModulesDir, globalHooksDir, tempDir)
 
+	op.KubeConfigManager.SetModuleManager(op.ModuleManager)
+
+	// TODO: remove this
+	for _, m := range op.ModuleManager.GetModuleNames() {
+		op.ModuleManager.IsEmbeddedModule(m)
+	}
+
 	return nil
 }
 
