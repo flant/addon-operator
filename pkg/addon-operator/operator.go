@@ -164,11 +164,6 @@ func (op *AddonOperator) Setup() error {
 
 	op.KubeConfigManager.SetModuleManager(op.ModuleManager)
 
-	// TODO: remove this
-	for _, m := range op.ModuleManager.GetModuleNames() {
-		op.ModuleManager.IsEmbeddedModule(m)
-	}
-
 	return nil
 }
 
