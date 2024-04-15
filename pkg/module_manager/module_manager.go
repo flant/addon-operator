@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/trace"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1516,17 +1515,7 @@ func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
 
 func (mm *ModuleManager) IsEmbeddedModule(moduleName string) bool {
 	_, isEnabledByConfig := mm.enabledModulesByConfig[moduleName]
-
-	log.Infof("TEMP:%s:%v:%s", bp2s(mm.dynamicEnabled[moduleName]), isEnabledByConfig, moduleName)
-	return false
-}
-
-func bp2s(p *bool) string {
-	if p == nil {
-		return "<nil>"
-	}
-
-	return strconv.FormatBool(*p)
+	return mm.dynamicEnabled[moduleName] == nil && isEnabledByConfig
 }
 
 // loadStaticValues loads config for module from values.yaml
