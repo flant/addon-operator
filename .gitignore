@@ -13,3 +13,6 @@
 
 # binary produced by go build
 /addon-operator
+
+.idea
+libjq

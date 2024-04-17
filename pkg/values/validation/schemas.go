@@ -144,6 +144,16 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) (multi
 	return allErrs.ErrorOrNil()
 }
 
+func (st *SchemaStorage) AddGlobalValuesSchemas(configBytes, valuesBytes []byte) error {
+	schemas, err := PrepareSchemas(configBytes, valuesBytes)
+	if err != nil {
+		return fmt.Errorf("prepare global schemas: %s", err)
+	}
+
+	st.Schemas = schemas
+	return nil
+}
+
 // ModuleSchemasDescription describes which schemas are present in storage for the module.
 func (st *SchemaStorage) ModuleSchemasDescription() string {
 	types := availableSchemaTypes(st.Schemas)
