@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flant/addon-operator/pkg/values/validation"
+
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
@@ -869,6 +871,10 @@ func (bm *BasicModule) GetModuleError() error {
 
 func (bm *BasicModule) GetValuesStorage() *ValuesStorage {
 	return bm.valuesStorage
+}
+
+func (bm *BasicModule) GetSchemaStorage() *validation.SchemaStorage {
+	return bm.valuesStorage.schemaStorage
 }
 
 type ModuleRunPhase string
