@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/flant/addon-operator/pkg/values/validation"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -42,15 +44,22 @@ func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
 }
 
 // NewGlobalModule build ephemeral global container for global hooks and values
-func NewGlobalModule(hooksDir string, staticValues utils.Values, validator validator, dc *hooks.HookExecutionDependencyContainer) *GlobalModule {
+func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookExecutionDependencyContainer,
+	configBytes, valuesBytes []byte,
+) (*GlobalModule, error) {
+	valuesStorage, err := NewValuesStorage("global", staticValues, configBytes, valuesBytes)
+	if err != nil {
+		return nil, fmt.Errorf("new values storage: %w", err)
+	}
+
 	return &GlobalModule{
 		hooksDir:       hooksDir,
 		byBinding:      make(map[sh_op_types.BindingType][]*hooks.GlobalHook),
 		byName:         make(map[string]*hooks.GlobalHook),
-		valuesStorage:  NewValuesStorage("global", staticValues, validator),
+		valuesStorage:  valuesStorage,
 		dc:             dc,
 		enabledByHookC: make(chan *EnabledPatchReport, 10),
-	}
+	}, nil
 }
 
 // RegisterHooks finds and registers global hooks
@@ -498,4 +507,8 @@ func (gm *GlobalModule) searchGlobalGoHooks() ([]*kind.GoHook, error) {
 	log.Infof("Found %s global Go hooks", count)
 
 	return goHooks, nil
+}
+
+func (gm *GlobalModule) GetSchemaStorage() *validation.SchemaStorage {
+	return gm.valuesStorage.schemaStorage
 }

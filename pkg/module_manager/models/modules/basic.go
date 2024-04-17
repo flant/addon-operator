@@ -56,19 +56,24 @@ type BasicModule struct {
 
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
-func NewBasicModule(name, path string, order uint32, staticValues utils.Values, validator validator) *BasicModule {
+func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte) (*BasicModule, error) {
+	valuesStorage, err := NewValuesStorage(name, staticValues, configBytes, valuesBytes)
+	if err != nil {
+		return nil, fmt.Errorf("new values storage: %w", err)
+	}
+
 	return &BasicModule{
 		Name:          name,
 		Order:         order,
 		Path:          path,
-		valuesStorage: NewValuesStorage(name, staticValues, validator),
+		valuesStorage: valuesStorage,
 		state: &moduleState{
 			Phase:                Startup,
 			hookErrors:           make(map[string]error),
 			synchronizationState: NewSynchronizationState(),
 		},
 		hooks: newHooksStorage(),
-	}
+	}, nil
 }
 
 // WithDependencies unject module dependencies
@@ -860,6 +865,10 @@ func (bm *BasicModule) GetLastHookError() error {
 
 func (bm *BasicModule) GetModuleError() error {
 	return bm.state.lastModuleErr
+}
+
+func (bm *BasicModule) GetValuesStorage() *ValuesStorage {
+	return bm.valuesStorage
 }
 
 type ModuleRunPhase string

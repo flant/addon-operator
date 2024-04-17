@@ -14,19 +14,15 @@ import (
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 type FileSystemLoader struct {
 	dirs []string
-
-	valuesValidator *validation.ValuesValidator
 }
 
-func NewFileSystemLoader(moduleDirs string, vv *validation.ValuesValidator) *FileSystemLoader {
+func NewFileSystemLoader(moduleDirs string) *FileSystemLoader {
 	return &FileSystemLoader{
-		dirs:            utils.SplitToPaths(moduleDirs),
-		valuesValidator: vv,
+		dirs: utils.SplitToPaths(moduleDirs),
 	}
 }
 
@@ -55,26 +51,22 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 	}
 
 	// 3. from openapi defaults
-
 	cb, vb, err := fl.readOpenAPIFiles(filepath.Join(definition.Path, "openapi"))
 	if err != nil {
 		return nil, err
 	}
 
-	if cb != nil && vb != nil {
-		err = fl.valuesValidator.SchemaStorage.AddModuleValuesSchemas(valuesModuleName, cb, vb)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	//
 	moduleValues, ok := initialValues[valuesModuleName].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("expect map[string]interface{} in module values")
 	}
 
-	return modules.NewBasicModule(definition.Name, definition.Path, definition.Order, moduleValues, fl.valuesValidator), nil
+	m, err := modules.NewBasicModule(definition.Name, definition.Path, definition.Order, moduleValues, cb, vb)
+	if err != nil {
+		return nil, fmt.Errorf("new basic module: %w", err)
+	}
+
+	return m, nil
 }
 
 // reads single directory and returns BasicModule
