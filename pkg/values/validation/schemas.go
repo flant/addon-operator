@@ -86,8 +86,8 @@ func (st *SchemaStorage) ValidateValues(moduleName string, values utils.Values) 
 }
 
 func (st *SchemaStorage) validate(valuesType SchemaType, moduleName string, values utils.Values) error {
-	schemas := st.Schemas[valuesType]
-	if st == nil {
+	schema := st.Schemas[valuesType]
+	if schema == nil {
 		log.Warnf("schema (%s) for '%s' values is not found", moduleName, valuesType)
 		return nil
 	}
@@ -97,7 +97,7 @@ func (st *SchemaStorage) validate(valuesType SchemaType, moduleName string, valu
 		return fmt.Errorf("root key '%s' not found in input values", moduleName)
 	}
 
-	validationErr := validateObject(obj, schemas, moduleName)
+	validationErr := validateObject(obj, schema, moduleName)
 	if validationErr == nil {
 		log.Debugf("'%s' values are valid", valuesType)
 	} else {
