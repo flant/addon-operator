@@ -1,17 +1,17 @@
-package validation
+package validation_test
 
 import (
 	"testing"
 
 	. "github.com/onsi/gomega"
 
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
 func Test_Transform_Required(t *testing.T) {
 	g := NewWithT(t)
 	var err error
-	v := NewValuesValidator()
 
 	configValuesYaml := `
 type: object
@@ -48,7 +48,7 @@ properties:
         type: string
 `
 
-	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configValuesYaml), []byte(valuesYaml))
+	valuesStorage, err := modules.NewValuesStorage("moduleName", nil, []byte(configValuesYaml), []byte(valuesYaml))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	var moduleValues utils.Values
@@ -64,11 +64,11 @@ moduleName:
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Values contract is satisfied, param1 is present.
-	mErr := v.ValidateModuleValues("moduleName", moduleValues)
+	mErr := valuesStorage.GetSchemaStorage().ValidateValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 
 	// Helm contract is not satisfied — no internal.param3 field.
-	mErr = v.ValidateModuleHelmValues("moduleName", moduleValues)
+	mErr = valuesStorage.GetSchemaStorage().ValidateModuleHelmValues("moduleName", moduleValues)
 	g.Expect(mErr).Should(HaveOccurred())
 
 	// Intermediate values after another hook execution.
@@ -82,11 +82,11 @@ moduleName:
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Values contract is satisfied, param1 is present.
-	mErr = v.ValidateModuleValues("moduleName", moduleValues)
+	mErr = valuesStorage.GetSchemaStorage().ValidateValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 
 	// Helm contract is not satisfied — no internal.param2 field.
-	mErr = v.ValidateModuleHelmValues("moduleName", moduleValues)
+	mErr = valuesStorage.GetSchemaStorage().ValidateModuleHelmValues("moduleName", moduleValues)
 	g.Expect(mErr).Should(HaveOccurred())
 
 	// Effective values before helm execution.
@@ -101,10 +101,10 @@ moduleName:
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Values contract is satisfied, param1 is present.
-	mErr = v.ValidateModuleValues("moduleName", moduleValues)
+	mErr = valuesStorage.GetSchemaStorage().ValidateValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 
 	// Helm contract is now satisfied.
-	mErr = v.ValidateModuleHelmValues("moduleName", moduleValues)
+	mErr = valuesStorage.GetSchemaStorage().ValidateModuleHelmValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 }

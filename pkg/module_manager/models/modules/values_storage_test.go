@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 func TestSetConfigValues(t *testing.T) {
@@ -49,10 +48,9 @@ properties:
 	initial := utils.Values{
 		"xxx": "yyy",
 	}
-	vv := validation.NewValuesValidator()
-	err := vv.SchemaStorage.AddGlobalValuesSchemas([]byte(cfg), []byte(vcfg))
+
+	st, err := NewValuesStorage("global", initial, []byte(cfg), []byte(vcfg))
 	require.NoError(t, err)
-	st := NewValuesStorage("global", initial, vv)
 
 	configV := utils.Values{
 		"highAvailability": true,
@@ -75,11 +73,9 @@ xxx: yyy
 }
 
 func TestPatchValues(t *testing.T) {
-	vv := validation.NewValuesValidator()
 	cb, vb, err := utils.ReadOpenAPIFiles("./testdata/global/openapi")
 	require.NoError(t, err)
-	err = vv.SchemaStorage.AddGlobalValuesSchemas(cb, vb)
-	require.NoError(t, err)
+
 	mcv, err := utils.NewValuesFromBytes([]byte(`
 highAvailability: false
 modules:
@@ -98,7 +94,8 @@ modules:
 `))
 	require.NoError(t, err)
 
-	vs := NewValuesStorage("global", mcv, vv)
+	vs, err := NewValuesStorage("global", mcv, cb, vb)
+	require.NoError(t, err)
 
 	vp := utils.NewValuesPatch()
 	vp.Operations = append(vp.Operations, &utils.ValuesPatchOperation{

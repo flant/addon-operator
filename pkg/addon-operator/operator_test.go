@@ -215,7 +215,7 @@ func Test_Operator_startup_tasks(t *testing.T) {
 func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 	g := NewWithT(t)
 	// Mute messages about registration and tasks queueing.
-	log.SetLevel(log.ErrorLevel)
+	log.SetLevel(log.DebugLevel)
 
 	op, res := assembleTestAddonOperator(t, "converge__main_queue_only")
 

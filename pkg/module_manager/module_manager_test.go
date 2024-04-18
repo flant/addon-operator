@@ -17,7 +17,7 @@ func TestLoadModules(t *testing.T) {
 		Dependencies: ModuleManagerDependencies{},
 	}
 	mm := NewModuleManager(context.Background(), cfg)
-	v, en, err := mm.loadGlobalValues()
+	gv, err := mm.loadGlobalValues()
 	require.NoError(t, err)
 
 	assert.YAMLEq(t, `
@@ -32,7 +32,7 @@ modules:
     everyNode:
       cpu: 300m
       memory: 512Mi
-`, v.AsString("yaml"))
+`, gv.globalValues.AsString("yaml"))
 
 	assert.Equal(t, map[string]struct{}{
 		"admission-policy-engine": {},
@@ -42,7 +42,7 @@ modules:
 		"control-plane-manager":   {},
 		"dashboard":               {},
 		"deckhouse":               {},
-	}, en)
+	}, gv.enabledModules)
 }
 
 // TODO: these tests are about values tests only. We have to restore part of them

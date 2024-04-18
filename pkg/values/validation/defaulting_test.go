@@ -1,4 +1,4 @@
-package validation
+package validation_test
 
 import (
 	"testing"
@@ -8,7 +8,9 @@ import (
 	"github.com/go-openapi/validate/post"
 	. "github.com/onsi/gomega"
 
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 func Test_ApplyDefaults(t *testing.T) {
@@ -65,18 +67,12 @@ properties:
     type: array
 `
 
-	v := NewValuesValidator()
-
-	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
+	valueStorage, err := modules.NewValuesStorage("moduleName", moduleValues, []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
+	s := valueStorage.GetSchemaStorage().Schemas[validation.ConfigValuesSchema]
 
-	g.Expect(mErr).ShouldNot(HaveOccurred())
-
-	s := v.SchemaStorage.ModuleValuesSchema("moduleName", ConfigValuesSchema)
-
-	changed := ApplyDefaults(moduleValues["moduleName"], s)
+	changed := validation.ApplyDefaults(moduleValues["moduleName"], s)
 
 	g.Expect(changed).Should(BeTrue())
 	g.Expect(moduleValues["moduleName"]).Should(HaveKey("param2"))
@@ -161,17 +157,12 @@ properties:
             default: randomvalue
 `
 
-	v := NewValuesValidator()
-
-	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
+	valueStorage, err := modules.NewValuesStorage("moduleName", moduleValues, []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
-	// g.Expect(mErr).ShouldNot(HaveOccurred())
+	s := valueStorage.GetSchemaStorage().Schemas[validation.ConfigValuesSchema]
 
-	s := v.SchemaStorage.ModuleValuesSchema("moduleName", ConfigValuesSchema)
-
-	changed := ApplyDefaults(moduleValues["moduleName"], s)
+	changed := validation.ApplyDefaults(moduleValues["moduleName"], s)
 
 	validator := validate.NewSchemaValidator(s, nil, "", strfmt.Default)
 

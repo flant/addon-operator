@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 func TestHandleModulePatch(t *testing.T) {
@@ -18,8 +17,8 @@ foo:
 `
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))
 	require.NoError(t, err)
-	vv := validation.NewValuesValidator()
-	bm := NewBasicModule("test-1", "/tmp/test", 100, value, vv)
+	bm, err := NewBasicModule("test-1", "/tmp/test", 100, value, nil, nil)
+	require.NoError(t, err)
 
 	patch := utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
 		{
