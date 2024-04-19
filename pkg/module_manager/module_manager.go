@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime/trace"
 	"strings"
 	"sync"
@@ -1458,63 +1460,58 @@ func (mm *ModuleManager) GetModuleEventsChannel() chan events.ModuleEvent {
 	return mm.moduleEventC
 }
 
-//// ValidateModule this method is outdated, have to change it with module validation
-//// Deprecated: move it to module constructor
-//// TODO: rethink this
-//func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
-//	valuesKey := utils.ModuleNameToValuesKey(mod.GetName())
-//	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
-//
-//	log.Infof("Validating module %q from %q", mod.GetName(), mod.GetPath())
-//
-//	if mod.GetName() != restoredName {
-//		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", mod.GetName(), restoredName)
-//	}
-//
-//	// load static config from values.yaml
-//	staticValues, err := loadStaticValues(mod.GetName(), mod.GetPath())
-//	if err != nil {
-//		return fmt.Errorf("load values.yaml failed: %v", err)
-//	}
-//
-//	if staticValues != nil {
-//		return fmt.Errorf("please use openapi schema instead of values.yaml")
-//	}
-//
-//	valuesModuleName := utils.ModuleNameToValuesKey(mod.GetName())
-//
-//	// Load validation schemas
-//	openAPIPath := filepath.Join(mod.GetPath(), "openapi")
-//	configBytes, valuesBytes, err := readOpenAPIFiles(openAPIPath)
-//	if err != nil {
-//		return fmt.Errorf("read openAPI schemas failed: %v", err)
-//	}
-//
-//	mod.GetValuesStorage().GetSchemaStorage()
-//	err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
-//		valuesModuleName,
-//		configBytes,
-//		valuesBytes,
-//	)
-//	if err != nil {
-//		return fmt.Errorf("add schemas failed: %v", err)
-//	}
-//
-//	return nil
-//}
-//
-//// loadStaticValues loads config for module from values.yaml
-//// Module is enabled if values.yaml is not exists.
-//func loadStaticValues(moduleName, modulePath string) (utils.Values, error) {
-//	valuesYamlPath := filepath.Join(modulePath, utils.ValuesFileName)
-//
-//	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
-//		log.Debugf("module %s has no static values", moduleName)
-//		return nil, nil
-//	}
-//
-//	return utils.LoadValuesFileFromDir(modulePath)
-//}
+// TODO
+// ValidateModule this method is outdated, have to change it with module validation
+// Deprecated: move it to module constructor
+// TODO: rethink this
+func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
+	valuesKey := utils.ModuleNameToValuesKey(mod.GetName())
+	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
+
+	log.Infof("Validating module %q from %q", mod.GetName(), mod.GetPath())
+
+	if mod.GetName() != restoredName {
+		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", mod.GetName(), restoredName)
+	}
+
+	// load static config from values.yaml
+	staticValues, err := loadStaticValues(mod.GetName(), mod.GetPath())
+	if err != nil {
+		return fmt.Errorf("load values.yaml failed: %v", err)
+	}
+
+	if staticValues != nil {
+		return fmt.Errorf("please use openapi schema instead of values.yaml")
+	}
+
+	// Load validation schemas
+	openAPIPath := filepath.Join(mod.GetPath(), "openapi")
+	configBytes, valuesBytes, err := readOpenAPIFiles(openAPIPath)
+	if err != nil {
+		return fmt.Errorf("read openAPI schemas failed: %v", err)
+	}
+
+	mod.GetValuesStorage().GetSchemaStorage()
+	err = mm.GetModule(mod.GetName()).GetValuesStorage().GetSchemaStorage().AddValuesSchemas(configBytes, valuesBytes)
+	if err != nil {
+		return fmt.Errorf("add schemas failed: %v", err)
+	}
+
+	return nil
+}
+
+// loadStaticValues loads config for module from values.yaml
+// Module is enabled if values.yaml is not exists.
+func loadStaticValues(moduleName, modulePath string) (utils.Values, error) {
+	valuesYamlPath := filepath.Join(modulePath, utils.ValuesFileName)
+
+	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
+		log.Debugf("module %s has no static values", moduleName)
+		return nil, nil
+	}
+
+	return utils.LoadValuesFileFromDir(modulePath)
+}
 
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
 // with the type "ModuleRun" related to the module "moduleName" and DoModuleStartup is set to true.
