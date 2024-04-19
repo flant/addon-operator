@@ -70,7 +70,8 @@ func TestHelmFactory(t *testing.T) {
 	}
 
 	t.Run("init with helm3 binary client", func(t *testing.T) {
-		testCLient(t, "helm3lib", new(helm3.Helm3Client), map[string]string{"HELM_BIN_PATH": "/opt/homebrew/bin/helm"})
+		// For integration tests set appropriate helm binary path
+		testCLient(t, "helm3lib", new(helm3.Helm3Client), map[string]string{"HELM_BIN_PATH": "testdata/helm-fake/helm3/helm"})
 	})
 
 	t.Run("init with helm3lib client", func(t *testing.T) {
