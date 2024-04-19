@@ -74,18 +74,18 @@ type SchemaStorage struct {
 }
 
 func (st *SchemaStorage) ValidateModuleHelmValues(moduleName string, values utils.Values) error {
-	return st.validate(HelmValuesSchema, moduleName, values)
+	return st.Validate(HelmValuesSchema, moduleName, values)
 }
 
 func (st *SchemaStorage) ValidateConfigValues(moduleName string, values utils.Values) error {
-	return st.validate(ConfigValuesSchema, moduleName, values)
+	return st.Validate(ConfigValuesSchema, moduleName, values)
 }
 
 func (st *SchemaStorage) ValidateValues(moduleName string, values utils.Values) error {
-	return st.validate(ValuesSchema, moduleName, values)
+	return st.Validate(ValuesSchema, moduleName, values)
 }
 
-func (st *SchemaStorage) validate(valuesType SchemaType, moduleName string, values utils.Values) error {
+func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, values utils.Values) error {
 	schema := st.Schemas[valuesType]
 	if schema == nil {
 		log.Warnf("schema (%s) for '%s' values is not found", moduleName, valuesType)
