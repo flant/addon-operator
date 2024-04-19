@@ -130,7 +130,7 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
-	helmClient, err := helm.InitHelmClientFactory(op.engine.KubeClient)
+	helmClient, err := helm.InitHelmClientFactory()
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
 	}
