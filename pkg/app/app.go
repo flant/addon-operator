@@ -31,8 +31,9 @@ var (
 	Namespace     = ""
 	ConfigMapName = "addon-operator"
 
-	GlobalHooksDir = "global-hooks"
-	ModulesDir     = "modules"
+	GlobalHooksDir     = "global-hooks"
+	ModulesDir         = "modules"
+	EmbeddedModulesDir = ""
 
 	UnnumberedModuleOrder = 1
 
