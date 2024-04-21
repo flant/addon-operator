@@ -1518,6 +1518,14 @@ func (mm *ModuleManager) IsEmbeddedModule(moduleName string) bool {
 	return mm.dynamicEnabled[moduleName] == nil && isEnabledByConfig
 }
 
+func (mm *ModuleManager) GetEnabledModulesByConfig() map[string]struct{} {
+	return mm.enabledModulesByConfig
+}
+
+func (mm *ModuleManager) GetDynamicEnabled() map[string]*bool {
+	return mm.dynamicEnabled
+}
+
 // loadStaticValues loads config for module from values.yaml
 // Module is enabled if values.yaml is not exists.
 func loadStaticValues(moduleName, modulePath string) (utils.Values, error) {
