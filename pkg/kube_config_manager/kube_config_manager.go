@@ -252,13 +252,18 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			moduleCfg.DropValues()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 
-			if kcm.moduleManager != nil && !kcm.moduleManager.IsEmbeddedModule(moduleName) {
+			isExternalModule := kcm.moduleManager != nil && !kcm.moduleManager.IsEmbeddedModule(moduleName)
+			if isExternalModule {
 				moduleCfg.IsEnabled = pointer.Bool(false)
-				kcm.queueManager.PurgeModule(moduleName)
 			}
 
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigChanged
+
+			if isExternalModule {
+				kcm.queueManager.PurgeModule(moduleName)
+			}
+
 			return
 		}
 		// Module section is changed if new checksum not equal to saved one and not in known checksums.
