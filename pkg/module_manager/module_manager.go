@@ -1534,10 +1534,6 @@ func (mm *ModuleManager) GetDynamicEnabled() map[string]*bool {
 	return mm.dynamicEnabled
 }
 
-func (mm *ModuleManager) GetModules() []string {
-	return mm.modules.NamesInOrder()
-}
-
 func (mm *ModuleManager) GetEnabledModules() []string {
 	return mm.enabledModules.GetAll()
 }
