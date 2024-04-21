@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/trace"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -60,9 +59,10 @@ type ModulesState struct {
 
 // DirectoryConfig configures directories for ModuleManager
 type DirectoryConfig struct {
-	ModulesDir     string
-	GlobalHooksDir string
-	TempDir        string
+	ModulesDir         string
+	GlobalHooksDir     string
+	TempDir            string
+	EmbeddedModulesDir string
 }
 
 type KubeConfigManager interface {
@@ -95,9 +95,10 @@ type ModuleManager struct {
 	cancel context.CancelFunc
 
 	// Directories.
-	ModulesDir     string
-	GlobalHooksDir string
-	TempDir        string
+	ModulesDir         string
+	GlobalHooksDir     string
+	TempDir            string
+	embeddedModulesDir string
 
 	moduleLoader loader.ModuleLoader
 
@@ -123,14 +124,13 @@ type ModuleManager struct {
 	enabledModules *eModules
 
 	globalSynchronizationState *modules.SynchronizationState
-
-	kubeConfigLock sync.RWMutex
+	kubeConfigLock             sync.RWMutex
 	// addon-operator config is valid.
 	kubeConfigValid bool
+
 	// Static and config values are valid using OpenAPI schemas.
 	kubeConfigValuesValid bool
-
-	moduleEventC chan events.ModuleEvent
+	moduleEventC          chan events.ModuleEvent
 }
 
 type eModules struct {
@@ -186,9 +186,10 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 		ctx:    cctx,
 		cancel: cancel,
 
-		ModulesDir:     cfg.DirectoryConfig.ModulesDir,
-		GlobalHooksDir: cfg.DirectoryConfig.GlobalHooksDir,
-		TempDir:        cfg.DirectoryConfig.TempDir,
+		ModulesDir:         cfg.DirectoryConfig.ModulesDir,
+		GlobalHooksDir:     cfg.DirectoryConfig.GlobalHooksDir,
+		TempDir:            cfg.DirectoryConfig.TempDir,
+		embeddedModulesDir: cfg.DirectoryConfig.EmbeddedModulesDir,
 
 		moduleLoader: fsLoader,
 
@@ -1515,27 +1516,16 @@ func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
 }
 
 func (mm *ModuleManager) IsEmbeddedModule(moduleName string) bool {
-	_, isEnabledByConfig := mm.enabledModulesByConfig[moduleName]
-	return mm.dynamicEnabled[moduleName] == nil && isEnabledByConfig
-}
-
-func (mm *ModuleManager) GetEnabledModulesByConfig() []string {
-	var list []string
-
-	for k := range mm.enabledModulesByConfig {
-		list = append(list, k)
+	if mm.embeddedModulesDir == "" {
+		return false
 	}
-	sort.Strings(list)
 
-	return list
-}
+	module := mm.GetModule(moduleName)
+	if module == nil {
+		return false
+	}
 
-func (mm *ModuleManager) GetDynamicEnabled() map[string]*bool {
-	return mm.dynamicEnabled
-}
-
-func (mm *ModuleManager) GetEnabledModules() []string {
-	return mm.enabledModules.GetAll()
+	return strings.HasPrefix(module.Path, mm.embeddedModulesDir)
 }
 
 // loadStaticValues loads config for module from values.yaml
