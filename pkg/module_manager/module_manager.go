@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/trace"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -1518,12 +1519,27 @@ func (mm *ModuleManager) IsEmbeddedModule(moduleName string) bool {
 	return mm.dynamicEnabled[moduleName] == nil && isEnabledByConfig
 }
 
-func (mm *ModuleManager) GetEnabledModulesByConfig() map[string]struct{} {
-	return mm.enabledModulesByConfig
+func (mm *ModuleManager) GetEnabledModulesByConfig() []string {
+	var list []string
+
+	for k := range mm.enabledModulesByConfig {
+		list = append(list, k)
+	}
+	sort.Strings(list)
+
+	return list
 }
 
 func (mm *ModuleManager) GetDynamicEnabled() map[string]*bool {
 	return mm.dynamicEnabled
+}
+
+func (mm *ModuleManager) GetModules() []string {
+	return mm.modules.NamesInOrder()
+}
+
+func (mm *ModuleManager) GetEnabledModules() []string {
+	return mm.enabledModules.GetAll()
 }
 
 // loadStaticValues loads config for module from values.yaml
