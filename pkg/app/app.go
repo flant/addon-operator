@@ -139,6 +139,11 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default("false").
 		BoolVar(&StrictModeEnabled)
 
+	cmd.Flag("embedded-modules-dir", "paths where to search for module directories").
+		Envar("EMBEDDED_MODULES_DIR").
+		Default("").
+		StringVar(&EmbeddedModulesDir)
+
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)
 	sh_app.DefineLoggingFlags(cmd)
