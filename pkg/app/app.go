@@ -139,7 +139,7 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default("false").
 		BoolVar(&StrictModeEnabled)
 
-	cmd.Flag("embedded-modules-dir", "paths where to search for module directories").
+	cmd.Flag("embedded-modules-dir", "paths where to search for embedded module directories").
 		Envar("EMBEDDED_MODULES_DIR").
 		Default("").
 		StringVar(&EmbeddedModulesDir)
