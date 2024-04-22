@@ -74,12 +74,13 @@ func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
 	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, qm)
 }
 
-func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string) {
+func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string, embeddedModulesDir string) {
 	// Create manager that runs modules and hooks.
 	dirConfig := module_manager.DirectoryConfig{
-		ModulesDir:     modulesDir,
-		GlobalHooksDir: globalHooksDir,
-		TempDir:        tempDir,
+		ModulesDir:         modulesDir,
+		GlobalHooksDir:     globalHooksDir,
+		TempDir:            tempDir,
+		EmbeddedModulesDir: embeddedModulesDir,
 	}
 	deps := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    op.engine.ObjectPatcher,

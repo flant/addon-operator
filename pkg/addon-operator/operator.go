@@ -160,7 +160,7 @@ func (op *AddonOperator) Setup() error {
 		return fmt.Errorf("KubeConfigManager must be set before Setup")
 	}
 
-	op.SetupModuleManager(app.ModulesDir, globalHooksDir, tempDir)
+	op.SetupModuleManager(app.ModulesDir, globalHooksDir, tempDir, app.EmbeddedModulesDir)
 
 	op.KubeConfigManager.SetModuleManager(op.ModuleManager)
 
