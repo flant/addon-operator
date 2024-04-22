@@ -122,13 +122,12 @@ func (bm *BasicModule) ResetState() {
 
 // GetStaticValues returns the module's static values
 func (bm *BasicModule) GetStaticValues() utils.Values {
-	return bm.valuesStorage.staticConfigValues
+	return bm.valuesStorage.getStaticValues()
 }
 
-// SetStaticValuesAndRecalculate sets the module's static values and recalculate the resulting values
-func (bm *BasicModule) SetStaticValuesAndRecalculate(values utils.Values) error {
-	bm.valuesStorage.staticConfigValues = values
-	return bm.valuesStorage.CommitValues()
+// ApplyNewStaticValues sets the module's static values and recalculate the resulting values
+func (bm *BasicModule) ApplyNewStaticValues(values utils.Values) error {
+	return bm.valuesStorage.applyNewStaticValues(values)
 }
 
 // RegisterHooks find and registers all module hooks from a filesystem or GoHook Registry

@@ -1241,7 +1241,7 @@ func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, 
 		return err
 	}
 
-	err = currentModule.SetStaticValuesAndRecalculate(basicModule.GetStaticValues())
+	err = currentModule.ApplyNewStaticValues(basicModule.GetStaticValues())
 	if err != nil {
 		return err
 	}
