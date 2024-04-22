@@ -2,7 +2,6 @@ package helm3
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os/exec"
 	"sort"
@@ -10,14 +9,11 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kblabels "k8s.io/apimachinery/pkg/labels"
 	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
-	klient "github.com/flant/kube-client/client"
 	"github.com/flant/shell-operator/pkg/executor"
 )
 
@@ -27,7 +23,6 @@ type Helm3Options struct {
 	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
-	KubeClient *klient.Client
 }
 
 var Options *Helm3Options
@@ -46,9 +41,8 @@ func Init(options *Helm3Options) error {
 }
 
 type Helm3Client struct {
-	KubeClient *klient.Client
-	LogEntry   *log.Entry
-	Namespace  string
+	LogEntry  *log.Entry
+	Namespace string
 }
 
 var _ client.HelmClient = &Helm3Client{}
@@ -60,14 +54,9 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	}
 
 	return &Helm3Client{
-		LogEntry:   logEntry,
-		KubeClient: Options.KubeClient,
-		Namespace:  Options.Namespace,
+		LogEntry:  logEntry,
+		Namespace: Options.Namespace,
 	}
-}
-
-func (h *Helm3Client) WithKubeClient(client *klient.Client) {
-	h.KubeClient = client
 }
 
 // cmd runs Helm binary with specified arguments.
@@ -105,7 +94,12 @@ func (h *Helm3Client) initAndVersion() error {
 //	REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
 //	1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
 func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
-	stdout, stderr, err := h.cmd("history", releaseName, "--max", "1", "--output", "yaml")
+	stdout, stderr, err := h.cmd(
+		"history", releaseName,
+		"--namespace", h.Namespace,
+		"--max", "1",
+		"--output", "yaml",
+	)
 	if err != nil {
 		errLine := strings.Split(stderr, "\n")[0]
 		if strings.Contains(errLine, "Error:") && strings.Contains(errLine, "not found") {
@@ -140,20 +134,12 @@ func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, st
 }
 
 func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
-	args := make([]string, 0)
-	args = append(args, "upgrade")
-	// releaseName and chart path are positional arguments, put them first.
-	args = append(args, releaseName)
-	args = append(args, chart)
-
-	// Flags for upgrade command.
-	args = append(args, "--install")
-
-	args = append(args, "--history-max")
-	args = append(args, fmt.Sprintf("%d", Options.HistoryMax))
-
-	args = append(args, "--timeout")
-	args = append(args, Options.Timeout.String())
+	args := []string{
+		"upgrade", releaseName, chart,
+		"--install",
+		"--history-max", fmt.Sprintf("%d", Options.HistoryMax),
+		"--timeout", Options.Timeout.String(),
+	}
 
 	if namespace != "" {
 		args = append(args, "--namespace")
@@ -181,17 +167,11 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 }
 
 func (h *Helm3Client) GetReleaseValues(releaseName string) (utils.Values, error) {
-	args := make([]string, 0)
-	args = append(args, "get")
-	args = append(args, "values")
-	args = append(args, releaseName)
-
-	args = append(args, "--namespace")
-	args = append(args, h.Namespace)
-
-	args = append(args, "--output")
-	args = append(args, "yaml")
-
+	args := []string{
+		"get", "values", releaseName,
+		"--namespace", h.Namespace,
+		"--output", "yaml",
+	}
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get values of helm release %s: %s\n%s %s", releaseName, err, stdout, stderr)
@@ -208,13 +188,10 @@ func (h *Helm3Client) GetReleaseValues(releaseName string) (utils.Values, error)
 func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
 	h.LogEntry.Debugf("helm release '%s': execute helm uninstall", releaseName)
 
-	args := make([]string, 0)
-	args = append(args, "uninstall")
-	args = append(args, releaseName)
-
-	args = append(args, "--namespace")
-	args = append(args, h.Namespace)
-
+	args := []string{
+		"uninstall", releaseName,
+		"--namespace", h.Namespace,
+	}
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n%v %v", releaseName, err, stdout, stderr)
@@ -235,48 +212,43 @@ func (h *Helm3Client) IsReleaseExists(releaseName string) (bool, error) {
 }
 
 // ListReleasesNames returns list of release names.
-// Names are extracted from label "name" in Secrets with label "owner"=="helm".
-func (h *Helm3Client) ListReleasesNames(labelSelector map[string]string) ([]string, error) {
-	labelsSet := make(kblabels.Set)
-	for k, v := range labelSelector {
-		labelsSet[k] = v
+func (h *Helm3Client) ListReleasesNames() ([]string, error) {
+	args := []string{
+		"list", "--all",
+		"--namespace", h.Namespace,
+		"--output", "yaml",
 	}
-	labelsSet["owner"] = "helm"
 
-	list, err := h.KubeClient.CoreV1().
-		Secrets(h.Namespace).
-		List(context.TODO(), metav1.ListOptions{LabelSelector: labelsSet.AsSelector().String()})
+	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
-		h.LogEntry.Debugf("helm: list of releases ConfigMaps failed: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("helm list failed: %v\n%s %s", err, stdout, stderr)
 	}
 
-	uniqNamesMap := make(map[string]struct{})
-	for _, secret := range list.Items {
-		releaseName, hasKey := secret.Labels["name"]
-		if hasKey && releaseName != "" {
-			uniqNamesMap[releaseName] = struct{}{}
+	list := []struct {
+		Name string `json:"name"`
+	}{}
+
+	if err := k8syaml.Unmarshal([]byte(stdout), &list); err != nil {
+		return nil, fmt.Errorf("helm list returned invalid json: %v", err)
+	}
+
+	releases := make([]string, 0, len(list))
+	for _, release := range list {
+		// Do not return ignored release or empty string.
+		if release.Name == app.HelmIgnoreRelease || release.Name == "" {
+			continue
 		}
+
+		releases = append(releases, release.Name)
 	}
 
-	// Do not return ignored release.
-	delete(uniqNamesMap, app.HelmIgnoreRelease)
-
-	uniqNames := make([]string, 0)
-	for name := range uniqNamesMap {
-		uniqNames = append(uniqNames, name)
-	}
-
-	sort.Strings(uniqNames)
-	return uniqNames, nil
+	sort.Strings(releases)
+	return releases, nil
 }
 
 // Render renders helm templates for chart
 func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string, debug bool) (string, error) {
-	args := make([]string, 0)
-	args = append(args, "template")
-	args = append(args, releaseName)
-	args = append(args, chart)
+	args := []string{"template", releaseName, chart}
 
 	if debug {
 		args = append(args, "--debug")

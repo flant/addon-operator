@@ -13,8 +13,6 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
-
-	"github.com/flant/kube-client/fake"
 )
 
 func TestHelm3LibEmptyCluster(t *testing.T) {
@@ -22,7 +20,7 @@ func TestHelm3LibEmptyCluster(t *testing.T) {
 
 	cl := initHelmClient(t)
 
-	releases, err := cl.ListReleasesNames(nil)
+	releases, err := cl.ListReleasesNames()
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releases).To(BeComparableTo([]string{}), "should get empty list of releases")
 
@@ -42,24 +40,40 @@ func TestHelm3LibUpgradeDelete(t *testing.T) {
 
 	err := cl.UpgradeRelease("test-release", "testdata/chart", nil, nil, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
+
+	releases, err := cl.ListReleasesNames()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(releases).To(BeComparableTo([]string{"test-release"}), "should get list of releases")
+
+	revision, status, err := cl.LastReleaseStatus("test-release")
+	g.Expect(err).ShouldNot(HaveOccurred(), "should get release status in the cluster")
+	g.Expect(status).To(Equal("deployed"), "status of the release should be deployed")
+	g.Expect(revision).To(Equal("1"), "revision of the release should be 1")
+
+	isExists, err := cl.IsReleaseExists("test-release")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(isExists).Should(BeTrue(), "should found the release in the cluster")
+
+	err = cl.DeleteRelease("test-release")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	isExists, err = cl.IsReleaseExists("test-release")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(isExists).Should(BeFalse(), "should not found the release in the cluster")
 }
 
 func initHelmClient(t *testing.T) *LibClient {
-	fCluster := fake.NewFakeCluster(fake.ClusterVersionV125)
-
 	Init(&Options{
 		Namespace:  "test-ns",
 		HistoryMax: 10,
 		Timeout:    0,
-		KubeClient: fCluster.Client,
 	})
 
 	actionConfig = actionConfigFixture(t)
 
 	cl := &LibClient{
-		LogEntry:   log.NewEntry(log.StandardLogger()),
-		KubeClient: options.KubeClient,
-		Namespace:  options.Namespace,
+		LogEntry:  log.NewEntry(log.StandardLogger()),
+		Namespace: options.Namespace,
 	}
 
 	return cl

@@ -532,7 +532,7 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	if mm.dependencies.Helm == nil {
 		return &ModulesState{}, nil
 	}
-	releasedModules, err := mm.dependencies.Helm.NewClient(logLabels).ListReleasesNames(nil)
+	releasedModules, err := mm.dependencies.Helm.NewClient(logLabels).ListReleasesNames()
 	if err != nil {
 		return nil, err
 	}

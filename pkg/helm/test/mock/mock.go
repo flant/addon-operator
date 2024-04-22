@@ -23,7 +23,7 @@ type Client struct {
 
 var _ client.HelmClient = &Client{}
 
-func (c *Client) ListReleasesNames(_ map[string]string) ([]string, error) {
+func (c *Client) ListReleasesNames() ([]string, error) {
 	if c.ReleaseNames != nil {
 		return c.ReleaseNames, nil
 	}
