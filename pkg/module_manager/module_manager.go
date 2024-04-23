@@ -1181,7 +1181,7 @@ func (mm *ModuleManager) PushConvergeModulesTask(moduleName, moduleState string)
 }
 
 // PushRunModuleTask pushes moduleRun task for a module into the main queue if there is no such a task for the module
-func (mm *ModuleManager) PushRunModuleTask(moduleName string) error {
+func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bool) error {
 	// update module's kube config
 	err := mm.UpdateModuleKubeConfig(moduleName)
 	if err != nil {
@@ -1198,7 +1198,7 @@ func (mm *ModuleManager) PushRunModuleTask(moduleName string) error {
 		WithMetadata(task.HookMetadata{
 			EventDescription: "ModuleManager-Update-Module",
 			ModuleName:       moduleName,
-			DoModuleStartup:  true,
+			DoModuleStartup:  doModuleStartup,
 		})
 	newTask.SetProp("triggered-by", "ModuleManager")
 
@@ -1227,6 +1227,30 @@ func (mm *ModuleManager) UpdateModuleKubeConfig(moduleName string) error {
 // AreModulesInited returns true if modulemanager's moduleset has already been initialized
 func (mm *ModuleManager) AreModulesInited() bool {
 	return mm.modules.IsInited()
+}
+
+// RunModuleWithNewStaticValues updates the module's values by rebasing them from static values from modulePath directory and pushes RunModuleTask if the module is enabled
+func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, modulePath string) error {
+	currentModule := mm.modules.Get(moduleName)
+	if currentModule == nil {
+		return fmt.Errorf("failed to get basic module - not found")
+	}
+
+	basicModule, err := mm.moduleLoader.LoadModule(moduleSource, modulePath)
+	if err != nil {
+		return err
+	}
+
+	err = currentModule.ApplyNewStaticValues(basicModule.GetStaticValues())
+	if err != nil {
+		return err
+	}
+
+	if mm.IsModuleEnabled(moduleName) {
+		return mm.PushRunModuleTask(moduleName, false)
+	}
+
+	return nil
 }
 
 // RegisterModule checks if a module already exists and reapplies(reloads) its configuration.
@@ -1324,7 +1348,10 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 
 		if isEnabled {
 			// enqueue module startup sequence if it is enabled
-			mm.PushRunModuleTask(moduleName)
+			err := mm.PushRunModuleTask(moduleName, false)
+			if err != nil {
+				return err
+			}
 		} else {
 			ev.EventType = events.ModuleDisabled
 			mm.PushDeleteModuleTask(moduleName)
