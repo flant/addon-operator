@@ -130,7 +130,7 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
-	helmClient, err := helm.InitHelmClientFactory(op.engine.KubeClient)
+	helmClient, err := helm.InitHelmClientFactory()
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
 	}
@@ -160,7 +160,9 @@ func (op *AddonOperator) Setup() error {
 		return fmt.Errorf("KubeConfigManager must be set before Setup")
 	}
 
-	op.SetupModuleManager(app.ModulesDir, globalHooksDir, tempDir)
+	op.SetupModuleManager(app.ModulesDir, globalHooksDir, tempDir, app.EmbeddedModulesDir)
+
+	op.KubeConfigManager.SetModuleManager(op.ModuleManager)
 
 	return nil
 }
@@ -2306,24 +2308,4 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 		return string(mod.GetPhase())
 	}
 	return ""
-}
-
-func (op *AddonOperator) PurgeModule(moduleName string) {
-	q := op.engine.TaskQueues.GetMain()
-
-	pt := sh_task.NewTask(task.ModulePurge).
-		WithLogLabels(map[string]string{"module": moduleName}).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{ModuleName: moduleName}).
-		WithQueuedAt(time.Now())
-
-	q.AddLast(pt)
-
-	ct := sh_task.NewTask(task.ConvergeModules).
-		WithLogLabels(map[string]string{"module": moduleName}).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{ModuleName: moduleName}).
-		WithQueuedAt(time.Now())
-
-	q.AddLast(ct)
 }

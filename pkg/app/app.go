@@ -31,8 +31,9 @@ var (
 	Namespace     = ""
 	ConfigMapName = "addon-operator"
 
-	GlobalHooksDir = "global-hooks"
-	ModulesDir     = "modules"
+	GlobalHooksDir     = "global-hooks"
+	ModulesDir         = "modules"
+	EmbeddedModulesDir = ""
 
 	UnnumberedModuleOrder = 1
 
@@ -137,6 +138,11 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("STRICT_CHECK_VALUES_MODE_ENABLED").
 		Default("false").
 		BoolVar(&StrictModeEnabled)
+
+	cmd.Flag("embedded-modules-dir", "paths where to search for embedded module directories").
+		Envar("EMBEDDED_MODULES_DIR").
+		Default("").
+		StringVar(&EmbeddedModulesDir)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)

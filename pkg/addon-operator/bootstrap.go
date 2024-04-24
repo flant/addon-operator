@@ -7,6 +7,7 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/task/queue"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
@@ -69,15 +70,17 @@ func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
 		return
 	}
 
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, op)
+	qm := queue.NewManager(op.engine.TaskQueues)
+	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, qm)
 }
 
-func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string) {
+func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string, embeddedModulesDir string) {
 	// Create manager that runs modules and hooks.
 	dirConfig := module_manager.DirectoryConfig{
-		ModulesDir:     modulesDir,
-		GlobalHooksDir: globalHooksDir,
-		TempDir:        tempDir,
+		ModulesDir:         modulesDir,
+		GlobalHooksDir:     globalHooksDir,
+		TempDir:            tempDir,
+		EmbeddedModulesDir: embeddedModulesDir,
 	}
 	deps := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    op.engine.ObjectPatcher,

@@ -59,9 +59,10 @@ type ModulesState struct {
 
 // DirectoryConfig configures directories for ModuleManager
 type DirectoryConfig struct {
-	ModulesDir     string
-	GlobalHooksDir string
-	TempDir        string
+	ModulesDir         string
+	GlobalHooksDir     string
+	TempDir            string
+	EmbeddedModulesDir string
 }
 
 type KubeConfigManager interface {
@@ -94,9 +95,10 @@ type ModuleManager struct {
 	cancel context.CancelFunc
 
 	// Directories.
-	ModulesDir     string
-	GlobalHooksDir string
-	TempDir        string
+	ModulesDir         string
+	GlobalHooksDir     string
+	TempDir            string
+	embeddedModulesDir string
 
 	moduleLoader loader.ModuleLoader
 
@@ -122,14 +124,13 @@ type ModuleManager struct {
 	enabledModules *eModules
 
 	globalSynchronizationState *modules.SynchronizationState
-
-	kubeConfigLock sync.RWMutex
+	kubeConfigLock             sync.RWMutex
 	// addon-operator config is valid.
 	kubeConfigValid bool
+
 	// Static and config values are valid using OpenAPI schemas.
 	kubeConfigValuesValid bool
-
-	moduleEventC chan events.ModuleEvent
+	moduleEventC          chan events.ModuleEvent
 }
 
 type eModules struct {
@@ -185,9 +186,10 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 		ctx:    cctx,
 		cancel: cancel,
 
-		ModulesDir:     cfg.DirectoryConfig.ModulesDir,
-		GlobalHooksDir: cfg.DirectoryConfig.GlobalHooksDir,
-		TempDir:        cfg.DirectoryConfig.TempDir,
+		ModulesDir:         cfg.DirectoryConfig.ModulesDir,
+		GlobalHooksDir:     cfg.DirectoryConfig.GlobalHooksDir,
+		TempDir:            cfg.DirectoryConfig.TempDir,
+		embeddedModulesDir: cfg.DirectoryConfig.EmbeddedModulesDir,
 
 		moduleLoader: fsLoader,
 
@@ -532,7 +534,7 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	if mm.dependencies.Helm == nil {
 		return &ModulesState{}, nil
 	}
-	releasedModules, err := mm.dependencies.Helm.NewClient(logLabels).ListReleasesNames(nil)
+	releasedModules, err := mm.dependencies.Helm.NewClient(logLabels).ListReleasesNames()
 	if err != nil {
 		return nil, err
 	}
@@ -1181,7 +1183,7 @@ func (mm *ModuleManager) PushConvergeModulesTask(moduleName, moduleState string)
 }
 
 // PushRunModuleTask pushes moduleRun task for a module into the main queue if there is no such a task for the module
-func (mm *ModuleManager) PushRunModuleTask(moduleName string) error {
+func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bool) error {
 	// update module's kube config
 	err := mm.UpdateModuleKubeConfig(moduleName)
 	if err != nil {
@@ -1198,7 +1200,7 @@ func (mm *ModuleManager) PushRunModuleTask(moduleName string) error {
 		WithMetadata(task.HookMetadata{
 			EventDescription: "ModuleManager-Update-Module",
 			ModuleName:       moduleName,
-			DoModuleStartup:  true,
+			DoModuleStartup:  doModuleStartup,
 		})
 	newTask.SetProp("triggered-by", "ModuleManager")
 
@@ -1227,6 +1229,30 @@ func (mm *ModuleManager) UpdateModuleKubeConfig(moduleName string) error {
 // AreModulesInited returns true if modulemanager's moduleset has already been initialized
 func (mm *ModuleManager) AreModulesInited() bool {
 	return mm.modules.IsInited()
+}
+
+// RunModuleWithNewStaticValues updates the module's values by rebasing them from static values from modulePath directory and pushes RunModuleTask if the module is enabled
+func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, modulePath string) error {
+	currentModule := mm.modules.Get(moduleName)
+	if currentModule == nil {
+		return fmt.Errorf("failed to get basic module - not found")
+	}
+
+	basicModule, err := mm.moduleLoader.LoadModule(moduleSource, modulePath)
+	if err != nil {
+		return err
+	}
+
+	err = currentModule.ApplyNewStaticValues(basicModule.GetStaticValues())
+	if err != nil {
+		return err
+	}
+
+	if mm.IsModuleEnabled(moduleName) {
+		return mm.PushRunModuleTask(moduleName, false)
+	}
+
+	return nil
 }
 
 // RegisterModule checks if a module already exists and reapplies(reloads) its configuration.
@@ -1324,7 +1350,10 @@ func (mm *ModuleManager) RegisterModule(moduleSource, modulePath string) error {
 
 		if isEnabled {
 			// enqueue module startup sequence if it is enabled
-			mm.PushRunModuleTask(moduleName)
+			err := mm.PushRunModuleTask(moduleName, false)
+			if err != nil {
+				return err
+			}
 		} else {
 			ev.EventType = events.ModuleDisabled
 			mm.PushDeleteModuleTask(moduleName)
@@ -1484,6 +1513,19 @@ func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
 	}
 
 	return nil
+}
+
+func (mm *ModuleManager) IsEmbeddedModule(moduleName string) bool {
+	if mm.embeddedModulesDir == "" {
+		return false
+	}
+
+	module := mm.GetModule(moduleName)
+	if module == nil {
+		return false
+	}
+
+	return strings.HasPrefix(module.Path, mm.embeddedModulesDir)
 }
 
 // loadStaticValues loads config for module from values.yaml

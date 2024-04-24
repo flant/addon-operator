@@ -7,7 +7,6 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
-	klient "github.com/flant/kube-client/client"
 )
 
 type ClientFactory struct {
@@ -21,7 +20,7 @@ func (f *ClientFactory) NewClient(logLabels ...map[string]string) client.HelmCli
 	return nil
 }
 
-func InitHelmClientFactory(kubeClient *klient.Client) (*ClientFactory, error) {
+func InitHelmClientFactory() (*ClientFactory, error) {
 	helmVersion, err := DetectHelmVersion()
 	if err != nil {
 		return nil, err
@@ -33,11 +32,10 @@ func InitHelmClientFactory(kubeClient *klient.Client) (*ClientFactory, error) {
 	case Helm3Lib:
 		log.Info("Helm3Lib detected. Use builtin Helm.")
 		factory.NewClientFn = helm3lib.NewClient
-		helm3lib.Init(&helm3lib.Options{
+		err = helm3lib.Init(&helm3lib.Options{
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,
-			KubeClient: kubeClient,
 		})
 
 	case Helm3:
@@ -48,7 +46,6 @@ func InitHelmClientFactory(kubeClient *klient.Client) (*ClientFactory, error) {
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,
-			KubeClient: kubeClient,
 		})
 	}
 

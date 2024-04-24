@@ -31,13 +31,6 @@ type validator interface {
 // ValuesStorage keeps Module's values in order
 type ValuesStorage struct {
 	// INPUTS:
-
-	// static staticConfigValues from
-	//   /modules/values.yaml
-	//   /modules/001-module/values.yaml
-	// are set only on module init phase
-	staticConfigValues utils.Values
-
 	// patches from hooks, have top priority over values
 	valuesPatches []utils.ValuesPatch
 
@@ -49,6 +42,12 @@ type ValuesStorage struct {
 	// we are locking the whole storage on any concurrent operation
 	// because it could be called from concurrent hooks (goroutines) and we will have a deadlock on RW mutex
 	lock sync.Mutex
+
+	// static staticConfigValues from
+	//   /modules/values.yaml
+	//   /modules/001-module/values.yaml
+	// are set only on module init phase
+	staticConfigValues utils.Values
 	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
 	// without merge with static and openapi values
 	configValues utils.Values
@@ -146,6 +145,21 @@ func (vs *ValuesStorage) validateValues(values utils.Values) error {
 	}
 
 	return vs.validator.ValidateModuleValues(valuesModuleName, validatableValues)
+}
+
+// getStaticValues returns current static values of the module
+func (vs *ValuesStorage) getStaticValues() utils.Values {
+	vs.lock.Lock()
+	defer vs.lock.Unlock()
+	return vs.staticConfigValues
+}
+
+// applyNewStaticValues sets the module's static values and recalculate the resulting values
+func (vs *ValuesStorage) applyNewStaticValues(values utils.Values) error {
+	vs.lock.Lock()
+	defer vs.lock.Unlock()
+	vs.staticConfigValues = values
+	return vs.calculateResultValues()
 }
 
 // CommitValues apply all patches and create up-to-date values for module
