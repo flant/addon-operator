@@ -5,11 +5,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/values/validation"
-
 	"github.com/go-openapi/swag"
 	. "github.com/onsi/gomega"
 	"github.com/tidwall/gjson"
+
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 func Test_Add_Schema(t *testing.T) {

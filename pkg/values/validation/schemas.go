@@ -58,10 +58,8 @@ func YAMLDocLoader(path string) (json.RawMessage, error) {
 	return YAMLBytesToJSONDoc(data)
 }
 
-func NewSchemaStorage(configBytes, valuesBytes []byte) (schemaStorage *SchemaStorage, err error) {
-	schemas := make(map[SchemaType]*spec.Schema)
-
-	schemas, err = PrepareSchemas(configBytes, valuesBytes)
+func NewSchemaStorage(configBytes, valuesBytes []byte) (*SchemaStorage, error) {
+	schemas, err := PrepareSchemas(configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("prepare schemas: %w", err)
 	}

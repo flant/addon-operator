@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flant/addon-operator/pkg/values/validation"
-
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
@@ -21,6 +19,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"

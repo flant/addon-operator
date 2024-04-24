@@ -3,10 +3,9 @@ package validation_test
 import (
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-
 	. "github.com/onsi/gomega"
 
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
