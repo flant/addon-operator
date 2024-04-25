@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"plugin"
 	"sort"
 	"strings"
 	"sync"
@@ -156,6 +157,14 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 	}
 
 	goHooks := bm.searchModuleGoHooks()
+	pluginHooks, err := bm.searchModulePluginGoHooks()
+	if err != nil {
+		return nil, err
+	}
+	if len(pluginHooks) > 0 {
+		fmt.Println("XXXX Appending plugin go hooks")
+		goHooks = append(goHooks, pluginHooks...)
+	}
 
 	mHooks := make([]*hooks.ModuleHook, 0, len(shellHooks)+len(goHooks))
 
@@ -205,6 +214,97 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 	}
 
 	return
+}
+
+func (bm *BasicModule) searchModulePluginGoHooks() (hks []*kind.GoHook, err error) {
+	hooksDir := filepath.Join(bm.Path, "hooks")
+	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	hooksRelativePaths, err := todowriteme(hooksDir)
+	if err != nil {
+		return nil, err
+	}
+
+	hks = make([]*kind.GoHook, 0)
+
+	if len(hooksRelativePaths) == 0 {
+		return hks, nil
+	}
+
+	// sort hooks by path
+	sort.Strings(hooksRelativePaths)
+	log.Debugf(" Plugin Hook paths: %+v", hooksRelativePaths)
+
+	for _, hookPath := range hooksRelativePaths {
+		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Println("XXXX SO hook path", hookPath)
+
+		plug, err := plugin.Open(hookPath)
+		if err != nil {
+			return nil, err
+		}
+
+		syb, err := plug.Lookup("Hooks")
+		if err != nil {
+			return nil, err
+		}
+
+		pluginHooks, ok := syb.(*[]*kind.GoHook)
+		if !ok {
+			return nil, fmt.Errorf("is not a GoHook struct: %s", hookName)
+		}
+
+		for _, h := range *pluginHooks {
+			fmt.Println("XXXX APPEND Plugin HOOK", hookPath)
+			hks = append(hks, h)
+		}
+	}
+
+	return
+}
+
+func todowriteme(dir string) ([]string, error) {
+	paths := make([]string, 0)
+	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if f.IsDir() {
+			// Skip hidden directories inside initial directory
+			if strings.HasPrefix(f.Name(), ".") {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		// ignore hidden files
+		if strings.HasPrefix(f.Name(), ".") {
+			return nil
+		}
+
+		// ignore all except .so files
+		switch filepath.Ext(f.Name()) {
+		case ".so":
+			paths = append(paths, path)
+			return nil
+
+		default:
+			return nil
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return paths, nil
 }
 
 func (bm *BasicModule) searchModuleGoHooks() (hks []*kind.GoHook) {
