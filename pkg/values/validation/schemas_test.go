@@ -15,13 +15,10 @@ import (
 func Test_Add_Schema(t *testing.T) {
 	g := NewWithT(t)
 
-	st, err := validation.NewSchemaStorage(nil, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
 	schemaBytes, err := os.ReadFile("testdata/test-schema-ok.yaml")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	err = st.AddValuesSchemas(schemaBytes, nil)
+	st, err := validation.NewSchemaStorage(schemaBytes, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	s := st.Schemas[validation.ConfigValuesSchema]
@@ -62,13 +59,12 @@ func Test_Add_Schema(t *testing.T) {
 func Test_Add_Schema_Bad(t *testing.T) {
 	t.SkipNow()
 	g := NewWithT(t)
-	st, err := validation.NewSchemaStorage(nil, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
 
 	schemaBytes, err := os.ReadFile("testdata/test-schema-bad.yaml")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	err = st.AddValuesSchemas(nil, schemaBytes)
+	_, err = validation.NewSchemaStorage(nil, schemaBytes)
+
 	t.Logf("%v", err)
 	g.Expect(err).Should(HaveOccurred(), "invalid schema should not be loaded")
 }

@@ -876,6 +876,60 @@ func (bm *BasicModule) GetSchemaStorage() *validation.SchemaStorage {
 	return bm.valuesStorage.schemaStorage
 }
 
+func (bm *BasicModule) Validate() error {
+	valuesKey := utils.ModuleNameToValuesKey(bm.GetName())
+	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
+
+	log.Infof("Validating module %q from %q", bm.GetName(), bm.GetPath())
+
+	if bm.GetName() != restoredName {
+		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", bm.GetName(), restoredName)
+	}
+
+	// load static config from values.yaml
+	staticValues, err := loadStaticValues(bm.GetName(), bm.GetPath())
+	if err != nil {
+		return fmt.Errorf("load values.yaml failed: %v", err)
+	}
+
+	if staticValues != nil {
+		return fmt.Errorf("please use openapi schema instead of values.yaml")
+	}
+
+	err = bm.ValidateValues()
+	if err != nil {
+		return fmt.Errorf("validate values: %w", err)
+	}
+
+	err = bm.ValidateConfigValues()
+	if err != nil {
+		return fmt.Errorf("validate config values: %w", err)
+	}
+
+	return nil
+}
+
+func (bm *BasicModule) ValidateValues() error {
+	return bm.valuesStorage.validateValues(bm.GetValues(false))
+}
+
+func (bm *BasicModule) ValidateConfigValues() error {
+	return bm.valuesStorage.validateConfigValues(bm.GetConfigValues(false))
+}
+
+// loadStaticValues loads config for module from values.yaml
+// Module is enabled if values.yaml is not exists.
+func loadStaticValues(moduleName, modulePath string) (utils.Values, error) {
+	valuesYamlPath := filepath.Join(modulePath, utils.ValuesFileName)
+
+	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
+		log.Debugf("module %s has no static values", moduleName)
+		return nil, nil
+	}
+
+	return utils.LoadValuesFileFromDir(modulePath)
+}
+
 type ModuleRunPhase string
 
 const (
