@@ -48,6 +48,7 @@ type ValuesStorage struct {
 	//   /modules/001-module/values.yaml
 	// are set only on module init phase
 	staticConfigValues utils.Values
+
 	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
 	// without merge with static and openapi values
 	configValues utils.Values

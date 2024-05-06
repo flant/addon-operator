@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"github.com/flant/addon-operator/pkg/app"
 	"os"
 	"path/filepath"
 	"sort"
@@ -860,6 +861,26 @@ func (bm *BasicModule) GetLastHookError() error {
 
 func (bm *BasicModule) GetModuleError() error {
 	return bm.state.lastModuleErr
+}
+
+// Read namespace from .namespace file in module dir
+// Return addon-operator namespace by default
+func (bm *BasicModule) GetDefaultOrDefinedNamespace() (string, error) {
+	content, err := os.ReadFile(filepath.Join(bm.Path, ".namespace"))
+	if err != nil {
+		if err != os.ErrNotExist {
+			return app.Namespace, fmt.Errorf("%s: %s", bm.Name, err)
+		} else {
+			log.Warnf("%s: .namespace not found, ignoring", bm.Name)
+			return app.Namespace, nil
+		}
+	}
+	namespace := strings.TrimRight(string(content), " \t\n")
+	if namespace != "" {
+		return namespace, nil
+	} else {
+		return app.Namespace, nil
+	}
 }
 
 type ModuleRunPhase string
