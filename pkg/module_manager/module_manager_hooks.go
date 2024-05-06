@@ -18,8 +18,8 @@ import (
 type globalValues struct {
 	globalValues   utils.Values
 	enabledModules map[string]struct{}
-	configBytes    []byte // config-values.yaml
-	valuesBytes    []byte // values.yaml
+	configSchema   []byte // config-values.yaml
+	valuesSchema   []byte // values.yaml
 }
 
 func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
@@ -68,8 +68,8 @@ func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
 	gv := &globalValues{
 		globalValues:   resultGlobalValues,
 		enabledModules: enabledModules,
-		configBytes:    cb,
-		valuesBytes:    vb,
+		configSchema:   cb,
+		valuesSchema:   vb,
 	}
 
 	return gv, nil

@@ -471,7 +471,7 @@ func (mm *ModuleManager) Init() error {
 
 	mm.enabledModulesByConfig = gv.enabledModules
 
-	if err := mm.registerGlobalModule(gv.globalValues, gv.configBytes, gv.valuesBytes); err != nil {
+	if err := mm.registerGlobalModule(gv.globalValues, gv.configSchema, gv.valuesSchema); err != nil {
 		return err
 	}
 
