@@ -3,6 +3,7 @@ package addon_operator
 import (
 	"context"
 	"fmt"
+	"github.com/flant/shell-operator/pkg/debug"
 	"path"
 	"runtime/trace"
 	"strings"
@@ -30,7 +31,6 @@ import (
 	"github.com/flant/kube-client/client"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
-	"github.com/flant/shell-operator/pkg/debug"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
@@ -1291,7 +1291,8 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	logEntry.Debugf("Module purge start")
 
 	hm := task.HookMetadataAccessor(t)
-	err := op.Helm.NewClient(t.GetLogLabels()).DeleteRelease(hm.ModuleName)
+	namespace, _ := op.ModuleManager.GetModule(hm.ModuleName).GetDefaultOrDefinedNamespace()
+	err := op.Helm.NewClient(t.GetLogLabels()).DeleteRelease(namespace, hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
 		logEntry.Warnf("Module purge failed, no retry. Error: %s", err)
