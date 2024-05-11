@@ -19,6 +19,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -56,19 +57,24 @@ type BasicModule struct {
 
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
-func NewBasicModule(name, path string, order uint32, staticValues utils.Values, validator validator) *BasicModule {
+func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte) (*BasicModule, error) {
+	valuesStorage, err := NewValuesStorage(name, staticValues, configBytes, valuesBytes)
+	if err != nil {
+		return nil, fmt.Errorf("new values storage: %w", err)
+	}
+
 	return &BasicModule{
 		Name:          name,
 		Order:         order,
 		Path:          path,
-		valuesStorage: NewValuesStorage(name, staticValues, validator),
+		valuesStorage: valuesStorage,
 		state: &moduleState{
 			Phase:                Startup,
 			hookErrors:           make(map[string]error),
 			synchronizationState: NewSynchronizationState(),
 		},
 		hooks: newHooksStorage(),
-	}
+	}, nil
 }
 
 // WithDependencies unject module dependencies
@@ -860,6 +866,68 @@ func (bm *BasicModule) GetLastHookError() error {
 
 func (bm *BasicModule) GetModuleError() error {
 	return bm.state.lastModuleErr
+}
+
+func (bm *BasicModule) GetValuesStorage() *ValuesStorage {
+	return bm.valuesStorage
+}
+
+func (bm *BasicModule) GetSchemaStorage() *validation.SchemaStorage {
+	return bm.valuesStorage.schemaStorage
+}
+
+func (bm *BasicModule) Validate() error {
+	valuesKey := utils.ModuleNameToValuesKey(bm.GetName())
+	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
+
+	log.Infof("Validating module %q from %q", bm.GetName(), bm.GetPath())
+
+	if bm.GetName() != restoredName {
+		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", bm.GetName(), restoredName)
+	}
+
+	// load static config from values.yaml
+	staticValues, err := loadStaticValues(bm.GetName(), bm.GetPath())
+	if err != nil {
+		return fmt.Errorf("load values.yaml failed: %v", err)
+	}
+
+	if staticValues != nil {
+		return fmt.Errorf("please use openapi schema instead of values.yaml")
+	}
+
+	err = bm.ValidateValues()
+	if err != nil {
+		return fmt.Errorf("validate values: %w", err)
+	}
+
+	err = bm.ValidateConfigValues()
+	if err != nil {
+		return fmt.Errorf("validate config values: %w", err)
+	}
+
+	return nil
+}
+
+func (bm *BasicModule) ValidateValues() error {
+	return bm.valuesStorage.validateValues(bm.GetValues(false))
+}
+
+func (bm *BasicModule) ValidateConfigValues() error {
+	return bm.valuesStorage.validateConfigValues(bm.GetConfigValues(false))
+}
+
+// loadStaticValues loads config for module from values.yaml
+// Module is enabled if values.yaml is not exists.
+func loadStaticValues(moduleName, modulePath string) (utils.Values, error) {
+	valuesYamlPath := filepath.Join(modulePath, utils.ValuesFileName)
+
+	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
+		log.Debugf("module %s has no static values", moduleName)
+		return nil, nil
+	}
+
+	return utils.LoadValuesFileFromDir(modulePath)
 }
 
 type ModuleRunPhase string

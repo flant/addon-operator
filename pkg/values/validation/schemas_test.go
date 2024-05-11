@@ -1,4 +1,4 @@
-package validation
+package validation_test
 
 import (
 	"encoding/json"
@@ -8,20 +8,20 @@ import (
 	"github.com/go-openapi/swag"
 	. "github.com/onsi/gomega"
 	"github.com/tidwall/gjson"
+
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 func Test_Add_Schema(t *testing.T) {
 	g := NewWithT(t)
 
-	st := NewSchemaStorage()
-
 	schemaBytes, err := os.ReadFile("testdata/test-schema-ok.yaml")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	err = st.AddGlobalValuesSchemas(schemaBytes, nil)
+	st, err := validation.NewSchemaStorage(schemaBytes, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	s := st.GlobalValuesSchema(ConfigValuesSchema)
+	s := st.Schemas[validation.ConfigValuesSchema]
 	g.Expect(s).ShouldNot(BeNil(), "schema for config should be in cache")
 
 	res, err := toGJSON(s)
@@ -48,10 +48,10 @@ func Test_Add_Schema(t *testing.T) {
 	g.Expect(res.Get("properties.fragmentedProjects.properties.archive.items.properties.description").Exists()).Should(BeTrue(), "should load local ref-ed fragmentedProjects.archive.items.description, got: %s", res.Raw)
 	g.Expect(res.Get("properties.fragmentedProjects.properties.archive.items.properties.description.type").String()).Should(Equal("string"), "should load type for local ref-ed fragmentedProjects.archive.items.description, got: %s", res.Raw)
 
-	s = st.GlobalValuesSchema(ValuesSchema)
+	s = st.Schemas[validation.ValuesSchema]
 	g.Expect(s).Should(BeNil(), "schema for values should not be in cache")
 
-	s = st.GlobalValuesSchema(HelmValuesSchema)
+	s = st.Schemas[validation.HelmValuesSchema]
 	g.Expect(s).Should(BeNil(), "schema for helm should not be in cache")
 }
 
@@ -59,12 +59,12 @@ func Test_Add_Schema(t *testing.T) {
 func Test_Add_Schema_Bad(t *testing.T) {
 	t.SkipNow()
 	g := NewWithT(t)
-	st := NewSchemaStorage()
 
 	schemaBytes, err := os.ReadFile("testdata/test-schema-bad.yaml")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	err = st.AddGlobalValuesSchemas(nil, schemaBytes)
+	_, err = validation.NewSchemaStorage(nil, schemaBytes)
+
 	t.Logf("%v", err)
 	g.Expect(err).Should(HaveOccurred(), "invalid schema should not be loaded")
 }
@@ -111,7 +111,7 @@ properties:
 	g.Expect(res.Get("properties.archive.items.properties.description").Exists()).Should(BeTrue(), "should load archive.items.description, got: %s", res.Raw)
 
 	// Check custom loader via interface{}.
-	doc, err = YAMLBytesToJSONDoc([]byte(schemaWithMapMerge))
+	doc, err = validation.YAMLBytesToJSONDoc([]byte(schemaWithMapMerge))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	res, err = toGJSON(doc)
 	g.Expect(err).ShouldNot(HaveOccurred())

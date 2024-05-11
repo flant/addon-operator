@@ -1,22 +1,12 @@
 package modules
 
 import (
+	"fmt"
 	"sync"
-
-	"github.com/go-openapi/spec"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 )
-
-type validator interface {
-	ValidateModuleConfigValues(moduleName string, values utils.Values) error
-	ValidateModuleValues(moduleName string, values utils.Values) error
-	ValidateGlobalConfigValues(values utils.Values) error
-	ValidateGlobalValues(values utils.Values) error
-	GetSchema(schemaType validation.SchemaType, valuesType validation.SchemaType, modName string) *spec.Schema
-}
 
 /*
 	Module can contains a few sources of module values:
@@ -34,10 +24,8 @@ type ValuesStorage struct {
 	// patches from hooks, have top priority over values
 	valuesPatches []utils.ValuesPatch
 
-	// TODO: actually, we don't need the validator with all Schemas here,
-	//   we can put a single openapi schema for the specified module
-	validator  validator
-	moduleName string
+	schemaStorage *validation.SchemaStorage
+	moduleName    string
 
 	// we are locking the whole storage on any concurrent operation
 	// because it could be called from concurrent hooks (goroutines) and we will have a deadlock on RW mutex
@@ -60,32 +48,29 @@ type ValuesStorage struct {
 // NewValuesStorage build a new storage for module values
 //
 //	staticValues - values from /modules/<module-name>/values.yaml, which couldn't be reloaded during the runtime
-func NewValuesStorage(moduleName string, staticValues utils.Values, validator validator) *ValuesStorage {
-	vs := &ValuesStorage{
-		staticConfigValues: staticValues,
-		validator:          validator,
-		moduleName:         moduleName,
-	}
-	err := vs.calculateResultValues()
+func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes, valuesBytes []byte) (*ValuesStorage, error) {
+	schemaStorage, err := validation.NewSchemaStorage(configBytes, valuesBytes)
 	if err != nil {
-		log.Errorf("Critical error occurred with calculating values for %q: %s", moduleName, err)
+		return nil, fmt.Errorf("new schema storage: %w", err)
 	}
 
-	return vs
+	vs := &ValuesStorage{
+		staticConfigValues: staticValues,
+		schemaStorage:      schemaStorage,
+		moduleName:         moduleName,
+	}
+	err = vs.calculateResultValues()
+	if err != nil {
+		return nil, fmt.Errorf("critical error occurred with calculating values for %q: %w", moduleName, err)
+	}
+
+	return vs, nil
 }
 
 func (vs *ValuesStorage) openapiDefaultsTransformer(schemaType validation.SchemaType) transformer {
-	if vs.moduleName == utils.GlobalValuesKey {
-		return &applyDefaultsForGlobal{
-			SchemaType:      schemaType,
-			ValuesValidator: vs.validator,
-		}
-	}
-
-	return &applyDefaultsForModule{
-		ModuleName:      vs.moduleName,
-		SchemaType:      schemaType,
-		ValuesValidator: vs.validator,
+	return &applyDefaults{
+		SchemaType: schemaType,
+		Schemas:    vs.schemaStorage.Schemas,
 	}
 }
 
@@ -129,22 +114,14 @@ func (vs *ValuesStorage) validateConfigValues(values utils.Values) error {
 	valuesModuleName := utils.ModuleNameToValuesKey(vs.moduleName)
 	validatableValues := utils.Values{valuesModuleName: values}
 
-	if vs.moduleName == utils.GlobalValuesKey {
-		return vs.validator.ValidateGlobalConfigValues(validatableValues)
-	}
-
-	return vs.validator.ValidateModuleConfigValues(valuesModuleName, validatableValues)
+	return vs.schemaStorage.ValidateConfigValues(valuesModuleName, validatableValues)
 }
 
 func (vs *ValuesStorage) validateValues(values utils.Values) error {
 	valuesModuleName := utils.ModuleNameToValuesKey(vs.moduleName)
 	validatableValues := utils.Values{valuesModuleName: values}
 
-	if vs.moduleName == utils.GlobalValuesKey {
-		return vs.validator.ValidateGlobalValues(validatableValues)
-	}
-
-	return vs.validator.ValidateModuleValues(valuesModuleName, validatableValues)
+	return vs.schemaStorage.ValidateValues(valuesModuleName, validatableValues)
 }
 
 // getStaticValues returns current static values of the module
@@ -277,4 +254,8 @@ func (vs *ValuesStorage) getValuesPatches() []utils.ValuesPatch {
 	defer vs.lock.Unlock()
 
 	return vs.valuesPatches
+}
+
+func (vs *ValuesStorage) GetSchemaStorage() *validation.SchemaStorage {
+	return vs.schemaStorage
 }

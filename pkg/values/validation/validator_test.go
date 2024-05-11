@@ -1,10 +1,11 @@
-package validation
+package validation_test
 
 import (
 	"testing"
 
 	. "github.com/onsi/gomega"
 
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
@@ -34,12 +35,11 @@ properties:
   param2:
     type: string
 `
-	v := NewValuesValidator()
 
-	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
+	valuesStorage, err := modules.NewValuesStorage("moduleName", nil, []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
+	mErr := valuesStorage.GetSchemaStorage().ValidateConfigValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 }
 
@@ -73,12 +73,10 @@ properties:
       aq:
         type: string
 `
-	v := NewValuesValidator()
-
-	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
+	valuesStorage, err := modules.NewValuesStorage("moduleName", nil, []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
+	mErr := valuesStorage.GetSchemaStorage().ValidateConfigValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 }
 
@@ -155,12 +153,11 @@ properties:
           deepParam3:
             type: string
 `
-	v := NewValuesValidator()
 
-	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
+	valuesStorage, err := modules.NewValuesStorage("moduleName", nil, []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
+	mErr := valuesStorage.GetSchemaStorage().ValidateConfigValues("moduleName", moduleValues)
 	g.Expect(mErr.Error()).Should(ContainSubstring("3 errors occurred"))
 	g.Expect(mErr.Error()).Should(ContainSubstring("forbidden property"))
 }
@@ -192,11 +189,10 @@ properties:
     maximum: 100.0
     multipleOf: 0.01
 `
-	v := NewValuesValidator()
 
-	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configSchemaYaml), nil)
+	valuesStorage, err := modules.NewValuesStorage("moduleName", nil, []byte(configSchemaYaml), nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := v.ValidateModuleConfigValues("moduleName", moduleValues)
+	mErr := valuesStorage.GetSchemaStorage().ValidateConfigValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 }

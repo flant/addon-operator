@@ -15,7 +15,14 @@ import (
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
 
-func (mm *ModuleManager) loadGlobalValues() ( /* global values */ utils.Values /* enabled modules */, map[string]struct{}, error) {
+type globalValues struct {
+	globalValues   utils.Values
+	enabledModules map[string]struct{}
+	configSchema   []byte // config-values.yaml
+	valuesSchema   []byte // values.yaml
+}
+
+func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
 	resultGlobalValues := utils.Values{}
 	enabledModules := make(map[string]struct{})
 
@@ -23,7 +30,7 @@ func (mm *ModuleManager) loadGlobalValues() ( /* global values */ utils.Values /
 	for _, dir := range dirs {
 		commonStaticValues, err := utils.LoadValuesFileFromDir(dir)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		for key, value := range commonStaticValues {
@@ -42,7 +49,7 @@ func (mm *ModuleManager) loadGlobalValues() ( /* global values */ utils.Values /
 				case string:
 					enabled, _ = strconv.ParseBool(v)
 				default:
-					return nil, nil, fmt.Errorf("unknown type for Enabled flag: %s: %T", key, value)
+					return nil, fmt.Errorf("unknown type for Enabled flag: %s: %T", key, value)
 				}
 
 				if enabled {
@@ -55,23 +62,20 @@ func (mm *ModuleManager) loadGlobalValues() ( /* global values */ utils.Values /
 
 	cb, vb, err := utils.ReadOpenAPIFiles(filepath.Join(mm.GlobalHooksDir, "openapi"))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	if cb != nil && vb != nil {
-		// set openapi global spec to storage
-		err = mm.ValuesValidator.SchemaStorage.AddGlobalValuesSchemas(cb, vb)
-		if err != nil {
-			return nil, nil, err
-		}
+	gv := &globalValues{
+		globalValues:   resultGlobalValues,
+		enabledModules: enabledModules,
+		configSchema:   cb,
+		valuesSchema:   vb,
 	}
 
-	return resultGlobalValues, enabledModules, nil
+	return gv, nil
 }
 
-func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values) error {
-	log.Infof(mm.ValuesValidator.SchemaStorage.GlobalSchemasDescription())
-
+func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configBytes, valuesBytes []byte) error {
 	// load and registry global hooks
 	dep := hooks.HookExecutionDependencyContainer{
 		HookMetricsStorage: mm.dependencies.HookMetricStorage,
@@ -80,8 +84,13 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values) error {
 		MetricStorage:      mm.dependencies.MetricStorage,
 	}
 
-	gm := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, mm.ValuesValidator, &dep)
+	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes)
+	if err != nil {
+		return fmt.Errorf("new global module: %w", err)
+	}
+
 	mm.global = gm
+	log.Infof(gm.GetSchemaStorage().GlobalSchemasDescription())
 
 	// catch dynamin Enabled patches from global hooks
 	go mm.runDynamicEnabledLoop()

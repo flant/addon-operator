@@ -1,10 +1,11 @@
-package validation
+package validation_test
 
 import (
 	"testing"
 
 	. "github.com/onsi/gomega"
 
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
@@ -12,8 +13,6 @@ func Test_Validate_Extended(t *testing.T) {
 	g := NewWithT(t)
 
 	var err error
-
-	v := NewValuesValidator()
 
 	configValuesYaml := `
 type: object
@@ -44,8 +43,8 @@ properties:
     - val1
 `
 
-	err = v.SchemaStorage.AddModuleValuesSchemas("moduleName", []byte(configValuesYaml), []byte(valuesYaml))
-
+	// TODO: static values
+	valuesStorage, err := modules.NewValuesStorage("moduleName", nil, []byte(configValuesYaml), []byte(valuesYaml))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	var moduleValues utils.Values
@@ -57,7 +56,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr := v.ValidateModuleValues("moduleName", moduleValues)
+	mErr := valuesStorage.GetSchemaStorage().ValidateValues("moduleName", moduleValues)
 
 	g.Expect(mErr).Should(HaveOccurred())
 
@@ -68,7 +67,7 @@ moduleName:
 `))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	mErr = v.ValidateModuleValues("moduleName", moduleValues)
+	mErr = valuesStorage.GetSchemaStorage().ValidateValues("moduleName", moduleValues)
 
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime/trace"
 	"strings"
 	"sync"
@@ -29,7 +27,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -103,8 +100,6 @@ type ModuleManager struct {
 	// Dependencies.
 	dependencies *ModuleManagerDependencies
 
-	ValuesValidator *validation.ValuesValidator
-
 	// All known modules from specified directories ($MODULES_DIR)
 	modules *moduleset.ModulesSet
 
@@ -176,10 +171,9 @@ func (m *eModules) String() string {
 // NewModuleManager returns new MainModuleManager
 func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleManager {
 	cctx, cancel := context.WithCancel(ctx)
-	validator := validation.NewValuesValidator()
 
 	// default loader, maybe we can register another one on startup
-	fsLoader := fs.NewFileSystemLoader(cfg.DirectoryConfig.ModulesDir, validator)
+	fsLoader := fs.NewFileSystemLoader(cfg.DirectoryConfig.ModulesDir)
 
 	return &ModuleManager{
 		ctx:    cctx,
@@ -192,8 +186,6 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 		moduleLoader: fsLoader,
 
 		dependencies: &cfg.Dependencies,
-
-		ValuesValidator: validator,
 
 		modules: new(moduleset.ModulesSet),
 
@@ -472,14 +464,14 @@ func (mm *ModuleManager) calculateEnabledModulesWithDynamic(enabledByConfig map[
 func (mm *ModuleManager) Init() error {
 	log.Debug("Init ModuleManager")
 
-	globalValues, enabledModules, err := mm.loadGlobalValues()
+	gv, err := mm.loadGlobalValues()
 	if err != nil {
 		return err
 	}
 
-	mm.enabledModulesByConfig = enabledModules
+	mm.enabledModulesByConfig = gv.enabledModules
 
-	if err := mm.registerGlobalModule(globalValues); err != nil {
+	if err := mm.registerGlobalModule(gv.globalValues, gv.configSchema, gv.valuesSchema); err != nil {
 		return err
 	}
 
@@ -717,16 +709,16 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 
 		// Stop resources monitor before deleting release
 		mm.dependencies.HelmResourcesManager.StopMonitor(ml.GetName())
-
+		schemaStorage := ml.GetValuesStorage().GetSchemaStorage()
 		// Module has chart, but there is no release -> log a warning.
 		// Module has chart and release -> execute helm delete.
 		hmdeps := modules.HelmModuleDependencies{
 			HelmClientFactory:   mm.dependencies.Helm,
 			HelmResourceManager: mm.dependencies.HelmResourcesManager,
 			MetricsStorage:      mm.dependencies.MetricStorage,
-			HelmValuesValidator: mm.ValuesValidator,
+			HelmValuesValidator: schemaStorage,
 		}
-		helmModule, _ := modules.NewHelmModule(ml, mm.TempDir, &hmdeps, mm.ValuesValidator)
+		helmModule, _ := modules.NewHelmModule(ml, mm.TempDir, &hmdeps, schemaStorage)
 		if helmModule != nil {
 			releaseExists, err := mm.dependencies.Helm.NewClient(deleteLogLabels).IsReleaseExists(ml.GetName())
 			if !releaseExists {
@@ -785,13 +777,14 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	}
 
 	treg = trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm")
+	schemaStorage := bm.GetValuesStorage().GetSchemaStorage()
 	deps := &modules.HelmModuleDependencies{
 		HelmClientFactory:   mm.dependencies.Helm,
 		HelmResourceManager: mm.dependencies.HelmResourcesManager,
 		MetricsStorage:      mm.dependencies.MetricStorage,
-		HelmValuesValidator: mm.ValuesValidator,
+		HelmValuesValidator: schemaStorage,
 	}
-	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps, mm.ValuesValidator)
+	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps, schemaStorage)
 	if err != nil {
 		return false, err
 	}
@@ -828,10 +821,6 @@ func (mm *ModuleManager) RunModuleHook(moduleName, hookName string, binding Bind
 	ml := mm.GetModule(moduleName)
 
 	return ml.RunHookByName(hookName, binding, bindingContext, logLabels)
-}
-
-func (mm *ModuleManager) GetValuesValidator() *validation.ValuesValidator {
-	return mm.ValuesValidator
 }
 
 func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) {
@@ -1467,63 +1456,6 @@ func (mm *ModuleManager) GetModuleEventsChannel() chan events.ModuleEvent {
 	}
 
 	return mm.moduleEventC
-}
-
-// ValidateModule this method is outdated, have to change it with module validation
-// Deprecated: move it to module constructor
-// TODO: rethink this
-func (mm *ModuleManager) ValidateModule(mod *modules.BasicModule) error {
-	valuesKey := utils.ModuleNameToValuesKey(mod.GetName())
-	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
-
-	log.Infof("Validating module %q from %q", mod.GetName(), mod.GetPath())
-
-	if mod.GetName() != restoredName {
-		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", mod.GetName(), restoredName)
-	}
-
-	// load static config from values.yaml
-	staticValues, err := loadStaticValues(mod.GetName(), mod.GetPath())
-	if err != nil {
-		return fmt.Errorf("load values.yaml failed: %v", err)
-	}
-
-	if staticValues != nil {
-		return fmt.Errorf("please use openapi schema instead of values.yaml")
-	}
-
-	valuesModuleName := utils.ModuleNameToValuesKey(mod.GetName())
-
-	// Load validation schemas
-	openAPIPath := filepath.Join(mod.GetPath(), "openapi")
-	configBytes, valuesBytes, err := readOpenAPIFiles(openAPIPath)
-	if err != nil {
-		return fmt.Errorf("read openAPI schemas failed: %v", err)
-	}
-
-	err = mm.ValuesValidator.SchemaStorage.AddModuleValuesSchemas(
-		valuesModuleName,
-		configBytes,
-		valuesBytes,
-	)
-	if err != nil {
-		return fmt.Errorf("add schemas failed: %v", err)
-	}
-
-	return nil
-}
-
-// loadStaticValues loads config for module from values.yaml
-// Module is enabled if values.yaml is not exists.
-func loadStaticValues(moduleName, modulePath string) (utils.Values, error) {
-	valuesYamlPath := filepath.Join(modulePath, utils.ValuesFileName)
-
-	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
-		log.Debugf("module %s has no static values", moduleName)
-		return nil, nil
-	}
-
-	return utils.LoadValuesFileFromDir(modulePath)
 }
 
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
