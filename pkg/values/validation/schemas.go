@@ -219,7 +219,7 @@ func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*sp
 	if len(configBytes) > 0 {
 		schemaObj, err := LoadSchemaFromBytes(configBytes)
 		if err != nil {
-			return nil, fmt.Errorf("load global '%s' schema: %s", ConfigValuesSchema, err)
+			return nil, fmt.Errorf("load '%s' schema: %w", ConfigValuesSchema, err)
 		}
 		res[ConfigValuesSchema] = schema.TransformSchema(
 			schemaObj,
@@ -230,7 +230,7 @@ func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*sp
 	if len(valuesBytes) > 0 {
 		schemaObj, err := LoadSchemaFromBytes(valuesBytes)
 		if err != nil {
-			return nil, fmt.Errorf("load global '%s' schema: %s", ValuesSchema, err)
+			return nil, fmt.Errorf("load '%s' schema: %w", ValuesSchema, err)
 		}
 		res[ValuesSchema] = schema.TransformSchema(
 			schemaObj,
