@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -320,7 +319,9 @@ l2LoadBalancerEnabled: false
 	assert.NoError(t, err)
 	assert.Equal(t, stateChanged, false)
 
-	fmt.Println(s.retrospectiveStatus)
+	_, err = s.UpdateAndApplyNewState()
+	assert.NoError(t, err)
+
 	s.printGraph()
 
 	err = os.RemoveAll(tmp)
