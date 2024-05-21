@@ -386,8 +386,6 @@ func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
 				} else {
 					delete(s.retrospectiveStatus[ex.Name()], vertex.GetName())
 				}
-
-				ex.Reset()
 			}
 
 			if previousState != vertex.GetState() {
@@ -398,6 +396,10 @@ func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
 				enabledModules = append(enabledModules, name)
 			}
 		}
+	}
+
+	for i := range s.extenders {
+		s.extenders[i].Reset()
 	}
 
 	s.enabledModules = &enabledModules
