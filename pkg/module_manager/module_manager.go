@@ -910,19 +910,18 @@ func (mm *ModuleManager) EnableModuleScheduleBindings(moduleName string) {
 func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 	ml := mm.GetModule(moduleName)
 
-	kubeHooks := ml.GetHooks(OnKubernetesEvent)
+	if !ml.HooksControllersReady() {
+		return
+	}
 
+	kubeHooks := ml.GetHooks(OnKubernetesEvent)
 	for _, mh := range kubeHooks {
-		if hc := mh.GetHookController(); hc != nil {
-			hc.StopMonitors()
-		}
+		mh.GetHookController().StopMonitors()
 	}
 
 	schHooks := ml.GetHooks(Schedule)
 	for _, mh := range schHooks {
-		if hc := mh.GetHookController(); hc != nil {
-			hc.DisableScheduleBindings()
-		}
+		mh.GetHookController().DisableScheduleBindings()
 	}
 
 	mm.SetModulePhaseAndNotify(ml, modules.HooksDisabled)
