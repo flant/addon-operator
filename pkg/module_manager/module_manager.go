@@ -904,18 +904,25 @@ func (mm *ModuleManager) EnableModuleScheduleBindings(moduleName string) {
 	}
 }
 
+// DisableModuleHooks disables monitors/bindings of the module's hooks
+// It's advisable to use this method only if next step is to completely disable the module (as a short-term commitment).
+// Otherwise, as hooks are rather stateless, their confiuration may get overwritten, resulting in unexpected consequences.
 func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 	ml := mm.GetModule(moduleName)
 
 	kubeHooks := ml.GetHooks(OnKubernetesEvent)
 
 	for _, mh := range kubeHooks {
-		mh.GetHookController().StopMonitors()
+		if hc := mh.GetHookController(); hc != nil {
+			hc.StopMonitors()
+		}
 	}
 
 	schHooks := ml.GetHooks(Schedule)
 	for _, mh := range schHooks {
-		mh.GetHookController().DisableScheduleBindings()
+		if hc := mh.GetHookController(); hc != nil {
+			hc.DisableScheduleBindings()
+		}
 	}
 
 	mm.SetModulePhaseAndNotify(ml, modules.HooksDisabled)
