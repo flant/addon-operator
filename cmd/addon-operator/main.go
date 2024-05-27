@@ -90,7 +90,7 @@ func start(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func run(_ context.Context, operator *addon_operator.AddonOperator) error {
+func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
 	bk := configmap.New(log.StandardLogger(), operator.KubeClient(), app.Namespace, app.ConfigMapName)
 	operator.SetupKubeConfigManager(bk)
 
@@ -100,7 +100,7 @@ func run(_ context.Context, operator *addon_operator.AddonOperator) error {
 		os.Exit(1)
 	}
 
-	err = operator.Start()
+	err = operator.Start(ctx)
 	if err != nil {
 		fmt.Printf("Start is failed: %s\n", err)
 		os.Exit(1)
