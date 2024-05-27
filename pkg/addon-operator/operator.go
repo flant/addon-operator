@@ -166,7 +166,8 @@ func (op *AddonOperator) Setup() error {
 }
 
 // Start runs all managers, event and queue handlers.
-func (op *AddonOperator) Start() error {
+// TODO: implement context in various dependencies (ModuleManager, KubeConfigManaer, etc)
+func (op *AddonOperator) Start(_ context.Context) error {
 	if err := op.bootstrap(); err != nil {
 		return err
 	}
