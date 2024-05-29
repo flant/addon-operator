@@ -1,7 +1,6 @@
 package static
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,10 +75,6 @@ func (e Extender) Name() extenders.ExtenderName {
 	return extenders.StaticExtender
 }
 
-func (e Extender) IsShutter() bool {
-	return false
-}
-
 func (e Extender) Filter(module node.ModuleInterface) (*bool, error) {
 	if val, found := e.modulesStatus[module.GetName()]; found {
 		return &val, nil
@@ -92,11 +87,8 @@ func (e *Extender) IsNotifier() bool {
 	return false
 }
 
-func (e *Extender) SetNotifyChannel(_ context.Context, _ chan extenders.ExtenderEvent) {
-}
+//func (e *Extender) SetNotifyChannel(_ context.Context, _ chan extenders.ExtenderEvent) {
+//}
 
 func (e Extender) Order() {
-}
-
-func (e *Extender) Reset() {
 }

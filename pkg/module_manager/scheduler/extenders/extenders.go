@@ -14,23 +14,26 @@ type ExtenderEvent struct {
 type ExtenderName string
 
 type Extender interface {
-	// returns the extender's name
+	// Name returns the extender's name
 	Name() ExtenderName
-	// returns the result of applying the extender
+	// Filter returns the result of applying the extender
 	Filter(module node.ModuleInterface) (*bool, error)
-	// returns true if the extender's purpose is to check if a module should be disabled for some reason
-	IsShutter() bool
-	// dumps the extender's status for the sake of debug
+	// Dump returns the extender's status of all modules
 	Dump() map[string]bool
-	// returns true if the extender has a notification channel
-	IsNotifier() bool
-	// sets the extender's notification channel and starts its loop
-	SetNotifyChannel(context.Context, chan ExtenderEvent)
-	// resets the exender's cache
-	Reset()
 
 	// not implemented
 	Order()
+}
+
+type NotificationExtender interface {
+	// SetNotifyChannel set output channel for events, when module state could be changed during the runtime
+	SetNotifyChannel(context.Context, chan ExtenderEvent)
+}
+
+// Hail to enabled scripts
+type ResettableExtender interface {
+	// Reset resets the extender's cache
+	Reset()
 }
 
 const (

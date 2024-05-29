@@ -1,7 +1,6 @@
 package dynamically_enabled
 
 import (
-	"context"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -45,10 +44,6 @@ func (e *Extender) Name() extenders.ExtenderName {
 	return extenders.DynamicallyEnabledExtender
 }
 
-func (e *Extender) IsShutter() bool {
-	return false
-}
-
 func (e *Extender) Filter(module node.ModuleInterface) (*bool, error) {
 	e.l.RLock()
 	defer e.l.RUnlock()
@@ -64,11 +59,8 @@ func (e *Extender) IsNotifier() bool {
 	return false
 }
 
-func (e *Extender) SetNotifyChannel(_ context.Context, _ chan extenders.ExtenderEvent) {
-}
+//func (e *Extender) SetNotifyChannel(_ context.Context, _ chan extenders.ExtenderEvent) {
+//}
 
 func (e *Extender) Order() {
-}
-
-func (e *Extender) Reset() {
 }
