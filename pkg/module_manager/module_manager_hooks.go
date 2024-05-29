@@ -10,7 +10,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	dynamically_enabled_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook/controller"
@@ -77,7 +76,7 @@ func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
 	return gv, nil
 }
 
-func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configBytes, valuesBytes []byte) (extenders.Extender, error) {
+func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configBytes, valuesBytes []byte) error {
 	// load and registry global hooks
 	dep := hooks.HookExecutionDependencyContainer{
 		HookMetricsStorage: mm.dependencies.HookMetricStorage,
@@ -88,7 +87,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 
 	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes)
 	if err != nil {
-		return nil, fmt.Errorf("new global module: %w", err)
+		return fmt.Errorf("new global module: %w", err)
 	}
 
 	mm.global = gm
@@ -96,10 +95,13 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 
 	// applies a scheduler extender to follow which modules get enabled/disabled by dynamic patches
 	dynamicExtender := dynamically_enabled_extender.NewExtender()
+	if err := mm.moduleScheduler.AddExtender(dynamicExtender); err != nil {
+		return err
+	}
 	// catch dynamin Enabled patches from global hooks
 	go mm.runDynamicEnabledLoop(dynamicExtender)
 
-	return dynamicExtender, mm.registerGlobalHooks(gm)
+	return mm.registerGlobalHooks(gm)
 }
 
 func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {

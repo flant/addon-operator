@@ -1,7 +1,6 @@
 package script_enabled
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -76,9 +75,6 @@ func (e *Extender) Filter(module node.ModuleInterface) (*bool, error) {
 
 func (e *Extender) IsNotifier() bool {
 	return false
-}
-
-func (e *Extender) SetNotifyChannel(_ context.Context, _ chan extenders.ExtenderEvent) {
 }
 
 func (e *Extender) Order() {

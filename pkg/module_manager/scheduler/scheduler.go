@@ -191,9 +191,10 @@ func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 	}
 
 	s.extenders = append(s.extenders, ext)
-	if ext.IsNotifier() {
-		ext.SetNotifyChannel(s.ctx, s.extCh)
+	if ne, ok := ext.(extenders.NotificationExtender); ok {
+		ne.SetNotifyChannel(s.ctx, s.extCh)
 	}
+
 	s.retrospectiveStatus[ext.Name()] = make(map[string]bool)
 
 	return nil
@@ -361,7 +362,7 @@ func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
 
 			for _, ex := range s.extenders {
 				// if ex is a shutter and the module is already disabled - there's no sense in running the extender
-				if ex.IsShutter() && !vertex.GetState() {
+				if ex.Name() == extenders.ScriptEnabledExtender && !vertex.GetState() {
 					continue
 				}
 
@@ -371,7 +372,7 @@ func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
 				}
 
 				if moduleStatus != nil {
-					if ex.IsShutter() {
+					if ex.Name() == extenders.ScriptEnabledExtender {
 						if !*moduleStatus && vertex.GetState() {
 							vertex.SetState(*moduleStatus)
 							vertex.SetUpdatedBy(string(ex.Name()))
@@ -398,8 +399,10 @@ func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
 		}
 	}
 
-	for i := range s.extenders {
-		s.extenders[i].Reset()
+	for _, ex := range s.extenders {
+		if re, ok := ex.(extenders.ResettableExtender); ok {
+			re.Reset()
+		}
 	}
 
 	s.enabledModules = &enabledModules

@@ -286,21 +286,13 @@ func (mm *ModuleManager) Init() error {
 	if err != nil {
 		return err
 	}
-	if staticExtender != nil {
-		if err := mm.moduleScheduler.AddExtender(staticExtender); err != nil {
-			return err
-		}
-	}
-
-	dynamicExtender, err := mm.registerGlobalModule(gv.globalValues, gv.configSchema, gv.valuesSchema)
-	if err != nil {
+	if err := mm.moduleScheduler.AddExtender(staticExtender); err != nil {
 		return err
 	}
 
-	if dynamicExtender != nil {
-		if err := mm.moduleScheduler.AddExtender(dynamicExtender); err != nil {
-			return err
-		}
+	err = mm.registerGlobalModule(gv.globalValues, gv.configSchema, gv.valuesSchema)
+	if err != nil {
+		return err
 	}
 
 	kubeConfigExtender := kube_config_extender.NewExtender(mm.dependencies.KubeConfigManager)
@@ -828,10 +820,7 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 
 // DynamicEnabledChecksum returns checksum for dynamicEnabled map
 func (mm *ModuleManager) DynamicEnabledChecksum() string {
-	jsonBytes, err := json.Marshal(mm.moduleScheduler.DumpExtender(extenders.DynamicallyEnabledExtender))
-	if err != nil {
-		log.Errorf("dynamicEnabled checksum calculate from '%s': %v", mm.DumpDynamicEnabled(), err)
-	}
+	jsonBytes, _ := json.Marshal(mm.moduleScheduler.DumpExtender(extenders.DynamicallyEnabledExtender))
 	return utils_checksum.CalculateChecksum(string(jsonBytes))
 }
 

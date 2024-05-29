@@ -41,10 +41,6 @@ func (e Extender) Filter(module node.ModuleInterface) (*bool, error) {
 func (e Extender) Order() {
 }
 
-func (e Extender) IsShutter() bool {
-	return false
-}
-
 func (e *Extender) IsNotifier() bool {
 	return true
 }
@@ -64,7 +60,4 @@ func (e *Extender) SetNotifyChannel(ctx context.Context, ch chan extenders.Exten
 			}
 		}
 	}()
-}
-
-func (e *Extender) Reset() {
 }
