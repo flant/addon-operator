@@ -470,6 +470,10 @@ func (mm *ModuleManager) IsModuleEnabled(moduleName string) bool {
 	return mm.moduleScheduler.IsModuleEnabled(moduleName)
 }
 
+func (mm *ModuleManager) AddExtender(ex extenders.Extender) error {
+	return mm.moduleScheduler.AddExtender(ex)
+}
+
 func (mm *ModuleManager) GetGlobalHook(name string) *hooks.GlobalHook {
 	return mm.global.GetHookByName(name)
 }
