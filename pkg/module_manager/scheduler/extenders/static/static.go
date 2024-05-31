@@ -14,6 +14,10 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
+const (
+	Name extenders.ExtenderName = "Static"
+)
+
 type Extender struct {
 	modulesStatus map[string]bool
 }
@@ -72,7 +76,7 @@ func (e Extender) Dump() map[string]bool {
 }
 
 func (e Extender) Name() extenders.ExtenderName {
-	return extenders.StaticExtender
+	return Name
 }
 
 func (e Extender) Filter(module node.ModuleInterface) (*bool, error) {
@@ -86,9 +90,6 @@ func (e Extender) Filter(module node.ModuleInterface) (*bool, error) {
 func (e *Extender) IsNotifier() bool {
 	return false
 }
-
-//func (e *Extender) SetNotifyChannel(_ context.Context, _ chan extenders.ExtenderEvent) {
-//}
 
 func (e Extender) Order() {
 }

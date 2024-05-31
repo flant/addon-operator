@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/hook/types"
@@ -27,10 +28,10 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
+	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
+	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
+	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -282,7 +283,7 @@ func (mm *ModuleManager) Init() error {
 		return err
 	}
 
-	staticExtender, err := static.NewExtender(mm.ModulesDir)
+	staticExtender, err := static_extender.NewExtender(mm.ModulesDir)
 	if err != nil {
 		return err
 	}
@@ -300,12 +301,17 @@ func (mm *ModuleManager) Init() error {
 		return err
 	}
 
-	scriptEnabledExtender, err := script_enabled.NewExtender(mm.TempDir)
+	scriptEnabledExtender, err := script_extender.NewExtender(mm.TempDir)
 	if err != nil {
 		return err
 	}
 
 	if err := mm.moduleScheduler.AddExtender(scriptEnabledExtender); err != nil {
+		return err
+	}
+
+	// by this point we must have all required scheduler extenders attached
+	if err := mm.moduleScheduler.ApplyExtenders(app.AppliedExtenders); err != nil {
 		return err
 	}
 
@@ -783,7 +789,7 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 	return nil
 }
 
-func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamically_enabled.Extender) {
+func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamic_extender.Extender) {
 	for report := range mm.global.EnabledReportChannel() {
 		err := mm.applyEnabledPatch(report.Patch, extender)
 		report.Done <- err
@@ -792,7 +798,7 @@ func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamically_enabled.Ext
 
 // applyEnabledPatch changes "dynamicEnabled" map with patches.
 // TODO: can add some optimization here
-func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, extender *dynamically_enabled.Extender) error {
+func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, extender *dynamic_extender.Extender) error {
 	for _, op := range enabledPatch.Operations {
 		// Extract module name from json patch: '"path": "/moduleNameEnabled"'
 		modName := strings.TrimSuffix(op.Path, "Enabled")
@@ -824,13 +830,13 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 
 // DynamicEnabledChecksum returns checksum for dynamicEnabled map
 func (mm *ModuleManager) DynamicEnabledChecksum() string {
-	jsonBytes, _ := json.Marshal(mm.moduleScheduler.DumpExtender(extenders.DynamicallyEnabledExtender))
+	jsonBytes, _ := json.Marshal(mm.moduleScheduler.DumpExtender(dynamic_extender.Name))
 	return utils_checksum.CalculateChecksum(string(jsonBytes))
 }
 
 func (mm *ModuleManager) DumpDynamicEnabled() string {
 	dump := "["
-	for k, v := range mm.moduleScheduler.DumpExtender(extenders.DynamicallyEnabledExtender) {
+	for k, v := range mm.moduleScheduler.DumpExtender(dynamic_extender.Name) {
 		dump += fmt.Sprintf("%s(%t), ", k, v)
 	}
 	return dump + "]"

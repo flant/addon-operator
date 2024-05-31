@@ -9,6 +9,10 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 )
 
+const (
+	Name extenders.ExtenderName = "ScriptEnabled"
+)
+
 type Extender struct {
 	tmpDir string
 
@@ -45,7 +49,7 @@ func (e *Extender) Dump() map[string]bool {
 }
 
 func (e *Extender) Name() extenders.ExtenderName {
-	return extenders.ScriptEnabledExtender
+	return Name
 }
 
 func (e *Extender) IsShutter() bool {

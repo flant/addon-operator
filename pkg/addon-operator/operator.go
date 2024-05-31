@@ -25,7 +25,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
+	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
@@ -964,7 +964,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						eventLogEntry.Debugf("ModuleManagerEventHandler-KubeConfigChanged: GlobalSectionChanged %v, ModuleValuesChanged %s, ModuleEnabledStateChanged %s", event.GlobalSectionChanged, event.ModuleValuesChanged, event.ModuleEnabledStateChanged)
 						newModulesStateChanged := []string{}
 						for _, module := range event.ModuleEnabledStateChanged {
-							stateChanged, err := op.ModuleManager.StateChangedByExtender(extenders.KubeConfigExtender, module)
+							stateChanged, err := op.ModuleManager.StateChangedByExtender(kube_config_extender.Name, module)
 							if err != nil {
 								eventLogEntry.Errorf("Couldn't determine the %s module's new state via KubeConfig extender: %s", module, err)
 								continue

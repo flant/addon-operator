@@ -42,6 +42,9 @@ var (
 
 	// StrictModeEnabled fail with error if MODULES_DIR/values.yaml does not exist
 	StrictModeEnabled = false
+
+	// AppliedExtenders defines the list and the order of applied module extenders
+	AppliedExtenders = ""
 )
 
 const (
@@ -128,15 +131,20 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default("").
 		StringVar(&AdmissionServerCertsDir)
 
-	cmd.Flag("admission-server-enabled", "Flat to enable admission http server.").
+	cmd.Flag("admission-server-enabled", "Flag to enable admission http server.").
 		Envar("ADDON_OPERATOR_ADMISSION_SERVER_ENABLED").
 		Default("false").
 		BoolVar(&AdmissionServerEnabled)
 
-	cmd.Flag("strict-check-values-mode-enabled", "Flat to enable admission http server.").
+	cmd.Flag("strict-check-values-mode-enabled", "Flag to enable strict-check-values mode.").
 		Envar("STRICT_CHECK_VALUES_MODE_ENABLED").
 		Default("false").
 		BoolVar(&StrictModeEnabled)
+
+	cmd.Flag("applied-module-extenders", "Flag to define which module extenders to apply").
+		Envar("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS").
+		Default(AppliedExtenders).
+		StringVar(&AppliedExtenders)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)
