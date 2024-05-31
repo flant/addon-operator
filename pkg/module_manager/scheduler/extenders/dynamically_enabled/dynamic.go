@@ -9,6 +9,10 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 )
 
+const (
+	Name extenders.ExtenderName = "DynamicallyEnabled"
+)
+
 type Extender struct {
 	l             sync.RWMutex
 	modulesStatus map[string]bool
@@ -41,7 +45,7 @@ func (e *Extender) UpdateStatus(moduleName, operation string, value bool) {
 }
 
 func (e *Extender) Name() extenders.ExtenderName {
-	return extenders.DynamicallyEnabledExtender
+	return Name
 }
 
 func (e *Extender) Filter(module node.ModuleInterface) (*bool, error) {
@@ -58,9 +62,6 @@ func (e *Extender) Filter(module node.ModuleInterface) (*bool, error) {
 func (e *Extender) IsNotifier() bool {
 	return false
 }
-
-//func (e *Extender) SetNotifyChannel(_ context.Context, _ chan extenders.ExtenderEvent) {
-//}
 
 func (e *Extender) Order() {
 }

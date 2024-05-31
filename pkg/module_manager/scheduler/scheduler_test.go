@@ -132,6 +132,10 @@ l2LoadBalancerEnabled: false
 
 	err = s.AddExtender(se)
 	assert.NoError(t, err)
+
+	err = s.ApplyExtenders("Static")
+	require.NoError(t, err)
+
 	diff, err := s.UpdateAndApplyNewState()
 	assert.NoError(t, err)
 
@@ -173,6 +177,10 @@ l2LoadBalancerEnabled: false
 
 	err = s.AddExtender(de)
 	assert.NoError(t, err)
+
+	err = s.ApplyExtenders("Static,DynamicallyEnabled")
+	require.NoError(t, err)
+
 	de.UpdateStatus("l2-load-balancer", "add", true)
 	de.UpdateStatus("node-local-dns", "remove", true)
 	de.UpdateStatus("openstack-cloud-provider", "add", true)
@@ -236,6 +244,10 @@ l2LoadBalancerEnabled: false
 
 	err = s.AddExtender(kce)
 	assert.NoError(t, err)
+
+	err = s.ApplyExtenders("Static,DynamicallyEnabled,KubeConfig")
+	require.NoError(t, err)
+
 	de.UpdateStatus("node-local-dns", "add", true)
 
 	diff, err = s.UpdateAndApplyNewState()
@@ -274,6 +286,9 @@ l2LoadBalancerEnabled: false
 	assert.NoError(t, err)
 	err = s.AddExtender(scripte)
 	assert.NoError(t, err)
+
+	err = s.ApplyExtenders("Static,DynamicallyEnabled,KubeConfig,ScriptEnabled")
+	require.NoError(t, err)
 
 	diff, err = s.UpdateAndApplyNewState()
 	assert.NoError(t, err)

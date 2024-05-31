@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/dominikbraun/graph"
@@ -13,8 +14,14 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
+	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
+	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
+	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
+	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 )
+
+var defaultAppliedExtenders = []extenders.ExtenderName{static_extender.Name, dynamic_extender.Name, kube_config_extender.Name, script_extender.Name}
 
 type Scheduler struct {
 	ctx context.Context
@@ -34,6 +41,7 @@ type Scheduler struct {
 	retrospectiveStatus map[extenders.ExtenderName]map[string]bool
 }
 
+// NewScheduler returns a new instance of scheduler
 func NewScheduler(ctx context.Context) *Scheduler {
 	nodeHash := func(n *node.Node) string {
 		return n.GetName()
@@ -51,6 +59,7 @@ func (s *Scheduler) EventCh() chan extenders.ExtenderEvent {
 	return s.extCh
 }
 
+// printGraph draws current graph and prints a report containing all the vertices and their current state (enabled/disabled)
 func (s *Scheduler) printGraph() {
 	file, err := os.Create("./external-modules/node.gv")
 	if err != nil {
@@ -79,6 +88,7 @@ func (s *Scheduler) printGraph() {
 	}
 }
 
+// AddModuleVertex adds a new vertex of type Module to the graph
 func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 	vertex := node.NewNode().WithName(module.GetName()).WithWeight(module.GetOrder()).WithType(node.ModuleType).WithModule(module)
 	// add module vertex
@@ -92,7 +102,7 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 	// parent found
 	case err == nil:
 		if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
-			return fmt.Errorf("Couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+			return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
 		}
 	// some other error
 	case !errors.Is(err, graph.ErrVertexNotFound):
@@ -104,12 +114,13 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 			return err
 		}
 		if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
-			return fmt.Errorf("Couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+			return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
 		}
 	}
 	return nil
 }
 
+// AddWeightVertex adds a new vertex of type Weight to the graph
 func (s *Scheduler) AddWeightVertex(vertex *node.Node) error {
 	if err := s.dag.AddVertex(vertex, graph.VertexWeight(int(vertex.GetWeight())), graph.VertexAttribute("colorscheme", "blues3"), graph.VertexAttribute("style", "filled"), graph.VertexAttribute("color", "2"), graph.VertexAttribute("fillcolor", "1"), graph.VertexAttribute("type", string(node.WeightType))); err != nil {
 		return err
@@ -128,7 +139,7 @@ func (s *Scheduler) AddWeightVertex(vertex *node.Node) error {
 	err := graph.DFS(s.dag, s.root.GetName(), func(name string) bool {
 		currVertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			dfsErr = fmt.Errorf("Couldn't get %s vertex from the graph: %v", name, err)
+			dfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
 			return true
 		}
 
@@ -159,20 +170,20 @@ func (s *Scheduler) AddWeightVertex(vertex *node.Node) error {
 
 	if parent != nil {
 		if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
-			return fmt.Errorf("Couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+			return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
 		}
 
 		if child != nil {
 			// insert a new vertex between two existing ones
 			if err := s.dag.RemoveEdge(parent.GetName(), child.GetName()); err != nil {
-				return fmt.Errorf("Couldn't delete an existing edge between %s and %s vertices: %w", parent.GetName(), child.GetName(), err)
+				return fmt.Errorf("couldn't delete an existing edge between %s and %s vertices: %w", parent.GetName(), child.GetName(), err)
 			}
 		}
 	}
 
 	if child != nil {
 		if err := s.dag.AddEdge(vertex.GetName(), child.GetName()); err != nil {
-			return fmt.Errorf("Couldn't add an edge between %s and %s vertices: %w", vertex.GetName(), child.GetName(), err)
+			return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", vertex.GetName(), child.GetName(), err)
 		}
 	}
 
@@ -183,10 +194,64 @@ func (s *Scheduler) AddWeightVertex(vertex *node.Node) error {
 	return nil
 }
 
+// ApplyExtenders excludes and reorders attached extenders according to the APPLIED_MODULE_EXTENDERS env variable
+func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
+	appliedExtenders := []extenders.ExtenderName{}
+	if len(extendersEnv) == 0 {
+		log.Warnf("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS variable isn't set - default list of %s will be applied", defaultAppliedExtenders)
+		appliedExtenders = defaultAppliedExtenders
+	} else {
+		availableExtenders := make(map[extenders.ExtenderName]bool, len(s.extenders))
+		for _, ext := range s.extenders {
+			availableExtenders[ext.Name()] = true
+		}
+
+		extendersFromEnv := strings.Split(extendersEnv, ",")
+		for _, e := range extendersFromEnv {
+			ext := extenders.ExtenderName(e)
+			// extender is found in the list of attached extenders
+			if available, found := availableExtenders[ext]; found {
+				// extender is available for use
+				if available {
+					appliedExtenders = append(appliedExtenders, ext)
+					availableExtenders[ext] = false
+					// extender has already been assigned
+				} else {
+					return fmt.Errorf("there are multiple entries for %s extender in ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS variable", ext)
+				}
+				// extender not found
+			} else {
+				return fmt.Errorf("couldn't find %s extender in the list of available extenders", ext)
+			}
+		}
+	}
+
+	newExtenders := []extenders.Extender{}
+	for _, appliedExt := range appliedExtenders {
+		for _, ext := range s.extenders {
+			if ext.Name() == appliedExt {
+				newExtenders = append(newExtenders, ext)
+				s.retrospectiveStatus[ext.Name()] = make(map[string]bool)
+				break
+			}
+		}
+	}
+
+	s.extenders = newExtenders
+
+	finalList := []extenders.ExtenderName{}
+	for _, ext := range s.extenders {
+		finalList = append(finalList, ext.Name())
+	}
+	log.Infof("List of applied module extenders: %s", finalList)
+	return nil
+}
+
+// AddExtender adds a new extender to the slice of the extenders that are used to determine modules' states
 func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 	for _, ex := range s.extenders {
 		if ex.Name() == ext.Name() {
-			return fmt.Errorf("Extender %s already added", ext.Name())
+			return fmt.Errorf("extender %s already added", ext.Name())
 		}
 	}
 
@@ -195,14 +260,13 @@ func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 		ne.SetNotifyChannel(s.ctx, s.extCh)
 	}
 
-	s.retrospectiveStatus[ext.Name()] = make(map[string]bool)
-
 	return nil
 }
 
-func (s *Scheduler) GetNodesDict() ([]*node.Node, error) {
+// GetModuleNodes traverses the graph in DFS-way and returns all Module-type vertices
+func (s *Scheduler) GetModuleNodes() ([]*node.Node, error) {
 	if s.root == nil {
-		return nil, fmt.Errorf("Graph is empty")
+		return nil, fmt.Errorf("graph is empty")
 	}
 
 	var nodes []*node.Node
@@ -211,7 +275,7 @@ func (s *Scheduler) GetNodesDict() ([]*node.Node, error) {
 	err := graph.DFS(s.dag, s.root.GetName(), func(name string) bool {
 		vertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			dfsErr = fmt.Errorf("Couldn't get %s vertex from the graph: %v", name, err)
+			dfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
 			return true
 		}
 
@@ -229,9 +293,10 @@ func (s *Scheduler) GetNodesDict() ([]*node.Node, error) {
 	return nodes, err
 }
 
+// PrintSummary returns resulting consisting of all module-type vertices, their states and last applied extenders
 func (s *Scheduler) PrintSummary() (map[string]bool, error) {
 	result := make(map[string]bool, 0)
-	vertices, err := s.GetNodesDict()
+	vertices, err := s.GetModuleNodes()
 	if err != nil {
 		return result, err
 	}
@@ -257,6 +322,8 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 	return vertex.GetState()
 }
 
+// GetEnabledModuleNames returns a list of all enabled module-type vertices from s.enabledModules
+// so that traversing the graph isn't required
 func (s *Scheduler) GetEnabledModuleNames() ([]string, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
@@ -267,7 +334,7 @@ func (s *Scheduler) GetEnabledModuleNames() ([]string, error) {
 	enabledModules := make([]string, 0)
 	nodeNames, err := graph.StableTopologicalSort(s.dag, moduleSortFunc)
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't get the graph topological sorted view: %v", err)
+		return nil, fmt.Errorf("couldn't get the graph topological sorted view: %v", err)
 	}
 
 	for _, name := range nodeNames {
@@ -276,7 +343,7 @@ func (s *Scheduler) GetEnabledModuleNames() ([]string, error) {
 				enabledModules = append(enabledModules, name)
 			}
 		} else {
-			return enabledModules, fmt.Errorf("Couldn't get %s vertex from the graph: %v", name, err)
+			return enabledModules, fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
 		}
 	}
 
@@ -284,6 +351,8 @@ func (s *Scheduler) GetEnabledModuleNames() ([]string, error) {
 	return enabledModules, nil
 }
 
+// StateChanged compares current state of the <extName> extender regarding the <moduleName> module
+// to what it was like one graph's run ago and tries to determine if the module state has possibly changed since then
 func (s *Scheduler) StateChanged(extName extenders.ExtenderName, moduleName string) (bool, error) {
 	var (
 		newStatus        bool
@@ -296,11 +365,11 @@ func (s *Scheduler) StateChanged(extName extenders.ExtenderName, moduleName stri
 	defer s.l.Unlock()
 	vertex, props, err := s.dag.VertexWithProperties(moduleName)
 	if err != nil {
-		return false, fmt.Errorf("Couldn't get %s vertex from the graph: %v", moduleName, err)
+		return false, fmt.Errorf("couldn't get %s vertex from the graph: %v", moduleName, err)
 	}
 
 	if props.Attributes["type"] != string(node.ModuleType) {
-		return false, fmt.Errorf("Vertex %s isn't of module type", moduleName)
+		return false, fmt.Errorf("vertex %s isn't of module type", moduleName)
 	}
 
 	for i, ex := range s.extenders {
@@ -315,7 +384,7 @@ func (s *Scheduler) StateChanged(extName extenders.ExtenderName, moduleName stri
 	}
 
 	if extenderId < 0 {
-		return false, fmt.Errorf("Extender %s not found", extName)
+		return false, fmt.Errorf("extender %s not found", extName)
 	}
 
 	extenderStatus, err := s.extenders[extenderId].Filter(vertex.GetModule())
@@ -339,7 +408,10 @@ func (s *Scheduler) StateChanged(extName extenders.ExtenderName, moduleName stri
 	return newStatus != previousStatus, nil
 }
 
-func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
+// UpdateAndApplyNewState cycles over all module-type vertices and applies all extenders to
+// determine current states of the modules. Besides, it updates <enabledModules> slice of all currently enabled modules.
+// Resulting map reseambles a diff between previous and current states of the graph (in terms of enabled/disabled modules)
+func (s *Scheduler) UpdateAndApplyNewState() ( /* diff of the modules' states */ map[string]bool, error) {
 	diff := make(map[string]bool, 0)
 	enabledModules := make([]string, 0)
 	s.l.Lock()
@@ -352,7 +424,7 @@ func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
 	for _, name := range names {
 		vertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			return diff, fmt.Errorf("Couldn't get %s vertex from the graph: %v", name, err)
+			return diff, fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
 		}
 
 		if props.Attributes["type"] == string(node.ModuleType) {
@@ -362,7 +434,7 @@ func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
 
 			for _, ex := range s.extenders {
 				// if ex is a shutter and the module is already disabled - there's no sense in running the extender
-				if ex.Name() == extenders.ScriptEnabledExtender && !vertex.GetState() {
+				if ex.Name() == script_extender.Name && !vertex.GetState() {
 					continue
 				}
 
@@ -372,7 +444,7 @@ func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
 				}
 
 				if moduleStatus != nil {
-					if ex.Name() == extenders.ScriptEnabledExtender {
+					if ex.Name() == script_extender.Name {
 						if !*moduleStatus && vertex.GetState() {
 							vertex.SetState(*moduleStatus)
 							vertex.SetUpdatedBy(string(ex.Name()))
@@ -411,6 +483,7 @@ func (s *Scheduler) UpdateAndApplyNewState() (map[string]bool, error) {
 	return diff, nil
 }
 
+// DumpExtender returns current state of the extender (its meta), if possible
 func (s *Scheduler) DumpExtender(name extenders.ExtenderName) map[string]bool {
 	for _, ex := range s.extenders {
 		if ex.Name() == name {

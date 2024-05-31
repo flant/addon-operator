@@ -10,7 +10,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-	dynamically_enabled_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
+	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
@@ -94,7 +94,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 	log.Infof(gm.GetSchemaStorage().GlobalSchemasDescription())
 
 	// applies a scheduler extender to follow which modules get enabled/disabled by dynamic patches
-	dynamicExtender := dynamically_enabled_extender.NewExtender()
+	dynamicExtender := dynamic_extender.NewExtender()
 	if err := mm.moduleScheduler.AddExtender(dynamicExtender); err != nil {
 		return err
 	}

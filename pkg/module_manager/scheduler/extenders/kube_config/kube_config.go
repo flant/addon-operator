@@ -8,6 +8,10 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 )
 
+const (
+	Name extenders.ExtenderName = "KubeConfig"
+)
+
 type kubeConfigManager interface {
 	IsModuleEnabled(moduleName string) *bool
 	KubeConfigEventCh() chan config.KubeConfigEvent
@@ -31,7 +35,7 @@ func (e Extender) Dump() map[string]bool {
 }
 
 func (e Extender) Name() extenders.ExtenderName {
-	return extenders.KubeConfigExtender
+	return Name
 }
 
 func (e Extender) Filter(module node.ModuleInterface) (*bool, error) {

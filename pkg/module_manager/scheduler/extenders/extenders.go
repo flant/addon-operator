@@ -35,10 +35,3 @@ type ResettableExtender interface {
 	// Reset resets the extender's cache
 	Reset()
 }
-
-const (
-	StaticExtender             ExtenderName = "Static"
-	DynamicallyEnabledExtender ExtenderName = "DynamicallyEnabled"
-	KubeConfigExtender         ExtenderName = "KubeConfig"
-	ScriptEnabledExtender      ExtenderName = "ScriptEnabled"
-)
