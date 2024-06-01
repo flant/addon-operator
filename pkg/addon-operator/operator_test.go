@@ -449,7 +449,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		break
 	}
 
-	g.Expect(hasReloadAllInStandby).To(BeTrue(), "Should have ReloadAllModules right after KubeConfigChanged")
+	g.Expect(hasReloadAllInStandby).To(BeTrue(), "Should have ReloadAllModules right after ApplyKubeConfigValues")
 }
 
 // This test case checks tasks sequence in the 'main' queue after changing

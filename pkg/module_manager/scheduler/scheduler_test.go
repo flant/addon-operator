@@ -32,7 +32,7 @@ func (k kcmMock) KubeConfigEventCh() chan config.KubeConfigEvent {
 	return make(chan config.KubeConfigEvent)
 }
 
-func TestUpdateAndApplyNewState(t *testing.T) {
+func TestUpdateGraphState(t *testing.T) {
 	values := `
 # Default global values section
 # todo remove duplicate config values they should be in global-hooks/openapi/config-values.yaml only
@@ -136,8 +136,10 @@ l2LoadBalancerEnabled: false
 	err = s.ApplyExtenders("Static")
 	require.NoError(t, err)
 
-	diff, err := s.UpdateAndApplyNewState()
+	updated, err := s.UpdateGraphState()
 	assert.NoError(t, err)
+	assert.Equal(t, true, updated)
+	diff := s.GleanGraphDiff()
 
 	expected := map[string]bool{
 		"admission-policy-engine/Static": true,
@@ -168,6 +170,12 @@ l2LoadBalancerEnabled: false
 
 	de := dynamically_enabled.NewExtender()
 
+	go func() {
+		//nolint:revive
+		for range s.EventCh() {
+		}
+	}()
+
 	err = s.AddModuleVertex(node.ModuleMock{
 		Name:                "openstack-cloud-provider",
 		Order:               35,
@@ -184,8 +192,10 @@ l2LoadBalancerEnabled: false
 	de.UpdateStatus("l2-load-balancer", "add", true)
 	de.UpdateStatus("node-local-dns", "remove", true)
 	de.UpdateStatus("openstack-cloud-provider", "add", true)
-	diff, err = s.UpdateAndApplyNewState()
+	updated, err = s.UpdateGraphState()
 	assert.NoError(t, err)
+	assert.Equal(t, true, updated)
+	diff = s.GleanGraphDiff()
 
 	expected = map[string]bool{
 		"admission-policy-engine/Static":              true,
@@ -250,8 +260,10 @@ l2LoadBalancerEnabled: false
 
 	de.UpdateStatus("node-local-dns", "add", true)
 
-	diff, err = s.UpdateAndApplyNewState()
+	updated, err = s.UpdateGraphState()
 	assert.NoError(t, err)
+	assert.Equal(t, true, updated)
+	diff = s.GleanGraphDiff()
 
 	expected = map[string]bool{
 		"admission-policy-engine/Static":              true,
@@ -290,8 +302,10 @@ l2LoadBalancerEnabled: false
 	err = s.ApplyExtenders("Static,DynamicallyEnabled,KubeConfig,ScriptEnabled")
 	require.NoError(t, err)
 
-	diff, err = s.UpdateAndApplyNewState()
+	updated, err = s.UpdateGraphState()
 	assert.NoError(t, err)
+	assert.Equal(t, true, updated)
+	diff = s.GleanGraphDiff()
 
 	expected = map[string]bool{
 		"admission-policy-engine/Static":              true,
@@ -320,22 +334,17 @@ l2LoadBalancerEnabled: false
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
 
-	stateChanged, err := s.StateChanged(de.Name(), "baremetall")
-	assert.Error(t, err)
-	assert.Equal(t, stateChanged, false)
-
 	de.UpdateStatus("openstack-cloud-provider", "add", false)
-	stateChanged, err = s.StateChanged(de.Name(), "openstack-cloud-provider")
-	assert.NoError(t, err)
-	assert.Equal(t, stateChanged, true)
 
 	de.UpdateStatus("node-local-dns", "add", true)
-	stateChanged, err = s.StateChanged(de.Name(), "node-local-dns")
-	assert.NoError(t, err)
-	assert.Equal(t, stateChanged, false)
 
-	_, err = s.UpdateAndApplyNewState()
+	updated, err = s.UpdateGraphState()
 	assert.NoError(t, err)
+	assert.Equal(t, true, updated)
+
+	updated, err = s.UpdateGraphState()
+	assert.NoError(t, err)
+	assert.Equal(t, false, updated)
 
 	s.printGraph()
 

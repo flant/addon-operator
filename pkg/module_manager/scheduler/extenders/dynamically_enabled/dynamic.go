@@ -1,6 +1,7 @@
 package dynamically_enabled
 
 import (
+	"context"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -14,8 +15,13 @@ const (
 )
 
 type Extender struct {
+	notifyCh      chan extenders.ExtenderEvent
 	l             sync.RWMutex
 	modulesStatus map[string]bool
+}
+
+type DynamicExtenderEvent struct {
+	DynamicExtenderUpdated bool
 }
 
 func NewExtender() *Extender {
@@ -35,13 +41,29 @@ func (e *Extender) UpdateStatus(moduleName, operation string, value bool) {
 	e.l.Lock()
 	switch operation {
 	case "add":
-		e.modulesStatus[moduleName] = value
+		status, found := e.modulesStatus[moduleName]
+		if !found || (found && status != value) {
+			e.modulesStatus[moduleName] = value
+			e.sendNotify()
+		}
 	case "remove":
-		delete(e.modulesStatus, moduleName)
+		if _, found := e.modulesStatus[moduleName]; found {
+			delete(e.modulesStatus, moduleName)
+			e.sendNotify()
+		}
 	default:
 		log.Warnf("Unknown patch operation: %s", operation)
 	}
 	e.l.Unlock()
+}
+
+func (e *Extender) sendNotify() {
+	e.notifyCh <- extenders.ExtenderEvent{
+		ExtenderName: Name,
+		EncapsulatedEvent: DynamicExtenderEvent{
+			DynamicExtenderUpdated: true,
+		},
+	}
 }
 
 func (e *Extender) Name() extenders.ExtenderName {
@@ -60,7 +82,11 @@ func (e *Extender) Filter(module node.ModuleInterface) (*bool, error) {
 }
 
 func (e *Extender) IsNotifier() bool {
-	return false
+	return true
+}
+
+func (e *Extender) SetNotifyChannel(_ context.Context, ch chan extenders.ExtenderEvent) {
+	e.notifyCh = ch
 }
 
 func (e *Extender) Order() {

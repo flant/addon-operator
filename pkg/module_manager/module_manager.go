@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -394,21 +393,9 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) (*ModulesState
 	}, nil
 }
 
-// RefreshEnabledState runs enabled hooks for all 'enabled by config' modules and
-// calculates new arrays of enabled modules. It returns ModulesState with
-// lists of modules to disable and enable.
-//
-// This method is called after beforeAll hooks to take into account
-// possible changes to 'dynamic enabled'.
-//
-// This method updates caches:
+// RefreshEnabledState gets current diff of the graph and forms ModuleState
 // - mm.enabledModules
 func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*ModulesState, error) {
-	moduleDiff, err := mm.moduleScheduler.UpdateAndApplyNewState()
-	if err != nil {
-		return nil, err
-	}
-
 	refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
 		"operator.component": "ModuleManager.RefreshEnabledState",
 	})
@@ -421,12 +408,14 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 
 	logEntry.Infof("Enabled modules: %+v", enabledModules)
 
+	modulesDiff := mm.moduleScheduler.GleanGraphDiff()
+
 	var (
 		modulesToEnable  []string
 		modulesToDisable []string
 	)
 
-	for module, enabled := range moduleDiff {
+	for module, enabled := range modulesDiff {
 		if enabled {
 			modulesToEnable = append(modulesToEnable, module)
 		} else {
@@ -828,6 +817,11 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 	return nil
 }
 
+// UpdateGraphState runs corresponding scheduler method that returns true if the graph's state has changed
+func (mm *ModuleManager) UpdateGraphState() (bool, error) {
+	return mm.moduleScheduler.UpdateGraphState()
+}
+
 // DynamicEnabledChecksum returns checksum for dynamicEnabled map
 func (mm *ModuleManager) DynamicEnabledChecksum() string {
 	jsonBytes, _ := json.Marshal(mm.moduleScheduler.DumpExtender(dynamic_extender.Name))
@@ -926,42 +920,6 @@ func (mm *ModuleManager) UpdateModuleLastErrorAndNotify(module *modules.BasicMod
 	})
 }
 
-// PushDeleteModule pushes moduleDelete task for a module into the main queue
-func (mm *ModuleManager) PushDeleteModuleTask(moduleName string) {
-	// check if there is already moduleDelete task in the main queue for the module
-	if queueHasPendingModuleDeleteTask(mm.dependencies.TaskQueues.GetMain(), moduleName) {
-		return
-	}
-
-	newTask := sh_task.NewTask(task.ModuleDelete).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{
-			EventDescription: "ModuleManager-Delete-Module",
-			ModuleName:       moduleName,
-		})
-	newTask.SetProp("triggered-by", "ModuleManager")
-
-	mm.dependencies.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
-
-	log.Infof("Push ConvergeModules task because %q Module was disabled", moduleName)
-	mm.PushConvergeModulesTask(moduleName, "disabled")
-}
-
-// PushConvergeModulesTask pushes ConvergeModulesTask into the main queue to update all modules on a module enable/disable event
-func (mm *ModuleManager) PushConvergeModulesTask(moduleName, moduleState string) {
-	newConvergeTask := sh_task.NewTask(task.ConvergeModules).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{
-			EventDescription: fmt.Sprintf("ModuleManager-%s-Module", moduleState),
-			ModuleName:       moduleName,
-		}).
-		WithQueuedAt(time.Now())
-	newConvergeTask.SetProp("triggered-by", "ModuleManager")
-	newConvergeTask.SetProp(converge.ConvergeEventProp, converge.ReloadAllModules)
-
-	mm.dependencies.TaskQueues.GetMain().AddLast(newConvergeTask.WithQueuedAt(time.Now()))
-}
-
 // PushRunModuleTask pushes moduleRun task for a module into the main queue if there is no such a task for the module
 func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bool) error {
 	// update module's kube config
@@ -1039,7 +997,9 @@ func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, 
 // If it's a new module - converges all modules - EXPERIMENTAL
 func (mm *ModuleManager) RegisterModule(_, _ string) error {
 	return fmt.Errorf("Not implemented yet")
-	/*
+}
+
+/*
 	   	if !mm.modules.IsInited() {
 	   		return moduleset.ErrNotInited
 	   	}
@@ -1193,8 +1153,57 @@ func (mm *ModuleManager) RegisterModule(_, _ string) error {
 	   	}
 
 	   return nil
-	*/
 }
+
+// PushDeleteModule pushes moduleDelete task for a module into the main queue
+// TODO: EXPERIMENTAL
+/*func (mm *ModuleManager) PushDeleteModuleTask(moduleName string) {
+	// check if there is already moduleDelete task in the main queue for the module
+	if queueHasPendingModuleDeleteTask(mm.dependencies.TaskQueues.GetMain(), moduleName) {
+		return
+	}
+
+	newTask := sh_task.NewTask(task.ModuleDelete).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription: "ModuleManager-Delete-Module",
+			ModuleName:       moduleName,
+		})
+	newTask.SetProp("triggered-by", "ModuleManager")
+
+	mm.dependencies.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
+
+	log.Infof("Push ConvergeModules task because %q Module was disabled", moduleName)
+	mm.PushConvergeModulesTask(moduleName, "disabled")
+}
+
+// PushConvergeModulesTask pushes ConvergeModulesTask into the main queue to update all modules on a module enable/disable event
+// TODO: EXPERIMENTAL
+func (mm *ModuleManager) PushConvergeModulesTask(moduleName, moduleState string) {
+	newConvergeTask := sh_task.NewTask(task.ConvergeModules).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription: fmt.Sprintf("ModuleManager-%s-Module", moduleState),
+			ModuleName:       moduleName,
+		}).
+		WithQueuedAt(time.Now())
+	newConvergeTask.SetProp("triggered-by", "ModuleManager")
+	newConvergeTask.SetProp(converge.ConvergeEventProp, converge.ReloadAllModules)
+
+	mm.dependencies.TaskQueues.GetMain().AddLast(newConvergeTask.WithQueuedAt(time.Now()))
+}
+
+// queueHasPendingModuleDeleteTask returns true if queue has pending tasks
+// with the type "ModuleDelete" related to the module "moduleName"
+// TODO: EXPERIMENTAL
+func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool {
+	if q == nil {
+		return false
+	}
+	modules := modulesWithPendingTasks(q, task.ModuleDelete)
+	meta, has := modules[moduleName]
+	return has && meta.doStartup
+} */
 
 // registerModules load all available modules from modules directory.
 func (mm *ModuleManager) registerModules() error {
@@ -1275,10 +1284,6 @@ func (mm *ModuleManager) SchedulerEventCh() chan extenders.ExtenderEvent {
 	return mm.moduleScheduler.EventCh()
 }
 
-func (mm *ModuleManager) StateChangedByExtender(extName extenders.ExtenderName, moduleName string) (bool, error) {
-	return mm.moduleScheduler.StateChanged(extName, moduleName)
-}
-
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
 // with the type "ModuleRun" related to the module "moduleName" and DoModuleStartup is set to true.
 func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName string) bool {
@@ -1286,17 +1291,6 @@ func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName stri
 		return false
 	}
 	modules := modulesWithPendingTasks(q, task.ModuleRun)
-	meta, has := modules[moduleName]
-	return has && meta.doStartup
-}
-
-// queueHasPendingModuleDeleteTask returns true if queue has pending tasks
-// with the type "ModuleDelete" related to the module "moduleName"
-func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool {
-	if q == nil {
-		return false
-	}
-	modules := modulesWithPendingTasks(q, task.ModuleDelete)
 	meta, has := modules[moduleName]
 	return has && meta.doStartup
 }

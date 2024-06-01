@@ -37,8 +37,8 @@ type Scheduler struct {
 	root *node.Node
 	// cache containing currently enabled vertices
 	enabledModules *[]string
-	// cache constisting of the extenders' results from the previous run
-	retrospectiveStatus map[extenders.ExtenderName]map[string]bool
+	// storage for current module diff
+	diff map[string]bool
 }
 
 // NewScheduler returns a new instance of scheduler
@@ -47,11 +47,11 @@ func NewScheduler(ctx context.Context) *Scheduler {
 		return n.GetName()
 	}
 	return &Scheduler{
-		ctx:                 ctx,
-		extenders:           make([]extenders.Extender, 0),
-		extCh:               make(chan extenders.ExtenderEvent, 1),
-		dag:                 graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
-		retrospectiveStatus: make(map[extenders.ExtenderName]map[string]bool),
+		ctx:       ctx,
+		extenders: make([]extenders.Extender, 0),
+		extCh:     make(chan extenders.ExtenderEvent, 1),
+		dag:       graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
+		diff:      make(map[string]bool, 0),
 	}
 }
 
@@ -231,7 +231,6 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 		for _, ext := range s.extenders {
 			if ext.Name() == appliedExt {
 				newExtenders = append(newExtenders, ext)
-				s.retrospectiveStatus[ext.Name()] = make(map[string]bool)
 				break
 			}
 		}
@@ -351,80 +350,23 @@ func (s *Scheduler) GetEnabledModuleNames() ([]string, error) {
 	return enabledModules, nil
 }
 
-// StateChanged compares current state of the <extName> extender regarding the <moduleName> module
-// to what it was like one graph's run ago and tries to determine if the module state has possibly changed since then
-func (s *Scheduler) StateChanged(extName extenders.ExtenderName, moduleName string) (bool, error) {
-	var (
-		newStatus        bool
-		previousStatus   bool
-		cumulativeStatus bool
-		extenderId       = -1
-	)
-
-	s.l.Lock()
-	defer s.l.Unlock()
-	vertex, props, err := s.dag.VertexWithProperties(moduleName)
-	if err != nil {
-		return false, fmt.Errorf("couldn't get %s vertex from the graph: %v", moduleName, err)
-	}
-
-	if props.Attributes["type"] != string(node.ModuleType) {
-		return false, fmt.Errorf("vertex %s isn't of module type", moduleName)
-	}
-
-	for i, ex := range s.extenders {
-		if ex.Name() == extName {
-			extenderId = i
-			break
-		}
-
-		if exStatus, has := s.retrospectiveStatus[ex.Name()][moduleName]; has && cumulativeStatus != exStatus {
-			cumulativeStatus = exStatus
-		}
-	}
-
-	if extenderId < 0 {
-		return false, fmt.Errorf("extender %s not found", extName)
-	}
-
-	extenderStatus, err := s.extenders[extenderId].Filter(vertex.GetModule())
-	if err != nil {
-		return false, err
-	}
-
-	if extenderStatus != nil && cumulativeStatus != *extenderStatus {
-		newStatus = *extenderStatus
-	} else {
-		newStatus = cumulativeStatus
-	}
-
-	if retroStatus, has := s.retrospectiveStatus[extName][moduleName]; has && cumulativeStatus != retroStatus {
-		previousStatus = retroStatus
-	} else {
-		previousStatus = cumulativeStatus
-	}
-
-	// retro status is empty
-	return newStatus != previousStatus, nil
-}
-
-// UpdateAndApplyNewState cycles over all module-type vertices and applies all extenders to
+// UpdateGraphState cycles over all module-type vertices and applies all extenders to
 // determine current states of the modules. Besides, it updates <enabledModules> slice of all currently enabled modules.
-// Resulting map reseambles a diff between previous and current states of the graph (in terms of enabled/disabled modules)
-func (s *Scheduler) UpdateAndApplyNewState() ( /* diff of the modules' states */ map[string]bool, error) {
+// It returns true if the state of the graph has changed
+func (s *Scheduler) UpdateGraphState() ( /* Graph's state has changed */ bool, error) {
 	diff := make(map[string]bool, 0)
 	enabledModules := make([]string, 0)
 	s.l.Lock()
 	defer s.l.Unlock()
 	names, err := graph.StableTopologicalSort(s.dag, moduleSortFunc)
 	if err != nil {
-		return diff, err
+		return false, err
 	}
 
 	for _, name := range names {
 		vertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			return diff, fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
+			return false, fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
 		}
 
 		if props.Attributes["type"] == string(node.ModuleType) {
@@ -440,7 +382,7 @@ func (s *Scheduler) UpdateAndApplyNewState() ( /* diff of the modules' states */
 
 				moduleStatus, err := ex.Filter(vertex.GetModule())
 				if err != nil {
-					return diff, err
+					return false, err
 				}
 
 				if moduleStatus != nil {
@@ -448,16 +390,12 @@ func (s *Scheduler) UpdateAndApplyNewState() ( /* diff of the modules' states */
 						if !*moduleStatus && vertex.GetState() {
 							vertex.SetState(*moduleStatus)
 							vertex.SetUpdatedBy(string(ex.Name()))
-							s.retrospectiveStatus[ex.Name()][vertex.GetName()] = vertex.GetState()
 						}
 						break
 					}
 
 					vertex.SetState(*moduleStatus)
 					vertex.SetUpdatedBy(string(ex.Name()))
-					s.retrospectiveStatus[ex.Name()][vertex.GetName()] = vertex.GetState()
-				} else {
-					delete(s.retrospectiveStatus[ex.Name()], vertex.GetName())
 				}
 			}
 
@@ -479,8 +417,30 @@ func (s *Scheduler) UpdateAndApplyNewState() ( /* diff of the modules' states */
 
 	s.enabledModules = &enabledModules
 
+	// merge the diff
+	for module, newState := range diff {
+		// if a new diff has an opposite state for the module, the module is deleted from the resulting diff
+		if currentState, found := s.diff[module]; found {
+			if currentState != newState {
+				delete(s.diff, module)
+			}
+			// if current diff doesn't have the module's state - add it to the resulting diff
+		} else {
+			s.diff[module] = newState
+		}
+	}
+
 	s.printGraph()
-	return diff, nil
+	return len(diff) > 0, nil
+}
+
+// GleanGraphDiff returns the diff value and resets diff storage
+func (s *Scheduler) GleanGraphDiff() map[string]bool {
+	s.l.Lock()
+	diff := s.diff
+	s.diff = make(map[string]bool, 0)
+	s.l.Unlock()
+	return diff
 }
 
 // DumpExtender returns current state of the extender (its meta), if possible

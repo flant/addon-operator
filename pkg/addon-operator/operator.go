@@ -25,7 +25,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
-	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
+	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
@@ -263,7 +263,9 @@ func (op *AddonOperator) InitModuleManager() error {
 	// ManagerEventsHandlers created, register handlers to create tasks from events.
 	op.RegisterManagerEventsHandlers()
 
-	return nil
+	_, err = op.ModuleManager.UpdateGraphState()
+
+	return err
 }
 
 type typedHook interface {
@@ -652,19 +654,13 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 		res.Status = queue.Fail
 		return res
 	}
+
 	hm := task.HookMetadataAccessor(t)
 
 	var handleErr error
 
 	if op.ConvergeState.Phase == converge.StandBy {
 		logEntry.Debugf("ConvergeModules: start")
-
-		convergeDrained := RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), t.GetId())
-		if convergeDrained {
-			logEntry.Infof("ConvergeModules: kube config modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
-		} else {
-			logEntry.Infof("ConvergeModules: kube config modification detected, reload all modules required")
-		}
 
 		// Deduplicate tasks: remove ConvergeModules tasks right after the current task.
 		RemoveAdjacentConvergeModules(op.engine.TaskQueues.GetByName(t.GetQueueName()), t.GetId())
@@ -686,7 +682,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 
 	if op.ConvergeState.Phase == converge.WaitBeforeAll {
 		logEntry.Infof("ConvergeModules: beforeAll hooks done, run modules")
-		var state *module_manager.ModulesState
+
 		state, handleErr := op.ModuleManager.RefreshEnabledState(t.GetLogLabels())
 		if handleErr == nil {
 			// TODO disable hooks before was done in DiscoverModulesStateRefresh. Should we stick to this solution or disable events later during the handling each ModuleDelete task?
@@ -948,13 +944,45 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 		for {
 			select {
 			case schedulerEvent := <-op.ModuleManager.SchedulerEventCh():
-				switch event := schedulerEvent.EncapsulatedEvent.(type) {
-				case config.KubeConfigEvent:
-					logLabels := map[string]string{
-						"event.id": uuid.Must(uuid.NewV4()).String(),
-					}
-					eventLogEntry := logEntry.WithFields(utils.LabelsToLogFields(logLabels))
+				logLabels := map[string]string{
+					"event.id": uuid.Must(uuid.NewV4()).String(),
+				}
+				eventLogEntry := logEntry.WithFields(utils.LabelsToLogFields(logLabels))
 
+				switch event := schedulerEvent.EncapsulatedEvent.(type) {
+				// dynamically_enabled_extender
+				case dynamic_extender.DynamicExtenderEvent:
+					// we don't need to schedule any tasks as DynamicExtender is inherintelly :
+					graphStateChanged, err := op.ModuleManager.UpdateGraphState()
+					if err != nil {
+						eventLogEntry.Errorf("Couldn't update the graph's state: %v", err)
+					}
+
+					if op.ConvergeState.FirstRunPhase == converge.FirstNotStarted {
+						eventLogEntry.Infof("global hook dynamic modification detected, ignore until starting first converge")
+						return
+					}
+
+					if graphStateChanged {
+						// ConvergeModules may be in progress, Reset converge state.
+						op.ConvergeState.Phase = converge.StandBy
+						convergeTask := converge.NewConvergeModulesTask(
+							"ReloadAll-After-GlobalHookDynamicUpdate",
+							converge.ReloadAllModules,
+							logLabels,
+						)
+						if RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), op.engine.TaskQueues.GetMain().GetFirst().GetId()) {
+							logEntry.Infof("ConvergeModules: global hook dynamic modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
+							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
+							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
+						} else {
+							logEntry.Infof("ConvergeModules:  global hook dynamic modification detected, rerun all modules required")
+							op.engine.TaskQueues.GetMain().AddLast(convergeTask)
+						}
+					}
+
+				// kube_config_extender
+				case config.KubeConfigEvent:
 					switch event.Type {
 					case config.KubeConfigInvalid:
 						op.ModuleManager.SetKubeConfigValid(false)
@@ -962,18 +990,16 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 
 					case config.KubeConfigChanged:
 						eventLogEntry.Debugf("ModuleManagerEventHandler-KubeConfigChanged: GlobalSectionChanged %v, ModuleValuesChanged %s, ModuleEnabledStateChanged %s", event.GlobalSectionChanged, event.ModuleValuesChanged, event.ModuleEnabledStateChanged)
-						newModulesStateChanged := []string{}
-						for _, module := range event.ModuleEnabledStateChanged {
-							stateChanged, err := op.ModuleManager.StateChangedByExtender(kube_config_extender.Name, module)
-							if err != nil {
-								eventLogEntry.Errorf("Couldn't determine the %s module's new state via KubeConfig extender: %s", module, err)
-								continue
-							}
+						if !op.ModuleManager.GetKubeConfigValid() {
+							eventLogEntry.Infof("KubeConfig become valid")
+						}
+						// Config is valid now, add task to update ModuleManager state.
+						op.ModuleManager.SetKubeConfigValid(true)
 
-							if stateChanged {
-								eventLogEntry.Infof("KubeConfig is changed, module %s state changed", module)
-								newModulesStateChanged = append(newModulesStateChanged, module)
-							}
+						graphStateChanged, err := op.ModuleManager.UpdateGraphState()
+						if err != nil {
+							eventLogEntry.Errorf("Couldn't update the graph's state: %v", err)
+							continue
 						}
 
 						var (
@@ -990,7 +1016,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
 							// Cancel delay in case the head task is stuck in the error loop.
 							op.engine.TaskQueues.GetMain().CancelTaskDelay()
-							op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put first", kubeConfigTask)
+							op.logTaskAdd(eventLogEntry, "KubeConfigExtender is updated, put first", kubeConfigTask)
 						}
 
 						if op.ConvergeState.FirstRunPhase == converge.FirstNotStarted {
@@ -998,7 +1024,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							return
 						}
 
-						if event.GlobalSectionChanged || len(newModulesStateChanged) > 0 {
+						if event.GlobalSectionChanged || graphStateChanged {
 							// ConvergeModules may be in progress Reset converge state.
 							op.ConvergeState.Phase = converge.StandBy
 							convergeTask = converge.NewConvergeModulesTask(
@@ -1006,30 +1032,30 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								converge.ReloadAllModules,
 								logLabels,
 							)
-							if kubeConfigTask != nil {
+
+							if kubeConfigTask != nil && RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), kubeConfigTask.GetId()) {
+								logEntry.Infof("ConvergeModules: kube config modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
 								op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), convergeTask)
+								op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put first", convergeTask)
 							} else {
-								op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
+								logEntry.Infof("ConvergeModules: kube config modification detected, rerun all modules required")
+								op.engine.TaskQueues.GetMain().AddLast(convergeTask)
 							}
-							// Cancel delay in case the head task is stuck in the error loop.
-							op.engine.TaskQueues.GetMain().CancelTaskDelay()
-							op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put first", convergeTask)
 						} else {
-							enabledModules := []string{}
+							modulesToRerun := []string{}
 							for _, moduleName := range event.ModuleValuesChanged {
 								if op.ModuleManager.IsModuleEnabled(moduleName) {
-									enabledModules = append(enabledModules, moduleName)
+									modulesToRerun = append(modulesToRerun, moduleName)
 								}
 							}
 							// Append ModuleRun tasks if ModuleRun is not queued already.
 							if kubeConfigTask != nil && convergeTask == nil {
-								reloadTasks := op.CreateReloadModulesTasks(enabledModules, kubeConfigTask.GetLogLabels(), "KubeConfig-Changed-Modules")
+								reloadTasks := op.CreateReloadModulesTasks(modulesToRerun, kubeConfigTask.GetLogLabels(), "KubeConfig-Changed-Modules")
 								if len(reloadTasks) > 0 {
 									for i := len(reloadTasks) - 1; i >= 0; i-- {
 										op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), reloadTasks[i])
 									}
-									logEntry.Infof("ConvergeModules: kube config modification detected, append %d tasks to reload modules %+v", len(reloadTasks), enabledModules)
-									// Reset delay if error-loop.
+									logEntry.Infof("ConvergeModules: kube config modification detected, append %d tasks to rerun modules %+v", len(reloadTasks), modulesToRerun)
 									op.logTaskAdd(logEntry, "tail", reloadTasks...)
 								}
 							}
@@ -2250,9 +2276,7 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 		// ConvergeModules task done, result is 'Keep' for converge phase 'WaitBeforeAll', trigger Operator-Startup
 		if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
 			parts = append(parts, string(taskEvent))
-			if taskEvent != converge.KubeConfigChanged {
-				parts = append(parts, fmt.Sprintf("in phase '%s'", phase))
-			}
+			parts = append(parts, fmt.Sprintf("in phase '%s'", phase))
 		}
 
 	case task.ModuleRun:

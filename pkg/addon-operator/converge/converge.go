@@ -58,9 +58,7 @@ const (
 	OperatorStartup ConvergeEvent = "OperatorStartup"
 	// GlobalValuesChanged is a converge initiated by changing values in the global hook.
 	GlobalValuesChanged ConvergeEvent = "GlobalValuesChanged"
-	// KubeConfigChanged is a converge started after changing ConfigMap.
-	KubeConfigChanged ConvergeEvent = "KubeConfigChanged"
-	// ReloadAllModules is a converge queued to the
+	// ReloadAllModules is a converge queued to the main queue after the graph's state change
 	ReloadAllModules ConvergeEvent = "ReloadAllModules"
 )
 
