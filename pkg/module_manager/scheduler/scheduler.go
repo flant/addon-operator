@@ -325,12 +325,21 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 // so that traversing the graph isn't required
 func (s *Scheduler) GetEnabledModuleNames() ([]string, error) {
 	s.l.Lock()
-	defer s.l.Unlock()
 	if s.enabledModules != nil {
+		defer s.l.Unlock()
 		return *s.enabledModules, nil
 	}
 
 	enabledModules := make([]string, 0)
+	s.l.Unlock()
+	// run initial UpdateGraphState
+	_, err := s.UpdateGraphState()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get initial graph state: %v", err)
+	}
+
+	s.l.Lock()
+	defer s.l.Unlock()
 	nodeNames, err := graph.StableTopologicalSort(s.dag, moduleSortFunc)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get the graph topological sorted view: %v", err)

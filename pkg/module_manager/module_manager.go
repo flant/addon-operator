@@ -401,7 +401,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	})
 	logEntry := log.WithFields(utils.LabelsToLogFields(refreshLogLabels))
 
-	enabledModules, err := mm.GetEnabledModuleNames()
+	enabledModules, err := mm.moduleScheduler.GetEnabledModuleNames()
 	if err != nil {
 		return nil, err
 	}

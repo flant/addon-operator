@@ -263,9 +263,7 @@ func (op *AddonOperator) InitModuleManager() error {
 	// ManagerEventsHandlers created, register handlers to create tasks from events.
 	op.RegisterManagerEventsHandlers()
 
-	_, err = op.ModuleManager.UpdateGraphState()
-
-	return err
+	return nil
 }
 
 type typedHook interface {
