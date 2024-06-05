@@ -816,7 +816,6 @@ func (op *AddonOperator) CreateAfterAllTasks(logLabels map[string]string, eventD
 			taskMetadata.LastAfterAllHook = true
 			globalValues := op.ModuleManager.GetGlobal().GetValues(false)
 			taskMetadata.ValuesChecksum = globalValues.Checksum()
-			taskMetadata.DynamicEnabledChecksum = op.ModuleManager.DynamicEnabledChecksum()
 		}
 
 		newTask := sh_task.NewTask(task.GlobalHookRun).
@@ -1936,7 +1935,6 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		success := 0.0
 		allowed := 0.0
 		// Save a checksum of *Enabled values.
-		dynamicEnabledChecksumBeforeHookRun := op.ModuleManager.DynamicEnabledChecksum()
 		// Run Global hook.
 		beforeChecksum, afterChecksum, err := op.ModuleManager.RunGlobalHook(hm.HookName, hm.BindingType, hm.BindingContext, t.GetLogLabels())
 		if err != nil {
@@ -1953,7 +1951,6 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 			}
 		} else {
 			// Calculate new checksum of *Enabled values.
-			dynamicEnabledChecksumAfterHookRun := op.ModuleManager.DynamicEnabledChecksum()
 			success = 1.0
 			logEntry.Debugf("GlobalHookRun success, checksums: before=%s after=%s saved=%s", beforeChecksum, afterChecksum, hm.ValuesChecksum)
 			res.Status = queue.Success
@@ -1967,15 +1964,6 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 					reloadAll = true
 					eventDescription = "Schedule-Change-GlobalValues"
 				}
-				if dynamicEnabledChecksumBeforeHookRun != dynamicEnabledChecksumAfterHookRun {
-					logEntry.Infof("Global hook changed dynamic enabled modules list, will run ReloadAll.")
-					reloadAll = true
-					if eventDescription == "" {
-						eventDescription = "Schedule-Change-DynamicEnabled"
-					} else {
-						eventDescription += "-And-DynamicEnabled"
-					}
-				}
 			case htypes.OnKubernetesEvent:
 				if beforeChecksum != afterChecksum {
 					if hm.ReloadAllOnValuesChanges {
@@ -1984,15 +1972,6 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 						eventDescription = "Kubernetes-Change-GlobalValues"
 					} else {
 						logEntry.Infof("Global hook changed values, but ReloadAll ignored for the Synchronization task.")
-					}
-				}
-				if dynamicEnabledChecksumBeforeHookRun != dynamicEnabledChecksumAfterHookRun {
-					logEntry.Infof("Global hook changed dynamic enabled modules list, will run ReloadAll.")
-					reloadAll = true
-					if eventDescription == "" {
-						eventDescription = "Kubernetes-Change-DynamicEnabled"
-					} else {
-						eventDescription += "-And-DynamicEnabled"
 					}
 				}
 			case hookTypes.AfterAll:
@@ -2005,17 +1984,6 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 					logEntry.Infof("Global values changed by AfterAll hooks, will run ReloadAll.")
 					reloadAll = true
 					eventDescription = "AfterAll-Hooks-Change-GlobalValues"
-				}
-
-				// values are changed when afterAll hooks are executed
-				if hm.LastAfterAllHook && dynamicEnabledChecksumAfterHookRun != hm.DynamicEnabledChecksum {
-					logEntry.Infof("Dynamic enabled modules list changed by AfterAll hooks, will run ReloadAll.")
-					reloadAll = true
-					if eventDescription == "" {
-						eventDescription = "AfterAll-Hooks-Change-DynamicEnabled"
-					} else {
-						eventDescription += "-And-DynamicEnabled"
-					}
 				}
 			}
 			// Queue ReloadAllModules task
@@ -2226,9 +2194,6 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 	switch tsk.GetType() {
 	case task.GlobalHookRun, task.ModuleHookRun:
 		// Examples:
-		// head task GlobalHookRun for 'beforeAll' binding, trigger AfterAll-Hooks-Change-DynamicEnabled
-		// GlobalHookRun task for 'beforeAll' binding, trigger AfterAll-Hooks-Change-DynamicEnabled
-		// GlobalHookRun task done, result 'Repeat' for 'beforeAll' binding, trigger AfterAll-Hooks-Change-DynamicEnabled
 		// GlobalHookRun task for 'onKubernetes/cni_name' binding, trigger Kubernetes
 		// GlobalHookRun task done, result 'Repeat' for 'onKubernetes/cni_name' binding, trigger Kubernetes
 		// GlobalHookRun task for 'main' group binding, trigger Schedule

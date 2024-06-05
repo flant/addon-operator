@@ -2,7 +2,6 @@ package module_manager
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"runtime/trace"
 	"strings"
@@ -43,7 +42,6 @@ import (
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -820,12 +818,6 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 // UpdateGraphState runs corresponding scheduler method that returns true if the graph's state has changed
 func (mm *ModuleManager) UpdateGraphState() (bool, error) {
 	return mm.moduleScheduler.UpdateGraphState()
-}
-
-// DynamicEnabledChecksum returns checksum for dynamicEnabled map
-func (mm *ModuleManager) DynamicEnabledChecksum() string {
-	jsonBytes, _ := json.Marshal(mm.moduleScheduler.DumpExtender(dynamic_extender.Name))
-	return utils_checksum.CalculateChecksum(string(jsonBytes))
 }
 
 func (mm *ModuleManager) DumpDynamicEnabled() string {
