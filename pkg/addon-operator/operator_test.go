@@ -360,6 +360,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 
 	// Define task handler to gather task execution history.
 	type taskInfo struct {
+		id               string
 		taskType         sh_task.TaskType
 		bindingType      BindingType
 		moduleName       string
@@ -393,6 +394,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		}
 		historyMu.Lock()
 		taskHandleHistory = append(taskHandleHistory, taskInfo{
+			id:               tsk.GetId(),
 			taskType:         tsk.GetType(),
 			bindingType:      hm.BindingType,
 			moduleName:       hm.ModuleName,

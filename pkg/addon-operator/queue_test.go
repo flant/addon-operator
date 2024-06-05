@@ -289,10 +289,10 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 				{Type: task.GlobalHookRun, Id: "3"},
 			},
 			expectTasks: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: "1"},
 				{Type: task.ModuleHookRun, Id: "2"},
 				{Type: task.GlobalHookRun, Id: "3"},
 			},
+			expectRemoved: true,
 		},
 		{
 			name: "No Converge in progress, preceding tasks present",
@@ -306,10 +306,10 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 			expectTasks: []sh_task.BaseTask{
 				{Type: task.ConvergeModules, Id: "-1"},
 				{Type: task.ConvergeModules, Id: "0"},
-				{Type: task.ConvergeModules, Id: currentTaskID},
 				{Type: task.ModuleHookRun, Id: "2"},
 				{Type: task.GlobalHookRun, Id: "3"},
 			},
+			expectRemoved: true,
 		},
 		{
 			name: "Single adjacent ConvergeModules task with more Converge tasks",
@@ -320,7 +320,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 				{Type: task.ModuleDelete, Id: "4"},
 			},
 			expectTasks: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: currentTaskID},
+				{Type: task.ConvergeModules, Id: "2"},
 				{Type: task.ModuleRun, Id: "3"},
 				{Type: task.ModuleDelete, Id: "4"},
 			},
@@ -342,7 +342,12 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 				{Type: task.GlobalHookRun, Id: "10"},
 			},
 			expectTasks: []sh_task.BaseTask{
-				{Type: task.ConvergeModules, Id: currentTaskID},
+				{Type: task.ModuleDelete, Id: "2"},
+				{Type: task.ModuleDelete, Id: "3"},
+				{Type: task.ModuleRun, Id: "4", Metadata: task.HookMetadata{IsReloadAll: true}},
+				{Type: task.ModuleRun, Id: "5", Metadata: task.HookMetadata{IsReloadAll: true}},
+				{Type: task.ModuleRun, Id: "6", Metadata: task.HookMetadata{IsReloadAll: true}},
+				{Type: task.ConvergeModules, Id: "7"},
 				{Type: task.ConvergeModules, Id: "8"},
 				{Type: task.ConvergeModules, Id: "9"},
 				{Type: task.ModuleRun, Id: "11"},

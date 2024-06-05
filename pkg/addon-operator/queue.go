@@ -96,8 +96,9 @@ func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
 			// Also keep specified task.
 			if t.GetId() == afterId {
 				IDFound = true
+			} else {
+				return true
 			}
-			return true
 		}
 
 		// Return false to remove converge task right after the specified task.
@@ -109,8 +110,6 @@ func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
 			}
 			return false
 		}
-		// Stop filtering when there is non-converge task after specified task.
-		stop = true
 		return true
 	})
 

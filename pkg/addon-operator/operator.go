@@ -955,11 +955,6 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						eventLogEntry.Errorf("Couldn't update the graph's state: %v", err)
 					}
 
-					if op.ConvergeState.FirstRunPhase == converge.FirstNotStarted {
-						eventLogEntry.Infof("global hook dynamic modification detected, ignore until starting first converge")
-						return
-					}
-
 					if graphStateChanged {
 						// ConvergeModules may be in progress, Reset converge state.
 						op.ConvergeState.Phase = converge.StandBy
@@ -1030,10 +1025,15 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								logLabels,
 							)
 
-							if kubeConfigTask != nil && RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), kubeConfigTask.GetId()) {
+							if RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), op.engine.TaskQueues.GetMain().GetFirst().GetId()) {
 								logEntry.Infof("ConvergeModules: kube config modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
-								op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), convergeTask)
-								op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put first", convergeTask)
+								if kubeConfigTask != nil {
+									op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), convergeTask)
+									op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put after AppplyNewKubeConfig", convergeTask)
+								} else {
+									op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
+									op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put first", convergeTask)
+								}
 							} else {
 								logEntry.Infof("ConvergeModules: kube config modification detected, rerun all modules required")
 								op.engine.TaskQueues.GetMain().AddLast(convergeTask)
