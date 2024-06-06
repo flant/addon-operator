@@ -963,7 +963,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							converge.ReloadAllModules,
 							logLabels,
 						)
-						if RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), op.engine.TaskQueues.GetMain().GetFirst().GetId()) {
+						firstTask := op.engine.TaskQueues.GetMain().GetFirst()
+						if firstTask != nil && RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), firstTask.GetId()) {
 							logEntry.Infof("ConvergeModules: global hook dynamic modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
 							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
 							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
@@ -1024,8 +1025,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								converge.ReloadAllModules,
 								logLabels,
 							)
-
-							if RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), op.engine.TaskQueues.GetMain().GetFirst().GetId()) {
+							firstTask := op.engine.TaskQueues.GetMain().GetFirst()
+							if firstTask != nil && RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), firstTask.GetId()) {
 								logEntry.Infof("ConvergeModules: kube config modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
 								if kubeConfigTask != nil {
 									op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), convergeTask)
