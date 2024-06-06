@@ -49,16 +49,22 @@ func (e *Extender) IsNotifier() bool {
 	return true
 }
 
+func (e *Extender) sendNotify(kubeConfigEvent config.KubeConfigEvent) {
+	if e.notifyCh != nil {
+		e.notifyCh <- extenders.ExtenderEvent{
+			ExtenderName:      Name,
+			EncapsulatedEvent: kubeConfigEvent,
+		}
+	}
+}
+
 func (e *Extender) SetNotifyChannel(ctx context.Context, ch chan extenders.ExtenderEvent) {
 	e.notifyCh = ch
 	go func() {
 		for {
 			select {
 			case kubeConfigEvent := <-e.kubeConfigManager.KubeConfigEventCh():
-				e.notifyCh <- extenders.ExtenderEvent{
-					ExtenderName:      e.Name(),
-					EncapsulatedEvent: kubeConfigEvent,
-				}
+				e.sendNotify(kubeConfigEvent)
 			case <-ctx.Done():
 				return
 			}

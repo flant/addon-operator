@@ -58,11 +58,13 @@ func (e *Extender) UpdateStatus(moduleName, operation string, value bool) {
 }
 
 func (e *Extender) sendNotify() {
-	e.notifyCh <- extenders.ExtenderEvent{
-		ExtenderName: Name,
-		EncapsulatedEvent: DynamicExtenderEvent{
-			DynamicExtenderUpdated: true,
-		},
+	if e.notifyCh != nil {
+		e.notifyCh <- extenders.ExtenderEvent{
+			ExtenderName: Name,
+			EncapsulatedEvent: DynamicExtenderEvent{
+				DynamicExtenderUpdated: true,
+			},
+		}
 	}
 }
 

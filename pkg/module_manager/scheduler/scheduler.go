@@ -231,6 +231,9 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 		for _, ext := range s.extenders {
 			if ext.Name() == appliedExt {
 				newExtenders = append(newExtenders, ext)
+				if ne, ok := ext.(extenders.NotificationExtender); ok {
+					ne.SetNotifyChannel(s.ctx, s.extCh)
+				}
 				break
 			}
 		}
@@ -242,6 +245,7 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	for _, ext := range s.extenders {
 		finalList = append(finalList, ext.Name())
 	}
+
 	log.Infof("List of applied module extenders: %s", finalList)
 	return nil
 }
@@ -255,10 +259,6 @@ func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 	}
 
 	s.extenders = append(s.extenders, ext)
-	if ne, ok := ext.(extenders.NotificationExtender); ok {
-		ne.SetNotifyChannel(s.ctx, s.extCh)
-	}
-
 	return nil
 }
 
