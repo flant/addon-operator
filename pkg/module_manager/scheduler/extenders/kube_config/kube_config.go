@@ -30,10 +30,6 @@ func NewExtender(kcm kubeConfigManager) *Extender {
 	return e
 }
 
-func (e Extender) Dump() map[string]bool {
-	return nil
-}
-
 func (e Extender) Name() extenders.ExtenderName {
 	return Name
 }

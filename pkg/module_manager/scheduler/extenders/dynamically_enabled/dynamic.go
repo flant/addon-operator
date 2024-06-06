@@ -31,12 +31,6 @@ func NewExtender() *Extender {
 	return e
 }
 
-func (e *Extender) Dump() map[string]bool {
-	e.l.Lock()
-	defer e.l.Unlock()
-	return e.modulesStatus
-}
-
 func (e *Extender) UpdateStatus(moduleName, operation string, value bool) {
 	e.l.Lock()
 	switch operation {

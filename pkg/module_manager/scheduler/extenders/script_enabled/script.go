@@ -38,16 +38,6 @@ func NewExtender(tmpDir string) (*Extender, error) {
 	return e, nil
 }
 
-func (e *Extender) Dump() map[string]bool {
-	status := make(map[string]bool, 0)
-	e.l.Lock()
-	for i := range e.enabledModules {
-		status[e.enabledModules[i]] = true
-	}
-	e.l.Unlock()
-	return status
-}
-
 func (e *Extender) Name() extenders.ExtenderName {
 	return Name
 }

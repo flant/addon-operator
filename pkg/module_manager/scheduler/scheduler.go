@@ -451,14 +451,3 @@ func (s *Scheduler) GleanGraphDiff() map[string]bool {
 	s.l.Unlock()
 	return diff
 }
-
-// DumpExtender returns current state of the extender (its meta), if possible
-func (s *Scheduler) DumpExtender(name extenders.ExtenderName) map[string]bool {
-	for _, ex := range s.extenders {
-		if ex.Name() == name {
-			return ex.Dump()
-		}
-	}
-
-	return nil
-}

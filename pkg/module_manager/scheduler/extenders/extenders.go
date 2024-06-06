@@ -18,8 +18,6 @@ type Extender interface {
 	Name() ExtenderName
 	// Filter returns the result of applying the extender
 	Filter(module node.ModuleInterface) (*bool, error)
-	// Dump returns the extender's status of all modules
-	Dump() map[string]bool
 
 	// not implemented
 	Order()

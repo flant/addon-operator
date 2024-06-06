@@ -791,26 +791,19 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 		modName := strings.TrimSuffix(op.Path, "Enabled")
 		modName = strings.TrimPrefix(modName, "/")
 		modName = utils.ModuleNameFromValuesKey(modName)
-
-		var (
-			v   *bool
-			err error
-		)
-
+		v, err := utils.ModuleEnabledValue(op.Value)
+		if err != nil {
+			return fmt.Errorf("apply enabled patch operation '%s' for %s: %v", op.Op, op.Path, err)
+		}
 		switch op.Op {
 		case "add":
-			v, err = utils.ModuleEnabledValue(op.Value)
-			if err != nil {
-				return fmt.Errorf("apply enabled patch operation '%s' for %s: %v", op.Op, op.Path, err)
-			}
 			log.Debugf("apply dynamic enable: module %s set to '%v'", modName, *v)
 		case "remove":
 			log.Debugf("apply dynamic enable: module %s removed from dynamic enable", modName)
 		}
 		extender.UpdateStatus(modName, op.Op, *v)
+		log.Infof("dynamically enabled module status change: module %s, operation %s, state %v", modName, op.Op, *v)
 	}
-
-	log.Infof("dynamic enabled modules list after patch: %s", mm.DumpDynamicEnabled())
 
 	return nil
 }
@@ -818,14 +811,6 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 // UpdateGraphState runs corresponding scheduler method that returns true if the graph's state has changed
 func (mm *ModuleManager) UpdateGraphState() (bool, error) {
 	return mm.moduleScheduler.UpdateGraphState()
-}
-
-func (mm *ModuleManager) DumpDynamicEnabled() string {
-	dump := "["
-	for k, v := range mm.moduleScheduler.DumpExtender(dynamic_extender.Name) {
-		dump += fmt.Sprintf("%s(%t), ", k, v)
-	}
-	return dump + "]"
 }
 
 // GlobalSynchronizationNeeded is true if there is at least one global

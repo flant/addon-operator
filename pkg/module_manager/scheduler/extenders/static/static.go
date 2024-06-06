@@ -71,10 +71,6 @@ func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 	return e, nil
 }
 
-func (e Extender) Dump() map[string]bool {
-	return e.modulesStatus
-}
-
 func (e Extender) Name() extenders.ExtenderName {
 	return Name
 }
