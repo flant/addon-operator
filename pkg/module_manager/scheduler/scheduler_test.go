@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,7 +33,93 @@ func (k kcmMock) KubeConfigEventCh() chan config.KubeConfigEvent {
 	return make(chan config.KubeConfigEvent)
 }
 
-func TestUpdateGraphState(t *testing.T) {
+func TestGetEnabledModuleNames(t *testing.T) {
+	values := `
+# CE Bundle "Default"
+ingressNginxEnabled: true
+nodeLocalDnsEnabled: true
+certManagerEnabled: true
+`
+	basicModules := []*node.MockModule{
+		{
+			Name:                "cert-manager",
+			Order:               30,
+			EnabledScriptResult: true,
+		},
+		{
+			Name:                "node-local-dns",
+			Order:               20,
+			EnabledScriptResult: true,
+		},
+		{
+			Name:                "ingress-nginx",
+			Order:               402,
+			EnabledScriptResult: true,
+			EnabledScriptErr:    errors.New("Exit code not 0"),
+			Path:                "./testdata/402-ingress-nginx/",
+		},
+	}
+
+	tmp, err := os.MkdirTemp(t.TempDir(), "getEnabledTest")
+	require.NoError(t, err)
+
+	s := NewScheduler(context.TODO())
+
+	valuesFile := filepath.Join(tmp, "values.yaml")
+	err = os.WriteFile(valuesFile, []byte(values), 0o644)
+	require.NoError(t, err)
+
+	se, err := static.NewExtender(tmp)
+	assert.NoError(t, err)
+
+	err = s.AddExtender(se)
+	assert.NoError(t, err)
+
+	scripte, err := script_enabled.NewExtender(tmp)
+	assert.NoError(t, err)
+	err = s.AddExtender(scripte)
+	assert.NoError(t, err)
+
+	for _, m := range basicModules {
+		err := s.AddModuleVertex(m)
+		assert.NoError(t, err)
+		scripte.AddBasicModule(m)
+	}
+
+	err = s.ApplyExtenders("Static,ScriptEnabled")
+	require.NoError(t, err)
+
+	_ = s.RecalculateGraph()
+
+	enabledModules, err := s.GetEnabledModuleNames()
+	assert.Error(t, err)
+
+	assert.Equal(t, []string{}, enabledModules)
+
+	// finalize
+	err = os.RemoveAll(tmp)
+	assert.NoError(t, err)
+}
+
+func TestAddModuleVertex(t *testing.T) {
+	s := NewScheduler(context.TODO())
+	basicModule := &node.MockModule{
+		Name:  "ingress-nginx",
+		Order: 402,
+	}
+
+	err := s.AddModuleVertex(basicModule)
+	assert.NoError(t, err)
+
+	vertex, err := s.dag.Vertex(basicModule.GetName())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Vertex(vertex.GetWeight().String())
+	assert.NoError(t, err)
+	assert.Equal(t, false, vertex.GetState())
+}
+
+func TestRecalculateGraph(t *testing.T) {
 	values := `
 # Default global values section
 # todo remove duplicate config values they should be in global-hooks/openapi/config-values.yaml only
@@ -71,6 +158,7 @@ l2LoadBalancerEnabled: false
 			Name:                "ingress-nginx",
 			Order:               402,
 			EnabledScriptResult: true,
+			Path:                "./testdata/402-ingress-nginx/",
 		},
 		{
 			Name:                "cert-manager",
@@ -96,16 +184,19 @@ l2LoadBalancerEnabled: false
 			Name:                "foo-bar",
 			Order:               133,
 			EnabledScriptResult: false,
+			Path:                "./testdata/133-foo-bar/",
 		},
 		{
 			Name:                "flant-integration",
 			Order:               450,
 			EnabledScriptResult: false,
+			Path:                "./testdata/450-flant-integration/",
 		},
 		{
 			Name:                "monitoring-applications",
 			Order:               340,
 			EnabledScriptResult: false,
+			Path:                "./testdata/340-monitoring-applications/",
 		},
 		{
 			Name:                "l2-load-balancer",
@@ -143,7 +234,6 @@ l2LoadBalancerEnabled: false
 	tmp, err := os.MkdirTemp(t.TempDir(), "values-test")
 	require.NoError(t, err)
 	valuesFile := filepath.Join(tmp, "values.yaml")
-
 	err = os.WriteFile(valuesFile, []byte(values), 0o644)
 	require.NoError(t, err)
 
@@ -156,10 +246,10 @@ l2LoadBalancerEnabled: false
 	err = s.ApplyExtenders("Static")
 	require.NoError(t, err)
 
-	updated, err := s.UpdateGraphState()
-	assert.NoError(t, err)
+	updated := s.RecalculateGraph()
 	assert.Equal(t, true, updated)
-	diff := s.GleanGraphDiff()
+	_, diff, err := s.GetGraphState()
+	assert.NoError(t, err)
 
 	expected := map[string]bool{
 		"admission-policy-engine/Static": true,
@@ -193,14 +283,11 @@ l2LoadBalancerEnabled: false
 	assert.Equal(t, expectedDiff, diff)
 
 	de := dynamically_enabled.NewExtender()
-
 	go func() {
 		//nolint:revive
 		for range s.EventCh() {
 		}
 	}()
-
-	assert.NoError(t, err)
 
 	err = s.AddExtender(de)
 	assert.NoError(t, err)
@@ -211,10 +298,10 @@ l2LoadBalancerEnabled: false
 	de.UpdateStatus("l2-load-balancer", "add", true)
 	de.UpdateStatus("node-local-dns", "remove", true)
 	de.UpdateStatus("openstack-cloud-provider", "add", true)
-	updated, err = s.UpdateGraphState()
-	assert.NoError(t, err)
+	updated = s.RecalculateGraph()
 	assert.Equal(t, true, updated)
-	diff = s.GleanGraphDiff()
+	_, diff, err = s.GetGraphState()
+	assert.NoError(t, err)
 
 	expected = map[string]bool{
 		"admission-policy-engine/Static":              true,
@@ -261,10 +348,10 @@ l2LoadBalancerEnabled: false
 
 	de.UpdateStatus("node-local-dns", "add", true)
 
-	updated, err = s.UpdateGraphState()
-	assert.NoError(t, err)
+	updated = s.RecalculateGraph()
 	assert.Equal(t, true, updated)
-	diff = s.GleanGraphDiff()
+	_, diff, err = s.GetGraphState()
+	assert.NoError(t, err)
 
 	expected = map[string]bool{
 		"admission-policy-engine/Static":              true,
@@ -307,10 +394,10 @@ l2LoadBalancerEnabled: false
 	err = s.ApplyExtenders("Static,DynamicallyEnabled,KubeConfig,ScriptEnabled")
 	require.NoError(t, err)
 
-	updated, err = s.UpdateGraphState()
-	assert.NoError(t, err)
+	updated = s.RecalculateGraph()
 	assert.Equal(t, true, updated)
-	diff = s.GleanGraphDiff()
+	_, diff, err = s.GetGraphState()
+	assert.NoError(t, err)
 
 	expected = map[string]bool{
 		"admission-policy-engine/Static":              true,
@@ -340,16 +427,75 @@ l2LoadBalancerEnabled: false
 	assert.Equal(t, expectedDiff, diff)
 
 	de.UpdateStatus("openstack-cloud-provider", "add", false)
-
+	de.UpdateStatus("ingress-nginx", "add", true)
 	de.UpdateStatus("node-local-dns", "add", true)
 
-	updated, err = s.UpdateGraphState()
-	assert.NoError(t, err)
+	updated = s.RecalculateGraph()
 	assert.Equal(t, true, updated)
 
-	updated, err = s.UpdateGraphState()
-	assert.NoError(t, err)
+	updated = s.RecalculateGraph()
 	assert.Equal(t, false, updated)
+
+	_, diff, err = s.GetGraphState()
+	assert.NoError(t, err)
+
+	expected = map[string]bool{
+		"admission-policy-engine/Static":              true,
+		"cert-manager/KubeConfig":                     true,
+		"chrony/KubeConfig":                           false,
+		"node-local-dns/DynamicallyEnabled":           true,
+		"foo-bar/ScriptEnabled":                       false,
+		"flant-integration/ScriptEnabled":             false,
+		"monitoring-applications/ScriptEnabled":       false,
+		"ingress-nginx/DynamicallyEnabled":            true,
+		"l2-load-balancer/DynamicallyEnabled":         true,
+		"openstack-cloud-provider/DynamicallyEnabled": false,
+		"echo/KubeConfig":                             true,
+		"prometheus/KubeConfig":                       true,
+		"prometheus-crd/KubeConfig":                   true,
+	}
+
+	expectedDiff = map[string]bool{
+		"openstack-cloud-provider": false,
+		"ingress-nginx":            true,
+	}
+
+	summary, err = s.PrintSummary()
+	assert.NoError(t, err)
+
+	assert.Equal(t, expected, summary)
+	assert.Equal(t, expectedDiff, diff)
+
+	basicModules[0].EnabledScriptErr = errors.New("Exit code not 0")
+	scripte.AddBasicModule(basicModules[0])
+
+	updated = s.RecalculateGraph()
+	assert.Equal(t, true, updated)
+
+	_, diff, err = s.GetGraphState()
+	assert.Error(t, err)
+
+	expected = map[string]bool{
+		"admission-policy-engine/Static":              true,
+		"cert-manager/KubeConfig":                     true,
+		"chrony/KubeConfig":                           false,
+		"node-local-dns/DynamicallyEnabled":           true,
+		"foo-bar/ScriptEnabled":                       false,
+		"flant-integration/ScriptEnabled":             false,
+		"monitoring-applications/ScriptEnabled":       false,
+		"ingress-nginx/DynamicallyEnabled":            true,
+		"l2-load-balancer/DynamicallyEnabled":         true,
+		"openstack-cloud-provider/DynamicallyEnabled": false,
+		"echo/KubeConfig":                             true,
+		"prometheus/KubeConfig":                       true,
+		"prometheus-crd/KubeConfig":                   true,
+	}
+
+	expectedDiff = nil
+
+	assert.Equal(t, expected, summary)
+	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, []string{"Failed to execute 'ingress-nginx' module's enabled script: Exit code not 0"}, s.errList)
 
 	s.printGraph()
 

@@ -1,24 +1,41 @@
 package script_enabled
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
 const (
 	Name extenders.ExtenderName = "ScriptEnabled"
+
+	noEnabledScript     scriptState = "NoEnabledScript"
+	nonExecutableScript scriptState = "NonExecutableScript"
+	statError           scriptState = "StatError"
 )
 
+type scriptState string
+
 type Extender struct {
-	tmpDir       string
-	basicModules map[string]node.ModuleInterface
+	tmpDir                 string
+	basicModuleDescriptors map[string]moduleDescriptor
 
 	l              sync.RWMutex
 	enabledModules []string
+}
+
+type moduleDescriptor struct {
+	module           node.ModuleInterface
+	scriptState      scriptState
+	stateDescription string
 }
 
 func NewExtender(tmpDir string) (*Extender, error) {
@@ -32,16 +49,37 @@ func NewExtender(tmpDir string) (*Extender, error) {
 	}
 
 	e := &Extender{
-		basicModules:   make(map[string]node.ModuleInterface),
-		enabledModules: make([]string, 0),
-		tmpDir:         tmpDir,
+		basicModuleDescriptors: make(map[string]moduleDescriptor),
+		enabledModules:         make([]string, 0),
+		tmpDir:                 tmpDir,
 	}
 
 	return e, nil
 }
 
 func (e *Extender) AddBasicModule(module node.ModuleInterface) {
-	e.basicModules[module.GetName()] = module
+	moduleD := moduleDescriptor{
+		module: module,
+	}
+
+	enabledScriptPath := filepath.Join(module.GetPath(), "enabled")
+	f, err := os.Stat(enabledScriptPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			moduleD.scriptState = noEnabledScript
+			log.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", module.GetName())
+		} else {
+			moduleD.scriptState = statError
+			moduleD.stateDescription = fmt.Sprintf("Cannot stat enabled script for '%s' module: %v", module.GetName(), err)
+			log.Errorf(moduleD.stateDescription)
+		}
+	} else {
+		if !utils_file.IsFileExecutable(f) {
+			moduleD.scriptState = nonExecutableScript
+			log.Warnf("Found non-executable enabled script for '%s' module - assuming enabled state", module.GetName())
+		}
+	}
+	e.basicModuleDescriptors[module.GetName()] = moduleD
 }
 
 func (e *Extender) Name() extenders.ExtenderName {
@@ -59,18 +97,37 @@ func (e *Extender) Reset() {
 }
 
 func (e *Extender) Filter(moduleName string) (*bool, error) {
-	if module, found := e.basicModules[moduleName]; found {
-		enabled, err := module.RunEnabledScript(e.tmpDir, e.enabledModules, map[string]string{"operator.component": "ModuleManager.Scheduler", "extender": "script_enabled"})
-		if err != nil {
-			return nil, err
+	if moduleDescriptor, found := e.basicModuleDescriptors[moduleName]; found {
+		var err error
+		var enabled bool
+
+		switch moduleDescriptor.scriptState {
+		case "":
+			enabled, err = moduleDescriptor.module.RunEnabledScript(e.tmpDir, e.enabledModules, map[string]string{"operator.component": "ModuleManager.Scheduler", "extender": "script_enabled"})
+			if err != nil {
+				err = fmt.Errorf("Failed to execute '%s' module's enabled script: %v", moduleDescriptor.module.GetName(), err)
+			}
+
+		case statError:
+			log.Errorf(moduleDescriptor.stateDescription)
+			enabled = false
+			err = errors.New(moduleDescriptor.stateDescription)
+
+		case nonExecutableScript:
+			enabled = true
+			log.Warnf("Found non-executable enabled script for '%s' module - assuming enabled state", moduleDescriptor.module.GetName())
+
+		case noEnabledScript:
+			enabled = true
+			log.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", moduleDescriptor.module.GetName())
 		}
 
 		if enabled {
 			e.l.Lock()
-			e.enabledModules = append(e.enabledModules, module.GetName())
+			e.enabledModules = append(e.enabledModules, moduleDescriptor.module.GetName())
 			e.l.Unlock()
 		}
-		return &enabled, nil
+		return &enabled, err
 	}
 	return nil, nil
 }

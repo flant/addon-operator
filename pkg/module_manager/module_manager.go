@@ -399,14 +399,12 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	})
 	logEntry := log.WithFields(utils.LabelsToLogFields(refreshLogLabels))
 
-	enabledModules, err := mm.moduleScheduler.GetEnabledModuleNames()
+	enabledModules, modulesDiff, err := mm.moduleScheduler.GetGraphState()
 	if err != nil {
 		return nil, err
 	}
 
 	logEntry.Infof("Enabled modules: %+v", enabledModules)
-
-	modulesDiff := mm.moduleScheduler.GleanGraphDiff()
 
 	var (
 		modulesToEnable  []string
@@ -421,6 +419,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 		}
 	}
 	modulesToDisable = utils.SortReverseByReference(modulesToDisable, mm.modules.NamesInOrder())
+	modulesToEnable = utils.SortByReference(modulesToEnable, mm.modules.NamesInOrder())
 
 	logEntry.Debugf("Refresh state results:\n"+
 		"    enabledModules: %v\n"+
@@ -808,9 +807,9 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 	return nil
 }
 
-// UpdateGraphState runs corresponding scheduler method that returns true if the graph's state has changed
-func (mm *ModuleManager) UpdateGraphState() (bool, error) {
-	return mm.moduleScheduler.UpdateGraphState()
+// RecalculateGraph runs corresponding scheduler method that returns true if the graph's state has changed
+func (mm *ModuleManager) RecalculateGraph() bool {
+	return mm.moduleScheduler.RecalculateGraph()
 }
 
 // GlobalSynchronizationNeeded is true if there is at least one global
