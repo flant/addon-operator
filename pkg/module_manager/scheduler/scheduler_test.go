@@ -66,7 +66,7 @@ flantIntegrationEnabled: true
 monitoringApplicationsEnabled: true
 l2LoadBalancerEnabled: false
 `
-	basicModules := []node.ModuleMock{
+	basicModules := []*node.MockModule{
 		{
 			Name:                "ingress-nginx",
 			Order:               402,
@@ -112,6 +112,26 @@ l2LoadBalancerEnabled: false
 			Order:               397,
 			EnabledScriptResult: true,
 		},
+		{
+			Name:                "echo",
+			Order:               909,
+			EnabledScriptResult: true,
+		},
+		{
+			Name:                "prometheus",
+			Order:               340,
+			EnabledScriptResult: true,
+		},
+		{
+			Name:                "prometheus-crd",
+			Order:               10,
+			EnabledScriptResult: true,
+		},
+		{
+			Name:                "openstack-cloud-provider",
+			Order:               35,
+			EnabledScriptResult: true,
+		},
 	}
 
 	s := NewScheduler(context.TODO())
@@ -151,6 +171,10 @@ l2LoadBalancerEnabled: false
 		"monitoring-applications/Static": true,
 		"ingress-nginx/":                 false,
 		"l2-load-balancer/Static":        false,
+		"openstack-cloud-provider/":      false,
+		"prometheus-crd/":                false,
+		"prometheus/":                    false,
+		"echo/":                          false,
 	}
 
 	expectedDiff := map[string]bool{
@@ -176,11 +200,6 @@ l2LoadBalancerEnabled: false
 		}
 	}()
 
-	err = s.AddModuleVertex(node.ModuleMock{
-		Name:                "openstack-cloud-provider",
-		Order:               35,
-		EnabledScriptResult: true,
-	})
 	assert.NoError(t, err)
 
 	err = s.AddExtender(de)
@@ -208,6 +227,9 @@ l2LoadBalancerEnabled: false
 		"ingress-nginx/":                              false,
 		"l2-load-balancer/DynamicallyEnabled":         true,
 		"openstack-cloud-provider/DynamicallyEnabled": true,
+		"prometheus-crd/":                             false,
+		"prometheus/":                                 false,
+		"echo/":                                       false,
 	}
 
 	expectedDiff = map[string]bool{
@@ -230,27 +252,6 @@ l2LoadBalancerEnabled: false
 			"prometheus-crd": true,
 		},
 	})
-
-	err = s.AddModuleVertex(node.ModuleMock{
-		Name:                "echo",
-		Order:               909,
-		EnabledScriptResult: true,
-	})
-	assert.NoError(t, err)
-
-	err = s.AddModuleVertex(node.ModuleMock{
-		Name:                "prometheus",
-		Order:               340,
-		EnabledScriptResult: true,
-	})
-	assert.NoError(t, err)
-
-	err = s.AddModuleVertex(node.ModuleMock{
-		Name:                "prometheus-crd",
-		Order:               10,
-		EnabledScriptResult: true,
-	})
-	assert.NoError(t, err)
 
 	err = s.AddExtender(kce)
 	assert.NoError(t, err)
@@ -298,6 +299,10 @@ l2LoadBalancerEnabled: false
 	assert.NoError(t, err)
 	err = s.AddExtender(scripte)
 	assert.NoError(t, err)
+
+	for _, v := range basicModules {
+		scripte.AddBasicModule(v)
+	}
 
 	err = s.ApplyExtenders("Static,DynamicallyEnabled,KubeConfig,ScriptEnabled")
 	require.NoError(t, err)

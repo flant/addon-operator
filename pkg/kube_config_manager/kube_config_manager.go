@@ -93,10 +93,10 @@ func (kcm *KubeConfigManager) Init() error {
 	return nil
 }
 
-// DeprecatedSaveConfigValues updates `global` or `module` section in ConfigMap.
+// SaveConfigValues updates `global` or `module` section in ConfigMap.
 // It uses knownChecksums to prevent KubeConfigChanged event on self-update.
-func (kcm *KubeConfigManager) DeprecatedSaveConfigValues(key string, values utils.Values) error {
-	checksum, err := kcm.backend.DeprecatedSaveConfigValues(kcm.ctx, key, values)
+func (kcm *KubeConfigManager) SaveConfigValues(key string, values utils.Values) error {
+	checksum, err := kcm.backend.SaveConfigValues(kcm.ctx, key, values)
 	if err != nil {
 		kcm.withLock(func() {
 			kcm.knownChecksums.Remove(key, checksum)

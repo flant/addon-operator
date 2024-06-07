@@ -2,8 +2,6 @@ package extenders
 
 import (
 	"context"
-
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 )
 
 type ExtenderEvent struct {
@@ -17,7 +15,7 @@ type Extender interface {
 	// Name returns the extender's name
 	Name() ExtenderName
 	// Filter returns the result of applying the extender
-	Filter(module node.ModuleInterface) (*bool, error)
+	Filter(moduleName string) (*bool, error)
 
 	// not implemented
 	Order()

@@ -5,7 +5,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 )
 
 const (
@@ -34,8 +33,8 @@ func (e Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e Extender) Filter(module node.ModuleInterface) (*bool, error) {
-	return e.kubeConfigManager.IsModuleEnabled(module.GetName()), nil
+func (e Extender) Filter(moduleName string) (*bool, error) {
+	return e.kubeConfigManager.IsModuleEnabled(moduleName), nil
 }
 
 func (e Extender) Order() {

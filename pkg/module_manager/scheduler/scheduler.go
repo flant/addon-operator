@@ -389,7 +389,7 @@ func (s *Scheduler) UpdateGraphState() ( /* Graph's state has changed */ bool, e
 					continue
 				}
 
-				moduleStatus, err := ex.Filter(vertex.GetModule())
+				moduleStatus, err := ex.Filter(vertex.GetModule().GetName())
 				if err != nil {
 					return false, err
 				}

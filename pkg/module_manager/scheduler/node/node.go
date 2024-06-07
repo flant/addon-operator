@@ -10,21 +10,21 @@ type ModuleInterface interface {
 	GetOrder() uint32
 }
 
-type ModuleMock struct {
+type MockModule struct {
 	EnabledScriptResult bool
 	Name                string
 	Order               uint32
 }
 
-func (m ModuleMock) GetName() string {
+func (m MockModule) GetName() string {
 	return m.Name
 }
 
-func (m ModuleMock) GetOrder() uint32 {
+func (m MockModule) GetOrder() uint32 {
 	return m.Order
 }
 
-func (m ModuleMock) RunEnabledScript(_ string, _ []string, _ map[string]string) (bool, error) {
+func (m MockModule) RunEnabledScript(_ string, _ []string, _ map[string]string) (bool, error) {
 	return m.EnabledScriptResult, nil
 }
 

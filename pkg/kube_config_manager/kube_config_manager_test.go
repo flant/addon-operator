@@ -256,12 +256,12 @@ func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.globalValues != nil {
-				err = kcm.DeprecatedSaveConfigValues(utils.GlobalValuesKey, *test.globalValues)
+				err = kcm.SaveConfigValues(utils.GlobalValuesKey, *test.globalValues)
 				if !assert.NoError(t, err, "Global Values should be saved") {
 					t.FailNow()
 				}
 			} else if test.moduleValues != nil {
-				err = kcm.DeprecatedSaveConfigValues(test.moduleName, *test.moduleValues)
+				err = kcm.SaveConfigValues(test.moduleName, *test.moduleValues)
 				if !assert.NoError(t, err, "Module Values should be saved") {
 					t.FailNow()
 				}
@@ -367,7 +367,7 @@ moduleLongName:
 	g.Expect(err).ShouldNot(HaveOccurred(), "values should load from bytes")
 	g.Expect(modVals).To(HaveKey("moduleLongName"))
 
-	err = kcm.DeprecatedSaveConfigValues("module-long-name", modVals)
+	err = kcm.SaveConfigValues("module-long-name", modVals)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Check that values are updated in ConfigMap

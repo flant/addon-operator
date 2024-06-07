@@ -17,7 +17,7 @@ func TestExtender(t *testing.T) {
 	e, err := NewExtender(tmp)
 	require.NoError(t, err)
 
-	basicModules := []node.ModuleMock{
+	basicModules := []*node.MockModule{
 		{
 			Name:                "ingress-nginx",
 			Order:               402,
@@ -46,7 +46,8 @@ func TestExtender(t *testing.T) {
 	}
 
 	for _, m := range basicModules {
-		enabled, err := e.Filter(m)
+		e.AddBasicModule(m)
+		enabled, err := e.Filter(m.Name)
 		assert.NoError(t, err)
 		switch m.GetName() {
 		case "ingress-nginx", "cert-manager", "node-local-dns":

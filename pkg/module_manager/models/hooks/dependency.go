@@ -17,7 +17,7 @@ type hooksMetricsStorage interface {
 }
 
 type kubeConfigManager interface {
-	DeprecatedSaveConfigValues(moduleName string, configValuesPatch utils.Values) error
+	SaveConfigValues(moduleName string, configValuesPatch utils.Values) error
 }
 
 type metricStorage interface {

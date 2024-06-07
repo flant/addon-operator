@@ -7,7 +7,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 )
 
 const (
@@ -66,11 +65,11 @@ func (e *Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e *Extender) Filter(module node.ModuleInterface) (*bool, error) {
+func (e *Extender) Filter(moduleName string) (*bool, error) {
 	e.l.RLock()
 	defer e.l.RUnlock()
 
-	if val, found := e.modulesStatus[module.GetName()]; found {
+	if val, found := e.modulesStatus[moduleName]; found {
 		return &val, nil
 	}
 

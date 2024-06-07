@@ -66,7 +66,7 @@ type DirectoryConfig struct {
 }
 
 type KubeConfigManager interface {
-	DeprecatedSaveConfigValues(key string, values utils.Values) error
+	SaveConfigValues(key string, values utils.Values) error
 	IsModuleEnabled(moduleName string) *bool
 	UpdateModuleConfig(moduleName string) error
 	SafeReadConfig(handler func(config *config.KubeConfig))
@@ -312,7 +312,7 @@ func (mm *ModuleManager) Init() error {
 		return err
 	}
 
-	return mm.registerModules()
+	return mm.registerModules(scriptEnabledExtender)
 }
 
 func (mm *ModuleManager) GetKubeConfigValid() bool {
@@ -1183,7 +1183,7 @@ func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool
 } */
 
 // registerModules load all available modules from modules directory.
-func (mm *ModuleManager) registerModules() error {
+func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.Extender) error {
 	if mm.ModulesDir == "" {
 		log.Warnf("Empty modules directory is passed! No modules to load.")
 		return nil
@@ -1225,6 +1225,7 @@ func (mm *ModuleManager) registerModules() error {
 		if err != nil {
 			return err
 		}
+		scriptEnabledExtender.AddBasicModule(mod)
 
 		mm.SendModuleEvent(events.ModuleEvent{
 			ModuleName: mod.GetName(),
