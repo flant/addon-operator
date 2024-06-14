@@ -383,6 +383,16 @@ func (s *Scheduler) RecalculateGraph() bool {
 	return s.recalculateGraphState()
 }
 
+// Filter returns filtering result for the specified extender and module
+func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string) (*bool, error) {
+	for _, ex := range s.extenders {
+		if ex.Name() == extName {
+			return ex.Filter(moduleName)
+		}
+	}
+	return nil, fmt.Errorf("extender %s not found", extName)
+}
+
 // recalculateGraphState cycles over all module-type vertices and applies all extenders to
 // determine current states of the modules. Besides, it updates <enabledModules> slice of all currently enabled modules.
 // It returns true if the state of the graph has changed or if there were any errors during the run.

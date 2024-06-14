@@ -271,6 +271,11 @@ func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *config.KubeConfig) 
 	}
 }
 
+// FilterModuleByExtender returns filtering result for the specified extender and module
+func (mm *ModuleManager) FilterModuleByExtender(extName extenders.ExtenderName, moduleName string) (*bool, error) {
+	return mm.moduleScheduler.Filter(extName, moduleName)
+}
+
 // Init — initialize module manager
 func (mm *ModuleManager) Init() error {
 	log.Debug("Init ModuleManager")

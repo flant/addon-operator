@@ -33,6 +33,78 @@ func (k kcmMock) KubeConfigEventCh() chan config.KubeConfigEvent {
 	return make(chan config.KubeConfigEvent)
 }
 
+func TestFilter(t *testing.T) {
+	var eNil *bool
+	values := `
+# CE Bundle "Default"
+ingressNginxEnabled: true
+nodeLocalDnsEnabled: false
+`
+	basicModules := []*node.MockModule{
+		{
+			Name:                "cert-manager",
+			Order:               30,
+		},
+		{
+			Name:                "node-local-dns",
+			Order:               20,
+		},
+		{
+			Name:                "ingress-nginx",
+			Order:               402,
+		},
+	}
+
+	tmp, err := os.MkdirTemp(t.TempDir(), "getEnabledTest")
+	require.NoError(t, err)
+
+	s := NewScheduler(context.TODO())
+
+	valuesFile := filepath.Join(tmp, "values.yaml")
+	err = os.WriteFile(valuesFile, []byte(values), 0o644)
+	require.NoError(t, err)
+
+	se, err := static.NewExtender(tmp)
+	assert.NoError(t, err)
+
+	err = s.AddExtender(se)
+	assert.NoError(t, err)
+
+	for _, m := range basicModules {
+		err := s.AddModuleVertex(m)
+		assert.NoError(t, err)
+	}
+
+	err = s.ApplyExtenders("Static")
+	require.NoError(t, err)
+
+	_ = s.RecalculateGraph()
+
+	enabledModules, err := s.GetEnabledModuleNames()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"ingress-nginx"}, enabledModules)
+
+	filter, err := s.Filter(static.Name, "ingress-nginx")
+	assert.NoError(t, err)
+	assert.Equal(t, true, *filter)
+
+	filter, err = s.Filter(static.Name, "cert-manager")
+	assert.NoError(t, err)
+	assert.Equal(t, eNil, filter)
+
+	filter, err = s.Filter(static.Name, "node-local-dns")
+	assert.NoError(t, err)
+	assert.Equal(t, false, *filter)
+
+	filter, err = s.Filter(dynamically_enabled.Name, "node-local-dns")
+	assert.Error(t, err)
+	assert.Equal(t, eNil, filter)
+
+	// finalize
+	err = os.RemoveAll(tmp)
+	assert.NoError(t, err)
+}
+
 func TestGetEnabledModuleNames(t *testing.T) {
 	values := `
 # CE Bundle "Default"
