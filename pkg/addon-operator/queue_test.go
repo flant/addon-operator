@@ -179,7 +179,7 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 			}
 			require.Equal(t, len(tt.in), q.Length(), "Should add all tasks to the queue.")
 
-			RemoveAdjacentConvergeModules(q, tt.afterID)
+			RemoveAdjacentConvergeModules(q, tt.afterID, map[string]string{})
 
 			// Check tasks after remove.
 			require.Equal(t, len(tt.expect), q.Length(), "queue length should match length of expected tasks")
@@ -373,7 +373,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 			require.Equal(t, len(tt.initialTasks), q.Length(), "Should add all tasks to the queue.")
 
 			// Try to clean the queue.
-			removed := RemoveCurrentConvergeTasks(q, currentTaskID)
+			removed := RemoveCurrentConvergeTasks(q, currentTaskID, map[string]string{})
 
 			// Check result.
 			if tt.expectRemoved {

@@ -15,14 +15,14 @@ type Extender interface {
 	// Name returns the extender's name
 	Name() ExtenderName
 	// Filter returns the result of applying the extender
-	Filter(moduleName string) (*bool, error)
+	Filter(moduleName string, logLabels map[string]string) (*bool, error)
 
 	// not implemented
 	Order()
 }
 
 type NotificationExtender interface {
-	// SetNotifyChannel set output channel for events, when module state could be changed during the runtime
+	// SetNotifyChannel sets output channel for an extender's events, to notify when module state could be changed during the runtime
 	SetNotifyChannel(context.Context, chan ExtenderEvent)
 }
 

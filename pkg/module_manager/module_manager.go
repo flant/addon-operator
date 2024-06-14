@@ -272,8 +272,8 @@ func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *config.KubeConfig) 
 }
 
 // FilterModuleByExtender returns filtering result for the specified extender and module
-func (mm *ModuleManager) FilterModuleByExtender(extName extenders.ExtenderName, moduleName string) (*bool, error) {
-	return mm.moduleScheduler.Filter(extName, moduleName)
+func (mm *ModuleManager) FilterModuleByExtender(extName extenders.ExtenderName, moduleName string, logLabels map[string]string) (*bool, error) {
+	return mm.moduleScheduler.Filter(extName, moduleName, logLabels)
 }
 
 // Init — initialize module manager
@@ -404,7 +404,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	})
 	logEntry := log.WithFields(utils.LabelsToLogFields(refreshLogLabels))
 
-	enabledModules, modulesDiff, err := mm.moduleScheduler.GetGraphState()
+	enabledModules, modulesDiff, err := mm.moduleScheduler.GetGraphState(refreshLogLabels)
 	if err != nil {
 		return nil, err
 	}
@@ -423,6 +423,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 			modulesToDisable = append(modulesToDisable, module)
 		}
 	}
+
 	modulesToDisable = utils.SortReverseByReference(modulesToDisable, mm.modules.NamesInOrder())
 	modulesToEnable = utils.SortByReference(modulesToEnable, mm.modules.NamesInOrder())
 
@@ -813,8 +814,18 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 }
 
 // RecalculateGraph runs corresponding scheduler method that returns true if the graph's state has changed
-func (mm *ModuleManager) RecalculateGraph() bool {
-	return mm.moduleScheduler.RecalculateGraph()
+func (mm *ModuleManager) RecalculateGraph(logLabels map[string]string) bool {
+	stateChanged, verticesToUpdate := mm.moduleScheduler.RecalculateGraph(logLabels)
+	if stateChanged {
+		return true
+	}
+	for _, module := range verticesToUpdate {
+		mm.SendModuleEvent(events.ModuleEvent{
+			ModuleName: module,
+			EventType:  events.ModuleStateChanged,
+		})
+	}
+	return false
 }
 
 // GlobalSynchronizationNeeded is true if there is at least one global

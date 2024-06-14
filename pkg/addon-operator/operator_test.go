@@ -142,7 +142,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	err = op.InitModuleManager()
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should init ModuleManager")
-	_ = op.ModuleManager.RecalculateGraph()
+	_ = op.ModuleManager.RecalculateGraph(map[string]string{})
 
 	return op, result
 }

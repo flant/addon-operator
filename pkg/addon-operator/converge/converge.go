@@ -1,6 +1,7 @@
 package converge
 
 import (
+	"sync"
 	"time"
 
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -9,7 +10,9 @@ import (
 )
 
 type ConvergeState struct {
-	Phase         ConvergePhase
+	PhaseLock sync.RWMutex
+	Phase     ConvergePhase
+
 	FirstRunPhase firstConvergePhase
 	FirstRunDoneC chan struct{}
 	StartedAt     int64

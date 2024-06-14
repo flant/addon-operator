@@ -74,16 +74,12 @@ func (e Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e Extender) Filter(moduleName string) (*bool, error) {
+func (e Extender) Filter(moduleName string, _ map[string]string) (*bool, error) {
 	if val, found := e.modulesStatus[moduleName]; found {
 		return &val, nil
 	}
 
 	return nil, nil
-}
-
-func (e *Extender) IsNotifier() bool {
-	return false
 }
 
 func (e Extender) Order() {

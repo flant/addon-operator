@@ -11,6 +11,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
+	"github.com/flant/addon-operator/pkg/utils"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
@@ -96,14 +97,17 @@ func (e *Extender) Reset() {
 	e.l.Unlock()
 }
 
-func (e *Extender) Filter(moduleName string) (*bool, error) {
+func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool, error) {
 	if moduleDescriptor, found := e.basicModuleDescriptors[moduleName]; found {
 		var err error
 		var enabled bool
 
 		switch moduleDescriptor.scriptState {
 		case "":
-			enabled, err = moduleDescriptor.module.RunEnabledScript(e.tmpDir, e.enabledModules, map[string]string{"operator.component": "ModuleManager.Scheduler", "extender": "script_enabled"})
+			refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
+				"extender": "ScriptEnabled",
+			})
+			enabled, err = moduleDescriptor.module.RunEnabledScript(e.tmpDir, e.enabledModules, refreshLogLabels)
 			if err != nil {
 				err = fmt.Errorf("Failed to execute '%s' module's enabled script: %v", moduleDescriptor.module.GetName(), err)
 			}
@@ -130,10 +134,6 @@ func (e *Extender) Filter(moduleName string) (*bool, error) {
 		return &enabled, err
 	}
 	return nil, nil
-}
-
-func (e *Extender) IsNotifier() bool {
-	return false
 }
 
 func (e *Extender) Order() {

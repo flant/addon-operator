@@ -53,9 +53,10 @@ func TestExtender(t *testing.T) {
 		},
 	}
 
+	logLabels := map[string]string{"source": "TestExtender"}
 	for _, m := range basicModules {
 		e.AddBasicModule(m)
-		enabled, err := e.Filter(m.Name)
+		enabled, err := e.Filter(m.Name, logLabels)
 		switch m.GetName() {
 		case "ingress-nginx":
 			assert.Equal(t, true, *enabled)

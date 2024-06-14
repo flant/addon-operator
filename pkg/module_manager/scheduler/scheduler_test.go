@@ -42,16 +42,16 @@ nodeLocalDnsEnabled: false
 `
 	basicModules := []*node.MockModule{
 		{
-			Name:                "cert-manager",
-			Order:               30,
+			Name:  "cert-manager",
+			Order: 30,
 		},
 		{
-			Name:                "node-local-dns",
-			Order:               20,
+			Name:  "node-local-dns",
+			Order: 20,
 		},
 		{
-			Name:                "ingress-nginx",
-			Order:               402,
+			Name:  "ingress-nginx",
+			Order: 402,
 		},
 	}
 
@@ -78,25 +78,26 @@ nodeLocalDnsEnabled: false
 	err = s.ApplyExtenders("Static")
 	require.NoError(t, err)
 
-	_ = s.RecalculateGraph()
+	logLabels := map[string]string{"source": "TestFilter"}
+	_, _ = s.RecalculateGraph(logLabels)
 
 	enabledModules, err := s.GetEnabledModuleNames()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"ingress-nginx"}, enabledModules)
 
-	filter, err := s.Filter(static.Name, "ingress-nginx")
+	filter, err := s.Filter(static.Name, "ingress-nginx", logLabels)
 	assert.NoError(t, err)
 	assert.Equal(t, true, *filter)
 
-	filter, err = s.Filter(static.Name, "cert-manager")
+	filter, err = s.Filter(static.Name, "cert-manager", logLabels)
 	assert.NoError(t, err)
 	assert.Equal(t, eNil, filter)
 
-	filter, err = s.Filter(static.Name, "node-local-dns")
+	filter, err = s.Filter(static.Name, "node-local-dns", logLabels)
 	assert.NoError(t, err)
 	assert.Equal(t, false, *filter)
 
-	filter, err = s.Filter(dynamically_enabled.Name, "node-local-dns")
+	filter, err = s.Filter(dynamically_enabled.Name, "node-local-dns", logLabels)
 	assert.Error(t, err)
 	assert.Equal(t, eNil, filter)
 
@@ -112,6 +113,7 @@ ingressNginxEnabled: true
 nodeLocalDnsEnabled: true
 certManagerEnabled: true
 `
+	logLabels := map[string]string{"source": "TestGetEnabledModuleNames"}
 	basicModules := []*node.MockModule{
 		{
 			Name:                "cert-manager",
@@ -161,7 +163,7 @@ certManagerEnabled: true
 	err = s.ApplyExtenders("Static,ScriptEnabled")
 	require.NoError(t, err)
 
-	_ = s.RecalculateGraph()
+	_, _ = s.RecalculateGraph(logLabels)
 
 	enabledModules, err := s.GetEnabledModuleNames()
 	assert.Error(t, err)
@@ -224,7 +226,9 @@ fooBarEnabled: false
 flantIntegrationEnabled: true
 monitoringApplicationsEnabled: true
 l2LoadBalancerEnabled: false
+
 `
+	logLabels := map[string]string{"source": "TestRecalculateGraph"}
 	basicModules := []*node.MockModule{
 		{
 			Name:                "ingress-nginx",
@@ -318,9 +322,9 @@ l2LoadBalancerEnabled: false
 	err = s.ApplyExtenders("Static")
 	require.NoError(t, err)
 
-	updated := s.RecalculateGraph()
+	updated, verticesToUpdate := s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
-	_, diff, err := s.GetGraphState()
+	_, diff, err := s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected := map[string]bool{
@@ -348,11 +352,23 @@ l2LoadBalancerEnabled: false
 		"monitoring-applications": true,
 	}
 
+	expectedVerticesToUpdate := []string{
+		"admission-policy-engine",
+		"node-local-dns",
+		"cert-manager",
+		"chrony",
+		"foo-bar",
+		"monitoring-applications",
+		"l2-load-balancer",
+		"flant-integration",
+	}
+
 	summary, err := s.PrintSummary()
 	assert.NoError(t, err)
 
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
 	de := dynamically_enabled.NewExtender()
 	go func() {
@@ -370,9 +386,9 @@ l2LoadBalancerEnabled: false
 	de.UpdateStatus("l2-load-balancer", "add", true)
 	de.UpdateStatus("node-local-dns", "remove", true)
 	de.UpdateStatus("openstack-cloud-provider", "add", true)
-	updated = s.RecalculateGraph()
+	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
-	_, diff, err = s.GetGraphState()
+	_, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected = map[string]bool{
@@ -396,10 +412,16 @@ l2LoadBalancerEnabled: false
 		"openstack-cloud-provider": true,
 	}
 
+	expectedVerticesToUpdate = []string{
+		"openstack-cloud-provider",
+		"l2-load-balancer",
+	}
+
 	summary, err = s.PrintSummary()
 	assert.NoError(t, err)
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
 	kce := kube_config.NewExtender(kcmMock{
 		modulesStatus: map[string]bool{
@@ -420,9 +442,9 @@ l2LoadBalancerEnabled: false
 
 	de.UpdateStatus("node-local-dns", "add", true)
 
-	updated = s.RecalculateGraph()
+	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
-	_, diff, err = s.GetGraphState()
+	_, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected = map[string]bool{
@@ -449,10 +471,21 @@ l2LoadBalancerEnabled: false
 		"chrony":         false,
 	}
 
+	expectedVerticesToUpdate = []string{
+		"prometheus-crd",
+		"node-local-dns",
+		"cert-manager",
+		"chrony",
+		"foo-bar",
+		"prometheus",
+		"echo",
+	}
+
 	summary, err = s.PrintSummary()
 	assert.NoError(t, err)
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
 	scripte, err := script_enabled.NewExtender(tmp)
 	assert.NoError(t, err)
@@ -466,9 +499,9 @@ l2LoadBalancerEnabled: false
 	err = s.ApplyExtenders("Static,DynamicallyEnabled,KubeConfig,ScriptEnabled")
 	require.NoError(t, err)
 
-	updated = s.RecalculateGraph()
+	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
-	_, diff, err = s.GetGraphState()
+	_, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected = map[string]bool{
@@ -493,22 +526,29 @@ l2LoadBalancerEnabled: false
 		"flant-integration":       false,
 	}
 
+	expectedVerticesToUpdate = []string{
+		"foo-bar",
+		"monitoring-applications",
+		"flant-integration",
+	}
+
 	summary, err = s.PrintSummary()
 	assert.NoError(t, err)
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
 	de.UpdateStatus("openstack-cloud-provider", "add", false)
 	de.UpdateStatus("ingress-nginx", "add", true)
 	de.UpdateStatus("node-local-dns", "add", true)
 
-	updated = s.RecalculateGraph()
+	updated, _ = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
 
-	updated = s.RecalculateGraph()
+	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, false, updated)
 
-	_, diff, err = s.GetGraphState()
+	_, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected = map[string]bool{
@@ -532,19 +572,22 @@ l2LoadBalancerEnabled: false
 		"ingress-nginx":            true,
 	}
 
+	expectedVerticesToUpdate = []string{}
+
 	summary, err = s.PrintSummary()
 	assert.NoError(t, err)
 
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
 	basicModules[0].EnabledScriptErr = errors.New("Exit code not 0")
 	scripte.AddBasicModule(basicModules[0])
 
-	updated = s.RecalculateGraph()
+	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
 
-	_, diff, err = s.GetGraphState()
+	_, diff, err = s.GetGraphState(logLabels)
 	assert.Error(t, err)
 
 	expected = map[string]bool{
@@ -564,9 +607,11 @@ l2LoadBalancerEnabled: false
 	}
 
 	expectedDiff = nil
+	expectedVerticesToUpdate = []string{}
 
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 	assert.Equal(t, []string{"Failed to execute 'ingress-nginx' module's enabled script: Exit code not 0"}, s.errList)
 
 	s.printGraph()

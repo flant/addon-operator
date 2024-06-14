@@ -33,15 +33,11 @@ func (e Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e Extender) Filter(moduleName string) (*bool, error) {
+func (e Extender) Filter(moduleName string, _ map[string]string) (*bool, error) {
 	return e.kubeConfigManager.IsModuleEnabled(moduleName), nil
 }
 
 func (e Extender) Order() {
-}
-
-func (e *Extender) IsNotifier() bool {
-	return true
 }
 
 func (e *Extender) sendNotify(kubeConfigEvent config.KubeConfigEvent) {

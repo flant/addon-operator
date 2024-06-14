@@ -19,6 +19,7 @@ import (
 	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 var defaultAppliedExtenders = []extenders.ExtenderName{static_extender.Name, dynamic_extender.Name, kube_config_extender.Name, script_extender.Name}
@@ -58,7 +59,7 @@ func NewScheduler(ctx context.Context) *Scheduler {
 		extenders: make([]extenders.Extender, 0),
 		extCh:     make(chan extenders.ExtenderEvent, 1),
 		dag:       graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
-		diff:      make(map[string]bool, 0),
+		diff:      make(map[string]bool),
 		errList:   make([]string, 0),
 	}
 }
@@ -254,7 +255,7 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 		finalList = append(finalList, ext.Name())
 	}
 
-	log.Infof("List of applied module extenders: %s", finalList)
+	log.Infof("The list of applied module extenders: [%s]", finalList)
 	return nil
 }
 
@@ -349,24 +350,25 @@ func (s *Scheduler) GetEnabledModuleNames() ([]string, error) {
 // * error if any
 // if s.enabledModules is nil, we infer that the graph hasn't been calculatet yet and run RecalculateGraph for the first time.
 // if s.errList isn't empty, we try to recalculate the graph in case there were some minor errors last time.
-func (s *Scheduler) GetGraphState() ( /*enabled modules*/ []string /*modules diff*/, map[string]bool, error) {
+func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modules*/ []string /*modules diff*/, map[string]bool, error) {
+	var recalculateGraph bool
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	s.l.Lock()
 	defer s.l.Unlock()
-	var recalculateGraph bool
 
 	// graph hasn't been initialized yet
 	if s.enabledModules == nil {
-		log.Warnf("Module Scheduler: graph hasn't been calculated yet")
+		logEntry.Infof("Module Scheduler: graph hasn't been calculated yet")
 		recalculateGraph = true
 	}
 
 	if len(s.errList) > 0 {
-		log.Warnf("Module Scheduler: graph in a faulty state and will be recalculated: %s", strings.Join(s.errList, ","))
+		logEntry.Warnf("Module Scheduler: graph in a faulty state and will be recalculated: %s", strings.Join(s.errList, ","))
 		recalculateGraph = true
 	}
 
 	if recalculateGraph {
-		_ = s.recalculateGraphState()
+		_, _ = s.recalculateGraphState(logLabels)
 	}
 
 	if len(s.errList) > 0 || s.enabledModules == nil {
@@ -377,17 +379,17 @@ func (s *Scheduler) GetGraphState() ( /*enabled modules*/ []string /*modules dif
 }
 
 // RecalculateGraph is a public version of recalculateGraphState()
-func (s *Scheduler) RecalculateGraph() bool {
+func (s *Scheduler) RecalculateGraph(logLabels map[string]string) (bool, []string) {
 	s.l.Lock()
 	defer s.l.Unlock()
-	return s.recalculateGraphState()
+	return s.recalculateGraphState(logLabels)
 }
 
 // Filter returns filtering result for the specified extender and module
-func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string) (*bool, error) {
+func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, logLabels map[string]string) (*bool, error) {
 	for _, ex := range s.extenders {
 		if ex.Name() == extName {
-			return ex.Filter(moduleName)
+			return ex.Filter(moduleName, logLabels)
 		}
 	}
 	return nil, fmt.Errorf("extender %s not found", extName)
@@ -395,17 +397,20 @@ func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string) (*
 
 // recalculateGraphState cycles over all module-type vertices and applies all extenders to
 // determine current states of the modules. Besides, it updates <enabledModules> slice of all currently enabled modules.
-// It returns true if the state of the graph has changed or if there were any errors during the run.
-func (s *Scheduler) recalculateGraphState() /* Graph's state has changed */ bool {
-	diff := make(map[string]bool, 0)
+// It returns:
+// - true if the state of any vertex has changed (enabled/disabled) or there were any errors during the run;
+// - true if some other parameters, apart from state, of a vertex has changed.
+func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Graph's state has changed */ bool /* list of updated vertices */, []string) {
+	diff, updByDiff := make(map[string]bool), make([]string, 0)
 	errList := make([]string, 0)
 	enabledModules := make([]string, 0)
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
 	names, err := graph.StableTopologicalSort(s.dag, moduleSortFunc)
 	if err != nil {
 		errList = append(errList, err.Error())
 		s.errList = errList
-		return true
+		return true, updByDiff
 	}
 
 	// create a buffer to store all updates during upcoming run, the updates are applied if there is no errors during the rung
@@ -428,7 +433,7 @@ outerCycle:
 					continue
 				}
 
-				moduleStatus, err := ex.Filter(moduleName)
+				moduleStatus, err := ex.Filter(moduleName, logLabels)
 				if err != nil {
 					errList = append(errList, err.Error())
 					break outerCycle
@@ -451,6 +456,10 @@ outerCycle:
 				diff[vertex.GetName()] = vBuf[moduleName].enabled
 			}
 
+			if vBuf[moduleName].updatedBy != vertex.GetUpdatedBy() {
+				updByDiff = append(updByDiff, vertex.GetName())
+			}
+
 			if vBuf[moduleName].enabled {
 				enabledModules = append(enabledModules, name)
 			}
@@ -466,8 +475,21 @@ outerCycle:
 
 	if len(errList) > 0 {
 		s.errList = errList
-		log.Warnf("Module Scheduler: Graph converge failed with errors: %s", strings.Join(s.errList, ","))
-		return true
+		logEntry.Warnf("Module Scheduler: Graph converge failed with errors: %s", strings.Join(s.errList, ","))
+		return true, updByDiff
+	}
+
+	// merge the state diffs
+	for vertexName, newDiffState := range diff {
+		// if a new diff has an opposite state for the module, the module is deleted from the resulting diff
+		if currentDiffState, found := s.diff[vertexName]; found {
+			if currentDiffState != newDiffState {
+				delete(s.diff, vertexName)
+			}
+			// if current diff doesn't have the module's state - add it to the resulting diff
+		} else {
+			s.diff[vertexName] = newDiffState
+		}
 	}
 
 	// commit changes to the graph
@@ -476,38 +498,25 @@ outerCycle:
 		if err != nil {
 			errList = append(errList, fmt.Sprintf("couldn't get %s vertex from the graph: %v", vertexName, err))
 			s.errList = errList
-			return true
+			return true, updByDiff
 		}
 		vertex.SetState(state.enabled)
 		vertex.SetUpdatedBy(state.updatedBy)
 	}
 
 	s.enabledModules = &enabledModules
-	// merge the diff
-	for module, newState := range diff {
-		// if a new diff has an opposite state for the module, the module is deleted from the resulting diff
-		if currentState, found := s.diff[module]; found {
-			if currentState != newState {
-				delete(s.diff, module)
-			}
-			// if current diff doesn't have the module's state - add it to the resulting diff
-		} else {
-			s.diff[module] = newState
-		}
-	}
-
 	// reset any previous errors
 	s.errList = make([]string, 0)
-	log.Infof("Graph was successfully updated, diff: %v", s.diff)
+	logEntry.Debugf("Graph was successfully updated, diff: [%v]", s.diff)
 
 	// TODO: provide access to the report via the operator's web server
 	// s.printGraph()
-	return len(diff) > 0
+	return len(diff) > 0, updByDiff
 }
 
 // gleanGraphDiff returns modules diff list
 func (s *Scheduler) gleanGraphDiff() map[string]bool {
-	diff := s.diff
-	s.diff = make(map[string]bool, 0)
-	return diff
+	curDiff := s.diff
+	s.diff = make(map[string]bool)
+	return curDiff
 }
