@@ -81,8 +81,7 @@ nodeLocalDnsEnabled: false
 	logLabels := map[string]string{"source": "TestFilter"}
 	_, _ = s.RecalculateGraph(logLabels)
 
-	enabledModules, err := s.GetEnabledModuleNames()
-	assert.NoError(t, err)
+	enabledModules := s.GetEnabledModuleNames()
 	assert.Equal(t, []string{"ingress-nginx"}, enabledModules)
 
 	filter, err := s.Filter(static.Name, "ingress-nginx", logLabels)
@@ -165,9 +164,7 @@ certManagerEnabled: true
 
 	_, _ = s.RecalculateGraph(logLabels)
 
-	enabledModules, err := s.GetEnabledModuleNames()
-	assert.Error(t, err)
-
+	enabledModules := s.GetEnabledModuleNames()
 	assert.Equal(t, []string{}, enabledModules)
 
 	// finalize

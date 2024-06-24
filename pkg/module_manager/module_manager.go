@@ -371,16 +371,13 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 		return nil, err
 	}
 
-	return mm.stateFromHelmReleases(releasedModules)
+	return mm.stateFromHelmReleases(releasedModules), nil
 }
 
 // stateFromHelmReleases calculates modules to purge from Helm releases.
-func (mm *ModuleManager) stateFromHelmReleases(releases []string) (*ModulesState, error) {
+func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState {
 	releasesMap := utils.ListToMapStringStruct(releases)
-	enabledModules, err := mm.GetEnabledModuleNames()
-	if err != nil {
-		return nil, err
-	}
+	enabledModules := mm.GetEnabledModuleNames()
 
 	for _, moduleName := range enabledModules {
 		delete(releasesMap, moduleName)
@@ -393,7 +390,7 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) (*ModulesState
 
 	return &ModulesState{
 		ModulesToPurge: purge,
-	}, nil
+	}
 }
 
 // RefreshEnabledState gets current diff of the graph and forms ModuleState
@@ -453,7 +450,8 @@ func (mm *ModuleManager) GetModuleNames() []string {
 	return mm.modules.NamesInOrder()
 }
 
-func (mm *ModuleManager) GetEnabledModuleNames() ([]string, error) {
+// GetEnabledModuleNames runs corresponding method of the module scheduler
+func (mm *ModuleManager) GetEnabledModuleNames() []string {
 	return mm.moduleScheduler.GetEnabledModuleNames()
 }
 
@@ -626,8 +624,8 @@ func (mm *ModuleManager) RunModuleHook(moduleName, hookName string, binding Bind
 	return ml.RunHookByName(hookName, binding, bindingContext, logLabels)
 }
 
-func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
-	return mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
+func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) {
+	mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
 		defer func() {
 			if err := recover(); err != nil {
 				logEntry := log.WithField("function", "HandleKubeEvent").WithField("event", "OnKubernetesEvent")
@@ -730,8 +728,8 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 	mm.SetModulePhaseAndNotify(ml, modules.HooksDisabled)
 }
 
-func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
-	return mm.LoopByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
+func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) {
+	mm.LoopByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
 		if gh != nil {
 			if gh.GetHookController().CanHandleScheduleEvent(crontab) {
 				gh.GetHookController().HandleScheduleEvent(crontab, func(info controller.BindingExecutionInfo) {
@@ -752,7 +750,7 @@ func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn 
 	})
 }
 
-func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook)) error {
+func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook)) {
 	globalHooks := mm.GetGlobalHooksInOrder(binding)
 
 	for _, hookName := range globalHooks {
@@ -760,10 +758,7 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 		fn(gh, nil, nil)
 	}
 
-	mods, err := mm.moduleScheduler.GetEnabledModuleNames()
-	if err != nil {
-		return err
-	}
+	mods := mm.moduleScheduler.GetEnabledModuleNames()
 
 	for _, moduleName := range mods {
 		m := mm.GetModule(moduleName)
@@ -777,8 +772,6 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 			fn(nil, m, mh)
 		}
 	}
-
-	return nil
 }
 
 func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamic_extender.Extender) {

@@ -313,7 +313,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 		logEntry.Debugf("Create tasks for 'schedule' event '%s'", crontab)
 
 		var tasks []sh_task.Task
-		err := op.ModuleManager.HandleScheduleEvent(crontab,
+		op.ModuleManager.HandleScheduleEvent(crontab,
 			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
 				if !op.allowHandleScheduleEvent(globalHook) {
 					return
@@ -371,10 +371,6 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 				tasks = append(tasks, newTask)
 			})
-		if err != nil {
-			logEntry.Errorf("handle schedule event '%s': %s", crontab, err)
-			return []sh_task.Task{}
-		}
 
 		return tasks
 	})
@@ -388,7 +384,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 		logEntry.Debugf("Create tasks for 'kubernetes' event '%s'", kubeEvent.String())
 
 		var tasks []sh_task.Task
-		err := op.ModuleManager.HandleKubeEvent(kubeEvent,
+		op.ModuleManager.HandleKubeEvent(kubeEvent,
 			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
 				hookLabels := utils.MergeLabels(logLabels, map[string]string{
 					"hook":      globalHook.GetName(),
@@ -442,10 +438,6 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 				tasks = append(tasks, newTask)
 			})
-		if err != nil {
-			logEntry.Errorf("handle kube event '%s': %s", kubeEvent.String(), err)
-			return []sh_task.Task{}
-		}
 
 		return tasks
 	})

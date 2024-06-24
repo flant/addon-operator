@@ -50,10 +50,7 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 
 func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (interface{}, error) {
-		mods, err := op.ModuleManager.GetEnabledModuleNames()
-		if err != nil {
-			return map[string][]string{}, err
-		}
+		mods := op.ModuleManager.GetEnabledModuleNames()
 		sort.Strings(mods)
 		return map[string][]string{"enabledModules": mods}, nil
 	})
@@ -139,12 +136,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/resource-monitor.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
 		dump := map[string]interface{}{}
 
-		mods, err := op.ModuleManager.GetEnabledModuleNames()
-		if err != nil {
-			return dump, err
-		}
-
-		for _, moduleName := range mods {
+		for _, moduleName := range op.ModuleManager.GetEnabledModuleNames() {
 			if !op.HelmResourcesManager.HasMonitor(moduleName) {
 				dump[moduleName] = "No monitor"
 				continue

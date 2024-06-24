@@ -332,23 +332,28 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 
 // GetEnabledModuleNames returns a list of all enabled module-type vertices from s.enabledModules
 // so that traversing the graph isn't required.
-func (s *Scheduler) GetEnabledModuleNames() ([]string, error) {
-	if len(s.errList) > 0 {
-		return []string{}, fmt.Errorf("couldn't get enabled modules - graph in a faulty state: %s", strings.Join(s.errList, ","))
+func (s *Scheduler) GetEnabledModuleNames() []string {
+	s.l.Lock()
+	defer s.l.Unlock()
+	return s.getEnabledModuleNames()
+}
+
+func (s *Scheduler) getEnabledModuleNames() []string {
+	if s.enabledModules == nil {
+		return []string{}
 	}
 
-	if s.enabledModules != nil {
-		return *s.enabledModules, nil
-	}
+	enabledModules := make([]string, len(*s.enabledModules))
+	copy(enabledModules, *s.enabledModules)
 
-	return []string{}, nil
+	return enabledModules
 }
 
 // GetGraphState returns:
 // * list of enabled modules if not nil
 // * current modules diff
 // * error if any
-// if s.enabledModules is nil, we infer that the graph hasn't been calculatet yet and run RecalculateGraph for the first time.
+// if s.enabledModules is nil, we infer that the graph hasn't been calculated yet and run RecalculateGraph for the first time.
 // if s.errList isn't empty, we try to recalculate the graph in case there were some minor errors last time.
 func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modules*/ []string /*modules diff*/, map[string]bool, error) {
 	var recalculateGraph bool
@@ -371,11 +376,11 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 		_, _ = s.recalculateGraphState(logLabels)
 	}
 
-	if len(s.errList) > 0 || s.enabledModules == nil {
-		return nil, nil, fmt.Errorf("couldn't recalculate graph: %s", strings.Join(s.errList, ","))
+	if len(s.errList) > 0 {
+		return s.getEnabledModuleNames(), nil, fmt.Errorf("couldn't recalculate graph: %s", strings.Join(s.errList, ","))
 	}
 
-	return *s.enabledModules, s.gleanGraphDiff(), nil
+	return s.getEnabledModuleNames(), s.gleanGraphDiff(), nil
 }
 
 // RecalculateGraph is a public version of recalculateGraphState()
