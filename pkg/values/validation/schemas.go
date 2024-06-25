@@ -90,15 +90,9 @@ func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, valu
 		return nil
 	}
 
-	var obj interface{}
-	if len(moduleName) != 0 {
-		var ok bool
-		obj, ok = values[moduleName]
-		if !ok {
-			return fmt.Errorf("root key '%s' not found in input values", moduleName)
-		}
-	} else {
-		obj = values
+	obj, ok := values[moduleName]
+	if !ok {
+		return fmt.Errorf("root key '%s' not found in input values", moduleName)
 	}
 
 	validationErr := validateObject(obj, schema, moduleName)
