@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
@@ -42,10 +43,59 @@ func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
 	return gm.enabledByHookC
 }
 
+// schema to check some mandatory values
+type globalValuesSchema struct {
+	Properties struct {
+		EnabledModules *struct {
+			Type  string `yaml:"type"`
+			Items struct {
+				Type string `yaml:"type"`
+			} `yaml:"items"`
+		} `yaml:"enabledModules"`
+	} `yaml:"properties,omitempty"`
+}
+
 // NewGlobalModule build ephemeral global container for global hooks and values
 func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookExecutionDependencyContainer,
 	configBytes, valuesBytes []byte,
 ) (*GlobalModule, error) {
+	var (
+		gs                globalValuesSchema
+		schemaFixRequired bool
+	)
+
+	logEntry := log.WithFields(utils.LabelsToLogFields(map[string]string{"operator.component": "ModuleManager.NewGlobalModule"}))
+	if len(valuesBytes) == 0 {
+		logEntry.Infof("global values file is absent or empty - default values schema will be added")
+		valuesBytes = []byte(`
+type: object
+properties:
+`)
+	}
+
+	err := yaml.Unmarshal(valuesBytes, &gs)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't unmarshal global values: %w", err)
+	}
+
+	// .enabledModules property not found
+	if gs.Properties.EnabledModules == nil {
+		logEntry.Warnf("/global/enabledModules property not found and will be added")
+		schemaFixRequired = true
+	} else if gs.Properties.EnabledModules.Type != "array" || gs.Properties.EnabledModules.Items.Type != "string" {
+		logEntry.Warnf("/global/enabledModules property is of incorrect type and will be overwritten as 'array of strings'")
+		schemaFixRequired = true
+	}
+
+	if schemaFixRequired {
+		valuesBytes = append(valuesBytes, []byte(`
+  enabledModules:
+    type: array
+    items:
+      type: string
+`)...)
+	}
+
 	valuesStorage, err := NewValuesStorage("global", staticValues, configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new values storage: %w", err)
