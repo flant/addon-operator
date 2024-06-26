@@ -615,7 +615,13 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	// Update state
 	mm.enabledModules.Replace(enabledModules)
 
-	mm.global.SetEnabledModules(mm.enabledModules.GetAll())
+	// We've to ignore enabledModules patch in case default moduleLoader is in use, otherwise it breaks applying global hooks patches
+	switch mm.moduleLoader.(type) {
+	case *fs.FileSystemLoader:
+	default:
+		logEntry.Debugf("non-default module loader detected - applying enabledModules patch")
+		mm.global.SetEnabledModules(mm.enabledModules.GetAll())
+	}
 
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
