@@ -6,7 +6,7 @@ The Addon-operator pursues an agreement stating that the information is transfer
 
 ## Global hooks
 
-Global hooks are stored in the `$GLOBAL_HOOKS_DIR/hooks` directory. The Addon-operator recursively searches all executable files in it and runs them with the `--config` flag. Each hook prints its events binding configuration in JSON or YAML format to stdout. If the execution fails, the Addon-operator terminates with the code of 1.
+Global hooks are stored in the `$GLOBAL_HOOKS_DIR/hooks` directory. The Addon-operator recursively searches all executable files in it (`lib` subdirectory ignored) and runs them with the `--config` flag. Each hook prints its events binding configuration in JSON or YAML format to stdout. If the execution fails, the Addon-operator terminates with the code of 1.
 
 Bindings from [shell-operator][shell-operator] are available for global hooks: [onStartup](#onstartup), [schedule](#schedule) and [kubernetes](#kubernetes). The bindings to the events of the modules discovery process are also available: [beforeAll](#beforeall) and [afterAll](#afterall) (see [modules discovery](LIFECYCLE.md#modules-discovery)).
 
