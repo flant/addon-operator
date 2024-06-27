@@ -17,6 +17,12 @@ import (
 	k8types "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
+	"github.com/flant/kube-client/fake"
+	. "github.com/flant/shell-operator/pkg/hook/types"
+	sh_task "github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
+	file_utils "github.com/flant/shell-operator/pkg/utils/file"
+
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	mockhelm "github.com/flant/addon-operator/pkg/helm/test/mock"
 	mockhelmresmgr "github.com/flant/addon-operator/pkg/helm_resources_manager/test/mock"
@@ -26,11 +32,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
-	"github.com/flant/kube-client/fake"
-	. "github.com/flant/shell-operator/pkg/hook/types"
-	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
-	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 )
 
 type assembleResult struct {
@@ -53,16 +54,16 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	g.Expect(rootDir).Should(BeADirectory())
 
 	modulesDir := filepath.Join(rootDir, "modules")
-	if exists, _ := file_utils.DirExists(modulesDir); !exists {
+	if exists := file_utils.DirExists(modulesDir); !exists {
 		modulesDir = ""
 	}
 	globalHooksDir := filepath.Join(rootDir, "global-hooks")
-	if exists, _ := file_utils.DirExists(globalHooksDir); !exists {
+	if exists := file_utils.DirExists(globalHooksDir); !exists {
 		globalHooksDir = ""
 	}
 	if globalHooksDir == "" {
 		globalHooksDir = filepath.Join(rootDir, "global")
-		if exists, _ := file_utils.DirExists(globalHooksDir); !exists {
+		if exists := file_utils.DirExists(globalHooksDir); !exists {
 			globalHooksDir = ""
 		}
 	}
@@ -436,7 +437,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	for i, tsk := range taskHandleHistory {
 		// if i < ignoreTasksCount {
 		//	continue
-		//}
+		// }
 		if tsk.taskType != task.ConvergeModules {
 			continue
 		}
