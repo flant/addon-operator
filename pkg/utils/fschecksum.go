@@ -30,7 +30,7 @@ func CalculateChecksumOfDirectory(dir string) (string, error) {
 	res := ""
 
 	var checkErr error
-	files, err := FilesFromRoot(dir, func(dir string, name string, info os.FileInfo) bool {
+	files, err := FilesFromRoot(dir, func(dir string, name string, _ os.FileInfo) bool {
 		fPath := path.Join(dir, name)
 		checksum, err := CalculateChecksumOfFile(fPath)
 		if err != nil {

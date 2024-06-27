@@ -38,14 +38,14 @@ func main() {
 	// override usage template to reveal additional commands with information about start command
 	kpApp.UsageTemplate(sh_app.OperatorUsageTemplate(app.AppName))
 
-	kpApp.Action(func(c *kingpin.ParseContext) error {
+	kpApp.Action(func(_ *kingpin.ParseContext) error {
 		klogtologrus.InitAdapter(sh_app.DebugKubernetesAPI)
 		stdliblogtologrus.InitAdapter()
 		return nil
 	})
 
 	// print version
-	kpApp.Command("version", "Show version.").Action(func(c *kingpin.ParseContext) error {
+	kpApp.Command("version", "Show version.").Action(func(_ *kingpin.ParseContext) error {
 		fmt.Printf("%s %s\n", app.AppName, app.Version)
 		return nil
 	})

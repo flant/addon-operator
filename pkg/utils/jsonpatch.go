@@ -351,13 +351,11 @@ func findObject(pd *container, path string) (container, string) {
 
 		if isArray(*next.raw) {
 			doc, err = next.intoAry()
-
 			if err != nil {
 				return nil, ""
 			}
 		} else {
 			doc, err = next.intoDoc()
-
 			if err != nil {
 				return nil, ""
 			}
