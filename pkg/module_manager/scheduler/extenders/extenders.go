@@ -17,8 +17,6 @@ type Extender interface {
 	// Filter returns the result of applying the extender
 	Filter(moduleName string, logLabels map[string]string) (*bool, error)
 
-	// not implemented
-	Order()
 }
 
 type NotificationExtender interface {
