@@ -15,7 +15,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
+	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
 )
 
 type kcmMock struct {
@@ -40,7 +40,7 @@ func TestFilter(t *testing.T) {
 ingressNginxEnabled: true
 nodeLocalDnsEnabled: false
 `
-	basicModules := []*node.MockModule{
+	basicModules := []*node_mock.MockModule{
 		{
 			Name:  "cert-manager",
 			Order: 30,
@@ -113,7 +113,7 @@ nodeLocalDnsEnabled: true
 certManagerEnabled: true
 `
 	logLabels := map[string]string{"source": "TestGetEnabledModuleNames"}
-	basicModules := []*node.MockModule{
+	basicModules := []*node_mock.MockModule{
 		{
 			Name:                "cert-manager",
 			Order:               30,
@@ -174,7 +174,7 @@ certManagerEnabled: true
 
 func TestAddModuleVertex(t *testing.T) {
 	s := NewScheduler(context.TODO())
-	basicModule := &node.MockModule{
+	basicModule := &node_mock.MockModule{
 		Name:  "ingress-nginx",
 		Order: 402,
 	}
@@ -226,7 +226,7 @@ l2LoadBalancerEnabled: false
 
 `
 	logLabels := map[string]string{"source": "TestRecalculateGraph"}
-	basicModules := []*node.MockModule{
+	basicModules := []*node_mock.MockModule{
 		{
 			Name:                "ingress-nginx",
 			Order:               402,

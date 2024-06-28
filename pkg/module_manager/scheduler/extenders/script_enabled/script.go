@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
+	"k8s.io/utils/pointer"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
@@ -100,41 +101,41 @@ func (e *Extender) Reset() {
 func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool, error) {
 	if moduleDescriptor, found := e.basicModuleDescriptors[moduleName]; found {
 		var err error
-		var enabled bool
+		var enabled *bool
 
 		switch moduleDescriptor.scriptState {
 		case "":
+			var isEnabled bool
 			refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
 				"extender": "ScriptEnabled",
 			})
-			enabled, err = moduleDescriptor.module.RunEnabledScript(e.tmpDir, e.enabledModules, refreshLogLabels)
+			isEnabled, err = moduleDescriptor.module.RunEnabledScript(e.tmpDir, e.enabledModules, refreshLogLabels)
 			if err != nil {
 				err = fmt.Errorf("Failed to execute '%s' module's enabled script: %v", moduleDescriptor.module.GetName(), err)
 			}
+			enabled = &isEnabled
 
 		case statError:
 			log.Errorf(moduleDescriptor.stateDescription)
-			enabled = false
+			enabled = pointer.Bool(false)
 			err = errors.New(moduleDescriptor.stateDescription)
 
 		case nonExecutableScript:
-			enabled = nil
 			log.Warnf("Found non-executable enabled script for '%s' module - assuming enabled state", moduleDescriptor.module.GetName())
 
 		case noEnabledScript:
-			enabled = nil
 			log.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", moduleDescriptor.module.GetName())
 		}
 
-		if enabled {
+		if enabled != nil && *enabled {
 			e.l.Lock()
 			e.enabledModules = append(e.enabledModules, moduleDescriptor.module.GetName())
 			e.l.Unlock()
 		}
-		return &enabled, err
+		return enabled, err
 	}
 	return nil, nil
 }
 
-func (e *Extender) Order() {
+func (e *Extender) IsTerminator() {
 }

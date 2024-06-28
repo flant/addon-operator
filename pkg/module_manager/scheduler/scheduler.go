@@ -23,10 +23,10 @@ import (
 )
 
 var defaultAppliedExtenders = []extenders.ExtenderName{
-  static_extender.Name,
-  dynamic_extender.Name,
-  kube_config_extender.Name,
-  script_extender.Name,
+	static_extender.Name,
+	dynamic_extender.Name,
+	kube_config_extender.Name,
+	script_extender.Name,
 }
 
 type Scheduler struct {
@@ -439,7 +439,8 @@ outerCycle:
 			vBuf[moduleName] = &vertexState{}
 
 			for _, ex := range s.extenders {
-				if ex.Name() == script_extender.Name && !vBuf[moduleName].enabled {
+				// if current extender is a terminating one and by this point the module is already disabled - there's little sense in checking against a terminator
+				if _, ok := ex.(extenders.TerminatingExtender); ok && !vBuf[moduleName].enabled {
 					continue
 				}
 
@@ -450,7 +451,8 @@ outerCycle:
 				}
 
 				if moduleStatus != nil {
-					if ex.Name() == script_extender.Name {
+					// if current extender is a terminating one and it says to disable - stop cycling over remaining extenders and disable the module
+					if _, ok := ex.(extenders.TerminatingExtender); ok {
 						if !*moduleStatus && vBuf[moduleName].enabled {
 							vBuf[moduleName].enabled = *moduleStatus
 							vBuf[moduleName].updatedBy = string(ex.Name())

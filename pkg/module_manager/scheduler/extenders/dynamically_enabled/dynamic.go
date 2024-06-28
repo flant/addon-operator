@@ -19,8 +19,7 @@ type Extender struct {
 	modulesStatus map[string]bool
 }
 
-type DynamicExtenderEvent struct {
-}
+type DynamicExtenderEvent struct{}
 
 func NewExtender() *Extender {
 	e := &Extender{
@@ -52,9 +51,8 @@ func (e *Extender) UpdateStatus(moduleName, operation string, value bool) {
 func (e *Extender) sendNotify() {
 	if e.notifyCh != nil {
 		e.notifyCh <- extenders.ExtenderEvent{
-			ExtenderName: Name,
-			EncapsulatedEvent: DynamicExtenderEvent{
-			},
+			ExtenderName:      Name,
+			EncapsulatedEvent: DynamicExtenderEvent{},
 		}
 	}
 }
@@ -76,7 +74,4 @@ func (e *Extender) Filter(moduleName string, _ map[string]string) (*bool, error)
 
 func (e *Extender) SetNotifyChannel(_ context.Context, ch chan extenders.ExtenderEvent) {
 	e.notifyCh = ch
-}
-
-func (e *Extender) Order() {
 }

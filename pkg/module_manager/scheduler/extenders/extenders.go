@@ -16,7 +16,6 @@ type Extender interface {
 	Name() ExtenderName
 	// Filter returns the result of applying the extender
 	Filter(moduleName string, logLabels map[string]string) (*bool, error)
-
 }
 
 type NotificationExtender interface {
@@ -28,4 +27,12 @@ type NotificationExtender interface {
 type ResettableExtender interface {
 	// Reset resets the extender's cache
 	Reset()
+}
+
+// Type of extenders that can only disable an enabled module if some requirement isn't met.
+// By design, it makes sense to run terminators in the end of filtering because terminators can't be overridden by other extenders.
+// For example, enabled scripts extender.
+type TerminatingExtender interface {
+	// Just a signature to match extenders
+	IsTerminator()
 }

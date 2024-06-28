@@ -37,9 +37,6 @@ func (e Extender) Filter(moduleName string, _ map[string]string) (*bool, error) 
 	return e.kubeConfigManager.IsModuleEnabled(moduleName), nil
 }
 
-func (e Extender) Order() {
-}
-
 func (e *Extender) sendNotify(kubeConfigEvent config.KubeConfigEvent) {
 	if e.notifyCh != nil {
 		e.notifyCh <- extenders.ExtenderEvent{

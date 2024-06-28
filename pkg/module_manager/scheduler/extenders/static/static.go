@@ -81,6 +81,3 @@ func (e Extender) Filter(moduleName string, _ map[string]string) (*bool, error) 
 
 	return nil, nil
 }
-
-func (e Extender) Order() {
-}

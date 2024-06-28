@@ -9,28 +9,37 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
+	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
 )
 
 func TestExtender(t *testing.T) {
+	var boolNilP *bool
 	tmp, err := os.MkdirTemp(t.TempDir(), "values-test")
 	require.NoError(t, err)
 
 	e, err := NewExtender(tmp)
 	require.NoError(t, err)
 
-	basicModules := []*node.MockModule{
+	basicModules := []*node_mock.MockModule{
 		{
 			Name:                "ingress-nginx",
 			Order:               402,
 			EnabledScriptResult: true,
-			Path:                "./testdata/402-ingress-nginx/",
+			// no executable bit
+			Path: "./testdata/402-ingress-nginx/",
 		},
 		{
 			Name:                "cert-manager",
 			Order:               30,
 			EnabledScriptResult: true,
-			Path:                "./testdata/030-cert-manager/",
+			// no enabled script
+			Path: "./testdata/030-cert-manager/",
+		},
+		{
+			Name:                "foo-bar",
+			Order:               31,
+			EnabledScriptResult: true,
+			Path:                "./testdata/031-foo-bar/",
 		},
 		{
 			Name:                "node-local-dns",
@@ -58,11 +67,14 @@ func TestExtender(t *testing.T) {
 		e.AddBasicModule(m)
 		enabled, err := e.Filter(m.Name, logLabels)
 		switch m.GetName() {
-		case "ingress-nginx":
+		case "foo-bar":
 			assert.Equal(t, true, *enabled)
 			assert.Equal(t, nil, err)
+		case "ingress-nginx":
+			assert.Equal(t, boolNilP, enabled)
+			assert.Equal(t, nil, err)
 		case "cert-manager":
-			assert.Equal(t, true, *enabled)
+			assert.Equal(t, boolNilP, enabled)
 			assert.Equal(t, nil, err)
 		case "node-local-dns":
 			assert.Equal(t, false, *enabled)
@@ -73,7 +85,7 @@ func TestExtender(t *testing.T) {
 		}
 	}
 
-	expected := []string{"ingress-nginx", "cert-manager"}
+	expected := []string{"foo-bar"}
 	assert.Equal(t, expected, e.enabledModules)
 
 	err = os.RemoveAll(tmp)
