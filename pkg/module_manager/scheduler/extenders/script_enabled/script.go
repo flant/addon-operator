@@ -122,7 +122,7 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			log.Warnf("Found non-executable enabled script for '%s' module - assuming enabled state", moduleDescriptor.module.GetName())
 
 		case noEnabledScript:
-			enabled = true
+			enabled = nil
 			log.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", moduleDescriptor.module.GetName())
 		}
 
