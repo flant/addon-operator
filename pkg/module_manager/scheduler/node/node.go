@@ -8,24 +8,7 @@ type ModuleInterface interface {
 	RunEnabledScript(string, []string, map[string]string) (bool, error)
 	GetName() string
 	GetOrder() uint32
-}
-
-type ModuleMock struct {
-	EnabledScriptResult bool
-	Name                string
-	Order               uint32
-}
-
-func (m ModuleMock) GetName() string {
-	return m.Name
-}
-
-func (m ModuleMock) GetOrder() uint32 {
-	return m.Order
-}
-
-func (m ModuleMock) RunEnabledScript(_ string, _ []string, _ map[string]string) (bool, error) {
-	return m.EnabledScriptResult, nil
+	GetPath() string
 }
 
 type NodeType string

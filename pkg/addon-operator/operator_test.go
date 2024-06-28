@@ -142,6 +142,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	err = op.InitModuleManager()
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should init ModuleManager")
+	_ = op.ModuleManager.RecalculateGraph(map[string]string{})
 
 	return op, result
 }
@@ -360,6 +361,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 
 	// Define task handler to gather task execution history.
 	type taskInfo struct {
+		id               string
 		taskType         sh_task.TaskType
 		bindingType      BindingType
 		moduleName       string
@@ -393,6 +395,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		}
 		historyMu.Lock()
 		taskHandleHistory = append(taskHandleHistory, taskInfo{
+			id:               tsk.GetId(),
 			taskType:         tsk.GetType(),
 			bindingType:      hm.BindingType,
 			moduleName:       hm.ModuleName,
@@ -449,7 +452,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		break
 	}
 
-	g.Expect(hasReloadAllInStandby).To(BeTrue(), "Should have ReloadAllModules right after KubeConfigChanged")
+	g.Expect(hasReloadAllInStandby).To(BeTrue(), "Should have ReloadAllModules right after ApplyKubeConfigValues")
 }
 
 // This test case checks tasks sequence in the 'main' queue after changing

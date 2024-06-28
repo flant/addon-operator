@@ -2,7 +2,6 @@ package module_manager
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"runtime/trace"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -44,7 +42,6 @@ import (
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -69,7 +66,7 @@ type DirectoryConfig struct {
 }
 
 type KubeConfigManager interface {
-	DeprecatedSaveConfigValues(key string, values utils.Values) error
+	SaveConfigValues(key string, values utils.Values) error
 	IsModuleEnabled(moduleName string) *bool
 	UpdateModuleConfig(moduleName string) error
 	SafeReadConfig(handler func(config *config.KubeConfig))
@@ -274,6 +271,11 @@ func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *config.KubeConfig) 
 	}
 }
 
+// FilterModuleByExtender returns filtering result for the specified extender and module
+func (mm *ModuleManager) FilterModuleByExtender(extName extenders.ExtenderName, moduleName string, logLabels map[string]string) (*bool, error) {
+	return mm.moduleScheduler.Filter(extName, moduleName, logLabels)
+}
+
 // Init — initialize module manager
 func (mm *ModuleManager) Init() error {
 	log.Debug("Init ModuleManager")
@@ -315,7 +317,7 @@ func (mm *ModuleManager) Init() error {
 		return err
 	}
 
-	return mm.registerModules()
+	return mm.registerModules(scriptEnabledExtender)
 }
 
 func (mm *ModuleManager) GetKubeConfigValid() bool {
@@ -369,16 +371,13 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 		return nil, err
 	}
 
-	return mm.stateFromHelmReleases(releasedModules)
+	return mm.stateFromHelmReleases(releasedModules), nil
 }
 
 // stateFromHelmReleases calculates modules to purge from Helm releases.
-func (mm *ModuleManager) stateFromHelmReleases(releases []string) (*ModulesState, error) {
+func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState {
 	releasesMap := utils.ListToMapStringStruct(releases)
-	enabledModules, err := mm.GetEnabledModuleNames()
-	if err != nil {
-		return nil, err
-	}
+	enabledModules := mm.GetEnabledModuleNames()
 
 	for _, moduleName := range enabledModules {
 		delete(releasesMap, moduleName)
@@ -391,30 +390,18 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) (*ModulesState
 
 	return &ModulesState{
 		ModulesToPurge: purge,
-	}, nil
+	}
 }
 
-// RefreshEnabledState runs enabled hooks for all 'enabled by config' modules and
-// calculates new arrays of enabled modules. It returns ModulesState with
-// lists of modules to disable and enable.
-//
-// This method is called after beforeAll hooks to take into account
-// possible changes to 'dynamic enabled'.
-//
-// This method updates caches:
+// RefreshEnabledState gets current diff of the graph and forms ModuleState
 // - mm.enabledModules
 func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*ModulesState, error) {
-	moduleDiff, err := mm.moduleScheduler.UpdateAndApplyNewState()
-	if err != nil {
-		return nil, err
-	}
-
 	refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
 		"operator.component": "ModuleManager.RefreshEnabledState",
 	})
 	logEntry := log.WithFields(utils.LabelsToLogFields(refreshLogLabels))
 
-	enabledModules, err := mm.GetEnabledModuleNames()
+	enabledModules, modulesDiff, err := mm.moduleScheduler.GetGraphState(refreshLogLabels)
 	if err != nil {
 		return nil, err
 	}
@@ -426,14 +413,16 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 		modulesToDisable []string
 	)
 
-	for module, enabled := range moduleDiff {
+	for module, enabled := range modulesDiff {
 		if enabled {
 			modulesToEnable = append(modulesToEnable, module)
 		} else {
 			modulesToDisable = append(modulesToDisable, module)
 		}
 	}
+
 	modulesToDisable = utils.SortReverseByReference(modulesToDisable, mm.modules.NamesInOrder())
+	modulesToEnable = utils.SortByReference(modulesToEnable, mm.modules.NamesInOrder())
 
 	logEntry.Debugf("Refresh state results:\n"+
 		"    enabledModules: %v\n"+
@@ -467,7 +456,8 @@ func (mm *ModuleManager) GetModuleNames() []string {
 	return mm.modules.NamesInOrder()
 }
 
-func (mm *ModuleManager) GetEnabledModuleNames() ([]string, error) {
+// GetEnabledModuleNames runs corresponding method of the module scheduler
+func (mm *ModuleManager) GetEnabledModuleNames() []string {
 	return mm.moduleScheduler.GetEnabledModuleNames()
 }
 
@@ -640,8 +630,8 @@ func (mm *ModuleManager) RunModuleHook(moduleName, hookName string, binding Bind
 	return ml.RunHookByName(hookName, binding, bindingContext, logLabels)
 }
 
-func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
-	return mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
+func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) {
+	mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
 		defer func() {
 			if err := recover(); err != nil {
 				logEntry := log.WithField("function", "HandleKubeEvent").WithField("event", "OnKubernetesEvent")
@@ -744,8 +734,8 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 	mm.SetModulePhaseAndNotify(ml, modules.HooksDisabled)
 }
 
-func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) error {
-	return mm.LoopByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
+func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) {
+	mm.LoopByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
 		if gh != nil {
 			if gh.GetHookController().CanHandleScheduleEvent(crontab) {
 				gh.GetHookController().HandleScheduleEvent(crontab, func(info controller.BindingExecutionInfo) {
@@ -766,7 +756,7 @@ func (mm *ModuleManager) HandleScheduleEvent(crontab string, createGlobalTaskFn 
 	})
 }
 
-func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook)) error {
+func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook)) {
 	globalHooks := mm.GetGlobalHooksInOrder(binding)
 
 	for _, hookName := range globalHooks {
@@ -774,10 +764,7 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 		fn(gh, nil, nil)
 	}
 
-	mods, err := mm.moduleScheduler.GetEnabledModuleNames()
-	if err != nil {
-		return err
-	}
+	mods := mm.moduleScheduler.GetEnabledModuleNames()
 
 	for _, moduleName := range mods {
 		m := mm.GetModule(moduleName)
@@ -791,8 +778,6 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 			fn(nil, m, mh)
 		}
 	}
-
-	return nil
 }
 
 func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamic_extender.Extender) {
@@ -810,42 +795,36 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 		modName := strings.TrimSuffix(op.Path, "Enabled")
 		modName = strings.TrimPrefix(modName, "/")
 		modName = utils.ModuleNameFromValuesKey(modName)
-
-		var (
-			v   *bool
-			err error
-		)
-
+		v, err := utils.ModuleEnabledValue(op.Value)
+		if err != nil {
+			return fmt.Errorf("apply enabled patch operation '%s' for %s: %v", op.Op, op.Path, err)
+		}
 		switch op.Op {
 		case "add":
-			v, err = utils.ModuleEnabledValue(op.Value)
-			if err != nil {
-				return fmt.Errorf("apply enabled patch operation '%s' for %s: %v", op.Op, op.Path, err)
-			}
 			log.Debugf("apply dynamic enable: module %s set to '%v'", modName, *v)
 		case "remove":
 			log.Debugf("apply dynamic enable: module %s removed from dynamic enable", modName)
 		}
 		extender.UpdateStatus(modName, op.Op, *v)
+		log.Infof("dynamically enabled module status change: module %s, operation %s, state %v", modName, op.Op, *v)
 	}
-
-	log.Infof("dynamic enabled modules list after patch: %s", mm.DumpDynamicEnabled())
 
 	return nil
 }
 
-// DynamicEnabledChecksum returns checksum for dynamicEnabled map
-func (mm *ModuleManager) DynamicEnabledChecksum() string {
-	jsonBytes, _ := json.Marshal(mm.moduleScheduler.DumpExtender(dynamic_extender.Name))
-	return utils_checksum.CalculateChecksum(string(jsonBytes))
-}
-
-func (mm *ModuleManager) DumpDynamicEnabled() string {
-	dump := "["
-	for k, v := range mm.moduleScheduler.DumpExtender(dynamic_extender.Name) {
-		dump += fmt.Sprintf("%s(%t), ", k, v)
+// RecalculateGraph runs corresponding scheduler method that returns true if the graph's state has changed
+func (mm *ModuleManager) RecalculateGraph(logLabels map[string]string) bool {
+	stateChanged, verticesToUpdate := mm.moduleScheduler.RecalculateGraph(logLabels)
+	if stateChanged {
+		return true
 	}
-	return dump + "]"
+	for _, module := range verticesToUpdate {
+		mm.SendModuleEvent(events.ModuleEvent{
+			ModuleName: module,
+			EventType:  events.ModuleStateChanged,
+		})
+	}
+	return false
 }
 
 // GlobalSynchronizationNeeded is true if there is at least one global
@@ -932,42 +911,6 @@ func (mm *ModuleManager) UpdateModuleLastErrorAndNotify(module *modules.BasicMod
 	})
 }
 
-// PushDeleteModule pushes moduleDelete task for a module into the main queue
-func (mm *ModuleManager) PushDeleteModuleTask(moduleName string) {
-	// check if there is already moduleDelete task in the main queue for the module
-	if queueHasPendingModuleDeleteTask(mm.dependencies.TaskQueues.GetMain(), moduleName) {
-		return
-	}
-
-	newTask := sh_task.NewTask(task.ModuleDelete).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{
-			EventDescription: "ModuleManager-Delete-Module",
-			ModuleName:       moduleName,
-		})
-	newTask.SetProp("triggered-by", "ModuleManager")
-
-	mm.dependencies.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
-
-	log.Infof("Push ConvergeModules task because %q Module was disabled", moduleName)
-	mm.PushConvergeModulesTask(moduleName, "disabled")
-}
-
-// PushConvergeModulesTask pushes ConvergeModulesTask into the main queue to update all modules on a module enable/disable event
-func (mm *ModuleManager) PushConvergeModulesTask(moduleName, moduleState string) {
-	newConvergeTask := sh_task.NewTask(task.ConvergeModules).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{
-			EventDescription: fmt.Sprintf("ModuleManager-%s-Module", moduleState),
-			ModuleName:       moduleName,
-		}).
-		WithQueuedAt(time.Now())
-	newConvergeTask.SetProp("triggered-by", "ModuleManager")
-	newConvergeTask.SetProp(converge.ConvergeEventProp, converge.ReloadAllModules)
-
-	mm.dependencies.TaskQueues.GetMain().AddLast(newConvergeTask.WithQueuedAt(time.Now()))
-}
-
 // PushRunModuleTask pushes moduleRun task for a module into the main queue if there is no such a task for the module
 func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bool) error {
 	// update module's kube config
@@ -1045,7 +988,9 @@ func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, 
 // If it's a new module - converges all modules - EXPERIMENTAL
 func (mm *ModuleManager) RegisterModule(_, _ string) error {
 	return fmt.Errorf("Not implemented yet")
-	/*
+}
+
+/*
 	   	if !mm.modules.IsInited() {
 	   		return moduleset.ErrNotInited
 	   	}
@@ -1199,11 +1144,60 @@ func (mm *ModuleManager) RegisterModule(_, _ string) error {
 	   	}
 
 	   return nil
-	*/
 }
 
+// PushDeleteModule pushes moduleDelete task for a module into the main queue
+// TODO: EXPERIMENTAL
+/*func (mm *ModuleManager) PushDeleteModuleTask(moduleName string) {
+	// check if there is already moduleDelete task in the main queue for the module
+	if queueHasPendingModuleDeleteTask(mm.dependencies.TaskQueues.GetMain(), moduleName) {
+		return
+	}
+
+	newTask := sh_task.NewTask(task.ModuleDelete).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription: "ModuleManager-Delete-Module",
+			ModuleName:       moduleName,
+		})
+	newTask.SetProp("triggered-by", "ModuleManager")
+
+	mm.dependencies.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
+
+	log.Infof("Push ConvergeModules task because %q Module was disabled", moduleName)
+	mm.PushConvergeModulesTask(moduleName, "disabled")
+}
+
+// PushConvergeModulesTask pushes ConvergeModulesTask into the main queue to update all modules on a module enable/disable event
+// TODO: EXPERIMENTAL
+func (mm *ModuleManager) PushConvergeModulesTask(moduleName, moduleState string) {
+	newConvergeTask := sh_task.NewTask(task.ConvergeModules).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription: fmt.Sprintf("ModuleManager-%s-Module", moduleState),
+			ModuleName:       moduleName,
+		}).
+		WithQueuedAt(time.Now())
+	newConvergeTask.SetProp("triggered-by", "ModuleManager")
+	newConvergeTask.SetProp(converge.ConvergeEventProp, converge.ReloadAllModules)
+
+	mm.dependencies.TaskQueues.GetMain().AddLast(newConvergeTask.WithQueuedAt(time.Now()))
+}
+
+// queueHasPendingModuleDeleteTask returns true if queue has pending tasks
+// with the type "ModuleDelete" related to the module "moduleName"
+// TODO: EXPERIMENTAL
+func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool {
+	if q == nil {
+		return false
+	}
+	modules := modulesWithPendingTasks(q, task.ModuleDelete)
+	meta, has := modules[moduleName]
+	return has && meta.doStartup
+} */
+
 // registerModules load all available modules from modules directory.
-func (mm *ModuleManager) registerModules() error {
+func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.Extender) error {
 	if mm.ModulesDir == "" {
 		log.Warnf("Empty modules directory is passed! No modules to load.")
 		return nil
@@ -1245,6 +1239,7 @@ func (mm *ModuleManager) registerModules() error {
 		if err != nil {
 			return err
 		}
+		scriptEnabledExtender.AddBasicModule(mod)
 
 		mm.SendModuleEvent(events.ModuleEvent{
 			ModuleName: mod.GetName(),
@@ -1281,10 +1276,6 @@ func (mm *ModuleManager) SchedulerEventCh() chan extenders.ExtenderEvent {
 	return mm.moduleScheduler.EventCh()
 }
 
-func (mm *ModuleManager) StateChangedByExtender(extName extenders.ExtenderName, moduleName string) (bool, error) {
-	return mm.moduleScheduler.StateChanged(extName, moduleName)
-}
-
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
 // with the type "ModuleRun" related to the module "moduleName" and DoModuleStartup is set to true.
 func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName string) bool {
@@ -1292,17 +1283,6 @@ func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName stri
 		return false
 	}
 	modules := modulesWithPendingTasks(q, task.ModuleRun)
-	meta, has := modules[moduleName]
-	return has && meta.doStartup
-}
-
-// queueHasPendingModuleDeleteTask returns true if queue has pending tasks
-// with the type "ModuleDelete" related to the module "moduleName"
-func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool {
-	if q == nil {
-		return false
-	}
-	modules := modulesWithPendingTasks(q, task.ModuleDelete)
 	meta, has := modules[moduleName]
 	return has && meta.doStartup
 }

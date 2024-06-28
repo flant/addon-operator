@@ -15,7 +15,7 @@ type ConfigHandler interface {
 	// LoadConfig loads initial modules config before starting the informer
 	LoadConfig(ctx context.Context, modulesNames ...string) (*config.KubeConfig, error)
 
-	// DeprecatedSaveConfigValues saves patches for modules in backend (if supported), overriding the configuration
+	// SaveConfigValues saves patches for modules in backend (if supported), overriding the configuration
 	// Deprecated: saving values in the values source is not recommended and shouldn't be used anymore
-	DeprecatedSaveConfigValues(ctx context.Context, key string, values utils.Values) ( /*checksum*/ string, error)
+	SaveConfigValues(ctx context.Context, key string, values utils.Values) ( /*checksum*/ string, error)
 }

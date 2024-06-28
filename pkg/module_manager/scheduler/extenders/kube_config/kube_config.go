@@ -5,7 +5,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 )
 
 const (
@@ -30,23 +29,21 @@ func NewExtender(kcm kubeConfigManager) *Extender {
 	return e
 }
 
-func (e Extender) Dump() map[string]bool {
-	return nil
-}
-
 func (e Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e Extender) Filter(module node.ModuleInterface) (*bool, error) {
-	return e.kubeConfigManager.IsModuleEnabled(module.GetName()), nil
+func (e Extender) Filter(moduleName string, _ map[string]string) (*bool, error) {
+	return e.kubeConfigManager.IsModuleEnabled(moduleName), nil
 }
 
-func (e Extender) Order() {
-}
-
-func (e *Extender) IsNotifier() bool {
-	return true
+func (e *Extender) sendNotify(kubeConfigEvent config.KubeConfigEvent) {
+	if e.notifyCh != nil {
+		e.notifyCh <- extenders.ExtenderEvent{
+			ExtenderName:      Name,
+			EncapsulatedEvent: kubeConfigEvent,
+		}
+	}
 }
 
 func (e *Extender) SetNotifyChannel(ctx context.Context, ch chan extenders.ExtenderEvent) {
@@ -55,10 +52,7 @@ func (e *Extender) SetNotifyChannel(ctx context.Context, ch chan extenders.Exten
 		for {
 			select {
 			case kubeConfigEvent := <-e.kubeConfigManager.KubeConfigEventCh():
-				e.notifyCh <- extenders.ExtenderEvent{
-					ExtenderName:      e.Name(),
-					EncapsulatedEvent: kubeConfigEvent,
-				}
+				e.sendNotify(kubeConfigEvent)
 			case <-ctx.Done():
 				return
 			}

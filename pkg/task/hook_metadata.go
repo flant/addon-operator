@@ -27,7 +27,6 @@ type HookMetadata struct {
 	IsReloadAll     bool // ModuleRun task is a part of 'Reload all modules' process.
 
 	ValuesChecksum           string // checksum of global values before first afterAll hook execution
-	DynamicEnabledChecksum   string // checksum of dynamicEnabled before first afterAll hook execution
 	LastAfterAllHook         bool   // true if task is a last afterAll hook in sequence
 	ReloadAllOnValuesChanges bool   // whether to run DiscoverModules process if hook change global values
 

@@ -10,7 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
@@ -71,25 +70,14 @@ func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 	return e, nil
 }
 
-func (e Extender) Dump() map[string]bool {
-	return e.modulesStatus
-}
-
 func (e Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e Extender) Filter(module node.ModuleInterface) (*bool, error) {
-	if val, found := e.modulesStatus[module.GetName()]; found {
+func (e Extender) Filter(moduleName string, _ map[string]string) (*bool, error) {
+	if val, found := e.modulesStatus[moduleName]; found {
 		return &val, nil
 	}
 
 	return nil, nil
-}
-
-func (e *Extender) IsNotifier() bool {
-	return false
-}
-
-func (e Extender) Order() {
 }

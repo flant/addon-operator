@@ -19,9 +19,15 @@ import (
 	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
-var defaultAppliedExtenders = []extenders.ExtenderName{static_extender.Name, dynamic_extender.Name, kube_config_extender.Name, script_extender.Name}
+var defaultAppliedExtenders = []extenders.ExtenderName{
+	static_extender.Name,
+	dynamic_extender.Name,
+	kube_config_extender.Name,
+	script_extender.Name,
+}
 
 type Scheduler struct {
 	ctx context.Context
@@ -37,8 +43,15 @@ type Scheduler struct {
 	root *node.Node
 	// cache containing currently enabled vertices
 	enabledModules *[]string
-	// cache constisting of the extenders' results from the previous run
-	retrospectiveStatus map[extenders.ExtenderName]map[string]bool
+	// storage for current module diff
+	diff map[string]bool
+	// keeps all errors happened on last run
+	errList []string
+}
+
+type vertexState struct {
+	enabled   bool
+	updatedBy string
 }
 
 // NewScheduler returns a new instance of scheduler
@@ -47,11 +60,12 @@ func NewScheduler(ctx context.Context) *Scheduler {
 		return n.GetName()
 	}
 	return &Scheduler{
-		ctx:                 ctx,
-		extenders:           make([]extenders.Extender, 0),
-		extCh:               make(chan extenders.ExtenderEvent, 1),
-		dag:                 graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
-		retrospectiveStatus: make(map[extenders.ExtenderName]map[string]bool),
+		ctx:       ctx,
+		extenders: make([]extenders.Extender, 0),
+		extCh:     make(chan extenders.ExtenderEvent, 1),
+		dag:       graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
+		diff:      make(map[string]bool),
+		errList:   make([]string, 0),
 	}
 }
 
@@ -109,7 +123,7 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 		return err
 	// parent not found - create it
 	default:
-		parent = node.NewNode().WithName(vertex.GetWeight().String()).WithWeight(uint32(vertex.GetWeight())).WithType(node.WeightType)
+		parent := node.NewNode().WithName(vertex.GetWeight().String()).WithWeight(uint32(vertex.GetWeight())).WithType(node.WeightType)
 		if err := s.AddWeightVertex(parent); err != nil {
 			return err
 		}
@@ -231,7 +245,9 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 		for _, ext := range s.extenders {
 			if ext.Name() == appliedExt {
 				newExtenders = append(newExtenders, ext)
-				s.retrospectiveStatus[ext.Name()] = make(map[string]bool)
+				if ne, ok := ext.(extenders.NotificationExtender); ok {
+					ne.SetNotifyChannel(s.ctx, s.extCh)
+				}
 				break
 			}
 		}
@@ -243,7 +259,8 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	for _, ext := range s.extenders {
 		finalList = append(finalList, ext.Name())
 	}
-	log.Infof("List of applied module extenders: %s", finalList)
+
+	log.Infof("The list of applied module extenders: [%s]", finalList)
 	return nil
 }
 
@@ -256,10 +273,6 @@ func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 	}
 
 	s.extenders = append(s.extenders, ext)
-	if ne, ok := ext.(extenders.NotificationExtender); ok {
-		ne.SetNotifyChannel(s.ctx, s.extCh)
-	}
-
 	return nil
 }
 
@@ -323,173 +336,199 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 }
 
 // GetEnabledModuleNames returns a list of all enabled module-type vertices from s.enabledModules
-// so that traversing the graph isn't required
-func (s *Scheduler) GetEnabledModuleNames() ([]string, error) {
+// so that traversing the graph isn't required.
+func (s *Scheduler) GetEnabledModuleNames() []string {
 	s.l.Lock()
 	defer s.l.Unlock()
-	if s.enabledModules != nil {
-		return *s.enabledModules, nil
-	}
-
-	enabledModules := make([]string, 0)
-	nodeNames, err := graph.StableTopologicalSort(s.dag, moduleSortFunc)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get the graph topological sorted view: %v", err)
-	}
-
-	for _, name := range nodeNames {
-		if vertex, props, err := s.dag.VertexWithProperties(name); err == nil {
-			if props.Attributes["type"] == string(node.ModuleType) && vertex.GetState() {
-				enabledModules = append(enabledModules, name)
-			}
-		} else {
-			return enabledModules, fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
-		}
-	}
-
-	s.enabledModules = &enabledModules
-	return enabledModules, nil
+	return s.getEnabledModuleNames()
 }
 
-// StateChanged compares current state of the <extName> extender regarding the <moduleName> module
-// to what it was like one graph's run ago and tries to determine if the module state has possibly changed since then
-func (s *Scheduler) StateChanged(extName extenders.ExtenderName, moduleName string) (bool, error) {
-	var (
-		newStatus        bool
-		previousStatus   bool
-		cumulativeStatus bool
-		extenderId       = -1
-	)
+func (s *Scheduler) getEnabledModuleNames() []string {
+	if s.enabledModules == nil {
+		return []string{}
+	}
 
+	enabledModules := make([]string, len(*s.enabledModules))
+	copy(enabledModules, *s.enabledModules)
+
+	return enabledModules
+}
+
+// GetGraphState returns:
+// * list of enabled modules if not nil
+// * current modules diff
+// * error if any
+// if s.enabledModules is nil, we infer that the graph hasn't been calculated yet and run RecalculateGraph for the first time.
+// if s.errList isn't empty, we try to recalculate the graph in case there were some minor errors last time.
+func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modules*/ []string /*modules diff*/, map[string]bool, error) {
+	var recalculateGraph bool
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	s.l.Lock()
 	defer s.l.Unlock()
-	vertex, props, err := s.dag.VertexWithProperties(moduleName)
-	if err != nil {
-		return false, fmt.Errorf("couldn't get %s vertex from the graph: %v", moduleName, err)
+
+	// graph hasn't been initialized yet
+	if s.enabledModules == nil {
+		logEntry.Infof("Module Scheduler: graph hasn't been calculated yet")
+		recalculateGraph = true
 	}
 
-	if props.Attributes["type"] != string(node.ModuleType) {
-		return false, fmt.Errorf("vertex %s isn't of module type", moduleName)
+	if len(s.errList) > 0 {
+		logEntry.Warnf("Module Scheduler: graph in a faulty state and will be recalculated: %s", strings.Join(s.errList, ","))
+		recalculateGraph = true
 	}
 
-	for i, ex := range s.extenders {
+	if recalculateGraph {
+		_, _ = s.recalculateGraphState(logLabels)
+	}
+
+	if len(s.errList) > 0 {
+		return s.getEnabledModuleNames(), nil, fmt.Errorf("couldn't recalculate graph: %s", strings.Join(s.errList, ","))
+	}
+
+	return s.getEnabledModuleNames(), s.gleanGraphDiff(), nil
+}
+
+// RecalculateGraph is a public version of recalculateGraphState()
+func (s *Scheduler) RecalculateGraph(logLabels map[string]string) (bool, []string) {
+	s.l.Lock()
+	defer s.l.Unlock()
+	return s.recalculateGraphState(logLabels)
+}
+
+// Filter returns filtering result for the specified extender and module
+func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, logLabels map[string]string) (*bool, error) {
+	for _, ex := range s.extenders {
 		if ex.Name() == extName {
-			extenderId = i
-			break
-		}
-
-		if exStatus, has := s.retrospectiveStatus[ex.Name()][moduleName]; has && cumulativeStatus != exStatus {
-			cumulativeStatus = exStatus
+			return ex.Filter(moduleName, logLabels)
 		}
 	}
-
-	if extenderId < 0 {
-		return false, fmt.Errorf("extender %s not found", extName)
-	}
-
-	extenderStatus, err := s.extenders[extenderId].Filter(vertex.GetModule())
-	if err != nil {
-		return false, err
-	}
-
-	if extenderStatus != nil && cumulativeStatus != *extenderStatus {
-		newStatus = *extenderStatus
-	} else {
-		newStatus = cumulativeStatus
-	}
-
-	if retroStatus, has := s.retrospectiveStatus[extName][moduleName]; has && cumulativeStatus != retroStatus {
-		previousStatus = retroStatus
-	} else {
-		previousStatus = cumulativeStatus
-	}
-
-	// retro status is empty
-	return newStatus != previousStatus, nil
+	return nil, fmt.Errorf("extender %s not found", extName)
 }
 
-// UpdateAndApplyNewState cycles over all module-type vertices and applies all extenders to
+// recalculateGraphState cycles over all module-type vertices and applies all extenders to
 // determine current states of the modules. Besides, it updates <enabledModules> slice of all currently enabled modules.
-// Resulting map reseambles a diff between previous and current states of the graph (in terms of enabled/disabled modules)
-func (s *Scheduler) UpdateAndApplyNewState() ( /* diff of the modules' states */ map[string]bool, error) {
-	diff := make(map[string]bool, 0)
+// It returns:
+// - true if the state of any vertex has changed (enabled/disabled) or there were any errors during the run;
+// - true if some other parameters, apart from state, of a vertex has changed.
+func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Graph's state has changed */ bool /* list of updated vertices */, []string) {
+	diff, updByDiff := make(map[string]bool), make([]string, 0)
+	errList := make([]string, 0)
 	enabledModules := make([]string, 0)
-	s.l.Lock()
-	defer s.l.Unlock()
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+
 	names, err := graph.StableTopologicalSort(s.dag, moduleSortFunc)
 	if err != nil {
-		return diff, err
+		errList = append(errList, err.Error())
+		s.errList = errList
+		return true, updByDiff
 	}
 
+	// create a buffer to store all updates during upcoming run, the updates are applied if there is no errors during the rung
+	vBuf := make(map[string]*vertexState)
+
+outerCycle:
 	for _, name := range names {
 		vertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			return diff, fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
+			errList = append(errList, fmt.Sprintf("couldn't get %s vertex from the graph: %v", name, err))
+			break
 		}
 
 		if props.Attributes["type"] == string(node.ModuleType) {
-			previousState := vertex.GetState()
-			vertex.SetState(false)
-			vertex.SetUpdatedBy("")
+			moduleName := vertex.GetName()
+			vBuf[moduleName] = &vertexState{}
 
 			for _, ex := range s.extenders {
-				// if ex is a shutter and the module is already disabled - there's no sense in running the extender
-				if ex.Name() == script_extender.Name && !vertex.GetState() {
+				// if current extender is a terminating one and by this point the module is already disabled - there's little sense in checking against a terminator
+				if _, ok := ex.(extenders.TerminatingExtender); ok && !vBuf[moduleName].enabled {
 					continue
 				}
 
-				moduleStatus, err := ex.Filter(vertex.GetModule())
+				moduleStatus, err := ex.Filter(moduleName, logLabels)
 				if err != nil {
-					return diff, err
+					errList = append(errList, err.Error())
+					break outerCycle
 				}
 
 				if moduleStatus != nil {
-					if ex.Name() == script_extender.Name {
-						if !*moduleStatus && vertex.GetState() {
-							vertex.SetState(*moduleStatus)
-							vertex.SetUpdatedBy(string(ex.Name()))
-							s.retrospectiveStatus[ex.Name()][vertex.GetName()] = vertex.GetState()
+					// if current extender is a terminating one and it says to disable - stop cycling over remaining extenders and disable the module
+					if _, ok := ex.(extenders.TerminatingExtender); ok {
+						if !*moduleStatus && vBuf[moduleName].enabled {
+							vBuf[moduleName].enabled = *moduleStatus
+							vBuf[moduleName].updatedBy = string(ex.Name())
 						}
 						break
 					}
-
-					vertex.SetState(*moduleStatus)
-					vertex.SetUpdatedBy(string(ex.Name()))
-					s.retrospectiveStatus[ex.Name()][vertex.GetName()] = vertex.GetState()
-				} else {
-					delete(s.retrospectiveStatus[ex.Name()], vertex.GetName())
+					vBuf[moduleName].enabled = *moduleStatus
+					vBuf[moduleName].updatedBy = string(ex.Name())
 				}
 			}
 
-			if previousState != vertex.GetState() {
-				diff[vertex.GetName()] = vertex.GetState()
+			if vBuf[moduleName].enabled != vertex.GetState() {
+				diff[vertex.GetName()] = vBuf[moduleName].enabled
 			}
 
-			if vertex.GetState() {
+			if vBuf[moduleName].updatedBy != vertex.GetUpdatedBy() {
+				updByDiff = append(updByDiff, vertex.GetName())
+			}
+
+			if vBuf[moduleName].enabled {
 				enabledModules = append(enabledModules, name)
 			}
 		}
 	}
 
+	// reset extenders' states if needed (mostly for enabled_script extender)
 	for _, ex := range s.extenders {
 		if re, ok := ex.(extenders.ResettableExtender); ok {
 			re.Reset()
 		}
 	}
 
-	s.enabledModules = &enabledModules
+	if len(errList) > 0 {
+		s.errList = errList
+		logEntry.Warnf("Module Scheduler: Graph converge failed with errors: %s", strings.Join(s.errList, ","))
+		return true, updByDiff
+	}
 
-	s.printGraph()
-	return diff, nil
-}
-
-// DumpExtender returns current state of the extender (its meta), if possible
-func (s *Scheduler) DumpExtender(name extenders.ExtenderName) map[string]bool {
-	for _, ex := range s.extenders {
-		if ex.Name() == name {
-			return ex.Dump()
+	// merge the state diffs
+	for vertexName, newDiffState := range diff {
+		// if a new diff has an opposite state for the module, the module is deleted from the resulting diff
+		if currentDiffState, found := s.diff[vertexName]; found {
+			if currentDiffState != newDiffState {
+				delete(s.diff, vertexName)
+			}
+			// if current diff doesn't have the module's state - add it to the resulting diff
+		} else {
+			s.diff[vertexName] = newDiffState
 		}
 	}
 
-	return nil
+	// commit changes to the graph
+	for vertexName, state := range vBuf {
+		vertex, _, err := s.dag.VertexWithProperties(vertexName)
+		if err != nil {
+			errList = append(errList, fmt.Sprintf("couldn't get %s vertex from the graph: %v", vertexName, err))
+			s.errList = errList
+			return true, updByDiff
+		}
+		vertex.SetState(state.enabled)
+		vertex.SetUpdatedBy(state.updatedBy)
+	}
+
+	s.enabledModules = &enabledModules
+	// reset any previous errors
+	s.errList = make([]string, 0)
+	logEntry.Debugf("Graph was successfully updated, diff: [%v]", s.diff)
+
+	// TODO: provide access to the report via the operator's web server
+	// s.printGraph()
+	return len(diff) > 0, updByDiff
+}
+
+// gleanGraphDiff returns modules diff list
+func (s *Scheduler) gleanGraphDiff() map[string]bool {
+	curDiff := s.diff
+	s.diff = make(map[string]bool)
+	return curDiff
 }

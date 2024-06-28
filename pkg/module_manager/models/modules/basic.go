@@ -379,21 +379,6 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	enabledScriptPath := filepath.Join(bm.Path, "enabled")
-
-	f, err := os.Stat(enabledScriptPath)
-	if os.IsNotExist(err) {
-		logEntry.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", bm.Name)
-		return true, nil
-	} else if err != nil {
-		logEntry.Errorf("Cannot stat enabled script '%s': %s", enabledScriptPath, err)
-		return false, err
-	}
-
-	if !utils_file.IsFileExecutable(f) {
-		logEntry.Errorf("Found non-executable enabled script '%s'", enabledScriptPath)
-		return false, fmt.Errorf("non-executable enable script")
-	}
-
 	configValuesPath, err := bm.prepareConfigValuesJsonFile(tmpDir)
 	if err != nil {
 		logEntry.Errorf("Prepare CONFIG_VALUES_PATH file for '%s': %s", enabledScriptPath, err)
@@ -681,7 +666,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 				)
 			}
 
-			err := bm.dc.KubeConfigManager.DeprecatedSaveConfigValues(bm.Name, configValuesPatchResult.Values)
+			err := bm.dc.KubeConfigManager.SaveConfigValues(bm.Name, configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.GetName(), bm.valuesStorage.GetConfigValues(false).DebugString())
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.GetName(), err)

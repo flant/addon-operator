@@ -2,8 +2,6 @@ package extenders
 
 import (
 	"context"
-
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 )
 
 type ExtenderEvent struct {
@@ -17,16 +15,11 @@ type Extender interface {
 	// Name returns the extender's name
 	Name() ExtenderName
 	// Filter returns the result of applying the extender
-	Filter(module node.ModuleInterface) (*bool, error)
-	// Dump returns the extender's status of all modules
-	Dump() map[string]bool
-
-	// not implemented
-	Order()
+	Filter(moduleName string, logLabels map[string]string) (*bool, error)
 }
 
 type NotificationExtender interface {
-	// SetNotifyChannel set output channel for events, when module state could be changed during the runtime
+	// SetNotifyChannel sets output channel for an extender's events, to notify when module state could be changed during the runtime
 	SetNotifyChannel(context.Context, chan ExtenderEvent)
 }
 
@@ -34,4 +27,12 @@ type NotificationExtender interface {
 type ResettableExtender interface {
 	// Reset resets the extender's cache
 	Reset()
+}
+
+// Type of extenders that can only disable an enabled module if some requirement isn't met.
+// By design, it makes sense to run terminators in the end of filtering because terminators can't be overridden by other extenders.
+// For example, enabled scripts extender.
+type TerminatingExtender interface {
+	// Just a signature to match extenders
+	IsTerminator()
 }
