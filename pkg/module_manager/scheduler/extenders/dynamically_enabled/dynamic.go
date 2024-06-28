@@ -20,7 +20,6 @@ type Extender struct {
 }
 
 type DynamicExtenderEvent struct {
-	DynamicExtenderUpdated bool
 }
 
 func NewExtender() *Extender {
