@@ -127,7 +127,7 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			log.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", moduleDescriptor.module.GetName())
 		}
 
-		if enabled != nil && *enabled {
+		if enabled == nil || (enabled != nil && *enabled) {
 			e.l.Lock()
 			e.enabledModules = append(e.enabledModules, moduleDescriptor.module.GetName())
 			e.l.Unlock()

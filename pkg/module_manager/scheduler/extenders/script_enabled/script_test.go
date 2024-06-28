@@ -85,7 +85,7 @@ func TestExtender(t *testing.T) {
 		}
 	}
 
-	expected := []string{"foo-bar"}
+	expected := []string{"ingress-nginx", "cert-manager", "foo-bar"}
 	assert.Equal(t, expected, e.enabledModules)
 
 	err = os.RemoveAll(tmp)
