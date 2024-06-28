@@ -54,7 +54,6 @@ func (e *Extender) sendNotify() {
 		e.notifyCh <- extenders.ExtenderEvent{
 			ExtenderName: Name,
 			EncapsulatedEvent: DynamicExtenderEvent{
-				DynamicExtenderUpdated: true,
 			},
 		}
 	}
