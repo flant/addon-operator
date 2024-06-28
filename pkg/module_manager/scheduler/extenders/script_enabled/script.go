@@ -118,7 +118,7 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			err = errors.New(moduleDescriptor.stateDescription)
 
 		case nonExecutableScript:
-			enabled = true
+			enabled = nil
 			log.Warnf("Found non-executable enabled script for '%s' module - assuming enabled state", moduleDescriptor.module.GetName())
 
 		case noEnabledScript:
