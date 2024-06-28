@@ -36,16 +36,17 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 		return op.ModuleManager.GetGlobal().GetValuesPatches(), nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/global/snapshots.{format:(json|yaml)}", func(r *http.Request) (interface{}, error) {
-		kubeHookNames := op.ModuleManager.GetGlobalHooksInOrder(types.OnKubernetesEvent)
-		snapshots := make(map[string]interface{})
-		for _, hName := range kubeHookNames {
-			h := op.ModuleManager.GetGlobalHook(hName)
-			snapshots[hName] = h.GetHookController().SnapshotsDump()
-		}
+	dbgSrv.RegisterHandler(http.MethodGet, "/global/snapshots.{format:(json|yaml)}",
+		func(_ *http.Request) (interface{}, error) {
+			kubeHookNames := op.ModuleManager.GetGlobalHooksInOrder(types.OnKubernetesEvent)
+			snapshots := make(map[string]interface{})
+			for _, hName := range kubeHookNames {
+				h := op.ModuleManager.GetGlobalHook(hName)
+				snapshots[hName] = h.GetHookController().SnapshotsDump()
+			}
 
-		return snapshots, nil
-	})
+			return snapshots, nil
+		})
 }
 
 func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
@@ -170,7 +171,12 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 func (op *AddonOperator) RegisterDiscoveryRoute(dbgSrv *debug.Server) {
 	dbgSrv.RegisterHandler(http.MethodGet, "/discovery", func(_ *http.Request) (interface{}, error) {
 		buf := bytes.NewBuffer(nil)
-		walkFn := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		walkFn := func(
+			method string,
+			route string,
+			_ http.Handler,
+			_ ...func(http.Handler) http.Handler,
+		) error {
 			if strings.HasPrefix(route, "/global/") || strings.HasPrefix(route, "/module/") {
 				_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
 				return nil

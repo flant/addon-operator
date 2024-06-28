@@ -47,7 +47,7 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 			"log.configmap.events",
 			fmt.Sprintf("Set to true to log all operations with Configuration manager/%s", reflect.TypeOf(bk)),
 			"false",
-			func(oldValue string, newValue string) error {
+			func(_ string, newValue string) error {
 				val, err := strconv.ParseBool(newValue)
 				if err != nil {
 					return err

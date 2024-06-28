@@ -129,7 +129,7 @@ testModule:
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.name, func(_ *testing.T) {
 			config = nil
 			err = nil
 			config, err = NewModuleConfig("test-module", nil).FromYaml([]byte(test.yaml))
@@ -234,7 +234,7 @@ func Test_GetEnabled(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.name, func(_ *testing.T) {
 			test.fn()
 			actual := config.GetEnabled()
 			g.Expect(actual).To(Equal(test.expected))

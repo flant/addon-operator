@@ -53,16 +53,16 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	g.Expect(rootDir).Should(BeADirectory())
 
 	modulesDir := filepath.Join(rootDir, "modules")
-	if exists, _ := file_utils.DirExists(modulesDir); !exists {
+	if exists := file_utils.DirExists(modulesDir); !exists {
 		modulesDir = ""
 	}
 	globalHooksDir := filepath.Join(rootDir, "global-hooks")
-	if exists, _ := file_utils.DirExists(globalHooksDir); !exists {
+	if exists := file_utils.DirExists(globalHooksDir); !exists {
 		globalHooksDir = ""
 	}
 	if globalHooksDir == "" {
 		globalHooksDir = filepath.Join(rootDir, "global")
-		if exists, _ := file_utils.DirExists(globalHooksDir); !exists {
+		if exists := file_utils.DirExists(globalHooksDir); !exists {
 			globalHooksDir = ""
 		}
 	}
@@ -436,7 +436,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	for i, tsk := range taskHandleHistory {
 		// if i < ignoreTasksCount {
 		//	continue
-		//}
+		// }
 		if tsk.taskType != task.ConvergeModules {
 			continue
 		}

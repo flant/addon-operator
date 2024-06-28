@@ -59,7 +59,7 @@ afterAll: 10
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.name, func(_ *testing.T) {
 			config = &GlobalHookConfig{}
 			err = config.LoadAndValidateShellConfig([]byte(test.data))
 			test.assertion()

@@ -12,7 +12,7 @@ import (
 )
 
 func (op *AddonOperator) registerReadyzRoute() {
-	op.engine.APIServer.RegisterRoute(http.MethodGet, "/readyz", func(w http.ResponseWriter, request *http.Request) {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/readyz", func(w http.ResponseWriter, _ *http.Request) {
 		// check if ha mode is enabled and current instance isn't the leader - return ok so as not to spam with failed readiness probes
 		if op.LeaderElector != nil {
 			if op.LeaderElector.IsLeader() {
@@ -65,7 +65,7 @@ func (op *AddonOperator) registerReadyzRoute() {
 }
 
 func (op *AddonOperator) registerDefaultRoutes() {
-	op.engine.APIServer.RegisterRoute(http.MethodGet, "/", func(writer http.ResponseWriter, request *http.Request) {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/", func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte(fmt.Sprintf(`<html>
     <head><title>Addon-operator</title></head>
     <body>
@@ -82,11 +82,11 @@ func (op *AddonOperator) registerDefaultRoutes() {
     </html>`, app.ListenPort)))
 	})
 
-	op.engine.APIServer.RegisterRoute(http.MethodGet, "/healthz", func(writer http.ResponseWriter, request *http.Request) {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/healthz", func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusOK)
 	})
 
-	op.engine.APIServer.RegisterRoute(http.MethodGet, "/status/converge", func(writer http.ResponseWriter, request *http.Request) {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/status/converge", func(writer http.ResponseWriter, _ *http.Request) {
 		convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
 
 		statusLines := make([]string, 0)

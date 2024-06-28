@@ -337,7 +337,7 @@ func (b Backend) StartInformer(ctx context.Context, eventC chan config.Event) {
 				b.logger.Errorf("Handle ConfigMap/%s 'add' error: %s", b.name, err)
 			}
 		},
-		UpdateFunc: func(prevObj interface{}, obj interface{}) {
+		UpdateFunc: func(_ interface{}, obj interface{}) {
 			b.logConfigMapEvent(ctx, obj, "update")
 			err := b.handleConfigMapEvent(obj.(*v1.ConfigMap), eventC)
 			if err != nil {

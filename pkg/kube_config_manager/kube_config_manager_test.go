@@ -177,7 +177,7 @@ func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
 			},
 			nil,
 			"",
-			func(t *testing.T, global *utils.Values, module *utils.Values) {
+			func(t *testing.T, global *utils.Values, _ *utils.Values) {
 				// Check values in a 'global' key
 				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
 				savedGlobalValues, err := utils.NewGlobalValues(cm.Data["global"])
@@ -201,7 +201,7 @@ func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
 				},
 			},
 			nil, "",
-			func(t *testing.T, global *utils.Values, module *utils.Values) {
+			func(t *testing.T, global *utils.Values, _ *utils.Values) {
 				// Check values in a 'global' key
 				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
 				savedGlobalValues, err := utils.NewGlobalValues(cm.Data["global"])
@@ -220,7 +220,7 @@ func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
 				},
 			},
 			"mymodule",
-			func(t *testing.T, global *utils.Values, module *utils.Values) {
+			func(t *testing.T, _ *utils.Values, _ *utils.Values) {
 				// Check values in a 'global' key
 				assert.Contains(t, cm.Data, "global", "ConfigMap should contain a 'global' key")
 
@@ -248,7 +248,7 @@ func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
 				//	assert.Equal(t, *module, mconf.Values)
 				// } else {
 				//	t.FailNow()
-				//}
+				// }
 			},
 		},
 	}
