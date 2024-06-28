@@ -22,7 +22,12 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-var defaultAppliedExtenders = []extenders.ExtenderName{static_extender.Name, dynamic_extender.Name, kube_config_extender.Name, script_extender.Name}
+var defaultAppliedExtenders = []extenders.ExtenderName{
+  static_extender.Name,
+  dynamic_extender.Name,
+  kube_config_extender.Name,
+  script_extender.Name,
+}
 
 type Scheduler struct {
 	ctx context.Context
