@@ -627,7 +627,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
 		bm.dc.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
-	if err != nil || hookResult == nil {
+	if err != nil {
 		// we have to check if there are some status patches to apply
 		if hookResult != nil && len(hookResult.ObjectPatcherOperations) > 0 {
 			statusPatchesErr := bm.dc.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
