@@ -164,7 +164,7 @@ func (kcm *KubeConfigManager) currentModuleNames() map[string]struct{} {
 	return names
 }
 
-// isGlobalChanged returns true when changes in "global" section requires firing event.
+// isGlobalChanged returns true when changes in "global" section require firing event.
 func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool {
 	if newConfig.Global == nil {
 		// Fire event when global section is deleted: ConfigMap has no global section but global config is cached.

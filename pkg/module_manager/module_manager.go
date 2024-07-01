@@ -172,7 +172,7 @@ func (mm *ModuleManager) GetGlobal() *modules.GlobalModule {
 }
 
 // ApplyNewKubeConfigValues validates and applies new config values with config schemas.
-func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig) error {
+func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig, globalValuesChanged bool) error {
 	if kubeConfig == nil {
 		// have no idea, how it could be, just skip run
 		log.Warnf("No KubeConfig is set")
@@ -193,6 +193,14 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig)
 	}
 
 	mm.SetKubeConfigValuesValid(true)
+
+	newGlobalValues, ok := valuesMap[mm.global.GetName()]
+	if ok {
+		if globalValuesChanged {
+			mm.global.SaveConfigValues(newGlobalValues)
+		}
+		delete(valuesMap, mm.global.GetName())
+	}
 
 	// Detect changed module sections for enabled modules.
 	for moduleName, values := range valuesMap {
@@ -951,7 +959,7 @@ func (mm *ModuleManager) UpdateModuleKubeConfig(moduleName string) error {
 	}
 
 	mm.dependencies.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
-		err = mm.ApplyNewKubeConfigValues(config)
+		err = mm.ApplyNewKubeConfigValues(config, false)
 	})
 	if err != nil {
 		return fmt.Errorf("couldn't reload kube config: %s", err)
@@ -977,6 +985,7 @@ func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, 
 		return err
 	}
 
+	log.Debugf("new static values for %s module: %v", moduleName, basicModule.GetStaticValues())
 	err = currentModule.ApplyNewStaticValues(basicModule.GetStaticValues())
 	if err != nil {
 		return err

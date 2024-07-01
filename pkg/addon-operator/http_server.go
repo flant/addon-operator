@@ -1,10 +1,8 @@
 package addon_operator
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"image/png"
 	"net/http"
 	"strings"
 	"time"
@@ -63,27 +61,6 @@ func (op *AddonOperator) registerReadyzRoute() {
 				_, _ = w.Write([]byte("Startup converge in progress\n"))
 			}
 		}
-	})
-}
-
-func (op *AddonOperator) registerGraphImageRoute() {
-	op.engine.APIServer.RegisterRoute(http.MethodGet, "/graph", func(w http.ResponseWriter, _ *http.Request) {
-		image, err := op.ModuleManager.GetGraphImage()
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("Couldn't get graph image\n"))
-			return
-		}
-		buf := new(bytes.Buffer)
-		if err = png.Encode(buf, image); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("Couldn't encode graph image\n"))
-			return
-		}
-
-		w.Header().Set("Content-Type", "image/png")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(buf.Bytes())
 	})
 }
 

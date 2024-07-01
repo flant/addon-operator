@@ -245,13 +245,13 @@ func (op *AddonOperator) InitModuleManager() error {
 	// to handle the KubeConfigManager content later.
 	if op.InitialKubeConfig == nil {
 		op.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
-			err = op.ModuleManager.ApplyNewKubeConfigValues(config)
+			err = op.ModuleManager.ApplyNewKubeConfigValues(config, true)
 		})
 		if err != nil {
 			return fmt.Errorf("init module manager: load initial config for KubeConfigManager: %s", err)
 		}
 	} else {
-		err = op.ModuleManager.ApplyNewKubeConfigValues(op.InitialKubeConfig)
+		err = op.ModuleManager.ApplyNewKubeConfigValues(op.InitialKubeConfig, true)
 		if err != nil {
 			return fmt.Errorf("init module manager: load overridden initial config: %s", err)
 		}
@@ -614,8 +614,10 @@ func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels m
 	defer trace.StartRegion(context.Background(), "HandleApplyKubeConfigValues").End()
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 
+	hm := task.HookMetadataAccessor(t)
+
 	op.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
-		handleErr = op.ModuleManager.ApplyNewKubeConfigValues(config)
+		handleErr = op.ModuleManager.ApplyNewKubeConfigValues(config, hm.GlobalValuesChanged)
 	})
 
 	if handleErr != nil {
@@ -999,6 +1001,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							kubeConfigTask = converge.NewApplyKubeConfigValuesTask(
 								"Apply-Kube-Config-Values-Changes",
 								logLabels,
+								event.GlobalSectionChanged,
 							)
 
 							op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
