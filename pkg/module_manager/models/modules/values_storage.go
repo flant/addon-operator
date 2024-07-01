@@ -9,9 +9,9 @@ import (
 )
 
 /*
-	Module can contains a few sources of module values:
+	Module can contain a few sources of module values:
 	1. /modules/values.yaml - static (never reload)
-	2. /modules/001-module/values.yaml - static (could be reload on module Dynamic update (deregister + register))
+	2. /modules/001-module/values.yaml - static (could be reloaded on module Dynamic update (deregister + register))
 	3. /modules/001-module/openapi/config-values.yaml - dynamic, default values could be rendered differently
 	4. /modules/001-module/openapi/values.yaml - dynamic, default values
 	5. ConfigValues from KubeConfigManager - dynamic, get from user settings
@@ -31,11 +31,11 @@ type ValuesStorage struct {
 	// because it could be called from concurrent hooks (goroutines) and we will have a deadlock on RW mutex
 	lock sync.Mutex
 
-	// static staticConfigValues from
+	// static staticValues from
 	//   /modules/values.yaml
 	//   /modules/001-module/values.yaml
 	// are set only on module init phase
-	staticConfigValues utils.Values
+	staticValues utils.Values
 	// configValues are user defined values from KubeConfigManager (ConfigMap or ModuleConfig)
 	// without merge with static and openapi values
 	configValues utils.Values
@@ -55,9 +55,9 @@ func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes,
 	}
 
 	vs := &ValuesStorage{
-		staticConfigValues: staticValues,
-		schemaStorage:      schemaStorage,
-		moduleName:         moduleName,
+		staticValues:  staticValues,
+		schemaStorage: schemaStorage,
+		moduleName:    moduleName,
 	}
 	err = vs.calculateResultValues()
 	if err != nil {
@@ -78,7 +78,7 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	merged := mergeLayers(
 		utils.Values{},
 		// Init static values (from modules/values.yaml and modules/XXX/values.yaml)
-		vs.staticConfigValues,
+		vs.staticValues,
 
 		// from openapi config spec
 		vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
@@ -128,14 +128,14 @@ func (vs *ValuesStorage) validateValues(values utils.Values) error {
 func (vs *ValuesStorage) getStaticValues() utils.Values {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
-	return vs.staticConfigValues
+	return vs.staticValues
 }
 
 // applyNewStaticValues sets the module's static values and recalculate the resulting values
 func (vs *ValuesStorage) applyNewStaticValues(values utils.Values) error {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
-	vs.staticConfigValues = values
+	vs.staticValues = values
 	return vs.calculateResultValues()
 }
 
@@ -216,8 +216,6 @@ func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate 
 
 	merged := mergeLayers(
 		utils.Values{},
-		// Init static values
-		vs.staticConfigValues,
 
 		// User configured values (ConfigValues)
 		configV,
@@ -229,7 +227,6 @@ func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate 
 	if validate {
 		mergedWithOpenapiDefault := mergeLayers(
 			utils.Values{},
-			vs.staticConfigValues,
 			vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
 			configV,
 		)

@@ -77,7 +77,7 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 	}, nil
 }
 
-// WithDependencies unject module dependencies
+// WithDependencies inject module dependencies
 func (bm *BasicModule) WithDependencies(dep *hooks.HookExecutionDependencyContainer) {
 	bm.dc = dep
 }
@@ -371,7 +371,7 @@ func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.Bindin
 	return valuesChecksum, newValuesChecksum, nil
 }
 
-// RunEnabledScript executate enabled script
+// RunEnabledScript execute enabled script
 func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules []string, logLabels map[string]string) (bool, error) {
 	// Copy labels and set 'module' label.
 	logLabels = utils.MergeLabels(logLabels)
@@ -761,7 +761,7 @@ func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, value
 	case utils.Values:
 		newValues = v
 	case map[string]interface{}:
-		newValues = utils.Values(v)
+		newValues = v
 	default:
 		return nil, fmt.Errorf("unknown module values type: %T", v)
 	}
@@ -886,17 +886,7 @@ func (bm *BasicModule) Validate() error {
 		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", bm.GetName(), restoredName)
 	}
 
-	// load static config from values.yaml
-	staticValues, err := loadStaticValues(bm.GetName(), bm.GetPath())
-	if err != nil {
-		return fmt.Errorf("load values.yaml failed: %v", err)
-	}
-
-	if staticValues != nil {
-		return fmt.Errorf("please use openapi schema instead of values.yaml")
-	}
-
-	err = bm.ValidateValues()
+	err := bm.ValidateValues()
 	if err != nil {
 		return fmt.Errorf("validate values: %w", err)
 	}
@@ -915,19 +905,6 @@ func (bm *BasicModule) ValidateValues() error {
 
 func (bm *BasicModule) ValidateConfigValues() error {
 	return bm.valuesStorage.validateConfigValues(bm.GetConfigValues(false))
-}
-
-// loadStaticValues loads config for module from values.yaml
-// Module is enabled if values.yaml is not exists.
-func loadStaticValues(moduleName, modulePath string) (utils.Values, error) {
-	valuesYamlPath := filepath.Join(modulePath, utils.ValuesFileName)
-
-	if _, err := os.Stat(valuesYamlPath); os.IsNotExist(err) {
-		log.Debugf("module %s has no static values", moduleName)
-		return nil, nil
-	}
-
-	return utils.LoadValuesFileFromDir(modulePath)
 }
 
 type ModuleRunPhase string
