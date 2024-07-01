@@ -1,16 +1,18 @@
 package scheduler
 
 import (
+	"bufio"
+	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"image"
 	"strings"
 	"sync"
 
 	"github.com/dominikbraun/graph"
 	"github.com/dominikbraun/graph/draw"
+	"github.com/goccy/go-graphviz"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
@@ -35,6 +37,8 @@ type Scheduler struct {
 	// list of extenders to cycle over on a run
 	extenders []extenders.Extender
 	extCh     chan extenders.ExtenderEvent
+	// graph visualization
+	graphImage image.Image
 
 	l sync.Mutex
 	// directed acyclic graph consisting of vertices representing modules and weights
@@ -73,33 +77,34 @@ func (s *Scheduler) EventCh() chan extenders.ExtenderEvent {
 	return s.extCh
 }
 
-// printGraph draws current graph and prints a report containing all the vertices and their current state (enabled/disabled)
-func (s *Scheduler) printGraph() {
-	file, err := os.Create("./external-modules/node.gv")
-	if err != nil {
-		log.Errorf("Couldn't create graph file: %v", err)
-	}
-	defer file.Close()
-
-	err = draw.DOT(s.dag, file)
-	if err != nil {
-		log.Errorf("Couldn't draw graph: %v", err)
+// GetGraphImage draws current graph's image
+func (s *Scheduler) GetGraphImage() (image.Image, error) {
+	if s.graphImage != nil {
+		return s.graphImage, nil
 	}
 
-	report, err := s.PrintSummary()
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+
+	if err := draw.DOT(s.dag, writer, draw.GraphAttribute("label", "Module Scheduler's Graph")); err != nil {
+		return nil, fmt.Errorf("Couldn't write graph file: %v", err)
+	}
+	writer.Flush()
+
+	graph, err := graphviz.ParseBytes(b.Bytes())
 	if err != nil {
-		log.Errorf("Couldn't get the report: %v", err)
+		return nil, fmt.Errorf("Couldn't parse graph file: %v", err)
 	}
 
-	b, err := json.Marshal(report)
-	if err != nil {
-		log.Errorf("Couldn't marshal the report: %v", err)
-	}
+	g := graphviz.New()
 
-	err = os.WriteFile("./external-modules/report", b, 0o644)
+	image, err := g.RenderImage(graph)
 	if err != nil {
-		log.Errorf("Couldn't write the report: %v", err)
+		return nil, fmt.Errorf("Couldn't render graph image: %v", err)
 	}
+	s.graphImage = image
+
+	return image, nil
 }
 
 // AddModuleVertex adds a new vertex of type Module to the graph
@@ -521,8 +526,6 @@ outerCycle:
 	s.errList = make([]string, 0)
 	logEntry.Debugf("Graph was successfully updated, diff: [%v]", s.diff)
 
-	// TODO: provide access to the report via the operator's web server
-	// s.printGraph()
 	return len(diff) > 0, updByDiff
 }
 

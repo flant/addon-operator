@@ -3,6 +3,7 @@ package module_manager
 import (
 	"context"
 	"fmt"
+	"image"
 	"runtime/trace"
 	"strings"
 	"sync"
@@ -391,6 +392,10 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 	return &ModulesState{
 		ModulesToPurge: purge,
 	}
+}
+
+func (mm *ModuleManager) GetGraphImage() (image.Image, error) {
+	return mm.moduleScheduler.GetGraphImage()
 }
 
 // RefreshEnabledState gets current diff of the graph and forms ModuleState

@@ -58,6 +58,8 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
 		return err
 	}
 
+	op.registerGraphImageRoute()
+
 	return nil
 }
 

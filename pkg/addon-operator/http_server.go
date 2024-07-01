@@ -1,8 +1,10 @@
 package addon_operator
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image/png"
 	"net/http"
 	"strings"
 	"time"
@@ -64,6 +66,27 @@ func (op *AddonOperator) registerReadyzRoute() {
 	})
 }
 
+func (op *AddonOperator) registerGraphImageRoute() {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/graph", func(w http.ResponseWriter, _ *http.Request) {
+		image, err := op.ModuleManager.GetGraphImage()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("Couldn't get graph image\n"))
+			return
+		}
+		buf := new(bytes.Buffer)
+		if err = png.Encode(buf, image); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("Couldn't encode graph image\n"))
+			return
+		}
+
+		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(buf.Bytes())
+	})
+}
+
 func (op *AddonOperator) registerDefaultRoutes() {
 	op.engine.APIServer.RegisterRoute(http.MethodGet, "/", func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte(fmt.Sprintf(`<html>
@@ -72,6 +95,7 @@ func (op *AddonOperator) registerDefaultRoutes() {
     <h1>Addon-operator</h1>
     <pre>go tool pprof http://ADDON_OPERATOR_IP:%s/debug/pprof/profile</pre>
     <p>
+      <a href="/graph">graph's pic</a>
       <a href="/discovery">show all possible routes</a>
       <a href="/metrics">prometheus metrics for built-in parameters</a>
       <a href="/metrics/hooks">prometheus metrics for user hooks</a>
