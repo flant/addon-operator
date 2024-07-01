@@ -72,6 +72,54 @@ xxx: yyy
 `, st.GetValues(false).AsString("yaml"))
 }
 
+func TestApplyNewStaticValues(t *testing.T) {
+	cfg := `
+type: object
+default: {}
+additionalProperties: false
+properties:
+  xxx:
+    type: string
+  highAvailability:
+    type: boolean
+`
+
+	vcfg := `
+x-extend:
+  schema: config-values.yaml
+type: object
+default: {}
+properties:
+  internal:
+    type: object
+    default: {}
+    properties:
+      fooBar:
+        type: string
+        default: baz
+`
+	initial := utils.Values{
+		"xxx": "yyy",
+	}
+
+	st, err := NewValuesStorage("global", initial, []byte(cfg), []byte(vcfg))
+	require.NoError(t, err)
+
+	newStatic := utils.Values{
+		"xxx": "zzz",
+	}
+
+	err = st.applyNewStaticValues(newStatic)
+	require.NoError(t, err)
+
+	v := st.GetValues(false)
+	assert.YAMLEq(t, `
+internal:
+    fooBar: baz
+xxx: zzz
+`, v.AsString("yaml"))
+}
+
 func TestPatchValues(t *testing.T) {
 	cb, vb, err := utils.ReadOpenAPIFiles("./testdata/global/openapi")
 	require.NoError(t, err)

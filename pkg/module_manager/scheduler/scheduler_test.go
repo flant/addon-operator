@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dominikbraun/graph"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
 )
 
@@ -173,21 +175,119 @@ certManagerEnabled: true
 }
 
 func TestAddModuleVertex(t *testing.T) {
+	var nodePtr *node.Node
 	s := NewScheduler(context.TODO())
-	basicModule := &node_mock.MockModule{
+	// no root
+	assert.Equal(t, nodePtr, s.root)
+	basicModuleIngress := &node_mock.MockModule{
 		Name:  "ingress-nginx",
 		Order: 402,
 	}
 
-	err := s.AddModuleVertex(basicModule)
+	err := s.AddModuleVertex(basicModuleIngress)
 	assert.NoError(t, err)
 
-	vertex, err := s.dag.Vertex(basicModule.GetName())
+	// new module vertex is in place
+	vertexIngress, err := s.dag.Vertex(basicModuleIngress.GetName())
+	assert.NoError(t, err)
+	assert.Equal(t, false, vertexIngress.GetState())
+
+	weightVertexIngress, err := s.dag.Vertex(vertexIngress.GetWeight().String())
 	assert.NoError(t, err)
 
-	_, err = s.dag.Vertex(vertex.GetWeight().String())
+	assert.Equal(t, weightVertexIngress, s.root)
+
+	_, err = s.dag.Edge(vertexIngress.GetWeight().String(), basicModuleIngress.GetName())
 	assert.NoError(t, err)
-	assert.Equal(t, false, vertex.GetState())
+
+	// new vertex with a lower order number - new root
+	basicModuleAPE := &node_mock.MockModule{
+		Name:  "admission-policy-engine",
+		Order: 42,
+	}
+
+	err = s.AddModuleVertex(basicModuleAPE)
+	assert.NoError(t, err)
+
+	vertexAPE, err := s.dag.Vertex(basicModuleAPE.GetName())
+	assert.NoError(t, err)
+	assert.Equal(t, false, vertexAPE.GetState())
+
+	weightVertexAPE, err := s.dag.Vertex(vertexAPE.GetWeight().String())
+	assert.NoError(t, err)
+	assert.Equal(t, weightVertexAPE, s.root)
+
+	_, err = s.dag.Edge(vertexAPE.GetWeight().String(), basicModuleAPE.GetName())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(vertexAPE.GetWeight().String(), vertexIngress.GetWeight().String())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(vertexIngress.GetWeight().String(), basicModuleIngress.GetName())
+	assert.NoError(t, err)
+
+	// new vertex with a higher order number
+	basicModuleDNS := &node_mock.MockModule{
+		Name:  "node-local-dns",
+		Order: 510,
+	}
+
+	err = s.AddModuleVertex(basicModuleDNS)
+	assert.NoError(t, err)
+
+	vertexDNS, err := s.dag.Vertex(basicModuleDNS.GetName())
+	assert.NoError(t, err)
+
+	weightVertexDNS, err := s.dag.Vertex(vertexDNS.GetWeight().String())
+	assert.NoError(t, err)
+	assert.Equal(t, weightVertexAPE, s.root)
+
+	_, err = s.dag.Edge(vertexIngress.GetWeight().String(), weightVertexDNS.GetWeight().String())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(weightVertexDNS.GetWeight().String(), basicModuleDNS.GetName())
+	assert.NoError(t, err)
+
+	// new vertex with the same order number
+	basicModuleChrony := &node_mock.MockModule{
+		Name:  "chrony",
+		Order: 402,
+	}
+
+	err = s.AddModuleVertex(basicModuleChrony)
+	assert.NoError(t, err)
+
+	_, err = s.dag.Vertex(basicModuleChrony.GetName())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(vertexIngress.GetWeight().String(), basicModuleChrony.GetName())
+	assert.NoError(t, err)
+
+	// new vertex between two existing vertices
+
+	basicModuleFoo := &node_mock.MockModule{
+		Name:  "foo",
+		Order: 300,
+	}
+
+	err = s.AddModuleVertex(basicModuleFoo)
+	assert.NoError(t, err)
+
+	weightVertexFoo, err := s.dag.Vertex(basicModuleFoo.GetName())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(weightVertexFoo.GetWeight().String(), basicModuleFoo.GetName())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(weightVertexAPE.GetWeight().String(), weightVertexFoo.GetWeight().String())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(weightVertexFoo.GetWeight().String(), weightVertexIngress.GetWeight().String())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(weightVertexAPE.GetWeight().String(), weightVertexIngress.GetWeight().String())
+	assert.Error(t, err)
+	assert.Equal(t, graph.ErrEdgeNotFound, err)
 }
 
 func TestRecalculateGraph(t *testing.T) {
