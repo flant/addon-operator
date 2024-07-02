@@ -926,12 +926,6 @@ func (mm *ModuleManager) UpdateModuleLastErrorAndNotify(module *modules.BasicMod
 
 // PushRunModuleTask pushes moduleRun task for a module into the main queue if there is no such a task for the module
 func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bool) error {
-	// update module's kube config
-	err := mm.UpdateModuleKubeConfig(moduleName)
-	if err != nil {
-		return err
-	}
-
 	// check if there is already moduleRun task in the main queue for the module
 	if queueHasPendingModuleRunTaskWithStartup(mm.dependencies.TaskQueues.GetMain(), moduleName) {
 		return nil
@@ -951,30 +945,13 @@ func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bo
 	return nil
 }
 
-// UpdateModuleKubeConfig updates a module's kube config
-func (mm *ModuleManager) UpdateModuleKubeConfig(moduleName string) error {
-	err := mm.dependencies.KubeConfigManager.UpdateModuleConfig(moduleName)
-	if err != nil {
-		return fmt.Errorf("couldn't update module %s kube config: %w", moduleName, err)
-	}
-
-	mm.dependencies.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
-		err = mm.ApplyNewKubeConfigValues(config, false)
-	})
-	if err != nil {
-		return fmt.Errorf("couldn't reload kube config: %s", err)
-	}
-
-	return nil
-}
-
 // AreModulesInited returns true if modulemanager's moduleset has already been initialized
 func (mm *ModuleManager) AreModulesInited() bool {
 	return mm.modules.IsInited()
 }
 
-// RunModuleWithNewStaticValues updates the module's values by rebasing them from static values from modulePath directory and pushes RunModuleTask if the module is enabled
-func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, modulePath string) error {
+// RunModuleWithNewOpenAPISchema updates the module's OpenAPI schema from modulePath directory and pushes RunModuleTask if the module is enabled
+func (mm *ModuleManager) RunModuleWithNewOpenAPISchema(moduleName, moduleSource, modulePath string) error {
 	currentModule := mm.modules.Get(moduleName)
 	if currentModule == nil {
 		return fmt.Errorf("failed to get basic module - not found")
@@ -985,8 +962,7 @@ func (mm *ModuleManager) RunModuleWithNewStaticValues(moduleName, moduleSource, 
 		return err
 	}
 
-	log.Debugf("new static values for %s module: %v", moduleName, basicModule.GetStaticValues())
-	err = currentModule.ApplyNewStaticValues(basicModule.GetStaticValues())
+	err = currentModule.ApplyNewSchemaStorage(basicModule.GetSchemaStorage())
 	if err != nil {
 		return err
 	}

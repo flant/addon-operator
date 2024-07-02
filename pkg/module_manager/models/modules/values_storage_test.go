@@ -8,7 +8,69 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
+
+func TestApplyNewSchemaStorage(t *testing.T) {
+	cfg := `
+type: object
+default: {}
+additionalProperties: false
+properties:
+  xxx:
+    type: string
+  highAvailability:
+    type: boolean
+`
+
+	vcfg := `
+x-extend:
+  schema: config-values.yaml
+type: object
+default: {}
+properties:
+  internal:
+    type: object
+    default: {}
+    properties:
+      fooBar:
+        type: string
+        default: baz
+`
+
+	initial := utils.Values{
+		"xxx": "yyy",
+	}
+
+	valuesStorage, err := NewValuesStorage("global", initial, []byte(cfg), []byte(vcfg))
+	require.NoError(t, err)
+
+	newVcfg := `
+x-extend:
+  schema: config-values.yaml
+type: object
+default: {}
+properties:
+  internal:
+    type: object
+    default: {}
+    properties:
+      fooBar:
+        type: string
+        default: bar
+`
+	schemaStorage, err := validation.NewSchemaStorage([]byte(cfg), []byte(newVcfg))
+	require.NoError(t, err)
+
+	err = valuesStorage.applyNewSchemaStorage(schemaStorage)
+	require.NoError(t, err)
+
+	assert.YAMLEq(t, `
+xxx: yyy
+internal:
+    fooBar: bar
+`, valuesStorage.GetValues(false).AsString("yaml"))
+}
 
 func TestSetConfigValues(t *testing.T) {
 	cfg := `
@@ -70,54 +132,6 @@ modules:
     publicDomainTemplate: '%s.foo.bar'
 xxx: yyy
 `, st.GetValues(false).AsString("yaml"))
-}
-
-func TestApplyNewStaticValues(t *testing.T) {
-	cfg := `
-type: object
-default: {}
-additionalProperties: false
-properties:
-  xxx:
-    type: string
-  highAvailability:
-    type: boolean
-`
-
-	vcfg := `
-x-extend:
-  schema: config-values.yaml
-type: object
-default: {}
-properties:
-  internal:
-    type: object
-    default: {}
-    properties:
-      fooBar:
-        type: string
-        default: baz
-`
-	initial := utils.Values{
-		"xxx": "yyy",
-	}
-
-	st, err := NewValuesStorage("global", initial, []byte(cfg), []byte(vcfg))
-	require.NoError(t, err)
-
-	newStatic := utils.Values{
-		"xxx": "zzz",
-	}
-
-	err = st.applyNewStaticValues(newStatic)
-	require.NoError(t, err)
-
-	v := st.GetValues(false)
-	assert.YAMLEq(t, `
-internal:
-    fooBar: baz
-xxx: zzz
-`, v.AsString("yaml"))
 }
 
 func TestPatchValues(t *testing.T) {

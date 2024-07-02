@@ -72,7 +72,6 @@ func (op *AddonOperator) registerDefaultRoutes() {
     <h1>Addon-operator</h1>
     <pre>go tool pprof http://ADDON_OPERATOR_IP:%s/debug/pprof/profile</pre>
     <p>
-      <a href="/graph">graph's pic</a>
       <a href="/discovery">show all possible routes</a>
       <a href="/metrics">prometheus metrics for built-in parameters</a>
       <a href="/metrics/hooks">prometheus metrics for user hooks</a>
