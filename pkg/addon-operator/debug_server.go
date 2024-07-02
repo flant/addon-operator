@@ -3,6 +3,7 @@ package addon_operator
 import (
 	"bytes"
 	"fmt"
+	"image/png"
 	"net/http"
 	"sort"
 	"strconv"
@@ -47,6 +48,22 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 
 			return snapshots, nil
 		})
+}
+
+func (op *AddonOperator) RegisterDebugGraphRoutes(dbgSrv *debug.Server) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/graph", func(_ *http.Request) (interface{}, error) {
+		image, err := op.ModuleManager.GetGraphImage()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't get graph's image")
+		}
+
+		buf := new(bytes.Buffer)
+		if err = png.Encode(buf, image); err != nil {
+			return nil, fmt.Errorf("couldn't encode graph's image")
+		}
+
+		return buf.String(), nil
+	})
 }
 
 func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {

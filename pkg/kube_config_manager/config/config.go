@@ -50,11 +50,19 @@ func NewConfig() *KubeConfig {
 	}
 }
 
-type KubeConfigEvent string
+type (
+	KubeConfigType  string
+	KubeConfigEvent struct {
+		Type                      KubeConfigType
+		ModuleEnabledStateChanged []string
+		ModuleValuesChanged       []string
+		GlobalSectionChanged      bool
+	}
+)
 
 const (
-	KubeConfigChanged KubeConfigEvent = "Changed"
-	KubeConfigInvalid KubeConfigEvent = "Invalid"
+	KubeConfigChanged KubeConfigType = "Changed"
+	KubeConfigInvalid KubeConfigType = "Invalid"
 )
 
 func ParseGlobalKubeConfigFromValues(values utils.Values) (*GlobalKubeConfig, error) {

@@ -1,8 +1,11 @@
 package addon_operator
 
 import (
+	log "github.com/sirupsen/logrus"
+
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
+	"github.com/flant/addon-operator/pkg/utils"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
@@ -79,11 +82,12 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 // RemoveCurrentConvergeTasks detects if converge tasks present in the main
 // queue after task which ID equals to 'afterID'. These tasks are drained
 // and the method returns true.
-func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
+func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string, logLabels map[string]string) bool {
 	if q == nil {
 		return false
 	}
 
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	IDFound := false
 	convergeDrained := false
 	stop := false
@@ -96,8 +100,9 @@ func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
 			// Also keep specified task.
 			if t.GetId() == afterId {
 				IDFound = true
+			} else {
+				return true
 			}
-			return true
 		}
 
 		// Return false to remove converge task right after the specified task.
@@ -107,10 +112,10 @@ func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
 			if t.GetType() == task.ConvergeModules {
 				stop = true
 			}
+			hm := task.HookMetadataAccessor(t)
+			logEntry.Debugf("Drained converge task of type: %s, module: %s, description: %s", t.GetType(), hm.ModuleName, hm.EventDescription)
 			return false
 		}
-		// Stop filtering when there is non-converge task after specified task.
-		stop = true
 		return true
 	})
 
@@ -119,11 +124,12 @@ func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string) bool {
 
 // RemoveAdjacentConvergeModules removes ConvergeModules tasks right
 // after the task with the specified ID.
-func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string) {
+func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels map[string]string) {
 	if q == nil {
 		return
 	}
 
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	IDFound := false
 	stop := false
 	q.Filter(func(t sh_task.Task) bool {
@@ -139,6 +145,8 @@ func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string) {
 
 		// Remove ConvergeModules after current.
 		if t.GetType() == task.ConvergeModules {
+			hm := task.HookMetadataAccessor(t)
+			logEntry.Debugf("Drained adjacent ConvergeModules task of type: %s, description: %s", t.GetType(), hm.EventDescription)
 			return false
 		}
 

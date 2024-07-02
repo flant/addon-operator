@@ -3,7 +3,6 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
@@ -94,9 +93,10 @@ func (mc *ModuleConfig) GetValues() Values {
 	return mc.values
 }
 
-// DropValues removes values from module config
-func (mc *ModuleConfig) DropValues() {
+// Reset removes values from module config and reset enabled IsEnabled
+func (mc *ModuleConfig) Reset() {
 	mc.values = Values{}
+	mc.IsEnabled = nil
 }
 
 // LoadFromValues loads module config from a map.
@@ -152,11 +152,7 @@ func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
 
 func (mc *ModuleConfig) Checksum() string {
 	vChecksum := mc.values.Checksum()
-	enabled := ""
-	if mc.IsEnabled != nil {
-		enabled = strconv.FormatBool(*mc.IsEnabled)
-	}
-	return utils_checksum.CalculateChecksum(enabled, vChecksum)
+	return utils_checksum.CalculateChecksum(vChecksum)
 }
 
 func ModuleEnabledValue(i interface{}) (*bool, error) {

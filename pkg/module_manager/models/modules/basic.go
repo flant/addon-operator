@@ -126,16 +126,6 @@ func (bm *BasicModule) ResetState() {
 	}
 }
 
-// GetStaticValues returns the module's static values
-func (bm *BasicModule) GetStaticValues() utils.Values {
-	return bm.valuesStorage.getStaticValues()
-}
-
-// ApplyNewStaticValues sets the module's static values and recalculate the resulting values
-func (bm *BasicModule) ApplyNewStaticValues(values utils.Values) error {
-	return bm.valuesStorage.applyNewStaticValues(values)
-}
-
 // RegisterHooks find and registers all module hooks from a filesystem or GoHook Registry
 func (bm *BasicModule) RegisterHooks(logger *log.Entry) ([]*hooks.ModuleHook, error) {
 	if bm.hooks.registered {
@@ -379,21 +369,6 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	enabledScriptPath := filepath.Join(bm.Path, "enabled")
-
-	f, err := os.Stat(enabledScriptPath)
-	if os.IsNotExist(err) {
-		logEntry.Debugf("MODULE '%s' is ENABLED. Enabled script is not exist!", bm.Name)
-		return true, nil
-	} else if err != nil {
-		logEntry.Errorf("Cannot stat enabled script '%s': %s", enabledScriptPath, err)
-		return false, err
-	}
-
-	if !utils_file.IsFileExecutable(f) {
-		logEntry.Errorf("Found non-executable enabled script '%s'", enabledScriptPath)
-		return false, fmt.Errorf("non-executable enable script")
-	}
-
 	configValuesPath, err := bm.prepareConfigValuesJsonFile(tmpDir)
 	if err != nil {
 		logEntry.Errorf("Prepare CONFIG_VALUES_PATH file for '%s': %s", enabledScriptPath, err)
@@ -872,8 +847,14 @@ func (bm *BasicModule) GetValuesStorage() *ValuesStorage {
 	return bm.valuesStorage
 }
 
+// GetSchemaStorage returns current schema storage of the basic module
 func (bm *BasicModule) GetSchemaStorage() *validation.SchemaStorage {
 	return bm.valuesStorage.schemaStorage
+}
+
+// ApplyNewSchemaStorage updates schema storage of the basic module
+func (bm *BasicModule) ApplyNewSchemaStorage(schema *validation.SchemaStorage) error {
+	return bm.valuesStorage.applyNewSchemaStorage(schema)
 }
 
 func (bm *BasicModule) Validate() error {

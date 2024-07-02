@@ -10,6 +10,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
+	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
@@ -92,8 +93,13 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 	mm.global = gm
 	log.Infof(gm.GetSchemaStorage().GlobalSchemasDescription())
 
+	// applies a scheduler extender to follow which modules get enabled/disabled by dynamic patches
+	dynamicExtender := dynamic_extender.NewExtender()
+	if err := mm.moduleScheduler.AddExtender(dynamicExtender); err != nil {
+		return err
+	}
 	// catch dynamin Enabled patches from global hooks
-	go mm.runDynamicEnabledLoop()
+	go mm.runDynamicEnabledLoop(dynamicExtender)
 
 	return mm.registerGlobalHooks(gm)
 }

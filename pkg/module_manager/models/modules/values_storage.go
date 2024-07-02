@@ -124,18 +124,9 @@ func (vs *ValuesStorage) validateValues(values utils.Values) error {
 	return vs.schemaStorage.ValidateValues(valuesModuleName, validatableValues)
 }
 
-// getStaticValues returns current static values of the module
-func (vs *ValuesStorage) getStaticValues() utils.Values {
-	vs.lock.Lock()
-	defer vs.lock.Unlock()
-	return vs.staticValues
-}
-
-// applyNewStaticValues sets the module's static values and recalculate the resulting values
-func (vs *ValuesStorage) applyNewStaticValues(values utils.Values) error {
-	vs.lock.Lock()
-	defer vs.lock.Unlock()
-	vs.staticValues = values
+// applyNewSchemaStorage sets new schema storage
+func (vs *ValuesStorage) applyNewSchemaStorage(schema *validation.SchemaStorage) error {
+	vs.schemaStorage = schema
 	return vs.calculateResultValues()
 }
 

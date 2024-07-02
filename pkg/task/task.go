@@ -23,6 +23,9 @@ const (
 	// ConvergeModules runs beforeAll/run modules/afterAll sequence for all enabled modules.
 	ConvergeModules task.TaskType = "ConvergeModules"
 
+	// ApplyKubeConfigValues validates and updates modules' values
+	ApplyKubeConfigValues task.TaskType = "ApplyKubeConfigValues"
+
 	GlobalHookEnableKubernetesBindings      task.TaskType = "GlobalHookEnableKubernetesBindings"
 	GlobalHookWaitKubernetesSynchronization task.TaskType = "GlobalHookWaitKubernetesSynchronization"
 	GlobalHookEnableScheduleBindings        task.TaskType = "GlobalHookEnableScheduleBindings"

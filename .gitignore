@@ -5,6 +5,10 @@
 *.so
 *.dylib
 
+# Graph images
+*.gv
+*gv.svg
+
 # Test binary, build with `go test -c`
 *.test
 
