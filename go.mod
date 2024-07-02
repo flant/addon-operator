@@ -7,13 +7,14 @@ require (
 	github.com/distribution/distribution/v3 v3.0.0-20221208165359-362910506bc2
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.1.0
-	github.com/flant/shell-operator v1.4.8
+	github.com/flant/shell-operator v0.0.0-20240702154632-ace2b4362e4a
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
 	github.com/go-openapi/swag v0.22.5
 	github.com/go-openapi/validate v0.19.12
+	github.com/goccy/go-graphviz v0.1.3
 	github.com/gofrs/uuid/v5 v5.1.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
