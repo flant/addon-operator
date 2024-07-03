@@ -403,7 +403,7 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 	// Wait for event
 	ev := <-kcm.KubeConfigEventCh()
 
-	g.Expect(ev).To(Equal(config.KubeConfigInvalid), "Invalid name in module section should generate 'invalid' event")
+	g.Expect(ev).To(Equal(config.KubeConfigEvent{Type: config.KubeConfigInvalid}), "Invalid name in module section should generate 'invalid' event")
 
 	// kcm.SafeReadConfig(func(config *KubeConfig) {
 	//	g.Expect(config.IsInvalid).To(Equal(true), "Current config should be invalid")
@@ -427,7 +427,12 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 	// Wait for event
 	ev = <-kcm.KubeConfigEventCh()
 
-	g.Expect(ev).To(Equal(config.KubeConfigChanged), "Valid section patch should generate 'changed' event")
+	g.Expect(ev).To(Equal(config.KubeConfigEvent{
+		Type:                      config.KubeConfigChanged,
+		ModuleEnabledStateChanged: []string{},
+		ModuleValuesChanged:       []string{"valid-module-name"},
+		GlobalSectionChanged:      false,
+	}), "Valid section patch should generate 'changed' event")
 
 	kcm.SafeReadConfig(func(config *config.KubeConfig) {
 		// g.Expect(config.IsInvalid).To(Equal(false), "Current config should be valid")

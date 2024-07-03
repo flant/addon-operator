@@ -72,13 +72,13 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 	}
 }
 
-func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) bool {
+func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) *bool {
 	moduleConfig, found := kcm.currentConfig.Modules[moduleName]
 	if !found {
-		return false
+		return nil
 	}
 
-	return moduleConfig.IsEnabled != nil && *moduleConfig.IsEnabled
+	return moduleConfig.IsEnabled
 }
 
 func (kcm *KubeConfigManager) Init() error {
@@ -164,7 +164,7 @@ func (kcm *KubeConfigManager) currentModuleNames() map[string]struct{} {
 	return names
 }
 
-// isGlobalChanged returns true when changes in "global" section requires firing event.
+// isGlobalChanged returns true when changes in "global" section require firing event.
 func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool {
 	if newConfig.Global == nil {
 		// Fire event when global section is deleted: ConfigMap has no global section but global config is cached.
@@ -205,7 +205,9 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 	if obj.Err != nil {
 		// Do not update caches to detect changes on next update.
-		kcm.configEventCh <- config.KubeConfigInvalid
+		kcm.configEventCh <- config.KubeConfigEvent{
+			Type: config.KubeConfigInvalid,
+		}
 		kcm.logEntry.Errorf("Config/%s invalid: %v", obj.Key, obj.Err)
 		return
 	}
@@ -216,7 +218,9 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		kcm.m.Lock()
 		kcm.currentConfig = config.NewConfig()
 		kcm.m.Unlock()
-		kcm.configEventCh <- config.KubeConfigChanged
+		kcm.configEventCh <- config.KubeConfigEvent{
+			Type: config.KubeConfigChanged,
+		}
 
 	case utils.GlobalValuesKey:
 		// global values
@@ -227,12 +231,16 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		kcm.currentConfig.Global = obj.Config.Global
 		kcm.m.Unlock()
 		if globalChanged {
-			kcm.configEventCh <- config.KubeConfigChanged
+			kcm.configEventCh <- config.KubeConfigEvent{
+				Type:                 config.KubeConfigChanged,
+				GlobalSectionChanged: globalChanged,
+			}
 		}
 
 	default:
 		// some module values
-		modulesChanged := false
+		modulesChanged := []string{}
+		modulesStateChanged := []string{}
 
 		// module update
 		kcm.m.Lock()
@@ -241,35 +249,53 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		moduleCfg := obj.Config.Modules[obj.Key]
 		if obj.Op == config.EventDelete {
 			kcm.logEntry.Infof("Module section deleted: %+v", moduleName)
-			moduleCfg.DropValues()
+			modulesChanged = append(modulesChanged, moduleName)
+			if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
+				modulesStateChanged = append(modulesStateChanged, moduleName)
+			}
+			moduleCfg.Reset()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
-			kcm.configEventCh <- config.KubeConfigChanged
+			kcm.configEventCh <- config.KubeConfigEvent{
+				Type:                      config.KubeConfigChanged,
+				ModuleValuesChanged:       modulesChanged,
+				ModuleEnabledStateChanged: modulesStateChanged,
+			}
 			return
 		}
-		// Module section is changed if new checksum not equal to saved one and not in known checksums.
+		// Module section is changed if a new checksum doesn't equal to saved one and isn't in known checksums, or the module new state doesn't equal to the previous one.
 		if kcm.knownChecksums.HasEqualChecksum(moduleName, moduleCfg.Checksum) {
 			// Remove known checksum, do not fire event on self-update.
 			kcm.knownChecksums.Remove(moduleName, moduleCfg.Checksum)
 		} else {
 			if currModuleCfg, has := kcm.currentConfig.Modules[moduleName]; has {
 				if currModuleCfg.Checksum != moduleCfg.Checksum {
-					modulesChanged = true
-					kcm.logEntry.Infof("Module section '%s' changed. Enabled flag transition: %s--%s",
-						moduleName,
-						kcm.currentConfig.Modules[moduleName].GetEnabled(),
-						moduleCfg.GetEnabled(),
-					)
+					modulesChanged = append(modulesChanged, moduleName)
 				}
+				if kcm.currentConfig.Modules[moduleName].GetEnabled() != moduleCfg.GetEnabled() {
+					modulesStateChanged = append(modulesStateChanged, moduleName)
+				}
+				kcm.logEntry.Infof("Module section '%s' changed. Enabled flag transition: %s--%s",
+					moduleName,
+					kcm.currentConfig.Modules[moduleName].GetEnabled(),
+					moduleCfg.GetEnabled(),
+				)
 			} else {
-				modulesChanged = true
+				modulesChanged = append(modulesChanged, moduleName)
+				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
+					modulesStateChanged = append(modulesStateChanged, moduleName)
+				}
 				kcm.logEntry.Infof("Module section '%s' added. Enabled flag: %s", moduleName, moduleCfg.GetEnabled())
 			}
 		}
 
-		if modulesChanged {
+		if len(modulesChanged)+len(modulesStateChanged) > 0 {
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
-			kcm.configEventCh <- config.KubeConfigChanged
+			kcm.configEventCh <- config.KubeConfigEvent{
+				Type:                      config.KubeConfigChanged,
+				ModuleValuesChanged:       modulesChanged,
+				ModuleEnabledStateChanged: modulesStateChanged,
+			}
 		}
 	}
 }
@@ -277,7 +303,9 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	if obj.Err != nil {
 		// Do not update caches to detect changes on next update.
-		kcm.configEventCh <- config.KubeConfigInvalid
+		kcm.configEventCh <- config.KubeConfigEvent{
+			Type: config.KubeConfigInvalid,
+		}
 		kcm.logEntry.Errorf("Batch Config invalid: %v", obj.Err)
 		return
 	}
@@ -287,7 +315,9 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		kcm.m.Lock()
 		kcm.currentConfig = config.NewConfig()
 		kcm.m.Unlock()
-		kcm.configEventCh <- config.KubeConfigChanged
+		kcm.configEventCh <- config.KubeConfigEvent{
+			Type: config.KubeConfigChanged,
+		}
 	}
 
 	newConfig := obj.Config
@@ -299,28 +329,36 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 
 	// Parse values in module sections, create new ModuleConfigs and checksums map.
 	currentModuleNames := kcm.currentModuleNames()
-	modulesChanged := false
+	modulesChanged := []string{}
+	modulesStateChanged := []string{}
 
 	for moduleName, moduleCfg := range newConfig.Modules {
 		// Remove module name from current names to detect deleted sections.
 		delete(currentModuleNames, moduleName)
 
 		// Module section is changed if new checksum not equal to saved one and not in known checksums.
+		// Module section is changed if a new checksum doesn't equal to saved one and isn't in known checksums, or the module new state doesn't equal to the previous one.
 		if kcm.knownChecksums.HasEqualChecksum(moduleName, moduleCfg.Checksum) {
 			// Remove known checksum, do not fire event on self-update.
 			kcm.knownChecksums.Remove(moduleName, moduleCfg.Checksum)
 		} else {
 			if currModuleCfg, has := kcm.currentConfig.Modules[moduleName]; has {
 				if currModuleCfg.Checksum != moduleCfg.Checksum {
-					modulesChanged = true
-					kcm.logEntry.Infof("Module section '%s' changed. Enabled flag transition: %s--%s",
-						moduleName,
-						kcm.currentConfig.Modules[moduleName].GetEnabled(),
-						moduleCfg.GetEnabled(),
-					)
+					modulesChanged = append(modulesChanged, moduleName)
 				}
+				if kcm.currentConfig.Modules[moduleName].GetEnabled() != moduleCfg.GetEnabled() {
+					modulesStateChanged = append(modulesStateChanged, moduleName)
+				}
+				kcm.logEntry.Infof("Module section '%s' changed. Enabled flag transition: %s--%s",
+					moduleName,
+					kcm.currentConfig.Modules[moduleName].GetEnabled(),
+					moduleCfg.GetEnabled(),
+				)
 			} else {
-				modulesChanged = true
+				modulesChanged = append(modulesChanged, moduleName)
+				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
+					modulesStateChanged = append(modulesStateChanged, moduleName)
+				}
 				kcm.logEntry.Infof("Module section '%s' added. Enabled flag: %s", moduleName, moduleCfg.GetEnabled())
 			}
 		}
@@ -328,7 +366,12 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 
 	// currentModuleNames now contains deleted module sections.
 	if len(currentModuleNames) > 0 {
-		modulesChanged = true
+		for moduleName := range currentModuleNames {
+			modulesChanged = append(modulesChanged, moduleName)
+			if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
+				modulesStateChanged = append(modulesStateChanged, moduleName)
+			}
+		}
 		kcm.logEntry.Infof("Module sections deleted: %+v", currentModuleNames)
 	}
 
@@ -337,8 +380,13 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	kcm.m.Unlock()
 
 	// Fire event if ConfigMap has changes.
-	if globalChanged || modulesChanged {
-		kcm.configEventCh <- config.KubeConfigChanged
+	if globalChanged || len(modulesChanged) > 0 {
+		kcm.configEventCh <- config.KubeConfigEvent{
+			Type:                      config.KubeConfigChanged,
+			GlobalSectionChanged:      globalChanged,
+			ModuleValuesChanged:       modulesChanged,
+			ModuleEnabledStateChanged: modulesStateChanged,
+		}
 	}
 }
 

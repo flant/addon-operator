@@ -62,3 +62,10 @@ func (c *Checksums) Names() map[string]struct{} {
 	}
 	return names
 }
+
+func (c *Checksums) Dump(moduleName string) map[string]struct{} {
+	if checksums, has := c.sums[moduleName]; has {
+		return checksums
+	}
+	return nil
+}

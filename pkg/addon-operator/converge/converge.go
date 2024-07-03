@@ -1,6 +1,7 @@
 package converge
 
 import (
+	"sync"
 	"time"
 
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -9,7 +10,9 @@ import (
 )
 
 type ConvergeState struct {
-	Phase         ConvergePhase
+	PhaseLock sync.RWMutex
+	Phase     ConvergePhase
+
 	FirstRunPhase firstConvergePhase
 	FirstRunDoneC chan struct{}
 	StartedAt     int64
@@ -58,9 +61,7 @@ const (
 	OperatorStartup ConvergeEvent = "OperatorStartup"
 	// GlobalValuesChanged is a converge initiated by changing values in the global hook.
 	GlobalValuesChanged ConvergeEvent = "GlobalValuesChanged"
-	// KubeConfigChanged is a converge started after changing ConfigMap.
-	KubeConfigChanged ConvergeEvent = "KubeConfigChanged"
-	// ReloadAllModules is a converge queued to the
+	// ReloadAllModules is a converge queued to the main queue after the graph's state change
 	ReloadAllModules ConvergeEvent = "ReloadAllModules"
 )
 
@@ -104,5 +105,17 @@ func NewConvergeModulesTask(description string, convergeEvent ConvergeEvent, log
 		}).
 		WithQueuedAt(time.Now())
 	convergeTask.SetProp(ConvergeEventProp, convergeEvent)
+	return convergeTask
+}
+
+func NewApplyKubeConfigValuesTask(description string, logLabels map[string]string, globalValuesChanged bool) sh_task.Task {
+	convergeTask := sh_task.NewTask(task.ApplyKubeConfigValues).
+		WithLogLabels(logLabels).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription:    description,
+			GlobalValuesChanged: globalValuesChanged,
+		}).
+		WithQueuedAt(time.Now())
 	return convergeTask
 }

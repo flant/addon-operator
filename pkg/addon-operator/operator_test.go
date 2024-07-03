@@ -142,6 +142,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	err = op.InitModuleManager()
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should init ModuleManager")
+	_ = op.ModuleManager.RecalculateGraph(map[string]string{})
 
 	return op, result
 }
@@ -360,6 +361,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 
 	// Define task handler to gather task execution history.
 	type taskInfo struct {
+		id               string
 		taskType         sh_task.TaskType
 		bindingType      BindingType
 		moduleName       string
@@ -393,6 +395,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		}
 		historyMu.Lock()
 		taskHandleHistory = append(taskHandleHistory, taskInfo{
+			id:               tsk.GetId(),
 			taskType:         tsk.GetType(),
 			bindingType:      hm.BindingType,
 			moduleName:       hm.ModuleName,
@@ -436,21 +439,20 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	for i, tsk := range taskHandleHistory {
 		// if i < ignoreTasksCount {
 		//	continue
-		// }
-		if tsk.taskType != task.ConvergeModules {
+		//}
+		if tsk.taskType != task.ApplyKubeConfigValues {
 			continue
 		}
-		if tsk.convergeEvent == converge.KubeConfigChanged {
-			g.Expect(len(taskHandleHistory) > i+1).Should(BeTrue(), "history should not ends on KubeConfigChanged")
-			next := taskHandleHistory[i+1]
-			g.Expect(next.convergeEvent).Should(Equal(converge.ReloadAllModules))
-			g.Expect(next.spawnerTaskPhase).Should(Equal(string(converge.StandBy)))
-			hasReloadAllInStandby = true
-			break
-		}
+
+		g.Expect(len(taskHandleHistory) > i+1).Should(BeTrue(), "history should not end on ApplyKubeConfigValues")
+		next := taskHandleHistory[i+1]
+		g.Expect(next.convergeEvent).Should(Equal(converge.ReloadAllModules))
+		g.Expect(next.spawnerTaskPhase).Should(Equal(string(converge.StandBy)))
+		hasReloadAllInStandby = true
+		break
 	}
 
-	g.Expect(hasReloadAllInStandby).To(BeTrue(), "Should have ReloadAllModules right after KubeConfigChanged")
+	g.Expect(hasReloadAllInStandby).To(BeTrue(), "Should have ReloadAllModules right after ApplyKubeConfigValues")
 }
 
 // This test case checks tasks sequence in the 'main' queue after changing
@@ -485,6 +487,8 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		phase := ""
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
+		case task.ApplyKubeConfigValues:
+			phase = string(op.ConvergeState.Phase)
 		case task.ConvergeModules:
 			phase = string(op.ConvergeState.Phase)
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
@@ -541,12 +545,10 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 			if i < ignoreTasksCount {
 				continue
 			}
-			if tsk.taskType != task.ConvergeModules {
-				continue
-			}
-			if tsk.convergeEvent == converge.KubeConfigChanged {
+			if tsk.taskType == task.ApplyKubeConfigValues {
 				return true
 			}
+			continue
 		}
 		return false
 	}, "30s", "200ms").Should(BeTrue(), "Should queue ConvergeModules task after changing global section in ConfigMap")
