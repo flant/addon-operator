@@ -654,14 +654,17 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 	op.ConvergeState.PhaseLock.Lock()
 	defer op.ConvergeState.PhaseLock.Unlock()
 	if op.ConvergeState.Phase == converge.StandBy {
+		log.Infof("Started in StandBy %s", time.Now().String())
 		logEntry.Debugf("ConvergeModules: start")
 
 		// Deduplicate tasks: remove ConvergeModules tasks right after the current task.
 		RemoveAdjacentConvergeModules(op.engine.TaskQueues.GetByName(t.GetQueueName()), t.GetId(), logLabels)
 		op.ConvergeState.Phase = converge.RunBeforeAll
+		log.Infof("Finished in StandBy %s", time.Now().String())
 	}
 
 	if op.ConvergeState.Phase == converge.RunBeforeAll {
+		log.Infof("Started in RunBeforeAll %s", time.Now().String())
 		// Put BeforeAll tasks before current task.
 		tasks := op.CreateBeforeAllTasks(t.GetLogLabels(), hm.EventDescription)
 		op.ConvergeState.Phase = converge.WaitBeforeAll
@@ -671,13 +674,16 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			op.logTaskAdd(logEntry, "head", res.HeadTasks...)
 			return
 		}
+		log.Infof("Finished in RunBeforeAll %s", time.Now().String())
 	}
 
 	if op.ConvergeState.Phase == converge.WaitBeforeAll {
+		log.Infof("Started in WaitBeforeAll %s", time.Now().String())
 		logEntry.Infof("ConvergeModules: beforeAll hooks done, run modules")
 		var state *module_manager.ModulesState
 
 		state, handleErr = op.ModuleManager.RefreshEnabledState(t.GetLogLabels())
+		log.Infof("Finished RefhreshEnabledState %s", time.Now().String())
 		if handleErr == nil {
 			// TODO disable hooks before was done in DiscoverModulesStateRefresh. Should we stick to this solution or disable events later during the handling each ModuleDelete task?
 			// Disable events for disabled modules.
@@ -685,11 +691,13 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 				op.ModuleManager.DisableModuleHooks(moduleName)
 				// op.DrainModuleQueues(moduleName)
 			}
+			log.Infof("Finished Disabling Hooks %s", time.Now().String())
 			// Set ModulesToEnable list to properly run onStartup hooks for first converge.
 			if !op.IsStartupConvergeDone() {
 				state.ModulesToEnable = state.AllEnabledModules
 			}
 			tasks := op.CreateConvergeModulesTasks(state, t.GetLogLabels(), string(taskEvent))
+			log.Infof("Finished Creating Converge Task %s", time.Now().String())
 
 			op.ConvergeState.Phase = converge.WaitDeleteAndRunModules
 			if len(tasks) > 0 {
@@ -699,9 +707,11 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 				return
 			}
 		}
+		log.Infof("Finished in WaitBeforeAll %s", time.Now().String())
 	}
 
 	if op.ConvergeState.Phase == converge.WaitDeleteAndRunModules {
+		log.Infof("Started in WaitDeleteAndRunModules %s", time.Now().String())
 		logEntry.Infof("ConvergeModules: ModuleRun tasks done, execute AfterAll global hooks")
 		// Put AfterAll tasks before current task.
 		tasks, handleErr := op.CreateAfterAllTasks(t.GetLogLabels(), hm.EventDescription)
@@ -714,6 +724,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 				return
 			}
 		}
+		log.Infof("Finished in WaitDeleteAndRunModules %s", time.Now().String())
 	}
 
 	// It is the last phase of ConvergeModules task, reset operator's Converge phase.
@@ -941,6 +952,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				switch event := schedulerEvent.EncapsulatedEvent.(type) {
 				// dynamically_enabled_extender
 				case dynamic_extender.DynamicExtenderEvent:
+					log.Infof("Started in Dynamic Extender %s", time.Now().String())
 					logLabels := map[string]string{
 						"event.id": uuid.Must(uuid.NewV4()).String(),
 						"type":     "ModuleScheduler event",
@@ -971,9 +983,11 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						op.ConvergeState.Phase = converge.StandBy
 						op.ConvergeState.PhaseLock.Unlock()
 					}
+					log.Infof("Finished in Dynamic Extender %s", time.Now().String())
 
 				// kube_config_extender
 				case config.KubeConfigEvent:
+					log.Infof("Started in Kube Extender %s", time.Now().String())
 					logLabels := map[string]string{
 						"event.id": uuid.Must(uuid.NewV4()).String(),
 						"type":     "ModuleScheduler event",
@@ -1060,6 +1074,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								}
 							}
 						}
+						log.Infof("Finished in Kube Extender %s", time.Now().String())
 					}
 				// TODO: some other extenders' events
 				default:
@@ -2067,6 +2082,7 @@ func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabel
 
 // CreateConvergeModulesTasks creates ModuleRun/ModuleDelete tasks based on moduleManager state.
 func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.ModulesState, logLabels map[string]string, eventDescription string) []sh_task.Task {
+	log.Infof("Started creating converge modules tasks %s", time.Now().String())
 	newTasks := make([]sh_task.Task, 0, len(state.ModulesToDisable)+len(state.AllEnabledModules))
 	queuedAt := time.Now()
 
@@ -2090,6 +2106,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 			})
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}
+	log.Infof("Finished appending Module to Disable tasks %s", time.Now().String())
 
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
@@ -2098,7 +2115,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 			ModuleName: moduleName,
 			EventType:  events.ModuleEnabled,
 		}
-		op.ModuleManager.SendModuleEvent(ev)
+		go op.ModuleManager.SendModuleEvent(ev)
 		newLogLabels := utils.MergeLabels(logLabels)
 		newLogLabels["module"] = moduleName
 		delete(newLogLabels, "task.id")
@@ -2122,6 +2139,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}
 
+	log.Infof("Finished creating converge modules tasks %s", time.Now().String())
 	return newTasks
 }
 
