@@ -957,11 +957,13 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							logLabels,
 						)
 						firstTask := op.engine.TaskQueues.GetMain().GetFirst()
-						if firstTask != nil && RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), firstTask.GetId(), logLabels) {
+						// if converge has already begun - restart it immediately
+						if firstTask != nil && RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), firstTask.GetId(), logLabels) && op.ConvergeState.Phase != converge.StandBy {
 							logEntry.Infof("ConvergeModules: global hook dynamic modification detected, restart current converge process (%s)", op.ConvergeState.Phase)
 							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
 							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
 						} else {
+							// if convege hasn't started - make way for global hooks and etc
 							logEntry.Infof("ConvergeModules:  global hook dynamic modification detected, rerun all modules required")
 							op.engine.TaskQueues.GetMain().AddLast(convergeTask)
 						}
