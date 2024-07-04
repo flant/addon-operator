@@ -8,14 +8,15 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.1.0
-	github.com/flant/shell-operator v1.4.8
-	github.com/go-chi/chi/v5 v5.0.12
+	github.com/flant/shell-operator v1.4.9
+	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
 	github.com/go-openapi/swag v0.22.5
 	github.com/go-openapi/validate v0.19.12
-	github.com/gofrs/uuid/v5 v5.1.0
+	github.com/goccy/go-graphviz v0.1.3
+	github.com/gofrs/uuid/v5 v5.2.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/gomega v1.33.1
@@ -79,7 +80,6 @@ require (
 	github.com/go-openapi/runtime v0.19.16 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
-	github.com/goccy/go-graphviz v0.1.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
