@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
 )
 
@@ -78,7 +79,7 @@ func TestExtender(t *testing.T) {
 			assert.Equal(t, nil, err)
 		case "node-local-dns":
 			assert.Equal(t, false, *enabled)
-			assert.Equal(t, errors.New("Failed to execute 'node-local-dns' module's enabled script: Exit code 1"), err)
+			assert.Equal(t, &exerror.PermanentError{Err: errors.New("failed to execute 'node-local-dns' module's enabled script: Exit code 1")}, err)
 		case "admission-policy-engine", "chrony":
 			assert.Equal(t, false, *enabled)
 			assert.Equal(t, nil, err)

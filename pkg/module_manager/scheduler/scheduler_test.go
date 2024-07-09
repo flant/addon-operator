@@ -709,7 +709,7 @@ l2LoadBalancerEnabled: false
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
 	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
-	assert.Equal(t, []string{"Failed to execute 'ingress-nginx' module's enabled script: Exit code not 0"}, s.errList)
+	assert.Equal(t, []string{"failed to execute 'ingress-nginx' module's enabled script: Exit code not 0"}, s.errList)
 
 	err = os.RemoveAll(tmp)
 	assert.NoError(t, err)
