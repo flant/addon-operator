@@ -70,14 +70,18 @@ func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 	return e, nil
 }
 
-func (e Extender) Name() extenders.ExtenderName {
+func (e *Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e Extender) Filter(moduleName string, _ map[string]string) (*bool, error) {
+func (e *Extender) Filter(moduleName string, _ map[string]string) (*bool, error) {
 	if val, found := e.modulesStatus[moduleName]; found {
 		return &val, nil
 	}
 
 	return nil, nil
+}
+
+func (e *Extender) IsTerminator() bool {
+	return true
 }

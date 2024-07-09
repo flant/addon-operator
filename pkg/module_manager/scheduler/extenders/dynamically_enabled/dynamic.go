@@ -72,6 +72,10 @@ func (e *Extender) Filter(moduleName string, _ map[string]string) (*bool, error)
 	return nil, nil
 }
 
+func (e *Extender) IsTerminator() bool {
+	return false
+}
+
 func (e *Extender) SetNotifyChannel(_ context.Context, ch chan extenders.ExtenderEvent) {
 	e.notifyCh = ch
 }

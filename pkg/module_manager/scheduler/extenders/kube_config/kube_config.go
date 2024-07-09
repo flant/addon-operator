@@ -29,12 +29,16 @@ func NewExtender(kcm kubeConfigManager) *Extender {
 	return e
 }
 
-func (e Extender) Name() extenders.ExtenderName {
+func (e *Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e Extender) Filter(moduleName string, _ map[string]string) (*bool, error) {
+func (e *Extender) Filter(moduleName string, _ map[string]string) (*bool, error) {
 	return e.kubeConfigManager.IsModuleEnabled(moduleName), nil
+}
+
+func (e *Extender) IsTerminator() bool {
+	return false
 }
 
 func (e *Extender) sendNotify(kubeConfigEvent config.KubeConfigEvent) {

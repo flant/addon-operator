@@ -11,6 +11,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
+	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/utils"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
@@ -88,10 +89,6 @@ func (e *Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e *Extender) IsShutter() bool {
-	return true
-}
-
 func (e *Extender) Reset() {
 	e.l.Lock()
 	e.enabledModules = make([]string, 0)
@@ -111,7 +108,7 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			})
 			isEnabled, err = moduleDescriptor.module.RunEnabledScript(e.tmpDir, e.enabledModules, refreshLogLabels)
 			if err != nil {
-				err = fmt.Errorf("Failed to execute '%s' module's enabled script: %v", moduleDescriptor.module.GetName(), err)
+				err = fmt.Errorf("failed to execute '%s' module's enabled script: %v", moduleDescriptor.module.GetName(), err)
 			}
 			enabled = &isEnabled
 
@@ -132,10 +129,11 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			e.enabledModules = append(e.enabledModules, moduleDescriptor.module.GetName())
 			e.l.Unlock()
 		}
-		return enabled, err
+		return enabled, exerror.Permanent(err)
 	}
 	return nil, nil
 }
 
-func (e *Extender) IsTerminator() {
+func (e *Extender) IsTerminator() bool {
+	return true
 }
