@@ -17,6 +17,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
+	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
@@ -445,19 +446,21 @@ outerCycle:
 
 			for _, ex := range s.extenders {
 				// if current extender is a terminating one and by this point the module is already disabled - there's little sense in checking against a terminator
-				if _, ok := ex.(extenders.TerminatingExtender); ok && !vBuf[moduleName].enabled {
+				if ok := ex.IsTerminator(); ok && !vBuf[moduleName].enabled {
 					continue
 				}
 
 				moduleStatus, err := ex.Filter(moduleName, logLabels)
 				if err != nil {
-					errList = append(errList, err.Error())
-					break outerCycle
+					if permanent, ok := err.(*exerror.PermanentError); ok {
+						errList = append(errList, permanent.Error())
+						break outerCycle
+					}
 				}
 
 				if moduleStatus != nil {
 					// if current extender is a terminating one and it says to disable - stop cycling over remaining extenders and disable the module
-					if _, ok := ex.(extenders.TerminatingExtender); ok {
+					if ok := ex.IsTerminator(); ok {
 						if !*moduleStatus && vBuf[moduleName].enabled {
 							vBuf[moduleName].enabled = *moduleStatus
 							vBuf[moduleName].updatedBy = string(ex.Name())
