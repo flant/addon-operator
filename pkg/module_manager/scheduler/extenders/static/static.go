@@ -83,5 +83,5 @@ func (e *Extender) Filter(moduleName string, _ map[string]string) (*bool, error)
 }
 
 func (e *Extender) IsTerminator() bool {
-	return true
+	return false
 }

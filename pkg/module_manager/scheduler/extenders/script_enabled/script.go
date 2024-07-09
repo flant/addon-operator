@@ -129,7 +129,10 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			e.enabledModules = append(e.enabledModules, moduleDescriptor.module.GetName())
 			e.l.Unlock()
 		}
-		return enabled, exerror.Permanent(err)
+		if err != nil {
+			return enabled, exerror.Permanent(err)
+		}
+		return enabled, nil
 	}
 	return nil, nil
 }
