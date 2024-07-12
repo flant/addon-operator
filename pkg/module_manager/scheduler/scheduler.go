@@ -32,11 +32,16 @@ var defaultAppliedExtenders = []extenders.ExtenderName{
 	script_extender.Name,
 }
 
+type extenderContainer struct {
+	ext         extenders.Extender
+	filterAhead bool
+}
+
 type Scheduler struct {
 	ctx context.Context
 
 	// list of extenders to cycle over on a run
-	extenders []extenders.Extender
+	extenders []extenderContainer
 	extCh     chan extenders.ExtenderEvent
 	// graph visualization
 	graphImage image.Image
@@ -66,7 +71,7 @@ func NewScheduler(ctx context.Context) *Scheduler {
 	}
 	return &Scheduler{
 		ctx:       ctx,
-		extenders: make([]extenders.Extender, 0),
+		extenders: make([]extenderContainer, 0),
 		extCh:     make(chan extenders.ExtenderEvent, 1),
 		dag:       graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
 		diff:      make(map[string]bool),
@@ -222,8 +227,8 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 		appliedExtenders = defaultAppliedExtenders
 	} else {
 		availableExtenders := make(map[extenders.ExtenderName]bool, len(s.extenders))
-		for _, ext := range s.extenders {
-			availableExtenders[ext.Name()] = true
+		for _, e := range s.extenders {
+			availableExtenders[e.ext.Name()] = true
 		}
 
 		extendersFromEnv := strings.Split(extendersEnv, ",")
@@ -246,12 +251,12 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 		}
 	}
 
-	newExtenders := []extenders.Extender{}
+	newExtenders := []extenderContainer{}
 	for _, appliedExt := range appliedExtenders {
-		for _, ext := range s.extenders {
-			if ext.Name() == appliedExt {
-				newExtenders = append(newExtenders, ext)
-				if ne, ok := ext.(extenders.NotificationExtender); ok {
+		for _, e := range s.extenders {
+			if e.ext.Name() == appliedExt {
+				newExtenders = append(newExtenders, e)
+				if ne, ok := e.ext.(extenders.NotificationExtender); ok {
 					ne.SetNotifyChannel(s.ctx, s.extCh)
 				}
 				break
@@ -261,24 +266,38 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 
 	s.extenders = newExtenders
 
+	// set some extenders' meta
+	s.setExtendersMeta()
+
 	finalList := []extenders.ExtenderName{}
-	for _, ext := range s.extenders {
-		finalList = append(finalList, ext.Name())
+	for _, e := range s.extenders {
+		finalList = append(finalList, e.ext.Name())
 	}
 
-	log.Infof("The list of applied module extenders: [%s]", finalList)
+	log.Infof("The list of applied module extenders: %s", finalList)
 	return nil
+}
+
+// setExtendersMeta and some extra meta to the extenders that lets terminators know if there are any filtering extenders left in the list
+func (s *Scheduler) setExtendersMeta() {
+	var filterAhead bool
+	for i := len(s.extenders) - 1; i >= 0; i-- {
+		s.extenders[i].filterAhead = filterAhead
+		if !filterAhead && !s.extenders[i].ext.IsTerminator() {
+			filterAhead = true
+		}
+	}
 }
 
 // AddExtender adds a new extender to the slice of the extenders that are used to determine modules' states
 func (s *Scheduler) AddExtender(ext extenders.Extender) error {
-	for _, ex := range s.extenders {
-		if ex.Name() == ext.Name() {
+	for _, e := range s.extenders {
+		if e.ext.Name() == ext.Name() {
 			return fmt.Errorf("extender %s already added", ext.Name())
 		}
 	}
 
-	s.extenders = append(s.extenders, ext)
+	s.extenders = append(s.extenders, extenderContainer{ext: ext})
 	return nil
 }
 
@@ -403,9 +422,9 @@ func (s *Scheduler) RecalculateGraph(logLabels map[string]string) (bool, []strin
 
 // Filter returns filtering result for the specified extender and module
 func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, logLabels map[string]string) (*bool, error) {
-	for _, ex := range s.extenders {
-		if ex.Name() == extName {
-			return ex.Filter(moduleName, logLabels)
+	for _, e := range s.extenders {
+		if e.ext.Name() == extName {
+			return e.ext.Filter(moduleName, logLabels)
 		}
 	}
 	return nil, fmt.Errorf("extender %s not found", extName)
@@ -424,7 +443,7 @@ func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Grap
 
 	names, err := graph.StableTopologicalSort(s.dag, moduleSortFunc)
 	if err != nil {
-		errList = append(errList, err.Error())
+		errList = append(errList, fmt.Sprintf("couldn't perform stable topological sort: %s", err.Error()))
 		s.errList = errList
 		return true, updByDiff
 	}
@@ -444,31 +463,40 @@ outerCycle:
 			moduleName := vertex.GetName()
 			vBuf[moduleName] = &vertexState{}
 
-			for _, ex := range s.extenders {
-				// if current extender is a terminating one and by this point the module is already disabled - there's little sense in checking against a terminator
-				if ok := ex.IsTerminator(); ok && !vBuf[moduleName].enabled {
-					continue
+			for _, e := range s.extenders {
+				// if current extender is a terminating one and by this point the module is already disabled - there's little sense in checking against all other terminators
+				if e.ext.IsTerminator() && !vBuf[moduleName].enabled && !e.filterAhead {
+					break
 				}
 
-				moduleStatus, err := ex.Filter(moduleName, logLabels)
+				moduleStatus, err := e.ext.Filter(moduleName, logLabels)
 				if err != nil {
 					if permanent, ok := err.(*exerror.PermanentError); ok {
-						errList = append(errList, permanent.Error())
+						errList = append(errList, fmt.Sprintf("%s extender failed to filter %s module: %s", e.ext.Name(), moduleName, permanent.Error()))
 						break outerCycle
 					}
 				}
 
 				if moduleStatus != nil {
 					// if current extender is a terminating one and it says to disable - stop cycling over remaining extenders and disable the module
-					if ok := ex.IsTerminator(); ok {
-						if !*moduleStatus && vBuf[moduleName].enabled {
-							vBuf[moduleName].enabled = *moduleStatus
-							vBuf[moduleName].updatedBy = string(ex.Name())
+					if e.ext.IsTerminator() {
+						// if disabled - terminate filtering
+						if !*moduleStatus {
+							if vBuf[moduleName].enabled || e.filterAhead {
+								vBuf[moduleName].enabled = *moduleStatus
+								vBuf[moduleName].updatedBy = string(e.ext.Name())
+							}
+							break
+						}
+
+						// if enabled and there are some other filtering extenders ahead - continue filtering
+						if e.filterAhead {
+							continue
 						}
 						break
 					}
 					vBuf[moduleName].enabled = *moduleStatus
-					vBuf[moduleName].updatedBy = string(ex.Name())
+					vBuf[moduleName].updatedBy = string(e.ext.Name())
 				}
 			}
 
@@ -487,8 +515,8 @@ outerCycle:
 	}
 
 	// reset extenders' states if needed (mostly for enabled_script extender)
-	for _, ex := range s.extenders {
-		if re, ok := ex.(extenders.ResettableExtender); ok {
+	for _, e := range s.extenders {
+		if re, ok := e.ext.(extenders.ResettableExtender); ok {
 			re.Reset()
 		}
 	}

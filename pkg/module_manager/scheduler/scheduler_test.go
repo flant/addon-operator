@@ -14,6 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
+	extender_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/mock"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
@@ -101,6 +102,49 @@ nodeLocalDnsEnabled: false
 	filter, err = s.Filter(dynamically_enabled.Name, "node-local-dns", logLabels)
 	assert.Error(t, err)
 	assert.Equal(t, eNil, filter)
+
+	// finalize
+	err = os.RemoveAll(tmp)
+	assert.NoError(t, err)
+}
+
+func TestApplyExtenders(t *testing.T) {
+	values := `
+# CE Bundle "Default"
+nodeLocalDnsEnabled: true
+`
+	tmp, err := os.MkdirTemp(t.TempDir(), "ApplyExtenders")
+	require.NoError(t, err)
+
+	s := NewScheduler(context.TODO())
+
+	valuesFile := filepath.Join(tmp, "values.yaml")
+	err = os.WriteFile(valuesFile, []byte(values), 0o644)
+	require.NoError(t, err)
+
+	se, err := static.NewExtender(tmp)
+	assert.NoError(t, err)
+
+	err = s.AddExtender(se)
+	assert.NoError(t, err)
+
+	err = s.ApplyExtenders("A,Static")
+	assert.Equal(t, errors.New("couldn't find A extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("A,B,Static")
+	assert.Equal(t, errors.New("couldn't find A extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("A,B")
+	assert.Equal(t, errors.New("couldn't find A extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("A,Static,B")
+	assert.Equal(t, errors.New("couldn't find A extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("Static,B,A")
+	assert.Equal(t, errors.New("couldn't find B extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("Static")
+	assert.NoError(t, err)
 
 	// finalize
 	err = os.RemoveAll(tmp)
@@ -290,6 +334,225 @@ func TestAddModuleVertex(t *testing.T) {
 	assert.Equal(t, graph.ErrEdgeNotFound, err)
 }
 
+func TestSetExtendersMeta(t *testing.T) {
+	s := NewScheduler(context.TODO())
+
+	err := s.AddExtender(&extender_mock.FilterOne{})
+	assert.NoError(t, err)
+	err = s.AddExtender(&extender_mock.FilterTwo{})
+	assert.NoError(t, err)
+	err = s.AddExtender(&extender_mock.FilterThree{})
+	assert.NoError(t, err)
+	err = s.AddExtender(&extender_mock.TerminatorOne{})
+	assert.NoError(t, err)
+	err = s.AddExtender(&extender_mock.TerminatorTwo{})
+	assert.NoError(t, err)
+	err = s.ApplyExtenders("FilterOne,FilterTwo,FilterThree,TerminatorOne,TerminatorTwo")
+	assert.NoError(t, err)
+
+	expected := []bool{
+		true,
+		true,
+		false,
+		false,
+		false,
+	}
+
+	for i, e := range s.extenders {
+		if expected[i] != e.filterAhead {
+			t.Errorf("extender's %s filterAhead value %v not equal to expected %v", e.ext.Name(), e.filterAhead, expected[i])
+		}
+	}
+
+	err = s.ApplyExtenders("TerminatorOne,TerminatorTwo,FilterOne,FilterTwo,FilterThree")
+	assert.NoError(t, err)
+
+	expected = []bool{
+		true,
+		true,
+		true,
+		true,
+		false,
+	}
+
+	for i, e := range s.extenders {
+		if expected[i] != e.filterAhead {
+			t.Errorf("extender's %s filterAhead value %v not equal to expected %v", e.ext.Name(), e.filterAhead, expected[i])
+		}
+	}
+
+	err = s.AddExtender(&extender_mock.TerminatorThree{})
+	assert.NoError(t, err)
+	err = s.ApplyExtenders("TerminatorOne,FilterOne,TerminatorTwo,FilterTwo,FilterThree,TerminatorThree")
+	assert.NoError(t, err)
+
+	expected = []bool{
+		true,
+		true,
+		true,
+		true,
+		false,
+		false,
+	}
+
+	for i, e := range s.extenders {
+		if expected[i] != e.filterAhead {
+			t.Errorf("extender's %s filterAhead value %v not equal to expected %v", e.ext.Name(), e.filterAhead, expected[i])
+		}
+	}
+}
+
+func TestExtendersOrder(t *testing.T) {
+	values := `
+admissionPolicyEngineEnabled: true
+kubeDnsEnabled: false
+`
+	logLabels := map[string]string{"source": "TestExtendersOrder"}
+	basicModules := []*node_mock.MockModule{
+		{
+			Name:                "admission-policy-engine",
+			Order:               15,
+			EnabledScriptResult: true,
+			Path:                "./testdata/015-admission-policy-engine/",
+		},
+		{
+			Name:                "kube-dns",
+			Order:               42,
+			EnabledScriptResult: false,
+		},
+		{
+			Name:                "ingress-nginx",
+			Order:               420,
+			EnabledScriptResult: true,
+		},
+	}
+	s := NewScheduler(context.TODO())
+	for _, m := range basicModules {
+		err := s.AddModuleVertex(m)
+		assert.NoError(t, err)
+	}
+
+	tmp, err := os.MkdirTemp(t.TempDir(), "values-test")
+	require.NoError(t, err)
+	valuesFile := filepath.Join(tmp, "values.yaml")
+	err = os.WriteFile(valuesFile, []byte(values), 0o644)
+	require.NoError(t, err)
+
+	se, err := static.NewExtender(tmp)
+	assert.NoError(t, err)
+
+	err = s.AddExtender(se)
+	assert.NoError(t, err)
+
+	require.NoError(t, err)
+
+	scripte, err := script_enabled.NewExtender(tmp)
+	assert.NoError(t, err)
+	err = s.AddExtender(scripte)
+	assert.NoError(t, err)
+
+	for _, v := range basicModules {
+		scripte.AddBasicModule(v)
+	}
+
+	// terminator goes last
+	err = s.ApplyExtenders("Static,ScriptEnabled")
+	assert.NoError(t, err)
+
+	updated, verticesToUpdate := s.RecalculateGraph(logLabels)
+	assert.Equal(t, true, updated)
+
+	_, diff, err := s.GetGraphState(logLabels)
+	assert.NoError(t, err)
+
+	expectedSummary := map[string]bool{
+		"admission-policy-engine/Static": true,
+		"kube-dns/Static":                false,
+		"ingress-nginx/":                 false,
+	}
+
+	expectedDiff := map[string]bool{
+		"admission-policy-engine": true,
+	}
+
+	expectedVerticesToUpdate := []string{
+		"admission-policy-engine",
+		"kube-dns",
+	}
+
+	summary, err := s.PrintSummary()
+	assert.NoError(t, err)
+
+	assert.Equal(t, expectedSummary, summary)
+	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
+
+	// revert extenders order
+	err = s.ApplyExtenders("ScriptEnabled,Static")
+	assert.NoError(t, err)
+
+	expectedSummary = map[string]bool{
+		"admission-policy-engine/Static": true,
+		"kube-dns/Static":                false,
+		"ingress-nginx/":                 false,
+	}
+
+	expectedDiff = map[string]bool{}
+
+	expectedVerticesToUpdate = []string{}
+
+	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
+	assert.Equal(t, false, updated)
+
+	_, diff, err = s.GetGraphState(logLabels)
+	assert.NoError(t, err)
+
+	summary, err = s.PrintSummary()
+	assert.NoError(t, err)
+
+	assert.Equal(t, expectedSummary, summary)
+	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
+
+	// update script_enabled extender so that the module is disabled
+	basicModules[0].EnabledScriptResult = false
+
+	for _, v := range basicModules {
+		scripte.AddBasicModule(v)
+	}
+
+	expectedSummary = map[string]bool{
+		"admission-policy-engine/ScriptEnabled": false,
+		"kube-dns/Static":                       false,
+		"ingress-nginx/":                        false,
+	}
+
+	expectedDiff = map[string]bool{
+		"admission-policy-engine": false,
+	}
+
+	expectedVerticesToUpdate = []string{
+		"admission-policy-engine",
+	}
+
+	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
+	assert.Equal(t, true, updated)
+
+	_, diff, err = s.GetGraphState(logLabels)
+	assert.NoError(t, err)
+
+	summary, err = s.PrintSummary()
+	assert.NoError(t, err)
+
+	assert.Equal(t, expectedSummary, summary)
+	assert.Equal(t, expectedDiff, diff)
+	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
+
+	// finalize
+	err = os.RemoveAll(tmp)
+	assert.NoError(t, err)
+}
+
 func TestRecalculateGraph(t *testing.T) {
 	values := `
 # Default global values section
@@ -323,7 +586,6 @@ fooBarEnabled: false
 flantIntegrationEnabled: true
 monitoringApplicationsEnabled: true
 l2LoadBalancerEnabled: false
-
 `
 	logLabels := map[string]string{"source": "TestRecalculateGraph"}
 	basicModules := []*node_mock.MockModule{
@@ -709,7 +971,7 @@ l2LoadBalancerEnabled: false
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
 	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
-	assert.Equal(t, []string{"failed to execute 'ingress-nginx' module's enabled script: Exit code not 0"}, s.errList)
+	assert.Equal(t, []string{"ScriptEnabled extender failed to filter ingress-nginx module: failed to execute 'ingress-nginx' module's enabled script: Exit code not 0"}, s.errList)
 
 	err = os.RemoveAll(tmp)
 	assert.NoError(t, err)
