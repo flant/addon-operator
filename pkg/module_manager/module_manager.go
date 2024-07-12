@@ -291,39 +291,39 @@ func (mm *ModuleManager) Init() error {
 
 	gv, err := mm.loadGlobalValues()
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't load global values: %w", err)
 	}
 
 	staticExtender, err := static_extender.NewExtender(mm.ModulesDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't create static extender: %w", err)
 	}
 	if err := mm.moduleScheduler.AddExtender(staticExtender); err != nil {
-		return err
+		return fmt.Errorf("couldn't add static extender: %w", err)
 	}
 
 	err = mm.registerGlobalModule(gv.globalValues, gv.configSchema, gv.valuesSchema)
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't register global module: %w", err)
 	}
 
 	kubeConfigExtender := kube_config_extender.NewExtender(mm.dependencies.KubeConfigManager)
 	if err := mm.moduleScheduler.AddExtender(kubeConfigExtender); err != nil {
-		return err
+		return fmt.Errorf("couldn't add kube config extender: %w", err)
 	}
 
 	scriptEnabledExtender, err := script_extender.NewExtender(mm.TempDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't create script_enabled extender: %w", err)
 	}
 
 	if err := mm.moduleScheduler.AddExtender(scriptEnabledExtender); err != nil {
-		return err
+		return fmt.Errorf("couldn't add scrpt_enabled extender: %w", err)
 	}
 
 	// by this point we must have all required scheduler extenders attached
 	if err := mm.moduleScheduler.ApplyExtenders(app.AppliedExtenders); err != nil {
-		return err
+		return fmt.Errorf("couldn't apply extenders to the module scheduler: %w", err)
 	}
 
 	return mm.registerModules(scriptEnabledExtender)
@@ -645,22 +645,6 @@ func (mm *ModuleManager) RunModuleHook(moduleName, hookName string, binding Bind
 
 func (mm *ModuleManager) HandleKubeEvent(kubeEvent KubeEvent, createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo), createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo)) {
 	mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
-		defer func() {
-			if err := recover(); err != nil {
-				logEntry := log.WithField("function", "HandleKubeEvent").WithField("event", "OnKubernetesEvent")
-
-				if gh != nil {
-					logEntry.WithField("GlobalHook name", gh.GetName()).WithField("GlobakHook path", gh.GetPath())
-				}
-
-				if mh != nil {
-					logEntry.WithField("ModuleHook name", mh.GetName()).WithField("ModuleHook path", mh.GetPath())
-				}
-
-				logEntry.Errorf("panic occurred: %s", err)
-			}
-		}()
-
 		if gh != nil {
 			if gh.GetHookController().CanHandleKubeEvent(kubeEvent) {
 				gh.GetHookController().HandleKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) {

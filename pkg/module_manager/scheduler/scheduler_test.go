@@ -108,6 +108,49 @@ nodeLocalDnsEnabled: false
 	assert.NoError(t, err)
 }
 
+func TestApplyExtenders(t *testing.T) {
+	values := `
+# CE Bundle "Default"
+nodeLocalDnsEnabled: true
+`
+	tmp, err := os.MkdirTemp(t.TempDir(), "ApplyExtenders")
+	require.NoError(t, err)
+
+	s := NewScheduler(context.TODO())
+
+	valuesFile := filepath.Join(tmp, "values.yaml")
+	err = os.WriteFile(valuesFile, []byte(values), 0o644)
+	require.NoError(t, err)
+
+	se, err := static.NewExtender(tmp)
+	assert.NoError(t, err)
+
+	err = s.AddExtender(se)
+	assert.NoError(t, err)
+
+	err = s.ApplyExtenders("A,Static")
+	assert.Equal(t, errors.New("couldn't find A extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("A,B,Static")
+	assert.Equal(t, errors.New("couldn't find A extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("A,B")
+	assert.Equal(t, errors.New("couldn't find A extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("A,Static,B")
+	assert.Equal(t, errors.New("couldn't find A extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("Static,B,A")
+	assert.Equal(t, errors.New("couldn't find B extender in the list of available extenders"), err)
+
+	err = s.ApplyExtenders("Static")
+	assert.NoError(t, err)
+
+	// finalize
+	err = os.RemoveAll(tmp)
+	assert.NoError(t, err)
+}
+
 func TestGetEnabledModuleNames(t *testing.T) {
 	values := `
 # CE Bundle "Default"
