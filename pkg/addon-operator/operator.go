@@ -223,6 +223,10 @@ func (op *AddonOperator) IsStartupConvergeDone() bool {
 	return op.ConvergeState.FirstRunPhase == converge.FirstDone
 }
 
+func (op *AddonOperator) globalHooksNotExecutedYet() bool {
+	return op.ConvergeState.FirstRunPhase == converge.FirstNotStarted || (op.ConvergeState.FirstRunPhase == converge.FirstStarted && op.ConvergeState.Phase == converge.StandBy)
+}
+
 // InitModuleManager initialize KubeConfigManager and ModuleManager,
 // reads values from ConfigMap for the first time and sets handlers
 // for kubernetes and schedule events.
@@ -947,6 +951,12 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						"source":   "DymicallyEnabledExtenderChanged",
 					}
 					eventLogEntry := logEntry.WithFields(utils.LabelsToLogFields(logLabels))
+					// if global hooks haven't been run yet, script enabled extender fails due to missing global values
+					if op.globalHooksNotExecutedYet() {
+						eventLogEntry.Infof("Global hook dynamic modification detected, ignore until starting first converge")
+						break
+					}
+
 					graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
 
 					if graphStateChanged {
@@ -992,7 +1002,6 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						}
 						// Config is valid now, add task to update ModuleManager state.
 						op.ModuleManager.SetKubeConfigValid(true)
-						graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
 
 						var (
 							kubeConfigTask sh_task.Task
@@ -1005,36 +1014,52 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								logLabels,
 								event.GlobalSectionChanged,
 							)
-
-							op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
-							// Cancel delay in case the head task is stuck in the error loop.
-							op.engine.TaskQueues.GetMain().CancelTaskDelay()
-							op.logTaskAdd(eventLogEntry, "KubeConfigExtender is updated, put first", kubeConfigTask)
 						}
 
-						if op.ConvergeState.FirstRunPhase == converge.FirstNotStarted {
-							eventLogEntry.Infof("kube config modification detected, ignore until starting first converge")
-							return
+						// if global hooks haven't been run yet, script enabled extender fails due to missing global values,
+						// but it's ok to apply new kube config
+						if op.globalHooksNotExecutedYet() {
+							if kubeConfigTask != nil {
+								op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
+								// Cancel delay in case the head task is stuck in the error loop.
+								op.engine.TaskQueues.GetMain().CancelTaskDelay()
+								op.logTaskAdd(eventLogEntry, "KubeConfigExtender is updated, put first", kubeConfigTask)
+							}
+							eventLogEntry.Infof("Kube config modification detected, ignore until starting first converge")
+							break
 						}
+
+						graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
 
 						if event.GlobalSectionChanged || graphStateChanged {
+							// prepare convergeModules task
 							op.ConvergeState.PhaseLock.Lock()
 							convergeTask = converge.NewConvergeModulesTask(
 								"ReloadAll-After-KubeConfigChange",
 								converge.ReloadAllModules,
 								logLabels,
 							)
+							// check if main queue is empty
 							firstTask := op.engine.TaskQueues.GetMain().GetFirst()
+							// if main queue isn't empty and there was another convergeModules task:
 							if firstTask != nil && RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), firstTask.GetId(), logLabels) {
 								logEntry.Infof("ConvergeModules: kube config modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
+								// put ApplyKubeConfig->NewConvergeModulesTask sequence in the beginning of the main queue
 								if kubeConfigTask != nil {
+									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
 									op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), convergeTask)
 									op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put after AppplyNewKubeConfig", convergeTask)
+									// otherwise, put just NewConvergeModulesTask
 								} else {
 									op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
 									op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put first", convergeTask)
 								}
+								// if main queue is empty - put NewConvergeModulesTask in the end of the queue
 							} else {
+								// not forget to cram in ApplyKubeConfig task
+								if kubeConfigTask != nil {
+									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
+								}
 								logEntry.Infof("ConvergeModules: kube config modification detected, rerun all modules required")
 								op.engine.TaskQueues.GetMain().AddLast(convergeTask)
 							}
@@ -1051,6 +1076,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							// Append ModuleRun tasks if ModuleRun is not queued already.
 							if kubeConfigTask != nil && convergeTask == nil {
 								reloadTasks := op.CreateReloadModulesTasks(modulesToRerun, kubeConfigTask.GetLogLabels(), "KubeConfig-Changed-Modules")
+								op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
 								if len(reloadTasks) > 0 {
 									for i := len(reloadTasks) - 1; i >= 0; i-- {
 										op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), reloadTasks[i])
