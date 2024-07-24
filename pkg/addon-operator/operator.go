@@ -947,6 +947,11 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						"source":   "DymicallyEnabledExtenderChanged",
 					}
 					eventLogEntry := logEntry.WithFields(utils.LabelsToLogFields(logLabels))
+					if op.ConvergeState.FirstRunPhase == converge.FirstNotStarted || (op.ConvergeState.FirstRunPhase == converge.FirstStarted && op.ConvergeState.Phase == converge.StandBy) {
+						eventLogEntry.Infof("global hook config modification detected, ignore until starting first converge")
+						break
+					}
+
 					graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
 
 					if graphStateChanged {
@@ -1012,9 +1017,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							op.logTaskAdd(eventLogEntry, "KubeConfigExtender is updated, put first", kubeConfigTask)
 						}
 
-						if op.ConvergeState.FirstRunPhase == converge.FirstNotStarted {
+						if op.ConvergeState.FirstRunPhase == converge.FirstNotStarted || (op.ConvergeState.FirstRunPhase == converge.FirstStarted && op.ConvergeState.Phase == converge.StandBy) {
 							eventLogEntry.Infof("kube config modification detected, ignore until starting first converge")
-							return
+							break
 						}
 
 						if event.GlobalSectionChanged || graphStateChanged {
