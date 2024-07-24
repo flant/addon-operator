@@ -953,6 +953,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					}
 
 					graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
+					eventLogEntry.Infof("debug, dynamic global, graphStateChanged %v", graphStateChanged)
 
 					if graphStateChanged {
 						op.ConvergeState.PhaseLock.Lock()
@@ -998,6 +999,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						// Config is valid now, add task to update ModuleManager state.
 						op.ModuleManager.SetKubeConfigValid(true)
 						graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
+						eventLogEntry.Infof("debug, kubeConfig, graphStateChanged %v", graphStateChanged)
 
 						var (
 							kubeConfigTask sh_task.Task

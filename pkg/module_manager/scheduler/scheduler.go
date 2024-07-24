@@ -369,12 +369,15 @@ func (s *Scheduler) GetEnabledModuleNames() []string {
 }
 
 func (s *Scheduler) getEnabledModuleNames() []string {
+	logEntry := log.WithFields(utils.LabelsToLogFields(map[string]string{}))
 	if s.enabledModules == nil {
+		logEntry.Infof("debug, s.enabledModules nil")
 		return []string{}
 	}
 
 	enabledModules := make([]string, len(*s.enabledModules))
 	copy(enabledModules, *s.enabledModules)
+	logEntry.Infof("debug, s.enabledModules not nil %v %v", *s.enabledModules, enabledModules)
 
 	return enabledModules
 }
@@ -402,9 +405,11 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 		recalculateGraph = true
 	}
 
+	logEntry.Infof("debug, before first recalculate %v", s.getEnabledModuleNames())
 	if recalculateGraph {
 		_, _ = s.recalculateGraphState(logLabels)
 	}
+	logEntry.Infof("debug, after first recalculate %v", s.getEnabledModuleNames())
 
 	if len(s.errList) > 0 {
 		return s.getEnabledModuleNames(), nil, fmt.Errorf("couldn't recalculate graph: %s", strings.Join(s.errList, ","))
@@ -555,7 +560,7 @@ outerCycle:
 	s.enabledModules = &enabledModules
 	// reset any previous errors
 	s.errList = make([]string, 0)
-	logEntry.Debugf("Graph was successfully updated, diff: [%v]", s.diff)
+	logEntry.Infof("debug, Graph was successfully updated, diff: [%v], enabled: [%v], newdiff: [%v]", s.diff, *s.enabledModules, diff)
 
 	return len(diff) > 0, updByDiff
 }

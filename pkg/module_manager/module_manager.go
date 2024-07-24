@@ -419,7 +419,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 		return nil, err
 	}
 
-	logEntry.Infof("Enabled modules: %+v", enabledModules)
+	logEntry.Infof("Enabled modules: %+v, %+v", enabledModules, modulesDiff)
 
 	var (
 		modulesToEnable  []string
