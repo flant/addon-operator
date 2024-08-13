@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"os"
 	"strings"
 	"syscall"
@@ -65,9 +64,6 @@ func main() {
 
 func start(_ *kingpin.ParseContext) error {
 	sh_app.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
-
-	// Init rand generator.
-	rand.Seed(time.Now().UnixNano())
 
 	ctx := context.Background()
 
