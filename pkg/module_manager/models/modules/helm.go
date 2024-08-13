@@ -131,7 +131,7 @@ func (hm *HelmModule) checkHelmValues() error {
 	return hm.validator.ValidateModuleHelmValues(utils.ModuleNameToValuesKey(hm.name), hm.values)
 }
 
-func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
+func (hm *HelmModule) RunHelmInstall(lockModuleHelmDeployFunc, unlockModuleHelmDeployFunc func(), logLabels map[string]string) error {
 	metricLabels := map[string]string{
 		"module":     hm.name,
 		"activation": logLabels["event.type"],
@@ -192,7 +192,9 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 	logEntry.Debugf("chart has %d resources", len(manifests))
 
-	// Skip upgrades if nothing is changes
+	// Skip upgrades if nothing is changed
+	lockModuleHelmDeployFunc()
+	defer unlockModuleHelmDeployFunc()
 	var runUpgradeRelease bool
 	func() {
 		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-check-upgrade").End()
@@ -268,8 +270,8 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	}
 
 	// Run helm upgrade if last release is failed
-	if strings.ToLower(status) == "failed" {
-		logEntry.Debugf("helm release '%s' has FAILED status: should run upgrade", releaseName)
+	if strings.ToLower(status) == "failed" || strings.HasPrefix(strings.ToLower(status), "pending-") {
+		logEntry.Debugf("helm release '%s' has %s status: should run upgrade", releaseName, strings.ToLower(status))
 		return true, nil
 	}
 

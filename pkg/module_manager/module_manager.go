@@ -610,7 +610,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	}
 	if helmModule != nil {
 		// could be nil, if it doesn't contain helm chart
-		err = helmModule.RunHelmInstall(logLabels)
+		err = helmModule.RunHelmInstall(bm.HelmDeployStarted, bm.HelmDeployFinished, logLabels)
 	}
 	treg.End()
 	if err != nil {

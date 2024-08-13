@@ -915,4 +915,19 @@ type moduleState struct {
 	hookErrorsLock       sync.RWMutex
 	synchronizationState *SynchronizationState
 	enabledScriptResult  *bool
+
+	// helm release lock to check if there a helm release being applied
+	helmLck         sync.Mutex
+}
+
+// HelmDeployStarted marks beginning of the helm deploy process
+func (bm *BasicModule) HelmDeployStarted() {
+	bm.state.helmLck.Lock()
+	log.Debugf("Helm deploy for module %q started", bm.GetName())
+}
+
+// HelmDeployStarted marks ending of the helm deploy process
+func (bm *BasicModule) HelmDeployFinished() {
+	bm.state.helmLck.Unlock()
+	log.Debugf("Helm deploy for module %q finished", bm.GetName())
 }
