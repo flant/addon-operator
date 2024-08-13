@@ -917,7 +917,7 @@ type moduleState struct {
 	enabledScriptResult  *bool
 
 	// helm release lock to check if there a helm release being applied
-	helmLck         sync.Mutex
+	helmLck sync.Mutex
 }
 
 // HelmDeployStarted marks beginning of the helm deploy process
