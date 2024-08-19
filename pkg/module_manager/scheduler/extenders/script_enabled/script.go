@@ -74,7 +74,7 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 		} else {
 			moduleD.scriptState = statError
 			moduleD.stateDescription = fmt.Sprintf("Cannot stat enabled script for '%s' module: %v", module.GetName(), err)
-			log.Errorf(moduleD.stateDescription)
+			log.Error(moduleD.stateDescription)
 		}
 	} else {
 		if !utils_file.IsFileExecutable(f) {
@@ -113,7 +113,7 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			enabled = &isEnabled
 
 		case statError:
-			log.Errorf(moduleDescriptor.stateDescription)
+			log.Error(moduleDescriptor.stateDescription)
 			enabled = pointer.Bool(false)
 			err = errors.New(moduleDescriptor.stateDescription)
 

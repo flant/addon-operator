@@ -91,7 +91,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 	}
 
 	mm.global = gm
-	log.Infof(gm.GetSchemaStorage().GlobalSchemasDescription())
+	log.Info(gm.GetSchemaStorage().GlobalSchemasDescription())
 
 	// applies a scheduler extender to follow which modules get enabled/disabled by dynamic patches
 	dynamicExtender := dynamic_extender.NewExtender()

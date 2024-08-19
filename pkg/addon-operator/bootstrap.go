@@ -14,7 +14,7 @@ import (
 
 // Bootstrap inits all dependencies for a full-fledged AddonOperator instance.
 func (op *AddonOperator) bootstrap() error {
-	log.Infof(sh_app.AppStartMessage)
+	log.Info(sh_app.AppStartMessage)
 
 	log.Infof("Search modules in: %s", app.ModulesDir)
 

@@ -1179,6 +1179,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 	case task.ModulePurge:
 		res.Status = op.HandleModulePurge(t, taskLogLabels)
+
+	case task.ModuleEnsureCRDs:
+		res = op.HandleModuleEnsureCRDs(t, taskLogLabels)
 	}
 
 	if res.Status == queue.Success {
@@ -1439,6 +1442,29 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 	return
 }
 
+// HandleModuleEnsureCRDs ensure CRDs for module.
+func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+	defer trace.StartRegion(context.Background(), "ModuleEnsureCRDs").End()
+
+	hm := task.HookMetadataAccessor(t)
+	res.Status = queue.Success
+
+	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
+
+	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry.Debugf("Module ensureCRDs '%s'", hm.ModuleName)
+
+	if err := op.EnsureCRDs(baseModule); err != nil {
+		op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, err)
+		logEntry.Errorf("ModuleEnsureCRDs failed. Error: %s", err)
+		t.UpdateFailureMessage(err.Error())
+		t.WithQueuedAt(time.Now())
+		res.Status = queue.Fail
+	}
+
+	return
+}
+
 // HandleModuleRun starts a module by executing module hooks and installing a Helm chart.
 //
 // Execution sequence:
@@ -1487,6 +1513,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
 
 				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
+				defer treg.End()
 
 				// Start queues for module hooks.
 				op.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
@@ -1496,7 +1523,6 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				if moduleRunErr == nil {
 					op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 				}
-				treg.End()
 			} else {
 				op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 			}
@@ -2123,6 +2149,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}
 
+	ensureCRDsTasks := make([]sh_task.Task, 0, len(state.AllEnabledModules))
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
 	for _, moduleName := range state.AllEnabledModules {
@@ -2142,6 +2169,16 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 			doModuleStartup = true
 		}
 
+		// create ensureCRDsTasks
+		ensureCRDsTasks = append(ensureCRDsTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+			WithLogLabels(newLogLabels).
+			WithQueueName("main").
+			WithMetadata(task.HookMetadata{
+				EventDescription: "EnsureCRDs",
+				ModuleName:       moduleName,
+				IsReloadAll:      true,
+			}).WithQueuedAt(queuedAt))
+
 		newTask := sh_task.NewTask(task.ModuleRun).
 			WithLogLabels(newLogLabels).
 			WithQueueName("main").
@@ -2154,7 +2191,10 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}
 
-	return newTasks
+	// append ensureCRDs tasks to begin queue
+	ensureCRDsTasks = append(ensureCRDsTasks, newTasks...)
+
+	return ensureCRDsTasks
 }
 
 // CheckConvergeStatus detects if converge process is started and
@@ -2298,6 +2338,9 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 		// DiscoverHelmReleases task done, result is 'Success', trigger Operator-Startup
 		// Remove "for"
 		parts = parts[:len(parts)-1]
+
+	case task.ModuleEnsureCRDs:
+		parts = append(parts, fmt.Sprintf("module '%s'", hm.ModuleName))
 	}
 
 	triggeredBy := hm.EventDescription
@@ -2312,7 +2355,7 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 func (op *AddonOperator) logTaskAdd(logEntry *log.Entry, action string, tasks ...sh_task.Task) {
 	logger := logEntry.WithField("task.flow", "add")
 	for _, tsk := range tasks {
-		logger.Infof(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
+		logger.Info(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
 	}
 }
 
@@ -2338,7 +2381,7 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
 		logger = logger.WithFields(triggeredBy)
 	}
 
-	logger.Infof(taskDescriptionForTaskFlowLog(tsk, "start", op.taskPhase(tsk), ""))
+	logger.Info(taskDescriptionForTaskFlowLog(tsk, "start", op.taskPhase(tsk), ""))
 }
 
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
