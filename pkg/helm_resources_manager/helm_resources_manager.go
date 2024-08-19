@@ -73,7 +73,7 @@ func (hm *helmResourcesManager) Ch() chan ReleaseStatusEvent {
 	return hm.eventCh
 }
 
-func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, LastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
+func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, lastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
 	log.Debugf("Start helm resources monitor for '%s'", moduleName)
 	hm.StopMonitor(moduleName)
 
@@ -83,7 +83,7 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 	rm.WithModuleName(moduleName)
 	rm.WithManifests(manifests)
 	rm.WithDefaultNamespace(defaultNamespace)
-	rm.WithStatusGetter(LastReleaseStatus)
+	rm.WithStatusGetter(lastReleaseStatus)
 	rm.WithAbsentCb(hm.absentResourcesCallback)
 
 	hm.monitors[moduleName] = rm

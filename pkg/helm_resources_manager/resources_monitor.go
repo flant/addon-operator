@@ -79,8 +79,8 @@ func (r *ResourcesMonitor) WithAbsentCb(cb func(string, bool, []manifest.Manifes
 	r.absentCb = cb
 }
 
-func (r *ResourcesMonitor) WithStatusGetter(LastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
-	r.helmStatusGetter = LastReleaseStatus
+func (r *ResourcesMonitor) WithStatusGetter(lastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
+	r.helmStatusGetter = lastReleaseStatus
 }
 
 // Start creates a timer and check if all deployed manifests are present in the cluster.
