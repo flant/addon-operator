@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime/trace"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -42,7 +43,7 @@ type HelmValuesValidator interface {
 
 type HelmResourceManager interface {
 	GetAbsentResources(manifests []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error)
-	StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string)
+	StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, LastReleaseStatus func(releaseName string) (revision string, status string, err error))
 	HasMonitor(moduleName string) bool
 }
 
@@ -55,6 +56,7 @@ type HelmModuleDependencies struct {
 	HelmResourceManager HelmResourceManager
 	MetricsStorage      MetricsStorage
 	HelmValuesValidator HelmValuesValidator
+	HelmOperationLock   *sync.Mutex
 }
 
 // NewHelmModule build HelmModule from the Module templates and values + global values
@@ -131,7 +133,7 @@ func (hm *HelmModule) checkHelmValues() error {
 	return hm.validator.ValidateModuleHelmValues(utils.ModuleNameToValuesKey(hm.name), hm.values)
 }
 
-func (hm *HelmModule) RunHelmInstall(lockModuleHelmDeployFunc, unlockModuleHelmDeployFunc func(), logLabels map[string]string) error {
+func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	metricLabels := map[string]string{
 		"module":     hm.name,
 		"activation": logLabels["event.type"],
@@ -156,7 +158,7 @@ func (hm *HelmModule) RunHelmInstall(lockModuleHelmDeployFunc, unlockModuleHelmD
 	}
 	defer os.Remove(valuesPath)
 
-	helmClient := hm.dependencies.HelmClientFactory.NewClient(logLabels)
+	helmClient := hm.dependencies.HelmClientFactory.NewClientWithLock(hm.dependencies.HelmOperationLock, logLabels)
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
@@ -193,8 +195,6 @@ func (hm *HelmModule) RunHelmInstall(lockModuleHelmDeployFunc, unlockModuleHelmD
 	logEntry.Debugf("chart has %d resources", len(manifests))
 
 	// Skip upgrades if nothing is changed
-	lockModuleHelmDeployFunc()
-	defer unlockModuleHelmDeployFunc()
 	var runUpgradeRelease bool
 	func() {
 		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-check-upgrade").End()
@@ -217,7 +217,7 @@ func (hm *HelmModule) RunHelmInstall(lockModuleHelmDeployFunc, unlockModuleHelmD
 	if !runUpgradeRelease {
 		// Start resources monitor if release is not changed
 		if !hm.dependencies.HelmResourceManager.HasMonitor(hm.name) {
-			hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace)
+			hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace, helmClient.LastReleaseStatus)
 		}
 		return nil
 	}
@@ -249,7 +249,7 @@ func (hm *HelmModule) RunHelmInstall(lockModuleHelmDeployFunc, unlockModuleHelmD
 	}
 
 	// Start monitor resources if release was successful
-	hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace)
+	hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace, helmClient.LastReleaseStatus)
 
 	return nil
 }

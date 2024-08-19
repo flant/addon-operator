@@ -18,7 +18,7 @@ type HelmResourcesManager interface {
 	StopMonitors()
 	PauseMonitors()
 	ResumeMonitors()
-	StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string)
+	StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, LastReleaseStatus func(releaseName string) (revision string, status string, err error))
 	HasMonitor(moduleName string) bool
 	StopMonitor(moduleName string)
 	PauseMonitor(moduleName string)
@@ -26,7 +26,7 @@ type HelmResourcesManager interface {
 	AbsentResources(moduleName string) ([]manifest.Manifest, error)
 	GetMonitor(moduleName string) *ResourcesMonitor
 	GetAbsentResources(templates []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error)
-	Ch() chan AbsentResourcesEvent
+	Ch() chan ReleaseStatusEvent
 }
 
 type helmResourcesManager struct {
@@ -39,14 +39,14 @@ type helmResourcesManager struct {
 
 	monitors map[string]*ResourcesMonitor
 
-	eventCh chan AbsentResourcesEvent
+	eventCh chan ReleaseStatusEvent
 }
 
 var _ HelmResourcesManager = &helmResourcesManager{}
 
 func NewHelmResourcesManager() HelmResourcesManager {
 	return &helmResourcesManager{
-		eventCh:  make(chan AbsentResourcesEvent),
+		eventCh:  make(chan ReleaseStatusEvent),
 		monitors: make(map[string]*ResourcesMonitor),
 	}
 }
@@ -69,11 +69,11 @@ func (hm *helmResourcesManager) Stop() {
 	}
 }
 
-func (hm *helmResourcesManager) Ch() chan AbsentResourcesEvent {
+func (hm *helmResourcesManager) Ch() chan ReleaseStatusEvent {
 	return hm.eventCh
 }
 
-func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string) {
+func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, LastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
 	log.Debugf("Start helm resources monitor for '%s'", moduleName)
 	hm.StopMonitor(moduleName)
 
@@ -83,20 +83,22 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 	rm.WithModuleName(moduleName)
 	rm.WithManifests(manifests)
 	rm.WithDefaultNamespace(defaultNamespace)
+	rm.WithStatusGetter(LastReleaseStatus)
 	rm.WithAbsentCb(hm.absentResourcesCallback)
 
 	hm.monitors[moduleName] = rm
 	rm.Start()
 }
 
-func (hm *helmResourcesManager) absentResourcesCallback(moduleName string, absent []manifest.Manifest, defaultNs string) {
+func (hm *helmResourcesManager) absentResourcesCallback(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string) {
 	log.Debugf("Detect absent resources for %s", moduleName)
 	for _, m := range absent {
 		log.Debugf("%s/%s/%s", m.Namespace(defaultNs), m.Kind(), m.Name())
 	}
-	hm.eventCh <- AbsentResourcesEvent{
-		ModuleName: moduleName,
-		Absent:     absent,
+	hm.eventCh <- ReleaseStatusEvent{
+		ModuleName:       moduleName,
+		Absent:           absent,
+		UnexpectedStatus: unexpectedStatus,
 	}
 }
 

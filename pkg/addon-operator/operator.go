@@ -1091,28 +1091,34 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				default:
 				}
 
-			case absentResourcesEvent := <-op.HelmResourcesManager.Ch():
+			case HelmReleaseStatusEvent := <-op.HelmResourcesManager.Ch():
 				logLabels := map[string]string{
 					"event.id": uuid.Must(uuid.NewV4()).String(),
-					"module":   absentResourcesEvent.ModuleName,
+					"module":   HelmReleaseStatusEvent.ModuleName,
 				}
 				eventLogEntry := logEntry.WithFields(utils.LabelsToLogFields(logLabels))
 
 				// Do not add ModuleRun task if it is already queued.
-				hasTask := QueueHasPendingModuleRunTask(op.engine.TaskQueues.GetMain(), absentResourcesEvent.ModuleName)
+				hasTask := QueueHasPendingModuleRunTask(op.engine.TaskQueues.GetMain(), HelmReleaseStatusEvent.ModuleName)
+				eventDescription := "AbsentHelmResourcesDetected"
+				additionalDescription := fmt.Sprintf("%d absent module resources", len(HelmReleaseStatusEvent.Absent))
+				if HelmReleaseStatusEvent.UnexpectedStatus {
+					eventDescription = "HelmReleaseUnexpectedStatus"
+					additionalDescription = "unexpected helm release status"
+				}
+
 				if !hasTask {
 					newTask := sh_task.NewTask(task.ModuleRun).
 						WithLogLabels(logLabels).
 						WithQueueName("main").
 						WithMetadata(task.HookMetadata{
-							EventDescription: "DetectAbsentHelmResources",
-							ModuleName:       absentResourcesEvent.ModuleName,
+							EventDescription: eventDescription,
+							ModuleName:       HelmReleaseStatusEvent.ModuleName,
 						})
 					op.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
-					taskAddDescription := fmt.Sprintf("got %d absent module resources, append", len(absentResourcesEvent.Absent))
-					op.logTaskAdd(logEntry, taskAddDescription, newTask)
+					op.logTaskAdd(logEntry, fmt.Sprintf("detected %s, append", additionalDescription), newTask)
 				} else {
-					eventLogEntry.WithField("task.flow", "noop").Infof("Got %d absent module resources, ModuleRun task already queued", len(absentResourcesEvent.Absent))
+					eventLogEntry.WithField("task.flow", "noop").Infof("Detected %s, ModuleRun task already queued", additionalDescription)
 				}
 			}
 		}

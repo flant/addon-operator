@@ -31,7 +31,9 @@ type ResourcesMonitor struct {
 	kubeClient *klient.Client
 	logLabels  map[string]string
 
-	absentCb func(moduleName string, absent []manifest.Manifest, defaultNs string)
+	absentCb func(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string)
+
+	helmStatusGetter func(releaseName string) (revision string, status string, err error)
 }
 
 func NewResourcesMonitor() *ResourcesMonitor {
@@ -73,11 +75,15 @@ func (r *ResourcesMonitor) WithManifests(manifests []manifest.Manifest) {
 	r.manifests = manifests
 }
 
-func (r *ResourcesMonitor) WithAbsentCb(cb func(string, []manifest.Manifest, string)) {
+func (r *ResourcesMonitor) WithAbsentCb(cb func(string, bool, []manifest.Manifest, string)) {
 	r.absentCb = cb
 }
 
-// Start creates a timer and check if all manifests are present in cluster.
+func (r *ResourcesMonitor) WithStatusGetter(LastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
+	r.helmStatusGetter = LastReleaseStatus
+}
+
+// Start creates a timer and check if all deployed manifests are present in the cluster.
 func (r *ResourcesMonitor) Start() {
 	logEntry := log.WithFields(utils.LabelsToLogFields(r.logLabels)).
 		WithField("operator.component", "HelmResourceMonitor")
@@ -92,6 +98,19 @@ func (r *ResourcesMonitor) Start() {
 				if r.paused {
 					continue
 				}
+				// Check release status
+				status, err := r.GetHelmReleaseStatus(r.moduleName)
+				if err != nil {
+					logEntry.Errorf("Cannot get helm release status: %s", err)
+				}
+
+				if status != "deployed" {
+					logEntry.Debugf("Helm release %s is in unexpected status: %s", r.moduleName, status)
+					if r.absentCb != nil {
+						r.absentCb(r.moduleName, true, []manifest.Manifest{}, r.defaultNamespace)
+					}
+				}
+
 				// Check resources
 				absent, err := r.AbsentResources()
 				if err != nil {
@@ -101,7 +120,7 @@ func (r *ResourcesMonitor) Start() {
 				if len(absent) > 0 {
 					logEntry.Debug("Absent resources detected")
 					if r.absentCb != nil {
-						r.absentCb(r.moduleName, absent, r.defaultNamespace)
+						r.absentCb(r.moduleName, false, absent, r.defaultNamespace)
 					}
 				} else {
 					logEntry.Debug("No absent resources detected")
@@ -113,6 +132,18 @@ func (r *ResourcesMonitor) Start() {
 			}
 		}
 	}()
+}
+
+// GetHelmReleaseStatus returns last release status
+func (r *ResourcesMonitor) GetHelmReleaseStatus(moduleName string) (string, error) {
+	logEntry := log.WithFields(utils.LabelsToLogFields(r.logLabels)).
+		WithField("operator.component", "HelmResourceMonitor")
+	revision, status, err := r.helmStatusGetter(moduleName)
+	if err != nil {
+		return "", err
+	}
+	logEntry.Debugf("Helm release %s, revision %s, status: %s", moduleName, revision, status)
+	return status, nil
 }
 
 // Pause prevent execution of absent callback

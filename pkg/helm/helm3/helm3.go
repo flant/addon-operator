@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -41,8 +42,9 @@ func Init(options *Helm3Options) error {
 }
 
 type Helm3Client struct {
-	LogEntry  *log.Entry
-	Namespace string
+	LogEntry      *log.Entry
+	Namespace     string
+	OperationLock *sync.Mutex
 }
 
 var _ client.HelmClient = &Helm3Client{}
@@ -56,6 +58,19 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	return &Helm3Client{
 		LogEntry:  logEntry,
 		Namespace: Options.Namespace,
+	}
+}
+
+func NewClientWithLock(helmOperationLock *sync.Mutex, logLabels ...map[string]string) client.HelmClient {
+	logEntry := log.WithField("operator.component", "helm")
+	if len(logLabels) > 0 {
+		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
+	}
+
+	return &Helm3Client{
+		LogEntry:      logEntry,
+		Namespace:     Options.Namespace,
+		OperationLock: helmOperationLock,
 	}
 }
 
@@ -94,6 +109,10 @@ func (h *Helm3Client) initAndVersion() error {
 //	REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
 //	1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
 func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
+	if h.OperationLock != nil {
+		h.OperationLock.Lock()
+		defer h.OperationLock.Unlock()
+	}
 	stdout, stderr, err := h.cmd(
 		"history", releaseName,
 		"--namespace", h.Namespace,
@@ -134,6 +153,10 @@ func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, st
 }
 
 func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
+	if h.OperationLock != nil {
+		h.OperationLock.Lock()
+		defer h.OperationLock.Unlock()
+	}
 	args := []string{
 		"upgrade", releaseName, chart,
 		"--install",
