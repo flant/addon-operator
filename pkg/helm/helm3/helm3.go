@@ -110,6 +110,7 @@ func (h *Helm3Client) initAndVersion() error {
 //	1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
 func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
 	if h.OperationLock != nil {
+		h.LogEntry.Debugf("locking helm release %s for reading status", releaseName)
 		h.OperationLock.Lock()
 		defer h.OperationLock.Unlock()
 	}
@@ -154,6 +155,7 @@ func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, st
 
 func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
 	if h.OperationLock != nil {
+		h.LogEntry.Debugf("locking helm release %s for upgrade", releaseName)
 		h.OperationLock.Lock()
 		defer h.OperationLock.Unlock()
 	}
@@ -209,6 +211,11 @@ func (h *Helm3Client) GetReleaseValues(releaseName string) (utils.Values, error)
 }
 
 func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
+	if h.OperationLock != nil {
+		h.LogEntry.Debugf("locking helm release %s for deleting", releaseName)
+		h.OperationLock.Lock()
+		defer h.OperationLock.Unlock()
+	}
 	h.LogEntry.Debugf("helm release '%s': execute helm uninstall", releaseName)
 
 	args := []string{
@@ -220,6 +227,7 @@ func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n%v %v", releaseName, err, stdout, stderr)
 	}
 
+	h.LogEntry.Debugf("helm release %s deleted", releaseName)
 	return
 }
 

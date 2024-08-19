@@ -1,6 +1,7 @@
 package helm3lib
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -16,7 +17,10 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
+	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 
@@ -131,6 +135,7 @@ func (h *LibClient) initAndVersion() error {
 // LastReleaseStatus returns last known revision for release and its status
 func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
 	if h.OperationLock != nil {
+		h.LogEntry.Debugf("locking helm release %s for reading status", releaseName)
 		h.OperationLock.Lock()
 		defer h.OperationLock.Unlock()
 	}
@@ -152,6 +157,7 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, stat
 
 func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
 	if h.OperationLock != nil {
+		h.LogEntry.Debugf("locking helm release %s for upgrade", releaseName)
 		h.OperationLock.Lock()
 		defer h.OperationLock.Unlock()
 	}
@@ -164,7 +170,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		}
 		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
 	}
-
+	h.LogEntry.Debugf("helm release %s upgraded", releaseName)
 	return nil
 }
 
@@ -232,7 +238,33 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
 		h.LogEntry.Debugf("Latest release '%s': revision: %d has status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
 		if latestRelease.Info.Status.IsPending() {
-			h.rollbackLatestRelease(releases)
+			objectName := fmt.Sprintf("%s.%s.v%d", storage.HelmStorageType, latestRelease.Name, latestRelease.Version)
+			kubeClient, err := actionConfig.KubernetesClientSet()
+			if err != nil {
+				return fmt.Errorf("couldn't get kubernetes client set: %w", err)
+			}
+			switch actionConfig.Releases.Name() {
+			case driver.ConfigMapsDriverName:
+				h.LogEntry.Debugf("ConfigMap for helm revision %d of release %s in status %s, driver %s: will be deleted", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, driver.ConfigMapsDriverName)
+				err := kubeClient.CoreV1().ConfigMaps(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
+				if err != nil && !errors.IsNotFound(err) {
+					return fmt.Errorf("couldn't delete configmap %s of release %s: %w", objectName, nsReleaseName, err)
+				} else {
+					h.LogEntry.Debugf("ConfigMap %s was deleted", objectName)
+				}
+
+			case driver.SecretsDriverName:
+				h.LogEntry.Debugf("Secret for helm revision %d of release %s in status %s, driver %s: will be deleted", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, driver.SecretsDriverName)
+				err := kubeClient.CoreV1().Secrets(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
+				if err != nil && !errors.IsNotFound(err) {
+					return fmt.Errorf("couldn't delete secret %s of release %s: %w", objectName, nsReleaseName, err)
+				} else {
+					h.LogEntry.Debugf("Secret %s was deleted", objectName)
+				}
+			default:
+				h.LogEntry.Debugf("Helm revision %d of release %s in status %s, driver %s: will be rolledback", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, actionConfig.Releases.Name())
+				h.rollbackLatestRelease(releases)
+			}
 		}
 	}
 
@@ -286,6 +318,11 @@ func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
 }
 
 func (h *LibClient) DeleteRelease(releaseName string) error {
+	if h.OperationLock != nil {
+		h.LogEntry.Debugf("locking helm release %s for deleting", releaseName)
+		h.OperationLock.Lock()
+		defer h.OperationLock.Unlock()
+	}
 	h.LogEntry.Debugf("helm release '%s': execute helm uninstall", releaseName)
 
 	un := action.NewUninstall(actionConfig)
@@ -294,6 +331,7 @@ func (h *LibClient) DeleteRelease(releaseName string) error {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n", releaseName, err)
 	}
 
+	h.LogEntry.Debugf("helm release %s deleted", releaseName)
 	return nil
 }
 
