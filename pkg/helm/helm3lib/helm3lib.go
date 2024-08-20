@@ -243,25 +243,26 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 			if err != nil {
 				return fmt.Errorf("couldn't get kubernetes client set: %w", err)
 			}
+			// switch between storage types (memory, sql, secrets, configmaps) - with secrets and configmaps we can deal a bit more straightforward than doing a rollback
 			switch actionConfig.Releases.Name() {
 			case driver.ConfigMapsDriverName:
 				h.LogEntry.Debugf("ConfigMap for helm revision %d of release %s in status %s, driver %s: will be deleted", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, driver.ConfigMapsDriverName)
 				err := kubeClient.CoreV1().ConfigMaps(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
 				if err != nil && !errors.IsNotFound(err) {
 					return fmt.Errorf("couldn't delete configmap %s of release %s: %w", objectName, nsReleaseName, err)
-				} else {
-					h.LogEntry.Debugf("ConfigMap %s was deleted", objectName)
 				}
+				h.LogEntry.Debugf("ConfigMap %s was deleted", objectName)
 
 			case driver.SecretsDriverName:
 				h.LogEntry.Debugf("Secret for helm revision %d of release %s in status %s, driver %s: will be deleted", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, driver.SecretsDriverName)
 				err := kubeClient.CoreV1().Secrets(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
 				if err != nil && !errors.IsNotFound(err) {
 					return fmt.Errorf("couldn't delete secret %s of release %s: %w", objectName, nsReleaseName, err)
-				} else {
-					h.LogEntry.Debugf("Secret %s was deleted", objectName)
 				}
+				h.LogEntry.Debugf("Secret %s was deleted", objectName)
+
 			default:
+				// memory and sql storages a bit more trickier - doing a rollback is justified
 				h.LogEntry.Debugf("Helm revision %d of release %s in status %s, driver %s: will be rolledback", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, actionConfig.Releases.Name())
 				h.rollbackLatestRelease(releases)
 			}
