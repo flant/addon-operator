@@ -269,8 +269,8 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 		return false, err
 	}
 
-	// Run helm upgrade if last release is failed
-	if strings.ToLower(status) == "failed" || strings.HasPrefix(strings.ToLower(status), "pending-") {
+	// Run helm upgrade if last release isn't `deployed`
+	if strings.ToLower(status) != "deployed" {
 		logEntry.Debugf("helm release '%s' has %s status: should run upgrade", releaseName, strings.ToLower(status))
 		return true, nil
 	}
