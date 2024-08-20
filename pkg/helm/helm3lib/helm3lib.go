@@ -350,7 +350,7 @@ func (h *LibClient) IsReleaseExists(releaseName string) (bool, error) {
 func (h *LibClient) ListReleasesNames() ([]string, error) {
 	l := action.NewList(actionConfig)
 	// list all releases regardless of their state
-	l.All = true
+	l.StateMask = action.ListAll
 	list, err := l.Run()
 	if err != nil {
 		return nil, fmt.Errorf("helm list failed: %s", err)
