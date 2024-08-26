@@ -31,7 +31,7 @@ RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
              ./cmd/addon-operator
 
 # Final image
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.16
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.20@sha256:0a4eaa0eecf5f8c050e5bba433f58c052be7587ee8af3e8b3910ef9ab5fbe9f5
 ARG TARGETPLATFORM
 # kubectl url has no variant (v7)
 # helm url has dashes and no variant (v7)
