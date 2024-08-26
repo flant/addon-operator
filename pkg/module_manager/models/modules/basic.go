@@ -915,12 +915,4 @@ type moduleState struct {
 	hookErrorsLock       sync.RWMutex
 	synchronizationState *SynchronizationState
 	enabledScriptResult  *bool
-
-	// helm release lock to check if there a helm release being applied
-	helmLck sync.Mutex
-}
-
-// GetHelmLock returns helm deploy mutex
-func (bm *BasicModule) GetHelmLock() *sync.Mutex {
-	return &bm.state.helmLck
 }

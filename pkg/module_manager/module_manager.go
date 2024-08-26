@@ -538,11 +538,10 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			HelmResourceManager: mm.dependencies.HelmResourcesManager,
 			MetricsStorage:      mm.dependencies.MetricStorage,
 			HelmValuesValidator: schemaStorage,
-			HelmOperationLock:   ml.GetHelmLock(),
 		}
 		helmModule, _ := modules.NewHelmModule(ml, mm.TempDir, &hmdeps, schemaStorage)
 		if helmModule != nil {
-			releaseExists, err := mm.dependencies.Helm.NewClientWithLock(ml.GetHelmLock(), deleteLogLabels).IsReleaseExists(ml.GetName())
+			releaseExists, err := mm.dependencies.Helm.NewClient(deleteLogLabels).IsReleaseExists(ml.GetName())
 			if !releaseExists {
 				if err != nil {
 					logEntry.Warnf("Cannot find helm release '%s' for module '%s'. Helm error: %s", ml.GetName(), ml.GetName(), err)
@@ -551,7 +550,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 				}
 			} else {
 				// Chart and release are existed, so run helm delete command
-				err := mm.dependencies.Helm.NewClientWithLock(ml.GetHelmLock(), deleteLogLabels).DeleteRelease(ml.GetName())
+				err := mm.dependencies.Helm.NewClient(deleteLogLabels).DeleteRelease(ml.GetName())
 				if err != nil {
 					return err
 				}
@@ -605,7 +604,6 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 		HelmResourceManager: mm.dependencies.HelmResourcesManager,
 		MetricsStorage:      mm.dependencies.MetricStorage,
 		HelmValuesValidator: schemaStorage,
-		HelmOperationLock:   bm.GetHelmLock(),
 	}
 	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps, schemaStorage)
 	if err != nil {

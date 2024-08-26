@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -40,9 +39,8 @@ func Init(opts *Options) error {
 
 // LibClient use helm3 package as Go library.
 type LibClient struct {
-	LogEntry      *log.Entry
-	Namespace     string
-	OperationLock *sync.Mutex
+	LogEntry  *log.Entry
+	Namespace string
 }
 
 type Options struct {
@@ -66,19 +64,6 @@ func NewClient(logLabels ...map[string]string) client.HelmClient {
 	return &LibClient{
 		LogEntry:  logEntry,
 		Namespace: options.Namespace,
-	}
-}
-
-func NewClientWithLock(helmOperationLock *sync.Mutex, logLabels ...map[string]string) client.HelmClient {
-	logEntry := log.WithField("operator.component", "helm3lib")
-	if len(logLabels) > 0 {
-		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
-	}
-
-	return &LibClient{
-		LogEntry:      logEntry,
-		Namespace:     options.Namespace,
-		OperationLock: helmOperationLock,
 	}
 }
 
@@ -134,11 +119,6 @@ func (h *LibClient) initAndVersion() error {
 
 // LastReleaseStatus returns last known revision for release and its status
 func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
-	if h.OperationLock != nil {
-		h.LogEntry.Debugf("locking helm release %s for reading status", releaseName)
-		h.OperationLock.Lock()
-		defer h.OperationLock.Unlock()
-	}
 	lastRelease, err := actionConfig.Releases.Last(releaseName)
 	if err != nil {
 		// in the Last(x) function we have the condition:
@@ -156,11 +136,6 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, stat
 }
 
 func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
-	if h.OperationLock != nil {
-		h.LogEntry.Debugf("locking helm release %s for upgrade", releaseName)
-		h.OperationLock.Lock()
-		defer h.OperationLock.Unlock()
-	}
 	err := h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
 	if err != nil {
 		// helm validation can fail because FeatureGate was enabled for example
@@ -319,11 +294,6 @@ func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
 }
 
 func (h *LibClient) DeleteRelease(releaseName string) error {
-	if h.OperationLock != nil {
-		h.LogEntry.Debugf("locking helm release %s for deleting", releaseName)
-		h.OperationLock.Lock()
-		defer h.OperationLock.Unlock()
-	}
 	h.LogEntry.Debugf("helm release '%s': execute helm uninstall", releaseName)
 
 	un := action.NewUninstall(actionConfig)

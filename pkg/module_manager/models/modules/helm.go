@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"runtime/trace"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -56,7 +55,6 @@ type HelmModuleDependencies struct {
 	HelmResourceManager HelmResourceManager
 	MetricsStorage      MetricsStorage
 	HelmValuesValidator HelmValuesValidator
-	HelmOperationLock   *sync.Mutex
 }
 
 // NewHelmModule build HelmModule from the Module templates and values + global values
@@ -158,7 +156,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 	defer os.Remove(valuesPath)
 
-	helmClient := hm.dependencies.HelmClientFactory.NewClientWithLock(hm.dependencies.HelmOperationLock, logLabels)
+	helmClient := hm.dependencies.HelmClientFactory.NewClient(logLabels)
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
