@@ -474,9 +474,14 @@ func (mm *ModuleManager) GetEnabledModuleNames() []string {
 	return mm.moduleScheduler.GetEnabledModuleNames()
 }
 
-// IsModuleEnabled ...
+// IsModuleEnabled returns current state of the module according to the scheduler
 func (mm *ModuleManager) IsModuleEnabled(moduleName string) bool {
 	return mm.moduleScheduler.IsModuleEnabled(moduleName)
+}
+
+// GetUpdatedByExtender returns the name of the extender that determined the module's state
+func (mm *ModuleManager) GetUpdatedByExtender(moduleName string) (string, error) {
+	return mm.moduleScheduler.GetUpdatedByExtender(moduleName)
 }
 
 func (mm *ModuleManager) AddExtender(ex extenders.Extender) error {

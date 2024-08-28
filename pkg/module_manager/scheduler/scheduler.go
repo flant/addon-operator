@@ -351,12 +351,19 @@ func moduleSortFunc(m1, m2 string) bool {
 	return m1 < m2
 }
 
+func (s *Scheduler) GetUpdatedByExtender(moduleName string) (string, error) {
+	vertex, err := s.dag.Vertex(moduleName)
+	if err != nil {
+		return "", err
+	}
+	return vertex.GetUpdatedBy(), err
+}
+
 func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 	vertex, err := s.dag.Vertex(moduleName)
 	if err != nil {
 		return false
 	}
-
 	return vertex.GetState()
 }
 
@@ -482,18 +489,16 @@ outerCycle:
 					if e.ext.IsTerminator() {
 						// if disabled - terminate filtering
 						if !*moduleStatus {
+							// if so far is enabled OR there are ahead other extenders that could enable the module,
+							// mark the module as disbled by the terminator
 							if vBuf[moduleName].enabled || e.filterAhead {
 								vBuf[moduleName].enabled = *moduleStatus
 								vBuf[moduleName].updatedBy = string(e.ext.Name())
 							}
 							break
 						}
-
-						// if enabled and there are some other filtering extenders ahead - continue filtering
-						if e.filterAhead {
-							continue
-						}
-						break
+						// continue checking extenders
+						continue
 					}
 					vBuf[moduleName].enabled = *moduleStatus
 					vBuf[moduleName].updatedBy = string(e.ext.Name())
