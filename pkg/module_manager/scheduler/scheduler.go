@@ -490,7 +490,7 @@ outerCycle:
 						// if disabled - terminate filtering
 						if !*moduleStatus {
 							// if so far is enabled OR there are ahead other extenders that could enable the module,
-							// mark the module as disbled by the terminator
+							// mark the module as disabled by the terminator
 							if vBuf[moduleName].enabled || e.filterAhead {
 								vBuf[moduleName].enabled = *moduleStatus
 								vBuf[moduleName].updatedBy = string(e.ext.Name())
