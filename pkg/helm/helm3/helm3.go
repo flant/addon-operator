@@ -197,6 +197,7 @@ func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n%v %v", releaseName, err, stdout, stderr)
 	}
 
+	h.LogEntry.Debugf("helm release %s deleted", releaseName)
 	return
 }
 

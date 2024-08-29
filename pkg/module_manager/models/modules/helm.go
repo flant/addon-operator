@@ -42,7 +42,7 @@ type HelmValuesValidator interface {
 
 type HelmResourceManager interface {
 	GetAbsentResources(manifests []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error)
-	StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string)
+	StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, LastReleaseStatus func(releaseName string) (revision string, status string, err error))
 	HasMonitor(moduleName string) bool
 }
 
@@ -192,7 +192,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 	logEntry.Debugf("chart has %d resources", len(manifests))
 
-	// Skip upgrades if nothing is changes
+	// Skip upgrades if nothing is changed
 	var runUpgradeRelease bool
 	func() {
 		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-check-upgrade").End()
@@ -215,7 +215,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	if !runUpgradeRelease {
 		// Start resources monitor if release is not changed
 		if !hm.dependencies.HelmResourceManager.HasMonitor(hm.name) {
-			hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace)
+			hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace, helmClient.LastReleaseStatus)
 		}
 		return nil
 	}
@@ -247,7 +247,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 
 	// Start monitor resources if release was successful
-	hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace)
+	hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace, helmClient.LastReleaseStatus)
 
 	return nil
 }
@@ -267,9 +267,9 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 		return false, err
 	}
 
-	// Run helm upgrade if last release is failed
-	if strings.ToLower(status) == "failed" {
-		logEntry.Debugf("helm release '%s' has FAILED status: should run upgrade", releaseName)
+	// Run helm upgrade if last release isn't `deployed`
+	if strings.ToLower(status) != "deployed" {
+		logEntry.Debugf("helm release '%s' has %s status: should run upgrade", releaseName, strings.ToLower(status))
 		return true, nil
 	}
 

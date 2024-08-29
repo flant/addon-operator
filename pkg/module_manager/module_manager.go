@@ -379,6 +379,7 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("Following releases found: %v", releasedModules)
 
 	return mm.stateFromHelmReleases(releasedModules), nil
 }

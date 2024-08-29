@@ -27,7 +27,7 @@ func (h *MockHelmResourcesManager) PauseMonitors() {}
 
 func (h *MockHelmResourcesManager) ResumeMonitors() {}
 
-func (h *MockHelmResourcesManager) StartMonitor(_ string, _ []manifest.Manifest, _ string) {
+func (h *MockHelmResourcesManager) StartMonitor(_ string, _ []manifest.Manifest, _ string, _ func(string) (revision string, status string, err error)) {
 }
 
 func (h *MockHelmResourcesManager) HasMonitor(_ string) bool {
@@ -49,6 +49,6 @@ func (h *MockHelmResourcesManager) GetAbsentResources(_ []manifest.Manifest, _ s
 	return nil, nil
 }
 
-func (h *MockHelmResourcesManager) Ch() chan AbsentResourcesEvent {
+func (h *MockHelmResourcesManager) Ch() chan ReleaseStatusEvent {
 	return nil
 }
