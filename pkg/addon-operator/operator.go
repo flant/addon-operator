@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	log "github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
@@ -80,9 +81,13 @@ type AddonOperator struct {
 
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
+
+	// CrdExtraLabels contains labels for processing CRD files
+	// like heritage=addon-operator
+	CrdExtraLabels map[string]string
 }
 
-func NewAddonOperator(ctx context.Context) *AddonOperator {
+func NewAddonOperator(ctx context.Context, extraLabels string) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 	so := shell_operator.NewShellOperator(cctx)
 
@@ -105,13 +110,25 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 
 	registerHookMetrics(so.HookMetricStorage)
 
+	labelSelector, err := metav1.ParseToLabelSelector(extraLabels)
+	if err != nil {
+		panic(err)
+	}
+	crdExtraLabels := labelSelector.MatchLabels
+
+	// use heritage=addon-operator by default if not set
+	if _, ok := crdExtraLabels["heritage"]; !ok {
+		crdExtraLabels["heritage"] = "addon-operator"
+	}
+
 	ao := &AddonOperator{
-		ctx:           cctx,
-		cancel:        cancel,
-		engine:        so,
-		ConvergeState: converge.NewConvergeState(),
-		runtimeConfig: rc,
-		MetricStorage: so.MetricStorage,
+		ctx:            cctx,
+		cancel:         cancel,
+		engine:         so,
+		ConvergeState:  converge.NewConvergeState(),
+		runtimeConfig:  rc,
+		MetricStorage:  so.MetricStorage,
+		CrdExtraLabels: crdExtraLabels,
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
@@ -1513,7 +1530,6 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
 
 				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
-				defer treg.End()
 
 				// Start queues for module hooks.
 				op.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
@@ -1523,6 +1539,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				if moduleRunErr == nil {
 					op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 				}
+				treg.End()
 			} else {
 				op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 			}

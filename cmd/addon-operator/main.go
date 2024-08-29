@@ -67,7 +67,9 @@ func start(_ *kingpin.ParseContext) error {
 
 	ctx := context.Background()
 
-	operator := addon_operator.NewAddonOperator(ctx)
+	// parse extra labels from os envs
+	extraLabels := os.Getenv(`ADDON_OPERATOR_EXTRA_LABELS`)
+	operator := addon_operator.NewAddonOperator(ctx, extraLabels)
 
 	operator.StartAPIServer()
 

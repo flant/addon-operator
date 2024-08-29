@@ -104,7 +104,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should create ConfigMap/%s", result.cmName)
 
 	// Assemble AddonOperator.
-	op := NewAddonOperator(context.Background())
+	op := NewAddonOperator(context.Background(), "")
 	op.engine.KubeClient = kubeClient
 	// Mock helm client for ModuleManager
 	result.helmClient = &mockhelm.Client{}

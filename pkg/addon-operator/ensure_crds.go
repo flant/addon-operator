@@ -33,7 +33,7 @@ var crdGVR = schema.GroupVersionResource{
 func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) error {
 	crdsGlob := filepath.Join(module.GetPath(), "crds", "*.yaml")
 	result := new(multierror.Error)
-	cp, err := NewCRDsInstaller(op.KubeClient(), crdsGlob)
+	cp, err := NewCRDsInstaller(op.KubeClient(), crdsGlob, op.CrdExtraLabels)
 	if err != nil {
 		result = multierror.Append(result, err)
 		return result
@@ -54,6 +54,8 @@ type CRDsInstaller struct {
 
 	// concurrent tasks to create resource in a k8s cluster
 	k8sTasks *multierror.Group
+
+	crdExtraLabels map[string]string
 }
 
 func (cp *CRDsInstaller) Run(ctx context.Context) *multierror.Error {
@@ -134,7 +136,7 @@ func (cp *CRDsInstaller) putCRDToCluster(ctx context.Context, crdReader io.Reade
 	if len(crd.ObjectMeta.Labels) == 0 {
 		crd.ObjectMeta.Labels = make(map[string]string, 1)
 	}
-	crd.ObjectMeta.Labels["heritage"] = "deckhouse"
+	crd.ObjectMeta.Labels["heritage"] = cp.crdExtraLabels["heritage"]
 
 	cp.k8sTasks.Go(func() error {
 		return cp.updateOrInsertCRD(ctx, crd)
@@ -164,7 +166,7 @@ func (cp *CRDsInstaller) updateOrInsertCRD(ctx context.Context, crd *v1.CustomRe
 			crd.Spec.Conversion = existCRD.Spec.Conversion
 		}
 
-		if existCRD.GetObjectMeta().GetLabels()["heritage"] == "deckhouse" &&
+		if existCRD.GetObjectMeta().GetLabels()["heritage"] == cp.crdExtraLabels["heritage"] &&
 			reflect.DeepEqual(existCRD.Spec, crd.Spec) {
 			return nil
 		}
@@ -173,7 +175,7 @@ func (cp *CRDsInstaller) updateOrInsertCRD(ctx context.Context, crd *v1.CustomRe
 		if len(existCRD.ObjectMeta.Labels) == 0 {
 			existCRD.ObjectMeta.Labels = make(map[string]string, 1)
 		}
-		existCRD.ObjectMeta.Labels["heritage"] = "deckhouse"
+		existCRD.ObjectMeta.Labels["heritage"] = cp.crdExtraLabels["heritage"]
 
 		ucrd, err := sdk.ToUnstructured(existCRD)
 		if err != nil {
@@ -202,8 +204,8 @@ func (cp *CRDsInstaller) getCRDFromCluster(ctx context.Context, crdName string) 
 }
 
 // NewCRDsInstaller creates new installer for CRDs
-// crdsGlob example: "/deckhouse/modules/002-deckhouse/crds/*.yaml"
-func NewCRDsInstaller(client *client.Client, crdsGlob string) (*CRDsInstaller, error) {
+// crdsGlob example: "/modules/nginx/crds/*.yaml"
+func NewCRDsInstaller(client *client.Client, crdsGlob string, crdExtraLabels map[string]string) (*CRDsInstaller, error) {
 	crds, err := filepath.Glob(crdsGlob)
 	if err != nil {
 		return nil, err
@@ -219,7 +221,8 @@ func NewCRDsInstaller(client *client.Client, crdsGlob string) (*CRDsInstaller, e
 		// 1Mb - maximum size of kubernetes object
 		// if we take less, we have to handle io.ErrShortBuffer error and increase the buffer
 		// take more does not make any sense due to kubernetes limitations
-		buffer:   make([]byte, 1*1024*1024),
-		k8sTasks: &multierror.Group{},
+		buffer:         make([]byte, 1*1024*1024),
+		k8sTasks:       &multierror.Group{},
+		crdExtraLabels: crdExtraLabels,
 	}, nil
 }
