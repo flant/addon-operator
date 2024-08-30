@@ -827,11 +827,7 @@ func (mm *ModuleManager) RecalculateGraph(logLabels map[string]string) bool {
 			EventType:  events.ModuleStateChanged,
 		})
 	}
-	if stateChanged {
-		return true
-	}
-
-	return false
+	return stateChanged
 }
 
 // GlobalSynchronizationNeeded is true if there is at least one global
