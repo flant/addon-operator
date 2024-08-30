@@ -1255,6 +1255,10 @@ func (mm *ModuleManager) SchedulerEventCh() chan extenders.ExtenderEvent {
 	return mm.moduleScheduler.EventCh()
 }
 
+func (mm *ModuleManager) ModuleHasCRDs(moduleName string) bool {
+	return len(mm.GetModule(moduleName).GetCRDFilesPaths()) > 0
+}
+
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
 // with the type "ModuleRun" related to the module "moduleName" and DoModuleStartup is set to true.
 func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName string) bool {

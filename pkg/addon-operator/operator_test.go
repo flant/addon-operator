@@ -304,7 +304,6 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		{task.ConvergeModules, "", "", string(converge.WaitBeforeAll)},
 
 		// ConvergeModules adds ModuleEnsureCRDs and ModuleDelete and ModuleRun tasks.
-		{task.ModuleEnsureCRDs, "", "module-alpha", ""},
 		{task.ModuleRun, "", "module-alpha", string(modules.Startup)},
 		// {task.ModuleDelete, "", "module-beta", ""},
 
