@@ -45,6 +45,10 @@ import (
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
+const (
+	LabelHeritage string = "heritage"
+)
+
 // AddonOperator extends ShellOperator with modules and global hooks
 // and with a value storage.
 type AddonOperator struct {
@@ -87,7 +91,7 @@ type AddonOperator struct {
 	CrdExtraLabels map[string]string
 }
 
-func NewAddonOperator(ctx context.Context, extraLabels string) *AddonOperator {
+func NewAddonOperator(ctx context.Context) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 	so := shell_operator.NewShellOperator(cctx)
 
@@ -110,15 +114,15 @@ func NewAddonOperator(ctx context.Context, extraLabels string) *AddonOperator {
 
 	registerHookMetrics(so.HookMetricStorage)
 
-	labelSelector, err := metav1.ParseToLabelSelector(extraLabels)
+	labelSelector, err := metav1.ParseToLabelSelector(app.ExtraLabels)
 	if err != nil {
 		panic(err)
 	}
 	crdExtraLabels := labelSelector.MatchLabels
 
-	// use heritage=addon-operator by default if not set
-	if _, ok := crdExtraLabels["heritage"]; !ok {
-		crdExtraLabels["heritage"] = "addon-operator"
+	// use `heritage=addon-operator` by default if not set
+	if _, ok := crdExtraLabels[LabelHeritage]; !ok {
+		crdExtraLabels[LabelHeritage] = "addon-operator"
 	}
 
 	ao := &AddonOperator{

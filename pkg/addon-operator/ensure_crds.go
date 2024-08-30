@@ -31,9 +31,13 @@ var crdGVR = schema.GroupVersionResource{
 }
 
 func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) error {
-	crdsGlob := filepath.Join(module.GetPath(), "crds", "*.yaml")
+	// do not ensure CRDs if there are no files
+	if len(module.GetCRDFilesPaths()) == 0 {
+		return nil
+	}
+
 	result := new(multierror.Error)
-	cp, err := NewCRDsInstaller(op.KubeClient(), crdsGlob, op.CrdExtraLabels)
+	cp, err := NewCRDsInstaller(op.KubeClient(), module.GetCRDFilesPaths(), op.CrdExtraLabels)
 	if err != nil {
 		result = multierror.Append(result, err)
 		return result
@@ -48,9 +52,9 @@ func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) error {
 
 // CRDsInstaller simultaneously installs CRDs from specified directory
 type CRDsInstaller struct {
-	k8sClient    dynamic.Interface
-	crdFilesPath []string
-	buffer       []byte
+	k8sClient     dynamic.Interface
+	crdFilesPaths []string
+	buffer        []byte
 
 	// concurrent tasks to create resource in a k8s cluster
 	k8sTasks *multierror.Group
@@ -61,7 +65,7 @@ type CRDsInstaller struct {
 func (cp *CRDsInstaller) Run(ctx context.Context) *multierror.Error {
 	result := new(multierror.Error)
 
-	for _, crdFilePath := range cp.crdFilesPath {
+	for _, crdFilePath := range cp.crdFilesPaths {
 		if match := strings.HasPrefix(filepath.Base(crdFilePath), "doc-"); match {
 			continue
 		}
@@ -136,7 +140,7 @@ func (cp *CRDsInstaller) putCRDToCluster(ctx context.Context, crdReader io.Reade
 	if len(crd.ObjectMeta.Labels) == 0 {
 		crd.ObjectMeta.Labels = make(map[string]string, 1)
 	}
-	crd.ObjectMeta.Labels["heritage"] = cp.crdExtraLabels["heritage"]
+	crd.ObjectMeta.Labels[LabelHeritage] = cp.crdExtraLabels[LabelHeritage]
 
 	cp.k8sTasks.Go(func() error {
 		return cp.updateOrInsertCRD(ctx, crd)
@@ -166,7 +170,7 @@ func (cp *CRDsInstaller) updateOrInsertCRD(ctx context.Context, crd *v1.CustomRe
 			crd.Spec.Conversion = existCRD.Spec.Conversion
 		}
 
-		if existCRD.GetObjectMeta().GetLabels()["heritage"] == cp.crdExtraLabels["heritage"] &&
+		if existCRD.GetObjectMeta().GetLabels()[LabelHeritage] == cp.crdExtraLabels[LabelHeritage] &&
 			reflect.DeepEqual(existCRD.Spec, crd.Spec) {
 			return nil
 		}
@@ -175,7 +179,7 @@ func (cp *CRDsInstaller) updateOrInsertCRD(ctx context.Context, crd *v1.CustomRe
 		if len(existCRD.ObjectMeta.Labels) == 0 {
 			existCRD.ObjectMeta.Labels = make(map[string]string, 1)
 		}
-		existCRD.ObjectMeta.Labels["heritage"] = cp.crdExtraLabels["heritage"]
+		existCRD.ObjectMeta.Labels[LabelHeritage] = cp.crdExtraLabels[LabelHeritage]
 
 		ucrd, err := sdk.ToUnstructured(existCRD)
 		if err != nil {
@@ -204,20 +208,10 @@ func (cp *CRDsInstaller) getCRDFromCluster(ctx context.Context, crdName string) 
 }
 
 // NewCRDsInstaller creates new installer for CRDs
-// crdsGlob example: "/modules/nginx/crds/*.yaml"
-func NewCRDsInstaller(client *client.Client, crdsGlob string, crdExtraLabels map[string]string) (*CRDsInstaller, error) {
-	crds, err := filepath.Glob(crdsGlob)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(crds) == 0 {
-		return nil, nil
-	}
-
+func NewCRDsInstaller(client *client.Client, crdFilesPaths []string, crdExtraLabels map[string]string) (*CRDsInstaller, error) {
 	return &CRDsInstaller{
-		k8sClient:    client.Dynamic(),
-		crdFilesPath: crds,
+		k8sClient:     client.Dynamic(),
+		crdFilesPaths: crdFilesPaths,
 		// 1Mb - maximum size of kubernetes object
 		// if we take less, we have to handle io.ErrShortBuffer error and increase the buffer
 		// take more does not make any sense due to kubernetes limitations

@@ -45,6 +45,9 @@ var (
 
 	// AppliedExtenders defines the list and the order of applied module extenders
 	AppliedExtenders = ""
+
+	// ExtraLabels defines strings for CRDs label selector
+	ExtraLabels = "heritage=addon-operator"
 )
 
 const (
@@ -145,6 +148,11 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS").
 		Default(AppliedExtenders).
 		StringVar(&AppliedExtenders)
+
+	cmd.Flag("extra-labels", "String with CRDs label selectors, like `heritage=addon-operator`").
+		Envar("ADDON_OPERATOR_EXTRA_LABELS").
+		Default(ExtraLabels).
+		StringVar(&ExtraLabels)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)

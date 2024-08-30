@@ -45,6 +45,8 @@ type BasicModule struct {
 	// required
 	Path string
 
+	crdFilesPaths []string
+
 	valuesStorage *ValuesStorage
 
 	state *moduleState
@@ -63,10 +65,13 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
+	crdFilesPaths, _ := filepath.Glob(filepath.Join(path, "crds", "*.yaml"))
+
 	return &BasicModule{
 		Name:          name,
 		Order:         order,
 		Path:          path,
+		crdFilesPaths: crdFilesPaths,
 		valuesStorage: valuesStorage,
 		state: &moduleState{
 			Phase:                Startup,
@@ -886,6 +891,10 @@ func (bm *BasicModule) ValidateValues() error {
 
 func (bm *BasicModule) ValidateConfigValues() error {
 	return bm.valuesStorage.validateConfigValues(bm.GetConfigValues(false))
+}
+
+func (bm *BasicModule) GetCRDFilesPaths() []string {
+	return bm.crdFilesPaths
 }
 
 type ModuleRunPhase string
