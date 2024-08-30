@@ -442,7 +442,7 @@ func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, lo
 // It returns:
 // - true if the state of any vertex has changed (enabled/disabled) or there were any errors during the run;
 // - true if some other parameters, apart from state, of a vertex has changed.
-func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Graph's state has changed */ bool /* list of updated vertices */, []string) {
+func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Graph's state has changed */ bool /* list of the vertices, which updateBy status have changed */, []string) {
 	diff, updByDiff := make(map[string]bool), make([]string, 0)
 	errList := make([]string, 0)
 	enabledModules := make([]string, 0)
