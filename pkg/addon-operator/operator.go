@@ -2188,17 +2188,17 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 		doModuleStartup := false
 		if _, has := newlyEnabled[moduleName]; has {
 			doModuleStartup = true
-		}
 
-		// create ensureCRDsTasks
-		ensureCRDsTasks = append(ensureCRDsTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
-			WithLogLabels(newLogLabels).
-			WithQueueName("main").
-			WithMetadata(task.HookMetadata{
-				EventDescription: "EnsureCRDs",
-				ModuleName:       moduleName,
-				IsReloadAll:      true,
-			}).WithQueuedAt(queuedAt))
+			// create ensureCRDsTasks only for newlyEnabled modules
+			ensureCRDsTasks = append(ensureCRDsTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+				WithLogLabels(newLogLabels).
+				WithQueueName("main").
+				WithMetadata(task.HookMetadata{
+					EventDescription: "EnsureCRDs",
+					ModuleName:       moduleName,
+					IsReloadAll:      true,
+				}).WithQueuedAt(queuedAt))
+		}
 
 		newTask := sh_task.NewTask(task.ModuleRun).
 			WithLogLabels(newLogLabels).
