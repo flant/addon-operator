@@ -124,6 +124,8 @@ type ModuleManager struct {
 	moduleScheduler *scheduler.Scheduler
 }
 
+var once sync.Once
+
 // NewModuleManager returns new MainModuleManager
 func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleManager {
 	cctx, cancel := context.WithCancel(ctx)
@@ -421,6 +423,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	}
 
 	logEntry.Infof("Enabled modules: %+v", enabledModules)
+	once.Do(mm.modules.SetInited)
 
 	var (
 		modulesToEnable  []string
@@ -818,16 +821,13 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 // RecalculateGraph runs corresponding scheduler method that returns true if the graph's state has changed
 func (mm *ModuleManager) RecalculateGraph(logLabels map[string]string) bool {
 	stateChanged, verticesToUpdate := mm.moduleScheduler.RecalculateGraph(logLabels)
-	if stateChanged {
-		return true
-	}
 	for _, module := range verticesToUpdate {
 		mm.SendModuleEvent(events.ModuleEvent{
 			ModuleName: module,
 			EventType:  events.ModuleStateChanged,
 		})
 	}
-	return false
+	return stateChanged
 }
 
 // GlobalSynchronizationNeeded is true if there is at least one global
@@ -1230,7 +1230,6 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 	log.Debugf("Found modules: %v", set.NamesInOrder())
 
 	mm.modules = set
-	mm.modules.SetInited()
 
 	return nil
 }
