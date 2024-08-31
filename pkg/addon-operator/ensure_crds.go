@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"reflect"
-	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -66,10 +64,6 @@ func (cp *CRDsInstaller) Run(ctx context.Context) *multierror.Error {
 	result := new(multierror.Error)
 
 	for _, crdFilePath := range cp.crdFilesPaths {
-		if match := strings.HasPrefix(filepath.Base(crdFilePath), "doc-"); match {
-			continue
-		}
-
 		err := cp.processCRD(ctx, crdFilePath)
 		if err != nil {
 			err = fmt.Errorf("error occurred during processing %q file: %w", crdFilePath, err)

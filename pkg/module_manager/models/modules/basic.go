@@ -65,13 +65,11 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
-	crdFilesPaths, _ := filepath.Glob(filepath.Join(path, "crds", "*.yaml"))
-
 	return &BasicModule{
 		Name:          name,
 		Order:         order,
 		Path:          path,
-		crdFilesPaths: crdFilesPaths,
+		crdFilesPaths: getCRDsFromPath(path),
 		valuesStorage: valuesStorage,
 		state: &moduleState{
 			Phase:                Startup,
@@ -80,6 +78,34 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		},
 		hooks: newHooksStorage(),
 	}, nil
+}
+
+// getCRDsFromPath scan path/crds directory and store yaml file in slice
+// if file name do not start with `_` or `doc-` prefix
+func getCRDsFromPath(path string) []string {
+	var crdFilesPaths []string
+	if err := filepath.Walk(filepath.Join(path, "crds"),
+		func(path string, _ os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if match := strings.HasPrefix(filepath.Base(path), "doc-"); match {
+				return nil
+			}
+			if match := strings.HasPrefix(filepath.Base(path), "_"); match {
+				return nil
+			}
+
+			if filepath.Ext(path) == ".yaml" {
+				crdFilesPaths = append(crdFilesPaths, path)
+			}
+
+			return nil
+		}); err != nil {
+		return nil
+	}
+
+	return crdFilesPaths
 }
 
 // WithDependencies inject module dependencies
