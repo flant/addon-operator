@@ -149,8 +149,8 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default(AppliedExtenders).
 		StringVar(&AppliedExtenders)
 
-	cmd.Flag("extra-labels", "String with CRDs label selectors, like `heritage=addon-operator`").
-		Envar("ADDON_OPERATOR_EXTRA_LABELS").
+	cmd.Flag("crd-extra-labels", "String with CRDs label selectors, like `heritage=addon-operator`").
+		Envar("ADDON_OPERATOR_CRD_EXTRA_LABELS").
 		Default(ExtraLabels).
 		StringVar(&ExtraLabels)
 
