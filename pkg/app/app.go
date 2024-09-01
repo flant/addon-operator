@@ -48,6 +48,8 @@ var (
 
 	// ExtraLabels defines strings for CRDs label selector
 	ExtraLabels = "heritage=addon-operator"
+	// CRDsFilters defines filters for CRD files, example `doc-,_`
+	CRDsFilters = "doc-,_"
 )
 
 const (
@@ -153,6 +155,11 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_CRD_EXTRA_LABELS").
 		Default(ExtraLabels).
 		StringVar(&ExtraLabels)
+
+	cmd.Flag("crd-filters", "String of filters for the CRD, separated by commas`").
+		Envar("ADDON_OPERATOR_CRD_FILTERS").
+		Default(CRDsFilters).
+		StringVar(&CRDsFilters)
 
 	sh_app.DefineKubeClientFlags(cmd)
 	sh_app.DefineJqFlags(cmd)

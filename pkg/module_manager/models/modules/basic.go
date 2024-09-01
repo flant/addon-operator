@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
@@ -87,28 +88,35 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 // if file name do not start with `_` or `doc-` prefix
 func getCRDsFromPath(path string) []string {
 	var crdFilesPaths []string
-	if err := filepath.Walk(filepath.Join(path, "crds"),
+	err := filepath.Walk(
+		filepath.Join(path, "crds"),
 		func(path string, _ os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			if match := strings.HasPrefix(filepath.Base(path), "doc-"); match {
-				return nil
-			}
-			if match := strings.HasPrefix(filepath.Base(path), "_"); match {
-				return nil
-			}
 
-			if filepath.Ext(path) == ".yaml" {
+			if !matchPrefix(path) && filepath.Ext(path) == ".yaml" {
 				crdFilesPaths = append(crdFilesPaths, path)
 			}
 
 			return nil
-		}); err != nil {
+		})
+	if err != nil {
 		return nil
 	}
 
 	return crdFilesPaths
+}
+
+func matchPrefix(path string) bool {
+	filters := strings.Split(app.CRDsFilters, ",")
+	for _, filter := range filters {
+		if strings.HasPrefix(filepath.Base(path), strings.TrimSpace(filter)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // WithDependencies inject module dependencies
