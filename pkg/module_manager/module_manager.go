@@ -1256,7 +1256,7 @@ func (mm *ModuleManager) SchedulerEventCh() chan extenders.ExtenderEvent {
 }
 
 func (mm *ModuleManager) ModuleHasCRDs(moduleName string) bool {
-	return len(mm.GetModule(moduleName).GetCRDFilesPaths()) > 0
+	return mm.GetModule(moduleName).CRDExist()
 }
 
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks

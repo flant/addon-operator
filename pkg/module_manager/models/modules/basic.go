@@ -45,6 +45,7 @@ type BasicModule struct {
 	// required
 	Path string
 
+	crdsExist     bool
 	crdFilesPaths []string
 
 	valuesStorage *ValuesStorage
@@ -65,11 +66,13 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
+	crdsFromPath := getCRDsFromPath(path)
 	return &BasicModule{
 		Name:          name,
 		Order:         order,
 		Path:          path,
-		crdFilesPaths: getCRDsFromPath(path),
+		crdsExist:     len(crdsFromPath) > 0,
+		crdFilesPaths: crdsFromPath,
 		valuesStorage: valuesStorage,
 		state: &moduleState{
 			Phase:                Startup,
@@ -921,6 +924,10 @@ func (bm *BasicModule) ValidateConfigValues() error {
 
 func (bm *BasicModule) GetCRDFilesPaths() []string {
 	return bm.crdFilesPaths
+}
+
+func (bm *BasicModule) CRDExist() bool {
+	return bm.crdsExist
 }
 
 type ModuleRunPhase string

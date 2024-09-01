@@ -30,7 +30,7 @@ var crdGVR = schema.GroupVersionResource{
 
 func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) error {
 	// do not ensure CRDs if there are no files
-	if len(module.GetCRDFilesPaths()) == 0 {
+	if !module.CRDExist() {
 		return nil
 	}
 
