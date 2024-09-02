@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"sort"
 	"strings"
 	"sync"
 
@@ -115,6 +116,8 @@ func (s *Scheduler) GetGraphImage() (image.Image, error) {
 
 // AddModuleVertex adds a new vertex of type Module to the graph
 func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
+	s.l.Lock()
+	defer s.l.Unlock()
 	vertex := node.NewNode().WithName(module.GetName()).WithWeight(module.GetOrder()).WithType(node.ModuleType).WithModule(module)
 	// add module vertex
 	if err := s.dag.AddVertex(vertex, graph.VertexAttribute("colorscheme", "greens3"), graph.VertexAttribute("style", "filled"), graph.VertexAttribute("color", "2"), graph.VertexAttribute("fillcolor", "1"), graph.VertexAttribute("type", string(node.ModuleType))); err != nil {
@@ -135,7 +138,7 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 	// parent not found - create it
 	default:
 		parent := node.NewNode().WithName(vertex.GetWeight().String()).WithWeight(uint32(vertex.GetWeight())).WithType(node.WeightType)
-		if err := s.AddWeightVertex(parent); err != nil {
+		if err := s.addWeightVertex(parent); err != nil {
 			return err
 		}
 		if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
@@ -145,8 +148,8 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 	return nil
 }
 
-// AddWeightVertex adds a new vertex of type Weight to the graph
-func (s *Scheduler) AddWeightVertex(vertex *node.Node) error {
+// addWeightVertex adds a new vertex of type Weight to the graph
+func (s *Scheduler) addWeightVertex(vertex *node.Node) error {
 	if err := s.dag.AddVertex(vertex, graph.VertexWeight(int(vertex.GetWeight())), graph.VertexAttribute("colorscheme", "blues3"), graph.VertexAttribute("style", "filled"), graph.VertexAttribute("color", "2"), graph.VertexAttribute("fillcolor", "1"), graph.VertexAttribute("type", string(node.WeightType))); err != nil {
 		return err
 	}
@@ -301,19 +304,21 @@ func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 	return nil
 }
 
-// GetModuleNodes traverses the graph in DFS-way and returns all Module-type vertices
+// GetModuleNodes traverses the graph in BFS-way and returns all Module-type vertices
 func (s *Scheduler) GetModuleNodes() ([]*node.Node, error) {
+	s.l.Lock()
+	defer s.l.Unlock()
 	if s.root == nil {
 		return nil, fmt.Errorf("graph is empty")
 	}
 
 	var nodes []*node.Node
-	var dfsErr error
+	var bfsErr error
 
-	err := graph.DFS(s.dag, s.root.GetName(), func(name string) bool {
+	err := graph.BFS(s.dag, s.root.GetName(), func(name string) bool {
 		vertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			dfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
+			bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
 			return true
 		}
 
@@ -324,10 +329,9 @@ func (s *Scheduler) GetModuleNodes() ([]*node.Node, error) {
 		return false
 	})
 
-	if dfsErr != nil {
-		return nodes, dfsErr
+	if bfsErr != nil {
+		return nodes, bfsErr
 	}
-
 	return nodes, err
 }
 
@@ -352,6 +356,8 @@ func moduleSortFunc(m1, m2 string) bool {
 }
 
 func (s *Scheduler) GetUpdatedByExtender(moduleName string) (string, error) {
+	s.l.Lock()
+	defer s.l.Unlock()
 	vertex, err := s.dag.Vertex(moduleName)
 	if err != nil {
 		return "", err
@@ -360,6 +366,8 @@ func (s *Scheduler) GetUpdatedByExtender(moduleName string) (string, error) {
 }
 
 func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
+	s.l.Lock()
+	defer s.l.Unlock()
 	vertex, err := s.dag.Vertex(moduleName)
 	if err != nil {
 		return false
@@ -386,13 +394,110 @@ func (s *Scheduler) getEnabledModuleNames() []string {
 	return enabledModules
 }
 
+func (s *Scheduler) getEnabledModuleNamesByOrder(weights ...node.NodeWeight) (map[node.NodeWeight][]string, error) {
+	result := make(map[node.NodeWeight][]string, 0)
+	var err error
+	switch {
+	// get modules of all weights
+	case len(weights) == 0:
+		if s.root == nil {
+			return nil, fmt.Errorf("graph is empty")
+		}
+		var (
+			dfsErr     error
+			allWeights []node.NodeWeight
+		)
+		err = graph.DFS(s.dag, s.root.GetName(), func(name string) bool {
+			vertex, props, err := s.dag.VertexWithProperties(name)
+			if err != nil {
+				dfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
+				return true
+			}
+
+			if props.Attributes["type"] == string(node.WeightType) {
+				allWeights = append(allWeights, vertex.GetWeight())
+			}
+
+			return false
+		})
+		if err != nil {
+			return nil, err
+		}
+		if dfsErr != nil {
+			return nil, dfsErr
+		}
+		result, err = s.getEnabledModuleNamesByOrder(allWeights...)
+
+	// get modules of specific weight
+	case len(weights) == 1:
+		// check if the weight vertex exists
+		rootVertex, err := s.dag.Vertex(weights[0].String())
+		if err != nil {
+			return nil, err
+		}
+
+		// get all modules of the weight
+		var (
+			bfsErr         error
+			enabledModules = []string{}
+		)
+		// search for all module vertices which have desired weight
+		err = graph.BFS(s.dag, rootVertex.GetName(), func(name string) bool {
+			vertex, props, err := s.dag.VertexWithProperties(name)
+			if err != nil {
+				bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
+				return true
+			}
+
+			if props.Attributes["type"] == string(node.ModuleType) && vertex.GetState() {
+				if vertex.GetWeight() == rootVertex.GetWeight() {
+					enabledModules = append(enabledModules, vertex.GetName())
+					return false
+				}
+				// a vertex with different weight has been found - exit
+				return true
+			}
+
+			// a weight vertex has been found - continue
+			return false
+		})
+		if err != nil {
+			return nil, err
+		}
+		if bfsErr != nil {
+			return nil, bfsErr
+		}
+		sort.Slice(enabledModules, func(i, j int) bool {
+			return enabledModules[i] < enabledModules[j]
+		})
+		if len(enabledModules) > 0 {
+			result[rootVertex.GetWeight()] = enabledModules
+		}
+
+	// get modules of specified weights
+	default:
+		sort.Slice(weights, func(i, j int) bool { return weights[i] < weights[j] })
+		for _, weight := range weights {
+			enabledModulesByOrder, err := s.getEnabledModuleNamesByOrder([]node.NodeWeight{weight}...)
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range enabledModulesByOrder {
+				result[k] = v
+			}
+		}
+	}
+
+	return result, err
+}
+
 // GetGraphState returns:
 // * list of enabled modules if not nil
 // * current modules diff
 // * error if any
 // if s.enabledModules is nil, we infer that the graph hasn't been calculated yet and run RecalculateGraph for the first time.
 // if s.errList isn't empty, we try to recalculate the graph in case there were some minor errors last time.
-func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modules*/ []string /*modules diff*/, map[string]bool, error) {
+func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modules*/ []string /*enabled modules grouped by order*/, map[node.NodeWeight][]string /*modules diff*/, map[string]bool, error) {
 	var recalculateGraph bool
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
 	s.l.Lock()
@@ -414,10 +519,12 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 	}
 
 	if len(s.errList) > 0 {
-		return s.getEnabledModuleNames(), nil, fmt.Errorf("couldn't recalculate graph: %s", strings.Join(s.errList, ","))
+		return s.getEnabledModuleNames(), nil, nil, fmt.Errorf("couldn't recalculate graph: %s", strings.Join(s.errList, ","))
 	}
 
-	return s.getEnabledModuleNames(), s.gleanGraphDiff(), nil
+	enabledModulesByOrder, err := s.getEnabledModuleNamesByOrder()
+
+	return s.getEnabledModuleNames(), enabledModulesByOrder, s.gleanGraphDiff(), err
 }
 
 // RecalculateGraph is a public version of recalculateGraphState()

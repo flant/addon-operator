@@ -39,9 +39,16 @@ func ModulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
 			return
 		}
 
-		if t.GetType() == task.ModuleRun {
+		switch t.GetType() {
+		case task.ModuleRun:
 			hm := task.HookMetadataAccessor(t)
 			modules[hm.ModuleName] = struct{}{}
+
+		case task.GroupedModuleRun:
+			hm := task.HookMetadataAccessor(t)
+			for _, moduleName := range hm.GroupMetadata.ListModules() {
+				modules[moduleName] = struct{}{}
+			}
 		}
 	})
 
@@ -79,10 +86,53 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 	return tasks
 }
 
-// RemoveCurrentConvergeTasks detects if converge tasks present in the main
+// RemoveCurrentConvergeTasks detects if converge tasks present in the main and group queues.
+// These tasks are drained and the method returns true
+func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map[string]string) bool {
+	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	convergeDrained := false
+
+	for _, queue := range convergeQueues {
+		if queue == nil || queue.IsEmpty() {
+			continue
+		}
+
+		stop := false
+
+		queue.Filter(func(t sh_task.Task) bool {
+			if stop {
+				return true
+			}
+
+			if converge.IsConvergeTask(t) {
+				convergeDrained = true
+				hm := task.HookMetadataAccessor(t)
+				// Stop draining when ConvergeModules task is found.
+				switch t.GetType() {
+				case task.ConvergeModules:
+					stop = true
+
+				case task.GroupedModuleRun:
+					if hm.GroupMetadata == nil || hm.GroupMetadata.CancelF == nil {
+						logEntry.Warnf("Couldn't get group metadata for group task of type: %s, module: %s, description: %s, from queue %s", t.GetType(), hm.ModuleName, hm.EventDescription, queue.Name)
+					} else {
+						// cancel group task context
+						hm.GroupMetadata.CancelF()
+					}
+				}
+				logEntry.Debugf("Drained converge task of type: %s, module: %s, description: %s, from queue %s", t.GetType(), hm.ModuleName, hm.EventDescription, queue.Name)
+				return false
+			}
+			return true
+		})
+	}
+	return convergeDrained
+}
+
+// RemoveCurrentConvergeTasksFromId detects if converge tasks present in the main
 // queue after task which ID equals to 'afterID'. These tasks are drained
 // and the method returns true.
-func RemoveCurrentConvergeTasks(q *queue.TaskQueue, afterId string, logLabels map[string]string) bool {
+func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLabels map[string]string) bool {
 	if q == nil {
 		return false
 	}

@@ -68,10 +68,10 @@ nodeLocalDnsEnabled: false
 	require.NoError(t, err)
 
 	se, err := static.NewExtender(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = s.AddExtender(se)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, m := range basicModules {
 		err := s.AddModuleVertex(m)
@@ -105,7 +105,7 @@ nodeLocalDnsEnabled: false
 
 	// finalize
 	err = os.RemoveAll(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestApplyExtenders(t *testing.T) {
@@ -126,7 +126,7 @@ nodeLocalDnsEnabled: true
 	assert.NoError(t, err)
 
 	err = s.AddExtender(se)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = s.ApplyExtenders("A,Static")
 	assert.Equal(t, errors.New("couldn't find A extender in the list of available extenders"), err)
@@ -148,10 +148,114 @@ nodeLocalDnsEnabled: true
 
 	// finalize
 	err = os.RemoveAll(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
-func TestGetEnabledModuleNames(t *testing.T) {
+func TestGetEnabledModuleNamesByOrder(t *testing.T) {
+	values := `
+# CE Bundle "Default"
+nodeLocalDnsEnabled: true
+certManagerEnabled: true
+prometheusEnabled: true
+istioEnabled: true
+admissionPolicyEngineEnabled: true
+kubeDnsEnabled: false
+`
+	logLabels := map[string]string{"source": "TestGetEnabledModuleNamesByOrder"}
+	basicModules := []*node_mock.MockModule{
+		{
+			Name:  "kube-dns",
+			Order: 45,
+		},
+		{
+			Name:  "cert-manager",
+			Order: 30,
+		},
+		{
+			Name:  "node-local-dns",
+			Order: 20,
+		},
+		{
+			Name:  "prometheus",
+			Order: 20,
+		},
+		{
+			Name:  "istio",
+			Order: 20,
+		},
+		{
+			Name:  "ingress-nginx",
+			Order: 402,
+		},
+		{
+			Name:  "admission-policy-engine",
+			Order: 402,
+		},
+	}
+
+	tmp, err := os.MkdirTemp(t.TempDir(), "getEnabledByOrderTest")
+	require.NoError(t, err)
+
+	s := NewScheduler(context.TODO())
+
+	valuesFile := filepath.Join(tmp, "values.yaml")
+	err = os.WriteFile(valuesFile, []byte(values), 0o644)
+	require.NoError(t, err)
+
+	se, err := static.NewExtender(tmp)
+	require.NoError(t, err)
+
+	err = s.AddExtender(se)
+	require.NoError(t, err)
+
+	for _, m := range basicModules {
+		err := s.AddModuleVertex(m)
+		assert.NoError(t, err)
+	}
+
+	err = s.ApplyExtenders("Static")
+	require.NoError(t, err)
+
+	_, _ = s.RecalculateGraph(logLabels)
+
+	// get all enabled modules by order case
+	enabledModules, err := s.getEnabledModuleNamesByOrder()
+	assert.NoError(t, err)
+	expected := map[node.NodeWeight][]string{
+		node.NodeWeight(20):  {"istio", "node-local-dns", "prometheus"},
+		node.NodeWeight(30):  {"cert-manager"},
+		node.NodeWeight(402): {"admission-policy-engine"},
+	}
+	assert.Equal(t, expected, enabledModules)
+
+	// get all enabled modules for a nonexistent order
+	_, err = s.getEnabledModuleNamesByOrder(node.NodeWeight(555), node.NodeWeight(20))
+	assert.Error(t, err)
+	assert.Equal(t, errors.New("vertex not found"), err)
+
+	// get all enabled modules for an existent order
+	enabledModules, err = s.getEnabledModuleNamesByOrder(node.NodeWeight(20))
+	assert.NoError(t, err)
+	expected = map[node.NodeWeight][]string{
+		node.NodeWeight(20): {"istio", "node-local-dns", "prometheus"},
+	}
+	assert.Equal(t, expected, enabledModules)
+
+	// get all enabled modules for several orders
+	enabledModules, err = s.getEnabledModuleNamesByOrder(node.NodeWeight(402), node.NodeWeight(30))
+	assert.NoError(t, err)
+	expected = map[node.NodeWeight][]string{
+		node.NodeWeight(30):  {"cert-manager"},
+		node.NodeWeight(402): {"admission-policy-engine"},
+	}
+	assert.Equal(t, expected, enabledModules)
+
+	// finalize
+	err = os.RemoveAll(tmp)
+	require.NoError(t, err)
+}
+
+func TestGetEnabledModuleNamesWithError(t *testing.T) {
 	values := `
 # CE Bundle "Default"
 ingressNginxEnabled: true
@@ -192,12 +296,12 @@ certManagerEnabled: true
 	assert.NoError(t, err)
 
 	err = s.AddExtender(se)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	scripte, err := script_enabled.NewExtender(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = s.AddExtender(scripte)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, m := range basicModules {
 		err := s.AddModuleVertex(m)
@@ -215,7 +319,7 @@ certManagerEnabled: true
 
 	// finalize
 	err = os.RemoveAll(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestAddModuleVertex(t *testing.T) {
@@ -338,17 +442,17 @@ func TestSetExtendersMeta(t *testing.T) {
 	s := NewScheduler(context.TODO())
 
 	err := s.AddExtender(&extender_mock.FilterOne{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = s.AddExtender(&extender_mock.FilterTwo{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = s.AddExtender(&extender_mock.FilterThree{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = s.AddExtender(&extender_mock.TerminatorOne{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = s.AddExtender(&extender_mock.TerminatorTwo{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = s.ApplyExtenders("FilterOne,FilterTwo,FilterThree,TerminatorOne,TerminatorTwo")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	expected := []bool{
 		true,
@@ -439,17 +543,17 @@ kubeDnsEnabled: false
 	require.NoError(t, err)
 
 	se, err := static.NewExtender(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = s.AddExtender(se)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	require.NoError(t, err)
 
 	scripte, err := script_enabled.NewExtender(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = s.AddExtender(scripte)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, v := range basicModules {
 		scripte.AddBasicModule(v)
@@ -457,12 +561,12 @@ kubeDnsEnabled: false
 
 	// terminator goes last
 	err = s.ApplyExtenders("Static,ScriptEnabled")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	updated, verticesToUpdate := s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
 
-	_, diff, err := s.GetGraphState(logLabels)
+	_, _, diff, err := s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expectedSummary := map[string]bool{
@@ -489,7 +593,7 @@ kubeDnsEnabled: false
 
 	// revert extenders order
 	err = s.ApplyExtenders("ScriptEnabled,Static")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	expectedSummary = map[string]bool{
 		"admission-policy-engine/Static": true,
@@ -504,7 +608,7 @@ kubeDnsEnabled: false
 	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, false, updated)
 
-	_, diff, err = s.GetGraphState(logLabels)
+	_, _, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	summary, err = s.PrintSummary()
@@ -538,7 +642,7 @@ kubeDnsEnabled: false
 	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
 
-	_, diff, err = s.GetGraphState(logLabels)
+	_, _, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	summary, err = s.PrintSummary()
@@ -550,7 +654,7 @@ kubeDnsEnabled: false
 
 	// finalize
 	err = os.RemoveAll(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestRecalculateGraph(t *testing.T) {
@@ -673,17 +777,17 @@ l2LoadBalancerEnabled: false
 	require.NoError(t, err)
 
 	se, err := static.NewExtender(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = s.AddExtender(se)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = s.ApplyExtenders("Static")
 	require.NoError(t, err)
 
 	updated, verticesToUpdate := s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
-	_, diff, err := s.GetGraphState(logLabels)
+	_, _, diff, err := s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected := map[string]bool{
@@ -737,7 +841,7 @@ l2LoadBalancerEnabled: false
 	}()
 
 	err = s.AddExtender(de)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = s.ApplyExtenders("Static,DynamicallyEnabled")
 	require.NoError(t, err)
@@ -747,7 +851,7 @@ l2LoadBalancerEnabled: false
 	de.UpdateStatus("openstack-cloud-provider", "add", true)
 	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
-	_, diff, err = s.GetGraphState(logLabels)
+	_, _, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected = map[string]bool{
@@ -794,7 +898,7 @@ l2LoadBalancerEnabled: false
 	})
 
 	err = s.AddExtender(kce)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = s.ApplyExtenders("Static,DynamicallyEnabled,KubeConfig")
 	require.NoError(t, err)
@@ -803,7 +907,7 @@ l2LoadBalancerEnabled: false
 
 	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
-	_, diff, err = s.GetGraphState(logLabels)
+	_, _, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected = map[string]bool{
@@ -847,9 +951,9 @@ l2LoadBalancerEnabled: false
 	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
 	scripte, err := script_enabled.NewExtender(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = s.AddExtender(scripte)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, v := range basicModules {
 		scripte.AddBasicModule(v)
@@ -860,7 +964,7 @@ l2LoadBalancerEnabled: false
 
 	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
-	_, diff, err = s.GetGraphState(logLabels)
+	_, _, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected = map[string]bool{
@@ -907,7 +1011,7 @@ l2LoadBalancerEnabled: false
 	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, false, updated)
 
-	_, diff, err = s.GetGraphState(logLabels)
+	_, _, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
 	expected = map[string]bool{
@@ -946,7 +1050,7 @@ l2LoadBalancerEnabled: false
 	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
 
-	_, diff, err = s.GetGraphState(logLabels)
+	_, _, diff, err = s.GetGraphState(logLabels)
 	assert.Error(t, err)
 
 	expected = map[string]bool{
@@ -974,5 +1078,5 @@ l2LoadBalancerEnabled: false
 	assert.Equal(t, []string{"ScriptEnabled extender failed to filter ingress-nginx module: failed to execute 'ingress-nginx' module's enabled script: Exit code not 0"}, s.errList)
 
 	err = os.RemoveAll(tmp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

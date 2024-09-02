@@ -1,13 +1,16 @@
 package task
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/shell-operator/pkg/hook/binding_context"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
 	"github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/task"
@@ -18,6 +21,7 @@ type HookMetadata struct {
 	EventDescription string // event name for informative queue dump
 	HookName         string
 	ModuleName       string
+	GroupMetadata    *GroupMetadata
 	Binding          string // binding name from configuration
 	BindingType      types.BindingType
 	BindingContext   []binding_context.BindingContext
@@ -35,6 +39,60 @@ type HookMetadata struct {
 	WaitForSynchronization   bool     // kubernetes.Synchronization task should be waited
 	MonitorIDs               []string // an array of monitor IDs to unlock Kubernetes events after Synchronization.
 	ExecuteOnSynchronization bool     // A flag to skip hook execution in Synchronization tasks.
+}
+
+// GroupMetadata is metadata for a group task
+type GroupMetadata struct {
+	// the order the modules are grouped by
+	Order node.NodeWeight
+	// channelId of the groupedTaskChannel to communicate between grouped ModuleRun and GroupedModuleRun tasks
+	ChannelId string
+	// context with cancel to stop GroupedModuleRun task
+	Context context.Context
+	CancelF func()
+
+	// map of modules, taking part in a group run
+	l       sync.Mutex
+	modules map[string]GroupedModuleMetadata
+}
+
+// GroupedModuleMetadata is metadata for a grouped module
+type GroupedModuleMetadata struct {
+	DoModuleStartup bool
+}
+
+func (gm *GroupMetadata) GetModulesMetadata() map[string]GroupedModuleMetadata {
+	gm.l.Lock()
+	defer gm.l.Unlock()
+	return gm.modules
+}
+
+func (gm *GroupMetadata) SetModuleMetadata(moduleName string, metadata GroupedModuleMetadata) {
+	if gm.modules == nil {
+		gm.modules = make(map[string]GroupedModuleMetadata)
+	}
+	gm.l.Lock()
+	gm.modules[moduleName] = metadata
+	gm.l.Unlock()
+}
+
+func (gm *GroupMetadata) DeleteModuleMetadata(moduleName string) {
+	if gm.modules == nil {
+		return
+	}
+	gm.l.Lock()
+	delete(gm.modules, moduleName)
+	gm.l.Unlock()
+}
+
+func (gm *GroupMetadata) ListModules() []string {
+	gm.l.Lock()
+	defer gm.l.Unlock()
+	result := make([]string, 0, len(gm.modules))
+	for module := range gm.modules {
+		result = append(result, module)
+	}
+	return result
 }
 
 var (

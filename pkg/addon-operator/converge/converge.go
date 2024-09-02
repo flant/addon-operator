@@ -72,7 +72,7 @@ func IsConvergeTask(t sh_task.Task) bool {
 	switch taskType {
 	case task.ModuleDelete, task.ConvergeModules:
 		return true
-	case task.ModuleRun:
+	case task.ModuleRun, task.GroupedModuleRun:
 		return hm.IsReloadAll
 	case task.GlobalHookRun:
 		switch hm.BindingType {

@@ -49,14 +49,16 @@ func (s *SynchronizationState) HasQueued() bool {
 	return queued
 }
 
-// IsComplete returns true if all states are in done status.
-func (s *SynchronizationState) IsComplete() bool {
+// IsCompleted returns true if all states are in done status.
+func (s *SynchronizationState) IsCompleted() bool {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	done := true
 	for _, state := range s.state {
 		if !state.Done {
 			done = false
+			log.Debugf("Synchronization isn't done for %s/%s", state.HookName, state.BindingName)
+			break
 		}
 	}
 	return done
@@ -86,6 +88,7 @@ func (s *SynchronizationState) DoneForBinding(id string) {
 		state = &kubernetesBindingSynchronizationState{}
 		s.state[id] = state
 	}
+	log.Debugf("Synchronization done for %s/%s", state.HookName, state.BindingName)
 	state.Done = true
 }
 

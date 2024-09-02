@@ -50,6 +50,11 @@ var (
 	ExtraLabels = "heritage=addon-operator"
 	// CRDsFilters defines filters for CRD files, example `doc-,_`
 	CRDsFilters = "doc-,_"
+
+	// NumberOfGroupQueues defines the number of precreated group queues for parallel execution
+	NumberOfGroupQueues   = 10
+	GroupQueuePrefix      = "group_queue"
+	GroupQueueNamePattern = GroupQueuePrefix + "_%d"
 )
 
 const (

@@ -31,6 +31,7 @@ import (
 	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -49,6 +50,8 @@ import (
 type ModulesState struct {
 	// All enabled modules.
 	AllEnabledModules []string
+	// All enabled modules grouped by order.
+	AllEnabledModulesByOrder map[node.NodeWeight][]string
 	// Modules that should be deleted.
 	ModulesToDisable []string
 	// Modules that was disabled and now are enabled.
@@ -417,7 +420,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	})
 	logEntry := log.WithFields(utils.LabelsToLogFields(refreshLogLabels))
 
-	enabledModules, modulesDiff, err := mm.moduleScheduler.GetGraphState(refreshLogLabels)
+	enabledModules, enabledModulesByOrder, modulesDiff, err := mm.moduleScheduler.GetGraphState(refreshLogLabels)
 	if err != nil {
 		return nil, err
 	}
@@ -459,9 +462,10 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 
 	// Return lists for ConvergeModules task.
 	return &ModulesState{
-		AllEnabledModules: enabledModules,
-		ModulesToDisable:  modulesToDisable,
-		ModulesToEnable:   modulesToEnable,
+		AllEnabledModules:        enabledModules,
+		AllEnabledModulesByOrder: enabledModulesByOrder,
+		ModulesToDisable:         modulesToDisable,
+		ModulesToEnable:          modulesToEnable,
 	}, nil
 }
 
