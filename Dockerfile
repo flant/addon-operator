@@ -1,8 +1,8 @@
 # Prebuilt libjq.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} flant/jq:b6be13d5-musl as libjq
+FROM --platform=${TARGETPLATFORM:-linux/amd64} flant/jq:b6be13d5-musl@sha256:a896072d58d3992fd68cf0b80d75065c2452240419ddbdc869c598a21fca58ad as libjq
 
 # Go builder.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.20-alpine3.16 AS builder
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.20-alpine3.16@sha256:6469405d7297f82d56195c90a3270b0806ef4bd897aa0628477d9959ab97a577 AS builder
 
 ARG appVersion=latest
 RUN apk --no-cache add git ca-certificates gcc musl-dev libc-dev binutils-gold
@@ -31,7 +31,7 @@ RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
              ./cmd/addon-operator
 
 # Final image
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.16
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.16@sha256:452e7292acee0ee16c332324d7de05fa2c99f9994ecc9f0779c602916a672ae4
 ARG TARGETPLATFORM
 # kubectl url has no variant (v7)
 # helm url has dashes and no variant (v7)
