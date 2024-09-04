@@ -86,9 +86,9 @@ type AddonOperator struct {
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
 
-	// CrdExtraLabels contains labels for processing CRD files
+	// CRDExtraLabels contains labels for processing CRD files
 	// like heritage=addon-operator
-	CrdExtraLabels map[string]string
+	CRDExtraLabels map[string]string
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -132,7 +132,7 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		ConvergeState:  converge.NewConvergeState(),
 		runtimeConfig:  rc,
 		MetricStorage:  so.MetricStorage,
-		CrdExtraLabels: crdExtraLabels,
+		CRDExtraLabels: crdExtraLabels,
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)

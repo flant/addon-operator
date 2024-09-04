@@ -35,7 +35,7 @@ func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) error {
 	}
 
 	result := new(multierror.Error)
-	cp, err := NewCRDsInstaller(op.KubeClient(), module.GetCRDFilesPaths(), op.CrdExtraLabels)
+	cp, err := NewCRDsInstaller(op.KubeClient(), module.GetCRDFilesPaths(), op.CRDExtraLabels)
 	if err != nil {
 		result = multierror.Append(result, err)
 		return result

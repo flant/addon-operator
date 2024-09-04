@@ -157,7 +157,7 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		StringVar(&ExtraLabels)
 
 	cmd.Flag("crd-filters", "String of filters for the CRD, separated by commas`").
-		Envar("ADDON_OPERATOR_CRD_FILTERS").
+		Envar("ADDON_OPERATOR_CRD_FILTER_PREFIXES").
 		Default(CRDsFilters).
 		StringVar(&CRDsFilters)
 
