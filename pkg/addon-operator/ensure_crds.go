@@ -134,7 +134,9 @@ func (cp *CRDsInstaller) putCRDToCluster(ctx context.Context, crdReader io.Reade
 	if len(crd.ObjectMeta.Labels) == 0 {
 		crd.ObjectMeta.Labels = make(map[string]string, 1)
 	}
-	crd.ObjectMeta.Labels[LabelHeritage] = cp.crdExtraLabels[LabelHeritage]
+	for crdExtraLabel := range cp.crdExtraLabels {
+		crd.ObjectMeta.Labels[crdExtraLabel] = cp.crdExtraLabels[crdExtraLabel]
+	}
 
 	cp.k8sTasks.Go(func() error {
 		return cp.updateOrInsertCRD(ctx, crd)
