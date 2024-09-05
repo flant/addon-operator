@@ -16,6 +16,8 @@ const (
 	ModuleRun task.TaskType = "ModuleRun"
 	// ModulePurge - delete unknown helm release (no module in ModulesDir)
 	ModulePurge task.TaskType = "ModulePurge"
+	// ModuleEnsureCRDs runs ensureCRDs task for enabled module
+	ModuleEnsureCRDs task.TaskType = "ModuleEnsureCRDs"
 
 	// DiscoverHelmReleases lists helm releases to detect unknown modules and initiate enabled modules list.
 	DiscoverHelmReleases task.TaskType = "DiscoverHelmReleases"

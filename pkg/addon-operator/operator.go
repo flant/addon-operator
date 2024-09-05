@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	log "github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
@@ -42,6 +43,10 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 	fileUtils "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
+)
+
+const (
+	LabelHeritage string = "heritage"
 )
 
 // AddonOperator extends ShellOperator with modules and global hooks
@@ -80,6 +85,10 @@ type AddonOperator struct {
 
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
+
+	// CRDExtraLabels contains labels for processing CRD files
+	// like heritage=addon-operator
+	CRDExtraLabels map[string]string
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -105,13 +114,25 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 
 	registerHookMetrics(so.HookMetricStorage)
 
+	labelSelector, err := metav1.ParseToLabelSelector(app.ExtraLabels)
+	if err != nil {
+		panic(err)
+	}
+	crdExtraLabels := labelSelector.MatchLabels
+
+	// use `heritage=addon-operator` by default if not set
+	if _, ok := crdExtraLabels[LabelHeritage]; !ok {
+		crdExtraLabels[LabelHeritage] = "addon-operator"
+	}
+
 	ao := &AddonOperator{
-		ctx:           cctx,
-		cancel:        cancel,
-		engine:        so,
-		ConvergeState: converge.NewConvergeState(),
-		runtimeConfig: rc,
-		MetricStorage: so.MetricStorage,
+		ctx:            cctx,
+		cancel:         cancel,
+		engine:         so,
+		ConvergeState:  converge.NewConvergeState(),
+		runtimeConfig:  rc,
+		MetricStorage:  so.MetricStorage,
+		CRDExtraLabels: crdExtraLabels,
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
@@ -1179,6 +1200,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 	case task.ModulePurge:
 		res.Status = op.HandleModulePurge(t, taskLogLabels)
+
+	case task.ModuleEnsureCRDs:
+		res = op.HandleModuleEnsureCRDs(t, taskLogLabels)
 	}
 
 	if res.Status == queue.Success {
@@ -1434,6 +1458,29 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 	} else {
 		logEntry.Debugf("Module delete success '%s'", hm.ModuleName)
 		status = queue.Success
+	}
+
+	return
+}
+
+// HandleModuleEnsureCRDs ensure CRDs for module.
+func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+	defer trace.StartRegion(context.Background(), "ModuleEnsureCRDs").End()
+
+	hm := task.HookMetadataAccessor(t)
+	res.Status = queue.Success
+
+	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
+
+	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry.Debugf("Module ensureCRDs '%s'", hm.ModuleName)
+
+	if err := op.EnsureCRDs(baseModule); err != nil {
+		op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, err)
+		logEntry.Errorf("ModuleEnsureCRDs failed. Error: %s", err)
+		t.UpdateFailureMessage(err.Error())
+		t.WithQueuedAt(time.Now())
+		res.Status = queue.Fail
 	}
 
 	return
@@ -2123,6 +2170,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}
 
+	ensureCRDsTasks := make([]sh_task.Task, 0, len(state.AllEnabledModules))
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
 	for _, moduleName := range state.AllEnabledModules {
@@ -2140,6 +2188,19 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 		doModuleStartup := false
 		if _, has := newlyEnabled[moduleName]; has {
 			doModuleStartup = true
+
+			// create ensureCRDsTasks only for newlyEnabled modules
+			// and if module contains CRDs
+			if op.ModuleManager.ModuleHasCRDs(moduleName) {
+				ensureCRDsTasks = append(ensureCRDsTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+					WithLogLabels(newLogLabels).
+					WithQueueName("main").
+					WithMetadata(task.HookMetadata{
+						EventDescription: "EnsureCRDs",
+						ModuleName:       moduleName,
+						IsReloadAll:      true,
+					}).WithQueuedAt(queuedAt))
+			}
 		}
 
 		newTask := sh_task.NewTask(task.ModuleRun).
@@ -2154,7 +2215,10 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}
 
-	return newTasks
+	// append ensureCRDs tasks to begin queue
+	ensureCRDsTasks = append(ensureCRDsTasks, newTasks...)
+
+	return ensureCRDsTasks
 }
 
 // CheckConvergeStatus detects if converge process is started and
@@ -2298,6 +2362,9 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 		// DiscoverHelmReleases task done, result is 'Success', trigger Operator-Startup
 		// Remove "for"
 		parts = parts[:len(parts)-1]
+
+	case task.ModuleEnsureCRDs:
+		parts = append(parts, fmt.Sprintf("module '%s'", hm.ModuleName))
 	}
 
 	triggeredBy := hm.EventDescription
@@ -2312,7 +2379,7 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 func (op *AddonOperator) logTaskAdd(logEntry *log.Entry, action string, tasks ...sh_task.Task) {
 	logger := logEntry.WithField("task.flow", "add")
 	for _, tsk := range tasks {
-		logger.Infof(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
+		logger.Info(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
 	}
 }
 
@@ -2338,7 +2405,7 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
 		logger = logger.WithFields(triggeredBy)
 	}
 
-	logger.Infof(taskDescriptionForTaskFlowLog(tsk, "start", op.taskPhase(tsk), ""))
+	logger.Info(taskDescriptionForTaskFlowLog(tsk, "start", op.taskPhase(tsk), ""))
 }
 
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.

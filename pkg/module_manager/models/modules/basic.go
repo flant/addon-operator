@@ -15,6 +15,7 @@ import (
 	"github.com/kennygrant/sanitize"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -45,6 +46,9 @@ type BasicModule struct {
 	// required
 	Path string
 
+	crdsExist     bool
+	crdFilesPaths []string
+
 	valuesStorage *ValuesStorage
 
 	state *moduleState
@@ -63,10 +67,13 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
+	crdsFromPath := getCRDsFromPath(path)
 	return &BasicModule{
 		Name:          name,
 		Order:         order,
 		Path:          path,
+		crdsExist:     len(crdsFromPath) > 0,
+		crdFilesPaths: crdsFromPath,
 		valuesStorage: valuesStorage,
 		state: &moduleState{
 			Phase:                Startup,
@@ -75,6 +82,41 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		},
 		hooks: newHooksStorage(),
 	}, nil
+}
+
+// getCRDsFromPath scan path/crds directory and store yaml file in slice
+// if file name do not start with `_` or `doc-` prefix
+func getCRDsFromPath(path string) []string {
+	var crdFilesPaths []string
+	err := filepath.Walk(
+		filepath.Join(path, "crds"),
+		func(path string, _ os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if !matchPrefix(path) && filepath.Ext(path) == ".yaml" {
+				crdFilesPaths = append(crdFilesPaths, path)
+			}
+
+			return nil
+		})
+	if err != nil {
+		return nil
+	}
+
+	return crdFilesPaths
+}
+
+func matchPrefix(path string) bool {
+	filters := strings.Split(app.CRDsFilters, ",")
+	for _, filter := range filters {
+		if strings.HasPrefix(filepath.Base(path), strings.TrimSpace(filter)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // WithDependencies inject module dependencies
@@ -886,6 +928,14 @@ func (bm *BasicModule) ValidateValues() error {
 
 func (bm *BasicModule) ValidateConfigValues() error {
 	return bm.valuesStorage.validateConfigValues(bm.GetConfigValues(false))
+}
+
+func (bm *BasicModule) GetCRDFilesPaths() []string {
+	return bm.crdFilesPaths
+}
+
+func (bm *BasicModule) CRDExist() bool {
+	return bm.crdsExist
 }
 
 type ModuleRunPhase string

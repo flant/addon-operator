@@ -67,6 +67,12 @@ dev_cluster_live_ticks 32
 ...
 ```
 
+**ADDON_OPERATOR_CRD_EXTRA_LABELS** – string with CRDs label pairs.  
+For example: `heritage=my-app,scope=extra`  
+Default is `heritage=addon-operator`.
+
+**ADDON_OPERATOR_CRD_FILTER_PREFIXES** – String of filters for the CRD, separated by commas. Default is `doc-,_`.
+
 ### Kubernetes client settings
 
 **KUBE_CONFIG** — a path to a kubernetes client config (~/.kube/config)

@@ -6,6 +6,11 @@ An example of the file structure of the module:
 
 ```
 /modules/001-simple-module
+├── crds
+│   ├── doc-ru-projects.yaml
+│   ├── doc-ru-projecttemplate.yaml
+│   ├── projects.yaml
+│   ├── projecttemplate.yaml
 ├── hooks
 │   ├── module-hook-1.sh
 │   ├── ...
@@ -24,6 +29,7 @@ An example of the file structure of the module:
 └── values.yaml
 ```
 
+- `crds` — a directory with crd files.
 - `hooks` — a directory with hooks.
 - `openapi` — [OpenAPI schemas](VALUES.md) for config values and for helm values.
 - `enabled` — a script that gets the status of module (is it enabled or not). See the [modules discovery](LIFECYCLE.md#modules-discovery) process.
