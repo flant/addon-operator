@@ -193,6 +193,10 @@
 dev_cluster_live_ticks 32
 ...
 </code></pre>
+<p><strong>ADDON_OPERATOR_CRD_EXTRA_LABELS</strong> – string with CRDs label pairs.<br />
+For example: <code>heritage=my-app,scope=extra</code><br />
+Default is <code>heritage=addon-operator</code>.</p>
+<p><strong>ADDON_OPERATOR_CRD_FILTER_PREFIXES</strong> – String of filters for the CRD, separated by commas. Default is <code>doc-,_</code>.</p>
 <h3 id="kubernetes-client-settings"><a class="header" href="#kubernetes-client-settings">Kubernetes client settings</a></h3>
 <p><strong>KUBE_CONFIG</strong> — a path to a kubernetes client config (~/.kube/config)</p>
 <p><strong>KUBE_CONTEXT</strong> — a context name in a kubernetes client config (similar to a <code>--context</code> flag of a kubectl)</p>

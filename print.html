@@ -252,6 +252,10 @@
 dev_cluster_live_ticks 32
 ...
 </code></pre>
+<p><strong>ADDON_OPERATOR_CRD_EXTRA_LABELS</strong> – string with CRDs label pairs.<br />
+For example: <code>heritage=my-app,scope=extra</code><br />
+Default is <code>heritage=addon-operator</code>.</p>
+<p><strong>ADDON_OPERATOR_CRD_FILTER_PREFIXES</strong> – String of filters for the CRD, separated by commas. Default is <code>doc-,_</code>.</p>
 <h3 id="kubernetes-client-settings"><a class="header" href="#kubernetes-client-settings">Kubernetes client settings</a></h3>
 <p><strong>KUBE_CONFIG</strong> — a path to a kubernetes client config (~/.kube/config)</p>
 <p><strong>KUBE_CONTEXT</strong> — a context name in a kubernetes client config (similar to a <code>--context</code> flag of a kubectl)</p>
@@ -1345,6 +1349,11 @@ echo false &gt; $MODULE_ENABLED_RESULT
 <p>A module is a directory with files. Addon-operator searches for the modules directories in <code>/modules</code> or in the paths specified by the $MODULES_DIR variable. The module has the same name as the corresponding directory excluding the numeric prefix.</p>
 <p>An example of the file structure of the module:</p>
 <pre><code>/modules/001-simple-module
+├── crds
+│   ├── doc-ru-projects.yaml
+│   ├── doc-ru-projecttemplate.yaml
+│   ├── projects.yaml
+│   ├── projecttemplate.yaml
 ├── hooks
 │   ├── module-hook-1.sh
 │   ├── ...
@@ -1363,6 +1372,7 @@ echo false &gt; $MODULE_ENABLED_RESULT
 └── values.yaml
 </code></pre>
 <ul>
+<li><code>crds</code> — a directory with crd files.</li>
 <li><code>hooks</code> — a directory with hooks.</li>
 <li><code>openapi</code> — <a href="VALUES.html">OpenAPI schemas</a> for config values and for helm values.</li>
 <li><code>enabled</code> — a script that gets the status of module (is it enabled or not). See the <a href="LIFECYCLE.html#modules-discovery">modules discovery</a> process.</li>
