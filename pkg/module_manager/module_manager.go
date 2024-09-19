@@ -454,7 +454,14 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	case *fs.FileSystemLoader:
 	default:
 		logEntry.Debugf("non-default module loader detected - applying enabledModules patch")
-		mm.global.SetEnabledModules(enabledModules)
+		enabledModulesAndFakeCRDmodules := make([]string, 0, len(enabledModules))
+		for _, moduleName := range enabledModules {
+			if mm.ModuleHasCRDs(moduleName) {
+				enabledModulesAndFakeCRDmodules = append(enabledModulesAndFakeCRDmodules, fmt.Sprintf("%s-crd", moduleName))
+			}
+			enabledModulesAndFakeCRDmodules = append(enabledModulesAndFakeCRDmodules, moduleName)
+		}
+		mm.global.SetEnabledModules(enabledModulesAndFakeCRDmodules)
 	}
 
 	// Return lists for ConvergeModules task.
