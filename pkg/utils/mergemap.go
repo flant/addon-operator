@@ -21,7 +21,8 @@ func merge(dst, src map[string]interface{}, depth int) map[string]interface{} {
 			srcMap, srcMapOk := mapify(srcVal)
 			dstMap, dstMapOk := mapify(dstVal)
 			if srcMapOk && dstMapOk {
-				srcVal = merge(dstMap, srcMap, depth+1)
+				dst[key] = merge(dstMap, srcMap, depth+1)
+				continue
 			}
 		}
 		dst[key] = srcVal
