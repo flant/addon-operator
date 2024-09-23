@@ -76,6 +76,7 @@ func (vs *ValuesStorage) openapiDefaultsTransformer(schemaType validation.Schema
 }
 
 func (vs *ValuesStorage) calculateResultValues() error {
+	log.Debugf("Current config values before merge: %v", vs.configValues)
 	merged := mergeLayers(
 		utils.Values{},
 		// Init static values (from modules/values.yaml and modules/XXX/values.yaml)
@@ -90,7 +91,7 @@ func (vs *ValuesStorage) calculateResultValues() error {
 		// from openapi values spec
 		vs.openapiDefaultsTransformer(validation.ValuesSchema),
 	)
-	log.Debugf("Current config values: %v", vs.configValues)
+	log.Debugf("Current config values after merge: %v", vs.configValues)
 	// from patches
 	// Compact patches so we could execute all at once.
 	// Each ApplyValuesPatch execution invokes json.Marshal for values.
@@ -201,6 +202,7 @@ func (vs *ValuesStorage) SaveConfigValues(configV utils.Values) {
 	if err != nil {
 		panic(err)
 	}
+	log.Debugf("New config values after recalculation: %v", vs.configValues)
 }
 
 // GenerateNewConfigValues generated new config values, based on static and config values. Additionally, if validate is true, it validates
