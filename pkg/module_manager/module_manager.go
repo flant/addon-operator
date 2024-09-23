@@ -199,7 +199,7 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 	newGlobalValues, ok := valuesMap[mm.global.GetName()]
 	if ok {
 		if globalValuesChanged {
-			log.Debugf("Applying new global values: %v", newGlobalValues)
+			log.Debugf("Applying global values: %v", newGlobalValues)
 			mm.global.SaveConfigValues(newGlobalValues)
 		}
 		delete(valuesMap, mm.global.GetName())
@@ -213,7 +213,7 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 		}
 
 		if mod.GetConfigValues(false).Checksum() != values.Checksum() {
-			log.Debugf("Applying new module %s values: %v", moduleName, values)
+			log.Debugf("Applying values to %s module: new values: %v, previous ones: %v", moduleName, values, mod.GetConfigValues(false))
 			mod.SaveConfigValues(values)
 		}
 	}
