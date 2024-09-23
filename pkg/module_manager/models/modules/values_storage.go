@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 )
@@ -89,6 +90,7 @@ func (vs *ValuesStorage) calculateResultValues() error {
 		// from openapi values spec
 		vs.openapiDefaultsTransformer(validation.ValuesSchema),
 	)
+	log.Debugf("Current config values: %v", vs.configValues)
 	// from patches
 	// Compact patches so we could execute all at once.
 	// Each ApplyValuesPatch execution invokes json.Marshal for values.
@@ -106,6 +108,7 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	}
 
 	vs.resultValues = merged.GetKeySection(moduleValuesKey)
+	log.Debugf("Current config values after calculation: %v", vs.configValues)
 
 	return nil
 }
@@ -188,17 +191,19 @@ func (vs *ValuesStorage) GetConfigValues(withPrefix bool) utils.Values {
 }
 
 func (vs *ValuesStorage) SaveConfigValues(configV utils.Values) {
+	log.Debugf("Saving config values: %v", configV)
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
 	vs.configValues = configV
+	log.Debugf("New config values: %v", vs.configValues)
 	err := vs.calculateResultValues()
 	if err != nil {
 		panic(err)
 	}
 }
 
-// GenerateNewConfigValues generated new config values, based on static, config values. Additionally, if validate is true, it validates
+// GenerateNewConfigValues generated new config values, based on static and config values. Additionally, if validate is true, it validates
 // the resulting values set for consistency. This method always makes a copy of the result values to prevent pointers shallow copying
 func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate bool) (utils.Values, error) {
 	vs.lock.Lock()
@@ -206,8 +211,6 @@ func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate 
 
 	merged := mergeLayers(
 		utils.Values{},
-		// openapi default values
-		vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
 		// User configured values (ConfigValues)
 		configV,
 	)
@@ -216,7 +219,12 @@ func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate 
 	merged = merged.Copy()
 
 	if validate {
-		if err := vs.validateConfigValues(merged); err != nil {
+		mergedWithOpenapiDefault := mergeLayers(
+			utils.Values{},
+			vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
+			configV,
+		)
+		if err := vs.validateConfigValues(mergedWithOpenapiDefault); err != nil {
 			return nil, err
 		}
 	}
