@@ -198,16 +198,16 @@ func (vs *ValuesStorage) SaveConfigValues(configV utils.Values) {
 	}
 }
 
-// GenerateNewConfigValues generated new config values, based on static and config values. Additionally, if validate is true, it validates
-// two versions of resulting values: original (without openapi defaults) and with openapi defaults for consistency.
-// this method always makes a copy of the result values to prevent pointers shallow copying
+// GenerateNewConfigValues generated new config values, based on static, config values. Additionally, if validate is true, it validates
+// the resulting values set for consistency. This method always makes a copy of the result values to prevent pointers shallow copying
 func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate bool) (utils.Values, error) {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
 	merged := mergeLayers(
 		utils.Values{},
-
+		// openapi default values
+		vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
 		// User configured values (ConfigValues)
 		configV,
 	)
@@ -216,14 +216,7 @@ func (vs *ValuesStorage) GenerateNewConfigValues(configV utils.Values, validate 
 	merged = merged.Copy()
 
 	if validate {
-		mergedWithOpenapiDefault := mergeLayers(
-			utils.Values{},
-			vs.openapiDefaultsTransformer(validation.ConfigValuesSchema),
-			configV,
-		)
-
-		err := vs.validateConfigValues(mergedWithOpenapiDefault)
-		if err != nil {
+		if err := vs.validateConfigValues(merged); err != nil {
 			return nil, err
 		}
 	}
