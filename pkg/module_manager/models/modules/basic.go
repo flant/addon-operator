@@ -559,6 +559,7 @@ func (bm *BasicModule) prepareValuesJsonFileWith(tmpdir string, values utils.Val
 func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) (utils.Values, error) {
 	res := bm.valuesStorage.GetValues(true)
 
+	log.Debugf("Global values before preparing values for %s module: %v", bm.Name, bm.dc.GlobalValuesGetter.GetValues(false))
 	res = mergeLayers(
 		utils.Values{},
 		res,
@@ -569,6 +570,7 @@ func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) 
 			},
 		},
 	)
+	log.Debugf("Global values after preparing values for %s module: %v", bm.Name, bm.dc.GlobalValuesGetter.GetValues(false))
 	return res, nil
 }
 

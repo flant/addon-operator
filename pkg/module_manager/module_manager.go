@@ -180,6 +180,7 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 		log.Warnf("No KubeConfig is set")
 		return nil
 	}
+	log.Debugf("Global config values before validation: %v, global values: %s", mm.global.GetConfigValues(false), mm.global.GetValues(false))
 
 	mm.warnAboutUnknownModules(kubeConfig)
 
@@ -195,6 +196,7 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 	}
 
 	mm.SetKubeConfigValuesValid(true)
+	log.Debugf("Global config values after validation: %v, global values: %s", mm.global.GetConfigValues(false), mm.global.GetValues(false))
 
 	newGlobalValues, ok := valuesMap[mm.global.GetName()]
 	if ok {
@@ -228,9 +230,7 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 
 	// validate global config
 	if kubeConfig.Global != nil {
-		log.Debugf("Global config values before validation: %v, global values: %s", mm.global.GetConfigValues(false), mm.global.GetValues(false))
 		newValues, validationErr := mm.global.GenerateNewConfigValues(kubeConfig.Global.GetValues(), true)
-		log.Debugf("Global config values after validation: %v, global values: %s", mm.global.GetConfigValues(false), mm.global.GetValues(false))
 		if validationErr != nil {
 			_ = multierror.Append(validationErrors, validationErr)
 		}

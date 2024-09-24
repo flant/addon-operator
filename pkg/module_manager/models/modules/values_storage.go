@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	log "github.com/sirupsen/logrus"
 )
 
 /*
