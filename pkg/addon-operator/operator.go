@@ -62,8 +62,8 @@ type AddonOperator struct {
 
 	runtimeConfig *runtimeConfig.Config
 
-	// a map of channels to communicate with group queues and its lock
-	groupedTaskChannels groupedTaskChannels
+	// a map of channels to communicate with parallel queues and its lock
+	parallelTaskChannels parallelTaskChannels
 
 	DebugServer *debug.Server
 
@@ -98,34 +98,34 @@ type AddonOperator struct {
 	CRDExtraLabels map[string]string
 }
 
-type groupQueueEvent struct {
+type parallelQueueEvent struct {
 	moduleName string
 	errMsg     string
 	succeeded  bool
 }
 
-type groupedTaskChannels struct {
+type parallelTaskChannels struct {
 	l        sync.Mutex
-	channels map[string]chan groupQueueEvent
+	channels map[string]chan parallelQueueEvent
 }
 
-func (gq *groupedTaskChannels) Set(id string, c chan groupQueueEvent) {
-	gq.l.Lock()
-	gq.channels[id] = c
-	gq.l.Unlock()
+func (pq *parallelTaskChannels) Set(id string, c chan parallelQueueEvent) {
+	pq.l.Lock()
+	pq.channels[id] = c
+	pq.l.Unlock()
 }
 
-func (gq *groupedTaskChannels) Get(id string) (chan groupQueueEvent, bool) {
-	gq.l.Lock()
-	defer gq.l.Unlock()
-	c, ok := gq.channels[id]
+func (pq *parallelTaskChannels) Get(id string) (chan parallelQueueEvent, bool) {
+	pq.l.Lock()
+	defer pq.l.Unlock()
+	c, ok := pq.channels[id]
 	return c, ok
 }
 
-func (gq *groupedTaskChannels) Delete(id string) {
-	gq.l.Lock()
-	delete(gq.channels, id)
-	gq.l.Unlock()
+func (pq *parallelTaskChannels) Delete(id string) {
+	pq.l.Lock()
+	delete(pq.channels, id)
+	pq.l.Unlock()
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -170,8 +170,8 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		runtimeConfig:  rc,
 		MetricStorage:  so.MetricStorage,
 		CRDExtraLabels: crdExtraLabels,
-		groupedTaskChannels: groupedTaskChannels{
-			channels: make(map[string](chan groupQueueEvent)),
+		parallelTaskChannels: parallelTaskChannels{
+			channels: make(map[string](chan parallelQueueEvent)),
 		},
 	}
 
@@ -242,8 +242,8 @@ func (op *AddonOperator) Start(_ context.Context) error {
 	op.BootstrapMainQueue(op.engine.TaskQueues)
 	// Start main task queue handler
 	op.engine.TaskQueues.StartMain()
-	// Precreate queues for grouped tasks
-	op.CreateAndStartGroupQueues()
+	// Precreate queues for parallel tasks
+	op.CreateAndStartParallelQueues()
 
 	// Global hooks are registered, initialize their queues.
 	op.CreateAndStartQueuesForGlobalHooks()
@@ -966,15 +966,15 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	//}
 }
 
-// CreateAndStartGroupQueues creates and starts named queues for executing grouped tasks in parallel
-func (op *AddonOperator) CreateAndStartGroupQueues() {
-	for i := 0; i < app.NumberOfGroupQueues; i++ {
-		queueName := fmt.Sprintf(app.GroupQueueNamePattern, i)
+// CreateAndStartParallelQueues creates and starts named queues for executing parallel tasks in parallel
+func (op *AddonOperator) CreateAndStartParallelQueues() {
+	for i := 0; i < app.NumberOfParallelQueues; i++ {
+		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i)
 		if op.engine.TaskQueues.GetByName(queueName) != nil {
-			log.Warnf("Group queue %s already exists", queueName)
+			log.Warnf("Parallel queue %s already exists", queueName)
 			continue
 		}
-		op.engine.TaskQueues.NewNamedQueue(queueName, op.GroupedTasksHandler)
+		op.engine.TaskQueues.NewNamedQueue(queueName, op.ParallelTasksHandler)
 		op.engine.TaskQueues.GetByName(queueName).Start()
 	}
 }
@@ -1198,8 +1198,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 	}()
 }
 
-// GroupedTasksHandler handles limited types of tasks in group queues.
-func (op *AddonOperator) GroupedTasksHandler(t sh_task.Task) queue.TaskResult {
+// ParallelTasksHandler handles limited types of tasks in parallel queues.
+func (op *AddonOperator) ParallelTasksHandler(t sh_task.Task) queue.TaskResult {
 	taskLogLabels := t.GetLogLabels()
 	taskLogEntry := log.WithFields(utils.LabelsToLogFields(taskLogLabels))
 	var res queue.TaskResult
@@ -1218,20 +1218,20 @@ func (op *AddonOperator) GroupedTasksHandler(t sh_task.Task) queue.TaskResult {
 
 	op.logTaskEnd(taskLogEntry, t, res)
 	hm := task.HookMetadataAccessor(t)
-	if hm.GroupMetadata == nil || len(hm.GroupMetadata.ChannelId) == 0 {
-		taskLogEntry.Warn("Grouped task had no communication channel set")
+	if hm.ParallelRunMetadata == nil || len(hm.ParallelRunMetadata.ChannelId) == 0 {
+		taskLogEntry.Warn("Parallel task had no communication channel set")
 	}
 
-	if groupChannel, ok := op.groupedTaskChannels.Get(hm.GroupMetadata.ChannelId); ok {
+	if parallelChannel, ok := op.parallelTaskChannels.Get(hm.ParallelRunMetadata.ChannelId); ok {
 		if res.Status == queue.Fail {
-			groupChannel <- groupQueueEvent{
+			parallelChannel <- parallelQueueEvent{
 				moduleName: hm.ModuleName,
 				errMsg:     t.GetFailureMessage(),
 				succeeded:  false,
 			}
 		}
 		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.AfterTasks) == 0 {
-			groupChannel <- groupQueueEvent{
+			parallelChannel <- parallelQueueEvent{
 				moduleName: hm.ModuleName,
 				succeeded:  true,
 			}
@@ -1286,8 +1286,8 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 	case task.ModuleRun:
 		res = op.HandleModuleRun(t, taskLogLabels)
 
-	case task.GroupedModuleRun:
-		res = op.HandleGroupedModuleRun(t, taskLogLabels)
+	case task.ParallelModuleRun:
+		res = op.HandleParallelModuleRun(t, taskLogLabels)
 
 	case task.ModuleDelete:
 		res.Status = op.HandleModuleDelete(t, taskLogLabels)
@@ -1583,24 +1583,24 @@ func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[strin
 	return
 }
 
-// HandleGroupedModuleRun runs multiple HandleModuleRun tasks in parallel and aggregates their results
-func (op *AddonOperator) HandleGroupedModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
-	defer trace.StartRegion(context.Background(), "GroupModuleRun").End()
+// HandleParallelModuleRun runs multiple HandleModuleRun tasks in parallel and aggregates their results
+func (op *AddonOperator) HandleParallelModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+	defer trace.StartRegion(context.Background(), "ParallelModuleRun").End()
 	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
 	hm := task.HookMetadataAccessor(t)
 
-	if hm.GroupMetadata == nil {
-		logEntry.Errorf("Possible bug! Couldn't get task GroupMetadata for a grouped task: %s", hm.EventDescription)
+	if hm.ParallelRunMetadata == nil {
+		logEntry.Errorf("Possible bug! Couldn't get task ParallelRunMetadata for a parallel task: %s", hm.EventDescription)
 		res.Status = queue.Fail
 		return res
 	}
 
 	i := 0
-	groupChannel := make(chan groupQueueEvent)
-	op.groupedTaskChannels.Set(t.GetId(), groupChannel)
-	logEntry.Debugf("GroupedModuleRun available group event channels %v", op.groupedTaskChannels.channels)
-	for moduleName, moduleMetadata := range hm.GroupMetadata.GetModulesMetadata() {
-		queueName := fmt.Sprintf(app.GroupQueueNamePattern, i%(app.NumberOfGroupQueues-1))
+	parallelChannel := make(chan parallelQueueEvent)
+	op.parallelTaskChannels.Set(t.GetId(), parallelChannel)
+	logEntry.Debugf("ParallelModuleRun available parallel event channels %v", op.parallelTaskChannels.channels)
+	for moduleName, moduleMetadata := range hm.ParallelRunMetadata.GetModulesMetadata() {
+		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i%(app.NumberOfParallelQueues-1))
 		newLogLabels := utils.MergeLabels(labels)
 		newLogLabels["module"] = moduleName
 		delete(newLogLabels, "task.id")
@@ -1612,7 +1612,7 @@ func (op *AddonOperator) HandleGroupedModuleRun(t sh_task.Task, labels map[strin
 				ModuleName:       moduleName,
 				DoModuleStartup:  moduleMetadata.DoModuleStartup,
 				IsReloadAll:      hm.IsReloadAll,
-				GroupMetadata: &task.GroupMetadata{
+				ParallelRunMetadata: &task.ParallelRunMetadata{
 					ChannelId: t.GetId(),
 				},
 			})
@@ -1625,53 +1625,53 @@ func (op *AddonOperator) HandleGroupedModuleRun(t sh_task.Task, labels map[strin
 L:
 	for {
 		select {
-		case groupEvent := <-groupChannel:
-			logEntry.Debugf("GroupedModuleRun event '%v' received", groupEvent)
-			if len(groupEvent.errMsg) != 0 {
-				if tasksErrors[groupEvent.moduleName] != groupEvent.errMsg {
-					tasksErrors[groupEvent.moduleName] = groupEvent.errMsg
+		case parallelEvent := <-parallelChannel:
+			logEntry.Debugf("ParallelModuleRun event '%v' received", parallelEvent)
+			if len(parallelEvent.errMsg) != 0 {
+				if tasksErrors[parallelEvent.moduleName] != parallelEvent.errMsg {
+					tasksErrors[parallelEvent.moduleName] = parallelEvent.errMsg
 					t.UpdateFailureMessage(formatErrorSummary(tasksErrors))
 				}
 				t.IncrementFailureCount()
 				continue L
 			}
-			if groupEvent.succeeded {
-				hm.GroupMetadata.DeleteModuleMetadata(groupEvent.moduleName)
+			if parallelEvent.succeeded {
+				hm.ParallelRunMetadata.DeleteModuleMetadata(parallelEvent.moduleName)
 				// all ModuleRun tasks were executed successfully
-				if len(hm.GroupMetadata.GetModulesMetadata()) == 0 {
+				if len(hm.ParallelRunMetadata.GetModulesMetadata()) == 0 {
 					break L
 				}
-				delete(tasksErrors, groupEvent.moduleName)
+				delete(tasksErrors, parallelEvent.moduleName)
 				t.UpdateFailureMessage(formatErrorSummary(tasksErrors))
 				newMeta := task.HookMetadata{
-					EventDescription: hm.EventDescription,
-					ModuleName:       fmt.Sprintf("Grouped run for %s", strings.Join(hm.GroupMetadata.ListModules(), ", ")),
-					IsReloadAll:      hm.IsReloadAll,
-					GroupMetadata:    hm.GroupMetadata,
+					EventDescription:    hm.EventDescription,
+					ModuleName:          fmt.Sprintf("Parallel run for %s", strings.Join(hm.ParallelRunMetadata.ListModules(), ", ")),
+					IsReloadAll:         hm.IsReloadAll,
+					ParallelRunMetadata: hm.ParallelRunMetadata,
 				}
 				t.UpdateMetadata(newMeta)
 			}
 
-		case <-hm.GroupMetadata.Context.Done():
-			logEntry.Debug("GroupedModuleRun context canceled")
+		case <-hm.ParallelRunMetadata.Context.Done():
+			logEntry.Debug("ParallelModuleRun context canceled")
 			// remove channel from map so that ModuleRun handlers couldn't send into it
-			op.groupedTaskChannels.Delete(t.GetId())
+			op.parallelTaskChannels.Delete(t.GetId())
 			t := time.NewTimer(time.Second * 3)
 			for {
 				select {
 				// wait for several seconds if any ModuleRun task wants to send an event
 				case <-t.C:
-					logEntry.Debug("GroupedModuleRun task aborted")
+					logEntry.Debug("ParallelModuleRun task aborted")
 					res.Status = queue.Success
 					return res
 
 				// drain channel to unblock handlers if any
-				case <-groupChannel:
+				case <-parallelChannel:
 				}
 			}
 		}
 	}
-	op.groupedTaskChannels.Delete(t.GetId())
+	op.parallelTaskChannels.Delete(t.GetId())
 	res.Status = queue.Success
 	return res
 }
@@ -1773,8 +1773,8 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		// Start monitors for each kubernetes binding in each module hook.
 		err := op.ModuleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
 			queueName := info.QueueName
-			if queueName == "main" && strings.HasPrefix(t.GetQueueName(), app.GroupQueuePrefix) {
-				// override main queue with group_queue
+			if queueName == "main" && strings.HasPrefix(t.GetQueueName(), app.ParallelQueuePrefix) {
+				// override main queue with parallel queue
 				queueName = t.GetQueueName()
 			}
 			taskLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
@@ -1790,9 +1790,9 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			delete(taskLogLabels, "task.id")
 
 			kubernetesBindingID := uuid.Must(uuid.NewV4()).String()
-			groupMetadata := &task.GroupMetadata{}
-			if hm.GroupMetadata != nil && len(hm.GroupMetadata.ChannelId) != 0 {
-				groupMetadata.ChannelId = hm.GroupMetadata.ChannelId
+			parallelRunMetadata := &task.ParallelRunMetadata{}
+			if hm.ParallelRunMetadata != nil && len(hm.ParallelRunMetadata.ChannelId) != 0 {
+				parallelRunMetadata.ChannelId = hm.ParallelRunMetadata.ChannelId
 			}
 			taskMeta := task.HookMetadata{
 				EventDescription:         hm.EventDescription,
@@ -1805,7 +1805,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				WaitForSynchronization:   info.KubernetesBinding.WaitForSynchronization,
 				MonitorIDs:               []string{info.KubernetesBinding.Monitor.Metadata.MonitorId},
 				ExecuteOnSynchronization: info.KubernetesBinding.ExecuteHookOnSynchronization,
-				GroupMetadata:            groupMetadata,
+				ParallelRunMetadata:      parallelRunMetadata,
 			}
 			newTask := sh_task.NewTask(task.ModuleHookRun).
 				WithLogLabels(taskLogLabels).
@@ -2394,22 +2394,22 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
 	log.Debugf("The following modules are going to be enabled/rerun: %v", state.AllEnabledModulesByOrder)
 	// sort modules' orders
-	sortedOrders := make([]node.NodeWeight, 0, len(state.AllEnabledModulesByOrder))
+	sortedOrders := make(node.NodeWeightRange, 0, len(state.AllEnabledModulesByOrder))
 	for order := range state.AllEnabledModulesByOrder {
 		sortedOrders = append(sortedOrders, order)
 	}
-	sort.Slice(sortedOrders, func(i, j int) bool { return sortedOrders[i] < sortedOrders[j] })
+	sort.Sort(sortedOrders)
 
 	for _, order := range sortedOrders {
 		newLogLabels := utils.MergeLabels(logLabels)
 		delete(newLogLabels, "task.id")
 		modules := state.AllEnabledModulesByOrder[order]
-		// create grouped moduleRun task
+		// create parallel moduleRun task
 		switch {
 		case len(modules) > 1:
 			newLogLabels["modules"] = strings.Join(modules, ",")
 			newLogLabels["order"] = order.String()
-			groupMetadata := task.GroupMetadata{
+			parallelRunMetadata := task.ParallelRunMetadata{
 				Order: order,
 			}
 			for _, moduleName := range modules {
@@ -2433,19 +2433,19 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 					}
 					doModuleStartup = true
 				}
-				groupMetadata.SetModuleMetadata(moduleName, task.GroupedModuleMetadata{
+				parallelRunMetadata.SetModuleMetadata(moduleName, task.ParallelRunModuleMetadata{
 					DoModuleStartup: doModuleStartup,
 				})
 			}
-			groupMetadata.Context, groupMetadata.CancelF = context.WithCancel(context.Background())
-			newTask := sh_task.NewTask(task.GroupedModuleRun).
+			parallelRunMetadata.Context, parallelRunMetadata.CancelF = context.WithCancel(context.Background())
+			newTask := sh_task.NewTask(task.ParallelModuleRun).
 				WithLogLabels(newLogLabels).
 				WithQueueName("main").
 				WithMetadata(task.HookMetadata{
-					EventDescription: eventDescription,
-					ModuleName:       fmt.Sprintf("Grouped run for %s", strings.Join(modules, ", ")),
-					IsReloadAll:      true,
-					GroupMetadata:    &groupMetadata,
+					EventDescription:    eventDescription,
+					ModuleName:          fmt.Sprintf("Parallel run for %s", strings.Join(modules, ", ")),
+					IsReloadAll:         true,
+					ParallelRunMetadata: &parallelRunMetadata,
 				})
 			modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
 
@@ -2619,7 +2619,7 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 			parts = append(parts, "with doModuleStartup")
 		}
 
-	case task.GroupedModuleRun:
+	case task.ParallelModuleRun:
 		parts = append(parts, fmt.Sprintf("modules '%s'", hm.ModuleName))
 
 	case task.ModulePurge, task.ModuleDelete:
@@ -2710,9 +2710,9 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 
 // getConvergeQueues returns list of all queues where modules converge tasks may be running
 func (op *AddonOperator) getConvergeQueues() []*queue.TaskQueue {
-	convergeQueues := make([]*queue.TaskQueue, 0, app.NumberOfGroupQueues+1)
-	for i := 0; i < app.NumberOfGroupQueues; i++ {
-		convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetByName(fmt.Sprintf(app.GroupQueueNamePattern, i)))
+	convergeQueues := make([]*queue.TaskQueue, 0, app.NumberOfParallelQueues+1)
+	for i := 0; i < app.NumberOfParallelQueues; i++ {
+		convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetByName(fmt.Sprintf(app.ParallelQueueNamePattern, i)))
 	}
 	convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetMain())
 	return convergeQueues

@@ -44,9 +44,9 @@ func ModulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
 			hm := task.HookMetadataAccessor(t)
 			modules[hm.ModuleName] = struct{}{}
 
-		case task.GroupedModuleRun:
+		case task.ParallelModuleRun:
 			hm := task.HookMetadataAccessor(t)
-			for _, moduleName := range hm.GroupMetadata.ListModules() {
+			for _, moduleName := range hm.ParallelRunMetadata.ListModules() {
 				modules[moduleName] = struct{}{}
 			}
 		}
@@ -86,7 +86,7 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 	return tasks
 }
 
-// RemoveCurrentConvergeTasks detects if converge tasks present in the main and group queues.
+// RemoveCurrentConvergeTasks detects if converge tasks present in the main and parallel queues.
 // These tasks are drained and the method returns true
 func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map[string]string) bool {
 	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
@@ -112,12 +112,12 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 				case task.ConvergeModules:
 					stop = true
 
-				case task.GroupedModuleRun:
-					if hm.GroupMetadata == nil || hm.GroupMetadata.CancelF == nil {
-						logEntry.Warnf("Couldn't get group metadata for group task of type: %s, module: %s, description: %s, from queue %s", t.GetType(), hm.ModuleName, hm.EventDescription, queue.Name)
+				case task.ParallelModuleRun:
+					if hm.ParallelRunMetadata == nil || hm.ParallelRunMetadata.CancelF == nil {
+						logEntry.Warnf("Couldn't get parallelRun metadata for the parallel task of type: %s, module: %s, description: %s, from queue %s", t.GetType(), hm.ModuleName, hm.EventDescription, queue.Name)
 					} else {
-						// cancel group task context
-						hm.GroupMetadata.CancelF()
+						// cancel parallel task context
+						hm.ParallelRunMetadata.CancelF()
 					}
 				}
 				logEntry.Debugf("Drained converge task of type: %s, module: %s, description: %s, from queue %s", t.GetType(), hm.ModuleName, hm.EventDescription, queue.Name)

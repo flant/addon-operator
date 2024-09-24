@@ -34,7 +34,7 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 			},
 		},
 		{
-			name:   "GroupedModuleRun",
+			name:   "ParallelModuleRun",
 			result: true,
 			queue: func() *queue.TaskQueue {
 				q := queue.NewTasksQueue()
@@ -45,11 +45,11 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
 
-				Task = &sh_task.BaseTask{Type: task.GroupedModuleRun, Id: "test"}
-				groupMetadata := &task.GroupMetadata{}
-				groupMetadata.SetModuleMetadata("test", task.GroupedModuleMetadata{})
-				groupMetadata.SetModuleMetadata("ne_test", task.GroupedModuleMetadata{})
-				q.AddLast(Task.WithMetadata(task.HookMetadata{GroupMetadata: groupMetadata}))
+				Task = &sh_task.BaseTask{Type: task.ParallelModuleRun, Id: "test"}
+				parallelRunMetadata := &task.ParallelRunMetadata{}
+				parallelRunMetadata.SetModuleMetadata("test", task.ParallelRunModuleMetadata{})
+				parallelRunMetadata.SetModuleMetadata("ne_test", task.ParallelRunModuleMetadata{})
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ParallelRunMetadata: parallelRunMetadata}))
 				return q
 			},
 		},
@@ -396,7 +396,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 					{Type: task.ModuleRun, Id: "3", Metadata: task.HookMetadata{IsReloadAll: true}},
 				},
 				{
-					{Type: task.GroupedModuleRun, Id: "1", Metadata: task.HookMetadata{IsReloadAll: true}},
+					{Type: task.ParallelModuleRun, Id: "1", Metadata: task.HookMetadata{IsReloadAll: true}},
 					{Type: task.ModuleDelete, Id: "4"},
 					{Type: task.ModuleDelete, Id: "5"},
 					{Type: task.ModuleRun, Id: "6", Metadata: task.HookMetadata{IsReloadAll: true}},

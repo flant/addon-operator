@@ -21,7 +21,7 @@ type HookMetadata struct {
 	EventDescription string // event name for informative queue dump
 	HookName         string
 	ModuleName       string
-	GroupMetadata    *GroupMetadata
+	ParallelRunMetadata *ParallelRunMetadata
 	Binding          string // binding name from configuration
 	BindingType      types.BindingType
 	BindingContext   []binding_context.BindingContext
@@ -41,55 +41,55 @@ type HookMetadata struct {
 	ExecuteOnSynchronization bool     // A flag to skip hook execution in Synchronization tasks.
 }
 
-// GroupMetadata is metadata for a group task
-type GroupMetadata struct {
+// ParallelRunMetadata is metadata for a parallel task
+type ParallelRunMetadata struct {
 	// the order the modules are grouped by
 	Order node.NodeWeight
-	// channelId of the groupedTaskChannel to communicate between grouped ModuleRun and GroupedModuleRun tasks
+	// channelId of the parallelTaskChannel to communicate between parallel ModuleRun and ParallelModuleRun tasks
 	ChannelId string
-	// context with cancel to stop GroupedModuleRun task
+	// context with cancel to stop ParallelModuleRun task
 	Context context.Context
 	CancelF func()
 
-	// map of modules, taking part in a group run
+	// map of modules, taking part in a parallel run
 	l       sync.Mutex
-	modules map[string]GroupedModuleMetadata
+	modules map[string]ParallelRunModuleMetadata
 }
 
-// GroupedModuleMetadata is metadata for a grouped module
-type GroupedModuleMetadata struct {
+// ParallelRunModuleMetadata is metadata for a parallel module
+type ParallelRunModuleMetadata struct {
 	DoModuleStartup bool
 }
 
-func (gm *GroupMetadata) GetModulesMetadata() map[string]GroupedModuleMetadata {
-	gm.l.Lock()
-	defer gm.l.Unlock()
-	return gm.modules
+func (pm *ParallelRunMetadata) GetModulesMetadata() map[string]ParallelRunModuleMetadata {
+	pm.l.Lock()
+	defer pm.l.Unlock()
+	return pm.modules
 }
 
-func (gm *GroupMetadata) SetModuleMetadata(moduleName string, metadata GroupedModuleMetadata) {
-	if gm.modules == nil {
-		gm.modules = make(map[string]GroupedModuleMetadata)
+func (pm *ParallelRunMetadata) SetModuleMetadata(moduleName string, metadata ParallelRunModuleMetadata) {
+	if pm.modules == nil {
+		pm.modules = make(map[string]ParallelRunModuleMetadata)
 	}
-	gm.l.Lock()
-	gm.modules[moduleName] = metadata
-	gm.l.Unlock()
+	pm.l.Lock()
+	pm.modules[moduleName] = metadata
+	pm.l.Unlock()
 }
 
-func (gm *GroupMetadata) DeleteModuleMetadata(moduleName string) {
-	if gm.modules == nil {
+func (pm *ParallelRunMetadata) DeleteModuleMetadata(moduleName string) {
+	if pm.modules == nil {
 		return
 	}
-	gm.l.Lock()
-	delete(gm.modules, moduleName)
-	gm.l.Unlock()
+	pm.l.Lock()
+	delete(pm.modules, moduleName)
+	pm.l.Unlock()
 }
 
-func (gm *GroupMetadata) ListModules() []string {
-	gm.l.Lock()
-	defer gm.l.Unlock()
-	result := make([]string, 0, len(gm.modules))
-	for module := range gm.modules {
+func (pm *ParallelRunMetadata) ListModules() []string {
+	pm.l.Lock()
+	defer pm.l.Unlock()
+	result := make([]string, 0, len(pm.modules))
+	for module := range pm.modules {
 		result = append(result, module)
 	}
 	return result

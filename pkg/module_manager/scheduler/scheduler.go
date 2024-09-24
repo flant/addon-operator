@@ -467,16 +467,14 @@ func (s *Scheduler) getEnabledModuleNamesByOrder(weights ...node.NodeWeight) (ma
 		if bfsErr != nil {
 			return nil, bfsErr
 		}
-		sort.Slice(enabledModules, func(i, j int) bool {
-			return enabledModules[i] < enabledModules[j]
-		})
+		sort.Strings(enabledModules)
 		if len(enabledModules) > 0 {
 			result[rootVertex.GetWeight()] = enabledModules
 		}
 
 	// get modules of specified weights
 	default:
-		sort.Slice(weights, func(i, j int) bool { return weights[i] < weights[j] })
+		sort.Sort(node.NodeWeightRange(weights))
 		for _, weight := range weights {
 			enabledModulesByOrder, err := s.getEnabledModuleNamesByOrder([]node.NodeWeight{weight}...)
 			if err != nil {
@@ -519,7 +517,7 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 	}
 
 	if len(s.errList) > 0 {
-		return s.getEnabledModuleNames(), nil, nil, fmt.Errorf("couldn't recalculate graph: %s", strings.Join(s.errList, ","))
+		return nil, nil, nil, fmt.Errorf("couldn't recalculate graph: %s", strings.Join(s.errList, ","))
 	}
 
 	enabledModulesByOrder, err := s.getEnabledModuleNamesByOrder()

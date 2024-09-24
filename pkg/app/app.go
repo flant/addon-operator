@@ -51,10 +51,10 @@ var (
 	// CRDsFilters defines filters for CRD files, example `doc-,_`
 	CRDsFilters = "doc-,_"
 
-	// NumberOfGroupQueues defines the number of precreated group queues for parallel execution
-	NumberOfGroupQueues   = 10
-	GroupQueuePrefix      = "group_queue"
-	GroupQueueNamePattern = GroupQueuePrefix + "_%d"
+	// NumberOfParallelQueues defines the number of precreated parallel queues for parallel execution
+	NumberOfParallelQueues   = 10
+	ParallelQueuePrefix      = "parallel_queue"
+	ParallelQueueNamePattern = ParallelQueuePrefix + "_%d"
 )
 
 const (
