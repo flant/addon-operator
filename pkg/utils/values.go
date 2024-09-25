@@ -73,7 +73,6 @@ func NewGlobalValues(globalSectionContent string) (Values, error) {
 
 func MergeValues(values ...Values) Values {
 	res := make(Values)
-
 	for _, v := range values {
 		res = mergeMap(res, v)
 	}
