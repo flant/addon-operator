@@ -14,6 +14,8 @@ const (
 	ModuleDelete task.TaskType = "ModuleDelete"
 	// ModuleRun runs beforeHelm/helm upgrade/afterHelm sequence.
 	ModuleRun task.TaskType = "ModuleRun"
+	// ParallelModuleRun runs beforeHelm/helm upgrade/afterHelm sequence for a bunch of modules in parallel.
+	ParallelModuleRun task.TaskType = "ParallelModuleRun"
 	// ModulePurge - delete unknown helm release (no module in ModulesDir)
 	ModulePurge task.TaskType = "ModulePurge"
 	// ModuleEnsureCRDs runs ensureCRDs task for enabled module

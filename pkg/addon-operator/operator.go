@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"path"
 	"runtime/trace"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -28,6 +30,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
@@ -58,6 +61,9 @@ type AddonOperator struct {
 	cancel context.CancelFunc
 
 	runtimeConfig *runtimeConfig.Config
+
+	// a map of channels to communicate with parallel queues and its lock
+	parallelTaskChannels parallelTaskChannels
 
 	DebugServer *debug.Server
 
@@ -90,6 +96,36 @@ type AddonOperator struct {
 	// CRDExtraLabels contains labels for processing CRD files
 	// like heritage=addon-operator
 	CRDExtraLabels map[string]string
+}
+
+type parallelQueueEvent struct {
+	moduleName string
+	errMsg     string
+	succeeded  bool
+}
+
+type parallelTaskChannels struct {
+	l        sync.Mutex
+	channels map[string]chan parallelQueueEvent
+}
+
+func (pq *parallelTaskChannels) Set(id string, c chan parallelQueueEvent) {
+	pq.l.Lock()
+	pq.channels[id] = c
+	pq.l.Unlock()
+}
+
+func (pq *parallelTaskChannels) Get(id string) (chan parallelQueueEvent, bool) {
+	pq.l.Lock()
+	defer pq.l.Unlock()
+	c, ok := pq.channels[id]
+	return c, ok
+}
+
+func (pq *parallelTaskChannels) Delete(id string) {
+	pq.l.Lock()
+	delete(pq.channels, id)
+	pq.l.Unlock()
 }
 
 func NewAddonOperator(ctx context.Context) *AddonOperator {
@@ -134,6 +170,9 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		runtimeConfig:  rc,
 		MetricStorage:  so.MetricStorage,
 		CRDExtraLabels: crdExtraLabels,
+		parallelTaskChannels: parallelTaskChannels{
+			channels: make(map[string](chan parallelQueueEvent)),
+		},
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
@@ -203,6 +242,8 @@ func (op *AddonOperator) Start(_ context.Context) error {
 	op.BootstrapMainQueue(op.engine.TaskQueues)
 	// Start main task queue handler
 	op.engine.TaskQueues.StartMain()
+	// Precreate queues for parallel tasks
+	op.CreateAndStartParallelQueues()
 
 	// Global hooks are registered, initialize their queues.
 	op.CreateAndStartQueuesForGlobalHooks()
@@ -925,6 +966,19 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	//}
 }
 
+// CreateAndStartParallelQueues creates and starts named queues for executing parallel tasks in parallel
+func (op *AddonOperator) CreateAndStartParallelQueues() {
+	for i := 0; i < app.NumberOfParallelQueues; i++ {
+		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i)
+		if op.engine.TaskQueues.GetByName(queueName) != nil {
+			log.Warnf("Parallel queue %s already exists", queueName)
+			continue
+		}
+		op.engine.TaskQueues.NewNamedQueue(queueName, op.ParallelTasksHandler)
+		op.engine.TaskQueues.GetByName(queueName).Start()
+	}
+}
+
 func (op *AddonOperator) DrainModuleQueues(modName string) {
 	m := op.ModuleManager.GetModule(modName)
 	if m == nil {
@@ -988,9 +1042,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							converge.ReloadAllModules,
 							logLabels,
 						)
-						firstTask := op.engine.TaskQueues.GetMain().GetFirst()
 						// if converge has already begun - restart it immediately
-						if firstTask != nil && RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), firstTask.GetId(), logLabels) && op.ConvergeState.Phase != converge.StandBy {
+						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels) && op.ConvergeState.Phase != converge.StandBy {
 							logEntry.Infof("ConvergeModules: global hook dynamic modification detected, restart current converge process (%s)", op.ConvergeState.Phase)
 							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
 							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
@@ -1061,10 +1114,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								converge.ReloadAllModules,
 								logLabels,
 							)
-							// check if main queue is empty
-							firstTask := op.engine.TaskQueues.GetMain().GetFirst()
 							// if main queue isn't empty and there was another convergeModules task:
-							if firstTask != nil && RemoveCurrentConvergeTasks(op.engine.TaskQueues.GetMain(), firstTask.GetId(), logLabels) {
+							if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels) {
 								logEntry.Infof("ConvergeModules: kube config modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
 								// put ApplyKubeConfig->NewConvergeModulesTask sequence in the beginning of the main queue
 								if kubeConfigTask != nil {
@@ -1147,6 +1198,48 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 	}()
 }
 
+// ParallelTasksHandler handles limited types of tasks in parallel queues.
+func (op *AddonOperator) ParallelTasksHandler(t sh_task.Task) queue.TaskResult {
+	taskLogLabels := t.GetLogLabels()
+	taskLogEntry := log.WithFields(utils.LabelsToLogFields(taskLogLabels))
+	var res queue.TaskResult
+
+	op.logTaskStart(taskLogEntry, t)
+
+	op.UpdateWaitInQueueMetric(t)
+
+	switch t.GetType() {
+	case task.ModuleRun:
+		res = op.HandleModuleRun(t, taskLogLabels)
+
+	case task.ModuleHookRun:
+		res = op.HandleModuleHookRun(t, taskLogLabels)
+	}
+
+	op.logTaskEnd(taskLogEntry, t, res)
+	hm := task.HookMetadataAccessor(t)
+	if hm.ParallelRunMetadata == nil || len(hm.ParallelRunMetadata.ChannelId) == 0 {
+		taskLogEntry.Warn("Parallel task had no communication channel set")
+	}
+
+	if parallelChannel, ok := op.parallelTaskChannels.Get(hm.ParallelRunMetadata.ChannelId); ok {
+		if res.Status == queue.Fail {
+			parallelChannel <- parallelQueueEvent{
+				moduleName: hm.ModuleName,
+				errMsg:     t.GetFailureMessage(),
+				succeeded:  false,
+			}
+		}
+		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.AfterTasks) == 0 {
+			parallelChannel <- parallelQueueEvent{
+				moduleName: hm.ModuleName,
+				succeeded:  true,
+			}
+		}
+	}
+	return res
+}
+
 // TaskHandler handles tasks in queue.
 func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 	taskLogLabels := t.GetLogLabels()
@@ -1172,7 +1265,7 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 	case task.GlobalHookWaitKubernetesSynchronization:
 		res.Status = queue.Success
-		if op.ModuleManager.GlobalSynchronizationNeeded() && !op.ModuleManager.GlobalSynchronizationState().IsComplete() {
+		if op.ModuleManager.GlobalSynchronizationNeeded() && !op.ModuleManager.GlobalSynchronizationState().IsCompleted() {
 			// dump state
 			op.ModuleManager.GlobalSynchronizationState().DebugDumpState(taskLogEntry)
 			t.WithQueuedAt(time.Now())
@@ -1192,6 +1285,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 	case task.ModuleRun:
 		res = op.HandleModuleRun(t, taskLogLabels)
+
+	case task.ParallelModuleRun:
+		res = op.HandleParallelModuleRun(t, taskLogLabels)
 
 	case task.ModuleDelete:
 		res.Status = op.HandleModuleDelete(t, taskLogLabels)
@@ -1487,6 +1583,108 @@ func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[strin
 	return
 }
 
+// HandleParallelModuleRun runs multiple HandleModuleRun tasks in parallel and aggregates their results
+func (op *AddonOperator) HandleParallelModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+	defer trace.StartRegion(context.Background(), "ParallelModuleRun").End()
+	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	hm := task.HookMetadataAccessor(t)
+
+	if hm.ParallelRunMetadata == nil {
+		logEntry.Errorf("Possible bug! Couldn't get task ParallelRunMetadata for a parallel task: %s", hm.EventDescription)
+		res.Status = queue.Fail
+		return res
+	}
+
+	i := 0
+	parallelChannel := make(chan parallelQueueEvent)
+	op.parallelTaskChannels.Set(t.GetId(), parallelChannel)
+	logEntry.Debugf("ParallelModuleRun available parallel event channels %v", op.parallelTaskChannels.channels)
+	for moduleName, moduleMetadata := range hm.ParallelRunMetadata.GetModulesMetadata() {
+		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i%(app.NumberOfParallelQueues-1))
+		newLogLabels := utils.MergeLabels(labels)
+		newLogLabels["module"] = moduleName
+		delete(newLogLabels, "task.id")
+		newTask := sh_task.NewTask(task.ModuleRun).
+			WithLogLabels(newLogLabels).
+			WithQueueName(queueName).
+			WithMetadata(task.HookMetadata{
+				EventDescription: hm.EventDescription,
+				ModuleName:       moduleName,
+				DoModuleStartup:  moduleMetadata.DoModuleStartup,
+				IsReloadAll:      hm.IsReloadAll,
+				ParallelRunMetadata: &task.ParallelRunMetadata{
+					ChannelId: t.GetId(),
+				},
+			})
+		op.engine.TaskQueues.GetByName(queueName).AddLast(newTask)
+		i++
+	}
+
+	// map to hold modules' errors
+	tasksErrors := make(map[string]string)
+L:
+	for {
+		select {
+		case parallelEvent := <-parallelChannel:
+			logEntry.Debugf("ParallelModuleRun event '%v' received", parallelEvent)
+			if len(parallelEvent.errMsg) != 0 {
+				if tasksErrors[parallelEvent.moduleName] != parallelEvent.errMsg {
+					tasksErrors[parallelEvent.moduleName] = parallelEvent.errMsg
+					t.UpdateFailureMessage(formatErrorSummary(tasksErrors))
+				}
+				t.IncrementFailureCount()
+				continue L
+			}
+			if parallelEvent.succeeded {
+				hm.ParallelRunMetadata.DeleteModuleMetadata(parallelEvent.moduleName)
+				// all ModuleRun tasks were executed successfully
+				if len(hm.ParallelRunMetadata.GetModulesMetadata()) == 0 {
+					break L
+				}
+				delete(tasksErrors, parallelEvent.moduleName)
+				t.UpdateFailureMessage(formatErrorSummary(tasksErrors))
+				newMeta := task.HookMetadata{
+					EventDescription:    hm.EventDescription,
+					ModuleName:          fmt.Sprintf("Parallel run for %s", strings.Join(hm.ParallelRunMetadata.ListModules(), ", ")),
+					IsReloadAll:         hm.IsReloadAll,
+					ParallelRunMetadata: hm.ParallelRunMetadata,
+				}
+				t.UpdateMetadata(newMeta)
+			}
+
+		case <-hm.ParallelRunMetadata.Context.Done():
+			logEntry.Debug("ParallelModuleRun context canceled")
+			// remove channel from map so that ModuleRun handlers couldn't send into it
+			op.parallelTaskChannels.Delete(t.GetId())
+			t := time.NewTimer(time.Second * 3)
+			for {
+				select {
+				// wait for several seconds if any ModuleRun task wants to send an event
+				case <-t.C:
+					logEntry.Debug("ParallelModuleRun task aborted")
+					res.Status = queue.Success
+					return res
+
+				// drain channel to unblock handlers if any
+				case <-parallelChannel:
+				}
+			}
+		}
+	}
+	op.parallelTaskChannels.Delete(t.GetId())
+	res.Status = queue.Success
+	return res
+}
+
+// fomartErrorSumamry constructs a string of errors from the map
+func formatErrorSummary(errors map[string]string) string {
+	errSummary := "\n\tErrors:\n"
+	for moduleName, moduleErr := range errors {
+		errSummary += fmt.Sprintf("\t- %s: %s", moduleName, moduleErr)
+	}
+	return errSummary
+}
+
 // HandleModuleRun starts a module by executing module hooks and installing a Helm chart.
 //
 // Execution sequence:
@@ -1575,6 +1773,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		// Start monitors for each kubernetes binding in each module hook.
 		err := op.ModuleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
 			queueName := info.QueueName
+			if queueName == "main" && strings.HasPrefix(t.GetQueueName(), app.ParallelQueuePrefix) {
+				// override main queue with parallel queue
+				queueName = t.GetQueueName()
+			}
 			taskLogLabels := utils.MergeLabels(t.GetLogLabels(), map[string]string{
 				"binding":   string(htypes.OnKubernetesEvent) + "Synchronization",
 				"module":    hm.ModuleName,
@@ -1588,6 +1790,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			delete(taskLogLabels, "task.id")
 
 			kubernetesBindingID := uuid.Must(uuid.NewV4()).String()
+			parallelRunMetadata := &task.ParallelRunMetadata{}
+			if hm.ParallelRunMetadata != nil && len(hm.ParallelRunMetadata.ChannelId) != 0 {
+				parallelRunMetadata.ChannelId = hm.ParallelRunMetadata.ChannelId
+			}
 			taskMeta := task.HookMetadata{
 				EventDescription:         hm.EventDescription,
 				ModuleName:               hm.ModuleName,
@@ -1599,6 +1805,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				WaitForSynchronization:   info.KubernetesBinding.WaitForSynchronization,
 				MonitorIDs:               []string{info.KubernetesBinding.Monitor.Metadata.MonitorId},
 				ExecuteOnSynchronization: info.KubernetesBinding.ExecuteHookOnSynchronization,
+				ParallelRunMetadata:      parallelRunMetadata,
 			}
 			newTask := sh_task.NewTask(task.ModuleHookRun).
 				WithLogLabels(taskLogLabels).
@@ -1606,7 +1813,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				WithMetadata(taskMeta)
 			newTask.WithQueuedAt(time.Now())
 
-			if info.QueueName == t.GetQueueName() {
+			if queueName == t.GetQueueName() {
 				// Ignore "waitForSynchronization: false" for hooks in the main queue.
 				// There is no way to not wait for these hooks.
 				mainSyncTasks = append(mainSyncTasks, newTask)
@@ -1671,17 +1878,17 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 	// Repeat ModuleRun if there are running Synchronization tasks to wait.
 	if baseModule.GetPhase() == modules.WaitForSynchronization {
-		if baseModule.Synchronization().IsComplete() {
+		if baseModule.Synchronization().IsCompleted() {
 			// Proceed with the next phase.
 			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.EnableScheduleBindings)
 			logEntry.Info("Synchronization done for module hooks")
 		} else {
 			// Debug messages every fifth second: print Synchronization state.
 			if time.Now().UnixNano()%5000000000 == 0 {
-				logEntry.Debugf("ModuleRun wait Synchronization state: moduleStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.DoModuleStartup, baseModule.SynchronizationNeeded(), baseModule.Synchronization().HasQueued(), baseModule.Synchronization().IsComplete())
+				logEntry.Debugf("ModuleRun wait Synchronization state: moduleStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.DoModuleStartup, baseModule.SynchronizationNeeded(), baseModule.Synchronization().HasQueued(), baseModule.Synchronization().IsCompleted())
 				baseModule.Synchronization().DebugDumpState(logEntry)
 			}
-			logEntry.Debugf("Synchronization not complete, keep ModuleRun task in repeat mode")
+			logEntry.Debugf("Synchronization not completed, keep ModuleRun task in repeat mode")
 			t.WithQueuedAt(time.Now())
 			res.Status = queue.Repeat
 			return
@@ -2155,12 +2362,14 @@ func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabel
 	return newTasks
 }
 
-// CreateConvergeModulesTasks creates ModuleRun/ModuleDelete tasks based on moduleManager state.
+// CreateConvergeModulesTasks creates EnsureCRDsTasks and ModuleRun/ModuleDelete tasks based on moduleManager state.
 func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.ModulesState, logLabels map[string]string, eventDescription string) []sh_task.Task {
-	newTasks := make([]sh_task.Task, 0, len(state.ModulesToDisable)+len(state.AllEnabledModules))
+	modulesTasks := make([]sh_task.Task, 0, len(state.ModulesToDisable)+len(state.AllEnabledModules))
+	resultingTasks := make([]sh_task.Task, 0, len(state.ModulesToDisable)+len(state.AllEnabledModules))
 	queuedAt := time.Now()
 
 	// Add ModuleDelete tasks to delete helm releases of disabled modules.
+	log.Debugf("The following modules are going to be disabled: %v", state.ModulesToDisable)
 	for _, moduleName := range state.ModulesToDisable {
 		ev := events.ModuleEvent{
 			ModuleName: moduleName,
@@ -2178,58 +2387,110 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 				EventDescription: eventDescription,
 				ModuleName:       moduleName,
 			})
-		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
+		modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
 	}
 
-	ensureCRDsTasks := make([]sh_task.Task, 0, len(state.AllEnabledModules))
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
-	for _, moduleName := range state.AllEnabledModules {
-		ev := events.ModuleEvent{
-			ModuleName: moduleName,
-			EventType:  events.ModuleEnabled,
-		}
-		op.ModuleManager.SendModuleEvent(ev)
-		newLogLabels := utils.MergeLabels(logLabels)
-		newLogLabels["module"] = moduleName
-		delete(newLogLabels, "task.id")
-
-		// Run OnStartup and Kubernetes.Synchronization hooks
-		// on application startup or if module become enabled.
-		doModuleStartup := false
-		if _, has := newlyEnabled[moduleName]; has {
-			doModuleStartup = true
-
-			// create ensureCRDsTasks only for newlyEnabled modules
-			// and if module contains CRDs
-			if op.ModuleManager.ModuleHasCRDs(moduleName) {
-				ensureCRDsTasks = append(ensureCRDsTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
-					WithLogLabels(newLogLabels).
-					WithQueueName("main").
-					WithMetadata(task.HookMetadata{
-						EventDescription: "EnsureCRDs",
-						ModuleName:       moduleName,
-						IsReloadAll:      true,
-					}).WithQueuedAt(queuedAt))
-			}
-		}
-
-		newTask := sh_task.NewTask(task.ModuleRun).
-			WithLogLabels(newLogLabels).
-			WithQueueName("main").
-			WithMetadata(task.HookMetadata{
-				EventDescription: eventDescription,
-				ModuleName:       moduleName,
-				DoModuleStartup:  doModuleStartup,
-				IsReloadAll:      true,
-			})
-		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
+	log.Debugf("The following modules are going to be enabled/rerun: %v", state.AllEnabledModulesByOrder)
+	// sort modules' orders
+	sortedOrders := make(node.NodeWeightRange, 0, len(state.AllEnabledModulesByOrder))
+	for order := range state.AllEnabledModulesByOrder {
+		sortedOrders = append(sortedOrders, order)
 	}
+	sort.Sort(sortedOrders)
 
-	// append ensureCRDs tasks to begin queue
-	ensureCRDsTasks = append(ensureCRDsTasks, newTasks...)
+	for _, order := range sortedOrders {
+		newLogLabels := utils.MergeLabels(logLabels)
+		delete(newLogLabels, "task.id")
+		modules := state.AllEnabledModulesByOrder[order]
+		// create parallel moduleRun task
+		switch {
+		case len(modules) > 1:
+			newLogLabels["modules"] = strings.Join(modules, ",")
+			newLogLabels["order"] = order.String()
+			parallelRunMetadata := task.ParallelRunMetadata{
+				Order: order,
+			}
+			for _, moduleName := range modules {
+				ev := events.ModuleEvent{
+					ModuleName: moduleName,
+					EventType:  events.ModuleEnabled,
+				}
+				op.ModuleManager.SendModuleEvent(ev)
+				doModuleStartup := false
+				if _, has := newlyEnabled[moduleName]; has {
+					// add EnsureCRDs task if module is about to be enabled
+					if op.ModuleManager.ModuleHasCRDs(moduleName) {
+						resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+							WithLogLabels(newLogLabels).
+							WithQueueName("main").
+							WithMetadata(task.HookMetadata{
+								EventDescription: "EnsureCRDs",
+								ModuleName:       moduleName,
+								IsReloadAll:      true,
+							}).WithQueuedAt(queuedAt))
+					}
+					doModuleStartup = true
+				}
+				parallelRunMetadata.SetModuleMetadata(moduleName, task.ParallelRunModuleMetadata{
+					DoModuleStartup: doModuleStartup,
+				})
+			}
+			parallelRunMetadata.Context, parallelRunMetadata.CancelF = context.WithCancel(context.Background())
+			newTask := sh_task.NewTask(task.ParallelModuleRun).
+				WithLogLabels(newLogLabels).
+				WithQueueName("main").
+				WithMetadata(task.HookMetadata{
+					EventDescription:    eventDescription,
+					ModuleName:          fmt.Sprintf("Parallel run for %s", strings.Join(modules, ", ")),
+					IsReloadAll:         true,
+					ParallelRunMetadata: &parallelRunMetadata,
+				})
+			modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
 
-	return ensureCRDsTasks
+		// otherwise, create an original moduleRun task
+		case len(modules) == 1:
+			ev := events.ModuleEvent{
+				ModuleName: modules[0],
+				EventType:  events.ModuleEnabled,
+			}
+			op.ModuleManager.SendModuleEvent(ev)
+			newLogLabels["module"] = modules[0]
+			doModuleStartup := false
+			if _, has := newlyEnabled[modules[0]]; has {
+				// add EnsureCRDs task if module is about to be enabled
+				if op.ModuleManager.ModuleHasCRDs(modules[0]) {
+					resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+						WithLogLabels(newLogLabels).
+						WithQueueName("main").
+						WithMetadata(task.HookMetadata{
+							EventDescription: "EnsureCRDs",
+							ModuleName:       modules[0],
+							IsReloadAll:      true,
+						}).WithQueuedAt(queuedAt))
+				}
+				doModuleStartup = true
+			}
+			newTask := sh_task.NewTask(task.ModuleRun).
+				WithLogLabels(newLogLabels).
+				WithQueueName("main").
+				WithMetadata(task.HookMetadata{
+					EventDescription: eventDescription,
+					ModuleName:       modules[0],
+					DoModuleStartup:  doModuleStartup,
+					IsReloadAll:      true,
+				})
+			modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
+
+		default:
+			log.Errorf("Invalid ModulesState %v", state)
+		}
+	}
+	// append modulesTasks to resultingTasks
+	resultingTasks = append(resultingTasks, modulesTasks...)
+
+	return resultingTasks
 }
 
 // CheckConvergeStatus detects if converge process is started and
@@ -2358,6 +2619,9 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 			parts = append(parts, "with doModuleStartup")
 		}
 
+	case task.ParallelModuleRun:
+		parts = append(parts, fmt.Sprintf("modules '%s'", hm.ModuleName))
+
 	case task.ModulePurge, task.ModuleDelete:
 		parts = append(parts, fmt.Sprintf("module '%s'", hm.ModuleName))
 
@@ -2442,4 +2706,14 @@ func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 		return string(mod.GetPhase())
 	}
 	return ""
+}
+
+// getConvergeQueues returns list of all queues where modules converge tasks may be running
+func (op *AddonOperator) getConvergeQueues() []*queue.TaskQueue {
+	convergeQueues := make([]*queue.TaskQueue, 0, app.NumberOfParallelQueues+1)
+	for i := 0; i < app.NumberOfParallelQueues; i++ {
+		convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetByName(fmt.Sprintf(app.ParallelQueueNamePattern, i)))
+	}
+	convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetMain())
+	return convergeQueues
 }

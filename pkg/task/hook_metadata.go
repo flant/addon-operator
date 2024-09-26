@@ -1,12 +1,15 @@
 package task
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
 	"github.com/flant/shell-operator/pkg/hook/types"
@@ -15,13 +18,14 @@ import (
 
 // HookMetadata is a metadata for addon-operator tasks
 type HookMetadata struct {
-	EventDescription string // event name for informative queue dump
-	HookName         string
-	ModuleName       string
-	Binding          string // binding name from configuration
-	BindingType      types.BindingType
-	BindingContext   []binding_context.BindingContext
-	AllowFailure     bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
+	EventDescription    string // event name for informative queue dump
+	HookName            string
+	ModuleName          string
+	ParallelRunMetadata *ParallelRunMetadata
+	Binding             string // binding name from configuration
+	BindingType         types.BindingType
+	BindingContext      []binding_context.BindingContext
+	AllowFailure        bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
 	DoModuleStartup bool // Execute onStartup and kubernetes@Synchronization hooks for module
 	IsReloadAll     bool // ModuleRun task is a part of 'Reload all modules' process.
@@ -35,6 +39,60 @@ type HookMetadata struct {
 	WaitForSynchronization   bool     // kubernetes.Synchronization task should be waited
 	MonitorIDs               []string // an array of monitor IDs to unlock Kubernetes events after Synchronization.
 	ExecuteOnSynchronization bool     // A flag to skip hook execution in Synchronization tasks.
+}
+
+// ParallelRunMetadata is metadata for a parallel task
+type ParallelRunMetadata struct {
+	// the order the modules are grouped by
+	Order node.NodeWeight
+	// channelId of the parallelTaskChannel to communicate between parallel ModuleRun and ParallelModuleRun tasks
+	ChannelId string
+	// context with cancel to stop ParallelModuleRun task
+	Context context.Context
+	CancelF func()
+
+	// map of modules, taking part in a parallel run
+	l       sync.Mutex
+	modules map[string]ParallelRunModuleMetadata
+}
+
+// ParallelRunModuleMetadata is metadata for a parallel module
+type ParallelRunModuleMetadata struct {
+	DoModuleStartup bool
+}
+
+func (pm *ParallelRunMetadata) GetModulesMetadata() map[string]ParallelRunModuleMetadata {
+	pm.l.Lock()
+	defer pm.l.Unlock()
+	return pm.modules
+}
+
+func (pm *ParallelRunMetadata) SetModuleMetadata(moduleName string, metadata ParallelRunModuleMetadata) {
+	if pm.modules == nil {
+		pm.modules = make(map[string]ParallelRunModuleMetadata)
+	}
+	pm.l.Lock()
+	pm.modules[moduleName] = metadata
+	pm.l.Unlock()
+}
+
+func (pm *ParallelRunMetadata) DeleteModuleMetadata(moduleName string) {
+	if pm.modules == nil {
+		return
+	}
+	pm.l.Lock()
+	delete(pm.modules, moduleName)
+	pm.l.Unlock()
+}
+
+func (pm *ParallelRunMetadata) ListModules() []string {
+	pm.l.Lock()
+	defer pm.l.Unlock()
+	result := make([]string, 0, len(pm.modules))
+	for module := range pm.modules {
+		result = append(result, module)
+	}
+	return result
 }
 
 var (

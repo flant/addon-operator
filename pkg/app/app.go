@@ -50,6 +50,11 @@ var (
 	ExtraLabels = "heritage=addon-operator"
 	// CRDsFilters defines filters for CRD files, example `doc-,_`
 	CRDsFilters = "doc-,_"
+
+	// NumberOfParallelQueues defines the number of precreated parallel queues for parallel execution
+	NumberOfParallelQueues   = 10
+	ParallelQueuePrefix      = "parallel_queue"
+	ParallelQueueNamePattern = ParallelQueuePrefix + "_%d"
 )
 
 const (

@@ -32,6 +32,20 @@ type Node struct {
 	module    ModuleInterface
 }
 
+type NodeWeightRange []NodeWeight
+
+func (r NodeWeightRange) Len() int {
+	return len(r)
+}
+
+func (r NodeWeightRange) Less(i, j int) bool {
+	return r[i] < r[j]
+}
+
+func (r NodeWeightRange) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
 const (
 	ModuleType NodeType = "module"
 	WeightType NodeType = "weight"
