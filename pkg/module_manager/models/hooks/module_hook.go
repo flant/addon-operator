@@ -97,7 +97,7 @@ func (mh *ModuleHook) SynchronizationNeeded() bool {
 }
 
 // WithHookController set HookController for shell-operator
-func (mh *ModuleHook) WithHookController(ctrl controller.HookController) {
+func (mh *ModuleHook) WithHookController(ctrl *controller.HookController) {
 	mh.executableHook.WithHookController(ctrl)
 }
 

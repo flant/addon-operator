@@ -48,12 +48,12 @@ func (h *GoHook) AddMetadata(meta *go_hook.HookMetadata) {
 }
 
 // WithHookController sets dependency "hook controller" for shell-operator
-func (h *GoHook) WithHookController(hookController controller.HookController) {
+func (h *GoHook) WithHookController(hookController *controller.HookController) {
 	h.basicHook.HookController = hookController
 }
 
 // GetHookController returns HookController
-func (h *GoHook) GetHookController() controller.HookController {
+func (h *GoHook) GetHookController() *controller.HookController {
 	return h.basicHook.HookController
 }
 
