@@ -115,6 +115,10 @@ github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee h1:evii83J+/6QGNv
 github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee/go.mod h1:f+REaGl/+pZR97rbTcwHEka/MAipoQQ2Mc0iQUj4ak0=
 github.com/flant/shell-operator v1.4.11 h1:31HJuLEvAbi7gIIWa3eJelviUL7iYQS6fiBkTSN7jgc=
 github.com/flant/shell-operator v1.4.11/go.mod h1:/edae+IoeSilX6CpSrMsdn5eE5/CEwBjZAR5DFPu+hc=
+github.com/flant/shell-operator v1.4.12-0.20240926141536-4c47f832ee65 h1:ATz0oGPSAMptjFAR9OIqEcr1QqYpjebMIBQ609dNIT8=
+github.com/flant/shell-operator v1.4.12-0.20240926141536-4c47f832ee65/go.mod h1:/edae+IoeSilX6CpSrMsdn5eE5/CEwBjZAR5DFPu+hc=
+github.com/flant/shell-operator v1.4.12-0.20240926141852-4fdec1eaf695 h1:LnuBolzKCMc0+RpDw8Q6GmBltEGLsX0fp+bHWQIbqu0=
+github.com/flant/shell-operator v1.4.12-0.20240926141852-4fdec1eaf695/go.mod h1:/edae+IoeSilX6CpSrMsdn5eE5/CEwBjZAR5DFPu+hc=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=
 github.com/fogleman/gg v1.3.0/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/foxcpp/go-mockdns v1.0.0 h1:7jBqxd3WDWwi/6WhDvacvH1XsN3rOLXyHM1uhvIx6FI=

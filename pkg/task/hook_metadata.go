@@ -5,12 +5,12 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
-	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/task"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // HookMetadata is a metadata for addon-operator tasks
@@ -19,8 +19,8 @@ type HookMetadata struct {
 	HookName         string
 	ModuleName       string
 	Binding          string // binding name from configuration
-	BindingType      BindingType
-	BindingContext   []BindingContext
+	BindingType      types.BindingType
+	BindingContext   []binding_context.BindingContext
 	AllowFailure     bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
 	DoModuleStartup bool // Execute onStartup and kubernetes@Synchronization hooks for module
@@ -41,7 +41,7 @@ var (
 	_ task_metadata.HookNameAccessor       = HookMetadata{}
 	_ task_metadata.BindingContextAccessor = HookMetadata{}
 	_ task_metadata.MonitorIDAccessor      = HookMetadata{}
-	_ task.MetadataDescriptable            = HookMetadata{}
+	_ task.MetadataDescriptionGetter       = HookMetadata{}
 )
 
 func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
@@ -99,7 +99,7 @@ func (hm HookMetadata) GetHookName() string {
 	return hm.HookName
 }
 
-func (hm HookMetadata) GetBindingContext() []BindingContext {
+func (hm HookMetadata) GetBindingContext() []binding_context.BindingContext {
 	return hm.BindingContext
 }
 

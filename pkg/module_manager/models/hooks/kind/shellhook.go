@@ -41,7 +41,7 @@ func (sh *ShellHook) BackportHookConfig(cfg *config.HookConfig) {
 }
 
 // WithHookController sets dependency "hook controller" for shell-operator
-func (sh *ShellHook) WithHookController(hookController controller.HookController) {
+func (sh *ShellHook) WithHookController(hookController *controller.HookController) {
 	sh.HookController = hookController
 }
 
@@ -56,7 +56,7 @@ func (sh *ShellHook) GetPath() string {
 }
 
 // GetHookController returns HookController
-func (sh *ShellHook) GetHookController() controller.HookController {
+func (sh *ShellHook) GetHookController() *controller.HookController {
 	return sh.HookController
 }
 
