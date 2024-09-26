@@ -16,6 +16,7 @@ import (
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
+	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
@@ -2070,6 +2071,16 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 			}
 			// Queue ReloadAllModules task
 			if reloadAll {
+				// if helm3lib is in use - reinit helm action configuration to update helm capabilities (newly available apiVersions and resoruce kinds)
+				if op.Helm.ClientType == helm.Helm3Lib {
+					if err := helm3lib.ReinitActionConfig(); err != nil {
+						logEntry.Errorf("Couldn't reinitialize helm3lib action configuration: %s", err)
+						t.UpdateFailureMessage(err.Error())
+						t.WithQueuedAt(time.Now())
+						res.Status = queue.Fail
+						return res
+					}
+				}
 				// Stop and remove all resource monitors to prevent excessive ModuleRun tasks
 				op.HelmResourcesManager.StopMonitors()
 				logLabels := t.GetLogLabels()
