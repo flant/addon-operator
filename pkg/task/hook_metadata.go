@@ -9,8 +9,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
+	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
 	"github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/task"
@@ -18,14 +18,14 @@ import (
 
 // HookMetadata is a metadata for addon-operator tasks
 type HookMetadata struct {
-	EventDescription string // event name for informative queue dump
-	HookName         string
-	ModuleName       string
+	EventDescription    string // event name for informative queue dump
+	HookName            string
+	ModuleName          string
 	ParallelRunMetadata *ParallelRunMetadata
-	Binding          string // binding name from configuration
-	BindingType      types.BindingType
-	BindingContext   []binding_context.BindingContext
-	AllowFailure     bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
+	Binding             string // binding name from configuration
+	BindingType         types.BindingType
+	BindingContext      []binding_context.BindingContext
+	AllowFailure        bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
 	DoModuleStartup bool // Execute onStartup and kubernetes@Synchronization hooks for module
 	IsReloadAll     bool // ModuleRun task is a part of 'Reload all modules' process.
