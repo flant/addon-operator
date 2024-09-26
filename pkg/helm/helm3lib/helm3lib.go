@@ -37,6 +37,16 @@ func Init(opts *Options) error {
 	return hc.initAndVersion()
 }
 
+// ReinitActionConfig reinitializes helm3 action configuration to update its list of capabilities
+func ReinitActionConfig() error {
+	hc := &LibClient{
+		LogEntry: log.WithField("operator.component", "helm3lib"),
+	}
+	log.Debug("Reinitialize Helm 3 lib action configuration")
+
+	return hc.actionConfigInit()
+}
+
 // LibClient use helm3 package as Go library.
 type LibClient struct {
 	LogEntry  *log.Entry

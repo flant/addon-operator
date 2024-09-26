@@ -11,6 +11,7 @@ import (
 
 type ClientFactory struct {
 	NewClientFn func(logLabels ...map[string]string) client.HelmClient
+	ClientType  ClientType
 }
 
 func (f *ClientFactory) NewClient(logLabels ...map[string]string) client.HelmClient {
@@ -31,6 +32,7 @@ func InitHelmClientFactory() (*ClientFactory, error) {
 	switch helmVersion {
 	case Helm3Lib:
 		log.Info("Helm3Lib detected. Use builtin Helm.")
+		factory.ClientType = Helm3Lib
 		factory.NewClientFn = helm3lib.NewClient
 		err = helm3lib.Init(&helm3lib.Options{
 			Namespace:  app.Namespace,
@@ -41,6 +43,7 @@ func InitHelmClientFactory() (*ClientFactory, error) {
 	case Helm3:
 		log.Infof("Helm 3 detected (path is '%s')", helm3.Helm3Path)
 		// Use helm3 client.
+		factory.ClientType = Helm3
 		factory.NewClientFn = helm3.NewClient
 		err = helm3.Init(&helm3.Helm3Options{
 			Namespace:  app.Namespace,
