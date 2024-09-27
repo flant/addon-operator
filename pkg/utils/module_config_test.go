@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-	"k8s.io/utils/pointer"
+	pointer "k8s.io/utils/ptr"
 )
 
 // Test_FromYaml creates ModuleConfig objects from different input yaml strings
@@ -219,7 +219,7 @@ func Test_GetEnabled(t *testing.T) {
 			"nil",
 			func() {
 				config = &ModuleConfig{}
-				config.IsEnabled = pointer.Bool(true)
+				config.IsEnabled = pointer.To(true)
 			},
 			"true",
 		},
@@ -227,7 +227,7 @@ func Test_GetEnabled(t *testing.T) {
 			"nil",
 			func() {
 				config = &ModuleConfig{}
-				config.IsEnabled = pointer.Bool(false)
+				config.IsEnabled = pointer.To(false)
 			},
 			"false",
 		},

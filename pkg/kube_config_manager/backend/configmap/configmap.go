@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	dlogger "github.com/distribution/distribution/v3/context"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
@@ -26,14 +25,15 @@ type Backend struct {
 	namespace string
 	name      string
 
-	logger dlogger.Logger
+	logger *log.Logger
 	client *client.Client
 }
 
 // New initializes backend for kube_config_manager based on ConfigMap with modules values
-func New(logger dlogger.Logger, kubeClient *client.Client, namespace, name string) *Backend {
+func New(logger *log.Logger, kubeClient *client.Client, namespace, name string) *Backend {
 	if logger == nil {
-		logger = log.WithField("operator.component", "ConfigHandler").WithField("backend", "configmap")
+		logger = log.WithField("operator.component", "ConfigHandler").Logger
+		logger = logger.WithField("backend", "configmap").Logger
 	}
 
 	backend := &Backend{
