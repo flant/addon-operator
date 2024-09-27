@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"k8s.io/utils/pointer"
+	pointer "k8s.io/utils/ptr"
 
 	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
@@ -34,7 +34,7 @@ func (dms *MemoryMetricsCollector) Add(name string, value float64, labels map[st
 		Name:   name,
 		Group:  opts.group,
 		Action: "add",
-		Value:  pointer.Float64(value),
+		Value:  pointer.To(value),
 		Labels: labels,
 	})
 }
@@ -51,7 +51,7 @@ func (dms *MemoryMetricsCollector) Set(name string, value float64, labels map[st
 		Name:   name,
 		Group:  opts.group,
 		Action: "set",
-		Value:  pointer.Float64(value),
+		Value:  pointer.To(value),
 		Labels: labels,
 	})
 }
