@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
-	"k8s.io/utils/pointer"
+	pointer "k8s.io/utils/ptr"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
@@ -114,7 +114,7 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 
 		case statError:
 			log.Errorf(moduleDescriptor.stateDescription)
-			enabled = pointer.Bool(false)
+			enabled = pointer.To(false)
 			err = errors.New(moduleDescriptor.stateDescription)
 
 		case nonExecutableScript:
