@@ -504,10 +504,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 }
 
 func (bm *BasicModule) prepareValuesJsonFileForEnabledScript(tmpdir string, precedingEnabledModules []string) (string, error) {
-	values, err := bm.valuesForEnabledScript(precedingEnabledModules)
-	if err != nil {
-		return "", err
-	}
+	values := bm.valuesForEnabledScript(precedingEnabledModules)
 	return bm.prepareValuesJsonFileWith(tmpdir, values)
 }
 
@@ -556,7 +553,7 @@ func (bm *BasicModule) prepareValuesJsonFileWith(tmpdir string, values utils.Val
 
 // ValuesForEnabledScript returns effective values for enabled script.
 // There is enabledModules key in global section with previously enabled modules.
-func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) (utils.Values, error) {
+func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) utils.Values {
 	res := bm.valuesStorage.GetValues(true)
 
 	res = mergeLayers(
@@ -569,7 +566,7 @@ func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) 
 			},
 		},
 	)
-	return res, nil
+	return res
 }
 
 func (bm *BasicModule) safeName() string {

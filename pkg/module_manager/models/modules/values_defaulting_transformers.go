@@ -26,7 +26,8 @@ func (a *applyDefaults) Transform(values utils.Values) utils.Values {
 		return values
 	}
 
-	validation.ApplyDefaults(values, s)
+	res := values.Copy()
+	validation.ApplyDefaults(res, s)
 
-	return values
+	return res
 }

@@ -202,6 +202,7 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 	newGlobalValues, ok := valuesMap[mm.global.GetName()]
 	if ok {
 		if globalValuesChanged {
+			log.Debugf("Applying global values: %v", newGlobalValues)
 			mm.global.SaveConfigValues(newGlobalValues)
 		}
 		delete(valuesMap, mm.global.GetName())
@@ -215,6 +216,7 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 		}
 
 		if mod.GetConfigValues(false).Checksum() != values.Checksum() {
+			log.Debugf("Applying values to %s module: new values: %v, previous ones: %v", moduleName, values, mod.GetConfigValues(false))
 			mod.SaveConfigValues(values)
 		}
 	}
@@ -457,7 +459,14 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	case *fs.FileSystemLoader:
 	default:
 		logEntry.Debugf("non-default module loader detected - applying enabledModules patch")
-		mm.global.SetEnabledModules(enabledModules)
+		enabledModulesAndFakeCRDmodules := make([]string, 0, len(enabledModules))
+		for _, moduleName := range enabledModules {
+			if mm.ModuleHasCRDs(moduleName) {
+				enabledModulesAndFakeCRDmodules = append(enabledModulesAndFakeCRDmodules, fmt.Sprintf("%s-crd", moduleName))
+			}
+			enabledModulesAndFakeCRDmodules = append(enabledModulesAndFakeCRDmodules, moduleName)
+		}
+		mm.global.SetEnabledModules(enabledModulesAndFakeCRDmodules)
 	}
 
 	// Return lists for ConvergeModules task.

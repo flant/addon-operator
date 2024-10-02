@@ -16,15 +16,22 @@ func merge(dst, src map[string]interface{}, depth int) map[string]interface{} {
 	if depth > maxDepth {
 		panic("too deep!")
 	}
+
 	for key, srcVal := range src {
+		srcMap, srcMapOk := mapify(srcVal)
 		if dstVal, ok := dst[key]; ok {
-			srcMap, srcMapOk := mapify(srcVal)
 			dstMap, dstMapOk := mapify(dstVal)
 			if srcMapOk && dstMapOk {
-				srcVal = merge(dstMap, srcMap, depth+1)
+				dst[key] = merge(dstMap, srcMap, depth+1)
+				continue
 			}
 		}
-		dst[key] = srcVal
+
+		if srcMapOk {
+			dst[key] = deepCopyMap(srcMap)
+		} else {
+			dst[key] = srcVal
+		}
 	}
 	return dst
 }
