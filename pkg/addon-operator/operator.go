@@ -96,6 +96,10 @@ type AddonOperator struct {
 	// CRDExtraLabels contains labels for processing CRD files
 	// like heritage=addon-operator
 	CRDExtraLabels map[string]string
+
+	discoveredGVKsLock sync.Mutex
+	// discoveredGVKs is a map of GVKs from applied modules' CRDs
+	discoveredGVKs map[string]struct{}
 }
 
 type parallelQueueEvent struct {
@@ -173,6 +177,7 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		parallelTaskChannels: parallelTaskChannels{
 			channels: make(map[string](chan parallelQueueEvent)),
 		},
+		discoveredGVKs: make(map[string]struct{}, 0),
 	}
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
@@ -1300,6 +1305,9 @@ func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 
 	case task.ModuleEnsureCRDs:
 		res = op.HandleModuleEnsureCRDs(t, taskLogLabels)
+		if res.Status == queue.Success {
+			op.CheckCRDsEnsured(t)
+		}
 	}
 
 	if res.Status == queue.Success {
@@ -1572,12 +1580,18 @@ func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[strin
 	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
 	logEntry.Debugf("Module ensureCRDs '%s'", hm.ModuleName)
 
-	if err := op.EnsureCRDs(baseModule); err != nil {
+	if appliedGVKs, err := op.EnsureCRDs(baseModule); err != nil {
 		op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, err)
 		logEntry.Errorf("ModuleEnsureCRDs failed. Error: %s", err)
 		t.UpdateFailureMessage(err.Error())
 		t.WithQueuedAt(time.Now())
 		res.Status = queue.Fail
+	} else {
+		op.discoveredGVKsLock.Lock()
+		for _, gvk := range appliedGVKs {
+			op.discoveredGVKs[gvk] = struct{}{}
+		}
+		op.discoveredGVKsLock.Unlock()
 	}
 
 	return
@@ -2487,10 +2501,37 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 			log.Errorf("Invalid ModulesState %v", state)
 		}
 	}
+	// as resultingTasks contains new ensureCRDsTasks we invalidate
+	// ConvregeState.CRDsEnsured if there are new ensureCRDsTasks to execute
+	if op.ConvergeState.CRDsEnsured && len(resultingTasks) > 0 {
+		log.Debug("CheckCRDsEnsured: set to false")
+		op.ConvergeState.CRDsEnsured = false
+	}
+
 	// append modulesTasks to resultingTasks
 	resultingTasks = append(resultingTasks, modulesTasks...)
 
 	return resultingTasks
+}
+
+// CheckCRDsEnsured checks if there any other ModuleEnsureCRDs tasks in the queue
+// and if there aren't, sets ConvergeState.CRDsEnsured to true and applies global values patch with
+// the discovered GVKs
+func (op *AddonOperator) CheckCRDsEnsured(t sh_task.Task) {
+	if !op.ConvergeState.CRDsEnsured && !ModuleEnsureCRDsTasksInQueueAfterId(op.engine.TaskQueues.GetMain(), t.GetId()) {
+		log.Debug("CheckCRDsEnsured: set to true")
+		op.ConvergeState.CRDsEnsured = true
+		// apply global values patch
+		op.discoveredGVKsLock.Lock()
+		defer op.discoveredGVKsLock.Unlock()
+		if len(op.discoveredGVKs) != 0 {
+			gvks := make([]string, 0, len(op.discoveredGVKs))
+			for gvk := range op.discoveredGVKs {
+				gvks = append(gvks, gvk)
+			}
+			op.ModuleManager.SetGlobalDiscoveryAPIVersions(gvks)
+		}
+	}
 }
 
 // CheckConvergeStatus detects if converge process is started and

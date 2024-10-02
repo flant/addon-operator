@@ -10,6 +10,75 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
+func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
+	const currentTaskID = "1"
+	tests := []struct {
+		name   string
+		result bool
+		queue  func() *queue.TaskQueue
+	}{
+		{
+			name:   "Normal",
+			result: true,
+			queue: func() *queue.TaskQueue {
+				q := queue.NewTasksQueue()
+
+				Task := &sh_task.BaseTask{Type: task.ModuleEnsureCRDs, Id: currentTaskID}
+				q.AddLast(Task)
+
+				Task = &sh_task.BaseTask{Type: task.ModuleEnsureCRDs, Id: "2"}
+				q.AddLast(Task)
+
+				Task = &sh_task.BaseTask{Type: task.GlobalHookRun, Id: "3"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "n"}))
+
+				return q
+			},
+		},
+		{
+			name:   "First task",
+			result: false,
+			queue: func() *queue.TaskQueue {
+				q := queue.NewTasksQueue()
+
+				Task := &sh_task.BaseTask{Type: task.ModuleEnsureCRDs, Id: currentTaskID}
+				q.AddLast(Task)
+
+				Task = &sh_task.BaseTask{Type: task.GlobalHookRun, Id: "2"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "n"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "3"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+				return q
+			},
+		},
+		{
+			name:   "No ModuleEnsureCRDs",
+			result: false,
+			queue: func() *queue.TaskQueue {
+				q := queue.NewTasksQueue()
+
+				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: currentTaskID}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleHookRun, Id: "2"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
+
+				Task = &sh_task.BaseTask{Type: task.ModuleRun, Id: "3"}
+				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
+				return q
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ModuleEnsureCRDsTasksInQueueAfterId(tt.queue(), currentTaskID)
+			require.Equal(t, tt.result, result, "ModuleEnsureCRDsTasksInQueueAfterId should run correctly")
+		})
+	}
+}
+
 func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 	tests := []struct {
 		name   string

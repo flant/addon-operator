@@ -302,6 +302,24 @@ func (gm *GlobalModule) SaveConfigValues(configV utils.Values) {
 	gm.valuesStorage.SaveConfigValues(configV)
 }
 
+// SetAvailableAPIVersions injects GVK values, discovered during executing ModuleEnsureCRDs tasks, into .global.discovery.apiVersions values
+func (gm *GlobalModule) SetAvailableAPIVersions(apiVersions []string) {
+	if len(apiVersions) == 0 {
+		return
+	}
+
+	data, _ := json.Marshal(apiVersions)
+	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
+		{
+			Op:    "add",
+			Path:  "/global/discovery/apiVersions",
+			Value: data,
+		},
+	}})
+
+	_ = gm.valuesStorage.calculateResultValues()
+}
+
 // SetEnabledModules inject enabledModules to the global values
 // enabledModules are injected as a patch, to recalculate on every global values change
 func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {

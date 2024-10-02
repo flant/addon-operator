@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -28,24 +29,27 @@ var crdGVR = schema.GroupVersionResource{
 	Resource: "customresourcedefinitions",
 }
 
-func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) error {
+func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) ([]string, error) {
 	// do not ensure CRDs if there are no files
 	if !module.CRDExist() {
-		return nil
+		return nil, nil
 	}
 
 	result := new(multierror.Error)
 	cp, err := NewCRDsInstaller(op.KubeClient(), module.GetCRDFilesPaths(), op.CRDExtraLabels)
 	if err != nil {
 		result = multierror.Append(result, err)
-		return result
+		return nil, result
 	}
 
 	if cp == nil {
-		return nil
+		return nil, nil
+	}
+	if runErr := cp.Run(context.TODO()).ErrorOrNil(); runErr != nil {
+		return nil, runErr
 	}
 
-	return cp.Run(context.TODO()).ErrorOrNil()
+	return cp.appliedGVKs, nil
 }
 
 // CRDsInstaller simultaneously installs CRDs from specified directory
@@ -58,6 +62,10 @@ type CRDsInstaller struct {
 	k8sTasks *multierror.Group
 
 	crdExtraLabels map[string]string
+
+	appliedGVKsLock sync.Mutex
+	// list of GVKs, applied to the cluster
+	appliedGVKs []string
 }
 
 func (cp *CRDsInstaller) Run(ctx context.Context) *multierror.Error {
@@ -139,7 +147,44 @@ func (cp *CRDsInstaller) putCRDToCluster(ctx context.Context, crdReader io.Reade
 	}
 
 	cp.k8sTasks.Go(func() error {
-		return cp.updateOrInsertCRD(ctx, crd)
+		opErr := cp.updateOrInsertCRD(ctx, crd)
+		if opErr == nil {
+			var crdGroup, crdKind string
+			crdVersions := make([]string, 0)
+			if !reflect.ValueOf(crd.Spec).IsZero() {
+				if len(crd.Spec.Group) > 0 {
+					crdGroup = crd.Spec.Group
+				} else {
+					return fmt.Errorf("Couldn't parse CRD's group")
+				}
+
+				if !reflect.ValueOf(crd.Spec.Names).IsZero() {
+					if len(crd.Spec.Names.Kind) > 0 {
+						crdKind = crd.Spec.Names.Kind
+					} else {
+						return fmt.Errorf("Couldn't parse CRD's .spec.names.kind")
+					}
+				} else {
+					return fmt.Errorf("Couldn't parse CRD's .spec.names")
+				}
+
+				if len(crd.Spec.Versions) > 0 {
+					for _, version := range crd.Spec.Versions {
+						crdVersions = append(crdVersions, version.Name)
+					}
+				} else {
+					return fmt.Errorf("Couldn't parse CRD's .spec.versions")
+				}
+			} else {
+				return fmt.Errorf("Couldn't parse CRD's .spec")
+			}
+			cp.appliedGVKsLock.Lock()
+			for _, crdVersion := range crdVersions {
+				cp.appliedGVKs = append(cp.appliedGVKs, fmt.Sprintf("%s/%s/%s", crdGroup, crdVersion, crdKind))
+			}
+			cp.appliedGVKsLock.Unlock()
+		}
+		return opErr
 	})
 
 	return nil
@@ -214,5 +259,6 @@ func NewCRDsInstaller(client *client.Client, crdFilesPaths []string, crdExtraLab
 		buffer:         make([]byte, 1*1024*1024),
 		k8sTasks:       &multierror.Group{},
 		crdExtraLabels: crdExtraLabels,
+		appliedGVKs:    make([]string, 0),
 	}, nil
 }

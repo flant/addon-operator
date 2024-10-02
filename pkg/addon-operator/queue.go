@@ -205,6 +205,35 @@ func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels
 	})
 }
 
+func ModuleEnsureCRDsTasksInQueueAfterId(q *queue.TaskQueue, afterId string) bool {
+	if q == nil {
+		return false
+	}
+	IDFound := false
+	taskFound := false
+	stop := false
+	q.Filter(func(t sh_task.Task) bool {
+		if stop {
+			return true
+		}
+		if !IDFound {
+			if t.GetId() == afterId {
+				IDFound = true
+			}
+		} else {
+			// task found
+			if t.GetType() == task.ModuleEnsureCRDs {
+				taskFound = true
+				stop = true
+			}
+		}
+		// continue searching
+		return true
+	})
+
+	return taskFound
+}
+
 func DrainNonMainQueue(q *queue.TaskQueue) {
 	if q == nil || q.Name == "main" {
 		return
