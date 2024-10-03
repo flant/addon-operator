@@ -151,32 +151,24 @@ func (cp *CRDsInstaller) putCRDToCluster(ctx context.Context, crdReader io.Reade
 		if opErr == nil {
 			var crdGroup, crdKind string
 			crdVersions := make([]string, 0)
-			if !reflect.ValueOf(crd.Spec).IsZero() {
-				if len(crd.Spec.Group) > 0 {
-					crdGroup = crd.Spec.Group
-				} else {
-					return fmt.Errorf("Couldn't parse CRD's group")
-				}
+			if len(crd.Spec.Group) > 0 {
+				crdGroup = crd.Spec.Group
+			} else {
+				return fmt.Errorf("Couldn't find CRD's .group key")
+			}
 
-				if !reflect.ValueOf(crd.Spec.Names).IsZero() {
-					if len(crd.Spec.Names.Kind) > 0 {
-						crdKind = crd.Spec.Names.Kind
-					} else {
-						return fmt.Errorf("Couldn't parse CRD's .spec.names.kind")
-					}
-				} else {
-					return fmt.Errorf("Couldn't parse CRD's .spec.names")
-				}
+			if len(crd.Spec.Names.Kind) > 0 {
+				crdKind = crd.Spec.Names.Kind
+			} else {
+				return fmt.Errorf("Couldn't find CRD's .spec.names.kind key")
+			}
 
-				if len(crd.Spec.Versions) > 0 {
-					for _, version := range crd.Spec.Versions {
-						crdVersions = append(crdVersions, version.Name)
-					}
-				} else {
-					return fmt.Errorf("Couldn't parse CRD's .spec.versions")
+			if len(crd.Spec.Versions) > 0 {
+				for _, version := range crd.Spec.Versions {
+					crdVersions = append(crdVersions, version.Name)
 				}
 			} else {
-				return fmt.Errorf("Couldn't parse CRD's .spec")
+				return fmt.Errorf("Couldn't find CRD's .spec.versions key")
 			}
 			cp.appliedGVKsLock.Lock()
 			for _, crdVersion := range crdVersions {
