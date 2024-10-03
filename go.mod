@@ -8,7 +8,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.1.0
-	github.com/flant/shell-operator v0.0.0-20241003154815-ed043fe1b0c3
+	github.com/flant/shell-operator v0.0.0-20241003160211-a142d56262e8
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
