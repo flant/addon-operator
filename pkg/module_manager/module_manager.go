@@ -414,6 +414,18 @@ func (mm *ModuleManager) GetGraphImage() (image.Image, error) {
 	return mm.moduleScheduler.GetGraphImage()
 }
 
+// SetGlobalDiscoveryAPIVersions applies global values patch to .global.discovery.apiVersions key
+// if non-default moduleLoader is in use
+func (mm *ModuleManager) SetGlobalDiscoveryAPIVersions(apiVersions []string) {
+	// We've to ignore apiVersions patch in case default moduleLoader is in use, otherwise it breaks applying global hooks patches with default moduleLoader
+	switch mm.moduleLoader.(type) {
+	case *fs.FileSystemLoader:
+	default:
+		log.Debug("non-default module loader detected - applying apiVersions patch")
+		mm.global.SetAvailableAPIVersions(apiVersions)
+	}
+}
+
 // RefreshEnabledState gets current diff of the graph and forms ModuleState
 // - mm.enabledModules
 func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*ModulesState, error) {
@@ -454,11 +466,11 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 		modulesToDisable,
 		modulesToEnable)
 
-	// We've to ignore enabledModules patch in case default moduleLoader is in use, otherwise it breaks applying global hooks patches
+	// We've to ignore enabledModules patch in case default moduleLoader is in use, otherwise it breaks applying global hooks patches with default moduleLoader
 	switch mm.moduleLoader.(type) {
 	case *fs.FileSystemLoader:
 	default:
-		logEntry.Debugf("non-default module loader detected - applying enabledModules patch")
+		logEntry.Debug("non-default module loader detected - applying enabledModules patch")
 		enabledModulesAndFakeCRDmodules := make([]string, 0, len(enabledModules))
 		for _, moduleName := range enabledModules {
 			if mm.ModuleHasCRDs(moduleName) {

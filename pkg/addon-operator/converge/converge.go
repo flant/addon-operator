@@ -17,6 +17,7 @@ type ConvergeState struct {
 	FirstRunDoneC chan struct{}
 	StartedAt     int64
 	Activation    string
+	CRDsEnsured   bool
 }
 
 type ConvergePhase string
