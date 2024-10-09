@@ -2,6 +2,7 @@ package helm_resources_manager
 
 import (
 	"context"
+	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
@@ -17,7 +18,7 @@ import (
 type HelmResourcesManager interface {
 	WithContext(ctx context.Context)
 	WithKubeClient(client *klient.Client)
-	WithCache() error
+	WithCache(ctx context.Context) error
 	WithDefaultNamespace(namespace string)
 	Stop()
 	StopMonitors()
@@ -62,7 +63,7 @@ func (hm *helmResourcesManager) WithKubeClient(client *klient.Client) {
 	hm.kubeClient = client
 }
 
-func (hm *helmResourcesManager) WithCache() error {
+func (hm *helmResourcesManager) WithCache(ctx context.Context) error {
 	cfg := hm.kubeClient.RestConfig()
 	defaultLabelSelector, err := labels.Parse(app.ExtraLabels)
 	if err != nil {
@@ -75,8 +76,12 @@ func (hm *helmResourcesManager) WithCache() error {
 		return err
 	}
 	hm.cache = cache
-	cache.Start(context.TODO())
-	cache.WaitForCacheSync(context.TODO())
+	go hm.cache.Start(ctx)
+	log.Debug("Helm resource manager: cache's been started")
+	if synced := cache.WaitForCacheSync(ctx); !synced {
+		return fmt.Errorf("Couldn't sync helm resource informer cache")
+	}
+	log.Debug("Helm resourcer manager: cache's been synced")
 	return nil
 }
 
