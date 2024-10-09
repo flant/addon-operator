@@ -33,11 +33,11 @@ func InitDefaultHelmResourcesManager(ctx context.Context, metricStorage *metric_
 		return nil, fmt.Errorf("initialize Kubernetes client for Helm resources manager: %s\n", err)
 	}
 	mgr := helm_resources_manager.NewHelmResourcesManager()
+	mgr.WithContext(ctx)
+	mgr.WithKubeClient(kubeClient)
 	if err := mgr.WithCache(); err != nil {
 		return nil, fmt.Errorf("initialize Kubernetes client for Helm resources manager: %s\n", err)
 	}
-	mgr.WithContext(ctx)
-	mgr.WithKubeClient(kubeClient)
 	mgr.WithDefaultNamespace(app.Namespace)
 	return mgr, nil
 }
