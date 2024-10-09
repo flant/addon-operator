@@ -17,6 +17,10 @@ func (h *MockHelmResourcesManager) WithContext(_ context.Context) {}
 
 func (h *MockHelmResourcesManager) WithKubeClient(_ *klient.Client) {}
 
+func (h *MockHelmResourcesManager) WithCache(_ context.Context) error {
+	return nil
+}
+
 func (h *MockHelmResourcesManager) WithDefaultNamespace(_ string) {}
 
 func (h *MockHelmResourcesManager) Stop() {}

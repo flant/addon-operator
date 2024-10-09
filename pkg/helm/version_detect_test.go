@@ -14,6 +14,8 @@ func Test_DetectHelmVersion(t *testing.T) {
 
 		_ = os.Setenv("HELM3", "yes")
 		defer os.Unsetenv("HELM3")
+		_ = os.Setenv("HELM_POST_RENDERER_PATH", "testdata/helm-fake/helm3/helm")
+		defer os.Unsetenv("HELM_POST_RENDERER_PATH")
 
 		ver, err := DetectHelmVersion()
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -36,6 +38,8 @@ func Test_DetectHelmVersion(t *testing.T) {
 
 		_ = os.Setenv("HELM_BIN_PATH", "testdata/helm-fake/helm3/helm")
 		defer os.Unsetenv("HELM_BIN_PATH")
+		_ = os.Setenv("HELM_POST_RENDERER_PATH", "testdata/helm-fake/helm3/helm")
+		defer os.Unsetenv("HELM_POST_RENDERER_PATH")
 
 		ver, err := DetectHelmVersion()
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -46,6 +50,8 @@ func Test_DetectHelmVersion(t *testing.T) {
 		g := NewWithT(t)
 
 		defer alterPATH(toAbsolutePath("testdata/helm-fake/helm3"))()
+		_ = os.Setenv("HELM_POST_RENDERER_PATH", "testdata/helm-fake/helm3/helm")
+		defer os.Unsetenv("HELM_POST_RENDERER_PATH")
 
 		ver, err := DetectHelmVersion()
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -57,6 +63,8 @@ func Test_DetectHelmVersion(t *testing.T) {
 
 		_ = os.Setenv("HELM_BIN_PATH", "testdata/helm-fake/faulty/helm")
 		defer os.Unsetenv("HELM_BIN_PATH")
+		_ = os.Setenv("HELM_POST_RENDERER_PATH", "testdata/helm-fake/helm3/helm")
+		defer os.Unsetenv("HELM_POST_RENDERER_PATH")
 
 		ver, err := DetectHelmVersion()
 		g.Expect(ver).Should(BeEquivalentTo(""))
