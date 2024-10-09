@@ -5,14 +5,19 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/flant/addon-operator/pkg/app"
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
+
+	"k8s.io/apimachinery/pkg/labels"
+	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 )
 
 type HelmResourcesManager interface {
 	WithContext(ctx context.Context)
 	WithKubeClient(client *klient.Client)
+	WithCache() error
 	WithDefaultNamespace(namespace string)
 	Stop()
 	StopMonitors()
@@ -35,6 +40,8 @@ type helmResourcesManager struct {
 
 	Namespace string
 
+	cache cr_cache.Cache
+
 	kubeClient *klient.Client
 
 	monitors map[string]*ResourcesMonitor
@@ -53,6 +60,24 @@ func NewHelmResourcesManager() HelmResourcesManager {
 
 func (hm *helmResourcesManager) WithKubeClient(client *klient.Client) {
 	hm.kubeClient = client
+}
+
+func (hm *helmResourcesManager) WithCache() error {
+	cfg := hm.kubeClient.RestConfig()
+	defaultLabelSelector, err := labels.Parse(app.ExtraLabels)
+	if err != nil {
+		return err
+	}
+	cache, err := cr_cache.New(cfg, cr_cache.Options{
+		DefaultLabelSelector: defaultLabelSelector,
+	})
+	if err != nil {
+		return err
+	}
+	hm.cache = cache
+	cache.Start(context.TODO())
+	cache.WaitForCacheSync(context.TODO())
+	return nil
 }
 
 func (hm *helmResourcesManager) WithDefaultNamespace(namespace string) {
@@ -79,6 +104,7 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 
 	rm := NewResourcesMonitor()
 	rm.WithKubeClient(hm.kubeClient)
+	rm.WithCache(hm.cache)
 	rm.WithContext(hm.ctx)
 	rm.WithModuleName(moduleName)
 	rm.WithManifests(manifests)

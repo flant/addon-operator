@@ -15,6 +15,8 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
+	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
+	cr_client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const monitorDelayBase = time.Minute*4 + time.Second*30
@@ -29,6 +31,7 @@ type ResourcesMonitor struct {
 	defaultNamespace string
 
 	kubeClient *klient.Client
+	cache      cr_cache.Cache
 	logLabels  map[string]string
 
 	absentCb func(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string)
@@ -56,6 +59,10 @@ func (r *ResourcesMonitor) Stop() {
 
 func (r *ResourcesMonitor) WithKubeClient(client *klient.Client) {
 	r.kubeClient = client
+}
+
+func (r *ResourcesMonitor) WithCache(cache cr_cache.Cache) {
+	r.cache = cache
 }
 
 func (r *ResourcesMonitor) WithLogLabels(logLabels map[string]string) {
@@ -157,7 +164,7 @@ func (r *ResourcesMonitor) Resume() {
 }
 
 func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
-	gvrMap, err := r.buildGVRMap()
+	gvkMap, err := r.buildGVKMap()
 	if err != nil {
 		return nil, err
 	}
@@ -167,16 +174,16 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 	// Don't use non-buffered channel here.
 	// Range on line 156 will read one message from the channel and quit but other goroutines will wait for the channel
 	// in 'chan send' status and stuck forever. Also, GC will not grab the channel because it has wait functions.
-	resC := make(chan gvrManifestResult, len(gvrMap))
+	resC := make(chan manifestResult, len(gvkMap))
 
 	var wg sync.WaitGroup
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	for nsgvr, manifests := range gvrMap {
+	for nsgvk, manifests := range gvkMap {
 		wg.Add(1)
-		go r.checkGVRManifests(ctx, &wg, nsgvr, manifests, resC, concurrency)
+		go r.checkGVKManifests(ctx, &wg, nsgvk, manifests, resC, concurrency)
 	}
 	go func() {
 		wg.Wait()
@@ -197,52 +204,52 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 	return nil, nil
 }
 
-type namespacedGVR struct {
+type namespacedGVK struct {
 	Namespace string
-	GVR       schema.GroupVersionResource
+	GVK       schema.GroupVersionKind
 }
 
-// create gvr
-func (r *ResourcesMonitor) buildGVRMap() (map[namespacedGVR][]manifest.Manifest, error) {
-	gvrMap := make(map[namespacedGVR][]manifest.Manifest)
+// create gvk
+func (r *ResourcesMonitor) buildGVKMap() (map[namespacedGVK][]manifest.Manifest, error) {
+	gvkMap := make(map[namespacedGVK][]manifest.Manifest)
 
 	for _, m := range r.manifests {
-		// Get GVR
-		// log.Debugf("%s: discover GVR for apiVersion '%s' kind '%s'...", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind)
+		// Get GVK
+		// log.Debugf("%s: discover GVK for apiVersion '%s' kind '%s'...", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind)
 		apiRes, err := r.kubeClient.APIResource(m.ApiVersion(), m.Kind())
 		if err != nil {
-			// log.Errorf("%s: Cannot get GroupVersionResource info for apiVersion '%s' kind '%s' from api-server. Possibly CRD is not created before informers are started. Error was: %v", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind, err)
+			// log.Errorf("%s: Cannot get GroupVersionKind info for apiVersion '%s' kind '%s' from api-server. Possibly CRD is not created before informers are started. Error was: %v", ei.Monitor.Metadata.DebugName, ei.Monitor.ApiVersion, ei.Monitor.Kind, err)
 			return nil, err
 		}
-		// log.Debugf("%s: GVR for kind '%s' is '%s'", ei.Monitor.Metadata.DebugName, ei.Monitor.Kind, ei.GroupVersionResource.String())
+		// log.Debugf("%s: GVK for kind '%s' is '%s'", ei.Monitor.Metadata.DebugName, ei.Monitor.Kind, ei.GroupVersionKind.String())
 
-		gvr := schema.GroupVersionResource{
-			Group:    apiRes.Group,
-			Version:  apiRes.Version,
-			Resource: apiRes.Name,
+		gvk := schema.GroupVersionKind{
+			Group:   apiRes.Group,
+			Version: apiRes.Version,
+			Kind:    apiRes.Kind,
 		}
 		ns := m.Namespace(r.defaultNamespace)
 		if !apiRes.Namespaced {
 			ns = ""
 		}
-		nsgvr := namespacedGVR{
+		nsgvk := namespacedGVK{
 			Namespace: ns,
-			GVR:       gvr,
+			GVK:       gvk,
 		}
 
-		gvrMap[nsgvr] = append(gvrMap[nsgvr], m)
+		gvkMap[nsgvk] = append(gvkMap[nsgvk], m)
 	}
 
-	return gvrMap, nil
+	return gvkMap, nil
 }
 
-type gvrManifestResult struct {
+type manifestResult struct {
 	hasAbsent bool
 	manifest  manifest.Manifest
 	err       error
 }
 
-func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitGroup, nsgvr namespacedGVR, manifests []manifest.Manifest, resC chan<- gvrManifestResult, concurrency chan struct{}) {
+func (r *ResourcesMonitor) checkGVKManifests(ctx context.Context, wg *sync.WaitGroup, nsgvk namespacedGVK, manifests []manifest.Manifest, resC chan<- manifestResult, concurrency chan struct{}) {
 	defer wg.Done()
 
 	concurrency <- struct{}{}
@@ -255,9 +262,9 @@ func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitG
 		return
 	}
 
-	existingObjs, err := r.listResources(ctx, nsgvr)
+	existingObjs, err := r.listResources(ctx, nsgvk)
 	if err != nil {
-		resC <- gvrManifestResult{
+		resC <- manifestResult{
 			err: err,
 		}
 		return
@@ -265,7 +272,7 @@ func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitG
 
 	for _, mf := range manifests {
 		if _, ok := existingObjs[mf.Name()]; !ok {
-			resC <- gvrManifestResult{
+			resC <- manifestResult{
 				hasAbsent: true,
 				manifest:  mf,
 			}
@@ -275,15 +282,16 @@ func (r *ResourcesMonitor) checkGVRManifests(ctx context.Context, wg *sync.WaitG
 }
 
 // list all objects in ns and return names of all existent objects
-func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvr namespacedGVR) (map[string]struct{}, error) {
-	// avoid hitting etcd quorum read to reduce the load of Kubernetes control-plane components
-	listOpts := v1.ListOptions{
-		ResourceVersion:      "0",
-		ResourceVersionMatch: v1.ResourceVersionMatchNotOlderThan,
-	}
-	objList, err := r.kubeClient.Metadata().Resource(nsgvr.GVR).Namespace(nsgvr.Namespace).List(ctx, listOpts)
+func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvk namespacedGVK) (map[string]struct{}, error) {
+	objList := &v1.PartialObjectMetadataList{}
+	objList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   nsgvk.GVK.Group,
+		Version: nsgvk.GVK.Version,
+		Kind:    nsgvk.GVK.Kind,
+	})
+	err := r.cache.List(ctx, objList, cr_client.InNamespace(nsgvk.Namespace))
 	if err != nil {
-		return nil, fmt.Errorf("fetch list for helm resource %s in ns: %s failed: %s", nsgvr.GVR, nsgvr.Namespace, err)
+		return nil, fmt.Errorf("Couldn't list objects from cache: %v", err)
 	}
 
 	existingObjs := make(map[string]struct{}, len(objList.Items))
