@@ -189,6 +189,7 @@ func (hm *helmResourcesManager) GetMonitor(moduleName string) *ResourcesMonitor 
 func (hm *helmResourcesManager) GetAbsentResources(manifests []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error) {
 	rm := NewResourcesMonitor()
 	rm.WithKubeClient(hm.kubeClient)
+	rm.WithCache(hm.cache)
 	rm.WithManifests(manifests)
 	rm.WithDefaultNamespace(defaultNamespace)
 	return rm.AbsentResources()
