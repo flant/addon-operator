@@ -287,8 +287,9 @@ func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvk namespacedGV
 	objList.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   nsgvk.GVK.Group,
 		Version: nsgvk.GVK.Version,
-		Kind:    nsgvk.GVK.Kind,
+		Kind:    nsgvk.GVK.Kind + "List",
 	})
+	log.Debugf("List objects from cache for %v", nsgvk)
 	err := r.cache.List(ctx, objList, cr_client.InNamespace(nsgvk.Namespace))
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't list objects from cache: %v", err)
