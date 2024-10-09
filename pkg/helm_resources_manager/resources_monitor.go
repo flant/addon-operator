@@ -62,6 +62,7 @@ func (r *ResourcesMonitor) WithKubeClient(client *klient.Client) {
 }
 
 func (r *ResourcesMonitor) WithCache(cache cr_cache.Cache) {
+	log.Debugf("Resource Monitor: Start with cache %v", cache)
 	r.cache = cache
 }
 

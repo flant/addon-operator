@@ -81,7 +81,7 @@ func (hm *helmResourcesManager) WithCache(ctx context.Context) error {
 	if synced := cache.WaitForCacheSync(ctx); !synced {
 		return fmt.Errorf("Couldn't sync helm resource informer cache")
 	}
-	log.Debug("Helm resourcer manager: cache's been synced")
+	log.Debugf("Helm resourcer manager: cache %v has been synced", hm.cache)
 	return nil
 }
 
