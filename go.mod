@@ -1,13 +1,13 @@
 module github.com/flant/addon-operator
 
-go 1.22
+go 1.22.4
 
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.2.0
-	github.com/flant/shell-operator v1.4.12
+	github.com/flant/shell-operator v0.0.0-20241010101209-479bd2a5ce3c
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
