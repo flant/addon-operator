@@ -395,14 +395,14 @@ func (s *Scheduler) getEnabledModuleNames() []string {
 }
 
 func (s *Scheduler) getEnabledModuleNamesByOrder(weights ...node.NodeWeight) (map[node.NodeWeight][]string, error) {
+	if s.root == nil {
+		return nil, fmt.Errorf("graph is empty")
+	}
 	result := make(map[node.NodeWeight][]string, 0)
 	var err error
 	switch {
 	// get modules of all weights
 	case len(weights) == 0:
-		if s.root == nil {
-			return nil, fmt.Errorf("graph is empty")
-		}
 		var (
 			dfsErr     error
 			allWeights []node.NodeWeight

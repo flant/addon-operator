@@ -80,4 +80,5 @@ func (hs *HooksStorage) clean() {
 	hs.byBinding = make(map[sh_op_types.BindingType][]*hooks.ModuleHook)
 	hs.byName = make(map[string]*hooks.ModuleHook)
 	hs.registered = false
+	hs.controllersReady = false
 }
