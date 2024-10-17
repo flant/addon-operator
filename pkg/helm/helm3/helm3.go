@@ -139,6 +139,7 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 		"--install",
 		"--history-max", fmt.Sprintf("%d", Options.HistoryMax),
 		"--timeout", Options.Timeout.String(),
+		"--post-renderer", "./post-renderer",
 	}
 
 	if namespace != "" {
@@ -249,7 +250,10 @@ func (h *Helm3Client) ListReleasesNames() ([]string, error) {
 
 // Render renders helm templates for chart
 func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string, debug bool) (string, error) {
-	args := []string{"template", releaseName, chart}
+	args := []string{
+		"template", releaseName, chart,
+		"--post-renderer", "./post-renderer",
+	}
 
 	if debug {
 		args = append(args, "--debug")
