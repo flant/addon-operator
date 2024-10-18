@@ -197,7 +197,7 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
-	helmClient, err := helm.InitHelmClientFactory()
+	helmClient, err := helm.InitHelmClientFactory(op.CRDExtraLabels)
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
 	}

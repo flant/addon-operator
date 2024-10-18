@@ -9,7 +9,10 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 )
 
-const DefaultHelmBinPath = "helm"
+const (
+	DefaultHelmBinPath          = "helm"
+	DefaultHelmPostRendererPath = "./post-renderer"
+)
 
 var helm2Envs = []string{
 	"ADDON_OPERATOR_TILLER_LISTEN_PORT",
@@ -28,6 +31,11 @@ const (
 	Helm3Lib = ClientType("Helm3Lib")
 )
 
+func checkPostRenderer(path string) error {
+	_, err := os.Stat(path)
+	return err
+}
+
 func DetectHelmVersion() (ClientType, error) {
 	// Detect Helm2 related environment variables.
 	for _, env := range helm2Envs {
@@ -42,10 +50,14 @@ func DetectHelmVersion() (ClientType, error) {
 	if userHelmPath != "" {
 		helmPath = userHelmPath
 	}
+	helmPostRendererPath := DefaultHelmPostRendererPath
+	if os.Getenv("HELM_POST_RENDERER_PATH") != "" {
+		helmPostRendererPath = os.Getenv("HELM_POST_RENDERER_PATH")
+	}
 	helm3.Helm3Path = helmPath
 
 	if os.Getenv("HELM3") == "yes" {
-		return Helm3, nil
+		return Helm3, checkPostRenderer(helmPostRendererPath)
 	}
 
 	if os.Getenv("HELM3LIB") == "yes" {
@@ -72,5 +84,5 @@ func DetectHelmVersion() (ClientType, error) {
 	}
 
 	// TODO(future) Add helm4 detection here.
-	return Helm3, nil
+	return Helm3, checkPostRenderer(helmPostRendererPath)
 }

@@ -23,7 +23,7 @@ func TestHelmFactory(t *testing.T) {
 		// For integration tests, but should be set before init
 		app.Namespace = os.Getenv("ADDON_OPERATOR_NAMESPACE")
 		// Setup Helm client factory.
-		helm, err := InitHelmClientFactory()
+		helm, err := InitHelmClientFactory(map[string]string{})
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Ensure client is a builtin Helm3 library.
@@ -71,7 +71,7 @@ func TestHelmFactory(t *testing.T) {
 
 	t.Run("init with helm3 binary client", func(t *testing.T) {
 		// For integration tests set appropriate helm binary path
-		testCLient(t, "helm3lib", new(helm3.Helm3Client), map[string]string{"HELM_BIN_PATH": "testdata/helm-fake/helm3/helm"})
+		testCLient(t, "helm3lib", new(helm3.Helm3Client), map[string]string{"HELM_BIN_PATH": "testdata/helm-fake/helm3/helm", "HELM_POST_RENDERER_PATH": "testdata/helm-fake/helm3/helm"})
 	})
 
 	t.Run("init with helm3lib client", func(t *testing.T) {

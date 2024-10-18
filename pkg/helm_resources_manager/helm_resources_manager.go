@@ -2,17 +2,19 @@ package helm_resources_manager
 
 import (
 	"context"
+	"fmt"
 
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/labels"
+	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 
+	"github.com/flant/addon-operator/pkg/app"
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
 )
 
 type HelmResourcesManager interface {
-	WithContext(ctx context.Context)
-	WithKubeClient(client *klient.Client)
 	WithDefaultNamespace(namespace string)
 	Stop()
 	StopMonitors()
@@ -35,6 +37,8 @@ type helmResourcesManager struct {
 
 	Namespace string
 
+	cache cr_cache.Cache
+
 	kubeClient *klient.Client
 
 	monitors map[string]*ResourcesMonitor
@@ -44,23 +48,45 @@ type helmResourcesManager struct {
 
 var _ HelmResourcesManager = &helmResourcesManager{}
 
-func NewHelmResourcesManager() HelmResourcesManager {
-	return &helmResourcesManager{
-		eventCh:  make(chan ReleaseStatusEvent),
-		monitors: make(map[string]*ResourcesMonitor),
+func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client) (HelmResourcesManager, error) {
+	//nolint:govet
+	cctx, cancel := context.WithCancel(ctx)
+	if kclient == nil {
+		//nolint:govet
+		return nil, fmt.Errorf("kube client not set")
 	}
-}
 
-func (hm *helmResourcesManager) WithKubeClient(client *klient.Client) {
-	hm.kubeClient = client
+	cfg := kclient.RestConfig()
+	defaultLabelSelector, err := labels.Parse(app.ExtraLabels)
+	if err != nil {
+		return nil, err
+	}
+	cache, err := cr_cache.New(cfg, cr_cache.Options{
+		DefaultLabelSelector: defaultLabelSelector,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go cache.Start(cctx)
+	log.Debug("Helm resource manager: cache's been started")
+	if synced := cache.WaitForCacheSync(cctx); !synced {
+		return nil, fmt.Errorf("Couldn't sync helm resource informer cache")
+	}
+	log.Debug("Helm resourcer manager: cache has been synced")
+
+	return &helmResourcesManager{
+		eventCh:    make(chan ReleaseStatusEvent),
+		monitors:   make(map[string]*ResourcesMonitor),
+		ctx:        cctx,
+		cancel:     cancel,
+		kubeClient: kclient,
+		cache:      cache,
+	}, nil
 }
 
 func (hm *helmResourcesManager) WithDefaultNamespace(namespace string) {
 	hm.Namespace = namespace
-}
-
-func (hm *helmResourcesManager) WithContext(ctx context.Context) {
-	hm.ctx, hm.cancel = context.WithCancel(ctx)
 }
 
 func (hm *helmResourcesManager) Stop() {
@@ -77,9 +103,7 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 	log.Debugf("Start helm resources monitor for '%s'", moduleName)
 	hm.StopMonitor(moduleName)
 
-	rm := NewResourcesMonitor()
-	rm.WithKubeClient(hm.kubeClient)
-	rm.WithContext(hm.ctx)
+	rm := NewResourcesMonitor(hm.ctx, hm.kubeClient, hm.cache)
 	rm.WithModuleName(moduleName)
 	rm.WithManifests(manifests)
 	rm.WithDefaultNamespace(defaultNamespace)
@@ -156,8 +180,7 @@ func (hm *helmResourcesManager) GetMonitor(moduleName string) *ResourcesMonitor 
 }
 
 func (hm *helmResourcesManager) GetAbsentResources(manifests []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error) {
-	rm := NewResourcesMonitor()
-	rm.WithKubeClient(hm.kubeClient)
+	rm := NewResourcesMonitor(hm.ctx, hm.kubeClient, hm.cache)
 	rm.WithManifests(manifests)
 	rm.WithDefaultNamespace(defaultNamespace)
 	return rm.AbsentResources()
