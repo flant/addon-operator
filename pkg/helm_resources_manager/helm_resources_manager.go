@@ -85,28 +85,6 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client) (HelmR
 	}, nil
 }
 
-func (hm *helmResourcesManager) WithCache(ctx context.Context) error {
-	cfg := hm.kubeClient.RestConfig()
-	defaultLabelSelector, err := labels.Parse(app.ExtraLabels)
-	if err != nil {
-		return err
-	}
-	cache, err := cr_cache.New(cfg, cr_cache.Options{
-		DefaultLabelSelector: defaultLabelSelector,
-	})
-	if err != nil {
-		return err
-	}
-	hm.cache = cache
-	go hm.cache.Start(ctx)
-	log.Debug("Helm resource manager: cache's been started")
-	if synced := cache.WaitForCacheSync(ctx); !synced {
-		return fmt.Errorf("Couldn't sync helm resource informer cache")
-	}
-	log.Debugf("Helm resourcer manager: cache %v has been synced", hm.cache)
-	return nil
-}
-
 func (hm *helmResourcesManager) WithDefaultNamespace(namespace string) {
 	hm.Namespace = namespace
 }
