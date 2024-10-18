@@ -101,7 +101,7 @@ func (r *ResourcesMonitor) Start() {
 				// Check release status
 				status, err := r.GetHelmReleaseStatus(r.moduleName)
 				if err != nil {
-					logEntry.Errorf("Cannot get helm release status: %s", err)
+					logEntry.Errorf("cannot get helm release status: %s", err)
 				}
 
 				if status != "deployed" {
@@ -114,7 +114,7 @@ func (r *ResourcesMonitor) Start() {
 				// Check resources
 				absent, err := r.AbsentResources()
 				if err != nil {
-					logEntry.Errorf("Cannot list helm resources: %s", err)
+					logEntry.Errorf("cannot list helm resources: %s", err)
 				}
 
 				if len(absent) > 0 {
@@ -285,7 +285,7 @@ func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvk namespacedGV
 	log.Debugf("List objects from cache for %v", nsgvk)
 	err := r.cache.List(ctx, objList, cr_client.InNamespace(nsgvk.Namespace))
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't list objects from cache: %v", err)
+		return nil, fmt.Errorf("couldn't list objects from cache: %v", err)
 	}
 
 	existingObjs := make(map[string]struct{}, len(objList.Items))
