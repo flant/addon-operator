@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func Test_DetectHelmVersion(t *testing.T) {
+func Test_Run(t *testing.T) {
 	t.Run("explicit Helm3", func(t *testing.T) {
 		g := NewWithT(t)
 		inputManifests := `apiVersion: ""
