@@ -21,7 +21,7 @@ func (f *ClientFactory) NewClient(logLabels ...map[string]string) client.HelmCli
 	return nil
 }
 
-func InitHelmClientFactory() (*ClientFactory, error) {
+func InitHelmClientFactory(extraLabels map[string]string) (*ClientFactory, error) {
 	helmVersion, err := DetectHelmVersion()
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func InitHelmClientFactory() (*ClientFactory, error) {
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,
-		})
+		}, extraLabels)
 
 	case Helm3:
 		log.Infof("Helm 3 detected (path is '%s')", helm3.Helm3Path)
