@@ -1174,6 +1174,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					"event.id": uuid.Must(uuid.NewV4()).String(),
 					"module":   HelmReleaseStatusEvent.ModuleName,
 				}
+				op.engine.MetricStorage.CounterAdd("{PREFIX}modules_absent_resources_total", 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName})
 				eventLogEntry := logEntry.WithFields(utils.LabelsToLogFields(logLabels))
 
 				// Do not add ModuleRun task if it is already queued.
