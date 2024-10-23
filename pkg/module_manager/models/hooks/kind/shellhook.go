@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/gofrs/uuid/v5"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_app "github.com/flant/shell-operator/pkg/app"
@@ -22,15 +22,18 @@ import (
 
 type ShellHook struct {
 	sh_hook.Hook
+
+	logger *log.Logger
 }
 
 // NewShellHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewShellHook(name, path string) *ShellHook {
+func NewShellHook(name, path string, logger *log.Logger) *ShellHook {
 	return &ShellHook{
 		Hook: sh_hook.Hook{
 			Name: name,
 			Path: path,
 		},
+		logger: logger,
 	}
 }
 
@@ -99,7 +102,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []binding_context.Bi
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
-				log.WithField("hook", sh.GetName()).
+				sh.logger.With("hook", sh.GetName()).
 					Errorf("Remove tmp file '%s': %s", f, err)
 			}
 		}
@@ -117,7 +120,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []binding_context.Bi
 
 	cmd := executor.MakeCommand("", sh.GetPath(), []string{}, envs)
 
-	usage, err := executor.RunAndLogLines(cmd, logLabels)
+	usage, err := executor.RunAndLogLines(cmd, logLabels, sh.logger.Named("executor"))
 	result.Usage = usage
 	if err != nil {
 		return result, err

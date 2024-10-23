@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/tidwall/gjson"
 
 	"github.com/flant/addon-operator/pkg/utils"

@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -10,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -57,11 +58,13 @@ type BasicModule struct {
 
 	// dependency
 	dc *hooks.HookExecutionDependencyContainer
+
+	logger *log.Logger
 }
 
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
-func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte) (*BasicModule, error) {
+func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, logger *log.Logger) (*BasicModule, error) {
 	valuesStorage, err := NewValuesStorage(name, staticValues, configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new values storage: %w", err)
@@ -80,7 +83,8 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 			hookErrors:           make(map[string]error),
 			synchronizationState: NewSynchronizationState(),
 		},
-		hooks: newHooksStorage(),
+		hooks:  newHooksStorage(),
+		logger: logger,
 	}, nil
 }
 
@@ -169,7 +173,7 @@ func (bm *BasicModule) ResetState() {
 }
 
 // RegisterHooks find and registers all module hooks from a filesystem or GoHook Registry
-func (bm *BasicModule) RegisterHooks(logger *log.Entry) ([]*hooks.ModuleHook, error) {
+func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, error) {
 	if bm.hooks.registered {
 		logger.Debugf("Module hooks already registered")
 		return nil, nil
@@ -237,7 +241,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 			return nil, err
 		}
 
-		shHook := kind.NewShellHook(hookName, hookPath)
+		shHook := kind.NewShellHook(hookName, hookPath, bm.logger.Named("shell-hook"))
 
 		hks = append(hks, shHook)
 	}
@@ -250,22 +254,22 @@ func (bm *BasicModule) searchModuleGoHooks() (hks []*kind.GoHook) {
 	return sdk.Registry().GetModuleHooks(bm.Name)
 }
 
-func (bm *BasicModule) searchAndRegisterHooks(logger *log.Entry) ([]*hooks.ModuleHook, error) {
+func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, error) {
 	hks, err := bm.searchModuleHooks()
 	if err != nil {
 		return nil, fmt.Errorf("search module hooks failed: %w", err)
 	}
 
 	logger.Debugf("Found %d hooks", len(hks))
-	if log.GetLevel() == log.DebugLevel {
+	if logger.GetLevel() == log.LevelDebug {
 		for _, h := range hks {
 			logger.Debugf("  ModuleHook: Name=%s, Path=%s", h.GetName(), h.GetPath())
 		}
 	}
 
 	for _, moduleHook := range hks {
-		hookLogEntry := logger.WithField("hook", moduleHook.GetName()).
-			WithField("hook.type", "module")
+		hookLogEntry := logger.With("hook", moduleHook.GetName()).
+			With("hook.type", "module")
 
 		// TODO: we could make multierr here and return all config errors at once
 		err := moduleHook.InitializeHookConfig()
@@ -409,7 +413,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 	logLabels = utils.MergeLabels(logLabels)
 	logLabels["module"] = bm.Name
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(bm.logger, logLabels)
 	enabledScriptPath := filepath.Join(bm.Path, "enabled")
 	configValuesPath, err := bm.prepareConfigValuesJsonFile(tmpDir)
 	if err != nil {
@@ -422,7 +426,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		}
 		err := os.Remove(configValuesPath)
 		if err != nil {
-			log.WithField("module", bm.Name).
+			bm.logger.With("module", bm.Name).
 				Errorf("Remove tmp file '%s': %s", configValuesPath, err)
 		}
 	}()
@@ -438,7 +442,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		}
 		err := os.Remove(valuesPath)
 		if err != nil {
-			log.WithField("module", bm.Name).
+			bm.logger.With("module", bm.Name).
 				Errorf("Remove tmp file '%s': %s", configValuesPath, err)
 		}
 	}()
@@ -454,7 +458,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		}
 		err := os.Remove(enabledResultFilePath)
 		if err != nil {
-			log.WithField("module", bm.Name).
+			bm.logger.With("module", bm.Name).
 				Errorf("Remove tmp file '%s': %s", configValuesPath, err)
 		}
 	}()
@@ -469,7 +473,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 
 	cmd := executor.MakeCommand("", enabledScriptPath, []string{}, envs)
 
-	usage, err := executor.RunAndLogLines(cmd, logLabels)
+	usage, err := executor.RunAndLogLines(cmd, logLabels, bm.logger)
 	if usage != nil {
 		// usage metrics
 		metricLabels := map[string]string{
@@ -597,22 +601,22 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 }
 
 // instead on ModuleHook.Run
-func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.BindingType, context []binding_context.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
+func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.BindingType, bctx []binding_context.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"hook":      h.GetName(),
 		"hook.type": "module",
 		"binding":   string(bindingType),
 	})
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(bm.logger, logLabels)
 
-	logStartLevel := log.InfoLevel
+	logStartLevel := log.LevelInfo
 	// Use Debug when run as a separate task for Kubernetes or Schedule hooks, as task start is already logged.
 	// TODO log this message by callers.
 	if bindingType == sh_op_types.OnKubernetesEvent || bindingType == sh_op_types.Schedule {
-		logStartLevel = log.DebugLevel
+		logStartLevel = log.LevelDebug
 	}
-	logEntry.Logf(logStartLevel, "Module hook start %s/%s", bm.Name, h.GetName())
+	logEntry.Log(context.Background(), logStartLevel.Level(), "Module hook start", slog.String(bm.Name, h.GetName()))
 
 	for _, info := range h.GetHookController().SnapshotsInfo() {
 		logEntry.Debugf("snapshot info: %s", info)
@@ -635,7 +639,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		bm.moduleNameForValues(): values,
 	}
 
-	hookResult, err := h.Execute(h.GetConfigVersion(), context, bm.safeName(), hookConfigValues, hookValues, logLabels)
+	hookResult, err := h.Execute(h.GetConfigVersion(), bctx, bm.safeName(), hookConfigValues, hookValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)

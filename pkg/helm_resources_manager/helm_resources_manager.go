@@ -3,7 +3,7 @@ package helm_resources_manager
 import (
 	"context"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 	klient "github.com/flant/kube-client/client"
@@ -40,14 +40,17 @@ type helmResourcesManager struct {
 	monitors map[string]*ResourcesMonitor
 
 	eventCh chan ReleaseStatusEvent
+
+	logger *log.Logger
 }
 
 var _ HelmResourcesManager = &helmResourcesManager{}
 
-func NewHelmResourcesManager() HelmResourcesManager {
+func NewHelmResourcesManager(logger *log.Logger) HelmResourcesManager {
 	return &helmResourcesManager{
 		eventCh:  make(chan ReleaseStatusEvent),
 		monitors: make(map[string]*ResourcesMonitor),
+		logger:   logger,
 	}
 }
 
@@ -77,7 +80,7 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 	log.Debugf("Start helm resources monitor for '%s'", moduleName)
 	hm.StopMonitor(moduleName)
 
-	rm := NewResourcesMonitor()
+	rm := NewResourcesMonitor(hm.logger.Named("resource-monitor"))
 	rm.WithKubeClient(hm.kubeClient)
 	rm.WithContext(hm.ctx)
 	rm.WithModuleName(moduleName)
@@ -156,7 +159,7 @@ func (hm *helmResourcesManager) GetMonitor(moduleName string) *ResourcesMonitor 
 }
 
 func (hm *helmResourcesManager) GetAbsentResources(manifests []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error) {
-	rm := NewResourcesMonitor()
+	rm := NewResourcesMonitor(hm.logger.Named("resource-monitor"))
 	rm.WithKubeClient(hm.kubeClient)
 	rm.WithManifests(manifests)
 	rm.WithDefaultNamespace(defaultNamespace)

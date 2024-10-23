@@ -8,6 +8,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/sdk"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 var _ = sdk.RegisterFunc(&go_hook.HookConfig{
@@ -35,7 +36,8 @@ var _ = sdk.RegisterFunc(&go_hook.HookConfig{
 			Crontab: "*/5 * * * * *",
 		},
 	},
-}, run)
+	// TODO: remove global logger?
+}, run, unilogger.Default())
 
 type podSpecFilteredObj v1.PodSpec
 

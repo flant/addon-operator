@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/ettle/strcase"
-	log "github.com/sirupsen/logrus"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	"gopkg.in/yaml.v3"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/app"
@@ -23,6 +23,7 @@ type Helm3Options struct {
 	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
+	Logger     *log.Logger
 }
 
 var Options *Helm3Options
@@ -30,7 +31,7 @@ var Options *Helm3Options
 // Init runs
 func Init(options *Helm3Options) error {
 	hc := &Helm3Client{
-		LogEntry: log.WithField("operator.component", "helm"),
+		LogEntry: options.Logger.With("operator.component", "helm"),
 	}
 	err := hc.initAndVersion()
 	if err != nil {
@@ -41,16 +42,16 @@ func Init(options *Helm3Options) error {
 }
 
 type Helm3Client struct {
-	LogEntry  *log.Entry
+	LogEntry  *log.Logger
 	Namespace string
 }
 
 var _ client.HelmClient = &Helm3Client{}
 
-func NewClient(logLabels ...map[string]string) client.HelmClient {
-	logEntry := log.WithField("operator.component", "helm")
+func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
+	logEntry := logger.With("operator.component", "helm")
 	if len(logLabels) > 0 {
-		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
+		logEntry = logEntry.With(utils.EnrichLoggerWithLabels(logEntry, logLabels[0]))
 	}
 
 	return &Helm3Client{

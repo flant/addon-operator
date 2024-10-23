@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
@@ -23,7 +23,7 @@ type KubeConfigManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	logEntry *log.Entry
+	logEntry *log.Logger
 
 	// Checksums to ignore self-initiated updates.
 	knownChecksums *Checksums
@@ -36,10 +36,10 @@ type KubeConfigManager struct {
 	currentConfig *config.KubeConfig
 }
 
-func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config) *KubeConfigManager {
+func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config, logger *log.Logger) *KubeConfigManager {
 	cctx, cancel := context.WithCancel(ctx)
-	logger := log.WithField("component", "KubeConfigManager")
-	logger.WithField("backend", fmt.Sprintf("%T", bk)).Infof("Setup KubeConfigManager backend")
+	logger = logger.With("component", "KubeConfigManager")
+	logger.With("backend", fmt.Sprintf("%T", bk)).Infof("Setup KubeConfigManager backend")
 
 	// Runtime config to enable logging all events from the ConfigMap at runtime.
 	if runtimeConfig != nil {

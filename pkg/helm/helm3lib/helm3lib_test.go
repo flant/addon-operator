@@ -4,8 +4,9 @@ import (
 	"io"
 	"testing"
 
+	"github.com/flant/shell-operator/pkg/unilogger"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	. "github.com/onsi/gomega"
-	log "github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
@@ -67,12 +68,13 @@ func initHelmClient(t *testing.T) *LibClient {
 		Namespace:  "test-ns",
 		HistoryMax: 10,
 		Timeout:    0,
+		Logger:     unilogger.NewNop(),
 	})
 
 	actionConfig = actionConfigFixture(t)
 
 	cl := &LibClient{
-		LogEntry:  log.NewEntry(log.StandardLogger()),
+		LogEntry:  log.NewNop(),
 		Namespace: options.Namespace,
 	}
 

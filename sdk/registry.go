@@ -7,6 +7,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const bindingsPanicMsg = "OnStartup hook always has binding context without Kubernetes snapshots. To prevent logic errors, don't use OnStartup and Kubernetes bindings in the same Go hook configuration."
@@ -25,8 +26,8 @@ var moduleRe = regexp.MustCompile(`(/modules/(([^/]+)/hooks/([^/]+/)*([^/]+)))$`
 // TODO: This regexp should be changed. We shouldn't force users to name modules with a number prefix.
 var moduleNameRe = regexp.MustCompile(`^[0-9][0-9][0-9]-(.*)$`)
 
-var RegisterFunc = func(config *go_hook.HookConfig, reconcileFunc kind.ReconcileFunc) bool {
-	Registry().Add(kind.NewGoHook(config, reconcileFunc))
+var RegisterFunc = func(config *go_hook.HookConfig, reconcileFunc kind.ReconcileFunc, logger *unilogger.Logger) bool {
+	Registry().Add(kind.NewGoHook(config, reconcileFunc, logger))
 	return true
 }
 

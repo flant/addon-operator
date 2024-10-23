@@ -4,26 +4,29 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	"github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/stretchr/testify/require"
 )
 
 type testLogLine struct {
 	Level   string `json:"level"`
 	Message string `json:"msg"`
-	Source  string `json:"source"`
+	Logger  string `json:"logger"`
 }
 
 func TestStdlibLogAdapter(t *testing.T) {
 	t.Run("Simple", func(t *testing.T) {
-		InitAdapter()
 
 		buf := bytes.Buffer{}
-		logrus.SetOutput(&buf)
-		logrus.SetFormatter(&logrus.JSONFormatter{DisableTimestamp: true})
+		logger := unilogger.NewLogger(unilogger.Options{})
+
+		logger.SetOutput(&buf)
+
+		InitAdapter(logger)
 
 		log.Print("test string for a check")
 		log.Print("another string")
@@ -41,9 +44,10 @@ func TestStdlibLogAdapter(t *testing.T) {
 func assertLogLine(t *testing.T, line string, expected string) {
 	logLine := testLogLine{}
 
+	fmt.Println(line)
 	err := json.Unmarshal([]byte(line), &logLine)
 	require.NoError(t, err)
-	require.Equal(t, "helm", logLine.Source)
+	require.Equal(t, "helm", logLine.Logger)
 	require.Equal(t, "info", logLine.Level)
 	require.Contains(t, logLine.Message, expected)
 }

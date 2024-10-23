@@ -3,7 +3,7 @@ package go_hook
 import (
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/flant/shell-operator/pkg/unilogger"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -47,7 +47,7 @@ type HookInput struct {
 	ConfigValues     *PatchableValues
 	MetricsCollector MetricsCollector
 	PatchCollector   *object_patch.PatchCollector
-	LogEntry         *logrus.Entry
+	LogEntry         *unilogger.Logger
 	BindingActions   *[]BindingAction
 }
 

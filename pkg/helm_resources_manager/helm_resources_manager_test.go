@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/flant/shell-operator/pkg/unilogger"
 	. "github.com/onsi/gomega"
 	"go.uber.org/goleak"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,7 +62,7 @@ metadata:
 	g.Expect(chartResources[1].Namespace(defaultNs)).To(Equal("ns1"))
 	g.Expect(chartResources[3].Namespace(defaultNs)).To(Equal("ns2"))
 
-	mgr := NewHelmResourcesManager()
+	mgr := NewHelmResourcesManager(unilogger.NewNop())
 	mgr.WithKubeClient(fc.Client)
 
 	absent, err := mgr.GetAbsentResources(chartResources, "default")

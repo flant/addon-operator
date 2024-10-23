@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -34,6 +34,8 @@ type HelmModule struct {
 
 	dependencies *HelmModuleDependencies
 	validator    HelmValuesValidator
+
+	logger *log.Logger
 }
 
 type HelmValuesValidator interface {
@@ -58,7 +60,7 @@ type HelmModuleDependencies struct {
 }
 
 // NewHelmModule build HelmModule from the Module templates and values + global values
-func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator) (*HelmModule, error) {
+func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator, logger *log.Logger) (*HelmModule, error) {
 	moduleValues := bm.GetValues(false)
 
 	chartValues := map[string]interface{}{
@@ -73,6 +75,7 @@ func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies,
 		tmpDir:       tmpDir,
 		dependencies: deps,
 		validator:    validator,
+		logger:       logger,
 	}
 
 	isHelm, err := hm.isHelmChart()
@@ -140,7 +143,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 		hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}module_helm_seconds", d.Seconds(), metricLabels, nil)
 	})()
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(hm.logger, logLabels)
 
 	err := hm.checkHelmValues()
 	if err != nil {
@@ -156,7 +159,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 	defer os.Remove(valuesPath)
 
-	helmClient := hm.dependencies.HelmClientFactory.NewClient(logLabels)
+	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), logLabels)
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
@@ -254,7 +257,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 
 // If all these conditions aren't met, helm upgrade can be skipped.
 func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, releaseName string, checksum string, manifests []manifest.Manifest, logLabels map[string]string) (bool, error) {
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(hm.logger, logLabels)
 
 	revision, status, err := helmClient.LastReleaseStatus(releaseName)
 
@@ -343,5 +346,5 @@ func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
 	}
 	defer os.Remove(valuesPath)
 
-	return hm.dependencies.HelmClientFactory.NewClient().Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
+	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client")).Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
 }

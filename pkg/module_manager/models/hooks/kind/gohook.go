@@ -3,7 +3,7 @@ package kind
 import (
 	"context"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
@@ -20,13 +20,16 @@ type GoHook struct {
 
 	config        *go_hook.HookConfig
 	reconcileFunc ReconcileFunc
+
+	logger *log.Logger
 }
 
 // NewGoHook creates a new go hook
-func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc) *GoHook {
+func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc, logger *log.Logger) *GoHook {
 	return &GoHook{
 		config:        config,
 		reconcileFunc: f,
+		logger:        logger,
 	}
 }
 
@@ -93,8 +96,8 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 
 	bindingActions := new([]go_hook.BindingAction)
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).
-		WithField("output", "gohook")
+	logEntry := utils.EnrichLoggerWithLabels(h.logger, logLabels).
+		With("output", "gohook")
 
 	formattedSnapshots := make(go_hook.Snapshots, len(bContext))
 	for _, bc := range bContext {

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
@@ -85,7 +85,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 		MetricStorage:      mm.dependencies.MetricStorage,
 	}
 
-	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes)
+	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, mm.logger.Named("global-module"))
 	if err != nil {
 		return fmt.Errorf("new global module: %w", err)
 	}
@@ -114,7 +114,7 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 
 	for _, hk := range hks {
 		hookCtrl := controller.NewHookController()
-		hookCtrl.InitKubernetesBindings(hk.GetHookConfig().OnKubernetesEvents, mm.dependencies.KubeEventsManager)
+		hookCtrl.InitKubernetesBindings(hk.GetHookConfig().OnKubernetesEvents, mm.dependencies.KubeEventsManager, mm.logger)
 		hookCtrl.InitScheduleBindings(hk.GetHookConfig().Schedules, mm.dependencies.ScheduleManager)
 
 		hk.WithHookController(hookCtrl)
@@ -133,7 +133,7 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 }
 
 func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels map[string]string) error {
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).WithField("module", ml.Name)
+	logEntry := utils.EnrichLoggerWithLabels(mm.logger, logLabels).With("module", ml.Name)
 
 	hks, err := ml.RegisterHooks(logEntry)
 	if err != nil {
@@ -142,7 +142,7 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 
 	for _, hk := range hks {
 		hookCtrl := controller.NewHookController()
-		hookCtrl.InitKubernetesBindings(hk.GetHookConfig().OnKubernetesEvents, mm.dependencies.KubeEventsManager)
+		hookCtrl.InitKubernetesBindings(hk.GetHookConfig().OnKubernetesEvents, mm.dependencies.KubeEventsManager, mm.logger)
 		hookCtrl.InitScheduleBindings(hk.GetHookConfig().Schedules, mm.dependencies.ScheduleManager)
 
 		hk.WithHookController(hookCtrl)
