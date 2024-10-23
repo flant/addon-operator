@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
 	. "github.com/onsi/gomega"
 	"go.uber.org/goleak"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/flant/kube-client/fake"
 	"github.com/flant/kube-client/manifest"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // Problem: fake client do not support metadata.name filtering

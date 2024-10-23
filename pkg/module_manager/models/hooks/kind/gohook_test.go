@@ -3,12 +3,11 @@ package kind
 import (
 	"testing"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
-
 	. "github.com/onsi/gomega"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func Test_Config_GoHook(t *testing.T) {

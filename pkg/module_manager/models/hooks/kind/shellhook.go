@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/flant/addon-operator/pkg/utils"
@@ -18,6 +17,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type ShellHook struct {

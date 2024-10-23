@@ -7,12 +7,11 @@ import (
 	"strconv"
 	"sync"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
-
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/utils"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // KubeConfigManager watches for changes in ConfigMap/addon-operator and provides

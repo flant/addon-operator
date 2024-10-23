@@ -4,8 +4,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -14,6 +12,9 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
+
+	"github.com/flant/shell-operator/pkg/unilogger"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func TestHelm3LibEmptyCluster(t *testing.T) {

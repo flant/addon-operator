@@ -8,8 +8,9 @@ import (
 	"log"
 	"testing"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/stretchr/testify/require"
+
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type testLogLine struct {

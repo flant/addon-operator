@@ -7,10 +7,10 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ettle/strcase"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 

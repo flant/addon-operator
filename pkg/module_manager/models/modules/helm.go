@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/manifest"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 

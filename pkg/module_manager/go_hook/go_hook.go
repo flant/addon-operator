@@ -3,13 +3,13 @@ package go_hook
 import (
 	"time"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type GoHook interface {

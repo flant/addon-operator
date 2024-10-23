@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/gofrs/uuid/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -46,6 +45,7 @@ import (
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+	"github.com/flant/shell-operator/pkg/unilogger"
 	fileUtils "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )

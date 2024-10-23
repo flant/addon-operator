@@ -4,9 +4,8 @@ import (
 	"context"
 	"sync"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
-
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const (

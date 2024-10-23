@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 var Helm3Path = "helm"

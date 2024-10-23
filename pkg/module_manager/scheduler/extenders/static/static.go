@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/ettle/strcase"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	"gopkg.in/yaml.v3"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const (

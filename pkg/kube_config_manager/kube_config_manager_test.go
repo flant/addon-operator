@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
-
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -17,6 +15,7 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const testConfigMapName = "test-addon-operator"

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -26,6 +25,7 @@ import (
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func Init(opts *Options) error {

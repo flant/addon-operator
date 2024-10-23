@@ -3,11 +3,10 @@ package helm_resources_manager
 import (
 	"context"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
-
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type HelmResourcesManager interface {

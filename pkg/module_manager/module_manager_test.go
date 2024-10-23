@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func TestLoadModules(t *testing.T) {

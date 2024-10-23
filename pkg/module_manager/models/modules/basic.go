@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
@@ -27,6 +26,7 @@ import (
 	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )

@@ -9,8 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	"gopkg.in/alecthomas/kingpin.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -23,6 +21,8 @@ import (
 	"github.com/flant/kube-client/klogtologrus"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
+	"github.com/flant/shell-operator/pkg/unilogger"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 )
 

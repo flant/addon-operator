@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
-
 	"github.com/flant/addon-operator/pkg/task"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // kubernetesBindingSynchronizationState is a state of the single Synchronization task

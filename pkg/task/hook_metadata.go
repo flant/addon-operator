@@ -7,13 +7,12 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
-
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
 	"github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/task"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // HookMetadata is a metadata for addon-operator tasks

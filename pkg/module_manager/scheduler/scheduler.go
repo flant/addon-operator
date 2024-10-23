@@ -13,7 +13,6 @@ import (
 
 	"github.com/dominikbraun/graph"
 	"github.com/dominikbraun/graph/draw"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/goccy/go-graphviz"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
@@ -24,6 +23,7 @@ import (
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 var defaultAppliedExtenders = []extenders.ExtenderName{

@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +27,7 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+	"github.com/flant/shell-operator/pkg/unilogger"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 )
 

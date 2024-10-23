@@ -3,8 +3,6 @@ package kind
 import (
 	"context"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
-
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -13,6 +11,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type GoHook struct {

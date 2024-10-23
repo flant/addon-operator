@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation/schema"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 /**

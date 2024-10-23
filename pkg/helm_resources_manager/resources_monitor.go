@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const monitorDelayBase = time.Minute*4 + time.Second*30

@@ -9,11 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
-
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type FileSystemLoader struct {
