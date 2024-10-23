@@ -42,6 +42,7 @@ import (
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+
 	// bindings constants and binding configs
 	log "github.com/flant/shell-operator/pkg/unilogger"
 )

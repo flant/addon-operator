@@ -14,7 +14,6 @@ import (
 	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/flant/shell-operator/pkg/unilogger"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func TestHelm3LibEmptyCluster(t *testing.T) {
@@ -75,7 +74,7 @@ func initHelmClient(t *testing.T) *LibClient {
 	actionConfig = actionConfigFixture(t)
 
 	cl := &LibClient{
-		LogEntry:  log.NewNop(),
+		LogEntry:  unilogger.NewNop(),
 		Namespace: options.Namespace,
 	}
 

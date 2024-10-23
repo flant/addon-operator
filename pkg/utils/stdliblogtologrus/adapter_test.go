@@ -21,7 +21,6 @@ type testLogLine struct {
 
 func TestStdlibLogAdapter(t *testing.T) {
 	t.Run("Simple", func(t *testing.T) {
-
 		buf := bytes.Buffer{}
 		logger := unilogger.NewLogger(unilogger.Options{})
 
