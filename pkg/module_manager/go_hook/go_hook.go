@@ -73,6 +73,7 @@ type HookConfig struct {
 	AllowFailure      bool
 	Queue             string
 	Settings          *HookConfigSettings
+	Logger            *unilogger.Logger
 }
 
 type HookConfigSettings struct {

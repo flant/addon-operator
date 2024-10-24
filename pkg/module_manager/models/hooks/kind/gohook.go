@@ -11,7 +11,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
-	log "github.com/flant/shell-operator/pkg/unilogger"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type GoHook struct {
@@ -19,16 +19,21 @@ type GoHook struct {
 
 	config        *go_hook.HookConfig
 	reconcileFunc ReconcileFunc
-
-	logger *log.Logger
 }
 
 // NewGoHook creates a new go hook
-func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc, logger *log.Logger) *GoHook {
+func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc) *GoHook {
+	logger := config.Logger
+	if logger == nil {
+		logger = unilogger.NewLogger(unilogger.Options{}).Named("auto-logger")
+	}
+
 	return &GoHook{
 		config:        config,
 		reconcileFunc: f,
-		logger:        logger,
+		basicHook: sh_hook.Hook{
+			Logger: logger,
+		},
 	}
 }
 
@@ -95,7 +100,7 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 
 	bindingActions := new([]go_hook.BindingAction)
 
-	logEntry := utils.EnrichLoggerWithLabels(h.logger, logLabels).
+	logEntry := utils.EnrichLoggerWithLabels(h.basicHook.Logger, logLabels).
 		With("output", "gohook")
 
 	formattedSnapshots := make(go_hook.Snapshots, len(bContext))

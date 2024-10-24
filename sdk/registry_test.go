@@ -8,7 +8,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
-	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func TestRegister(t *testing.T) {
@@ -26,7 +25,6 @@ func TestRegister(t *testing.T) {
 				},
 			},
 			nil,
-			unilogger.NewNop(),
 		)
 
 		defer func() {
@@ -43,7 +41,6 @@ func TestRegister(t *testing.T) {
 				OnStartup: &go_hook.OrderedConfig{Order: 1},
 			},
 			nil,
-			unilogger.NewNop(),
 		)
 
 		defer func() {
@@ -66,7 +63,6 @@ func TestRegister(t *testing.T) {
 				},
 			},
 			nil,
-			unilogger.NewNop(),
 		)
 
 		defer func() {
