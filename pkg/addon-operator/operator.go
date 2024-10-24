@@ -140,7 +140,7 @@ func NewAddonOperator(ctx context.Context, logger *unilogger.Logger) *AddonOpera
 	so := shell_operator.NewShellOperator(cctx, logger.Named("shell-operator"))
 
 	// initialize logging before Assemble
-	rc := runtimeConfig.NewConfig()
+	rc := runtimeConfig.NewConfig(logger)
 	// Init logging subsystem.
 	sh_app.SetupLogging(rc, logger)
 
