@@ -25,7 +25,7 @@ type GoHook struct {
 func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc) *GoHook {
 	logger := config.Logger
 	if logger == nil {
-		logger = unilogger.NewLogger(unilogger.Options{}).Named("auto-logger")
+		logger = unilogger.NewLogger(unilogger.Options{}).Named("auto-hook-logger")
 	}
 
 	return &GoHook{
