@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type PatchableValues struct {

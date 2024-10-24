@@ -6,9 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/flant/addon-operator/pkg/app"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const (

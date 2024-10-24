@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func TestHandleModulePatch(t *testing.T) {
@@ -17,7 +18,7 @@ foo:
 `
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))
 	require.NoError(t, err)
-	bm, err := NewBasicModule("test-1", "/tmp/test", 100, value, nil, nil)
+	bm, err := NewBasicModule("test-1", "/tmp/test", 100, value, nil, nil, unilogger.NewNop())
 	require.NoError(t, err)
 
 	patch := utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{

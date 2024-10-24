@@ -3,13 +3,13 @@ package go_hook
 import (
 	"time"
 
-	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type GoHook interface {
@@ -47,7 +47,7 @@ type HookInput struct {
 	ConfigValues     *PatchableValues
 	MetricsCollector MetricsCollector
 	PatchCollector   *object_patch.PatchCollector
-	LogEntry         *logrus.Entry
+	LogEntry         *unilogger.Logger
 	BindingActions   *[]BindingAction
 }
 
@@ -73,6 +73,7 @@ type HookConfig struct {
 	AllowFailure      bool
 	Queue             string
 	Settings          *HookConfigSettings
+	Logger            *unilogger.Logger
 }
 
 type HookConfigSettings struct {

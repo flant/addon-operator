@@ -1,7 +1,9 @@
 package utils
 
 import (
-	log "github.com/sirupsen/logrus"
+	"log/slog"
+
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // MergeLabels merges several maps into one. Last map keys overrides keys from first maps.
@@ -17,12 +19,14 @@ func MergeLabels(labelsMaps ...map[string]string) map[string]string {
 	return labels
 }
 
-func LabelsToLogFields(labelsMaps ...map[string]string) log.Fields {
-	fields := log.Fields{}
+func EnrichLoggerWithLabels(logger *unilogger.Logger, labelsMaps ...map[string]string) *unilogger.Logger {
+	loggerEntry := logger
+
 	for _, labels := range labelsMaps {
 		for k, v := range labels {
-			fields[k] = v
+			loggerEntry.With(slog.String(k, v))
 		}
 	}
-	return fields
+
+	return loggerEntry
 }

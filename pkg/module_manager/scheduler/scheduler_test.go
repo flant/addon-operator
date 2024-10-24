@@ -19,6 +19,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type kcmMock struct {
@@ -61,7 +62,7 @@ nodeLocalDnsEnabled: false
 	tmp, err := os.MkdirTemp(t.TempDir(), "getEnabledTest")
 	require.NoError(t, err)
 
-	s := NewScheduler(context.TODO())
+	s := NewScheduler(context.TODO(), unilogger.NewNop())
 
 	valuesFile := filepath.Join(tmp, "values.yaml")
 	err = os.WriteFile(valuesFile, []byte(values), 0o644)
@@ -116,7 +117,7 @@ nodeLocalDnsEnabled: true
 	tmp, err := os.MkdirTemp(t.TempDir(), "ApplyExtenders")
 	require.NoError(t, err)
 
-	s := NewScheduler(context.TODO())
+	s := NewScheduler(context.TODO(), unilogger.NewNop())
 
 	valuesFile := filepath.Join(tmp, "values.yaml")
 	err = os.WriteFile(valuesFile, []byte(values), 0o644)
@@ -196,7 +197,7 @@ kubeDnsEnabled: false
 	tmp, err := os.MkdirTemp(t.TempDir(), "getEnabledByOrderTest")
 	require.NoError(t, err)
 
-	s := NewScheduler(context.TODO())
+	s := NewScheduler(context.TODO(), unilogger.NewNop())
 
 	valuesFile := filepath.Join(tmp, "values.yaml")
 	err = os.WriteFile(valuesFile, []byte(values), 0o644)
@@ -286,7 +287,7 @@ certManagerEnabled: true
 	tmp, err := os.MkdirTemp(t.TempDir(), "getEnabledTest")
 	require.NoError(t, err)
 
-	s := NewScheduler(context.TODO())
+	s := NewScheduler(context.TODO(), unilogger.NewNop())
 
 	valuesFile := filepath.Join(tmp, "values.yaml")
 	err = os.WriteFile(valuesFile, []byte(values), 0o644)
@@ -324,7 +325,7 @@ certManagerEnabled: true
 
 func TestAddModuleVertex(t *testing.T) {
 	var nodePtr *node.Node
-	s := NewScheduler(context.TODO())
+	s := NewScheduler(context.TODO(), unilogger.NewNop())
 	// no root
 	assert.Equal(t, nodePtr, s.root)
 	basicModuleIngress := &node_mock.MockModule{
@@ -439,7 +440,7 @@ func TestAddModuleVertex(t *testing.T) {
 }
 
 func TestSetExtendersMeta(t *testing.T) {
-	s := NewScheduler(context.TODO())
+	s := NewScheduler(context.TODO(), unilogger.NewNop())
 
 	err := s.AddExtender(&extender_mock.FilterOne{})
 	require.NoError(t, err)
@@ -530,7 +531,7 @@ kubeDnsEnabled: false
 			EnabledScriptResult: true,
 		},
 	}
-	s := NewScheduler(context.TODO())
+	s := NewScheduler(context.TODO(), unilogger.NewNop())
 	for _, m := range basicModules {
 		err := s.AddModuleVertex(m)
 		assert.NoError(t, err)
@@ -764,7 +765,7 @@ l2LoadBalancerEnabled: false
 		},
 	}
 
-	s := NewScheduler(context.TODO())
+	s := NewScheduler(context.TODO(), unilogger.NewNop())
 	for _, m := range basicModules {
 		err := s.AddModuleVertex(m)
 		assert.NoError(t, err)

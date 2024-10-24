@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/flant/addon-operator/pkg/task"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // kubernetesBindingSynchronizationState is a state of the single Synchronization task
@@ -92,7 +91,7 @@ func (s *SynchronizationState) DoneForBinding(id string) {
 	state.Done = true
 }
 
-func (s *SynchronizationState) DebugDumpState(logEntry *log.Entry) {
+func (s *SynchronizationState) DebugDumpState(logEntry *log.Logger) {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	for id, state := range s.state {

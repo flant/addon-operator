@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
@@ -17,6 +16,7 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const monitorDelayBase = time.Minute*4 + time.Second*30
@@ -37,9 +37,11 @@ type ResourcesMonitor struct {
 	absentCb func(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string)
 
 	helmStatusGetter func(releaseName string) (revision string, status string, err error)
+
+	logger *log.Logger
 }
 
-func NewResourcesMonitor(ctx context.Context, kclient *klient.Client, cache cr_cache.Cache) *ResourcesMonitor {
+func NewResourcesMonitor(ctx context.Context, kclient *klient.Client, cache cr_cache.Cache, logger *log.Logger) *ResourcesMonitor {
 	cctx, cancel := context.WithCancel(ctx)
 	return &ResourcesMonitor{
 		paused:     false,
@@ -49,6 +51,7 @@ func NewResourcesMonitor(ctx context.Context, kclient *klient.Client, cache cr_c
 		cancel:     cancel,
 		kubeClient: kclient,
 		cache:      cache,
+		logger:     logger,
 	}
 }
 
@@ -85,8 +88,8 @@ func (r *ResourcesMonitor) WithStatusGetter(lastReleaseStatus func(releaseName s
 
 // Start creates a timer and check if all deployed manifests are present in the cluster.
 func (r *ResourcesMonitor) Start() {
-	logEntry := log.WithFields(utils.LabelsToLogFields(r.logLabels)).
-		WithField("operator.component", "HelmResourceMonitor")
+	logEntry := utils.EnrichLoggerWithLabels(r.logger, r.logLabels).
+		With("operator.component", "HelmResourceMonitor")
 	go func() {
 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		randSecondsDelay := time.Second * time.Duration(rnd.Int31n(60))
@@ -136,8 +139,8 @@ func (r *ResourcesMonitor) Start() {
 
 // GetHelmReleaseStatus returns last release status
 func (r *ResourcesMonitor) GetHelmReleaseStatus(moduleName string) (string, error) {
-	logEntry := log.WithFields(utils.LabelsToLogFields(r.logLabels)).
-		WithField("operator.component", "HelmResourceMonitor")
+	logEntry := utils.EnrichLoggerWithLabels(r.logger, r.logLabels).
+		With("operator.component", "HelmResourceMonitor")
 	revision, status, err := r.helmStatusGetter(moduleName)
 	if err != nil {
 		return "", err

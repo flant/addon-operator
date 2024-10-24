@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func TestLoadModules(t *testing.T) {
@@ -16,7 +18,7 @@ func TestLoadModules(t *testing.T) {
 		},
 		Dependencies: ModuleManagerDependencies{},
 	}
-	mm := NewModuleManager(context.Background(), cfg)
+	mm := NewModuleManager(context.Background(), cfg, unilogger.NewNop())
 	gv, err := mm.loadGlobalValues()
 	require.NoError(t, err)
 

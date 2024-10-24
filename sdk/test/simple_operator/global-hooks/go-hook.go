@@ -6,6 +6,7 @@ import (
 )
 
 func init() {
+	// TODO: remove global logger?
 	sdk.RegisterFunc(&go_hook.HookConfig{}, main)
 }
 

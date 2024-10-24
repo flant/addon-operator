@@ -9,20 +9,22 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type FileSystemLoader struct {
 	dirs []string
+
+	logger *log.Logger
 }
 
-func NewFileSystemLoader(moduleDirs string) *FileSystemLoader {
+func NewFileSystemLoader(moduleDirs string, logger *log.Logger) *FileSystemLoader {
 	return &FileSystemLoader{
-		dirs: utils.SplitToPaths(moduleDirs),
+		dirs:   utils.SplitToPaths(moduleDirs),
+		logger: logger,
 	}
 }
 
@@ -61,7 +63,7 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 		return nil, fmt.Errorf("expect map[string]interface{} in module values")
 	}
 
-	m, err := modules.NewBasicModule(definition.Name, definition.Path, definition.Order, moduleValues, cb, vb)
+	m, err := modules.NewBasicModule(definition.Name, definition.Path, definition.Order, moduleValues, cb, vb, fl.logger.Named("basic-module"))
 	if err != nil {
 		return nil, fmt.Errorf("new basic module: %w", err)
 	}

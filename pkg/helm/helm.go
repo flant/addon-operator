@@ -1,27 +1,26 @@
 package helm
 
 import (
-	log "github.com/sirupsen/logrus"
-
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type ClientFactory struct {
-	NewClientFn func(logLabels ...map[string]string) client.HelmClient
+	NewClientFn func(logger *log.Logger, logLabels ...map[string]string) client.HelmClient
 	ClientType  ClientType
 }
 
-func (f *ClientFactory) NewClient(logLabels ...map[string]string) client.HelmClient {
+func (f *ClientFactory) NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
 	if f.NewClientFn != nil {
-		return f.NewClientFn(logLabels...)
+		return f.NewClientFn(logger, logLabels...)
 	}
 	return nil
 }
 
-func InitHelmClientFactory(extraLabels map[string]string) (*ClientFactory, error) {
+func InitHelmClientFactory(logger *log.Logger, extraLabels map[string]string) (*ClientFactory, error) {
 	helmVersion, err := DetectHelmVersion()
 	if err != nil {
 		return nil, err
@@ -38,6 +37,7 @@ func InitHelmClientFactory(extraLabels map[string]string) (*ClientFactory, error
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,
+			Logger:     logger,
 		}, extraLabels)
 
 	case Helm3:
@@ -49,6 +49,7 @@ func InitHelmClientFactory(extraLabels map[string]string) (*ClientFactory, error
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,
+			Logger:     logger,
 		})
 	}
 

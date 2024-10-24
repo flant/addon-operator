@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -27,6 +26,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/post_renderer"
 	"github.com/flant/addon-operator/pkg/utils"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 var helmPostRenderer *post_renderer.PostRenderer
@@ -41,7 +41,7 @@ func initPostRenderer(extraLabels map[string]string) {
 
 func Init(opts *Options, extraLabels map[string]string) error {
 	hc := &LibClient{
-		LogEntry: log.WithField("operator.component", "helm3lib"),
+		LogEntry: opts.Logger.With("operator.component", "helm3lib"),
 	}
 	options = opts
 	initPostRenderer(extraLabels)
@@ -50,9 +50,9 @@ func Init(opts *Options, extraLabels map[string]string) error {
 }
 
 // ReinitActionConfig reinitializes helm3 action configuration to update its list of capabilities
-func ReinitActionConfig() error {
+func ReinitActionConfig(logger *log.Logger) error {
 	hc := &LibClient{
-		LogEntry: log.WithField("operator.component", "helm3lib"),
+		LogEntry: logger.With("operator.component", "helm3lib"),
 	}
 	log.Debug("Reinitialize Helm 3 lib action configuration")
 
@@ -61,7 +61,7 @@ func ReinitActionConfig() error {
 
 // LibClient use helm3 package as Go library.
 type LibClient struct {
-	LogEntry  *log.Entry
+	LogEntry  *log.Logger
 	Namespace string
 }
 
@@ -69,6 +69,7 @@ type Options struct {
 	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
+	Logger     *log.Logger
 }
 
 var (
@@ -77,10 +78,10 @@ var (
 	actionConfig *action.Configuration
 )
 
-func NewClient(logLabels ...map[string]string) client.HelmClient {
-	logEntry := log.WithField("operator.component", "helm3lib")
+func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
+	logEntry := logger.With("operator.component", "helm3lib")
 	if len(logLabels) > 0 {
-		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
+		logEntry = logEntry.With(utils.EnrichLoggerWithLabels(logEntry, logLabels[0]))
 	}
 
 	return &LibClient{

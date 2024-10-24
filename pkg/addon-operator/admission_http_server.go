@@ -3,11 +3,12 @@ package addon_operator
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type AdmissionServer struct {
@@ -54,7 +55,7 @@ func (as *AdmissionServer) start(ctx context.Context) {
 		cert := path.Join(as.certsDir, "tls.crt")
 		key := path.Join(as.certsDir, "tls.key")
 		if err := srv.ListenAndServeTLS(cert, key); err != nil {
-			log.Fatal(err)
+			log.Fatal("admission server listen and serve tls", slog.String("error", err.Error()))
 		}
 	}()
 

@@ -8,6 +8,7 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
@@ -268,7 +269,7 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 			}
 			require.Equal(t, len(tt.in), q.Length(), "Should add all tasks to the queue.")
 
-			RemoveAdjacentConvergeModules(q, tt.afterID, map[string]string{})
+			RemoveAdjacentConvergeModules(q, tt.afterID, map[string]string{}, unilogger.NewNop())
 
 			// Check tasks after remove.
 			require.Equal(t, len(tt.expect), q.Length(), "queue length should match length of expected tasks")
@@ -510,7 +511,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 			}
 
 			// Try to clean the queue.
-			removed := RemoveCurrentConvergeTasks(queues, map[string]string{})
+			removed := RemoveCurrentConvergeTasks(queues, map[string]string{}, unilogger.NewNop())
 
 			// Check result.
 			if tt.expectRemoved {
@@ -633,7 +634,7 @@ func Test_RemoveCurrentConvergeTasksFromId(t *testing.T) {
 			require.Equal(t, len(tt.initialTasks), q.Length(), "Should add all tasks to the queue.")
 
 			// Try to clean the queue.
-			removed := RemoveCurrentConvergeTasksFromId(q, currentTaskID, map[string]string{})
+			removed := RemoveCurrentConvergeTasksFromId(q, currentTaskID, map[string]string{}, unilogger.NewNop())
 
 			// Check result.
 			if tt.expectRemoved {

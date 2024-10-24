@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -21,6 +22,7 @@ import (
 	"github.com/flant/kube-client/klogtologrus"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
+	"github.com/flant/shell-operator/pkg/unilogger"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 )
 
@@ -34,12 +36,15 @@ const (
 func main() {
 	kpApp := kingpin.New(app.AppName, fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription))
 
+	logger := unilogger.NewLogger(unilogger.Options{})
+	unilogger.SetDefault(logger)
+
 	// override usage template to reveal additional commands with information about start command
 	kpApp.UsageTemplate(sh_app.OperatorUsageTemplate(app.AppName))
 
 	kpApp.Action(func(_ *kingpin.ParseContext) error {
 		klogtologrus.InitAdapter(sh_app.DebugKubernetesAPI)
-		stdliblogtologrus.InitAdapter()
+		stdliblogtologrus.InitAdapter(logger)
 		return nil
 	})
 
@@ -52,7 +57,7 @@ func main() {
 	// start main loop
 	startCmd := kpApp.Command("start", "Start events processing.").
 		Default().
-		Action(start)
+		Action(start(logger))
 
 	app.DefineStartCommandFlags(kpApp, startCmd)
 
@@ -62,31 +67,33 @@ func main() {
 	kingpin.MustParse(kpApp.Parse(os.Args[1:]))
 }
 
-func start(_ *kingpin.ParseContext) error {
-	sh_app.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
+func start(logger *unilogger.Logger) func(_ *kingpin.ParseContext) error {
+	return func(_ *kingpin.ParseContext) error {
+		sh_app.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
 
-	ctx := context.Background()
+		ctx := context.Background()
 
-	operator := addon_operator.NewAddonOperator(ctx)
+		operator := addon_operator.NewAddonOperator(ctx, logger.Named("addon-operator"))
 
-	operator.StartAPIServer()
+		operator.StartAPIServer()
 
-	if os.Getenv("ADDON_OPERATOR_HA") == "true" {
-		log.Info("Addon-operator is starting in HA mode")
-		runHAMode(ctx, operator)
+		if os.Getenv("ADDON_OPERATOR_HA") == "true" {
+			unilogger.Info("Addon-operator is starting in HA mode")
+			runHAMode(ctx, operator)
+			return nil
+		}
+
+		err := run(ctx, operator)
+		if err != nil {
+			unilogger.Fatal("run operator", slog.String("error", err.Error()))
+		}
+
 		return nil
 	}
-
-	err := run(ctx, operator)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return nil
 }
 
 func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
-	bk := configmap.New(log.StandardLogger(), operator.KubeClient(), app.Namespace, app.ConfigMapName)
+	bk := configmap.New(operator.Logger.Named("kube-config-manager"), operator.KubeClient(), app.Namespace, app.ConfigMapName)
 	operator.SetupKubeConfigManager(bk)
 
 	if err := operator.Setup(); err != nil {
@@ -109,22 +116,25 @@ func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
 func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 	podName := os.Getenv("ADDON_OPERATOR_POD")
 	if len(podName) == 0 {
-		log.Fatal("ADDON_OPERATOR_POD env not set or empty")
+		unilogger.Info("ADDON_OPERATOR_POD env not set or empty")
+		os.Exit(1)
 	}
 
 	podIP := os.Getenv("ADDON_OPERATOR_LISTEN_ADDRESS")
 	if len(podIP) == 0 {
-		log.Fatal("ADDON_OPERATOR_LISTEN_ADDRESS env not set or empty")
+		unilogger.Info("ADDON_OPERATOR_LISTEN_ADDRESS env not set or empty")
+		os.Exit(1)
 	}
 
 	podNs := os.Getenv("ADDON_OPERATOR_NAMESPACE")
 	if len(podNs) == 0 {
-		log.Fatal("ADDON_OPERATOR_NAMESPACE env not set or empty")
+		unilogger.Info("ADDON_OPERATOR_NAMESPACE env not set or empty")
+		os.Exit(1)
 	}
 
 	identity := fmt.Sprintf("%s.%s.%s.pod", podName, strings.ReplaceAll(podIP, ".", "-"), podNs)
 
-	if err := operator.WithLeaderElector(&leaderelection.LeaderElectionConfig{
+	err := operator.WithLeaderElector(&leaderelection.LeaderElectionConfig{
 		// Create a leaderElectionConfig for leader election
 		Lock: &resourcelock.LeaseLock{
 			LeaseMeta: v1.ObjectMeta{
@@ -143,25 +153,27 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 			OnStartedLeading: func(ctx context.Context) {
 				err := run(ctx, operator)
 				if err != nil {
-					log.Fatal(err)
+					unilogger.Info("run on stardet leading", slog.String("error", err.Error()))
+					os.Exit(1)
 				}
 			},
 			OnStoppedLeading: func() {
-				log.Info("Restarting because the leadership was handed over")
+				unilogger.Info("Restarting because the leadership was handed over")
 				operator.Stop()
 				os.Exit(0)
 			},
 		},
 		ReleaseOnCancel: true,
-	}); err != nil {
-		log.Fatal(err)
+	})
+	if err != nil {
+		unilogger.Fatal("with leader election", slog.String("error", err.Error()))
 	}
 
 	go func() {
 		<-ctx.Done()
-		log.Info("Context canceled received")
+		unilogger.Info("Context canceled received")
 		if err := syscall.Kill(1, syscall.SIGUSR2); err != nil {
-			log.Fatalf("Couldn't shutdown addon-operator: %s\n", err)
+			log.Fatalf("Couldn't shutdown addon-operator: %s\n", err.Error())
 		}
 	}()
 

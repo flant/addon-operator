@@ -12,11 +12,11 @@ import (
 	"github.com/go-openapi/swag"
 	"github.com/go-openapi/validate"
 	"github.com/hashicorp/go-multierror"
-	log "github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation/schema"
+	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 /**
