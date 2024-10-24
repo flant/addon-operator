@@ -21,9 +21,6 @@ func (p *PostRenderer) Run(renderedManifests *bytes.Buffer) (modifiedManifests *
 	}
 	for _, node := range nodes {
 		labels := node.GetLabels()
-		if labels == nil {
-			labels = make(map[string]string, len(p.ExtraLabels))
-		}
 		for k, v := range p.ExtraLabels {
 			labels[k] = v
 		}
