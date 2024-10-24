@@ -24,15 +24,27 @@ import (
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
+	"github.com/flant/addon-operator/pkg/helm/post_renderer"
 	"github.com/flant/addon-operator/pkg/utils"
 	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
-func Init(opts *Options) error {
+var helmPostRenderer *post_renderer.PostRenderer
+
+func initPostRenderer(extraLabels map[string]string) {
+	if len(extraLabels) > 0 {
+		helmPostRenderer = &post_renderer.PostRenderer{
+			ExtraLabels: extraLabels,
+		}
+	}
+}
+
+func Init(opts *Options, extraLabels map[string]string) error {
 	hc := &LibClient{
 		LogEntry: opts.Logger.With("operator.component", "helm3lib"),
 	}
 	options = opts
+	initPostRenderer(extraLabels)
 
 	return hc.initAndVersion()
 }
@@ -165,6 +177,9 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	if namespace != "" {
 		upg.Namespace = namespace
 	}
+	if helmPostRenderer != nil {
+		upg.PostRenderer = helmPostRenderer
+	}
 
 	upg.Install = true
 	upg.MaxHistory = int(options.HistoryMax)
@@ -206,6 +221,9 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		instClient := action.NewInstall(actionConfig)
 		if namespace != "" {
 			instClient.Namespace = namespace
+		}
+		if helmPostRenderer != nil {
+			instClient.PostRenderer = helmPostRenderer
 		}
 		instClient.Timeout = options.Timeout
 		instClient.ReleaseName = releaseName
@@ -416,6 +434,9 @@ func newInstAction(namespace, releaseName string) *action.Install {
 
 	if namespace != "" {
 		inst.Namespace = namespace
+	}
+	if helmPostRenderer != nil {
+		inst.PostRenderer = helmPostRenderer
 	}
 	inst.ReleaseName = releaseName
 	inst.UseReleaseName = true

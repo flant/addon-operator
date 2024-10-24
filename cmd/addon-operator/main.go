@@ -95,22 +95,18 @@ func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
 	bk := configmap.New(operator.Logger.Named("kube-config-manager"), operator.KubeClient(), app.Namespace, app.ConfigMapName)
 	operator.SetupKubeConfigManager(bk)
 
-	err := operator.Setup()
-	if err != nil {
-		fmt.Printf("Setup is failed: %s\n", err)
-		os.Exit(1)
+	if err := operator.Setup(); err != nil {
+		log.Fatalf("setup failed: %s\n", err)
 	}
 
-	err = operator.Start(ctx)
-	if err != nil {
-		fmt.Printf("Start is failed: %s\n", err)
-		os.Exit(1)
+	if err := operator.Start(ctx); err != nil {
+		log.Fatalf("start failed: %s\n", err)
 	}
 
 	// Block action by waiting signals from OS.
 	utils_signal.WaitForProcessInterruption(func() {
 		operator.Stop()
-		os.Exit(1)
+		os.Exit(0)
 	})
 
 	return nil
@@ -137,7 +133,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 
 	identity := fmt.Sprintf("%s.%s.%s.pod", podName, strings.ReplaceAll(podIP, ".", "-"), podNs)
 
-	err := operator.WithLeaderElector(&leaderelection.LeaderElectionConfig{
+	if err := operator.WithLeaderElector(&leaderelection.LeaderElectionConfig{
 		// Create a leaderElectionConfig for leader election
 		Lock: &resourcelock.LeaseLock{
 			LeaseMeta: v1.ObjectMeta{
@@ -163,7 +159,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 			OnStoppedLeading: func() {
 				unilogger.Info("Restarting because the leadership was handed over")
 				operator.Stop()
-				os.Exit(1)
+				os.Exit(0)
 			},
 		},
 		ReleaseOnCancel: true,
@@ -176,9 +172,8 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 		<-ctx.Done()
 		unilogger.Info("Context canceled received")
 		err := syscall.Kill(1, syscall.SIGUSR2)
-		if err != nil {
-			unilogger.Infof("Couldn't shutdown addon-operator: %s\n", err)
-			os.Exit(1)
+		if err := syscall.Kill(1, syscall.SIGUSR2); err != nil {
+			log.Fatalf("Couldn't shutdown addon-operator: %s\n", err)
 		}
 	}()
 

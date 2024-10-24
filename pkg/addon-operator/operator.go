@@ -201,7 +201,7 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
-	helmClient, err := helm.InitHelmClientFactory(op.Logger.Named("helm"))
+	helmClient, err := helm.InitHelmClientFactory(op.Logger.Named("helm"), op.CRDExtraLabels)
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
 	}
@@ -1184,9 +1184,16 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				hasTask := QueueHasPendingModuleRunTask(op.engine.TaskQueues.GetMain(), HelmReleaseStatusEvent.ModuleName)
 				eventDescription := "AbsentHelmResourcesDetected"
 				additionalDescription := fmt.Sprintf("%d absent module resources", len(HelmReleaseStatusEvent.Absent))
+				// helm reslease in unexpected state event
 				if HelmReleaseStatusEvent.UnexpectedStatus {
+					op.engine.MetricStorage.CounterAdd("{PREFIX}modules_helm_release_redeployed_total", 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName})
 					eventDescription = "HelmReleaseUnexpectedStatus"
 					additionalDescription = "unexpected helm release status"
+				} else {
+					// some resources are missing and metrics are provided
+					for _, manifest := range HelmReleaseStatusEvent.Absent {
+						op.engine.MetricStorage.CounterAdd("{PREFIX}modules_absent_resources_total", 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName, "resource": fmt.Sprintf("%s/%s/%s", manifest.Namespace(""), manifest.Kind(), manifest.Name())})
+					}
 				}
 
 				if !hasTask {
