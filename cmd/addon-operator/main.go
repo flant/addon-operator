@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"strings"
@@ -133,7 +134,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 
 	identity := fmt.Sprintf("%s.%s.%s.pod", podName, strings.ReplaceAll(podIP, ".", "-"), podNs)
 
-	if err := operator.WithLeaderElector(&leaderelection.LeaderElectionConfig{
+	err := operator.WithLeaderElector(&leaderelection.LeaderElectionConfig{
 		// Create a leaderElectionConfig for leader election
 		Lock: &resourcelock.LeaseLock{
 			LeaseMeta: v1.ObjectMeta{
@@ -171,9 +172,8 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 	go func() {
 		<-ctx.Done()
 		unilogger.Info("Context canceled received")
-		err := syscall.Kill(1, syscall.SIGUSR2)
 		if err := syscall.Kill(1, syscall.SIGUSR2); err != nil {
-			log.Fatalf("Couldn't shutdown addon-operator: %s\n", err)
+			log.Fatalf("Couldn't shutdown addon-operator: %s\n", err.Error())
 		}
 	}()
 

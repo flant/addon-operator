@@ -10,6 +10,7 @@ import (
 	"github.com/flant/kube-client/manifest"
 	log "github.com/flant/shell-operator/pkg/unilogger"
 	"k8s.io/apimachinery/pkg/labels"
+	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 )
 
 type HelmResourcesManager interface {
