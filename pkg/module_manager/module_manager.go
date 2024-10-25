@@ -439,7 +439,7 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 		if mm.IsModuleEnabled(module) {
 			enabled = "true"
 		}
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{"name": module, "enabled": enabled})
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{"moduleName": module, "enabled": enabled})
 	}
 }
 
