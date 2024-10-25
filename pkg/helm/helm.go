@@ -37,8 +37,7 @@ func InitHelmClientFactory(logger *log.Logger, extraLabels map[string]string) (*
 			Namespace:  app.Namespace,
 			HistoryMax: app.Helm3HistoryMax,
 			Timeout:    app.Helm3Timeout,
-			Logger:     logger,
-		}, extraLabels)
+		}, logger, extraLabels)
 
 	case Helm3:
 		log.Infof("Helm 3 detected (path is '%s')", helm3.Helm3Path)

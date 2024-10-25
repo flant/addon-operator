@@ -39,9 +39,9 @@ func initPostRenderer(extraLabels map[string]string) {
 	}
 }
 
-func Init(opts *Options, extraLabels map[string]string) error {
+func Init(opts *Options, logger *log.Logger, extraLabels map[string]string) error {
 	hc := &LibClient{
-		LogEntry: opts.Logger.With("operator.component", "helm3lib"),
+		LogEntry: logger.With("operator.component", "helm3lib"),
 	}
 	options = opts
 	initPostRenderer(extraLabels)
@@ -69,7 +69,6 @@ type Options struct {
 	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
-	Logger     *log.Logger
 }
 
 var (
