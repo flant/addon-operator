@@ -121,7 +121,7 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
 		PatchCollector:   patchCollector,
-		LogEntry:         logEntry,
+		Logger:           logEntry,
 		MetricsCollector: metricsCollector,
 		BindingActions:   bindingActions,
 	})

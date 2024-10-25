@@ -1,6 +1,9 @@
 package go_hook
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,13 +44,43 @@ type FilterResult interface{}
 
 type Snapshots map[string][]FilterResult
 
+type ILogger interface {
+	Debug(msg string, args ...any)
+	DebugContext(ctx context.Context, msg string, args ...any)
+	Debugf(format string, args ...any)
+	Enabled(ctx context.Context, level slog.Level) bool
+	Error(msg string, args ...any)
+	ErrorContext(ctx context.Context, msg string, args ...any)
+	Errorf(format string, args ...any)
+	Fatal(msg string, args ...any)
+	Fatalf(format string, args ...any)
+	GetLevel() unilogger.Level
+	Handler() slog.Handler
+	Info(msg string, args ...any)
+	InfoContext(ctx context.Context, msg string, args ...any)
+	Infof(format string, args ...any)
+	Log(ctx context.Context, level slog.Level, msg string, args ...any)
+	LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr)
+	Logf(ctx context.Context, level unilogger.Level, format string, args ...any)
+	Named(name string) *unilogger.Logger
+	SetLevel(level unilogger.Level)
+	SetOutput(w io.Writer)
+	Trace(msg string, args ...any)
+	Tracef(format string, args ...any)
+	Warn(msg string, args ...any)
+	WarnContext(ctx context.Context, msg string, args ...any)
+	Warnf(format string, args ...any)
+	With(args ...any) *unilogger.Logger
+	WithGroup(name string) *unilogger.Logger
+}
+
 type HookInput struct {
 	Snapshots        Snapshots
 	Values           *PatchableValues
 	ConfigValues     *PatchableValues
 	MetricsCollector MetricsCollector
 	PatchCollector   *object_patch.PatchCollector
-	LogEntry         *unilogger.Logger
+	Logger           ILogger
 	BindingActions   *[]BindingAction
 }
 
