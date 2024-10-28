@@ -80,7 +80,7 @@ var (
 func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
 	logEntry := logger.With("operator.component", "helm3lib")
 	if len(logLabels) > 0 {
-		logEntry = logEntry.With(utils.EnrichLoggerWithLabels(logEntry, logLabels[0]))
+		logEntry = utils.EnrichLoggerWithLabels(logEntry, logLabels[0])
 	}
 
 	return &LibClient{
