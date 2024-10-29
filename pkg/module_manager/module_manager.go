@@ -408,6 +408,7 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 	purge := utils.MapStringStructKeys(releasesMap)
 	purge = utils.SortReverse(purge)
 
+	// TODO: need another log if empty
 	log.Infof("Modules to purge found: %v", purge)
 
 	return &ModulesState{

@@ -134,8 +134,8 @@ github.com/flant/kube-client v1.2.0 h1:cOjnZgwoJVm4scqsMGcgO6qctJ+Z6wRVTFqvyhoAO
 github.com/flant/kube-client v1.2.0/go.mod h1:qjNvqCqnBqS+kc9Hj+wMBbkFzfdyGyiX4r4teE/0Pm8=
 github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee h1:evii83J+/6QGNvyf6tjQ/p27DPY9iftxIBb37ALJRTg=
 github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee/go.mod h1:f+REaGl/+pZR97rbTcwHEka/MAipoQQ2Mc0iQUj4ak0=
-github.com/flant/shell-operator v1.4.15-slog2 h1:LPN2P/ENFpaU6vN2FgTdUjYbGCLUKv7TY/GF0sk0vko=
-github.com/flant/shell-operator v1.4.15-slog2/go.mod h1:vcq3LKAS3Zg/aMnRzzy7YCJYeRuhfyz3zoSqQRfbotA=
+github.com/flant/shell-operator v1.4.15-slog3 h1:R4UqvjGsHFcFLpCxy9AensPTNWXXy33OtvupJ+rcvgo=
+github.com/flant/shell-operator v1.4.15-slog3/go.mod h1:vcq3LKAS3Zg/aMnRzzy7YCJYeRuhfyz3zoSqQRfbotA=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=
 github.com/fogleman/gg v1.3.0/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/foxcpp/go-mockdns v1.0.0 h1:7jBqxd3WDWwi/6WhDvacvH1XsN3rOLXyHM1uhvIx6FI=
