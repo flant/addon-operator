@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"strings"
@@ -78,14 +77,14 @@ func start(logger *unilogger.Logger) func(_ *kingpin.ParseContext) error {
 		operator.StartAPIServer()
 
 		if os.Getenv("ADDON_OPERATOR_HA") == "true" {
-			unilogger.Info("Addon-operator is starting in HA mode")
+			operator.Logger.Info("Addon-operator is starting in HA mode")
 			runHAMode(ctx, operator)
 			return nil
 		}
 
 		err := run(ctx, operator)
 		if err != nil {
-			unilogger.Fatal("run operator", slog.String("error", err.Error()))
+			operator.Logger.Fatal("run operator", slog.String("error", err.Error()))
 		}
 
 		return nil
@@ -97,11 +96,11 @@ func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
 	operator.SetupKubeConfigManager(bk)
 
 	if err := operator.Setup(); err != nil {
-		log.Fatalf("setup failed: %s\n", err)
+		operator.Logger.Fatalf("setup failed: %s\n", err)
 	}
 
 	if err := operator.Start(ctx); err != nil {
-		log.Fatalf("start failed: %s\n", err)
+		operator.Logger.Fatalf("start failed: %s\n", err)
 	}
 
 	// Block action by waiting signals from OS.
@@ -116,19 +115,19 @@ func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
 func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 	podName := os.Getenv("ADDON_OPERATOR_POD")
 	if len(podName) == 0 {
-		unilogger.Info("ADDON_OPERATOR_POD env not set or empty")
+		operator.Logger.Info("ADDON_OPERATOR_POD env not set or empty")
 		os.Exit(1)
 	}
 
 	podIP := os.Getenv("ADDON_OPERATOR_LISTEN_ADDRESS")
 	if len(podIP) == 0 {
-		unilogger.Info("ADDON_OPERATOR_LISTEN_ADDRESS env not set or empty")
+		operator.Logger.Info("ADDON_OPERATOR_LISTEN_ADDRESS env not set or empty")
 		os.Exit(1)
 	}
 
 	podNs := os.Getenv("ADDON_OPERATOR_NAMESPACE")
 	if len(podNs) == 0 {
-		unilogger.Info("ADDON_OPERATOR_NAMESPACE env not set or empty")
+		operator.Logger.Info("ADDON_OPERATOR_NAMESPACE env not set or empty")
 		os.Exit(1)
 	}
 
@@ -153,12 +152,12 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 			OnStartedLeading: func(ctx context.Context) {
 				err := run(ctx, operator)
 				if err != nil {
-					unilogger.Info("run on stardet leading", slog.String("error", err.Error()))
+					operator.Logger.Info("run on stardet leading", slog.String("error", err.Error()))
 					os.Exit(1)
 				}
 			},
 			OnStoppedLeading: func() {
-				unilogger.Info("Restarting because the leadership was handed over")
+				operator.Logger.Info("Restarting because the leadership was handed over")
 				operator.Stop()
 				os.Exit(0)
 			},
@@ -166,14 +165,14 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 		ReleaseOnCancel: true,
 	})
 	if err != nil {
-		unilogger.Fatal("with leader election", slog.String("error", err.Error()))
+		operator.Logger.Fatal("with leader election", slog.String("error", err.Error()))
 	}
 
 	go func() {
 		<-ctx.Done()
 		unilogger.Info("Context canceled received")
 		if err := syscall.Kill(1, syscall.SIGUSR2); err != nil {
-			log.Fatalf("Couldn't shutdown addon-operator: %s\n", err.Error())
+			operator.Logger.Fatal("Couldn't shutdown addon-operator", slog.String("error", err.Error()))
 		}
 	}()
 
