@@ -10,11 +10,11 @@ import (
 
 	k8syaml "sigs.k8s.io/yaml"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 var Helm3Path = "helm"

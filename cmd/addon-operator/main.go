@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
@@ -21,7 +22,6 @@ import (
 	"github.com/flant/kube-client/klogtologrus"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
-	"github.com/flant/shell-operator/pkg/unilogger"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 )
 
@@ -35,8 +35,8 @@ const (
 func main() {
 	kpApp := kingpin.New(app.AppName, fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription))
 
-	logger := unilogger.NewLogger(unilogger.Options{})
-	unilogger.SetDefault(logger)
+	logger := log.NewLogger(log.Options{})
+	log.SetDefault(logger)
 
 	// override usage template to reveal additional commands with information about start command
 	kpApp.UsageTemplate(sh_app.OperatorUsageTemplate(app.AppName))
@@ -66,7 +66,7 @@ func main() {
 	kingpin.MustParse(kpApp.Parse(os.Args[1:]))
 }
 
-func start(logger *unilogger.Logger) func(_ *kingpin.ParseContext) error {
+func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
 	return func(_ *kingpin.ParseContext) error {
 		sh_app.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
 
@@ -170,7 +170,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 
 	go func() {
 		<-ctx.Done()
-		unilogger.Info("Context canceled received")
+		log.Info("Context canceled received")
 		if err := syscall.Kill(1, syscall.SIGUSR2); err != nil {
 			operator.Logger.Fatal("Couldn't shutdown addon-operator", slog.String("error", err.Error()))
 		}

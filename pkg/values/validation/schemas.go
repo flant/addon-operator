@@ -14,9 +14,9 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/yaml"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation/schema"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 /**

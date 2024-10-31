@@ -8,7 +8,7 @@ import (
 	"path"
 	"time"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 )
 
 type AdmissionServer struct {

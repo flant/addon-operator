@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -16,7 +17,6 @@ import (
 	"github.com/flant/addon-operator/sdk"
 	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 

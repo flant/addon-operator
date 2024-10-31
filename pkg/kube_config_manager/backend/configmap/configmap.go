@@ -14,10 +14,10 @@ import (
 	corev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // Backend implements ConfigMap backend for kube_config_manager

@@ -13,10 +13,10 @@ import (
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 	cr_client "sigs.k8s.io/controller-runtime/pkg/client"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const monitorDelayBase = time.Minute*4 + time.Second*30

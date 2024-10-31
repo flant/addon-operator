@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func TestLoadModules(t *testing.T) {
@@ -18,7 +17,7 @@ func TestLoadModules(t *testing.T) {
 		},
 		Dependencies: ModuleManagerDependencies{},
 	}
-	mm := NewModuleManager(context.Background(), cfg, unilogger.NewNop())
+	mm := NewModuleManager(context.Background(), cfg, log.NewNop())
 	gv, err := mm.loadGlobalValues()
 	require.NoError(t, err)
 

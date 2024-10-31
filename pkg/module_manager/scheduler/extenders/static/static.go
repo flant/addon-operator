@@ -8,9 +8,9 @@ import (
 	"github.com/ettle/strcase"
 	"gopkg.in/yaml.v3"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/utils"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const (

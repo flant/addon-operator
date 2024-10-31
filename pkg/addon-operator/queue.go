@@ -1,12 +1,12 @@
 package addon_operator
 
 import (
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // QueueHasPendingModuleRunTask returns true if queue has pending tasks

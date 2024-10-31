@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const (

@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	klient "github.com/flant/kube-client/client"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/metric_storage"
-	"github.com/flant/shell-operator/pkg/unilogger"
 	utils "github.com/flant/shell-operator/pkg/utils/labels"
 )
 
@@ -28,7 +28,7 @@ func defaultHelmMonitorKubeClient(metricStorage *metric_storage.MetricStorage, m
 	return client
 }
 
-func InitDefaultHelmResourcesManager(ctx context.Context, metricStorage *metric_storage.MetricStorage, logger *unilogger.Logger) (helm_resources_manager.HelmResourcesManager, error) {
+func InitDefaultHelmResourcesManager(ctx context.Context, metricStorage *metric_storage.MetricStorage, logger *log.Logger) (helm_resources_manager.HelmResourcesManager, error) {
 	kubeClient := defaultHelmMonitorKubeClient(metricStorage, DefaultHelmMonitorKubeClientMetricLabels)
 	if err := kubeClient.Init(); err != nil {
 		return nil, fmt.Errorf("initialize Kubernetes client for Helm resources manager: %s\n", err)

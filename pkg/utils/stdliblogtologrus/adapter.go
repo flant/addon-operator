@@ -2,20 +2,20 @@ package stdliblogtologrus
 
 import (
 	"io"
-	"log"
+	stdlog "log"
 	"strings"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
+	"github.com/deckhouse/deckhouse/go_lib/log"
 )
 
-func InitAdapter(logger *unilogger.Logger) {
-	log.SetOutput(&writer{logger: logger.Named("helm")})
+func InitAdapter(logger *log.Logger) {
+	stdlog.SetOutput(&writer{logger: logger.Named("helm")})
 }
 
 var _ io.Writer = (*writer)(nil)
 
 type writer struct {
-	logger *unilogger.Logger
+	logger *log.Logger
 }
 
 func (w *writer) Write(msg []byte) (n int, err error) {

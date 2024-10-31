@@ -1,11 +1,11 @@
 package helm
 
 import (
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type ClientFactory struct {

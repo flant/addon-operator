@@ -7,8 +7,8 @@ import (
 
 	"github.com/tidwall/gjson"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/utils"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type PatchableValues struct {

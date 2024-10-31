@@ -3,6 +3,7 @@ package kind
 import (
 	"context"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -11,7 +12,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
-	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type GoHook struct {
@@ -25,7 +25,7 @@ type GoHook struct {
 func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc) *GoHook {
 	logger := config.Logger
 	if logger == nil {
-		logger = unilogger.NewLogger(unilogger.Options{}).Named("auto-hook-logger")
+		logger = log.NewLogger(log.Options{}).Named("auto-hook-logger")
 	}
 
 	return &GoHook{

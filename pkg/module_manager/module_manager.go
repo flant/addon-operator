@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -42,7 +43,6 @@ import (
 	"github.com/flant/shell-operator/pkg/schedule_manager"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.

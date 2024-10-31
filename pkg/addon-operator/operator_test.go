@@ -14,6 +14,7 @@ import (
 	k8types "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	mockhelm "github.com/flant/addon-operator/pkg/helm/test/mock"
 	mockhelmresmgr "github.com/flant/addon-operator/pkg/helm_resources_manager/test/mock"
@@ -27,7 +28,6 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	"github.com/flant/shell-operator/pkg/unilogger"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 )
 
@@ -102,7 +102,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should create ConfigMap/%s", result.cmName)
 
 	// Assemble AddonOperator.
-	op := NewAddonOperator(context.Background(), unilogger.NewNop())
+	op := NewAddonOperator(context.Background(), log.NewNop())
 	op.engine.KubeClient = kubeClient
 	// Mock helm client for ModuleManager
 	result.helmClient = &mockhelm.Client{}
@@ -113,8 +113,8 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	op.engine.SetupEventManagers()
 
-	bk := configmap.New(unilogger.NewNop(), op.engine.KubeClient, result.cmNamespace, result.cmName)
-	manager := kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, unilogger.NewNop())
+	bk := configmap.New(log.NewNop(), op.engine.KubeClient, result.cmNamespace, result.cmName)
+	manager := kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, log.NewNop())
 	op.KubeConfigManager = manager
 
 	dirs := module_manager.DirectoryConfig{
@@ -136,7 +136,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		DirectoryConfig: dirs,
 		Dependencies:    deps,
 	}
-	op.ModuleManager = module_manager.NewModuleManager(op.ctx, &cfg, unilogger.NewNop())
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, &cfg, log.NewNop())
 
 	err = op.InitModuleManager()
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should init ModuleManager")
@@ -165,7 +165,7 @@ func convergeDone(op *AddonOperator) func(g Gomega) bool {
 // TaskRunner should run all hooks and clean the queue.
 func Test_Operator_startup_tasks(t *testing.T) {
 	g := NewWithT(t)
-	unilogger.SetDefaultLevel(unilogger.LevelError)
+	log.SetDefaultLevel(log.LevelError)
 
 	op, _ := assembleTestAddonOperator(t, "startup_tasks")
 
@@ -214,7 +214,7 @@ func Test_Operator_startup_tasks(t *testing.T) {
 func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 	g := NewWithT(t)
 	// Mute messages about registration and tasks queueing.
-	unilogger.SetDefaultLevel(unilogger.LevelError)
+	log.SetDefaultLevel(log.LevelError)
 
 	op, res := assembleTestAddonOperator(t, "converge__main_queue_only")
 
@@ -346,7 +346,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	g := NewWithT(t)
 	// Mute messages about registration and tasks queueing.
-	unilogger.SetDefaultLevel(unilogger.LevelError)
+	log.SetDefaultLevel(log.LevelError)
 
 	op, res := assembleTestAddonOperator(t, "converge__main_queue_only")
 
@@ -458,7 +458,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 func Test_HandleConvergeModules_global_changed(t *testing.T) {
 	g := NewWithT(t)
 	// Mute messages about registration and tasks queueing.
-	unilogger.SetDefaultLevel(unilogger.LevelError)
+	log.SetDefaultLevel(log.LevelError)
 
 	op, res := assembleTestAddonOperator(t, "converge__main_queue_only")
 
@@ -512,7 +512,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 
 	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
 
-	unilogger.Infof("Converge done, got %d tasks in history", len(taskHandleHistory))
+	log.Infof("Converge done, got %d tasks in history", len(taskHandleHistory))
 
 	// Save current history length to ignore first converge tasks later.
 	ignoreTasksCount := len(taskHandleHistory)
@@ -533,7 +533,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 	g.Expect(cmPatched.Data).Should(HaveKey("global"))
 	g.Expect(cmPatched.Data["global"]).Should(Equal("param: newValue"))
 
-	unilogger.Infof("ConfigMap patched, got %d tasks in history", len(taskHandleHistory))
+	log.Infof("ConfigMap patched, got %d tasks in history", len(taskHandleHistory))
 
 	// Expect ConvergeModules appears in queue.
 	g.Eventually(func() bool {
@@ -579,10 +579,10 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 // 	g := NewWithT(t)
 
 // 	// Catch all info messages.
-// 	unilogger.SetDefaultLevel(unilogger.LevelError)
-// 	unilogger.SetOutput(io.Discard)
+// 	log.SetDefaultLevel(log.LevelError)
+// 	log.SetOutput(io.Discard)
 // 	logHook := new(logrus_test.Hook)
-// 	unilogger.AddHook(logHook)
+// 	log.AddHook(logHook)
 
 // 	op, _ := assembleTestAddonOperator(t, "log_task__wait_for_synchronization")
 // 	op.BootstrapMainQueue(op.engine.TaskQueues)
@@ -596,7 +596,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 
 // 	hasWaitForSynchronizationMessages := false
 // 	for _, entry := range logHook.Entries {
-// 		if strings.Contains(entry.Message, "WaitForSynchronization") && entry.Level < unilogger.Level {
+// 		if strings.Contains(entry.Message, "WaitForSynchronization") && entry.Level < log.Level {
 // 			hasWaitForSynchronizationMessages = true
 // 		}
 // 	}

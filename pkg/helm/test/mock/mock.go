@@ -1,15 +1,15 @@
 package mock
 
 import (
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func NewClientFactory(cl client.HelmClient) *helm.ClientFactory {
 	return &helm.ClientFactory{
-		NewClientFn: func(_ *unilogger.Logger, _ ...map[string]string) client.HelmClient {
+		NewClientFn: func(_ *log.Logger, _ ...map[string]string) client.HelmClient {
 			return cl
 		},
 	}

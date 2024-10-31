@@ -11,11 +11,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
-	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 const testConfigMapName = "test-addon-operator"
@@ -40,8 +40,8 @@ func initKubeConfigManager(t *testing.T, kubeClient *klient.Client, cmData map[s
 	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
 
-	bk := configmap.New(unilogger.NewNop(), kubeClient, "default", testConfigMapName)
-	kcm := NewKubeConfigManager(context.Background(), bk, nil, unilogger.NewNop())
+	bk := configmap.New(log.NewNop(), kubeClient, "default", testConfigMapName)
+	kcm := NewKubeConfigManager(context.Background(), bk, nil, log.NewNop())
 
 	err = kcm.Init()
 	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")

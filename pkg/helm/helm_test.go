@@ -6,10 +6,10 @@ import (
 
 	. "github.com/onsi/gomega"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
-	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func TestHelmFactory(t *testing.T) {
@@ -24,11 +24,11 @@ func TestHelmFactory(t *testing.T) {
 		// For integration tests, but should be set before init
 		app.Namespace = os.Getenv("ADDON_OPERATOR_NAMESPACE")
 		// Setup Helm client factory.
-		helm, err := InitHelmClientFactory(unilogger.NewNop(), map[string]string{})
+		helm, err := InitHelmClientFactory(log.NewNop(), map[string]string{})
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Ensure client is a builtin Helm3 library.
-		helmCl := helm.NewClient(unilogger.NewNop())
+		helmCl := helm.NewClient(log.NewNop())
 		g.Expect(helmCl).To(BeAssignableToTypeOf(clientType), "should create %s client", name)
 
 		if os.Getenv("ADDON_OPERATOR_HELM_INTEGRATION_TEST") != "yes" {

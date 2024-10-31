@@ -15,6 +15,7 @@ import (
 	"github.com/dominikbraun/graph/draw"
 	"github.com/goccy/go-graphviz"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
@@ -23,7 +24,6 @@ import (
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/utils"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 var defaultAppliedExtenders = []extenders.ExtenderName{

@@ -9,10 +9,10 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type GoHook interface {
@@ -54,24 +54,24 @@ type ILogger interface {
 	Errorf(format string, args ...any)
 	Fatal(msg string, args ...any)
 	Fatalf(format string, args ...any)
-	GetLevel() unilogger.Level
+	GetLevel() log.Level
 	Handler() slog.Handler
 	Info(msg string, args ...any)
 	InfoContext(ctx context.Context, msg string, args ...any)
 	Infof(format string, args ...any)
 	Log(ctx context.Context, level slog.Level, msg string, args ...any)
 	LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr)
-	Logf(ctx context.Context, level unilogger.Level, format string, args ...any)
-	Named(name string) *unilogger.Logger
-	SetLevel(level unilogger.Level)
+	Logf(ctx context.Context, level log.Level, format string, args ...any)
+	Named(name string) *log.Logger
+	SetLevel(level log.Level)
 	SetOutput(w io.Writer)
 	Trace(msg string, args ...any)
 	Tracef(format string, args ...any)
 	Warn(msg string, args ...any)
 	WarnContext(ctx context.Context, msg string, args ...any)
 	Warnf(format string, args ...any)
-	With(args ...any) *unilogger.Logger
-	WithGroup(name string) *unilogger.Logger
+	With(args ...any) *log.Logger
+	WithGroup(name string) *log.Logger
 }
 
 type HookInput struct {
@@ -106,7 +106,7 @@ type HookConfig struct {
 	AllowFailure      bool
 	Queue             string
 	Settings          *HookConfigSettings
-	Logger            *unilogger.Logger
+	Logger            *log.Logger
 }
 
 type HookConfigSettings struct {

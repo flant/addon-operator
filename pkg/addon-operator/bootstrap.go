@@ -1,6 +1,7 @@
 package addon_operator
 
 import (
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
@@ -8,7 +9,6 @@ import (
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // Bootstrap inits all dependencies for a full-fledged AddonOperator instance.

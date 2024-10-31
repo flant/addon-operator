@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/task"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 // kubernetesBindingSynchronizationState is a state of the single Synchronization task

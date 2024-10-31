@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 
-	log "github.com/flant/shell-operator/pkg/unilogger"
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 

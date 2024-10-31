@@ -4,6 +4,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -12,8 +13,6 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
-
-	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 func TestHelm3LibEmptyCluster(t *testing.T) {
@@ -68,12 +67,12 @@ func initHelmClient(t *testing.T) *LibClient {
 		Namespace:  "test-ns",
 		HistoryMax: 10,
 		Timeout:    0,
-	}, unilogger.NewNop(), map[string]string{})
+	}, log.NewNop(), map[string]string{})
 
 	actionConfig = actionConfigFixture(t)
 
 	cl := &LibClient{
-		LogEntry:  unilogger.NewNop(),
+		LogEntry:  log.NewNop(),
 		Namespace: options.Namespace,
 	}
 

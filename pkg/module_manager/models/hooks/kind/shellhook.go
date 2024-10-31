@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -17,7 +18,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
 	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
-	log "github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type ShellHook struct {

@@ -5,12 +5,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
+	stdlog "log"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/stretchr/testify/require"
-
-	"github.com/flant/shell-operator/pkg/unilogger"
 )
 
 type testLogLine struct {
@@ -22,14 +21,14 @@ type testLogLine struct {
 func TestStdlibLogAdapter(t *testing.T) {
 	t.Run("Simple", func(t *testing.T) {
 		buf := bytes.Buffer{}
-		logger := unilogger.NewLogger(unilogger.Options{})
+		logger := log.NewLogger(log.Options{})
 
 		logger.SetOutput(&buf)
 
 		InitAdapter(logger)
 
-		log.Print("test string for a check")
-		log.Print("another string")
+		stdlog.Print("test string for a check")
+		stdlog.Print("another string")
 
 		scanner := bufio.NewScanner(bytes.NewReader(buf.Bytes()))
 

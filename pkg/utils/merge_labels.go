@@ -3,7 +3,7 @@ package utils
 import (
 	"log/slog"
 
-	"github.com/flant/shell-operator/pkg/unilogger"
+	"github.com/deckhouse/deckhouse/go_lib/log"
 )
 
 // MergeLabels merges several maps into one. Last map keys overrides keys from first maps.
@@ -19,7 +19,7 @@ func MergeLabels(labelsMaps ...map[string]string) map[string]string {
 	return labels
 }
 
-func EnrichLoggerWithLabels(logger *unilogger.Logger, labelsMaps ...map[string]string) *unilogger.Logger {
+func EnrichLoggerWithLabels(logger *log.Logger, labelsMaps ...map[string]string) *log.Logger {
 	loggerEntry := logger
 
 	for _, labels := range labelsMaps {

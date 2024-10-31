@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -45,7 +46,6 @@ import (
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	"github.com/flant/shell-operator/pkg/unilogger"
 	fileUtils "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
@@ -102,7 +102,7 @@ type AddonOperator struct {
 	// discoveredGVKs is a map of GVKs from applied modules' CRDs
 	discoveredGVKs map[string]struct{}
 
-	Logger *unilogger.Logger
+	Logger *log.Logger
 }
 
 type parallelQueueEvent struct {
@@ -135,7 +135,7 @@ func (pq *parallelTaskChannels) Delete(id string) {
 	pq.l.Unlock()
 }
 
-func NewAddonOperator(ctx context.Context, logger *unilogger.Logger) *AddonOperator {
+func NewAddonOperator(ctx context.Context, logger *log.Logger) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 	so := shell_operator.NewShellOperator(cctx, logger.Named("shell-operator"))
 
@@ -220,7 +220,7 @@ func (op *AddonOperator) Setup() error {
 	if err != nil {
 		return fmt.Errorf("global hooks directory: %s", err)
 	}
-	unilogger.Infof("Global hooks directory: %s", globalHooksDir)
+	log.Infof("Global hooks directory: %s", globalHooksDir)
 
 	tempDir, err := fileUtils.EnsureTempDirectory(sh_app.TempDir)
 	if err != nil {
@@ -243,7 +243,7 @@ func (op *AddonOperator) Start(_ context.Context) error {
 		return err
 	}
 
-	unilogger.Info("Start first converge for modules")
+	log.Info("Start first converge for modules")
 	// Loading the onStartup hooks into the queue and running all modules.
 	// Turning tracking changes on only after startup ends.
 
@@ -920,12 +920,12 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 		h := op.ModuleManager.GetGlobalHook(hookName)
 		for _, hookBinding := range h.GetHookConfig().Schedules {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
-				unilogger.Debugf("Queue '%s' started for global 'schedule' hook %s", hookBinding.Queue, hookName)
+				log.Debugf("Queue '%s' started for global 'schedule' hook %s", hookBinding.Queue, hookName)
 			}
 		}
 		for _, hookBinding := range h.GetHookConfig().OnKubernetesEvents {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
-				unilogger.Debugf("Queue '%s' started for global 'kubernetes' hook %s", hookBinding.Queue, hookName)
+				log.Debugf("Queue '%s' started for global 'kubernetes' hook %s", hookBinding.Queue, hookName)
 			}
 		}
 	}
@@ -944,7 +944,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range scheduleHooks {
 		for _, hookBinding := range hook.GetHookConfig().Schedules {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
-				unilogger.Debugf("Queue '%s' started for module 'schedule' hook %s", hookBinding.Queue, hook.GetName())
+				log.Debugf("Queue '%s' started for module 'schedule' hook %s", hookBinding.Queue, hook.GetName())
 			}
 		}
 	}
@@ -953,7 +953,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range kubeEventsHooks {
 		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
-				unilogger.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hook.GetName())
+				log.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hook.GetName())
 			}
 		}
 	}
@@ -964,12 +964,12 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	//	h := op.ModuleManager.GetModuleHook(hookName)
 	//	for _, hookBinding := range h.Config.Schedules {
 	//		if op.CreateAndStartQueue(hookBinding.Queue) {
-	//			unilogger.Debugf("Queue '%s' started for module 'schedule' hook %s", hookBinding.Queue, hookName)
+	//			log.Debugf("Queue '%s' started for module 'schedule' hook %s", hookBinding.Queue, hookName)
 	//		}
 	//	}
 	//	for _, hookBinding := range h.Config.OnKubernetesEvents {
 	//		if op.CreateAndStartQueue(hookBinding.Queue) {
-	//			unilogger.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hookName)
+	//			log.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hookName)
 	//		}
 	//	}
 	//}
@@ -980,7 +980,7 @@ func (op *AddonOperator) CreateAndStartParallelQueues() {
 	for i := 0; i < app.NumberOfParallelQueues; i++ {
 		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i)
 		if op.engine.TaskQueues.GetByName(queueName) != nil {
-			unilogger.Warnf("Parallel queue %s already exists", queueName)
+			log.Warnf("Parallel queue %s already exists", queueName)
 			continue
 		}
 		op.engine.TaskQueues.NewNamedQueue(queueName, op.ParallelTasksHandler)
@@ -991,7 +991,7 @@ func (op *AddonOperator) CreateAndStartParallelQueues() {
 func (op *AddonOperator) DrainModuleQueues(modName string) {
 	m := op.ModuleManager.GetModule(modName)
 	if m == nil {
-		unilogger.Warnf("Module %q is absent when we try to drain its queue", modName)
+		log.Warnf("Module %q is absent when we try to drain its queue", modName)
 		return
 	}
 
@@ -1465,7 +1465,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 	for _, tsk := range parallelSyncTasksToWait {
 		q := op.engine.TaskQueues.GetByName(tsk.GetQueueName())
 		if q == nil {
-			unilogger.Errorf("Queue %s is not created while run GlobalHookEnableKubernetesBindings task!", tsk.GetQueueName())
+			log.Errorf("Queue %s is not created while run GlobalHookEnableKubernetesBindings task!", tsk.GetQueueName())
 		} else {
 			// Skip state creation if WaitForSynchronization is disabled.
 			thm := task.HookMetadataAccessor(tsk)
@@ -1478,7 +1478,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 	for _, tsk := range parallelSyncTasks {
 		q := op.engine.TaskQueues.GetByName(tsk.GetQueueName())
 		if q == nil {
-			unilogger.Errorf("Queue %s is not created while run GlobalHookEnableKubernetesBindings task!", tsk.GetQueueName())
+			log.Errorf("Queue %s is not created while run GlobalHookEnableKubernetesBindings task!", tsk.GetQueueName())
 		} else {
 			q.AddLast(tsk)
 		}
@@ -2394,7 +2394,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 	queuedAt := time.Now()
 
 	// Add ModuleDelete tasks to delete helm releases of disabled modules.
-	unilogger.Debugf("The following modules are going to be disabled: %v", state.ModulesToDisable)
+	log.Debugf("The following modules are going to be disabled: %v", state.ModulesToDisable)
 	for _, moduleName := range state.ModulesToDisable {
 		ev := events.ModuleEvent{
 			ModuleName: moduleName,
@@ -2417,7 +2417,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
-	unilogger.Debugf("The following modules are going to be enabled/rerun: %v", state.AllEnabledModulesByOrder)
+	log.Debugf("The following modules are going to be enabled/rerun: %v", state.AllEnabledModulesByOrder)
 	// sort modules' orders
 	sortedOrders := make(node.NodeWeightRange, 0, len(state.AllEnabledModulesByOrder))
 	for order := range state.AllEnabledModulesByOrder {
@@ -2509,13 +2509,13 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 			modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
 
 		default:
-			unilogger.Errorf("Invalid ModulesState %v", state)
+			log.Errorf("Invalid ModulesState %v", state)
 		}
 	}
 	// as resultingTasks contains new ensureCRDsTasks we invalidate
 	// ConvregeState.CRDsEnsured if there are new ensureCRDsTasks to execute
 	if op.ConvergeState.CRDsEnsured && len(resultingTasks) > 0 {
-		unilogger.Debug("CheckCRDsEnsured: set to false")
+		log.Debug("CheckCRDsEnsured: set to false")
 		op.ConvergeState.CRDsEnsured = false
 	}
 
@@ -2530,7 +2530,7 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 // the discovered GVKs
 func (op *AddonOperator) CheckCRDsEnsured(t sh_task.Task) {
 	if !op.ConvergeState.CRDsEnsured && !ModuleEnsureCRDsTasksInQueueAfterId(op.engine.TaskQueues.GetMain(), t.GetId()) {
-		unilogger.Debug("CheckCRDsEnsured: set to true")
+		log.Debug("CheckCRDsEnsured: set to true")
 		op.ConvergeState.CRDsEnsured = true
 		// apply global values patch
 		op.discoveredGVKsLock.Lock()
@@ -2573,7 +2573,7 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 	// Report modules left to process.
 	if convergeTasks > 0 && (t.GetType() == task.ModuleRun || t.GetType() == task.ModuleDelete) {
 		moduleTasks := ConvergeModulesInQueue(op.engine.TaskQueues.GetMain())
-		unilogger.Infof("Converge modules in progress: %d modules left to process in queue 'main'", moduleTasks)
+		log.Infof("Converge modules in progress: %d modules left to process in queue 'main'", moduleTasks)
 	}
 }
 
@@ -2591,7 +2591,7 @@ func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
 	case converge.FirstStarted:
 		// Switch to 'done' state after first converge is started and when no 'converge' tasks left in the queue.
 		if convergeTasks == 0 {
-			unilogger.Infof("First converge is finished. Operator is ready now.")
+			log.Infof("First converge is finished. Operator is ready now.")
 			op.ConvergeState.SetFirstRunPhase(converge.FirstDone)
 		}
 	}
@@ -2703,7 +2703,7 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 }
 
 // logTaskAdd prints info about queued tasks.
-func (op *AddonOperator) logTaskAdd(logEntry *unilogger.Logger, action string, tasks ...sh_task.Task) {
+func (op *AddonOperator) logTaskAdd(logEntry *log.Logger, action string, tasks ...sh_task.Task) {
 	logger := logEntry.With("task.flow", "add")
 	for _, tsk := range tasks {
 		logger.Info(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
@@ -2711,7 +2711,7 @@ func (op *AddonOperator) logTaskAdd(logEntry *unilogger.Logger, action string, t
 }
 
 // logTaskStart prints info about task at start. Also prints event source info from task props.
-func (op *AddonOperator) logTaskStart(logEntry *unilogger.Logger, tsk sh_task.Task) {
+func (op *AddonOperator) logTaskStart(logEntry *log.Logger, tsk sh_task.Task) {
 	// Prevent excess messages for highly frequent tasks.
 	if tsk.GetType() == task.GlobalHookWaitKubernetesSynchronization {
 		return
@@ -2739,14 +2739,14 @@ func (op *AddonOperator) logTaskStart(logEntry *unilogger.Logger, tsk sh_task.Ta
 }
 
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
-func (op *AddonOperator) logTaskEnd(logEntry *unilogger.Logger, tsk sh_task.Task, result queue.TaskResult) {
+func (op *AddonOperator) logTaskEnd(logEntry *log.Logger, tsk sh_task.Task, result queue.TaskResult) {
 	logger := logEntry.
 		With("task.flow", "end")
 	logger = utils.EnrichLoggerWithLabels(logger, tsk.GetLogLabels())
 
-	level := unilogger.LevelDebug
+	level := log.LevelDebug
 	if tsk.GetType() == task.ConvergeModules {
-		level = unilogger.LevelInfo
+		level = log.LevelInfo
 	}
 
 	logger.Log(context.TODO(), level.Level(), taskDescriptionForTaskFlowLog(tsk, "end", op.taskPhase(tsk), string(result.Status)))
