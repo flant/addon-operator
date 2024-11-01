@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"sync"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	pointer "k8s.io/utils/ptr"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"

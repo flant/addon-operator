@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	k8syaml "sigs.k8s.io/yaml"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"

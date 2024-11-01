@@ -3,9 +3,9 @@ package addon_operator
 import (
 	"testing"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"

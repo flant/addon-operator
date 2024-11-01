@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	log "github.com/deckhouse/deckhouse/go_lib/log"
+
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/utils"

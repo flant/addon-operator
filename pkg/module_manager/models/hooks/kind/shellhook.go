@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/gofrs/uuid/v5"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"

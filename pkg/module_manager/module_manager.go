@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/hashicorp/go-multierror"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"

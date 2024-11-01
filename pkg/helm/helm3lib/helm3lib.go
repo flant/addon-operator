@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -22,7 +23,6 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/post_renderer"

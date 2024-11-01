@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/deckhouse/deckhouse/go_lib/log"
+
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"

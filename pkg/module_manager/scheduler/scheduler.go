@@ -11,11 +11,11 @@ import (
 	"strings"
 	"sync"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/dominikbraun/graph"
 	"github.com/dominikbraun/graph/draw"
 	"github.com/goccy/go-graphviz"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"

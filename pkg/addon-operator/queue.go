@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	log "github.com/deckhouse/deckhouse/go_lib/log"
+
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"

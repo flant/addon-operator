@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -14,7 +15,6 @@ import (
 	corev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"

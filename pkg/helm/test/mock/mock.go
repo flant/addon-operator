@@ -2,6 +2,7 @@ package mock
 
 import (
 	"github.com/deckhouse/deckhouse/go_lib/log"
+
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"

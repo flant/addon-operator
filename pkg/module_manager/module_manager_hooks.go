@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	log "github.com/deckhouse/deckhouse/go_lib/log"
+
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"

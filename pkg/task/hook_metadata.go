@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	log "github.com/deckhouse/deckhouse/go_lib/log"
+
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"

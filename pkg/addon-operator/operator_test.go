@@ -8,13 +8,13 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8types "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	mockhelm "github.com/flant/addon-operator/pkg/helm/test/mock"
 	mockhelmresmgr "github.com/flant/addon-operator/pkg/helm_resources_manager/test/mock"

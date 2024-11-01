@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/deckhouse/deckhouse/go_lib/log"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 	cr_client "sigs.k8s.io/controller-runtime/pkg/client"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -11,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/utils"

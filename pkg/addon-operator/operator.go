@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/gofrs/uuid/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
