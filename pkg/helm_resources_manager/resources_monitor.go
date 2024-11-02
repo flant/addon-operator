@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
+	log "github.com/deckhouse/deckhouse/pkg/log"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"

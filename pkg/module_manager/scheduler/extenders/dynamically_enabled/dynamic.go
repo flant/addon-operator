@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
+	log "github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 )

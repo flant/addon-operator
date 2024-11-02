@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
+	log "github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/dominikbraun/graph"
 	"github.com/dominikbraun/graph/draw"
 	"github.com/goccy/go-graphviz"

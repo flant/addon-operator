@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
+	log "github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"

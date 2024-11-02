@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -47,31 +47,36 @@ type Snapshots map[string][]FilterResult
 type ILogger interface {
 	Debug(msg string, args ...any)
 	DebugContext(ctx context.Context, msg string, args ...any)
+	// deprecated: use Debug instead
 	Debugf(format string, args ...any)
-	Enabled(ctx context.Context, level slog.Level) bool
 	Error(msg string, args ...any)
 	ErrorContext(ctx context.Context, msg string, args ...any)
+	// deprecated: use Error instead
 	Errorf(format string, args ...any)
 	Fatal(msg string, args ...any)
+	// deprecated: use Fatal instead
 	Fatalf(format string, args ...any)
-	GetLevel() log.Level
-	Handler() slog.Handler
 	Info(msg string, args ...any)
 	InfoContext(ctx context.Context, msg string, args ...any)
+	// deprecated: use Info instead
 	Infof(format string, args ...any)
 	Log(ctx context.Context, level slog.Level, msg string, args ...any)
 	LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr)
+	// deprecated: use Log instead
 	Logf(ctx context.Context, level log.Level, format string, args ...any)
+	Warn(msg string, args ...any)
+	WarnContext(ctx context.Context, msg string, args ...any)
+	// deprecated: use Warn instead
+	Warnf(format string, args ...any)
+
+	Enabled(ctx context.Context, level slog.Level) bool
+	With(args ...any) *log.Logger
+	WithGroup(name string) *log.Logger
 	Named(name string) *log.Logger
 	SetLevel(level log.Level)
 	SetOutput(w io.Writer)
-	Trace(msg string, args ...any)
-	Tracef(format string, args ...any)
-	Warn(msg string, args ...any)
-	WarnContext(ctx context.Context, msg string, args ...any)
-	Warnf(format string, args ...any)
-	With(args ...any) *log.Logger
-	WithGroup(name string) *log.Logger
+	GetLevel() log.Level
+	Handler() slog.Handler
 }
 
 type HookInput struct {

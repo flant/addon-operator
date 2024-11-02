@@ -4,7 +4,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"

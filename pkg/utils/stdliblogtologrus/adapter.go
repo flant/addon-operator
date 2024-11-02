@@ -5,7 +5,7 @@ import (
 	stdlog "log"
 	"strings"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 )
 
 func InitAdapter(logger *log.Logger) {

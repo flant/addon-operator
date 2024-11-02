@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -135,14 +135,41 @@ func (pq *parallelTaskChannels) Delete(id string) {
 	pq.l.Unlock()
 }
 
-func NewAddonOperator(ctx context.Context, logger *log.Logger) *AddonOperator {
+type Option func(operator *AddonOperator)
+
+func WithLogger(logger *log.Logger) Option {
+	return func(operator *AddonOperator) {
+		operator.Logger = logger
+	}
+}
+
+func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
-	so := shell_operator.NewShellOperator(cctx, logger.Named("shell-operator"))
+
+	ao := &AddonOperator{
+		ctx:           cctx,
+		cancel:        cancel,
+		ConvergeState: converge.NewConvergeState(),
+		parallelTaskChannels: parallelTaskChannels{
+			channels: make(map[string](chan parallelQueueEvent)),
+		},
+		discoveredGVKs: make(map[string]struct{}, 0),
+	}
+
+	for _, opt := range opts {
+		opt(ao)
+	}
+
+	if ao.Logger == nil {
+		ao.Logger = log.NewLogger(log.Options{}).Named("addon-operator")
+	}
+
+	so := shell_operator.NewShellOperator(cctx, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
 
 	// initialize logging before Assemble
-	rc := runtimeConfig.NewConfig(logger)
+	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
-	sh_app.SetupLogging(rc, logger)
+	sh_app.SetupLogging(rc, ao.Logger)
 
 	// Have to initialize common operator to have all common dependencies below
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, map[string]string{
@@ -169,20 +196,10 @@ func NewAddonOperator(ctx context.Context, logger *log.Logger) *AddonOperator {
 		crdExtraLabels[LabelHeritage] = "addon-operator"
 	}
 
-	ao := &AddonOperator{
-		ctx:            cctx,
-		cancel:         cancel,
-		engine:         so,
-		ConvergeState:  converge.NewConvergeState(),
-		runtimeConfig:  rc,
-		MetricStorage:  so.MetricStorage,
-		CRDExtraLabels: crdExtraLabels,
-		parallelTaskChannels: parallelTaskChannels{
-			channels: make(map[string](chan parallelQueueEvent)),
-		},
-		discoveredGVKs: make(map[string]struct{}, 0),
-		Logger:         logger,
-	}
+	ao.engine = so
+	ao.runtimeConfig = rc
+	ao.MetricStorage = so.MetricStorage
+	ao.CRDExtraLabels = crdExtraLabels
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
 

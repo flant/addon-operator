@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
+	log "github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
 

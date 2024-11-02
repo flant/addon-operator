@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
+	log "github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/tidwall/gjson"
 
 	"github.com/flant/addon-operator/pkg/utils"

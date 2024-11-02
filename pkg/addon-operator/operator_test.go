@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -102,7 +102,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should create ConfigMap/%s", result.cmName)
 
 	// Assemble AddonOperator.
-	op := NewAddonOperator(context.Background(), log.NewNop())
+	op := NewAddonOperator(context.Background(), WithLogger(log.NewNop()))
 	op.engine.KubeClient = kubeClient
 	// Mock helm client for ModuleManager
 	result.helmClient = &mockhelm.Client{}

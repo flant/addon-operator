@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/deckhouse/deckhouse/go_lib/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"gopkg.in/alecthomas/kingpin.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -19,7 +19,7 @@ import (
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/utils/stdliblogtologrus"
-	"github.com/flant/kube-client/klogtologrus"
+	"github.com/flant/kube-client/klogtolog"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
@@ -42,7 +42,7 @@ func main() {
 	kpApp.UsageTemplate(sh_app.OperatorUsageTemplate(app.AppName))
 
 	kpApp.Action(func(_ *kingpin.ParseContext) error {
-		klogtologrus.InitAdapter(sh_app.DebugKubernetesAPI)
+		klogtolog.InitAdapter(sh_app.DebugKubernetesAPI, logger.Named("klog"))
 		stdliblogtologrus.InitAdapter(logger)
 		return nil
 	})
@@ -72,7 +72,7 @@ func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
 
 		ctx := context.Background()
 
-		operator := addon_operator.NewAddonOperator(ctx, logger.Named("addon-operator"))
+		operator := addon_operator.NewAddonOperator(ctx, addon_operator.WithLogger(logger.Named("addon-operator")))
 
 		operator.StartAPIServer()
 

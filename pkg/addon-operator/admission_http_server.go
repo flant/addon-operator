@@ -8,7 +8,7 @@ import (
 	"path"
 	"time"
 
-	log "github.com/deckhouse/deckhouse/go_lib/log"
+	log "github.com/deckhouse/deckhouse/pkg/log"
 )
 
 type AdmissionServer struct {
