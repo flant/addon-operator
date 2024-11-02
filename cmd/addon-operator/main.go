@@ -18,7 +18,7 @@ import (
 	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
-	"github.com/flant/addon-operator/pkg/utils/stdliblogtologrus"
+	"github.com/flant/addon-operator/pkg/utils/stdliblogtolog"
 	"github.com/flant/kube-client/klogtolog"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
@@ -43,7 +43,7 @@ func main() {
 
 	kpApp.Action(func(_ *kingpin.ParseContext) error {
 		klogtolog.InitAdapter(sh_app.DebugKubernetesAPI, logger.Named("klog"))
-		stdliblogtologrus.InitAdapter(logger)
+		stdliblogtolog.InitAdapter(logger)
 		return nil
 	})
 

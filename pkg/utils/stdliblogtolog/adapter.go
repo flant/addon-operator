@@ -1,4 +1,4 @@
-package stdliblogtologrus
+package stdliblogtolog
 
 import (
 	"io"
