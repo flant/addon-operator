@@ -47,26 +47,26 @@ type Snapshots map[string][]FilterResult
 type ILogger interface {
 	Debug(msg string, args ...any)
 	DebugContext(ctx context.Context, msg string, args ...any)
-	// deprecated: use Debug instead
+	// Deprecated: use Debug instead
 	Debugf(format string, args ...any)
 	Error(msg string, args ...any)
 	ErrorContext(ctx context.Context, msg string, args ...any)
-	// deprecated: use Error instead
+	// Deprecated: use Error instead
 	Errorf(format string, args ...any)
 	Fatal(msg string, args ...any)
-	// deprecated: use Fatal instead
+	// Deprecated: use Fatal instead
 	Fatalf(format string, args ...any)
 	Info(msg string, args ...any)
 	InfoContext(ctx context.Context, msg string, args ...any)
-	// deprecated: use Info instead
+	// Deprecated: use Info instead
 	Infof(format string, args ...any)
 	Log(ctx context.Context, level slog.Level, msg string, args ...any)
 	LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr)
-	// deprecated: use Log instead
+	// Deprecated: use Log instead
 	Logf(ctx context.Context, level log.Level, format string, args ...any)
 	Warn(msg string, args ...any)
 	WarnContext(ctx context.Context, msg string, args ...any)
-	// deprecated: use Warn instead
+	// Deprecated: use Warn instead
 	Warnf(format string, args ...any)
 
 	Enabled(ctx context.Context, level slog.Level) bool
