@@ -23,7 +23,7 @@ type KubeConfigManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	logEntry *log.Logger
+	logger *log.Logger
 
 	// Checksums to ignore self-initiated updates.
 	knownChecksums *Checksums
@@ -67,7 +67,7 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 		currentConfig:  config.NewConfig(),
 		knownChecksums: NewChecksums(),
 		configEventCh:  make(chan config.KubeConfigEvent, 1),
-		logEntry:       logger,
+		logger:         logger,
 		backend:        bk,
 	}
 }
@@ -82,7 +82,7 @@ func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) *bool {
 }
 
 func (kcm *KubeConfigManager) Init() error {
-	kcm.logEntry.Debug("Init: KubeConfigManager")
+	kcm.logger.Debug("Init: KubeConfigManager")
 
 	// Load config and calculate checksums at start. No locking required.
 	err := kcm.loadConfig()
@@ -170,10 +170,10 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 		// Fire event when global section is deleted: ConfigMap has no global section but global config is cached.
 		// Note: no checksum checking here, "save" operations can't delete global section.
 		if kcm.currentConfig.Global != nil {
-			kcm.logEntry.Infof("Global section deleted")
+			kcm.logger.Infof("Global section deleted")
 			return true
 		}
-		kcm.logEntry.Debugf("Global section is empty")
+		kcm.logger.Debugf("Global section is empty")
 		return false
 	}
 
@@ -182,18 +182,18 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 	if kcm.knownChecksums.HasEqualChecksum(utils.GlobalValuesKey, newChecksum) {
 		// Remove known checksum, do not fire event on self-update.
 		kcm.knownChecksums.Remove(utils.GlobalValuesKey, newChecksum)
-		kcm.logEntry.Debugf("Global section self-update")
+		kcm.logger.Debugf("Global section self-update")
 		return false
 	}
 
 	if kcm.currentConfig.Global == nil {
 		// "global" section is added after initialization.
-		kcm.logEntry.Infof("Global section added")
+		kcm.logger.Infof("Global section added")
 		return true
 	}
 	// Consider "global" change when new checksum is not equal to the saved.
 	if kcm.currentConfig.Global.Checksum != newChecksum {
-		kcm.logEntry.Infof("Global section updated")
+		kcm.logger.Infof("Global section updated")
 		return true
 	}
 
@@ -208,7 +208,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigInvalid,
 		}
-		kcm.logEntry.Errorf("Config/%s invalid: %v", obj.Key, obj.Err)
+		kcm.logger.Errorf("Config/%s invalid: %v", obj.Key, obj.Err)
 		return
 	}
 
@@ -248,7 +248,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		moduleName := obj.Key
 		moduleCfg := obj.Config.Modules[obj.Key]
 		if obj.Op == config.EventDelete {
-			kcm.logEntry.Infof("Module section deleted: %+v", moduleName)
+			kcm.logger.Infof("Module section deleted: %+v", moduleName)
 			modulesChanged = append(modulesChanged, moduleName)
 			if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
 				modulesStateChanged = append(modulesStateChanged, moduleName)
@@ -275,7 +275,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				if kcm.currentConfig.Modules[moduleName].GetEnabled() != moduleCfg.GetEnabled() {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
-				kcm.logEntry.Infof("Module section '%s' changed. Enabled flag transition: %s--%s",
+				kcm.logger.Infof("Module section '%s' changed. Enabled flag transition: %s--%s",
 					moduleName,
 					kcm.currentConfig.Modules[moduleName].GetEnabled(),
 					moduleCfg.GetEnabled(),
@@ -285,7 +285,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
-				kcm.logEntry.Infof("Module section '%s' added. Enabled flag: %s", moduleName, moduleCfg.GetEnabled())
+				kcm.logger.Infof("Module section '%s' added. Enabled flag: %s", moduleName, moduleCfg.GetEnabled())
 			}
 		}
 
@@ -306,7 +306,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigInvalid,
 		}
-		kcm.logEntry.Errorf("Batch Config invalid: %v", obj.Err)
+		kcm.logger.Errorf("Batch Config invalid: %v", obj.Err)
 		return
 	}
 
@@ -349,7 +349,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 				if kcm.currentConfig.Modules[moduleName].GetEnabled() != moduleCfg.GetEnabled() {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
-				kcm.logEntry.Infof("Module section '%s' changed. Enabled flag transition: %s--%s",
+				kcm.logger.Infof("Module section '%s' changed. Enabled flag transition: %s--%s",
 					moduleName,
 					kcm.currentConfig.Modules[moduleName].GetEnabled(),
 					moduleCfg.GetEnabled(),
@@ -359,7 +359,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
-				kcm.logEntry.Infof("Module section '%s' added. Enabled flag: %s", moduleName, moduleCfg.GetEnabled())
+				kcm.logger.Infof("Module section '%s' added. Enabled flag: %s", moduleName, moduleCfg.GetEnabled())
 			}
 		}
 	}
@@ -372,7 +372,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 				modulesStateChanged = append(modulesStateChanged, moduleName)
 			}
 		}
-		kcm.logEntry.Infof("Module sections deleted: %+v", currentModuleNames)
+		kcm.logger.Infof("Module sections deleted: %+v", currentModuleNames)
 	}
 
 	// Update state after successful parsing.
@@ -391,7 +391,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 }
 
 func (kcm *KubeConfigManager) Start() {
-	kcm.logEntry.Debugf("Start kube config manager")
+	kcm.logger.Debugf("Start kube config manager")
 
 	go kcm.start()
 }
@@ -411,7 +411,7 @@ func (kcm *KubeConfigManager) start() {
 			}
 
 		case <-kcm.ctx.Done():
-			kcm.logEntry.Debugf("Stop kube config manager")
+			kcm.logger.Debugf("Stop kube config manager")
 			return
 		}
 	}

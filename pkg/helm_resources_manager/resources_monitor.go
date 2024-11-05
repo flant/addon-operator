@@ -3,12 +3,13 @@ package helm_resources_manager
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"sort"
 	"sync"
 	"time"
 
-	log "github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
@@ -32,7 +33,6 @@ type ResourcesMonitor struct {
 
 	kubeClient *klient.Client
 	cache      cr_cache.Cache
-	logLabels  map[string]string
 
 	absentCb func(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string)
 
@@ -45,13 +45,12 @@ func NewResourcesMonitor(ctx context.Context, kclient *klient.Client, cache cr_c
 	cctx, cancel := context.WithCancel(ctx)
 	return &ResourcesMonitor{
 		paused:     false,
-		logLabels:  make(map[string]string),
 		manifests:  make([]manifest.Manifest, 0),
 		ctx:        cctx,
 		cancel:     cancel,
 		kubeClient: kclient,
 		cache:      cache,
-		logger:     logger,
+		logger:     logger.With("operator.component", "HelmResourceMonitor"),
 	}
 }
 
@@ -62,12 +61,11 @@ func (r *ResourcesMonitor) Stop() {
 }
 
 func (r *ResourcesMonitor) WithLogLabels(logLabels map[string]string) {
-	r.logLabels = logLabels
+	r.logger = utils.EnrichLoggerWithLabels(r.logger, logLabels)
 }
 
 func (r *ResourcesMonitor) WithModuleName(name string) {
-	r.moduleName = name
-	r.logLabels["module"] = name
+	r.logger = r.logger.With(slog.String("module", name))
 }
 
 func (r *ResourcesMonitor) WithDefaultNamespace(ns string) {
@@ -88,8 +86,6 @@ func (r *ResourcesMonitor) WithStatusGetter(lastReleaseStatus func(releaseName s
 
 // Start creates a timer and check if all deployed manifests are present in the cluster.
 func (r *ResourcesMonitor) Start() {
-	logEntry := utils.EnrichLoggerWithLabels(r.logger, r.logLabels).
-		With("operator.component", "HelmResourceMonitor")
 	go func() {
 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		randSecondsDelay := time.Second * time.Duration(rnd.Int31n(60))
@@ -104,11 +100,11 @@ func (r *ResourcesMonitor) Start() {
 				// Check release status
 				status, err := r.GetHelmReleaseStatus(r.moduleName)
 				if err != nil {
-					logEntry.Errorf("cannot get helm release status: %s", err)
+					r.logger.Errorf("cannot get helm release status: %s", err)
 				}
 
 				if status != "deployed" {
-					logEntry.Debugf("Helm release %s is in unexpected status: %s", r.moduleName, status)
+					r.logger.Debugf("Helm release %s is in unexpected status: %s", r.moduleName, status)
 					if r.absentCb != nil {
 						r.absentCb(r.moduleName, true, []manifest.Manifest{}, r.defaultNamespace)
 					}
@@ -117,16 +113,16 @@ func (r *ResourcesMonitor) Start() {
 				// Check resources
 				absent, err := r.AbsentResources()
 				if err != nil {
-					logEntry.Errorf("cannot list helm resources: %s", err)
+					r.logger.Errorf("cannot list helm resources: %s", err)
 				}
 
 				if len(absent) > 0 {
-					logEntry.Debug("Absent resources detected")
+					r.logger.Debug("Absent resources detected")
 					if r.absentCb != nil {
 						r.absentCb(r.moduleName, false, absent, r.defaultNamespace)
 					}
 				} else {
-					logEntry.Debug("No absent resources detected")
+					r.logger.Debug("No absent resources detected")
 				}
 
 			case <-r.ctx.Done():
@@ -139,13 +135,11 @@ func (r *ResourcesMonitor) Start() {
 
 // GetHelmReleaseStatus returns last release status
 func (r *ResourcesMonitor) GetHelmReleaseStatus(moduleName string) (string, error) {
-	logEntry := utils.EnrichLoggerWithLabels(r.logger, r.logLabels).
-		With("operator.component", "HelmResourceMonitor")
 	revision, status, err := r.helmStatusGetter(moduleName)
 	if err != nil {
 		return "", err
 	}
-	logEntry.Debugf("Helm release %s, revision %s, status: %s", moduleName, revision, status)
+	r.logger.Debugf("Helm release %s, revision %s, status: %s", moduleName, revision, status)
 	return status, nil
 }
 

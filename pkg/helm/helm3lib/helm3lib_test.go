@@ -72,7 +72,7 @@ func initHelmClient(t *testing.T) *LibClient {
 	actionConfig = actionConfigFixture(t)
 
 	cl := &LibClient{
-		LogEntry:  log.NewNop(),
+		Logger:    log.NewNop(),
 		Namespace: options.Namespace,
 	}
 

@@ -31,11 +31,9 @@ type Backend struct {
 
 // New initializes backend for kube_config_manager based on ConfigMap with modules values
 func New(logger *log.Logger, kubeClient *client.Client, namespace, name string) *Backend {
-	logger = logger.With("operator.component", "ConfigHandler")
-	logger = logger.With("backend", "configmap")
-
 	backend := &Backend{
-		logger:    logger,
+		logger: logger.With("operator.component", "ConfigHandler").
+			With("backend", "configmap"),
 		namespace: namespace,
 		name:      name,
 		client:    kubeClient,

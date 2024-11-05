@@ -2,6 +2,7 @@ package module_manager
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -133,7 +134,7 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 }
 
 func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels map[string]string) error {
-	logEntry := utils.EnrichLoggerWithLabels(mm.logger, logLabels).With("module", ml.Name)
+	logEntry := utils.EnrichLoggerWithLabels(mm.logger, logLabels).With(slog.String("module", ml.Name))
 
 	hks, err := ml.RegisterHooks(logEntry)
 	if err != nil {
