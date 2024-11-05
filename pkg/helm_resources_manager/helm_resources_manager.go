@@ -106,12 +106,19 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 	log.Debugf("Start helm resources monitor for '%s'", moduleName)
 	hm.StopMonitor(moduleName)
 
-	rm := NewResourcesMonitor(hm.ctx, hm.kubeClient, hm.cache, hm.logger.Named("resource-monitor"))
-	rm.WithModuleName(moduleName)
-	rm.WithManifests(manifests)
-	rm.WithDefaultNamespace(defaultNamespace)
-	rm.WithStatusGetter(lastReleaseStatus)
-	rm.WithAbsentCb(hm.absentResourcesCallback)
+	cfg := &ResourceMonitorConfig{
+		ModuleName:       moduleName,
+		Manifests:        manifests,
+		DefaultNamespace: defaultNamespace,
+		HelmStatusGetter: lastReleaseStatus,
+		AbsentCb:         hm.absentResourcesCallback,
+		KubeClient:       hm.kubeClient,
+		Cache:            hm.cache,
+
+		Logger: hm.logger.Named("resource-monitor"),
+	}
+
+	rm := NewResourcesMonitor(hm.ctx, cfg)
 
 	hm.monitors[moduleName] = rm
 	rm.Start()
@@ -183,8 +190,16 @@ func (hm *helmResourcesManager) GetMonitor(moduleName string) *ResourcesMonitor 
 }
 
 func (hm *helmResourcesManager) GetAbsentResources(manifests []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error) {
-	rm := NewResourcesMonitor(hm.ctx, hm.kubeClient, hm.cache, hm.logger.Named("resource-monitor"))
-	rm.WithManifests(manifests)
-	rm.WithDefaultNamespace(defaultNamespace)
+	cfg := &ResourceMonitorConfig{
+		Manifests:        manifests,
+		DefaultNamespace: defaultNamespace,
+		KubeClient:       hm.kubeClient,
+		Cache:            hm.cache,
+
+		Logger: hm.logger.Named("resource-monitor"),
+	}
+
+	rm := NewResourcesMonitor(hm.ctx, cfg)
+
 	return rm.AbsentResources()
 }
