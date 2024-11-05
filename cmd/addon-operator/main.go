@@ -115,20 +115,17 @@ func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
 func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 	podName := os.Getenv("ADDON_OPERATOR_POD")
 	if len(podName) == 0 {
-		operator.Logger.Info("ADDON_OPERATOR_POD env not set or empty")
-		os.Exit(1)
+		operator.Logger.Fatal("ADDON_OPERATOR_POD env not set or empty")
 	}
 
 	podIP := os.Getenv("ADDON_OPERATOR_LISTEN_ADDRESS")
 	if len(podIP) == 0 {
-		operator.Logger.Info("ADDON_OPERATOR_LISTEN_ADDRESS env not set or empty")
-		os.Exit(1)
+		operator.Logger.Fatal("ADDON_OPERATOR_LISTEN_ADDRESS env not set or empty")
 	}
 
 	podNs := os.Getenv("ADDON_OPERATOR_NAMESPACE")
 	if len(podNs) == 0 {
-		operator.Logger.Info("ADDON_OPERATOR_NAMESPACE env not set or empty")
-		os.Exit(1)
+		operator.Logger.Fatal("ADDON_OPERATOR_NAMESPACE env not set or empty")
 	}
 
 	identity := fmt.Sprintf("%s.%s.%s.pod", podName, strings.ReplaceAll(podIP, ".", "-"), podNs)
@@ -152,8 +149,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 			OnStartedLeading: func(ctx context.Context) {
 				err := run(ctx, operator)
 				if err != nil {
-					operator.Logger.Info("run on stardet leading", slog.String("error", err.Error()))
-					os.Exit(1)
+					operator.Logger.Fatal("run on stardet leading", slog.String("error", err.Error()))
 				}
 			},
 			OnStoppedLeading: func() {
