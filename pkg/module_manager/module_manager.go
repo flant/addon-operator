@@ -46,6 +46,11 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
+const (
+	moduleInfoMetricGroup = "mm_module_info"
+	moduleInfoMetricName  = "{PREFIX}mm_module_info"
+)
+
 // ModulesState determines which modules should be enabled, disabled or reloaded.
 type ModulesState struct {
 	// All enabled modules.
@@ -426,6 +431,18 @@ func (mm *ModuleManager) SetGlobalDiscoveryAPIVersions(apiVersions []string) {
 	}
 }
 
+// UpdateModulesMetrics updates modules' states metrics
+func (mm *ModuleManager) UpdateModulesMetrics() {
+	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoMetricGroup, moduleInfoMetricName)
+	for _, module := range mm.GetModuleNames() {
+		enabled := "false"
+		if mm.IsModuleEnabled(module) {
+			enabled = "true"
+		}
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{"moduleName": module, "enabled": enabled})
+	}
+}
+
 // RefreshEnabledState gets current diff of the graph and forms ModuleState
 // - mm.enabledModules
 func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*ModulesState, error) {
@@ -446,6 +463,8 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 		modulesToEnable  []string
 		modulesToDisable []string
 	)
+
+	go mm.UpdateModulesMetrics()
 
 	for module, enabled := range modulesDiff {
 		if enabled {
