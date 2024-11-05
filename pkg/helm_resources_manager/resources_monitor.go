@@ -65,6 +65,7 @@ func (r *ResourcesMonitor) WithLogLabels(logLabels map[string]string) {
 }
 
 func (r *ResourcesMonitor) WithModuleName(name string) {
+	r.moduleName = name
 	r.logger = r.logger.With(slog.String("module", name))
 }
 
