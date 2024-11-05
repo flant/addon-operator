@@ -3,7 +3,6 @@ package helm_resources_manager
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math/rand"
 	"sort"
 	"sync"
@@ -15,12 +14,26 @@ import (
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 	cr_client "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
 )
 
 const monitorDelayBase = time.Minute*4 + time.Second*30
+
+type ResourceMonitorConfig struct {
+	ModuleName       string
+	Manifests        []manifest.Manifest
+	DefaultNamespace string
+
+	KubeClient *klient.Client
+	Cache      cr_cache.Cache
+
+	AbsentCb func(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string)
+
+	HelmStatusGetter func(releaseName string) (revision string, status string, err error)
+
+	Logger *log.Logger
+}
 
 type ResourcesMonitor struct {
 	ctx    context.Context
@@ -41,16 +54,28 @@ type ResourcesMonitor struct {
 	logger *log.Logger
 }
 
-func NewResourcesMonitor(ctx context.Context, kclient *klient.Client, cache cr_cache.Cache, logger *log.Logger) *ResourcesMonitor {
+func NewResourcesMonitor(ctx context.Context, cfg *ResourceMonitorConfig) *ResourcesMonitor {
 	cctx, cancel := context.WithCancel(ctx)
+
+	if len(cfg.Manifests) == 0 {
+		cfg.Manifests = make([]manifest.Manifest, 0)
+	}
+
 	return &ResourcesMonitor{
-		paused:     false,
-		manifests:  make([]manifest.Manifest, 0),
-		ctx:        cctx,
-		cancel:     cancel,
-		kubeClient: kclient,
-		cache:      cache,
-		logger:     logger.With("operator.component", "HelmResourceMonitor"),
+		paused: false,
+		ctx:    cctx,
+		cancel: cancel,
+
+		kubeClient: cfg.KubeClient,
+		cache:      cfg.Cache,
+
+		moduleName:       cfg.ModuleName,
+		defaultNamespace: cfg.DefaultNamespace,
+		manifests:        cfg.Manifests,
+		absentCb:         cfg.AbsentCb,
+		helmStatusGetter: cfg.HelmStatusGetter,
+
+		logger: cfg.Logger.With("operator.component", "HelmResourceMonitor"),
 	}
 }
 
@@ -58,30 +83,6 @@ func (r *ResourcesMonitor) Stop() {
 	if r.cancel != nil {
 		r.cancel()
 	}
-}
-
-func (r *ResourcesMonitor) WithLogLabels(logLabels map[string]string) {
-	r.logger = utils.EnrichLoggerWithLabels(r.logger, logLabels)
-}
-
-func (r *ResourcesMonitor) WithModuleName(name string) {
-	r.logger = r.logger.With(slog.String("module", name))
-}
-
-func (r *ResourcesMonitor) WithDefaultNamespace(ns string) {
-	r.defaultNamespace = ns
-}
-
-func (r *ResourcesMonitor) WithManifests(manifests []manifest.Manifest) {
-	r.manifests = manifests
-}
-
-func (r *ResourcesMonitor) WithAbsentCb(cb func(string, bool, []manifest.Manifest, string)) {
-	r.absentCb = cb
-}
-
-func (r *ResourcesMonitor) WithStatusGetter(lastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
-	r.helmStatusGetter = lastReleaseStatus
 }
 
 // Start creates a timer and check if all deployed manifests are present in the cluster.
