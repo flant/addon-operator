@@ -92,7 +92,7 @@ func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
 }
 
 func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
-	bk := configmap.New(operator.Logger.Named("kube-config-manager"), operator.KubeClient(), app.Namespace, app.ConfigMapName)
+	bk := configmap.New(operator.KubeClient(), app.Namespace, app.ConfigMapName, operator.Logger.Named("kube-config-manager"))
 	operator.SetupKubeConfigManager(bk)
 
 	if err := operator.Setup(); err != nil {

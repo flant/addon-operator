@@ -114,7 +114,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 
 	op.engine.SetupEventManagers()
 
-	bk := configmap.New(log.NewNop(), op.engine.KubeClient, result.cmNamespace, result.cmName)
+	bk := configmap.New(op.engine.KubeClient, result.cmNamespace, result.cmName, log.NewNop())
 	manager := kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, log.NewNop())
 	op.KubeConfigManager = manager
 
@@ -130,7 +130,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		ScheduleManager:      op.engine.ScheduleManager,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
-		MetricStorage:        metric_storage.NewMetricStorage(op.ctx, "addon_operator_", false),
+		MetricStorage:        metric_storage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
 		HookMetricStorage:    nil,
 	}
 	cfg := module_manager.ModuleManagerConfig{
