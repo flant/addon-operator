@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/ettle/strcase"
 	"gopkg.in/yaml.v3"
 

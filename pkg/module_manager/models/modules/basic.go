@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"

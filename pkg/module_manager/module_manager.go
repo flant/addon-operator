@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/flant/addon-operator/pkg/app"
