@@ -6,8 +6,8 @@ import (
 	"reflect"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/ettle/strcase"
-	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 

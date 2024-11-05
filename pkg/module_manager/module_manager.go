@@ -9,9 +9,8 @@ import (
 	"sync"
 	"time"
 
-	// bindings constants and binding configs
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/hashicorp/go-multierror"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -130,16 +129,18 @@ type ModuleManager struct {
 	moduleEventC chan events.ModuleEvent
 
 	moduleScheduler *scheduler.Scheduler
+
+	logger *log.Logger
 }
 
 var once sync.Once
 
 // NewModuleManager returns new MainModuleManager
-func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleManager {
+func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig, logger *log.Logger) *ModuleManager {
 	cctx, cancel := context.WithCancel(ctx)
 
 	// default loader, maybe we can register another one on startup
-	fsLoader := fs.NewFileSystemLoader(cfg.DirectoryConfig.ModulesDir)
+	fsLoader := fs.NewFileSystemLoader(cfg.DirectoryConfig.ModulesDir, logger.Named("file-system-loader"))
 
 	return &ModuleManager{
 		ctx:    cctx,
@@ -157,7 +158,9 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig) *ModuleMana
 
 		globalSynchronizationState: modules.NewSynchronizationState(),
 
-		moduleScheduler: scheduler.NewScheduler(cctx),
+		moduleScheduler: scheduler.NewScheduler(cctx, logger.Named("scheduler")),
+
+		logger: logger,
 	}
 }
 
@@ -298,8 +301,10 @@ func (mm *ModuleManager) FilterModuleByExtender(extName extenders.ExtenderName, 
 }
 
 // Init — initialize module manager
-func (mm *ModuleManager) Init() error {
-	log.Debug("Init ModuleManager")
+func (mm *ModuleManager) Init(logger *log.Logger) error {
+	logger.Debug("Init ModuleManager")
+
+	mm.logger = logger
 
 	gv, err := mm.loadGlobalValues()
 	if err != nil {
@@ -387,7 +392,7 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	if mm.dependencies.Helm == nil {
 		return &ModulesState{}, nil
 	}
-	releasedModules, err := mm.dependencies.Helm.NewClient(logLabels).ListReleasesNames()
+	releasedModules, err := mm.dependencies.Helm.NewClient(mm.logger.Named("helm-client"), logLabels).ListReleasesNames()
 	if err != nil {
 		return nil, err
 	}
@@ -408,6 +413,7 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 	purge := utils.MapStringStructKeys(releasesMap)
 	purge = utils.SortReverse(purge)
 
+	// TODO: need another log if empty
 	log.Infof("Modules to purge found: %v", purge)
 
 	return &ModulesState{
@@ -449,7 +455,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
 		"operator.component": "ModuleManager.RefreshEnabledState",
 	})
-	logEntry := log.WithFields(utils.LabelsToLogFields(refreshLogLabels))
+	logEntry := utils.EnrichLoggerWithLabels(mm.logger, refreshLogLabels)
 
 	enabledModules, enabledModulesByOrder, modulesDiff, err := mm.moduleScheduler.GetGraphState(refreshLogLabels)
 	if err != nil {
@@ -578,7 +584,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 				"module": ml.GetName(),
 				"queue":  "main",
 			})
-		logEntry := log.WithFields(utils.LabelsToLogFields(deleteLogLabels))
+		logEntry := utils.EnrichLoggerWithLabels(mm.logger, deleteLogLabels)
 
 		// Stop resources monitor before deleting release
 		mm.dependencies.HelmResourcesManager.StopMonitor(ml.GetName())
@@ -591,9 +597,9 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			MetricsStorage:      mm.dependencies.MetricStorage,
 			HelmValuesValidator: schemaStorage,
 		}
-		helmModule, _ := modules.NewHelmModule(ml, mm.TempDir, &hmdeps, schemaStorage)
+		helmModule, _ := modules.NewHelmModule(ml, mm.TempDir, &hmdeps, schemaStorage, mm.logger.Named("helm-module"))
 		if helmModule != nil {
-			releaseExists, err := mm.dependencies.Helm.NewClient(deleteLogLabels).IsReleaseExists(ml.GetName())
+			releaseExists, err := mm.dependencies.Helm.NewClient(mm.logger, deleteLogLabels).IsReleaseExists(ml.GetName())
 			if !releaseExists {
 				if err != nil {
 					logEntry.Warnf("Cannot find helm release '%s' for module '%s'. Helm error: %s", ml.GetName(), ml.GetName(), err)
@@ -602,7 +608,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 				}
 			} else {
 				// Chart and release are existed, so run helm delete command
-				err := mm.dependencies.Helm.NewClient(deleteLogLabels).DeleteRelease(ml.GetName())
+				err := mm.dependencies.Helm.NewClient(mm.logger, deleteLogLabels).DeleteRelease(ml.GetName())
 				if err != nil {
 					return err
 				}
@@ -657,7 +663,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 		MetricsStorage:      mm.dependencies.MetricStorage,
 		HelmValuesValidator: schemaStorage,
 	}
-	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps, schemaStorage)
+	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps, schemaStorage, mm.logger.Named("helm-module"))
 	if err != nil {
 		return false, err
 	}

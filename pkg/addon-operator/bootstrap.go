@@ -1,7 +1,7 @@
 package addon_operator
 
 import (
-	log "github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
@@ -23,7 +23,7 @@ func (op *AddonOperator) bootstrap() error {
 	// Debug server.
 	// TODO: rewrite sh_app global variables to the addon-operator ones
 	var err error
-	op.DebugServer, err = shell_operator.RunDefaultDebugServer(sh_app.DebugUnixSocket, sh_app.DebugHttpServerAddr)
+	op.DebugServer, err = shell_operator.RunDefaultDebugServer(sh_app.DebugUnixSocket, sh_app.DebugHttpServerAddr, op.Logger.Named("debug-server"))
 	if err != nil {
 		log.Errorf("Fatal: start Debug server: %s", err)
 		return err
@@ -71,7 +71,7 @@ func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
 		return
 	}
 
-	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig)
+	op.KubeConfigManager = kube_config_manager.NewKubeConfigManager(op.ctx, bk, op.runtimeConfig, op.Logger.Named("kube-config-manager"))
 }
 
 func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir string, tempDir string) {
@@ -98,5 +98,5 @@ func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir st
 		Dependencies:    deps,
 	}
 
-	op.ModuleManager = module_manager.NewModuleManager(op.ctx, &cfg)
+	op.ModuleManager = module_manager.NewModuleManager(op.ctx, &cfg, op.Logger.Named("module-manager"))
 }

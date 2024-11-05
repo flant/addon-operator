@@ -1,7 +1,7 @@
 package addon_operator
 
 import (
-	log "github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
@@ -88,8 +88,8 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 
 // RemoveCurrentConvergeTasks detects if converge tasks present in the main and parallel queues.
 // These tasks are drained and the method returns true
-func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map[string]string) bool {
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map[string]string, logger *log.Logger) bool {
+	logEntry := utils.EnrichLoggerWithLabels(logger, logLabels)
 	convergeDrained := false
 
 	for _, queue := range convergeQueues {
@@ -132,12 +132,13 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 // RemoveCurrentConvergeTasksFromId detects if converge tasks present in the main
 // queue after task which ID equals to 'afterID'. These tasks are drained
 // and the method returns true.
-func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLabels map[string]string) bool {
+func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLabels map[string]string, logger *log.Logger) bool {
 	if q == nil {
 		return false
 	}
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(logger, logLabels)
+
 	IDFound := false
 	convergeDrained := false
 	stop := false
@@ -174,12 +175,13 @@ func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLab
 
 // RemoveAdjacentConvergeModules removes ConvergeModules tasks right
 // after the task with the specified ID.
-func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels map[string]string) {
+func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels map[string]string, logger *log.Logger) {
 	if q == nil {
 		return
 	}
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(logger, logLabels)
+
 	IDFound := false
 	stop := false
 	q.Filter(func(t sh_task.Task) bool {

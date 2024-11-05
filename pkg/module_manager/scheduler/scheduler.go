@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/dominikbraun/graph"
 	"github.com/dominikbraun/graph/draw"
 	"github.com/goccy/go-graphviz"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
@@ -58,6 +58,8 @@ type Scheduler struct {
 	diff map[string]bool
 	// keeps all errors happened on last run
 	errList []string
+
+	logger *log.Logger
 }
 
 type vertexState struct {
@@ -66,7 +68,7 @@ type vertexState struct {
 }
 
 // NewScheduler returns a new instance of scheduler
-func NewScheduler(ctx context.Context) *Scheduler {
+func NewScheduler(ctx context.Context, logger *log.Logger) *Scheduler {
 	nodeHash := func(n *node.Node) string {
 		return n.GetName()
 	}
@@ -77,6 +79,7 @@ func NewScheduler(ctx context.Context) *Scheduler {
 		dag:       graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
 		diff:      make(map[string]bool),
 		errList:   make([]string, 0),
+		logger:    logger,
 	}
 }
 
@@ -497,7 +500,7 @@ func (s *Scheduler) getEnabledModuleNamesByOrder(weights ...node.NodeWeight) (ma
 // if s.errList isn't empty, we try to recalculate the graph in case there were some minor errors last time.
 func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modules*/ []string /*enabled modules grouped by order*/, map[node.NodeWeight][]string /*modules diff*/, map[string]bool, error) {
 	var recalculateGraph bool
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -551,7 +554,7 @@ func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Grap
 	diff, updByDiff := make(map[string]bool), make([]string, 0)
 	errList := make([]string, 0)
 	enabledModules := make([]string, 0)
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
 
 	names, err := graph.StableTopologicalSort(s.dag, moduleSortFunc)
 	if err != nil {

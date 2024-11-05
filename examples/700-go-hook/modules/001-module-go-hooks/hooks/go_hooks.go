@@ -54,10 +54,10 @@ func ObjFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
 func run(input *go_hook.HookInput) error {
 	for _, o := range input.Snapshots["pods"] {
 		podSpec := o.(*podSpecFilteredObj)
-		input.LogEntry.Infof("Got podSpec: %+v", podSpec)
+		input.Logger.Infof("Got podSpec: %+v", podSpec)
 	}
 
-	input.LogEntry.Infof("Hello from on_kube.pods2! I have %d snapshots\n",
+	input.Logger.Infof("Hello from on_kube.pods2! I have %d snapshots\n",
 		len(input.Snapshots))
 
 	input.MetricsCollector.Add("addon_go_hooks_total", 1.0, nil)

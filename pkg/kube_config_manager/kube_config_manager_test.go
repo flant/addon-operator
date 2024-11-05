@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -39,8 +40,8 @@ func initKubeConfigManager(t *testing.T, kubeClient *klient.Client, cmData map[s
 	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
 
-	bk := configmap.New(nil, kubeClient, "default", testConfigMapName)
-	kcm := NewKubeConfigManager(context.Background(), bk, nil)
+	bk := configmap.New(kubeClient, "default", testConfigMapName, log.NewNop())
+	kcm := NewKubeConfigManager(context.Background(), bk, nil, log.NewNop())
 
 	err = kcm.Init()
 	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")

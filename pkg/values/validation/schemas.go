@@ -6,13 +6,13 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 	"github.com/go-openapi/validate"
 	"github.com/hashicorp/go-multierror"
-	log "github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/utils"

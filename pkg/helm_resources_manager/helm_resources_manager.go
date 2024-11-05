@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"k8s.io/apimachinery/pkg/labels"
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 
@@ -44,11 +44,13 @@ type helmResourcesManager struct {
 	monitors map[string]*ResourcesMonitor
 
 	eventCh chan ReleaseStatusEvent
+
+	logger *log.Logger
 }
 
 var _ HelmResourcesManager = &helmResourcesManager{}
 
-func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client) (HelmResourcesManager, error) {
+func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger *log.Logger) (HelmResourcesManager, error) {
 	//nolint:govet
 	cctx, cancel := context.WithCancel(ctx)
 	if kclient == nil {
@@ -82,6 +84,7 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client) (HelmR
 		cancel:     cancel,
 		kubeClient: kclient,
 		cache:      cache,
+		logger:     logger,
 	}, nil
 }
 
@@ -103,7 +106,7 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 	log.Debugf("Start helm resources monitor for '%s'", moduleName)
 	hm.StopMonitor(moduleName)
 
-	rm := NewResourcesMonitor(hm.ctx, hm.kubeClient, hm.cache)
+	rm := NewResourcesMonitor(hm.ctx, hm.kubeClient, hm.cache, hm.logger.Named("resource-monitor"))
 	rm.WithModuleName(moduleName)
 	rm.WithManifests(manifests)
 	rm.WithDefaultNamespace(defaultNamespace)
@@ -180,7 +183,7 @@ func (hm *helmResourcesManager) GetMonitor(moduleName string) *ResourcesMonitor 
 }
 
 func (hm *helmResourcesManager) GetAbsentResources(manifests []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error) {
-	rm := NewResourcesMonitor(hm.ctx, hm.kubeClient, hm.cache)
+	rm := NewResourcesMonitor(hm.ctx, hm.kubeClient, hm.cache, hm.logger.Named("resource-monitor"))
 	rm.WithManifests(manifests)
 	rm.WithDefaultNamespace(defaultNamespace)
 	return rm.AbsentResources()

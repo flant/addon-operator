@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/app"
@@ -23,6 +23,7 @@ type Helm3Options struct {
 	Namespace  string
 	HistoryMax int32
 	Timeout    time.Duration
+	Logger     *log.Logger
 }
 
 var Options *Helm3Options
@@ -30,7 +31,7 @@ var Options *Helm3Options
 // Init runs
 func Init(options *Helm3Options) error {
 	hc := &Helm3Client{
-		LogEntry: log.WithField("operator.component", "helm"),
+		Logger: options.Logger.With("operator.component", "helm"),
 	}
 	err := hc.initAndVersion()
 	if err != nil {
@@ -41,20 +42,20 @@ func Init(options *Helm3Options) error {
 }
 
 type Helm3Client struct {
-	LogEntry  *log.Entry
+	Logger    *log.Logger
 	Namespace string
 }
 
 var _ client.HelmClient = &Helm3Client{}
 
-func NewClient(logLabels ...map[string]string) client.HelmClient {
-	logEntry := log.WithField("operator.component", "helm")
+func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
+	logEntry := logger.With("operator.component", "helm")
 	if len(logLabels) > 0 {
-		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
+		logEntry = utils.EnrichLoggerWithLabels(logEntry, logLabels[0])
 	}
 
 	return &Helm3Client{
-		LogEntry:  logEntry,
+		Logger:    logEntry,
 		Namespace: Options.Namespace,
 	}
 }
@@ -157,12 +158,12 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 		args = append(args, setValue)
 	}
 
-	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chart, namespace)
+	h.Logger.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chart, namespace)
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
 	}
-	h.LogEntry.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful:\n%s\n%s", releaseName, chart, namespace, stdout, stderr)
+	h.Logger.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful:\n%s\n%s", releaseName, chart, namespace, stdout, stderr)
 
 	return nil
 }
@@ -187,7 +188,7 @@ func (h *Helm3Client) GetReleaseValues(releaseName string) (utils.Values, error)
 }
 
 func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
-	h.LogEntry.Debugf("helm release '%s': execute helm uninstall", releaseName)
+	h.Logger.Debugf("helm release '%s': execute helm uninstall", releaseName)
 
 	args := []string{
 		"uninstall", releaseName,
@@ -198,7 +199,7 @@ func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n%v %v", releaseName, err, stdout, stderr)
 	}
 
-	h.LogEntry.Debugf("helm release %s deleted", releaseName)
+	h.Logger.Debugf("helm release %s deleted", releaseName)
 	return
 }
 
@@ -274,12 +275,12 @@ func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []str
 		args = append(args, setValue)
 	}
 
-	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chart, namespace)
+	h.Logger.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chart, namespace)
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return "", fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
 	}
-	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chart)
+	h.Logger.Infof("Render helm templates for chart '%s' was successful", chart)
 
 	return stdout, nil
 }
