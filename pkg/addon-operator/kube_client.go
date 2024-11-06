@@ -20,7 +20,7 @@ var DefaultHelmMonitorKubeClientMetricLabels = map[string]string{"component": "h
 
 // defaultHelmMonitorKubeClient initializes a Kubernetes client for helm monitor.
 func defaultHelmMonitorKubeClient(metricStorage *metric_storage.MetricStorage, metricLabels map[string]string, logger *log.Logger) *klient.Client {
-	client := klient.New(logger)
+	client := klient.New(klient.WithLogger(logger))
 	client.WithContextName(sh_app.KubeContext)
 	client.WithConfigPath(sh_app.KubeConfig)
 	client.WithRateLimiterSettings(app.HelmMonitorKubeClientQps, app.HelmMonitorKubeClientBurst)
