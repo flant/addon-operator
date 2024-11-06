@@ -37,6 +37,11 @@ linters-settings:
       - prefix(github.com/flant/)
   goimports:
     local-prefixes: github.com/flant/
+  # TODO: replace deprecated methods
+  # ignore deprecated 
+  # https://staticcheck.dev/docs/checks/#SA1019
+  staticcheck:
+    checks: ["all","-SA1019"]
   sloglint:
       # Enforce not mixing key-value pairs and attributes.
       no-mixed-args: true
