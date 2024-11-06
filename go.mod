@@ -4,7 +4,7 @@ go 1.22.8
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241102120041-7e44e3e22ab9
+	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241106135231-bfd6ddfd8e33
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.2.1
