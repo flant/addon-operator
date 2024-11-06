@@ -1048,9 +1048,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				// dynamically_enabled_extender
 				case dynamic_extender.DynamicExtenderEvent:
 					logLabels := map[string]string{
-						"event.id": uuid.Must(uuid.NewV4()).String(),
-						"type":     "ModuleScheduler event",
-						"source":   "DymicallyEnabledExtenderChanged",
+						"event.id":     uuid.Must(uuid.NewV4()).String(),
+						"type":         "ModuleScheduler event",
+						"event_source": "DymicallyEnabledExtenderChanged",
 					}
 					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 					// if global hooks haven't been run yet, script enabled extender fails due to missing global values
@@ -1086,9 +1086,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				// kube_config_extender
 				case config.KubeConfigEvent:
 					logLabels := map[string]string{
-						"event.id": uuid.Must(uuid.NewV4()).String(),
-						"type":     "ModuleScheduler event",
-						"source":   "KubeConfigExtenderChanged",
+						"event.id":     uuid.Must(uuid.NewV4()).String(),
+						"type":         "ModuleScheduler event",
+						"event_source": "KubeConfigExtenderChanged",
 					}
 					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 					switch event.Type {
