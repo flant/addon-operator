@@ -3,6 +3,7 @@ package addon_operator
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path"
 	"runtime/trace"
 	"sort"
@@ -10,8 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
-	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 
@@ -100,6 +101,8 @@ type AddonOperator struct {
 	discoveredGVKsLock sync.Mutex
 	// discoveredGVKs is a map of GVKs from applied modules' CRDs
 	discoveredGVKs map[string]struct{}
+
+	Logger *log.Logger
 }
 
 type parallelQueueEvent struct {
@@ -132,14 +135,41 @@ func (pq *parallelTaskChannels) Delete(id string) {
 	pq.l.Unlock()
 }
 
-func NewAddonOperator(ctx context.Context) *AddonOperator {
+type Option func(operator *AddonOperator)
+
+func WithLogger(logger *log.Logger) Option {
+	return func(operator *AddonOperator) {
+		operator.Logger = logger
+	}
+}
+
+func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
-	so := shell_operator.NewShellOperator(cctx)
+
+	ao := &AddonOperator{
+		ctx:           cctx,
+		cancel:        cancel,
+		ConvergeState: converge.NewConvergeState(),
+		parallelTaskChannels: parallelTaskChannels{
+			channels: make(map[string](chan parallelQueueEvent)),
+		},
+		discoveredGVKs: make(map[string]struct{}, 0),
+	}
+
+	for _, opt := range opts {
+		opt(ao)
+	}
+
+	if ao.Logger == nil {
+		ao.Logger = log.NewLogger(log.Options{}).Named("addon-operator")
+	}
+
+	so := shell_operator.NewShellOperator(cctx, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
 
 	// initialize logging before Assemble
-	rc := runtimeConfig.NewConfig()
+	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
-	sh_app.SetupLogging(rc)
+	sh_app.SetupLogging(rc, ao.Logger)
 
 	// Have to initialize common operator to have all common dependencies below
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, map[string]string{
@@ -166,19 +196,10 @@ func NewAddonOperator(ctx context.Context) *AddonOperator {
 		crdExtraLabels[LabelHeritage] = "addon-operator"
 	}
 
-	ao := &AddonOperator{
-		ctx:            cctx,
-		cancel:         cancel,
-		engine:         so,
-		ConvergeState:  converge.NewConvergeState(),
-		runtimeConfig:  rc,
-		MetricStorage:  so.MetricStorage,
-		CRDExtraLabels: crdExtraLabels,
-		parallelTaskChannels: parallelTaskChannels{
-			channels: make(map[string](chan parallelQueueEvent)),
-		},
-		discoveredGVKs: make(map[string]struct{}, 0),
-	}
+	ao.engine = so
+	ao.runtimeConfig = rc
+	ao.MetricStorage = so.MetricStorage
+	ao.CRDExtraLabels = crdExtraLabels
 
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
 
@@ -197,14 +218,14 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
-	helmClient, err := helm.InitHelmClientFactory()
+	helmClient, err := helm.InitHelmClientFactory(op.Logger.Named("helm"), op.CRDExtraLabels)
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
 	}
 
 	// Helm resources monitor.
 	// It uses a separate client-go instance. (Metrics are registered when 'main' client is initialized).
-	helmResourcesManager, err := InitDefaultHelmResourcesManager(op.ctx, op.engine.MetricStorage)
+	helmResourcesManager, err := InitDefaultHelmResourcesManager(op.ctx, op.engine.MetricStorage, op.Logger)
 	if err != nil {
 		return fmt.Errorf("initialize Helm resources manager: %s", err)
 	}
@@ -307,7 +328,7 @@ func (op *AddonOperator) InitModuleManager() error {
 		return fmt.Errorf("init kube config manager: %s", err)
 	}
 
-	err = op.ModuleManager.Init()
+	err = op.ModuleManager.Init(op.Logger.Named("module-manager"))
 	if err != nil {
 		return fmt.Errorf("init module manager: %s", err)
 	}
@@ -381,7 +402,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 			"event.id": uuid.Must(uuid.NewV4()).String(),
 			"binding":  string(htypes.Schedule),
 		}
-		logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 		logEntry.Debugf("Create tasks for 'schedule' event '%s'", crontab)
 
 		var tasks []sh_task.Task
@@ -452,7 +473,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 			"event.id": uuid.Must(uuid.NewV4()).String(),
 			"binding":  string(htypes.OnKubernetesEvent),
 		}
-		logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 		logEntry.Debugf("Create tasks for 'kubernetes' event '%s'", kubeEvent.String())
 
 		var tasks []sh_task.Task
@@ -527,7 +548,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 		"event.type": "OperatorStartup",
 	}
 	// create onStartup for global hooks
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 
 	// Prepopulate main queue with 'onStartup' and 'enable kubernetes bindings' tasks for
 	// global hooks and add a task to discover modules state.
@@ -684,7 +705,7 @@ func (op *AddonOperator) CreatePurgeTasks(modulesToPurge []string, t sh_task.Tas
 func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels map[string]string) (res queue.TaskResult) {
 	var handleErr error
 	defer trace.StartRegion(context.Background(), "HandleApplyKubeConfigValues").End()
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 
 	hm := task.HookMetadataAccessor(t)
 
@@ -710,7 +731,7 @@ func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels m
 // HandleConvergeModules is a multi-phase task.
 func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[string]string) (res queue.TaskResult) {
 	defer trace.StartRegion(context.Background(), "ConvergeModules").End()
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 
 	taskEvent, ok := t.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 	if !ok {
@@ -729,7 +750,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 		logEntry.Debugf("ConvergeModules: start")
 
 		// Deduplicate tasks: remove ConvergeModules tasks right after the current task.
-		RemoveAdjacentConvergeModules(op.engine.TaskQueues.GetByName(t.GetQueueName()), t.GetId(), logLabels)
+		RemoveAdjacentConvergeModules(op.engine.TaskQueues.GetByName(t.GetQueueName()), t.GetId(), logLabels, op.Logger)
 		op.ConvergeState.Phase = converge.RunBeforeAll
 	}
 
@@ -1019,7 +1040,7 @@ func (op *AddonOperator) DrainModuleQueues(modName string) {
 
 func (op *AddonOperator) StartModuleManagerEventHandler() {
 	go func() {
-		logEntry := log.WithField("operator.component", "handleManagerEvents")
+		logEntry := op.Logger.With("operator.component", "handleManagerEvents")
 		for {
 			select {
 			case schedulerEvent := <-op.ModuleManager.SchedulerEventCh():
@@ -1027,11 +1048,11 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				// dynamically_enabled_extender
 				case dynamic_extender.DynamicExtenderEvent:
 					logLabels := map[string]string{
-						"event.id": uuid.Must(uuid.NewV4()).String(),
-						"type":     "ModuleScheduler event",
-						"source":   "DymicallyEnabledExtenderChanged",
+						"event.id":     uuid.Must(uuid.NewV4()).String(),
+						"type":         "ModuleScheduler event",
+						"event_source": "DymicallyEnabledExtenderChanged",
 					}
-					eventLogEntry := logEntry.WithFields(utils.LabelsToLogFields(logLabels))
+					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 					// if global hooks haven't been run yet, script enabled extender fails due to missing global values
 					if op.globalHooksNotExecutedYet() {
 						eventLogEntry.Infof("Global hook dynamic modification detected, ignore until starting first converge")
@@ -1048,7 +1069,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							logLabels,
 						)
 						// if converge has already begun - restart it immediately
-						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels) && op.ConvergeState.Phase != converge.StandBy {
+						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) && op.ConvergeState.Phase != converge.StandBy {
 							logEntry.Infof("ConvergeModules: global hook dynamic modification detected, restart current converge process (%s)", op.ConvergeState.Phase)
 							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
 							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
@@ -1065,11 +1086,11 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				// kube_config_extender
 				case config.KubeConfigEvent:
 					logLabels := map[string]string{
-						"event.id": uuid.Must(uuid.NewV4()).String(),
-						"type":     "ModuleScheduler event",
-						"source":   "KubeConfigExtenderChanged",
+						"event.id":     uuid.Must(uuid.NewV4()).String(),
+						"type":         "ModuleScheduler event",
+						"event_source": "KubeConfigExtenderChanged",
 					}
-					eventLogEntry := logEntry.WithFields(utils.LabelsToLogFields(logLabels))
+					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 					switch event.Type {
 					case config.KubeConfigInvalid:
 						op.ModuleManager.SetKubeConfigValid(false)
@@ -1120,7 +1141,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								logLabels,
 							)
 							// if main queue isn't empty and there was another convergeModules task:
-							if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels) {
+							if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) {
 								logEntry.Infof("ConvergeModules: kube config modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
 								// put ApplyKubeConfig->NewConvergeModulesTask sequence in the beginning of the main queue
 								if kubeConfigTask != nil {
@@ -1174,15 +1195,22 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					"event.id": uuid.Must(uuid.NewV4()).String(),
 					"module":   HelmReleaseStatusEvent.ModuleName,
 				}
-				eventLogEntry := logEntry.WithFields(utils.LabelsToLogFields(logLabels))
+				eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 
 				// Do not add ModuleRun task if it is already queued.
 				hasTask := QueueHasPendingModuleRunTask(op.engine.TaskQueues.GetMain(), HelmReleaseStatusEvent.ModuleName)
 				eventDescription := "AbsentHelmResourcesDetected"
 				additionalDescription := fmt.Sprintf("%d absent module resources", len(HelmReleaseStatusEvent.Absent))
+				// helm reslease in unexpected state event
 				if HelmReleaseStatusEvent.UnexpectedStatus {
+					op.engine.MetricStorage.CounterAdd("{PREFIX}modules_helm_release_redeployed_total", 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName})
 					eventDescription = "HelmReleaseUnexpectedStatus"
 					additionalDescription = "unexpected helm release status"
+				} else {
+					// some resources are missing and metrics are provided
+					for _, manifest := range HelmReleaseStatusEvent.Absent {
+						op.engine.MetricStorage.CounterAdd("{PREFIX}modules_absent_resources_total", 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName, "resource": fmt.Sprintf("%s/%s/%s", manifest.Namespace(""), manifest.Kind(), manifest.Name())})
+					}
 				}
 
 				if !hasTask {
@@ -1196,7 +1224,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					op.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 					op.logTaskAdd(logEntry, fmt.Sprintf("detected %s, append", additionalDescription), newTask)
 				} else {
-					eventLogEntry.WithField("task.flow", "noop").Infof("Detected %s, ModuleRun task already queued", additionalDescription)
+					eventLogEntry.With("task.flow", "noop").Infof("Detected %s, ModuleRun task already queued", additionalDescription)
 				}
 			}
 		}
@@ -1206,7 +1234,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 // ParallelTasksHandler handles limited types of tasks in parallel queues.
 func (op *AddonOperator) ParallelTasksHandler(t sh_task.Task) queue.TaskResult {
 	taskLogLabels := t.GetLogLabels()
-	taskLogEntry := log.WithFields(utils.LabelsToLogFields(taskLogLabels))
+	taskLogEntry := utils.EnrichLoggerWithLabels(op.Logger, taskLogLabels)
 	var res queue.TaskResult
 
 	op.logTaskStart(taskLogEntry, t)
@@ -1248,7 +1276,7 @@ func (op *AddonOperator) ParallelTasksHandler(t sh_task.Task) queue.TaskResult {
 // TaskHandler handles tasks in queue.
 func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
 	taskLogLabels := t.GetLogLabels()
-	taskLogEntry := log.WithFields(utils.LabelsToLogFields(taskLogLabels))
+	taskLogEntry := utils.EnrichLoggerWithLabels(op.Logger, taskLogLabels)
 	var res queue.TaskResult
 
 	op.logTaskStart(taskLogEntry, t)
@@ -1373,7 +1401,7 @@ func (op *AddonOperator) UpdateWaitInQueueMetric(t sh_task.Task) {
 func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
 	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Global hook enable kubernetes bindings")
 
 	hm := task.HookMetadataAccessor(t)
@@ -1487,7 +1515,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
 	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Discover Helm releases state")
 
 	state, err := op.ModuleManager.RefreshStateFromHelmReleases(t.GetLogLabels())
@@ -1510,11 +1538,11 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]string) (status queue.TaskStatus) {
 	defer trace.StartRegion(context.Background(), "ModulePurge").End()
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Module purge start")
 
 	hm := task.HookMetadataAccessor(t)
-	err := op.Helm.NewClient(t.GetLogLabels()).DeleteRelease(hm.ModuleName)
+	err := op.Helm.NewClient(op.Logger.Named("helm-client"), t.GetLogLabels()).DeleteRelease(hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
 		logEntry.Warnf("Module purge failed, no retry. Error: %s", err)
@@ -1535,7 +1563,7 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Module delete '%s'", hm.ModuleName)
 
 	// Register module hooks to run afterHelmDelete hooks on startup.
@@ -1577,7 +1605,7 @@ func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[strin
 
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Module ensureCRDs '%s'", hm.ModuleName)
 
 	if appliedGVKs, err := op.EnsureCRDs(baseModule); err != nil {
@@ -1600,7 +1628,7 @@ func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[strin
 // HandleParallelModuleRun runs multiple HandleModuleRun tasks in parallel and aggregates their results
 func (op *AddonOperator) HandleParallelModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
 	defer trace.StartRegion(context.Background(), "ParallelModuleRun").End()
-	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	hm := task.HookMetadataAccessor(t)
 
 	if hm.ParallelRunMetadata == nil {
@@ -1715,7 +1743,7 @@ func formatErrorSummary(errors map[string]string) string {
 // After first HandleModuleRun success, no onStartup and kubernetes.Synchronization tasks will run.
 func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
 	defer trace.StartRegion(context.Background(), "ModuleRun").End()
-	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 
 	hm := task.HookMetadataAccessor(t)
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
@@ -1876,7 +1904,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				// There are tasks to wait.
 
 				op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.WaitForSynchronization)
-				logEntry.WithField("module.state", "wait-for-synchronization").
+				logEntry.With("module.state", "wait-for-synchronization").
 					Debugf("ModuleRun wait for Synchronization")
 			}
 
@@ -1957,7 +1985,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
 	defer trace.StartRegion(context.Background(), "ModuleHookRun").End()
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 
 	hm := task.HookMetadataAccessor(t)
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
@@ -2100,11 +2128,11 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 				// relabel
 				logLabels := t.GetLogLabels()
 				// Save event source info to add it as props to the task and use in logger later.
-				triggeredBy := log.Fields{
-					"event.triggered-by.hook":         logLabels["hook"],
-					"event.triggered-by.binding":      logLabels["binding"],
-					"event.triggered-by.binding.name": logLabels["binding.name"],
-					"event.triggered-by.watchEvent":   logLabels["watchEvent"],
+				triggeredBy := []slog.Attr{
+					slog.String("event.triggered-by.hook", logLabels["hook"]),
+					slog.String("event.triggered-by.binding", logLabels["binding"]),
+					slog.String("event.triggered-by.binding.name", logLabels["binding.name"]),
+					slog.String("event.triggered-by.watchEvent", logLabels["watchEvent"]),
 				}
 				delete(logLabels, "hook")
 				delete(logLabels, "hook.type")
@@ -2127,7 +2155,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 					op.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 					op.logTaskAdd(logEntry, "module values are changed, append", newTask)
 				} else {
-					logEntry.WithField("task.flow", "noop").Infof("module values are changed, ModuleRun task already queued")
+					logEntry.With("task.flow", "noop").Infof("module values are changed, ModuleRun task already queued")
 				}
 			}
 		}
@@ -2152,7 +2180,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
 	defer trace.StartRegion(context.Background(), "GlobalHookRun").End()
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(labels))
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 
 	hm := task.HookMetadataAccessor(t)
 	taskHook := op.ModuleManager.GetGlobalHook(hm.HookName)
@@ -2294,7 +2322,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 			if reloadAll {
 				// if helm3lib is in use - reinit helm action configuration to update helm capabilities (newly available apiVersions and resoruce kinds)
 				if op.Helm.ClientType == helm.Helm3Lib {
-					if err := helm3lib.ReinitActionConfig(); err != nil {
+					if err := helm3lib.ReinitActionConfig(op.Logger.Named("helm3-client")); err != nil {
 						logEntry.Errorf("Couldn't reinitialize helm3lib action configuration: %s", err)
 						t.UpdateFailureMessage(err.Error())
 						t.WithQueuedAt(time.Now())
@@ -2306,11 +2334,11 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 				op.HelmResourcesManager.StopMonitors()
 				logLabels := t.GetLogLabels()
 				// Save event source info to add it as props to the task and use in logger later.
-				triggeredBy := log.Fields{
-					"event.triggered-by.hook":         logLabels["hook"],
-					"event.triggered-by.binding":      logLabels["binding"],
-					"event.triggered-by.binding.name": logLabels["binding.name"],
-					"event.triggered-by.watchEvent":   logLabels["watchEvent"],
+				triggeredBy := []slog.Attr{
+					slog.String("event.triggered-by.hook", logLabels["hook"]),
+					slog.String("event.triggered-by.binding", logLabels["binding"]),
+					slog.String("event.triggered-by.binding.name", logLabels["binding.name"]),
+					slog.String("event.triggered-by.watchEvent", logLabels["watchEvent"]),
 				}
 				delete(logLabels, "hook")
 				delete(logLabels, "hook.type")
@@ -2692,15 +2720,15 @@ func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string
 }
 
 // logTaskAdd prints info about queued tasks.
-func (op *AddonOperator) logTaskAdd(logEntry *log.Entry, action string, tasks ...sh_task.Task) {
-	logger := logEntry.WithField("task.flow", "add")
+func (op *AddonOperator) logTaskAdd(logEntry *log.Logger, action string, tasks ...sh_task.Task) {
+	logger := logEntry.With("task.flow", "add")
 	for _, tsk := range tasks {
 		logger.Info(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
 	}
 }
 
 // logTaskStart prints info about task at start. Also prints event source info from task props.
-func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
+func (op *AddonOperator) logTaskStart(logEntry *log.Logger, tsk sh_task.Task) {
 	// Prevent excess messages for highly frequent tasks.
 	if tsk.GetType() == task.GlobalHookWaitKubernetesSynchronization {
 		return
@@ -2715,26 +2743,30 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Entry, tsk sh_task.Task) {
 	}
 
 	logger := logEntry.
-		WithField("task.flow", "start").
-		WithFields(utils.LabelsToLogFields(tsk.GetLogLabels()))
-	if triggeredBy, ok := tsk.GetProp("triggered-by").(log.Fields); ok {
-		logger = logger.WithFields(triggeredBy)
+		With("task.flow", "start")
+	logger = utils.EnrichLoggerWithLabels(logger, tsk.GetLogLabels())
+
+	if triggeredBy, ok := tsk.GetProp("triggered-by").([]slog.Attr); ok {
+		for _, attr := range triggeredBy {
+			logger = logger.With(attr)
+		}
 	}
 
 	logger.Info(taskDescriptionForTaskFlowLog(tsk, "start", op.taskPhase(tsk), ""))
 }
 
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
-func (op *AddonOperator) logTaskEnd(logEntry *log.Entry, tsk sh_task.Task, result queue.TaskResult) {
+func (op *AddonOperator) logTaskEnd(logEntry *log.Logger, tsk sh_task.Task, result queue.TaskResult) {
 	logger := logEntry.
-		WithField("task.flow", "end").
-		WithFields(utils.LabelsToLogFields(tsk.GetLogLabels()))
+		With("task.flow", "end")
+	logger = utils.EnrichLoggerWithLabels(logger, tsk.GetLogLabels())
 
-	level := log.DebugLevel
+	level := log.LevelDebug
 	if tsk.GetType() == task.ConvergeModules {
-		level = log.InfoLevel
+		level = log.LevelInfo
 	}
-	logger.Log(level, taskDescriptionForTaskFlowLog(tsk, "end", op.taskPhase(tsk), string(result.Status)))
+
+	logger.Log(context.TODO(), level.Level(), taskDescriptionForTaskFlowLog(tsk, "end", op.taskPhase(tsk), string(result.Status)))
 }
 
 func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {

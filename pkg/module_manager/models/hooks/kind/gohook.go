@@ -3,7 +3,7 @@ package kind
 import (
 	"context"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
@@ -24,9 +24,17 @@ type GoHook struct {
 
 // NewGoHook creates a new go hook
 func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc) *GoHook {
+	logger := config.Logger
+	if logger == nil {
+		logger = log.NewLogger(log.Options{}).Named("auto-hook-logger")
+	}
+
 	return &GoHook{
 		config:        config,
 		reconcileFunc: f,
+		basicHook: sh_hook.Hook{
+			Logger: logger,
+		},
 	}
 }
 
@@ -93,8 +101,8 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 
 	bindingActions := new([]go_hook.BindingAction)
 
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels)).
-		WithField("output", "gohook")
+	logEntry := utils.EnrichLoggerWithLabels(h.basicHook.Logger, logLabels).
+		With("output", "gohook")
 
 	formattedSnapshots := make(go_hook.Snapshots, len(bContext))
 	for _, bc := range bContext {
@@ -114,7 +122,7 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
 		PatchCollector:   patchCollector,
-		LogEntry:         logEntry,
+		Logger:           logEntry,
 		MetricsCollector: metricsCollector,
 		BindingActions:   bindingActions,
 	})

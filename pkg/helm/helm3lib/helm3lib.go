@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -25,22 +25,34 @@ import (
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
+	"github.com/flant/addon-operator/pkg/helm/post_renderer"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-func Init(opts *Options) error {
+var helmPostRenderer *post_renderer.PostRenderer
+
+func initPostRenderer(extraLabels map[string]string) {
+	if len(extraLabels) > 0 {
+		helmPostRenderer = &post_renderer.PostRenderer{
+			ExtraLabels: extraLabels,
+		}
+	}
+}
+
+func Init(opts *Options, logger *log.Logger, extraLabels map[string]string) error {
 	hc := &LibClient{
-		LogEntry: log.WithField("operator.component", "helm3lib"),
+		Logger: logger.With("operator.component", "helm3lib"),
 	}
 	options = opts
+	initPostRenderer(extraLabels)
 
 	return hc.initAndVersion()
 }
 
 // ReinitActionConfig reinitializes helm3 action configuration to update its list of capabilities
-func ReinitActionConfig() error {
+func ReinitActionConfig(logger *log.Logger) error {
 	hc := &LibClient{
-		LogEntry: log.WithField("operator.component", "helm3lib"),
+		Logger: logger.With("operator.component", "helm3lib"),
 	}
 	log.Debug("Reinitialize Helm 3 lib action configuration")
 
@@ -49,7 +61,7 @@ func ReinitActionConfig() error {
 
 // LibClient use helm3 package as Go library.
 type LibClient struct {
-	LogEntry  *log.Entry
+	Logger    *log.Logger
 	Namespace string
 }
 
@@ -65,14 +77,14 @@ var (
 	actionConfig *action.Configuration
 )
 
-func NewClient(logLabels ...map[string]string) client.HelmClient {
-	logEntry := log.WithField("operator.component", "helm3lib")
+func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
+	logEntry := logger.With("operator.component", "helm3lib")
 	if len(logLabels) > 0 {
-		logEntry = logEntry.WithFields(utils.LabelsToLogFields(logLabels[0]))
+		logEntry = utils.EnrichLoggerWithLabels(logEntry, logLabels[0])
 	}
 
 	return &LibClient{
-		LogEntry:  logEntry,
+		Logger:    logEntry,
 		Namespace: options.Namespace,
 	}
 }
@@ -107,7 +119,7 @@ func (h *LibClient) actionConfigInit() error {
 
 	// If env is empty - default storage backend ('secrets') will be used
 	helmDriver := os.Getenv("HELM_DRIVER")
-	err := ac.Init(getter, options.Namespace, helmDriver, h.LogEntry.Debugf)
+	err := ac.Init(getter, options.Namespace, helmDriver, h.Logger.Debugf)
 	if err != nil {
 		return fmt.Errorf("init helm action config: %v", err)
 	}
@@ -155,7 +167,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 		}
 		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
 	}
-	h.LogEntry.Debugf("helm release %s upgraded", releaseName)
+	h.Logger.Debugf("helm release %s upgraded", releaseName)
 	return nil
 }
 
@@ -163,6 +175,9 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
+	}
+	if helmPostRenderer != nil {
+		upg.PostRenderer = helmPostRenderer
 	}
 
 	upg.Install = true
@@ -196,7 +211,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
-	h.LogEntry.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chartName, namespace)
+	h.Logger.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chartName, namespace)
 	histClient := action.NewHistory(actionConfig)
 	// Max is not working!!! Sort the final of releases by your own
 	// histClient.Max = 1
@@ -206,6 +221,9 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		if namespace != "" {
 			instClient.Namespace = namespace
 		}
+		if helmPostRenderer != nil {
+			instClient.PostRenderer = helmPostRenderer
+		}
 		instClient.Timeout = options.Timeout
 		instClient.ReleaseName = releaseName
 		instClient.UseReleaseName = true
@@ -213,7 +231,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		_, err = instClient.Run(chart, resultValues)
 		return err
 	}
-	h.LogEntry.Debugf("%d old releases found", len(releases))
+	h.Logger.Debugf("%d old releases found", len(releases))
 	if len(releases) > 0 {
 		// https://github.com/fluxcd/helm-controller/issues/149
 		// looking through this issue you can find the common error: another operation (install/upgrade/rollback) is in progress
@@ -221,7 +239,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		releaseutil.Reverse(releases, releaseutil.SortByRevision)
 		latestRelease := releases[0]
 		nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
-		h.LogEntry.Debugf("Latest release '%s': revision: %d has status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
+		h.Logger.Debugf("Latest release '%s': revision: %d has status: %s", nsReleaseName, latestRelease.Version, latestRelease.Info.Status)
 		if latestRelease.Info.Status.IsPending() {
 			objectName := fmt.Sprintf("%s.%s.v%d", storage.HelmStorageType, latestRelease.Name, latestRelease.Version)
 			kubeClient, err := actionConfig.KubernetesClientSet()
@@ -231,24 +249,24 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 			// switch between storage types (memory, sql, secrets, configmaps) - with secrets and configmaps we can deal a bit more straightforward than doing a rollback
 			switch actionConfig.Releases.Name() {
 			case driver.ConfigMapsDriverName:
-				h.LogEntry.Debugf("ConfigMap for helm revision %d of release %s in status %s, driver %s: will be deleted", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, driver.ConfigMapsDriverName)
+				h.Logger.Debugf("ConfigMap for helm revision %d of release %s in status %s, driver %s: will be deleted", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, driver.ConfigMapsDriverName)
 				err := kubeClient.CoreV1().ConfigMaps(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
 				if err != nil && !errors.IsNotFound(err) {
 					return fmt.Errorf("couldn't delete configmap %s of release %s: %w", objectName, nsReleaseName, err)
 				}
-				h.LogEntry.Debugf("ConfigMap %s was deleted", objectName)
+				h.Logger.Debugf("ConfigMap %s was deleted", objectName)
 
 			case driver.SecretsDriverName:
-				h.LogEntry.Debugf("Secret for helm revision %d of release %s in status %s, driver %s: will be deleted", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, driver.SecretsDriverName)
+				h.Logger.Debugf("Secret for helm revision %d of release %s in status %s, driver %s: will be deleted", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, driver.SecretsDriverName)
 				err := kubeClient.CoreV1().Secrets(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
 				if err != nil && !errors.IsNotFound(err) {
 					return fmt.Errorf("couldn't delete secret %s of release %s: %w", objectName, nsReleaseName, err)
 				}
-				h.LogEntry.Debugf("Secret %s was deleted", objectName)
+				h.Logger.Debugf("Secret %s was deleted", objectName)
 
 			default:
 				// memory and sql storages a bit more trickier - doing a rollback is justified
-				h.LogEntry.Debugf("Helm revision %d of release %s in status %s, driver %s: will be rolledback", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, actionConfig.Releases.Name())
+				h.Logger.Debugf("Helm revision %d of release %s in status %s, driver %s: will be rolledback", latestRelease.Version, nsReleaseName, latestRelease.Info.Status, actionConfig.Releases.Name())
 				h.rollbackLatestRelease(releases)
 			}
 		}
@@ -258,7 +276,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s\n", err)
 	}
-	h.LogEntry.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful", releaseName, chartName, namespace)
+	h.Logger.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful", releaseName, chartName, namespace)
 
 	return nil
 }
@@ -267,14 +285,14 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 	latestRelease := releases[0]
 	nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
 
-	h.LogEntry.Infof("Trying to rollback '%s'", nsReleaseName)
+	h.Logger.Infof("Trying to rollback '%s'", nsReleaseName)
 
 	if latestRelease.Version == 1 || options.HistoryMax == 1 || len(releases) == 1 {
 		rb := action.NewUninstall(actionConfig)
 		rb.KeepHistory = false
 		_, err := rb.Run(latestRelease.Name)
 		if err != nil {
-			h.LogEntry.Warnf("Failed to uninstall pending release %s: %s", nsReleaseName, err)
+			h.Logger.Warnf("Failed to uninstall pending release %s: %s", nsReleaseName, err)
 			return
 		}
 	} else {
@@ -290,12 +308,12 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 		rb.CleanupOnFail = true
 		err := rb.Run(latestRelease.Name)
 		if err != nil {
-			h.LogEntry.Warnf("Failed to rollback pending release %s: %s", nsReleaseName, err)
+			h.Logger.Warnf("Failed to rollback pending release %s: %s", nsReleaseName, err)
 			return
 		}
 	}
 
-	h.LogEntry.Infof("Rollback '%s' successful", nsReleaseName)
+	h.Logger.Infof("Rollback '%s' successful", nsReleaseName)
 }
 
 func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
@@ -304,7 +322,7 @@ func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
 }
 
 func (h *LibClient) DeleteRelease(releaseName string) error {
-	h.LogEntry.Debugf("helm release '%s': execute helm uninstall", releaseName)
+	h.Logger.Debugf("helm release '%s': execute helm uninstall", releaseName)
 
 	un := action.NewUninstall(actionConfig)
 	_, err := un.Run(releaseName)
@@ -312,7 +330,7 @@ func (h *LibClient) DeleteRelease(releaseName string) error {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n", releaseName, err)
 	}
 
-	h.LogEntry.Debugf("helm release %s deleted", releaseName)
+	h.Logger.Debugf("helm release %s deleted", releaseName)
 	return nil
 }
 
@@ -379,7 +397,7 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
-	h.LogEntry.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
+	h.Logger.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chartName, namespace)
 
 	inst := newInstAction(namespace, releaseName)
 
@@ -404,7 +422,7 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 		rs.Manifest += fmt.Sprintf("\n\n\n%v", err)
 	}
 
-	h.LogEntry.Infof("Render helm templates for chart '%s' was successful", chartName)
+	h.Logger.Infof("Render helm templates for chart '%s' was successful", chartName)
 
 	return rs.Manifest, nil
 }
@@ -415,6 +433,9 @@ func newInstAction(namespace, releaseName string) *action.Install {
 
 	if namespace != "" {
 		inst.Namespace = namespace
+	}
+	if helmPostRenderer != nil {
+		inst.PostRenderer = helmPostRenderer
 	}
 	inst.ReleaseName = releaseName
 	inst.UseReleaseName = true

@@ -4,8 +4,8 @@ import (
 	"io"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
-	log "github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
@@ -67,12 +67,12 @@ func initHelmClient(t *testing.T) *LibClient {
 		Namespace:  "test-ns",
 		HistoryMax: 10,
 		Timeout:    0,
-	})
+	}, log.NewNop(), map[string]string{})
 
 	actionConfig = actionConfigFixture(t)
 
 	cl := &LibClient{
-		LogEntry:  log.NewEntry(log.StandardLogger()),
+		Logger:    log.NewNop(),
 		Namespace: options.Namespace,
 	}
 

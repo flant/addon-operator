@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
@@ -35,6 +35,8 @@ type GlobalModule struct {
 
 	// dependency
 	dc *hooks.HookExecutionDependencyContainer
+
+	logger *log.Logger
 }
 
 // EnabledReportChannel returns channel with dynamic modules enabling by global hooks
@@ -44,7 +46,7 @@ func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
 
 // NewGlobalModule build ephemeral global container for global hooks and values
 func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookExecutionDependencyContainer,
-	configBytes, valuesBytes []byte,
+	configBytes, valuesBytes []byte, logger *log.Logger,
 ) (*GlobalModule, error) {
 	valuesStorage, err := NewValuesStorage("global", staticValues, configBytes, valuesBytes)
 	if err != nil {
@@ -58,6 +60,7 @@ func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookE
 		valuesStorage:  valuesStorage,
 		dc:             dc,
 		enabledByHookC: make(chan *EnabledPatchReport, 10),
+		logger:         logger,
 	}, nil
 }
 
@@ -148,7 +151,7 @@ func (gm *GlobalModule) GetName() string {
 func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types.BindingType, bc []binding_context.BindingContext, logLabels map[string]string) error {
 	// Convert bindingContext for version
 	// versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
-	logEntry := log.WithFields(utils.LabelsToLogFields(logLabels))
+	logEntry := utils.EnrichLoggerWithLabels(gm.logger, logLabels)
 
 	for _, info := range h.GetHookController().SnapshotsInfo() {
 		logEntry.Debugf("snapshot info: %s", info)
@@ -396,16 +399,16 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 		return nil, fmt.Errorf("search module hooks failed: %w", err)
 	}
 
-	log.Debugf("Found %d global hooks", len(hks))
-	if log.GetLevel() == log.DebugLevel {
+	gm.logger.Debugf("Found %d global hooks", len(hks))
+	if gm.logger.GetLevel() == log.LevelDebug {
 		for _, h := range hks {
-			log.Debugf("  GlobalHook: Name=%s, Path=%s", h.GetName(), h.GetPath())
+			gm.logger.Debugf("  GlobalHook: Name=%s, Path=%s", h.GetName(), h.GetPath())
 		}
 	}
 
 	for _, globalHook := range hks {
-		hookLogEntry := log.WithField("hook", globalHook.GetName()).
-			WithField("hook.type", "global")
+		hookLogEntry := gm.logger.With("hook", globalHook.GetName()).
+			With("hook.type", "global")
 
 		// TODO: we could make multierr here and return all config errors at once
 		err := globalHook.InitializeHookConfig()
@@ -499,7 +502,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 			return nil, err
 		}
 
-		globalHook := kind.NewShellHook(hookName, hookPath)
+		globalHook := kind.NewShellHook(hookName, hookPath, gm.logger.Named("shell-hook"))
 
 		hks = append(hks, globalHook)
 	}

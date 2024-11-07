@@ -1,32 +1,34 @@
-package stdliblogtologrus
+package stdliblogtolog
 
 import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"log"
+	"fmt"
+	stdlog "log"
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/stretchr/testify/require"
 )
 
 type testLogLine struct {
 	Level   string `json:"level"`
 	Message string `json:"msg"`
-	Source  string `json:"source"`
+	Logger  string `json:"logger"`
 }
 
 func TestStdlibLogAdapter(t *testing.T) {
 	t.Run("Simple", func(t *testing.T) {
-		InitAdapter()
-
 		buf := bytes.Buffer{}
-		logrus.SetOutput(&buf)
-		logrus.SetFormatter(&logrus.JSONFormatter{DisableTimestamp: true})
+		logger := log.NewLogger(log.Options{})
 
-		log.Print("test string for a check")
-		log.Print("another string")
+		logger.SetOutput(&buf)
+
+		InitAdapter(logger)
+
+		stdlog.Print("test string for a check")
+		stdlog.Print("another string")
 
 		scanner := bufio.NewScanner(bytes.NewReader(buf.Bytes()))
 
@@ -41,9 +43,10 @@ func TestStdlibLogAdapter(t *testing.T) {
 func assertLogLine(t *testing.T, line string, expected string) {
 	logLine := testLogLine{}
 
+	fmt.Println(line)
 	err := json.Unmarshal([]byte(line), &logLine)
 	require.NoError(t, err)
-	require.Equal(t, "helm", logLine.Source)
+	require.Equal(t, "helm", logLine.Logger)
 	require.Equal(t, "info", logLine.Level)
 	require.Contains(t, logLine.Message, expected)
 }

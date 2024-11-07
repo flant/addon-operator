@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -30,14 +30,14 @@ type Backend struct {
 }
 
 // New initializes backend for kube_config_manager based on ConfigMap with modules values
-func New(logger *log.Logger, kubeClient *client.Client, namespace, name string) *Backend {
+func New(kubeClient *client.Client, namespace, name string, logger *log.Logger) *Backend {
 	if logger == nil {
-		logger = log.WithField("operator.component", "ConfigHandler").Logger
-		logger = logger.WithField("backend", "configmap").Logger
+		logger = log.NewLogger(log.Options{})
 	}
 
 	backend := &Backend{
-		logger:    logger,
+		logger: logger.With("operator.component", "ConfigHandler").
+			With("backend", "configmap"),
 		namespace: namespace,
 		name:      name,
 		client:    kubeClient,
@@ -115,7 +115,7 @@ func (b Backend) saveModuleConfigValues(ctx context.Context, moduleName string, 
 		b.logger.Infof("Save module '%s' values to ConfigMap/%s", moduleName, b.name)
 	}
 
-	err := b.mergeValues(ctx, moduleKubeConfig.GetValuesWithModuleName()) //nolint: staticcheck
+	err := b.mergeValues(ctx, moduleKubeConfig.GetValuesWithModuleName()) //nolint: staticcheck,nolintlint
 
 	return moduleKubeConfig.Checksum, err
 }

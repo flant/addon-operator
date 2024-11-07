@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -39,8 +40,8 @@ func initKubeConfigManager(t *testing.T, kubeClient *klient.Client, cmData map[s
 	_, err := kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap should be created")
 
-	bk := configmap.New(nil, kubeClient, "default", testConfigMapName)
-	kcm := NewKubeConfigManager(context.Background(), bk, nil)
+	bk := configmap.New(kubeClient, "default", testConfigMapName, log.NewNop())
+	kcm := NewKubeConfigManager(context.Background(), bk, nil, log.NewNop())
 
 	err = kcm.Init()
 	g.Expect(err).ShouldNot(HaveOccurred(), "KubeConfigManager should init correctly")
@@ -143,7 +144,7 @@ grafanaEnabled: "false"
 					moduleConfig, hasConfig := config.Modules[name]
 					assert.True(t, hasConfig)
 					assert.Equal(t, expect.isEnabled, moduleConfig.IsEnabled)
-					assert.Equal(t, expect.values, moduleConfig.GetValuesWithModuleName()) //nolint: staticcheck
+					assert.Equal(t, expect.values, moduleConfig.GetValuesWithModuleName()) //nolint: staticcheck,nolintlint
 				})
 			}
 		})
@@ -438,7 +439,7 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 		// g.Expect(config.IsInvalid).To(Equal(false), "Current config should be valid")
 		g.Expect(config.Modules).To(HaveLen(1), "Current config should have module sections")
 		g.Expect(config.Modules).To(HaveKey("valid-module-name"), "Current config should have module section for 'valid-module-name'")
-		modValues := config.Modules["valid-module-name"].GetValuesWithModuleName() //nolint: staticcheck
+		modValues := config.Modules["valid-module-name"].GetValuesWithModuleName() //nolint: staticcheck,nolintlint
 		g.Expect(modValues.HasKey("validModuleName")).To(BeTrue())
 		m := modValues["validModuleName"]
 		vals := m.(map[string]interface{})

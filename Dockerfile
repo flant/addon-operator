@@ -2,7 +2,9 @@
 FROM --platform=${TARGETPLATFORM:-linux/amd64} flant/jq:b6be13d5-musl as libjq
 
 # Go builder.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.22-alpine3.18 AS builder
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.22-alpine AS builder
+
 
 ARG appVersion=latest
 RUN apk --no-cache add git ca-certificates gcc musl-dev libc-dev binutils-gold
@@ -30,6 +32,11 @@ RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
              -o addon-operator \
              ./cmd/addon-operator
 
+# Build helm post-renderer binary (required if helm3 binary is in use)
+RUN CGO_ENABLED=1 \
+    GOOS=linux \
+    go build -o post-renderer ./cmd/post-renderer
+
 # Final image
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.16
 ARG TARGETPLATFORM
@@ -44,11 +51,12 @@ RUN apk --no-cache add ca-certificates bash sed tini && \
     wget https://get.helm.sh/helm-v3.10.3-${helmArch}.tar.gz -O /helm.tgz && \
     tar -z -x -C /bin -f /helm.tgz --strip-components=1 ${helmArch}/helm && \
     rm -f /helm.tgz
-
 COPY --from=libjq /bin/jq /usr/bin
 COPY --from=builder /app/addon-operator /
+COPY --from=builder /app/post-renderer /
 COPY --from=builder /app/shell-operator-clone/frameworks/shell/ /framework/shell/
 COPY --from=builder /app/shell-operator-clone/shell_lib.sh /
+
 WORKDIR /
 
 RUN mkdir /global-hooks /modules

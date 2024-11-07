@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,7 +18,7 @@ foo:
 `
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))
 	require.NoError(t, err)
-	bm, err := NewBasicModule("test-1", "/tmp/test", 100, value, nil, nil)
+	bm, err := NewBasicModule("test-1", "/tmp/test", 100, value, nil, nil, log.NewNop())
 	require.NoError(t, err)
 
 	patch := utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{

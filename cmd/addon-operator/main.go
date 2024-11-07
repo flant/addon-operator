@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"gopkg.in/alecthomas/kingpin.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -17,8 +18,8 @@ import (
 	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
-	"github.com/flant/addon-operator/pkg/utils/stdliblogtologrus"
-	"github.com/flant/kube-client/klogtologrus"
+	"github.com/flant/addon-operator/pkg/utils/stdliblogtolog"
+	"github.com/flant/kube-client/klogtolog"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
@@ -34,12 +35,15 @@ const (
 func main() {
 	kpApp := kingpin.New(app.AppName, fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription))
 
+	logger := log.NewLogger(log.Options{})
+	log.SetDefault(logger)
+
 	// override usage template to reveal additional commands with information about start command
 	kpApp.UsageTemplate(sh_app.OperatorUsageTemplate(app.AppName))
 
 	kpApp.Action(func(_ *kingpin.ParseContext) error {
-		klogtologrus.InitAdapter(sh_app.DebugKubernetesAPI)
-		stdliblogtologrus.InitAdapter()
+		klogtolog.InitAdapter(sh_app.DebugKubernetesAPI, logger.Named("klog"))
+		stdliblogtolog.InitAdapter(logger)
 		return nil
 	})
 
@@ -52,7 +56,7 @@ func main() {
 	// start main loop
 	startCmd := kpApp.Command("start", "Start events processing.").
 		Default().
-		Action(start)
+		Action(start(logger))
 
 	app.DefineStartCommandFlags(kpApp, startCmd)
 
@@ -62,50 +66,47 @@ func main() {
 	kingpin.MustParse(kpApp.Parse(os.Args[1:]))
 }
 
-func start(_ *kingpin.ParseContext) error {
-	sh_app.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
+func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
+	return func(_ *kingpin.ParseContext) error {
+		sh_app.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
 
-	ctx := context.Background()
+		ctx := context.Background()
 
-	operator := addon_operator.NewAddonOperator(ctx)
+		operator := addon_operator.NewAddonOperator(ctx, addon_operator.WithLogger(logger.Named("addon-operator")))
 
-	operator.StartAPIServer()
+		operator.StartAPIServer()
 
-	if os.Getenv("ADDON_OPERATOR_HA") == "true" {
-		log.Info("Addon-operator is starting in HA mode")
-		runHAMode(ctx, operator)
+		if os.Getenv("ADDON_OPERATOR_HA") == "true" {
+			operator.Logger.Info("Addon-operator is starting in HA mode")
+			runHAMode(ctx, operator)
+			return nil
+		}
+
+		err := run(ctx, operator)
+		if err != nil {
+			operator.Logger.Fatal("run operator", slog.String("error", err.Error()))
+		}
+
 		return nil
 	}
-
-	err := run(ctx, operator)
-	if err != nil {
-		log.Error(err)
-		os.Exit(1)
-	}
-
-	return nil
 }
 
 func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
-	bk := configmap.New(log.StandardLogger(), operator.KubeClient(), app.Namespace, app.ConfigMapName)
+	bk := configmap.New(operator.KubeClient(), app.Namespace, app.ConfigMapName, operator.Logger.Named("kube-config-manager"))
 	operator.SetupKubeConfigManager(bk)
 
-	err := operator.Setup()
-	if err != nil {
-		fmt.Printf("Setup is failed: %s\n", err)
-		os.Exit(1)
+	if err := operator.Setup(); err != nil {
+		operator.Logger.Fatalf("setup failed: %s\n", err)
 	}
 
-	err = operator.Start(ctx)
-	if err != nil {
-		fmt.Printf("Start is failed: %s\n", err)
-		os.Exit(1)
+	if err := operator.Start(ctx); err != nil {
+		operator.Logger.Fatalf("start failed: %s\n", err)
 	}
 
 	// Block action by waiting signals from OS.
 	utils_signal.WaitForProcessInterruption(func() {
 		operator.Stop()
-		os.Exit(1)
+		os.Exit(0)
 	})
 
 	return nil
@@ -114,20 +115,17 @@ func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
 func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 	podName := os.Getenv("ADDON_OPERATOR_POD")
 	if len(podName) == 0 {
-		log.Info("ADDON_OPERATOR_POD env not set or empty")
-		os.Exit(1)
+		operator.Logger.Fatal("ADDON_OPERATOR_POD env not set or empty")
 	}
 
 	podIP := os.Getenv("ADDON_OPERATOR_LISTEN_ADDRESS")
 	if len(podIP) == 0 {
-		log.Info("ADDON_OPERATOR_LISTEN_ADDRESS env not set or empty")
-		os.Exit(1)
+		operator.Logger.Fatal("ADDON_OPERATOR_LISTEN_ADDRESS env not set or empty")
 	}
 
 	podNs := os.Getenv("ADDON_OPERATOR_NAMESPACE")
 	if len(podNs) == 0 {
-		log.Info("ADDON_OPERATOR_NAMESPACE env not set or empty")
-		os.Exit(1)
+		operator.Logger.Fatal("ADDON_OPERATOR_NAMESPACE env not set or empty")
 	}
 
 	identity := fmt.Sprintf("%s.%s.%s.pod", podName, strings.ReplaceAll(podIP, ".", "-"), podNs)
@@ -151,29 +149,26 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 			OnStartedLeading: func(ctx context.Context) {
 				err := run(ctx, operator)
 				if err != nil {
-					log.Info(err)
-					os.Exit(1)
+					operator.Logger.Fatal("run on stardet leading", slog.String("error", err.Error()))
 				}
 			},
 			OnStoppedLeading: func() {
-				log.Info("Restarting because the leadership was handed over")
+				operator.Logger.Info("Restarting because the leadership was handed over")
 				operator.Stop()
-				os.Exit(1)
+				os.Exit(0)
 			},
 		},
 		ReleaseOnCancel: true,
 	})
 	if err != nil {
-		log.Error(err)
+		operator.Logger.Fatal("with leader election", slog.String("error", err.Error()))
 	}
 
 	go func() {
 		<-ctx.Done()
 		log.Info("Context canceled received")
-		err := syscall.Kill(1, syscall.SIGUSR2)
-		if err != nil {
-			log.Infof("Couldn't shutdown addon-operator: %s\n", err)
-			os.Exit(1)
+		if err := syscall.Kill(1, syscall.SIGUSR2); err != nil {
+			operator.Logger.Fatal("Couldn't shutdown addon-operator", slog.String("error", err.Error()))
 		}
 	}()
 

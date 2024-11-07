@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/ettle/strcase"
-	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"

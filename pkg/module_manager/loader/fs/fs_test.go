@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +44,7 @@ fooBar:
 `), 0o666)
 	require.NoError(t, err)
 
-	loader := NewFileSystemLoader(filepath.Join(tmpDir, "modules"))
+	loader := NewFileSystemLoader(filepath.Join(tmpDir, "modules"), log.NewNop())
 	modules, err := loader.LoadModules()
 	require.NoError(t, err)
 	m := modules[0]
@@ -59,7 +60,7 @@ func TestDirWithSymlinks(t *testing.T) {
 	g := NewWithT(t)
 	dir := "testdata/module_loader/dir1"
 
-	ld := NewFileSystemLoader(dir)
+	ld := NewFileSystemLoader(dir, log.NewNop())
 
 	mods, err := ld.LoadModules()
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -71,7 +72,7 @@ func TestLoadMultiDir(t *testing.T) {
 	g := NewWithT(t)
 	dirs := "testdata/module_loader/dir2:testdata/module_loader/dir3"
 
-	ld := NewFileSystemLoader(dirs)
+	ld := NewFileSystemLoader(dirs, log.NewNop())
 
 	mods, err := ld.LoadModules()
 	g.Expect(err).ShouldNot(HaveOccurred())
