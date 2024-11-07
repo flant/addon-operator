@@ -161,13 +161,13 @@ func (cp *CRDsInstaller) putCRDToCluster(ctx context.Context, crdReader io.Reade
 			if len(crd.Spec.Group) > 0 {
 				crdGroup = crd.Spec.Group
 			} else {
-				return fmt.Errorf("Couldn't find CRD's .group key")
+				return fmt.Errorf("process %s: couldn't find CRD's .group key", crd.Name)
 			}
 
 			if len(crd.Spec.Names.Kind) > 0 {
 				crdKind = crd.Spec.Names.Kind
 			} else {
-				return fmt.Errorf("Couldn't find CRD's .spec.names.kind key")
+				return fmt.Errorf("process %s: couldn't find CRD's .spec.names.kind key", crd.Name)
 			}
 
 			if len(crd.Spec.Versions) > 0 {
@@ -175,7 +175,7 @@ func (cp *CRDsInstaller) putCRDToCluster(ctx context.Context, crdReader io.Reade
 					crdVersions = append(crdVersions, version.Name)
 				}
 			} else {
-				return fmt.Errorf("Couldn't find CRD's .spec.versions key")
+				return fmt.Errorf("process %s: couldn't find CRD's .spec.versions key", crd.Name)
 			}
 			cp.appliedGVKsLock.Lock()
 			for _, crdVersion := range crdVersions {
