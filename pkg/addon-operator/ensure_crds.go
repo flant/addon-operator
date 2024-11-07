@@ -23,6 +23,13 @@ import (
 	"github.com/flant/kube-client/client"
 )
 
+// 1Mb - maximum size of kubernetes object
+// if we take less, we have to handle io.ErrShortBuffer error and increase the buffer
+// take more does not make any sense due to kubernetes limitations
+// Considering that etcd has a default value of 1.5Mb, it was decided to set it to 2Mb,
+// so that in most cases we would get a more informative error from Kubernetes, not just "short buffer"
+const bufSize = 2 * 1024 * 1024
+
 var crdGVR = schema.GroupVersionResource{
 	Group:    "apiextensions.k8s.io",
 	Version:  "v1",
@@ -243,12 +250,9 @@ func (cp *CRDsInstaller) getCRDFromCluster(ctx context.Context, crdName string) 
 // NewCRDsInstaller creates new installer for CRDs
 func NewCRDsInstaller(client *client.Client, crdFilesPaths []string, crdExtraLabels map[string]string) (*CRDsInstaller, error) {
 	return &CRDsInstaller{
-		k8sClient:     client.Dynamic(),
-		crdFilesPaths: crdFilesPaths,
-		// 1Mb - maximum size of kubernetes object
-		// if we take less, we have to handle io.ErrShortBuffer error and increase the buffer
-		// take more does not make any sense due to kubernetes limitations
-		buffer:         make([]byte, 1*1024*1024),
+		k8sClient:      client.Dynamic(),
+		crdFilesPaths:  crdFilesPaths,
+		buffer:         make([]byte, bufSize),
 		k8sTasks:       &multierror.Group{},
 		crdExtraLabels: crdExtraLabels,
 		appliedGVKs:    make([]string, 0),
