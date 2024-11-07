@@ -115,7 +115,7 @@ func (b Backend) saveModuleConfigValues(ctx context.Context, moduleName string, 
 		b.logger.Infof("Save module '%s' values to ConfigMap/%s", moduleName, b.name)
 	}
 
-	err := b.mergeValues(ctx, moduleKubeConfig.GetValuesWithModuleName()) //nolint: staticcheck
+	err := b.mergeValues(ctx, moduleKubeConfig.GetValuesWithModuleName()) //nolint: staticcheck,nolintlint
 
 	return moduleKubeConfig.Checksum, err
 }

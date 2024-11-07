@@ -19,8 +19,8 @@ import (
 var DefaultHelmMonitorKubeClientMetricLabels = map[string]string{"component": "helm_monitor"}
 
 // defaultHelmMonitorKubeClient initializes a Kubernetes client for helm monitor.
-func defaultHelmMonitorKubeClient(metricStorage *metric_storage.MetricStorage, metricLabels map[string]string) *klient.Client {
-	client := klient.New()
+func defaultHelmMonitorKubeClient(metricStorage *metric_storage.MetricStorage, metricLabels map[string]string, logger *log.Logger) *klient.Client {
+	client := klient.New(klient.WithLogger(logger))
 	client.WithContextName(sh_app.KubeContext)
 	client.WithConfigPath(sh_app.KubeConfig)
 	client.WithRateLimiterSettings(app.HelmMonitorKubeClientQps, app.HelmMonitorKubeClientBurst)
@@ -30,7 +30,7 @@ func defaultHelmMonitorKubeClient(metricStorage *metric_storage.MetricStorage, m
 }
 
 func InitDefaultHelmResourcesManager(ctx context.Context, metricStorage *metric_storage.MetricStorage, logger *log.Logger) (helm_resources_manager.HelmResourcesManager, error) {
-	kubeClient := defaultHelmMonitorKubeClient(metricStorage, DefaultHelmMonitorKubeClientMetricLabels)
+	kubeClient := defaultHelmMonitorKubeClient(metricStorage, DefaultHelmMonitorKubeClientMetricLabels, logger.Named("helm-monitor-kube-client"))
 	if err := kubeClient.Init(); err != nil {
 		return nil, fmt.Errorf("initialize Kubernetes client for Helm resources manager: %s\n", err)
 	}
