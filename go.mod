@@ -7,8 +7,8 @@ require (
 	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241106140903-258b93b3334e
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
-	github.com/flant/kube-client v0.0.0-20241106151317-aedb66ab41ce
-	github.com/flant/shell-operator v0.0.0-20241106151429-52bd5f659490
+	github.com/flant/kube-client v1.2.2
+	github.com/flant/shell-operator v1.5.1
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
