@@ -42,13 +42,7 @@ func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) ([]string, erro
 		return nil, nil
 	}
 
-	result := new(multierror.Error)
-	cp, err := NewCRDsInstaller(op.KubeClient(), module.GetCRDFilesPaths(), op.CRDExtraLabels)
-	if err != nil {
-		result = multierror.Append(result, err)
-		return nil, result
-	}
-
+	cp := NewCRDsInstaller(op.KubeClient(), module.GetCRDFilesPaths(), WithExtraLabels(op.CRDExtraLabels))
 	if cp == nil {
 		return nil, nil
 	}
@@ -57,6 +51,18 @@ func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) ([]string, erro
 	}
 
 	return cp.appliedGVKs, nil
+}
+
+func WithExtraLabels(labels map[string]string) InstallerOption {
+	return func(installer *CRDsInstaller) {
+		installer.crdExtraLabels = labels
+	}
+}
+
+func WithFileFilter(fn func(path string) bool) InstallerOption {
+	return func(installer *CRDsInstaller) {
+		installer.fileFilter = fn
+	}
 }
 
 // CRDsInstaller simultaneously installs CRDs from specified directory
@@ -69,6 +75,7 @@ type CRDsInstaller struct {
 	k8sTasks *multierror.Group
 
 	crdExtraLabels map[string]string
+	fileFilter     func(path string) bool
 
 	appliedGVKsLock sync.Mutex
 	// list of GVKs, applied to the cluster
@@ -79,6 +86,10 @@ func (cp *CRDsInstaller) Run(ctx context.Context) *multierror.Error {
 	result := new(multierror.Error)
 
 	for _, crdFilePath := range cp.crdFilesPaths {
+		if cp.fileFilter != nil && !cp.fileFilter(crdFilePath) {
+			continue
+		}
+
 		err := cp.processCRD(ctx, crdFilePath)
 		if err != nil {
 			err = fmt.Errorf("error occurred during processing %q file: %w", crdFilePath, err)
@@ -247,14 +258,21 @@ func (cp *CRDsInstaller) getCRDFromCluster(ctx context.Context, crdName string) 
 	return crd, nil
 }
 
+type InstallerOption func(*CRDsInstaller)
+
 // NewCRDsInstaller creates new installer for CRDs
-func NewCRDsInstaller(client *client.Client, crdFilesPaths []string, crdExtraLabels map[string]string) (*CRDsInstaller, error) {
-	return &CRDsInstaller{
-		k8sClient:      client.Dynamic(),
-		crdFilesPaths:  crdFilesPaths,
-		buffer:         make([]byte, bufSize),
-		k8sTasks:       &multierror.Group{},
-		crdExtraLabels: crdExtraLabels,
-		appliedGVKs:    make([]string, 0),
-	}, nil
+func NewCRDsInstaller(client *client.Client, crdFilesPaths []string, options ...InstallerOption) *CRDsInstaller {
+	i := &CRDsInstaller{
+		k8sClient:     client.Dynamic(),
+		crdFilesPaths: crdFilesPaths,
+		buffer:        make([]byte, bufSize),
+		k8sTasks:      &multierror.Group{},
+		appliedGVKs:   make([]string, 0),
+	}
+
+	for _, opt := range options {
+		opt(i)
+	}
+
+	return i
 }
