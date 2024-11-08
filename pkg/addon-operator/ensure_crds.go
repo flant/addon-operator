@@ -41,7 +41,7 @@ func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) ([]string, erro
 		return nil, nil
 	}
 
-	cp := NewCRDsInstaller(op.KubeClient(), module.GetCRDFilesPaths(), WithExtraLabels(op.CRDExtraLabels))
+	cp := NewCRDsInstaller(op.KubeClient().Dynamic(), module.GetCRDFilesPaths(), WithExtraLabels(op.CRDExtraLabels))
 	if cp == nil {
 		return nil, nil
 	}
@@ -259,14 +259,10 @@ func (cp *CRDsInstaller) getCRDFromCluster(ctx context.Context, crdName string) 
 
 type InstallerOption func(*CRDsInstaller)
 
-type KubeClient interface {
-	Dynamic() dynamic.Interface
-}
-
 // NewCRDsInstaller creates new installer for CRDs
-func NewCRDsInstaller(client KubeClient, crdFilesPaths []string, options ...InstallerOption) *CRDsInstaller {
+func NewCRDsInstaller(client dynamic.Interface, crdFilesPaths []string, options ...InstallerOption) *CRDsInstaller {
 	i := &CRDsInstaller{
-		k8sClient:     client.Dynamic(),
+		k8sClient:     client,
 		crdFilesPaths: crdFilesPaths,
 		buffer:        make([]byte, bufSize),
 		k8sTasks:      &multierror.Group{},
