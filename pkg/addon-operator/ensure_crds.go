@@ -20,7 +20,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/sdk"
-	"github.com/flant/kube-client/client"
 )
 
 // 1Mb - maximum size of kubernetes object
@@ -42,7 +41,7 @@ func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) ([]string, erro
 		return nil, nil
 	}
 
-	cp := NewCRDsInstaller(op.KubeClient(), module.GetCRDFilesPaths(), WithExtraLabels(op.CRDExtraLabels))
+	cp := NewCRDsInstaller(op.KubeClient().Dynamic(), module.GetCRDFilesPaths(), WithExtraLabels(op.CRDExtraLabels))
 	if cp == nil {
 		return nil, nil
 	}
@@ -261,9 +260,9 @@ func (cp *CRDsInstaller) getCRDFromCluster(ctx context.Context, crdName string) 
 type InstallerOption func(*CRDsInstaller)
 
 // NewCRDsInstaller creates new installer for CRDs
-func NewCRDsInstaller(client *client.Client, crdFilesPaths []string, options ...InstallerOption) *CRDsInstaller {
+func NewCRDsInstaller(client dynamic.Interface, crdFilesPaths []string, options ...InstallerOption) *CRDsInstaller {
 	i := &CRDsInstaller{
-		k8sClient:     client.Dynamic(),
+		k8sClient:     client,
 		crdFilesPaths: crdFilesPaths,
 		buffer:        make([]byte, bufSize),
 		k8sTasks:      &multierror.Group{},
