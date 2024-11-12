@@ -2,10 +2,10 @@ package utils
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/gomega"
 )
 
@@ -40,7 +40,7 @@ func Test_MergeValues(t *testing.T) {
 		t.Run(expectation.testName, func(t *testing.T) {
 			values := MergeValues(expectation.values1, expectation.values2)
 
-			if !reflect.DeepEqual(expectation.expectedValues, values) {
+			if !cmp.Equal(expectation.expectedValues, values) {
 				t.Errorf("\n[EXPECTED]: %#v\n[GOT]: %#v", expectation.expectedValues, values)
 			}
 		})
