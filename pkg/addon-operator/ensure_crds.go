@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"sync"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-multierror"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -220,8 +220,9 @@ func (cp *CRDsInstaller) updateOrInsertCRD(ctx context.Context, crd *v1.CustomRe
 			crd.Spec.Conversion = existCRD.Spec.Conversion
 		}
 
-		if existCRD.GetObjectMeta().GetLabels()[LabelHeritage] == cp.crdExtraLabels[LabelHeritage] &&
-			reflect.DeepEqual(existCRD.Spec, crd.Spec) {
+		if cmp.Equal(existCRD.Spec, crd.Spec) &&
+			cmp.Equal(existCRD.GetLabels(), crd.GetLabels()) &&
+			cmp.Equal(existCRD.GetAnnotations(), crd.GetAnnotations()) {
 			return nil
 		}
 

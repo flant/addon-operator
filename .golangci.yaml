@@ -5,10 +5,10 @@ linters:
   enable:
   - asciicheck
   - bodyclose
+  - copyloopvar
   - depguard
   - dogsled
   - durationcheck
-  - exportloopref
   - gci
   - gochecknoinits
   - gocritic
