@@ -119,6 +119,10 @@ func (cp *CRDsInstaller) DeleteCRDs(ctx context.Context, crdsToDelete []string) 
 		}
 
 		for _, version := range crd.Spec.Versions {
+			if !version.Storage {
+				continue
+			}
+
 			gvr := schema.GroupVersionResource{
 				Group:    crd.Spec.Group,
 				Version:  version.Name,
