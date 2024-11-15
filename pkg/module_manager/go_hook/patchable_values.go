@@ -1,4 +1,4 @@
-package gohook
+package go_hook
 
 import (
 	"encoding/json"
