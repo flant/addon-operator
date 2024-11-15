@@ -6,7 +6,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
 	"github.com/flant/addon-operator/sdk"
 )
 

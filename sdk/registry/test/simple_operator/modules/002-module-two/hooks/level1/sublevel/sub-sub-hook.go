@@ -1,7 +1,7 @@
 package sublevel
 
 import (
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
 	"github.com/flant/addon-operator/sdk"
 )
 

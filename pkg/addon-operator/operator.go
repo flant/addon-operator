@@ -20,8 +20,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
-	hookTypes "github.com/flant/addon-operator/pkg/go-hook/types"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -32,6 +30,8 @@ import (
 	"github.com/flant/addon-operator/pkg/models/modules"
 	"github.com/flant/addon-operator/pkg/models/modules/events"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
+	hookTypes "github.com/flant/addon-operator/pkg/module_manager/go-hook/types"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/task"

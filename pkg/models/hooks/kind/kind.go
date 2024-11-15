@@ -1,7 +1,7 @@
 package kind
 
 import (
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
 	metric_operation "github.com/flant/shell-operator/pkg/metric-storage/operation"

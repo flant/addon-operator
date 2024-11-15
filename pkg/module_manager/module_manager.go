@@ -13,8 +13,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/flant/addon-operator/pkg/app"
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
-	. "github.com/flant/addon-operator/pkg/go-hook/types"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
@@ -22,6 +20,8 @@ import (
 	"github.com/flant/addon-operator/pkg/models/modules"
 	"github.com/flant/addon-operator/pkg/models/modules/events"
 	"github.com/flant/addon-operator/pkg/models/moduleset"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
+	. "github.com/flant/addon-operator/pkg/module_manager/go-hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/loader"
 	"github.com/flant/addon-operator/pkg/module_manager/loader/fs"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler"

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flant/addon-operator/pkg/go-hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/go-hook/types"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 )

@@ -9,8 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
-	. "github.com/flant/addon-operator/pkg/go-hook/types"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
+	. "github.com/flant/addon-operator/pkg/module_manager/go-hook/types"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube-events-manager"

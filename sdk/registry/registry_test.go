@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
 	"github.com/flant/addon-operator/pkg/models/hooks/kind"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
 )
 
 func TestRegister(t *testing.T) {

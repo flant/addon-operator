@@ -4,8 +4,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
 	"github.com/flant/addon-operator/pkg/models/hooks/kind"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
 	"github.com/flant/addon-operator/sdk/registry"
 )
 

@@ -5,8 +5,8 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
-	"github.com/flant/addon-operator/pkg/go-hook/metrics"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
+	"github.com/flant/addon-operator/pkg/module_manager/go-hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding-context"

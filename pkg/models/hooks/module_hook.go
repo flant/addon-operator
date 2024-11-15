@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
-	addon_op_types "github.com/flant/addon-operator/pkg/go-hook/types"
 	"github.com/flant/addon-operator/pkg/models/hooks/kind"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
+	addon_op_types "github.com/flant/addon-operator/pkg/module_manager/go-hook/types"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	shell_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )

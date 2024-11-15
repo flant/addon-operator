@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	gohook "github.com/flant/addon-operator/pkg/go-hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding-context"
 )
 
