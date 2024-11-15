@@ -3,7 +3,7 @@ package hooks
 import (
 	"context"
 
-	"github.com/flant/addon-operator/pkg/models/hooks/kind"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding-context"
 	"github.com/flant/shell-operator/pkg/hook/config"

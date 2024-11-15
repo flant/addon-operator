@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/flant/addon-operator/pkg/models/modules"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/sdk"
 )
 

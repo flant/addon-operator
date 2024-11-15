@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/flant/addon-operator/pkg/models/hooks/kind"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 )
 
 const bindingsPanicMsg = "OnStartup hook always has binding context without Kubernetes snapshots. To prevent logic errors, don't use OnStartup and Kubernetes bindings in the same Go hook configuration."

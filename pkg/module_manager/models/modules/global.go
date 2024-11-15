@@ -10,9 +10,9 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
-	"github.com/flant/addon-operator/pkg/models/hooks"
-	"github.com/flant/addon-operator/pkg/models/hooks/kind"
-	"github.com/flant/addon-operator/pkg/module_manager/go-hook/types"
+	"github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/validation"
 	"github.com/flant/addon-operator/sdk/registry"

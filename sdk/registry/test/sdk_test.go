@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	"github.com/flant/addon-operator/pkg/models/hooks/kind"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/sdk/registry"
 	_ "github.com/flant/addon-operator/sdk/registry/test/simple_operator/global-hooks"
 	_ "github.com/flant/addon-operator/sdk/registry/test/simple_operator/modules/001-module-one/hooks"

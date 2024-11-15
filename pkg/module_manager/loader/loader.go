@@ -1,7 +1,7 @@
 package loader
 
 import (
-	"github.com/flant/addon-operator/pkg/models/modules"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 )
 
 type ModuleLoader interface {

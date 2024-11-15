@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/flant/addon-operator/pkg/app"
-	"github.com/flant/addon-operator/pkg/models/modules"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/debug"
 	"github.com/flant/shell-operator/pkg/hook/types"

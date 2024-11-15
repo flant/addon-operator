@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/flant/addon-operator/pkg/models/hooks/kind"
+	addon_op_types "github.com/flant/addon-operator/pkg/hook/types"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
-	addon_op_types "github.com/flant/addon-operator/pkg/module_manager/go-hook/types"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	shell_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
 

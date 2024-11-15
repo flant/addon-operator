@@ -52,7 +52,7 @@ modules:
 import (
 	"context"
 	"fmt"
-	"github.com/flant/addon-operator/pkg/models/hooks"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"os"
 	"path/filepath"
 	"reflect"

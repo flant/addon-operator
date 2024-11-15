@@ -2,7 +2,7 @@ package hooks
 
 //
 // import (
-//	"github.com/flant/addon-operator/pkg/models/hooks"
+//	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 //	"testing"
 //
 //	. "github.com/onsi/gomega"

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/flant/addon-operator/pkg/models/hooks"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
 

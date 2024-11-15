@@ -8,7 +8,7 @@ import (
 	"github.com/go-openapi/validate/post"
 	. "github.com/onsi/gomega"
 
-	"github.com/flant/addon-operator/pkg/models/modules"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/validation"
 )

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/flant/addon-operator/pkg/models/modules"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 )
 
 var ErrNotInited = errors.New("modules haven't been initialized yet")
