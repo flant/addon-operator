@@ -15,7 +15,7 @@ import (
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding-context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	metric_operation "github.com/flant/shell-operator/pkg/metric-storage/operation"
+	metricoperation "github.com/flant/shell-operator/pkg/metric-storage/operation"
 	objectpatch "github.com/flant/shell-operator/pkg/object-patch"
 )
 
@@ -142,7 +142,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		return result, fmt.Errorf("got bad json patch for values: %s", err)
 	}
 
-	result.Metrics, err = metric_operation.MetricOperationsFromFile(metricsPath)
+	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath)
 	if err != nil {
 		return result, fmt.Errorf("got bad metrics: %s", err)
 	}

@@ -8,12 +8,12 @@ import (
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding-context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	metric_operation "github.com/flant/shell-operator/pkg/metric-storage/operation"
+	metricoperation "github.com/flant/shell-operator/pkg/metric-storage/operation"
 	objectpatch "github.com/flant/shell-operator/pkg/object-patch"
 )
 
 type hooksMetricsStorage interface {
-	SendBatch([]metric_operation.MetricOperation, map[string]string) error
+	SendBatch([]metricoperation.MetricOperation, map[string]string) error
 }
 
 type kubeConfigManager interface {

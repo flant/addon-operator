@@ -14,7 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/utils"
-	sh_app "github.com/flant/shell-operator/pkg/app"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
@@ -88,7 +88,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 		MetricStorage:      mm.dependencies.MetricStorage,
 	}
 
-	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, sh_app.DebugKeepTmpFiles, mm.logger.Named("global-module"))
+	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, shapp.DebugKeepTmpFiles, mm.logger.Named("global-module"))
 	if err != nil {
 		return fmt.Errorf("new global module: %w", err)
 	}

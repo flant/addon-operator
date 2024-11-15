@@ -14,8 +14,8 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/config"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube-events-manager"
-	event_types "github.com/flant/shell-operator/pkg/kube-events-manager/types"
-	schduler_types "github.com/flant/shell-operator/pkg/schedule-manager/types"
+	eventtypes "github.com/flant/shell-operator/pkg/kube-events-manager/types"
+	schdulertypes "github.com/flant/shell-operator/pkg/schedule-manager/types"
 )
 
 const (
@@ -311,7 +311,7 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		if gohook.BoolDeref(kubeCfg.ExecuteHookOnEvents, true) {
 			monitor.WithEventTypes(nil)
 		} else {
-			monitor.WithEventTypes([]event_types.WatchEventType{})
+			monitor.WithEventTypes([]eventtypes.WatchEventType{})
 		}
 
 		kubeConfig := OnKubernetesEventConfig{}
@@ -363,7 +363,7 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		res.BindingName = inSch.Name
 
 		res.AllowFailure = input.AllowFailure
-		res.ScheduleEntry = schduler_types.ScheduleEntry{
+		res.ScheduleEntry = schdulertypes.ScheduleEntry{
 			Crontab: inSch.Crontab,
 			Id:      config.ScheduleID(),
 		}

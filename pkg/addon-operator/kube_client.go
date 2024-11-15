@@ -9,7 +9,7 @@ import (
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	klient "github.com/flant/kube-client/client"
-	sh_app "github.com/flant/shell-operator/pkg/app"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	metricstorage "github.com/flant/shell-operator/pkg/metric-storage"
 	utils "github.com/flant/shell-operator/pkg/utils/labels"
 )
@@ -21,8 +21,8 @@ var DefaultHelmMonitorKubeClientMetricLabels = map[string]string{"component": "h
 // defaultHelmMonitorKubeClient initializes a Kubernetes client for helm monitor.
 func defaultHelmMonitorKubeClient(metricStorage *metricstorage.MetricStorage, metricLabels map[string]string, logger *log.Logger) *klient.Client {
 	client := klient.New(klient.WithLogger(logger))
-	client.WithContextName(sh_app.KubeContext)
-	client.WithConfigPath(sh_app.KubeConfig)
+	client.WithContextName(shapp.KubeContext)
+	client.WithConfigPath(shapp.KubeConfig)
 	client.WithRateLimiterSettings(app.HelmMonitorKubeClientQps, app.HelmMonitorKubeClientBurst)
 	client.WithMetricStorage(metricStorage)
 	client.WithMetricLabels(utils.DefaultIfEmpty(metricLabels, DefaultHelmMonitorKubeClientMetricLabels))

@@ -37,7 +37,7 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
-	sh_app "github.com/flant/shell-operator/pkg/app"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 	"github.com/flant/shell-operator/pkg/debug"
 	bc "github.com/flant/shell-operator/pkg/hook/binding-context"
@@ -174,7 +174,7 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
-	sh_app.SetupLogging(rc, ao.Logger)
+	shapp.SetupLogging(rc, ao.Logger)
 
 	// Have to initialize common operator to have all common dependencies below
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, map[string]string{
@@ -249,7 +249,7 @@ func (op *AddonOperator) Setup() error {
 	}
 	log.Infof("Global hooks directory: %s", globalHooksDir)
 
-	tempDir, err := ensureTempDirectory(sh_app.TempDir)
+	tempDir, err := ensureTempDirectory(shapp.TempDir)
 	if err != nil {
 		return fmt.Errorf("temp directory: %s", err)
 	}

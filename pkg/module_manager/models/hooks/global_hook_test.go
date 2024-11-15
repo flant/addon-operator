@@ -8,7 +8,7 @@ package hooks
 //	. "github.com/onsi/gomega"
 //
 //	. "github.com/flant/addon-operator/pkg/hook/types"
-//	. "github.com/flant/addon-operator/pkg/hook/types"
+//	. "github.com/flant/shell-operator/pkg/hook/types"
 //)
 //
 // func Test_GlobalHook_WithConfig(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
-	metric_operation "github.com/flant/shell-operator/pkg/metric-storage/operation"
+	metricoperation "github.com/flant/shell-operator/pkg/metric-storage/operation"
 	objectpatch "github.com/flant/shell-operator/pkg/object-patch"
 )
 
@@ -22,7 +22,7 @@ var (
 type HookResult struct {
 	Usage                   *executor.CmdUsage
 	Patches                 map[utils.ValuesPatchType]*utils.ValuesPatch
-	Metrics                 []metric_operation.MetricOperation
+	Metrics                 []metricoperation.MetricOperation
 	ObjectPatcherOperations []objectpatch.Operation
 	BindingActions          []gohook.BindingAction
 }

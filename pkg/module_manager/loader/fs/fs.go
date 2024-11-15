@@ -14,7 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
-	sh_app "github.com/flant/shell-operator/pkg/app"
+	shapp "github.com/flant/shell-operator/pkg/app"
 )
 
 type FileSystemLoader struct {
@@ -65,7 +65,7 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 		return nil, fmt.Errorf("expect map[string]interface{} in module values")
 	}
 
-	m, err := modules.NewBasicModule(definition.Name, definition.Path, definition.Order, moduleValues, cb, vb, app.CRDsFilters, sh_app.DebugKeepTmpFiles, fl.logger.Named("basic-module"))
+	m, err := modules.NewBasicModule(definition.Name, definition.Path, definition.Order, moduleValues, cb, vb, app.CRDsFilters, shapp.DebugKeepTmpFiles, fl.logger.Named("basic-module"))
 	if err != nil {
 		return nil, fmt.Errorf("new basic module: %w", err)
 	}
