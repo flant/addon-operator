@@ -52,7 +52,7 @@ modules:
 import (
 	"context"
 	"fmt"
-	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
+	"github.com/flant/addon-operator/pkg/models/hooks"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -75,9 +75,9 @@ import (
 	_ "github.com/flant/addon-operator/pkg/module_manager/test/go_hooks/global-hooks"
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
-	. "github.com/flant/shell-operator/pkg/hook/binding_context"
+	. "github.com/flant/addon-operator/pkg/hook/binding-context"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	"github.com/flant/addon-operator/pkg/kube-events-manager/types"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 

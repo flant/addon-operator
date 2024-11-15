@@ -9,13 +9,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/flant/addon-operator/pkg/models/modules"
+	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/flant/addon-operator/pkg/app"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/debug"
-	"github.com/flant/shell-operator/pkg/hook/types"
 )
 
 func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
@@ -132,7 +132,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		deps := &modules.HelmModuleDependencies{
 			HelmClientFactory: op.Helm,
 		}
-		hm, err := modules.NewHelmModule(m, op.ModuleManager.TempDir, deps, nil, op.Logger.Named("helm-module"))
+		hm, err := modules.NewHelmModule(m, op.DefaultNamespace, op.ModuleManager.TempDir, deps, nil, op.Logger.Named("helm-module"))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create helm module: %w", err)
 		}

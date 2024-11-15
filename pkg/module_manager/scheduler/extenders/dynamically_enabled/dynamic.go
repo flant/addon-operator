@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 )
 

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path"
+	"path/filepath"
 	"runtime/trace"
 	"sort"
 	"strings"
@@ -12,24 +14,20 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/gofrs/uuid/v5"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/leaderelection"
-
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
+	gohook "github.com/flant/addon-operator/pkg/go-hook"
+	hookTypes "github.com/flant/addon-operator/pkg/go-hook/types"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
-	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/models/hooks"
+	"github.com/flant/addon-operator/pkg/models/hooks/kind"
+	"github.com/flant/addon-operator/pkg/models/modules"
+	"github.com/flant/addon-operator/pkg/models/modules/events"
 	"github.com/flant/addon-operator/pkg/module_manager"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
-	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
-	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/task"
@@ -38,16 +36,19 @@ import (
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 	"github.com/flant/shell-operator/pkg/debug"
-	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
+	bc "github.com/flant/shell-operator/pkg/hook/binding-context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	"github.com/flant/shell-operator/pkg/metric_storage"
+	"github.com/flant/shell-operator/pkg/kube-events-manager/types"
+	metricstorage "github.com/flant/shell-operator/pkg/metric-storage"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	fileUtils "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
+	"github.com/gofrs/uuid/v5"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/leaderelection"
 )
 
 const (
@@ -60,6 +61,8 @@ type AddonOperator struct {
 	engine *shell_operator.ShellOperator
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	DefaultNamespace string
 
 	runtimeConfig *runtimeConfig.Config
 
@@ -89,7 +92,7 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
-	MetricStorage *metric_storage.MetricStorage
+	MetricStorage *metricstorage.MetricStorage
 
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
@@ -147,9 +150,10 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
 	ao := &AddonOperator{
-		ctx:           cctx,
-		cancel:        cancel,
-		ConvergeState: converge.NewConvergeState(),
+		ctx:              cctx,
+		cancel:           cancel,
+		DefaultNamespace: app.Namespace,
+		ConvergeState:    converge.NewConvergeState(),
 		parallelTaskChannels: parallelTaskChannels{
 			channels: make(map[string](chan parallelQueueEvent)),
 		},
@@ -218,14 +222,19 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
-	helmClient, err := helm.InitHelmClientFactory(op.Logger.Named("helm"), op.CRDExtraLabels)
+	helmClient, err := helm.InitHelmClientFactory(&helm.Options{
+		Namespace:  op.DefaultNamespace,
+		HistoryMax: app.Helm3HistoryMax,
+		Timeout:    app.Helm3Timeout,
+		Logger:     op.Logger.Named("helm"),
+	}, op.CRDExtraLabels)
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
 	}
 
 	// Helm resources monitor.
 	// It uses a separate client-go instance. (Metrics are registered when 'main' client is initialized).
-	helmResourcesManager, err := InitDefaultHelmResourcesManager(op.ctx, op.engine.MetricStorage, op.Logger)
+	helmResourcesManager, err := InitDefaultHelmResourcesManager(op.ctx, op.DefaultNamespace, op.engine.MetricStorage, op.Logger)
 	if err != nil {
 		return fmt.Errorf("initialize Helm resources manager: %s", err)
 	}
@@ -239,7 +248,7 @@ func (op *AddonOperator) Setup() error {
 	}
 	log.Infof("Global hooks directory: %s", globalHooksDir)
 
-	tempDir, err := fileUtils.EnsureTempDirectory(sh_app.TempDir)
+	tempDir, err := ensureTempDirectory(sh_app.TempDir)
 	if err != nil {
 		return fmt.Errorf("temp directory: %s", err)
 	}
@@ -251,6 +260,32 @@ func (op *AddonOperator) Setup() error {
 	op.SetupModuleManager(app.ModulesDir, globalHooksDir, tempDir)
 
 	return nil
+}
+
+func ensureTempDirectory(inDir string) (string, error) {
+	// No path to temporary dir, use default temporary dir.
+	if inDir == "" {
+		tmpPath := app.AppName + "-*"
+		dir, err := os.MkdirTemp("", tmpPath)
+		if err != nil {
+			return "", fmt.Errorf("create tmp dir in '%s': %s", tmpPath, err)
+		}
+		return dir, nil
+	}
+
+	// Get absolute path for temporary directory and create if needed.
+	dir, err := filepath.Abs(inDir)
+	if err != nil {
+		return "", fmt.Errorf("get absolute path: %v", err)
+	}
+
+	if exists := fileUtils.DirExists(dir); !exists {
+		err := os.Mkdir(dir, os.FileMode(0o777))
+		if err != nil {
+			return "", fmt.Errorf("create tmp dir '%s': %s", dir, err)
+		}
+	}
+	return dir, nil
 }
 
 // Start runs all managers, event and queue handlers.
@@ -361,7 +396,7 @@ func (op *AddonOperator) InitModuleManager() error {
 
 type typedHook interface {
 	GetKind() kind.HookKind
-	GetGoHookInputSettings() *go_hook.HookConfigSettings
+	GetGoHookInputSettings() *gohook.HookConfigSettings
 }
 
 // allowHandleScheduleEvent returns false if the Schedule event can be ignored.
@@ -1487,7 +1522,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 			// Skip state creation if WaitForSynchronization is disabled.
 			thm := task.HookMetadataAccessor(tsk)
 			q.AddLast(tsk)
-			op.ModuleManager.GlobalSynchronizationState().QueuedForBinding(thm)
+			op.ModuleManager.GlobalSynchronizationState().QueuedForBinding(&thm)
 		}
 	}
 	op.logTaskAdd(logEntry, "append", parallelSyncTasksToWait...)
@@ -1880,7 +1915,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				} else {
 					thm := task.HookMetadataAccessor(tsk)
 					q.AddLast(tsk)
-					baseModule.Synchronization().QueuedForBinding(thm)
+					baseModule.Synchronization().QueuedForBinding(&thm)
 				}
 			}
 			op.logTaskAdd(logEntry, "append", parallelSyncTasksToWait...)

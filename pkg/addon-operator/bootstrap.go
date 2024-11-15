@@ -18,7 +18,7 @@ func (op *AddonOperator) bootstrap() error {
 
 	log.Infof("Search modules in: %s", app.ModulesDir)
 
-	log.Infof("Addon-operator namespace: %s", app.Namespace)
+	log.Infof("Addon-operator namespace: %s", op.DefaultNamespace)
 
 	// Debug server.
 	// TODO: rewrite sh_app global variables to the addon-operator ones

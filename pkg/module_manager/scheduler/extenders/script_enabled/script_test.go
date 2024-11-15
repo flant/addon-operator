@@ -6,11 +6,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExtender(t *testing.T) {

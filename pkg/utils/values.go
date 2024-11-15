@@ -6,11 +6,11 @@ import (
 	"reflect"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/ettle/strcase"
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 

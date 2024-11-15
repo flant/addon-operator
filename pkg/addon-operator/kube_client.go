@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricstorage "github.com/flant/shell-operator/pkg/metric-storage"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	klient "github.com/flant/kube-client/client"
 	sh_app "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/metric_storage"
 	utils "github.com/flant/shell-operator/pkg/utils/labels"
 )
 
@@ -19,7 +19,7 @@ import (
 var DefaultHelmMonitorKubeClientMetricLabels = map[string]string{"component": "helm_monitor"}
 
 // defaultHelmMonitorKubeClient initializes a Kubernetes client for helm monitor.
-func defaultHelmMonitorKubeClient(metricStorage *metric_storage.MetricStorage, metricLabels map[string]string, logger *log.Logger) *klient.Client {
+func defaultHelmMonitorKubeClient(metricStorage *metricstorage.MetricStorage, metricLabels map[string]string, logger *log.Logger) *klient.Client {
 	client := klient.New(klient.WithLogger(logger))
 	client.WithContextName(sh_app.KubeContext)
 	client.WithConfigPath(sh_app.KubeConfig)
@@ -29,7 +29,7 @@ func defaultHelmMonitorKubeClient(metricStorage *metric_storage.MetricStorage, m
 	return client
 }
 
-func InitDefaultHelmResourcesManager(ctx context.Context, metricStorage *metric_storage.MetricStorage, logger *log.Logger) (helm_resources_manager.HelmResourcesManager, error) {
+func InitDefaultHelmResourcesManager(ctx context.Context, namespace string, metricStorage *metricstorage.MetricStorage, logger *log.Logger) (helm_resources_manager.HelmResourcesManager, error) {
 	kubeClient := defaultHelmMonitorKubeClient(metricStorage, DefaultHelmMonitorKubeClientMetricLabels, logger.Named("helm-monitor-kube-client"))
 	if err := kubeClient.Init(); err != nil {
 		return nil, fmt.Errorf("initialize Kubernetes client for Helm resources manager: %s\n", err)
@@ -38,6 +38,6 @@ func InitDefaultHelmResourcesManager(ctx context.Context, metricStorage *metric_
 	if err != nil {
 		return nil, fmt.Errorf("initialize Helm resources manager: %s\n", err)
 	}
-	mgr.WithDefaultNamespace(app.Namespace)
+	mgr.WithDefaultNamespace(namespace)
 	return mgr, nil
 }

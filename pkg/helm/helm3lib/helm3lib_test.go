@@ -4,7 +4,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -13,6 +12,8 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 )
 
 func TestHelm3LibEmptyCluster(t *testing.T) {

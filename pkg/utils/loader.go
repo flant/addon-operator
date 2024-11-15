@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-
-	"github.com/flant/addon-operator/pkg/app"
 )
 
 const (
@@ -31,10 +29,10 @@ func SplitToPaths(dir string) []string {
 }
 
 // LoadValuesFileFromDir finds and parses values.yaml files in the specified directory.
-func LoadValuesFileFromDir(dir string) (Values, error) {
+func LoadValuesFileFromDir(dir string, strictModeEnabled bool) (Values, error) {
 	valuesFilePath := filepath.Join(dir, ValuesFileName)
 	valuesYaml, err := os.ReadFile(valuesFilePath)
-	if err != nil && os.IsNotExist(err) && !app.StrictModeEnabled {
+	if err != nil && os.IsNotExist(err) && !strictModeEnabled {
 		log.Debugf("No static values file '%s': %v", valuesFilePath, err)
 		return nil, nil
 	}

@@ -2,10 +2,10 @@ package addon_operator
 
 import (
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/flant/addon-operator/pkg/utils"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
-	"github.com/flant/addon-operator/pkg/utils"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )

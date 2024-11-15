@@ -1,0 +1,30 @@
+package kind
+
+import (
+	"testing"
+
+	. "github.com/onsi/gomega"
+
+	gohook "github.com/flant/addon-operator/pkg/go-hook"
+	. "github.com/flant/shell-operator/pkg/hook/binding-context"
+)
+
+func Test_Config_GoHook(t *testing.T) {
+	g := NewWithT(t)
+
+	gh := NewGoHook(&gohook.HookConfig{
+		OnAfterAll: &gohook.OrderedConfig{Order: 5},
+	}, func(input *gohook.HookInput) error {
+		input.Values.Set("test", "test")
+		input.MetricsCollector.Set("test", 1.0, nil)
+
+		return nil
+	})
+
+	bc := make([]BindingContext, 0)
+
+	res, err := gh.Execute("", bc, "", nil, nil, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(res.Patches).ShouldNot(BeEmpty())
+	g.Expect(res.Metrics).ShouldNot(BeEmpty())
+}
