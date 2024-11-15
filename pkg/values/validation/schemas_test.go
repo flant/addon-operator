@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/tidwall/gjson"
 
-	"github.com/flant/addon-operator/pkg/validation"
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 func Test_Add_Schema(t *testing.T) {

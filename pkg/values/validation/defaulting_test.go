@@ -10,7 +10,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/validation"
+	"github.com/flant/addon-operator/pkg/values/validation"
 )
 
 func Test_ApplyDefaults(t *testing.T) {

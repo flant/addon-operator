@@ -14,7 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/validation"
+	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk/registry"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding-context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
