@@ -12,7 +12,7 @@ import (
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	objectpatch "github.com/flant/shell-operator/pkg/object_patch"
+	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 )
 
 type GoHook struct {

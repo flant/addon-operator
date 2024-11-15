@@ -11,8 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
+	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	objectpatch "github.com/flant/shell-operator/pkg/object_patch"
 )
 
 type GoHook interface {

@@ -8,8 +8,8 @@ import (
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
+	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
-	objectpatch "github.com/flant/shell-operator/pkg/object_patch"
 )
 
 type hooksMetricsStorage interface {
