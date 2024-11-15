@@ -21,7 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
-	"github.com/flant/addon-operator/sdk/registry"
+	"github.com/flant/addon-operator/sdk"
 	"github.com/flant/shell-operator/pkg/executor"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding-context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
@@ -252,7 +252,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 
 func (bm *BasicModule) searchModuleGoHooks() (hks []*kind.GoHook) {
 	// find module hooks in go hooks registry
-	return registry.Registry().GetModuleHooks(bm.Name)
+	return sdk.Registry().GetModuleHooks(bm.Name)
 }
 
 func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, error) {

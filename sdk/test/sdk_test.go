@@ -6,10 +6,10 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
-	"github.com/flant/addon-operator/sdk/registry"
-	_ "github.com/flant/addon-operator/sdk/registry/test/simple_operator/global-hooks"
-	_ "github.com/flant/addon-operator/sdk/registry/test/simple_operator/modules/001-module-one/hooks"
-	_ "github.com/flant/addon-operator/sdk/registry/test/simple_operator/modules/002-module-two/hooks/level1/sublevel"
+	registry "github.com/flant/addon-operator/sdk"
+	_ "github.com/flant/addon-operator/sdk/test/simple_operator/global-hooks"
+	_ "github.com/flant/addon-operator/sdk/test/simple_operator/modules/001-module-one/hooks"
+	_ "github.com/flant/addon-operator/sdk/test/simple_operator/modules/002-module-two/hooks/level1/sublevel"
 )
 
 func Test_HookMetadata_from_runtime(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
-	"github.com/flant/addon-operator/sdk/registry"
+	"github.com/flant/addon-operator/sdk"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding-context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
@@ -521,7 +521,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 
 func (gm *GlobalModule) searchGlobalGoHooks() ([]*kind.GoHook, error) {
 	// find global hooks in go hooks registry
-	goHooks := registry.Registry().GetGlobalHooks()
+	goHooks := sdk.Registry().GetGlobalHooks()
 
 	count := "no"
 	if len(goHooks) > 0 {
