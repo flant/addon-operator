@@ -1523,7 +1523,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 			// Skip state creation if WaitForSynchronization is disabled.
 			thm := task.HookMetadataAccessor(tsk)
 			q.AddLast(tsk)
-			op.ModuleManager.GlobalSynchronizationState().QueuedForBinding(&thm)
+			op.ModuleManager.GlobalSynchronizationState().QueuedForBinding(thm)
 		}
 	}
 	op.logTaskAdd(logEntry, "append", parallelSyncTasksToWait...)
@@ -1916,7 +1916,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				} else {
 					thm := task.HookMetadataAccessor(tsk)
 					q.AddLast(tsk)
-					baseModule.Synchronization().QueuedForBinding(&thm)
+					baseModule.Synchronization().QueuedForBinding(thm)
 				}
 			}
 			op.logTaskAdd(logEntry, "append", parallelSyncTasksToWait...)
