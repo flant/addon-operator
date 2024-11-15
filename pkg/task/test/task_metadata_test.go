@@ -9,7 +9,6 @@ import (
 	. "github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	. "github.com/onsi/gomega"
 )
 
 func Test_MetadataAccessor(tT *testing.T) {

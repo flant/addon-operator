@@ -16,7 +16,6 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/debug"
 	"github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/go-chi/chi/v5"
 )
 
 func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
