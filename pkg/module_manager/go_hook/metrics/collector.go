@@ -3,7 +3,7 @@ package metrics
 import (
 	pointer "k8s.io/utils/ptr"
 
-	"github.com/flant/shell-operator/pkg/metric-storage/operation"
+	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 type MemoryMetricsCollector struct {

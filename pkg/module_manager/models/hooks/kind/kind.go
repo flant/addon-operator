@@ -1,11 +1,11 @@
 package kind
 
 import (
-	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
-	metricoperation "github.com/flant/shell-operator/pkg/metric-storage/operation"
-	objectpatch "github.com/flant/shell-operator/pkg/object-patch"
+	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
+	objectpatch "github.com/flant/shell-operator/pkg/object_patch"
 )
 
 // HookKind kind of the hook

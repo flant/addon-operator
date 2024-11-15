@@ -5,11 +5,11 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
-	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding-context"
+	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	metricoperation "github.com/flant/shell-operator/pkg/metric-storage/operation"
-	objectpatch "github.com/flant/shell-operator/pkg/object-patch"
+	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
+	objectpatch "github.com/flant/shell-operator/pkg/object_patch"
 )
 
 type hooksMetricsStorage interface {

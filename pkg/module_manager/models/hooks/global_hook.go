@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	addon_op_types "github.com/flant/addon-operator/pkg/hook/types"
-	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	shell_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )

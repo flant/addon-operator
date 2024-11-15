@@ -1,7 +1,7 @@
 package global_hooks
 
 import (
-	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/sdk"
 )
 

@@ -5,14 +5,14 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
-	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
-	"github.com/flant/addon-operator/pkg/module_manager/go-hook/metrics"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
-	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding-context"
+	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	objectpatch "github.com/flant/shell-operator/pkg/object-patch"
+	objectpatch "github.com/flant/shell-operator/pkg/object_patch"
 )
 
 type GoHook struct {

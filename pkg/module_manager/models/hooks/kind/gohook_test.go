@@ -5,8 +5,8 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	gohook "github.com/flant/addon-operator/pkg/module_manager/go-hook"
-	. "github.com/flant/shell-operator/pkg/hook/binding-context"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 )
 
 func Test_Config_GoHook(t *testing.T) {
