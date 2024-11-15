@@ -3,9 +3,8 @@ package backend
 import (
 	"context"
 
-	"github.com/flant/addon-operator/pkg/utils"
-
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 // ConfigHandler load and saves(optional) configuration for module

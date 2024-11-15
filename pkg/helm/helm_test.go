@@ -4,9 +4,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 )

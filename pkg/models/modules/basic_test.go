@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 

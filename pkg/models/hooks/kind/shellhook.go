@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"

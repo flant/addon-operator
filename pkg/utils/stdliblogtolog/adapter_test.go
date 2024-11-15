@@ -8,9 +8,8 @@ import (
 	stdlog "log"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/stretchr/testify/require"
 )
 
 type testLogLine struct {

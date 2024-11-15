@@ -9,17 +9,17 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/dominikbraun/graph"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	extender_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/mock"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 )
 
 type kcmMock struct {

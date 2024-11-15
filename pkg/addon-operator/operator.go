@@ -14,6 +14,10 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/gofrs/uuid/v5"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/leaderelection"
+
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 	gohook "github.com/flant/addon-operator/pkg/go-hook"
@@ -46,9 +50,6 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 	fileUtils "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
-	"github.com/gofrs/uuid/v5"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/leaderelection"
 )
 
 const (

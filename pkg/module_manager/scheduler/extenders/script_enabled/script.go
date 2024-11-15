@@ -8,12 +8,12 @@ import (
 	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	pointer "k8s.io/utils/ptr"
+
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/utils"
-	pointer "k8s.io/utils/ptr"
-
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 

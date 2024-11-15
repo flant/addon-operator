@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/flant/addon-operator/pkg/go-hook/metrics"
 	"github.com/flant/shell-operator/pkg/kube-events-manager/types"
 	objectpatch "github.com/flant/shell-operator/pkg/object-patch"

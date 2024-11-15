@@ -4,7 +4,6 @@ import (
 	"time"
 
 	metricstorage "github.com/flant/shell-operator/pkg/metric-storage"
-
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 

@@ -3,8 +3,9 @@ package node
 import (
 	"testing"
 
-	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
 	"github.com/stretchr/testify/assert"
+
+	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
 )
 
 func TestNewNode(t *testing.T) {

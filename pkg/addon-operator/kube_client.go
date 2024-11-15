@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	metricstorage "github.com/flant/shell-operator/pkg/metric-storage"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	klient "github.com/flant/kube-client/client"
 	sh_app "github.com/flant/shell-operator/pkg/app"
+	metricstorage "github.com/flant/shell-operator/pkg/metric-storage"
 	utils "github.com/flant/shell-operator/pkg/utils/labels"
 )
 

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/flant/addon-operator/pkg/app"
 	gohook "github.com/flant/addon-operator/pkg/go-hook"
 	. "github.com/flant/addon-operator/pkg/go-hook/types"
@@ -41,7 +43,6 @@ import (
 	schedulemanager "github.com/flant/shell-operator/pkg/schedule-manager"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
-	"github.com/hashicorp/go-multierror"
 )
 
 const (

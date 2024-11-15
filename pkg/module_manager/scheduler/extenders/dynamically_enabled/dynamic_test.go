@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 )
 
 func TestUpdateStatus(t *testing.T) {

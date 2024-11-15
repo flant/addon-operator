@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/tidwall/gjson"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 

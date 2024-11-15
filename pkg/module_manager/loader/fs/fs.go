@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/flant/addon-operator/pkg/models/modules"
-	"github.com/flant/addon-operator/pkg/utils"
 
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/models/modules"
+	"github.com/flant/addon-operator/pkg/utils"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 )
 

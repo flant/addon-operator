@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flant/kube-client/manifest"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/kube-client/manifest"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 

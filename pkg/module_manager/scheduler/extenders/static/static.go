@@ -7,9 +7,10 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/ettle/strcase"
+	"gopkg.in/yaml.v3"
+
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/utils"
-	"gopkg.in/yaml.v3"
 )
 
 const (

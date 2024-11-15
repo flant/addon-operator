@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"
@@ -14,7 +15,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/yaml"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/validation/schema"
 )

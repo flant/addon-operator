@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/flant/addon-operator/pkg/utils/stdliblogtolog"
 	"gopkg.in/alecthomas/kingpin.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -19,6 +18,7 @@ import (
 	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
+	"github.com/flant/addon-operator/pkg/utils/stdliblogtolog"
 	"github.com/flant/kube-client/klogtolog"
 	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"

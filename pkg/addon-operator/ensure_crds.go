@@ -8,8 +8,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/flant/addon-operator/pkg/models/modules"
-	"github.com/flant/addon-operator/sdk"
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-multierror"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -19,6 +17,9 @@ import (
 	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/retry"
+
+	"github.com/flant/addon-operator/pkg/models/modules"
+	"github.com/flant/addon-operator/sdk"
 )
 
 // 1Mb - maximum size of kubernetes object

@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/flant/addon-operator/pkg/go-hook/types"
 	"github.com/flant/addon-operator/pkg/models/hooks"
 	"github.com/flant/addon-operator/pkg/models/hooks/kind"
@@ -64,13 +64,13 @@ type BasicModule struct {
 
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
-func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, CRDsFilters string, keepTemporaryHookFiles bool, logger *log.Logger) (*BasicModule, error) {
+func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, crdsFilters string, keepTemporaryHookFiles bool, logger *log.Logger) (*BasicModule, error) {
 	valuesStorage, err := NewValuesStorage(name, staticValues, configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
-	crdsFromPath := getCRDsFromPath(path, CRDsFilters)
+	crdsFromPath := getCRDsFromPath(path, crdsFilters)
 	return &BasicModule{
 		Name:          name,
 		Order:         order,
@@ -91,7 +91,7 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 
 // getCRDsFromPath scan path/crds directory and store yaml file in slice
 // if file name do not start with `_` or `doc-` prefix
-func getCRDsFromPath(path string, CRDsFilters string) []string {
+func getCRDsFromPath(path string, crdsFilters string) []string {
 	var crdFilesPaths []string
 	err := filepath.Walk(
 		filepath.Join(path, "crds"),
@@ -100,7 +100,7 @@ func getCRDsFromPath(path string, CRDsFilters string) []string {
 				return err
 			}
 
-			if !matchPrefix(path, CRDsFilters) && filepath.Ext(path) == ".yaml" {
+			if !matchPrefix(path, crdsFilters) && filepath.Ext(path) == ".yaml" {
 				crdFilesPaths = append(crdFilesPaths, path)
 			}
 
@@ -113,8 +113,8 @@ func getCRDsFromPath(path string, CRDsFilters string) []string {
 	return crdFilesPaths
 }
 
-func matchPrefix(path string, CRDsFilters string) bool {
-	filters := strings.Split(CRDsFilters, ",")
+func matchPrefix(path string, crdsFilters string) bool {
+	filters := strings.Split(crdsFilters, ",")
 	for _, filter := range filters {
 		if strings.HasPrefix(filepath.Base(path), strings.TrimSpace(filter)) {
 			return true

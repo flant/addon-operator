@@ -3,9 +3,8 @@ package kube_config
 import (
 	"context"
 
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
-
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 )
 
 const (

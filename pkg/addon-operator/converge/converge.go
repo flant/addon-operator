@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/flant/addon-operator/pkg/go-hook/types"
-
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 )

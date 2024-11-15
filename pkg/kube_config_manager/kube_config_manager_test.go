@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/flant/addon-operator/pkg/utils"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
 )
 
