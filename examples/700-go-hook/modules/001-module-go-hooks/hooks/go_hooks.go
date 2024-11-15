@@ -62,8 +62,8 @@ func run(input *gohook.HookInput) error {
 
 	input.MetricsCollector.Add("addon_go_hooks_total", 1.0, nil)
 
-	input.ConfigValues.Set("modulegohook.s.time", time.Now().Unix())
-	input.Values.Set("modulegohook.s.timeTemp", time.Now().Unix())
+	input.ConfigValues.Set("moduleGoHooks.time", time.Now().Unix())
+	input.Values.Set("moduleGoHooks.timeTemp", time.Now().Unix())
 
 	return nil
 }
