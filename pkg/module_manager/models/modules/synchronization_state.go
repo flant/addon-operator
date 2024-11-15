@@ -7,6 +7,12 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 )
 
+type TaskMetadata interface {
+	GetKubernetesBindingID() string
+	GetHookName() string
+	GetBinding() string
+}
+
 // kubernetesBindingSynchronizationState is a state of the single Synchronization task
 // for one kubernetes binding.
 type kubernetesBindingSynchronizationState struct {
