@@ -207,7 +207,7 @@ func (sh *ShellHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafe
 		return
 	}
 
-	tmpFiles["bindingcontext_PATH"], err = sh.prepareBindingContextJsonFile(moduleSafeName, bindingContext)
+	tmpFiles["BINDING_CONTEXT_PATH"], err = sh.prepareBindingContextJsonFile(moduleSafeName, bindingContext)
 	if err != nil {
 		return
 	}
@@ -244,7 +244,7 @@ func (sh *ShellHook) prepareMetricsFile() (string, error) {
 	return path, nil
 }
 
-// bindingcontext_PATH
+// BINDING_CONTEXT_PATH
 func (sh *ShellHook) prepareBindingContextJsonFile(moduleSafeName string, bindingContext []byte) (string, error) {
 	path := filepath.Join(sh.TmpDir, fmt.Sprintf("%s.module-hook-%s-binding-context-%s.json", moduleSafeName, sh.SafeName(), uuid.Must(uuid.NewV4()).String()))
 	err := utils.DumpData(path, bindingContext)
