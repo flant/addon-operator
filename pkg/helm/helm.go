@@ -44,9 +44,10 @@ func InitHelmClientFactory(helmopts *Options, extraLabels map[string]string) (*C
 		factory.ClientType = Helm3Lib
 		factory.NewClientFn = helm3lib.NewClient
 		err = helm3lib.Init(&helm3lib.Options{
-			Namespace:  helmopts.Namespace,
-			HistoryMax: helmopts.HistoryMax,
-			Timeout:    helmopts.Timeout,
+			Namespace:         helmopts.Namespace,
+			HistoryMax:        helmopts.HistoryMax,
+			Timeout:           helmopts.Timeout,
+			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
 		}, helmopts.Logger, extraLabels)
 
 	case Helm3:
