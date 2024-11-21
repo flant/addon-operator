@@ -20,9 +20,9 @@ var Helm3Path = "helm"
 
 type Helm3Options struct {
 	Namespace         string
-	HelmIgnoreRelease string
 	HistoryMax        int32
 	Timeout           time.Duration
+	HelmIgnoreRelease string
 	Logger            *log.Logger
 }
 
@@ -57,8 +57,9 @@ func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmCl
 	}
 
 	return &Helm3Client{
-		Logger:    logEntry,
-		Namespace: Options.Namespace,
+		Logger:            logEntry,
+		Namespace:         Options.Namespace,
+		HelmIgnoreRelease: Options.HelmIgnoreRelease,
 	}
 }
 

@@ -23,10 +23,11 @@ func (f *ClientFactory) NewClient(logger *log.Logger, logLabels ...map[string]st
 }
 
 type Options struct {
-	Namespace  string
-	HistoryMax int32
-	Timeout    time.Duration
-	Logger     *log.Logger
+	Namespace         string
+	HistoryMax        int32
+	Timeout           time.Duration
+	HelmIgnoreRelease string
+	Logger            *log.Logger
 }
 
 func InitHelmClientFactory(helmopts *Options, extraLabels map[string]string) (*ClientFactory, error) {
@@ -54,10 +55,11 @@ func InitHelmClientFactory(helmopts *Options, extraLabels map[string]string) (*C
 		factory.ClientType = Helm3
 		factory.NewClientFn = helm3.NewClient
 		err = helm3.Init(&helm3.Helm3Options{
-			Namespace:  helmopts.Namespace,
-			HistoryMax: helmopts.HistoryMax,
-			Timeout:    helmopts.Timeout,
-			Logger:     helmopts.Logger,
+			Namespace:         helmopts.Namespace,
+			HistoryMax:        helmopts.HistoryMax,
+			Timeout:           helmopts.Timeout,
+			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
+			Logger:            helmopts.Logger,
 		})
 	}
 
