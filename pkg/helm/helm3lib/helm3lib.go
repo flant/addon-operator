@@ -40,7 +40,7 @@ func initPostRenderer(extraLabels map[string]string) {
 
 func Init(opts *Options, logger *log.Logger, extraLabels map[string]string) error {
 	hc := &LibClient{
-		Namespace:         options.Namespace,
+		Namespace:         opts.Namespace,
 		HelmIgnoreRelease: opts.HelmIgnoreRelease,
 		Logger:            logger.With("operator.component", "helm3lib"),
 	}
