@@ -247,7 +247,7 @@ func (op *AddonOperator) Setup() error {
 	if err != nil {
 		return fmt.Errorf("global hooks directory: %s", err)
 	}
-	log.Infof("Global hooks directory: %s", globalHooksDir)
+	log.Infof("global hooks directory: %s", globalHooksDir)
 
 	tempDir, err := ensureTempDirectory(shapp.TempDir)
 	if err != nil {

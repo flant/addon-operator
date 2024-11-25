@@ -3,6 +3,7 @@ package modules
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -461,6 +462,11 @@ func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error)
 		return nil, err
 	}
 
+	batchHooks, err := gm.searchGlobalBatchHooks(gm.hooksDir)
+	if err != nil {
+		return nil, err
+	}
+
 	hks = make([]*hooks.GlobalHook, 0, len(shellHooks)+len(goHooks))
 
 	for _, sh := range shellHooks {
@@ -473,7 +479,13 @@ func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error)
 		hks = append(hks, glh)
 	}
 
-	log.Debugf("Search global hooks: %d shell, %d golang", len(shellHooks), len(goHooks))
+	for _, bh := range batchHooks {
+		glh := hooks.NewGlobalHook(bh)
+		hks = append(hks, glh)
+	}
+
+	gm.logger.Error("search global hooks", slog.Any("shell-hooks", shellHooks), slog.Any("go-hooks", goHooks))
+	gm.logger.Debug(fmt.Sprintf("Search global hooks: %d shell, %d golang", len(shellHooks), len(goHooks)))
 
 	return hks, nil
 }
@@ -506,6 +518,47 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 		}
 
 		globalHook := kind.NewShellHook(hookName, hookPath, gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
+
+		hks = append(hks, globalHook)
+	}
+
+	count := "no"
+	if len(hks) > 0 {
+		count = strconv.Itoa(len(hks))
+	}
+	log.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
+
+	return
+}
+
+// searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
+func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.BatchHook, err error) {
+	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	hooksSubDir := filepath.Join(hooksDir, "hooks")
+	if _, err := os.Stat(hooksSubDir); !os.IsNotExist(err) {
+		hooksDir = hooksSubDir
+	}
+	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir)
+	if err != nil {
+		return nil, err
+	}
+
+	hks = make([]*kind.BatchHook, 0)
+
+	// sort hooks by path
+	sort.Strings(hooksRelativePaths)
+	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
+
+	for _, hookPath := range hooksRelativePaths {
+		hookName, err := filepath.Rel(hooksDir, hookPath)
+		if err != nil {
+			return nil, err
+		}
+
+		globalHook := kind.NewBatchHook(hookName, hookPath, gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
 
 		hks = append(hks, globalHook)
 	}
