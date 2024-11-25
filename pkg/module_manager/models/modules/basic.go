@@ -195,10 +195,15 @@ func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, e
 func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 	shellHooks, err := bm.searchModuleShellHooks()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("search module shell hooks: %w", err)
 	}
 
 	goHooks := bm.searchModuleGoHooks()
+
+	batchHooks, err := bm.searchModuleBatchHooks()
+	if err != nil {
+		return nil, fmt.Errorf("search module batch hooks: %w", err)
+	}
 
 	mHooks := make([]*hooks.ModuleHook, 0, len(shellHooks)+len(goHooks))
 
@@ -209,6 +214,11 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 
 	for _, gh := range goHooks {
 		mh := hooks.NewModuleHook(gh)
+		mHooks = append(mHooks, mh)
+	}
+
+	for _, bh := range batchHooks {
+		mh := hooks.NewModuleHook(bh)
 		mHooks = append(mHooks, mh)
 	}
 
@@ -243,6 +253,37 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 		}
 
 		shHook := kind.NewShellHook(hookName, hookPath, bm.keepTemporaryHookFiles, false, bm.logger.Named("shell-hook"))
+
+		hks = append(hks, shHook)
+	}
+
+	return
+}
+
+func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err error) {
+	hooksDir := filepath.Join(bm.Path, "hooks")
+	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir)
+	if err != nil {
+		return nil, err
+	}
+
+	hks = make([]*kind.BatchHook, 0)
+
+	// sort hooks by path
+	sort.Strings(hooksRelativePaths)
+	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
+
+	for _, hookPath := range hooksRelativePaths {
+		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
+		if err != nil {
+			return nil, err
+		}
+
+		shHook := kind.NewBatchHook(hookName, hookPath, bm.keepTemporaryHookFiles, false, bm.logger.Named("batch-hook"))
 
 		hks = append(hks, shHook)
 	}

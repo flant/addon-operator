@@ -1,6 +1,8 @@
 package addon_operator
 
 import (
+	"fmt"
+
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/app"
@@ -26,13 +28,13 @@ func (op *AddonOperator) bootstrap() error {
 	op.DebugServer, err = shell_operator.RunDefaultDebugServer(shapp.DebugUnixSocket, shapp.DebugHttpServerAddr, op.Logger.Named("debug-server"))
 	if err != nil {
 		log.Errorf("Fatal: start Debug server: %s", err)
-		return err
+		return fmt.Errorf("start Debug server: %w", err)
 	}
 
 	err = op.Assemble(op.DebugServer)
 	if err != nil {
 		log.Errorf("Fatal: %s", err)
-		return err
+		return fmt.Errorf("assemble Debug server: %w", err)
 	}
 
 	return nil

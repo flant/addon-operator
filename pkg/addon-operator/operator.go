@@ -293,7 +293,7 @@ func ensureTempDirectory(inDir string) (string, error) {
 // TODO: implement context in various dependencies (ModuleManager, KubeConfigManaer, etc)
 func (op *AddonOperator) Start(_ context.Context) error {
 	if err := op.bootstrap(); err != nil {
-		return err
+		return fmt.Errorf("bootstrap: %w", err)
 	}
 
 	log.Info("Start first converge for modules")
