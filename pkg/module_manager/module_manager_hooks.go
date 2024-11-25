@@ -140,7 +140,7 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 
 	hks, err := ml.RegisterHooks(logEntry)
 	if err != nil {
-		return err
+		return fmt.Errorf("register hooks %w", err)
 	}
 
 	for _, hk := range hks {

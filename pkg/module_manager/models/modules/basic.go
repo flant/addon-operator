@@ -184,7 +184,7 @@ func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, e
 
 	hks, err := bm.searchAndRegisterHooks(logger)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("search and register hooks: %w", err)
 	}
 
 	bm.hooks.registered = true

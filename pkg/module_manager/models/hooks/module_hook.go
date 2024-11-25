@@ -61,6 +61,7 @@ func (mh *ModuleHook) InitializeHookConfig() (err error) {
 	switch hk := mh.executableHook.(type) {
 	case *kind.GoHook:
 		cfg := hk.GetConfig()
+
 		err := mh.config.LoadAndValidateGoConfig(cfg)
 		if err != nil {
 			return err
@@ -71,6 +72,18 @@ func (mh *ModuleHook) InitializeHookConfig() (err error) {
 		if err != nil {
 			return err
 		}
+
+		err = mh.config.LoadAndValidateShellConfig(cfg)
+		if err != nil {
+			return err
+		}
+
+	case *kind.BatchHook:
+		cfg, err := hk.GetConfig()
+		if err != nil {
+			return err
+		}
+
 		err = mh.config.LoadAndValidateShellConfig(cfg)
 		if err != nil {
 			return err
