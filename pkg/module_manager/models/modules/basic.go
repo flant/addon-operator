@@ -275,7 +275,7 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
+	bm.logger.Error("sorted paths", slog.Any("paths", hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
