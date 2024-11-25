@@ -163,7 +163,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 func (sh *BatchHook) getConfig() (configOutput []byte, err error) {
 	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
-	args := []string{"--config"}
+	args := []string{"hook dump"}
 
 	cmd := executor.NewExecutor(
 		"",
@@ -185,7 +185,13 @@ func (sh *BatchHook) getConfig() (configOutput []byte, err error) {
 
 	sh.Hook.Logger.Debugf("Hook '%s' config output:\n%s", sh.Name, string(output))
 
-	return output, nil
+	configs, err := os.ReadFile(sh.Path + "configs.yaml")
+	if err != nil {
+		sh.Hook.Logger.Debugf("Hook '%s' configs read failed: %v", sh.Name, err)
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+
+	return configs, nil
 }
 
 // GetConfig returns config via executing the hook with `--config` param

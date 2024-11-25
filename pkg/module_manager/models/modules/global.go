@@ -3,7 +3,6 @@ package modules
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -484,7 +483,6 @@ func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error)
 		hks = append(hks, glh)
 	}
 
-	gm.logger.Error("search global hooks", slog.Any("shell-hooks", shellHooks), slog.Any("go-hooks", goHooks))
 	gm.logger.Debug(fmt.Sprintf("Search global hooks: %d shell, %d golang", len(shellHooks), len(goHooks)))
 
 	return hks, nil
