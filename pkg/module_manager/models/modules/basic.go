@@ -2,10 +2,13 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -244,7 +247,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
+	bm.logger.Debugf("  Hook paths: %+v", hooksRelativePaths)
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
@@ -266,7 +269,7 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 		return nil, nil
 	}
 
-	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir)
+	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, bm.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -290,6 +293,72 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 	}
 
 	return
+}
+
+func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]string, error) {
+	paths := make([]string, 0)
+	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if f.IsDir() {
+			// Skip hidden and lib directories inside initial directory
+			if strings.HasPrefix(f.Name(), ".") || f.Name() == "lib" {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		if err := isExecutableBatchHookFile(path, f); err != nil {
+			logger.Warnf("File '%s' is skipped: no executable permissions, chmod +x is required to run this hook: %w", err)
+			return nil
+		}
+
+		paths = append(paths, path)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return paths, nil
+}
+
+var (
+	ErrFileHasNotMetRequirements = errors.New("file has not met requirements")
+	ErrFileHasWrongExtension     = errors.New("file has wrong extension")
+	ErrFileIsNotBatchHook        = errors.New("file is not batch hook")
+)
+
+func isExecutableBatchHookFile(path string, f os.FileInfo) error {
+	switch filepath.Ext(f.Name()) {
+	// ignore any extension and hidden files
+	case "":
+		return IsFileBatchHook(path, f)
+	// ignore .yaml, .json, .txt, .md files
+	case ".yaml", ".json", ".md", ".txt":
+		return ErrFileHasWrongExtension
+	}
+
+	return ErrFileHasNotMetRequirements
+}
+
+var compiledHooksFound = regexp.MustCompile(`Found ([1-9]|[1-9]\d|[1-9]\d\d|[1-9]\d\d\d) items`)
+
+func IsFileBatchHook(path string, _ os.FileInfo) error {
+	args := []string{"hook", "list"}
+	o, err := exec.Command(path, args...).Output()
+	if err != nil {
+		return fmt.Errorf("exec file '%s': %w", path, err)
+	}
+
+	if compiledHooksFound.Match(o) {
+		return nil
+	}
+
+	return ErrFileIsNotBatchHook
 }
 
 func (bm *BasicModule) searchModuleGoHooks() (hks []*kind.GoHook) {
@@ -599,7 +668,7 @@ func (bm *BasicModule) prepareValuesJsonFileWith(tmpdir string, values utils.Val
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s hook values:\n%s", bm.Name, values.DebugString())
+	bm.logger.Debugf("Prepared module %s hook values:\n%s", bm.Name, values.DebugString())
 
 	return path, nil
 }
@@ -644,7 +713,7 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s hook config values:\n%s", bm.Name, v.DebugString())
+	bm.logger.Debugf("Prepared module %s hook config values:\n%s", bm.Name, v.DebugString())
 
 	return path, nil
 }
@@ -953,7 +1022,7 @@ func (bm *BasicModule) Validate() error {
 	valuesKey := utils.ModuleNameToValuesKey(bm.GetName())
 	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
 
-	log.Infof("Validating module %q from %q", bm.GetName(), bm.GetPath())
+	bm.logger.Infof("Validating module %q from %q", bm.GetName(), bm.GetPath())
 
 	if bm.GetName() != restoredName {
 		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", bm.GetName(), restoredName)

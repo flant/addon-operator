@@ -69,7 +69,7 @@ func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookE
 
 // RegisterHooks finds and registers global hooks
 func (gm *GlobalModule) RegisterHooks() ([]*hooks.GlobalHook, error) {
-	log.Debugf("Search and register global hooks")
+	gm.logger.Debugf("Search and register global hooks")
 
 	hks, err := gm.searchAndRegisterHooks()
 	if err != nil {
@@ -447,7 +447,7 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 // searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
 func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error) {
 	if gm.hooksDir == "" {
-		log.Warnf("Global hooks directory path is empty! No global hooks to load.")
+		gm.logger.Warnf("Global hooks directory path is empty! No global hooks to load.")
 		return nil, nil
 	}
 
@@ -507,7 +507,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
+	gm.logger.Debugf("Hook paths: %+v", hooksRelativePaths)
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(hooksDir, hookPath)
@@ -524,7 +524,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 	if len(hks) > 0 {
 		count = strconv.Itoa(len(hks))
 	}
-	log.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
+	gm.logger.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
 
 	return
 }
@@ -539,7 +539,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 	if _, err := os.Stat(hooksSubDir); !os.IsNotExist(err) {
 		hooksDir = hooksSubDir
 	}
-	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir)
+	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, gm.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -548,7 +548,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
+	gm.logger.Debugf("Hook paths: %+v", hooksRelativePaths)
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(hooksDir, hookPath)
@@ -565,7 +565,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 	if len(hks) > 0 {
 		count = strconv.Itoa(len(hks))
 	}
-	log.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
+	gm.logger.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
 
 	return
 }
@@ -578,7 +578,7 @@ func (gm *GlobalModule) searchGlobalGoHooks() ([]*kind.GoHook, error) {
 	if len(goHooks) > 0 {
 		count = strconv.Itoa(len(goHooks))
 	}
-	log.Infof("Found %s global Go hooks", count)
+	gm.logger.Infof("Found %s global Go hooks", count)
 
 	return goHooks, nil
 }
