@@ -257,7 +257,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 		}
 
 		if filepath.Ext(hookPath) == "" {
-			_, err := GetBatchHookConfig(hookName, bm.logger)
+			_, err := GetBatchHookConfig(hookPath, bm.logger)
 			if err == nil {
 				continue
 			}
@@ -313,8 +313,13 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 }
 
 func GetBatchHookConfig(hookPath string, logger *log.Logger) ([]sdkhook.HookConfig, error) {
+	_, err := os.Stat(hookPath)
+	if err != nil {
+		return nil, fmt.Errorf("stat file '%s': %w", hookPath, err)
+	}
+
 	args := []string{"hook", "dump"}
-	_, err := exec.Command(hookPath, args...).Output()
+	err = exec.Command(hookPath, args...).Run()
 	if err != nil {
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
