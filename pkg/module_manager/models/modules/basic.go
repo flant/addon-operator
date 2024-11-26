@@ -257,10 +257,12 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 		}
 
 		if filepath.Ext(hookPath) == "" {
-			_, err = GetBatchHookConfig(hookPath, bm.logger)
-			if err == nil {
-				continue
+			_, err := GetBatchHookConfig(hookPath, bm.logger)
+			if err != nil {
+				bm.logger.Error("get batch hook config", slog.String("hook_file_path", hookPath), slog.String("error", err.Error()))
 			}
+
+			continue
 		}
 
 		shHook := kind.NewShellHook(hookName, hookPath, bm.keepTemporaryHookFiles, false, bm.logger.Named("shell-hook"))
@@ -292,8 +294,7 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	// TODO: return debug level
-	bm.logger.Error("sorted paths", slog.Any("paths", hooksRelativePaths))
+	bm.logger.Debug("sorted paths", slog.Any("paths", hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
@@ -362,7 +363,7 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 		}
 
 		if err := isExecutableBatchHookFile(path, f); err != nil {
-			logger.Warnf("File '%s' is skipped: no executable permissions, chmod +x is required to run this hook: %w", path, err)
+			logger.Warnf("File '%s' is skipped: no executable permissions, chmod +x is required to run this hook: %v", path, err)
 			return nil
 		}
 
