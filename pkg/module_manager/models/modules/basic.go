@@ -313,19 +313,19 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 }
 
 func GetBatchHookConfig(hookPath string, logger *log.Logger) ([]sdkhook.HookConfig, error) {
+	cfgPath := filepath.Join(filepath.Dir(hookPath), "configs.json")
+	nf, err := os.OpenFile(cfgPath, os.O_CREATE, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("new file create: %w", err)
+	}
+	nf.Close()
+
 	args := []string{"hook", "dump"}
-	cmd := executor.NewExecutor(
-		"",
-		hookPath,
-		args,
-		[]string{},
-	)
-	_, err := cmd.RunAndLogLines(nil)
+	err = exec.Command(hookPath, args...).Run()
 	if err != nil {
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	cfgPath := filepath.Join(filepath.Dir(hookPath), "configs.json")
 	cfgs := make([]sdkhook.HookConfig, 0, 1)
 	f, err := os.OpenFile(cfgPath, os.O_RDONLY, 0666)
 	defer func() {
