@@ -64,29 +64,29 @@ func (mh *ModuleHook) InitializeHookConfig() (err error) {
 
 		err := mh.config.LoadAndValidateGoConfig(cfg)
 		if err != nil {
-			return err
+			return fmt.Errorf("load and validate go hook config: %w", err)
 		}
 
 	case *kind.ShellHook:
 		cfg, err := hk.GetConfig()
 		if err != nil {
-			return err
+			return fmt.Errorf("get shell hook config: %w", err)
 		}
 
 		err = mh.config.LoadAndValidateShellConfig(cfg)
 		if err != nil {
-			return err
+			return fmt.Errorf("load and validate shell hook config: %w", err)
 		}
 
 	case *kind.BatchHook:
 		cfg, err := hk.GetConfig()
 		if err != nil {
-			return err
+			return fmt.Errorf("get batch hook config: %w", err)
 		}
 
 		err = mh.config.LoadAndValidateBatchConfig(&cfg[hk.ID])
 		if err != nil {
-			return err
+			return fmt.Errorf("load and validate batch hook config: %w", err)
 		}
 
 	default:

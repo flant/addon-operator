@@ -362,7 +362,7 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 		}
 
 		if err := isExecutableBatchHookFile(path, f); err != nil {
-			logger.Warnf("File '%s' is skipped: no executable permissions, chmod +x is required to run this hook: %w", err)
+			logger.Warnf("File '%s' is skipped: no executable permissions, chmod +x is required to run this hook: %w", path, err)
 			return nil
 		}
 
