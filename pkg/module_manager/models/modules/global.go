@@ -514,6 +514,13 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 			return nil, err
 		}
 
+		if filepath.Ext(hookPath) == "" {
+			_, err = GetBatchHookConfig(hookPath, gm.logger)
+			if err == nil {
+				continue
+			}
+		}
+
 		globalHook := kind.NewShellHook(hookName, hookPath, gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
 
 		hks = append(hks, globalHook)

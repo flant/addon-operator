@@ -248,12 +248,19 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	bm.logger.Debugf("  Hook paths: %+v", hooksRelativePaths)
+	bm.logger.Debugf("Hook paths: %+v", hooksRelativePaths)
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
 		if err != nil {
 			return nil, err
+		}
+
+		if filepath.Ext(hookPath) == "" {
+			_, err = GetBatchHookConfig(hookPath, bm.logger)
+			if err == nil {
+				continue
+			}
 		}
 
 		shHook := kind.NewShellHook(hookName, hookPath, bm.keepTemporaryHookFiles, false, bm.logger.Named("shell-hook"))
