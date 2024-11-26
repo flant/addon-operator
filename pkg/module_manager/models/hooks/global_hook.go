@@ -49,6 +49,16 @@ func (h *GlobalHook) InitializeHookConfig() (err error) {
 			return err
 		}
 
+	case *kind.BatchHook:
+		cfg, err := hk.GetConfig()
+		if err != nil {
+			return err
+		}
+		err = h.config.LoadAndValidateBatchConfig(&cfg[hk.ID])
+		if err != nil {
+			return err
+		}
+
 	default:
 		return fmt.Errorf("unknown hook kind: %s", reflect.TypeOf(hk))
 	}

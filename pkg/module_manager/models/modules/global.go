@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -539,6 +538,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 	if _, err := os.Stat(hooksSubDir); !os.IsNotExist(err) {
 		hooksDir = hooksSubDir
 	}
+
 	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, gm.logger)
 	if err != nil {
 		return nil, err
@@ -556,15 +556,24 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 			return nil, err
 		}
 
-		globalHook := kind.NewBatchHook(hookName, hookPath, gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
+		sdkcfgs, err := GetBatchHookConfig(hookPath, gm.logger)
+		if err != nil {
+			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
+		}
 
-		hks = append(hks, globalHook)
+		for idx, cfg := range sdkcfgs {
+			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
+
+			hks = append(hks, shHook)
+		}
 	}
 
 	count := "no"
 	if len(hks) > 0 {
 		count = strconv.Itoa(len(hks))
 	}
+
 	gm.logger.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
 
 	return

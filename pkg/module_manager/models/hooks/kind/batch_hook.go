@@ -1,14 +1,16 @@
 package kind
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"strings"
+	"strconv"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/gofrs/uuid/v5"
-
+	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
@@ -17,14 +19,17 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
+	"github.com/gofrs/uuid/v5"
 )
 
 type BatchHook struct {
 	sh_hook.Hook
+	// hook ID in batch
+	ID uint
 }
 
 // NewBatchHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewBatchHook(name, path string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+func NewBatchHook(name, path string, id uint, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
 	return &BatchHook{
 		Hook: sh_hook.Hook{
 			Name:                   name,
@@ -33,6 +38,7 @@ func NewBatchHook(name, path string, keepTemporaryHookFiles bool, logProxyHookJS
 			LogProxyHookJSON:       logProxyHookJSON,
 			Logger:                 logger,
 		},
+		ID: id,
 	}
 }
 
@@ -112,6 +118,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	kubernetesPatchPath := tmpFiles["KUBERNETES_PATCH_PATH"]
 
 	envs := make([]string, 0)
+	envs = append(envs, "hook", "run", strconv.Itoa(int(sh.ID)))
 	envs = append(envs, os.Environ()...)
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
@@ -160,42 +167,40 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	return result, nil
 }
 
-func (sh *BatchHook) getConfig() (configOutput []byte, err error) {
-	envs := make([]string, 0)
-	envs = append(envs, os.Environ()...)
-	args := []string{"hook dump"}
+func (sh *BatchHook) getConfig() ([]sdkhook.HookConfig, error) {
+	return GetBatchHookConfig(sh.Path, sh.Logger)
+}
 
-	cmd := executor.NewExecutor(
-		"",
-		sh.Path,
-		args,
-		envs).
-		WithLogProxyHookJSON(sh.LogProxyHookJSON).
-		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
-		WithLogger(sh.Logger.Named("executor")).
-		WithCMDStdout(nil)
-
-	sh.Hook.Logger.Debugf("Executing hook: '%s'", strings.Join(args, " "))
-
-	output, err := cmd.Output()
+func GetBatchHookConfig(hookPath string, logger *log.Logger) ([]sdkhook.HookConfig, error) {
+	args := []string{"hook", "dump"}
+	_, err := exec.Command(hookPath, args...).Output()
 	if err != nil {
-		sh.Hook.Logger.Debugf("Hook '%s' config failed: %v, output:\n%s", sh.Name, err, string(output))
-		return nil, err
+		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	sh.Hook.Logger.Debugf("Hook '%s' config output:\n%s", sh.Name, string(output))
-
-	configs, err := os.ReadFile(sh.Path + "configs.yaml")
+	cfgPath := filepath.Join(filepath.Dir(hookPath), "configs.json")
+	cfgs := make([]sdkhook.HookConfig, 0, 1)
+	f, err := os.OpenFile(cfgPath, os.O_RDONLY, 0666)
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			logger.Error("close config file: %w", slog.String("error", err.Error()))
+		}
+	}()
 	if err != nil {
-		sh.Hook.Logger.Debugf("Hook '%s' configs read failed: %v", sh.Name, err)
-		return nil, fmt.Errorf("read file: %w", err)
+		return nil, fmt.Errorf("open file: %w", err)
 	}
 
-	return configs, nil
+	err = json.NewDecoder(f).Decode(&cfgs)
+	if err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+
+	return cfgs, nil
 }
 
 // GetConfig returns config via executing the hook with `--config` param
-func (sh *BatchHook) GetConfig() ([]byte, error) {
+func (sh *BatchHook) GetConfig() ([]sdkhook.HookConfig, error) {
 	return sh.getConfig()
 }
 

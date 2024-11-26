@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,10 +16,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/gofrs/uuid/v5"
-	"github.com/hashicorp/go-multierror"
-	"github.com/kennygrant/sanitize"
-
+	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -30,6 +28,9 @@ import (
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
+	"github.com/gofrs/uuid/v5"
+	"github.com/hashicorp/go-multierror"
+	"github.com/kennygrant/sanitize"
 )
 
 // BasicModule is a basic representation of the Module, which addon-operator works with
@@ -269,6 +270,12 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 		return nil, nil
 	}
 
+	// 1) нашли файл по тому как он ответил на команду dump
+	// 2) считали из папки конфиг
+	// 3) сделали n батч хуков и передали выше (???) может конфиг нужно обработать здесь???
+	// 4) достали из конфига по имени
+	// 5) взяли ID
+	// 6) регнули по ID
 	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, bm.logger)
 	if err != nil {
 		return nil, err
@@ -287,12 +294,48 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 			return nil, err
 		}
 
-		shHook := kind.NewBatchHook(hookName, hookPath, bm.keepTemporaryHookFiles, false, bm.logger.Named("batch-hook"))
+		sdkcfgs, err := GetBatchHookConfig(hookPath, bm.logger)
+		if err != nil {
+			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
+		}
 
-		hks = append(hks, shHook)
+		for idx, cfg := range sdkcfgs {
+			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), bm.keepTemporaryHookFiles, false, bm.logger.Named("batch-hook"))
+
+			hks = append(hks, shHook)
+		}
 	}
 
 	return
+}
+
+func GetBatchHookConfig(hookPath string, logger *log.Logger) ([]sdkhook.HookConfig, error) {
+	args := []string{"hook", "dump"}
+	_, err := exec.Command(hookPath, args...).Output()
+	if err != nil {
+		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
+	}
+
+	cfgPath := filepath.Join(filepath.Dir(hookPath), "configs.json")
+	cfgs := make([]sdkhook.HookConfig, 0, 1)
+	f, err := os.OpenFile(cfgPath, os.O_RDONLY, 0666)
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			logger.Error("close config file: %w", slog.String("error", err.Error()))
+		}
+	}()
+	if err != nil {
+		return nil, fmt.Errorf("open file: %w", err)
+	}
+
+	err = json.NewDecoder(f).Decode(&cfgs)
+	if err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+
+	return cfgs, nil
 }
 
 func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]string, error) {
@@ -345,7 +388,7 @@ func isExecutableBatchHookFile(path string, f os.FileInfo) error {
 	return ErrFileHasNotMetRequirements
 }
 
-var compiledHooksFound = regexp.MustCompile(`Found ([1-9]|[1-9]\d|[1-9]\d\d|[1-9]\d\d\d) items`)
+var compiledHooksFound = regexp.MustCompile(`dump successfully`)
 
 func IsFileBatchHook(path string, _ os.FileInfo) error {
 	args := []string{"hook", "list"}

@@ -84,7 +84,7 @@ func (mh *ModuleHook) InitializeHookConfig() (err error) {
 			return err
 		}
 
-		err = mh.config.LoadAndValidateShellConfig(cfg)
+		err = mh.config.LoadAndValidateBatchConfig(&cfg[hk.ID])
 		if err != nil {
 			return err
 		}
