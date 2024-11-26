@@ -258,11 +258,11 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 
 		if filepath.Ext(hookPath) == "" {
 			_, err := GetBatchHookConfig(hookPath, bm.logger)
-			if err != nil {
-				bm.logger.Error("get batch hook config", slog.String("hook_file_path", hookPath), slog.String("error", err.Error()))
+			if err == nil {
+				continue
 			}
 
-			continue
+			bm.logger.Error("get batch hook config", slog.String("hook_file_path", hookPath), slog.String("error", err.Error()))
 		}
 
 		shHook := kind.NewShellHook(hookName, hookPath, bm.keepTemporaryHookFiles, false, bm.logger.Named("shell-hook"))
