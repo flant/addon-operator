@@ -313,13 +313,14 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 }
 
 func GetBatchHookConfig(hookPath string, logger *log.Logger) ([]sdkhook.HookConfig, error) {
-	_, err := os.Stat(hookPath)
-	if err != nil {
-		return nil, fmt.Errorf("stat file '%s': %w", hookPath, err)
-	}
-
 	args := []string{"hook", "dump"}
-	err = exec.Command(hookPath, args...).Run()
+	cmd := executor.NewExecutor(
+		"",
+		hookPath,
+		args,
+		[]string{},
+	)
+	_, err := cmd.RunAndLogLines(nil)
 	if err != nil {
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}

@@ -118,7 +118,8 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	kubernetesPatchPath := tmpFiles["KUBERNETES_PATCH_PATH"]
 
 	envs := make([]string, 0)
-	envs = append(envs, "hook", "run", strconv.Itoa(int(sh.ID)))
+	args := make([]string, 0)
+	args = append(args, "hook", "run", strconv.Itoa(int(sh.ID)))
 	envs = append(envs, os.Environ()...)
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
@@ -127,7 +128,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	cmd := executor.NewExecutor(
 		"",
 		sh.GetPath(),
-		[]string{},
+		args,
 		envs).
 		WithLogProxyHookJSON(sh.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
