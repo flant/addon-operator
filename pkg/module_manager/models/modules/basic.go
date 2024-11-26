@@ -257,7 +257,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 		}
 
 		if filepath.Ext(hookPath) == "" {
-			_, err := GetBatchHookConfig(hookPath, bm.logger)
+			_, err := GetBatchHookConfig(hookName, bm.logger)
 			if err == nil {
 				continue
 			}
@@ -279,12 +279,6 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 		return nil, nil
 	}
 
-	// 1) нашли файл по тому как он ответил на команду dump
-	// 2) считали из папки конфиг
-	// 3) сделали n батч хуков и передали выше (???) может конфиг нужно обработать здесь???
-	// 4) достали из конфига по имени
-	// 5) взяли ID
-	// 6) регнули по ID
 	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, bm.logger)
 	if err != nil {
 		return nil, err
