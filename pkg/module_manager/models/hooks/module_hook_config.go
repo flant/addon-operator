@@ -124,10 +124,6 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 		ConfigVersion:     hcfg.ConfigVersion,
 		Schedule:          make([]config.ScheduleConfigV1, 0, len(hcfg.Schedule)),
 		OnKubernetesEvent: make([]config.OnKubernetesEventConfigV1, 0, len(hcfg.Kubernetes)),
-
-		KubernetesValidating: make([]config.KubernetesAdmissionConfigV1, 0, 1),
-		KubernetesMutating:   make([]config.KubernetesAdmissionConfigV1, 0, 1),
-		KubernetesConversion: make([]config.KubernetesConversionConfigV1, 0, 1),
 	}
 
 	if hcfg.OnStartup != nil {
@@ -206,6 +202,7 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 		hcv1.OnKubernetesEvent = append(hcv1.OnKubernetesEvent, newShCfg)
 	}
 
+	c.HookConfig.V1 = hcv1
 	err := hcv1.ConvertAndCheck(&c.HookConfig)
 	if err != nil {
 		return fmt.Errorf("convert and check from hook config v1:%w", err)
