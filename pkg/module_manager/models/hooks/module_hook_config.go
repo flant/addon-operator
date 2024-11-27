@@ -148,9 +148,9 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 
 	for _, kube := range hcfg.Kubernetes {
 		newShCfg := config.OnKubernetesEventConfigV1{
-			Name:                         hcfg.Metadata.Name,
 			ApiVersion:                   kube.APIVersion,
 			Kind:                         kube.Kind,
+			Name:                         kube.Name,
 			NameSelector:                 (*config.KubeNameSelectorV1)(kube.NameSelector),
 			LabelSelector:                kube.LabelSelector,
 			JqFilter:                     kube.JqFilter,

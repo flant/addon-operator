@@ -368,6 +368,7 @@ func IsFileBatchHook(path string, f os.FileInfo) error {
 		return ErrFileNoExecutablePermissions
 	}
 
+	// TODO: check binary another way
 	args := []string{"hook", "list"}
 	o, err := exec.Command(path, args...).Output()
 	if err != nil {
@@ -408,6 +409,8 @@ func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.Modu
 		if err != nil {
 			return nil, fmt.Errorf("module hook --config invalid: %w", err)
 		}
+
+		bm.logger.Debug("module hook config print", slog.Any("config", moduleHook.GetHookConfig()))
 
 		// Add hook info as log labels
 		for _, kubeCfg := range moduleHook.GetHookConfig().OnKubernetesEvents {
