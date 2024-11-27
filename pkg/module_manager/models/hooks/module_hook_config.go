@@ -122,9 +122,12 @@ func (c *ModuleHookConfig) LoadAndValidateShellConfig(data []byte) error {
 func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) error {
 	hcv1 := &config.HookConfigV1{
 		ConfigVersion:     hcfg.ConfigVersion,
-		OnStartup:         float64(*hcfg.OnStartup),
 		Schedule:          make([]config.ScheduleConfigV1, 0, len(hcfg.Schedule)),
 		OnKubernetesEvent: make([]config.OnKubernetesEventConfigV1, 0, len(hcfg.Kubernetes)),
+	}
+
+	if hcfg.OnStartup != nil {
+		hcv1.OnStartup = float64(*hcfg.OnStartup)
 	}
 
 	if hcfg.Settings != nil {
