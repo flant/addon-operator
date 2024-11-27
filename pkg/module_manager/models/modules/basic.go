@@ -320,8 +320,6 @@ func GetBatchHookConfig(hookPath string, logger *log.Logger) ([]sdkhook.HookConf
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	logger.Info("config output", log.RawJSON("config", string(o)))
-
 	cfgs := make([]sdkhook.HookConfig, 0, 1)
 	buf := bytes.NewBuffer(o)
 	err = json.NewDecoder(buf).Decode(&cfgs)
