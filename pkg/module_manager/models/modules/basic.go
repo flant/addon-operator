@@ -380,7 +380,7 @@ func isExecutableBatchHookFile(path string, f os.FileInfo) error {
 	return ErrFileHasNotMetRequirements
 }
 
-var compiledHooksFound = regexp.MustCompile(`dump successfully`)
+var compiledHooksFound = regexp.MustCompile(`Found ([1-9]|[1-9]\d|[1-9]\d\d|[1-9]\d\d\d) items`)
 
 func IsFileBatchHook(path string, _ os.FileInfo) error {
 	args := []string{"hook", "list"}
