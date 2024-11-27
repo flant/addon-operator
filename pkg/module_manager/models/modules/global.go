@@ -515,7 +515,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 		}
 
 		if filepath.Ext(hookPath) == "" {
-			_, err = GetBatchHookConfig(hookPath, gm.logger)
+			_, err = kind.GetBatchHookConfig(hookPath, gm.logger)
 			if err == nil {
 				continue
 			}
@@ -563,7 +563,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 			return nil, err
 		}
 
-		sdkcfgs, err := GetBatchHookConfig(hookPath, gm.logger)
+		sdkcfgs, err := kind.GetBatchHookConfig(hookPath, gm.logger)
 		if err != nil {
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}

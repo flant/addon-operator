@@ -1,9 +1,9 @@
 package kind
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -173,26 +173,15 @@ func (sh *BatchHook) getConfig() ([]sdkhook.HookConfig, error) {
 }
 
 func GetBatchHookConfig(hookPath string, logger *log.Logger) ([]sdkhook.HookConfig, error) {
-	args := []string{"hook", "dump"}
-	_, err := exec.Command(hookPath, args...).Output()
+	args := []string{"hook", "config"}
+	o, err := exec.Command(hookPath, args...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	cfgPath := filepath.Join(filepath.Dir(hookPath), "configs.json")
 	cfgs := make([]sdkhook.HookConfig, 0, 1)
-	f, err := os.OpenFile(cfgPath, os.O_RDONLY, 0666)
-	defer func() {
-		err := f.Close()
-		if err != nil {
-			logger.Error("close config file: %w", slog.String("error", err.Error()))
-		}
-	}()
-	if err != nil {
-		return nil, fmt.Errorf("open file: %w", err)
-	}
-
-	err = json.NewDecoder(f).Decode(&cfgs)
+	buf := bytes.NewBuffer(o)
+	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
 	}

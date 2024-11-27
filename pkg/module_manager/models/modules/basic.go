@@ -1,9 +1,7 @@
 package modules
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,7 +15,6 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -258,7 +255,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 		}
 
 		if filepath.Ext(hookPath) == "" {
-			_, err := GetBatchHookConfig(hookPath, bm.logger)
+			_, err := kind.GetBatchHookConfig(hookPath, bm.logger)
 			if err == nil {
 				continue
 			}
@@ -297,7 +294,7 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 			return nil, err
 		}
 
-		sdkcfgs, err := GetBatchHookConfig(hookPath, bm.logger)
+		sdkcfgs, err := kind.GetBatchHookConfig(hookPath, bm.logger)
 		if err != nil {
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
@@ -311,23 +308,6 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 	}
 
 	return
-}
-
-func GetBatchHookConfig(hookPath string, logger *log.Logger) ([]sdkhook.HookConfig, error) {
-	args := []string{"hook", "config"}
-	o, err := exec.Command(hookPath, args...).Output()
-	if err != nil {
-		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
-	}
-
-	cfgs := make([]sdkhook.HookConfig, 0, 1)
-	buf := bytes.NewBuffer(o)
-	err = json.NewDecoder(buf).Decode(&cfgs)
-	if err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-
-	return cfgs, nil
 }
 
 func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]string, error) {
