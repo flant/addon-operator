@@ -410,7 +410,7 @@ func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.Modu
 			return nil, fmt.Errorf("module hook --config invalid: %w", err)
 		}
 
-		bm.logger.Debug("module hook config print", slog.Any("config", moduleHook.GetHookConfig()))
+		bm.logger.Debug("module hook config print", slog.String("module_name", bm.Name), slog.String("hook_name", moduleHook.GetName()), slog.Any("config", moduleHook.GetHookConfig().V1))
 
 		// Add hook info as log labels
 		for _, kubeCfg := range moduleHook.GetHookConfig().OnKubernetesEvents {
