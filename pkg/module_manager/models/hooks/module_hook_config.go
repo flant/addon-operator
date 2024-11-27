@@ -120,6 +120,8 @@ func (c *ModuleHookConfig) LoadAndValidateShellConfig(data []byte) error {
 }
 
 func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) error {
+	c.Version = hcfg.ConfigVersion
+
 	hcv1 := &config.HookConfigV1{
 		ConfigVersion:     hcfg.ConfigVersion,
 		Schedule:          make([]config.ScheduleConfigV1, 0, len(hcfg.Schedule)),

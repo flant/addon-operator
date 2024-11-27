@@ -95,6 +95,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		return nil, err
 	}
 
+	// tmp files has uuid in name and create only in tmp folder (because of RO filesystem)
 	tmpFiles, err := sh.prepareTmpFilesForHookRun(bindingContextBytes, moduleSafeName, configValues, values)
 	if err != nil {
 		return nil, err
