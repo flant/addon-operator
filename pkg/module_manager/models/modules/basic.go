@@ -327,7 +327,7 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 		}
 
 		if err := isExecutableBatchHookFile(path, f); err != nil {
-			logger.Warnf("File '%s' is skipped: no executable permissions, chmod +x is required to run this hook: %v", path, err)
+			logger.Warnf("File '%s' is skipped: %v", path, err)
 			return nil
 		}
 
@@ -342,9 +342,10 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 }
 
 var (
-	ErrFileHasNotMetRequirements = errors.New("file has not met requirements")
-	ErrFileHasWrongExtension     = errors.New("file has wrong extension")
-	ErrFileIsNotBatchHook        = errors.New("file is not batch hook")
+	ErrFileHasNotMetRequirements   = errors.New("file has not met requirements")
+	ErrFileHasWrongExtension       = errors.New("file has wrong extension")
+	ErrFileIsNotBatchHook          = errors.New("file is not batch hook")
+	ErrFileNoExecutablePermissions = errors.New("no executable permissions, chmod +x is required to run this hook")
 )
 
 func isExecutableBatchHookFile(path string, f os.FileInfo) error {
@@ -362,7 +363,11 @@ func isExecutableBatchHookFile(path string, f os.FileInfo) error {
 
 var compiledHooksFound = regexp.MustCompile(`Found ([1-9]|[1-9]\d|[1-9]\d\d|[1-9]\d\d\d) items`)
 
-func IsFileBatchHook(path string, _ os.FileInfo) error {
+func IsFileBatchHook(path string, f os.FileInfo) error {
+	if f.Mode()&0o111 == 0 {
+		return ErrFileNoExecutablePermissions
+	}
+
 	args := []string{"hook", "list"}
 	o, err := exec.Command(path, args...).Output()
 	if err != nil {

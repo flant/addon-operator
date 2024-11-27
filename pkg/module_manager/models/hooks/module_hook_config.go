@@ -124,6 +124,10 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 		ConfigVersion:     hcfg.ConfigVersion,
 		Schedule:          make([]config.ScheduleConfigV1, 0, len(hcfg.Schedule)),
 		OnKubernetesEvent: make([]config.OnKubernetesEventConfigV1, 0, len(hcfg.Kubernetes)),
+
+		KubernetesValidating: make([]config.KubernetesAdmissionConfigV1, 0, 1),
+		KubernetesMutating:   make([]config.KubernetesAdmissionConfigV1, 0, 1),
+		KubernetesConversion: make([]config.KubernetesConversionConfigV1, 0, 1),
 	}
 
 	if hcfg.OnStartup != nil {
