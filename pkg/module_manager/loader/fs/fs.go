@@ -3,7 +3,6 @@ package fs
 import (
 	"fmt"
 	"io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -65,8 +64,6 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 	if !ok {
 		return nil, fmt.Errorf("expect map[string]interface{} in module values")
 	}
-
-	fl.logger.Debug("debug keep tmp files", slog.Bool("bool", shapp.DebugKeepTmpFiles))
 
 	m, err := modules.NewBasicModule(definition.Name, definition.Path, definition.Order, moduleValues, cb, vb, app.CRDsFilters, shapp.DebugKeepTmpFiles, fl.logger.Named("basic-module"))
 	if err != nil {
