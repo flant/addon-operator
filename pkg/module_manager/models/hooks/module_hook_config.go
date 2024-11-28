@@ -159,16 +159,19 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			Name:                         kube.Name,
 			NameSelector:                 (*config.KubeNameSelectorV1)(kube.NameSelector),
 			LabelSelector:                kube.LabelSelector,
-			JqFilter:                     kube.JqFilter,
 			ExecuteHookOnSynchronization: "false",
 			WaitForSynchronization:       "false",
 			// permanently false
-			KeepFullObjectsInMemory: "true",
+			KeepFullObjectsInMemory: "false",
 			ResynchronizationPeriod: kube.ResynchronizationPeriod,
 			IncludeSnapshotsFrom:    []string{kube.Name},
 			Queue:                   kube.Queue,
 			// Named like hook (get from upper)
 			Group: kube.Group,
+		}
+
+		if kube.JqFilter == "" {
+			newShCfg.JqFilter = "."
 		}
 
 		if kube.NamespaceSelector != nil {
