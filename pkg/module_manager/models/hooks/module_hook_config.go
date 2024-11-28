@@ -163,7 +163,7 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			ExecuteHookOnSynchronization: "false",
 			WaitForSynchronization:       "false",
 			// permanently false
-			KeepFullObjectsInMemory: "false",
+			KeepFullObjectsInMemory: "true",
 			ResynchronizationPeriod: kube.ResynchronizationPeriod,
 			IncludeSnapshotsFrom:    []string{kube.Name},
 			Queue:                   kube.Queue,
