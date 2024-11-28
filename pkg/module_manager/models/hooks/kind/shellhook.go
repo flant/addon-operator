@@ -2,7 +2,6 @@ package kind
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +10,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -97,10 +95,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	}
 	// Remove tmp files after execution
 	defer func() {
-		// if sh.Hook.KeepTemporaryHookFiles {
-		sh.Logger.Debug("debug keep tmp files", slog.Bool("bool", shapp.DebugKeepTmpFiles))
-		sh.Logger.Debug("debug keep tmp files raw", slog.String("bool", shapp.DebugKeepTmpFilesVar))
-		if true {
+		if sh.Hook.KeepTemporaryHookFiles {
 			return
 		}
 		for _, f := range tmpFiles {

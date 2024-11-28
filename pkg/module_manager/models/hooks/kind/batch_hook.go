@@ -102,8 +102,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	}
 	// Remove tmp files after execution
 	defer func() {
-		// if sh.Hook.KeepTemporaryHookFiles {
-		if true {
+		if sh.Hook.KeepTemporaryHookFiles {
 			return
 		}
 		for _, f := range tmpFiles {
