@@ -161,17 +161,16 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			LabelSelector:                kube.LabelSelector,
 			ExecuteHookOnSynchronization: "false",
 			WaitForSynchronization:       "false",
-			// permanently false
-			KeepFullObjectsInMemory: "false",
-			ResynchronizationPeriod: kube.ResynchronizationPeriod,
-			IncludeSnapshotsFrom:    []string{kube.Name},
-			Queue:                   kube.Queue,
+			KeepFullObjectsInMemory:      "false",
+			ResynchronizationPeriod:      kube.ResynchronizationPeriod,
+			IncludeSnapshotsFrom:         []string{kube.Name},
+			Queue:                        kube.Queue,
 			// Named like hook (get from upper)
 			Group: kube.Group,
 		}
 
-		if kube.JqFilter == "" {
-			newShCfg.JqFilter = "."
+		if *kube.KeepFullObjectsInMemory {
+			newShCfg.KeepFullObjectsInMemory = "true"
 		}
 
 		if kube.NamespaceSelector != nil {
@@ -204,6 +203,10 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 
 		if kube.WaitForSynchronization != nil {
 			newShCfg.WaitForSynchronization = strconv.FormatBool(*kube.WaitForSynchronization)
+		}
+
+		if kube.KeepFullObjectsInMemory != nil {
+			newShCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
 		}
 
 		if kube.AllowFailure != nil {
