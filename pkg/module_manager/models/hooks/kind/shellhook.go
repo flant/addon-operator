@@ -95,7 +95,8 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if sh.Hook.KeepTemporaryHookFiles {
+		// if sh.Hook.KeepTemporaryHookFiles {
+		if true {
 			return
 		}
 		for _, f := range tmpFiles {
