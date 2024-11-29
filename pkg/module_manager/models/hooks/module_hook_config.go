@@ -166,8 +166,7 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			IncludeSnapshotsFrom:         []string{kube.Name},
 			JqFilter:                     kube.JqFilter,
 			Queue:                        kube.Queue,
-			// Named like hook (get from upper)
-			Group: kube.Group,
+			Group:                        kube.Group,
 		}
 
 		if *kube.KeepFullObjectsInMemory {

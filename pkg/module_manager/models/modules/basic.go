@@ -64,6 +64,7 @@ type BasicModule struct {
 	logger *log.Logger
 }
 
+// TODO: add options WithLogger
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
 func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, crdsFilters string, keepTemporaryHookFiles bool, logger *log.Logger) (*BasicModule, error) {
