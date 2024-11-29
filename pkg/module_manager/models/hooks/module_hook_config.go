@@ -164,6 +164,7 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			KeepFullObjectsInMemory:      "false",
 			ResynchronizationPeriod:      kube.ResynchronizationPeriod,
 			IncludeSnapshotsFrom:         []string{kube.Name},
+			JqFilter:                     kube.JqFilter,
 			Queue:                        kube.Queue,
 			// Named like hook (get from upper)
 			Group: kube.Group,
