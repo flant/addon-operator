@@ -38,7 +38,7 @@ RUN CGO_ENABLED=1 \
     go build -o post-renderer ./cmd/post-renderer
 
 # Final image
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.16
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.20
 ARG TARGETPLATFORM
 # kubectl url has no variant (v7)
 # helm url has dashes and no variant (v7)
