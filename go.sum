@@ -89,8 +89,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241106140903-258b93b3334e h1:QUQy+5Bv7/UzhfrytiG3c5gfLGhPppepVbRpbMisVIw=
 github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241106140903-258b93b3334e/go.mod h1:Mk5HRzkc5pIcDIZ2JJ6DPuuqnwhXVkb3you8M8Mg+4w=
-github.com/deckhouse/module-sdk v0.0.0-20241127192219-37c0db1fa9b3 h1:HlYsVToUL2nsVAzdy+7bSObot5F/trCaTrqm+ql+Ps4=
-github.com/deckhouse/module-sdk v0.0.0-20241127192219-37c0db1fa9b3/go.mod h1:tYtutQuR44QXX1gj63+my4SEpCmh+2YRJXavSD84Yi0=
+github.com/deckhouse/module-sdk v0.0.0-20241203090217-0cff4c4f9b7b h1:d5Cgs3Vfoq4ZlBgiw77kY27QUocMlgQqc4/znnW6wSA=
+github.com/deckhouse/module-sdk v0.0.0-20241203090217-0cff4c4f9b7b/go.mod h1:puQGGZwhFk82BqPbb/9cniQeBLsIeZ79+8hqovdO1+U=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/distribution/distribution/v3 v3.0.0-beta.1 h1:X+ELTxPuZ1Xe5MsD3kp2wfGUhc8I+MPfRis8dZ818Ic=
@@ -138,8 +138,6 @@ github.com/flant/kube-client v1.2.2 h1:27LBs+PKJEFnkQXjPU9eIps7a7iyI13AKcSYj897D
 github.com/flant/kube-client v1.2.2/go.mod h1:eMa3aJ6V1PRWSQ/RCROkObDpY4S74uM84SJS4G/LINg=
 github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee h1:evii83J+/6QGNvyf6tjQ/p27DPY9iftxIBb37ALJRTg=
 github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee/go.mod h1:f+REaGl/+pZR97rbTcwHEka/MAipoQQ2Mc0iQUj4ak0=
-github.com/flant/shell-operator v0.0.0-20241129084537-f8ecfa3e66e8 h1:PaoqrA1fv3w5uL9NlA63EfE9a20vykdRfeIiB+L46h4=
-github.com/flant/shell-operator v0.0.0-20241129084537-f8ecfa3e66e8/go.mod h1:Kbq8JNtKfoT8aqbHxygvgd6WoMImne8/upAYx9QyHUA=
 github.com/flant/shell-operator v0.0.0-20241129085258-450318914091 h1:h6xm463wxgDWiqwOsJZckTewFlCf4LzibCkI58hoORo=
 github.com/flant/shell-operator v0.0.0-20241129085258-450318914091/go.mod h1:Kbq8JNtKfoT8aqbHxygvgd6WoMImne8/upAYx9QyHUA=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=

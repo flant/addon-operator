@@ -151,8 +151,9 @@ func (c *GlobalHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			ResynchronizationPeriod: kube.ResynchronizationPeriod,
 			IncludeSnapshotsFrom:    kube.IncludeSnapshotsFrom,
 			Queue:                   kube.Queue,
-			// Named like hook (get from upper)
-			Group: kube.Group,
+			// TODO: make default constants public to use here
+			// like go hooks apply default
+			Group: "main",
 		}
 
 		if kube.NamespaceSelector != nil {

@@ -166,7 +166,9 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			IncludeSnapshotsFrom:         []string{kube.Name},
 			JqFilter:                     kube.JqFilter,
 			Queue:                        kube.Queue,
-			Group:                        kube.Group,
+			// TODO: make default constants public to use here
+			// like go hooks apply default
+			Group: "main",
 		}
 
 		if *kube.KeepFullObjectsInMemory {
