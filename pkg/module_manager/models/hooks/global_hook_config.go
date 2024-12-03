@@ -3,7 +3,6 @@ package hooks
 import (
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/davecgh/go-spew/spew"
 	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
@@ -16,7 +15,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/config"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube_events_manager"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	eventtypes "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	schdulertypes "github.com/flant/shell-operator/pkg/schedule_manager/types"
 )
@@ -115,85 +113,9 @@ func (c *GlobalHookConfig) LoadAndValidateShellConfig(data []byte) error {
 }
 
 func (c *GlobalHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) error {
-	hcv1 := &config.HookConfigV1{
-		ConfigVersion:     hcfg.ConfigVersion,
-		OnStartup:         float64(*hcfg.OnStartup),
-		Schedule:          make([]config.ScheduleConfigV1, 0, len(hcfg.Schedule)),
-		OnKubernetesEvent: make([]config.OnKubernetesEventConfigV1, 0, len(hcfg.Kubernetes)),
-	}
+	c.Version = hcfg.ConfigVersion
 
-	if hcfg.Settings != nil {
-		hcv1.Settings = &config.SettingsV1{
-			ExecutionMinInterval: hcfg.Settings.ExecutionMinInterval.String(),
-			ExecutionBurst:       strconv.Itoa(hcfg.Settings.ExecutionBurst),
-		}
-	}
-
-	for _, sch := range hcfg.Schedule {
-		hcv1.Schedule = append(hcv1.Schedule, config.ScheduleConfigV1{
-			Name:    sch.Name,
-			Crontab: sch.Crontab,
-		})
-	}
-
-	for _, kube := range hcfg.Kubernetes {
-		newShCfg := config.OnKubernetesEventConfigV1{
-			Name:                         hcfg.Metadata.Name,
-			ApiVersion:                   kube.APIVersion,
-			Kind:                         kube.Kind,
-			NameSelector:                 (*config.KubeNameSelectorV1)(kube.NameSelector),
-			LabelSelector:                kube.LabelSelector,
-			JqFilter:                     kube.JqFilter,
-			ExecuteHookOnSynchronization: "true",
-			WaitForSynchronization:       "true",
-			// permanently false
-			KeepFullObjectsInMemory: "false",
-			ResynchronizationPeriod: kube.ResynchronizationPeriod,
-			IncludeSnapshotsFrom:    kube.IncludeSnapshotsFrom,
-			Queue:                   kube.Queue,
-			// TODO: make default constants public to use here
-			// like go hooks apply default
-			Group: "main",
-		}
-
-		if kube.NamespaceSelector != nil {
-			newShCfg.Namespace = &config.KubeNamespaceSelectorV1{
-				NameSelector:  (*types.NameSelector)(kube.NameSelector),
-				LabelSelector: kube.LabelSelector,
-			}
-		}
-
-		if kube.FieldSelector != nil {
-			fs := &config.KubeFieldSelectorV1{
-				MatchExpressions: make([]types.FieldSelectorRequirement, 0, len(kube.FieldSelector.MatchExpressions)),
-			}
-
-			for _, expr := range kube.FieldSelector.MatchExpressions {
-				fs.MatchExpressions = append(fs.MatchExpressions, types.FieldSelectorRequirement(expr))
-			}
-
-			newShCfg.FieldSelector = fs
-		}
-
-		// *bool --> ExecuteHookOnEvents: [All events] || empty array or nothing
-		if kube.ExecuteHookOnEvents != nil && !*kube.ExecuteHookOnEvents {
-			newShCfg.ExecuteHookOnEvents = make([]types.WatchEventType, 0, 1)
-		}
-
-		if kube.ExecuteHookOnSynchronization != nil {
-			newShCfg.ExecuteHookOnSynchronization = strconv.FormatBool(*kube.ExecuteHookOnSynchronization)
-		}
-
-		if kube.WaitForSynchronization != nil {
-			newShCfg.WaitForSynchronization = strconv.FormatBool(*kube.WaitForSynchronization)
-		}
-
-		if kube.AllowFailure != nil {
-			newShCfg.AllowFailure = *kube.AllowFailure
-		}
-
-		hcv1.OnKubernetesEvent = append(hcv1.OnKubernetesEvent, newShCfg)
-	}
+	hcv1 := remapHookConfigV1FromHookConfig(hcfg)
 
 	err := hcv1.ConvertAndCheck(&c.HookConfig)
 	if err != nil {

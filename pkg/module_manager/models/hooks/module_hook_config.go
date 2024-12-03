@@ -119,9 +119,7 @@ func (c *ModuleHookConfig) LoadAndValidateShellConfig(data []byte) error {
 	return nil
 }
 
-func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) error {
-	c.Version = hcfg.ConfigVersion
-
+func remapHookConfigV1FromHookConfig(hcfg *sdkhook.HookConfig) *config.HookConfigV1 {
 	hcv1 := &config.HookConfigV1{
 		ConfigVersion: hcfg.ConfigVersion,
 	}
@@ -157,28 +155,30 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			ApiVersion:                   kube.APIVersion,
 			Kind:                         kube.Kind,
 			Name:                         kube.Name,
-			NameSelector:                 (*config.KubeNameSelectorV1)(kube.NameSelector),
 			LabelSelector:                kube.LabelSelector,
-			ExecuteHookOnSynchronization: "false",
-			WaitForSynchronization:       "false",
-			KeepFullObjectsInMemory:      "false",
-			ResynchronizationPeriod:      kube.ResynchronizationPeriod,
-			IncludeSnapshotsFrom:         []string{kube.Name},
 			JqFilter:                     kube.JqFilter,
-			Queue:                        kube.Queue,
+			ExecuteHookOnSynchronization: "true",
+			WaitForSynchronization:       "true",
+			// permanently false
+			KeepFullObjectsInMemory: "false",
+			ResynchronizationPeriod: kube.ResynchronizationPeriod,
+			IncludeSnapshotsFrom:    kube.IncludeSnapshotsFrom,
+			Queue:                   kube.Queue,
 			// TODO: make default constants public to use here
 			// like go hooks apply default
 			Group: "main",
 		}
 
-		if *kube.KeepFullObjectsInMemory {
-			newShCfg.KeepFullObjectsInMemory = "true"
+		if kube.NameSelector != nil {
+			newShCfg.NameSelector = &config.KubeNameSelectorV1{
+				MatchNames: kube.NameSelector.MatchNames,
+			}
 		}
 
 		if kube.NamespaceSelector != nil {
 			newShCfg.Namespace = &config.KubeNamespaceSelectorV1{
-				NameSelector:  (*types.NameSelector)(kube.NameSelector),
-				LabelSelector: kube.LabelSelector,
+				NameSelector:  (*types.NameSelector)(kube.NamespaceSelector.NameSelector),
+				LabelSelector: kube.NamespaceSelector.LabelSelector,
 			}
 		}
 
@@ -194,8 +194,12 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			newShCfg.FieldSelector = fs
 		}
 
+		if kube.KeepFullObjectsInMemory != nil {
+			newShCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
+		}
+
 		// *bool --> ExecuteHookOnEvents: [All events] || empty array or nothing
-		if kube.ExecuteHookOnEvents != nil {
+		if kube.ExecuteHookOnEvents != nil && !*kube.ExecuteHookOnEvents {
 			newShCfg.ExecuteHookOnEvents = make([]types.WatchEventType, 0, 1)
 		}
 
@@ -217,6 +221,14 @@ func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 
 		hcv1.OnKubernetesEvent = append(hcv1.OnKubernetesEvent, newShCfg)
 	}
+
+	return hcv1
+}
+
+func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) error {
+	c.Version = hcfg.ConfigVersion
+
+	hcv1 := remapHookConfigV1FromHookConfig(hcfg)
 
 	c.HookConfig.V1 = hcv1
 	err := hcv1.ConvertAndCheck(&c.HookConfig)
