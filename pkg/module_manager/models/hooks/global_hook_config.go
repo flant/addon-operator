@@ -144,8 +144,8 @@ func (c *GlobalHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 			NameSelector:                 (*config.KubeNameSelectorV1)(kube.NameSelector),
 			LabelSelector:                kube.LabelSelector,
 			JqFilter:                     kube.JqFilter,
-			ExecuteHookOnSynchronization: "false",
-			WaitForSynchronization:       "false",
+			ExecuteHookOnSynchronization: "true",
+			WaitForSynchronization:       "true",
 			// permanently false
 			KeepFullObjectsInMemory: "false",
 			ResynchronizationPeriod: kube.ResynchronizationPeriod,
@@ -176,7 +176,7 @@ func (c *GlobalHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) 
 		}
 
 		// *bool --> ExecuteHookOnEvents: [All events] || empty array or nothing
-		if kube.ExecuteHookOnEvents != nil {
+		if kube.ExecuteHookOnEvents != nil && !*kube.ExecuteHookOnEvents {
 			newShCfg.ExecuteHookOnEvents = make([]types.WatchEventType, 0, 1)
 		}
 
