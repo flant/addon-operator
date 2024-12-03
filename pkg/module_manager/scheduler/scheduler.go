@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -15,6 +15,7 @@ import (
 	"github.com/dominikbraun/graph"
 	"github.com/dominikbraun/graph/draw"
 	"github.com/goccy/go-graphviz"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
@@ -44,22 +45,40 @@ type Scheduler struct {
 	// list of extenders to cycle over on a run
 	extenders []extenderContainer
 	extCh     chan extenders.ExtenderEvent
+
 	// graph visualization
 	graphImage image.Image
 
 	l sync.Mutex
 	// directed acyclic graph consisting of vertices representing modules and weights
 	dag graph.Graph[string, *node.Node]
+
 	// the root vertex of the dag
 	root *node.Node
-	// cache containing currently enabled vertices
+
+	// list of currently enabled vertices
 	enabledModules *[]string
+
 	// storage for current module diff
 	diff map[string]bool
-	// keeps all errors happened on last run
-	errList []string
+
+	// keeps all errors happened on the last run
+	err error
+
+	// buffer, holding up-to-date vertex states during graph recalculations
+	// gets reset before each recalculation
+	// provides a shared state of enabled modules to some extenders like script_enabled
+	vertexStateBuffer vertexStateBuffer
+
+	// additional edges to connect vertices with
+	topologicalHints map[extenders.ExtenderName]map[string][]string
 
 	logger *log.Logger
+}
+
+type vertexStateBuffer struct {
+	state          map[string]*vertexState
+	enabledModules []string
 }
 
 type vertexState struct {
@@ -73,13 +92,14 @@ func NewScheduler(ctx context.Context, logger *log.Logger) *Scheduler {
 		return n.GetName()
 	}
 	return &Scheduler{
-		ctx:       ctx,
-		extenders: make([]extenderContainer, 0),
-		extCh:     make(chan extenders.ExtenderEvent, 1),
-		dag:       graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
-		diff:      make(map[string]bool),
-		errList:   make([]string, 0),
-		logger:    logger,
+		ctx:               ctx,
+		extenders:         make([]extenderContainer, 0),
+		extCh:             make(chan extenders.ExtenderEvent, 1),
+		dag:               graph.New(nodeHash, graph.Directed(), graph.Acyclic(), graph.PreventCycles()),
+		diff:              make(map[string]bool),
+		vertexStateBuffer: vertexStateBuffer{},
+		topologicalHints:  make(map[extenders.ExtenderName]map[string][]string, 0),
+		logger:            logger,
 	}
 }
 
@@ -97,20 +117,20 @@ func (s *Scheduler) GetGraphImage() (image.Image, error) {
 	writer := bufio.NewWriter(&b)
 
 	if err := draw.DOT(s.dag, writer, draw.GraphAttribute("label", "Module Scheduler's Graph")); err != nil {
-		return nil, fmt.Errorf("Couldn't write graph file: %v", err)
+		return nil, fmt.Errorf("Couldn't write graph file: %w", err)
 	}
 	writer.Flush()
 
 	graph, err := graphviz.ParseBytes(b.Bytes())
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't parse graph file: %v", err)
+		return nil, fmt.Errorf("Couldn't parse graph file: %w", err)
 	}
 
 	g := graphviz.New()
 
 	image, err := g.RenderImage(graph)
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't render graph image: %v", err)
+		return nil, fmt.Errorf("Couldn't render graph image: %w", err)
 	}
 	s.graphImage = image
 
@@ -123,37 +143,82 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 	defer s.l.Unlock()
 	vertex := node.NewNode().WithName(module.GetName()).WithWeight(module.GetOrder()).WithType(node.ModuleType).WithModule(module)
 	// add module vertex
-	if err := s.dag.AddVertex(vertex, graph.VertexAttribute("colorscheme", "greens3"), graph.VertexAttribute("style", "filled"), graph.VertexAttribute("color", "2"), graph.VertexAttribute("fillcolor", "1"), graph.VertexAttribute("type", string(node.ModuleType))); err != nil {
+	if err := s.dag.AddVertex(vertex, graph.VertexAttribute("colorscheme", "greens3"), graph.VertexAttribute("style", "filled"), graph.VertexAttribute("color", "2"), graph.VertexAttribute("fillcolor", "1"), graph.VertexAttribute(node.TypeAttribute, string(node.ModuleType))); err != nil {
 		return err
 	}
 
-	// check if pertaining weight vertex already exists
-	parent, err := s.dag.Vertex(vertex.GetWeight().String())
-	switch {
-	// parent found
-	case err == nil:
-		if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
-			return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
-		}
-	// some other error
-	case !errors.Is(err, graph.ErrVertexNotFound):
-		return err
-	// parent not found - create it
-	default:
-		parent := node.NewNode().WithName(vertex.GetWeight().String()).WithWeight(uint32(vertex.GetWeight())).WithType(node.WeightType)
-		if err := s.addWeightVertex(parent); err != nil {
-			return err
-		}
-		if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
-			return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+	// check if the current vertex has to be a parent for other vertices
+	for _, parents := range s.topologicalHints {
+		if children, found := parents[module.GetName()]; found {
+			for _, child := range children {
+				if err := s.dag.AddEdge(module.GetName(), child); err != nil {
+					return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", module.GetName(), vertex.GetName(), err)
+				}
+			}
+			delete(parents, module.GetName())
 		}
 	}
+
+	// check if there are additional dependencies for the module
+	hints := s.getEdgesFromExtenders(module.GetName())
+	// the module's vertex has be connected directly to some other vertices
+	if len(hints) > 0 {
+		for extenderName, parents := range hints {
+			for _, p := range parents {
+				parent, err := s.dag.Vertex(p)
+				// parent vertex not found - add a record to the hint store
+				if err != nil {
+					_, extFound := s.topologicalHints[extenderName]
+					if !extFound {
+						s.topologicalHints[extenderName] = make(map[string][]string, 0)
+					}
+
+					_, parentFound := s.topologicalHints[extenderName][p]
+					if !parentFound {
+						s.topologicalHints[extenderName][p] = make([]string, 0)
+					}
+
+					s.topologicalHints[extenderName][p] = append(s.topologicalHints[extenderName][p], vertex.GetName())
+					continue
+				}
+				// add an edge from the parent to the vertex
+				if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
+					return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+				}
+			}
+		}
+
+		// no dependencies - the module's vertex has to be connected to the corresponding weight vertex
+	} else {
+		// check if pertaining weight vertex already exists
+		parent, err := s.dag.Vertex(vertex.GetWeight().String())
+		switch {
+		// parent found
+		case err == nil:
+			if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
+				return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+			}
+		// some other error
+		case !errors.Is(err, graph.ErrVertexNotFound):
+			return err
+		// parent not found - create it
+		default:
+			parent := node.NewNode().WithName(vertex.GetWeight().String()).WithWeight(uint32(vertex.GetWeight())).WithType(node.WeightType)
+			if err := s.addWeightVertex(parent); err != nil {
+				return err
+			}
+			if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
+				return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+			}
+		}
+	}
+
 	return nil
 }
 
 // addWeightVertex adds a new vertex of type Weight to the graph
 func (s *Scheduler) addWeightVertex(vertex *node.Node) error {
-	if err := s.dag.AddVertex(vertex, graph.VertexWeight(int(vertex.GetWeight())), graph.VertexAttribute("colorscheme", "blues3"), graph.VertexAttribute("style", "filled"), graph.VertexAttribute("color", "2"), graph.VertexAttribute("fillcolor", "1"), graph.VertexAttribute("type", string(node.WeightType))); err != nil {
+	if err := s.dag.AddVertex(vertex, graph.VertexWeight(int(vertex.GetWeight())), graph.VertexAttribute("colorscheme", "blues3"), graph.VertexAttribute("style", "filled"), graph.VertexAttribute("color", "2"), graph.VertexAttribute("fillcolor", "1"), graph.VertexAttribute(node.TypeAttribute, string(node.WeightType))); err != nil {
 		return err
 	}
 
@@ -170,12 +235,12 @@ func (s *Scheduler) addWeightVertex(vertex *node.Node) error {
 	err := graph.DFS(s.dag, s.root.GetName(), func(name string) bool {
 		currVertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			dfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
+			dfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %w", name, err)
 			return true
 		}
 
 		// filter out module vertices
-		if props.Attributes["type"] == string(node.ModuleType) {
+		if props.Attributes[node.TypeAttribute] == string(node.ModuleType) {
 			return false
 		}
 
@@ -265,6 +330,11 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 				if ne, ok := e.ext.(extenders.NotificationExtender); ok {
 					ne.SetNotifyChannel(s.ctx, s.extCh)
 				}
+				if se, ok := e.ext.(extenders.StatefulExtender); ok {
+					se.SetModulesStateHelper(func() []string {
+						return s.vertexStateBuffer.enabledModules
+					})
+				}
 				break
 			}
 		}
@@ -281,6 +351,7 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	}
 
 	log.Infof("The list of applied module extenders: %s", finalList)
+
 	return nil
 }
 
@@ -295,6 +366,20 @@ func (s *Scheduler) setExtendersMeta() {
 	}
 }
 
+// getEdgesFromExtenders cycles through topological extenders to build a map of additional edges for the module
+func (s *Scheduler) getEdgesFromExtenders(moduleName string) map[extenders.ExtenderName][]string {
+	result := make(map[extenders.ExtenderName][]string, 0)
+	for _, e := range s.extenders {
+		if tope, ok := e.ext.(extenders.TopologicalExtender); ok {
+			if hints := tope.GetTopologicalHints(moduleName); len(hints) > 0 {
+				result[e.ext.Name()] = hints
+			}
+		}
+	}
+
+	return result
+}
+
 // AddExtender adds a new extender to the slice of the extenders that are used to determine modules' states
 func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 	for _, e := range s.extenders {
@@ -307,43 +392,101 @@ func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 	return nil
 }
 
-// GetModuleNodes traverses the graph in BFS-way and returns all Module-type vertices
-func (s *Scheduler) GetModuleNodes() ([]*node.Node, error) {
-	s.l.Lock()
-	defer s.l.Unlock()
+// getModuleVertices traverses the graph in BFS-way and returns all connected Module-type vertices
+func (s *Scheduler) getModuleVertices() ([]*node.Node, error) {
 	if s.root == nil {
 		return nil, fmt.Errorf("graph is empty")
 	}
 
-	var nodes []*node.Node
-	var bfsErr error
+	var (
+		nodes  []*node.Node
+		bfsErr error
+	)
 
-	err := graph.BFS(s.dag, s.root.GetName(), func(name string) bool {
+	err := s.customBFS(s.root.GetName(), func(name, _ string, _ int) (bool, int) {
+		var dummyDepth int
 		vertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
-			return true
+			bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %w", name, err)
+			return true, dummyDepth
 		}
 
-		if props.Attributes["type"] == string(node.ModuleType) {
+		if props.Attributes[node.TypeAttribute] == string(node.ModuleType) {
 			nodes = append(nodes, vertex)
 		}
 
-		return false
+		return false, dummyDepth
 	})
 
 	if bfsErr != nil {
 		return nodes, bfsErr
 	}
+
 	return nodes, err
 }
 
-// PrintSummary returns resulting consisting of all module-type vertices, their states and last applied extenders
-func (s *Scheduler) PrintSummary() (map[string]bool, error) {
-	result := make(map[string]bool, 0)
-	vertices, err := s.GetModuleNodes()
+// customBFS reimplements BFS but allows visiting vertices multiple times and vertices at the same level are traversed in a sorted way
+func (s *Scheduler) customBFS(root string, visit func(node, prevNode string, prevDepth int) (bool, int)) error {
+	adjacencyMap, err := s.dag.AdjacencyMap()
 	if err != nil {
-		return result, err
+		return fmt.Errorf("could not get adjacency map: %w", err)
+	}
+
+	if _, ok := adjacencyMap[root]; !ok {
+		return fmt.Errorf("could not find root vertex with hash %v", root)
+	}
+
+	// ad-hoc type to save additional meta about vertices
+	type vertex struct {
+		name       string
+		prevVertex string
+		prevDepth  int
+	}
+
+	queue := make([]vertex, 0)
+	queue = append(queue, vertex{name: root})
+
+	for len(queue) > 0 {
+		currentHash := queue[0].name
+		prevHash := queue[0].prevVertex
+		prevDepth := queue[0].prevDepth
+		depth := prevDepth + 1
+
+		queue = queue[1:]
+
+		// Stop traversing the graph if the visit function returns true.
+		stop, updatedDepth := visit(currentHash, prevHash, prevDepth)
+		if stop {
+			break
+		}
+
+		if updatedDepth != 0 {
+			depth = updatedDepth
+		}
+
+		sliceOfAdjacencies := make([]string, 0)
+		for adjacency := range adjacencyMap[currentHash] {
+			sliceOfAdjacencies = append(sliceOfAdjacencies, adjacency)
+		}
+
+		slices.Sort(sliceOfAdjacencies)
+		for _, adj := range sliceOfAdjacencies {
+			queue = append(queue, vertex{name: adj, prevVertex: currentHash, prevDepth: depth})
+		}
+	}
+
+	return nil
+}
+
+// printSummary returns summary, consisting of all module-type vertices, their states and last applied extenders
+// intended for testing purposes only
+func (s *Scheduler) printSummary() (map[string]bool, error) {
+	result := make(map[string]bool, 0)
+
+	s.l.Lock()
+	vertices, err := s.getModuleVertices()
+	if err != nil {
+		return nil, err
 	}
 
 	for _, vertex := range vertices {
@@ -351,11 +494,28 @@ func (s *Scheduler) PrintSummary() (map[string]bool, error) {
 			result[fmt.Sprintf("%s/%s", vertex.GetName(), vertex.GetUpdatedBy())] = vertex.GetState()
 		}
 	}
-	return result, nil
-}
 
-func moduleSortFunc(m1, m2 string) bool {
-	return m1 < m2
+	for extenderName, parents := range s.topologicalHints {
+		for _, children := range parents {
+			for _, child := range children {
+				found := false
+				for k := range result {
+					if strings.HasPrefix(k, child) {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					result[fmt.Sprintf("%s/%s", child, extenderName)] = false
+				}
+			}
+		}
+	}
+
+	s.l.Unlock()
+
+	return result, nil
 }
 
 func (s *Scheduler) GetUpdatedByExtender(moduleName string) (string, error) {
@@ -375,6 +535,7 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 	if err != nil {
 		return false
 	}
+
 	return vertex.GetState()
 }
 
@@ -397,99 +558,79 @@ func (s *Scheduler) getEnabledModuleNames() []string {
 	return enabledModules
 }
 
-func (s *Scheduler) getEnabledModuleNamesByOrder(weights ...node.NodeWeight) (map[node.NodeWeight][]string, error) {
+func (s *Scheduler) getEnabledModuleNamesByOrder() ([][]string, error) {
 	if s.root == nil {
 		return nil, fmt.Errorf("graph is empty")
 	}
-	result := make(map[node.NodeWeight][]string, 0)
-	var err error
-	switch {
-	// get modules of all weights
-	case len(weights) == 0:
-		var (
-			dfsErr     error
-			allWeights []node.NodeWeight
-		)
-		err = graph.DFS(s.dag, s.root.GetName(), func(name string) bool {
-			vertex, props, err := s.dag.VertexWithProperties(name)
-			if err != nil {
-				dfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
-				return true
-			}
 
-			if props.Attributes["type"] == string(node.WeightType) {
-				allWeights = append(allWeights, vertex.GetWeight())
-			}
+	var (
+		vertices = make(map[string]int, len(*s.enabledModules))
+		bfsErr   error
+	)
 
-			return false
-		})
+	if err := s.customBFS(s.root.GetName(), func(name, prevNodeName string, prevDepth int) (bool, int) {
+		var depth int
+		vertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			return nil, err
+			bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %w", name, err)
+			return true, depth
 		}
-		if dfsErr != nil {
-			return nil, dfsErr
-		}
-		result, err = s.getEnabledModuleNamesByOrder(allWeights...)
 
-	// get modules of specific weight
-	case len(weights) == 1:
-		// check if the weight vertex exists
-		rootVertex, err := s.dag.Vertex(weights[0].String())
+		// skip weight nodes
+		if props.Attributes[node.TypeAttribute] == string(node.WeightType) {
+			return false, depth
+		}
+
+		_, prevProps, err := s.dag.VertexWithProperties(prevNodeName)
 		if err != nil {
-			return nil, err
+			bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %w", prevNodeName, err)
+			return true, depth
 		}
 
-		// get all modules of the weight
-		var (
-			bfsErr         error
-			enabledModules = []string{}
-		)
-		// search for all module vertices which have desired weight
-		err = graph.BFS(s.dag, rootVertex.GetName(), func(name string) bool {
-			vertex, props, err := s.dag.VertexWithProperties(name)
-			if err != nil {
-				bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %v", name, err)
-				return true
-			}
-
-			if props.Attributes["type"] == string(node.ModuleType) && vertex.GetState() {
-				if vertex.GetWeight() == rootVertex.GetWeight() {
-					enabledModules = append(enabledModules, vertex.GetName())
-					return false
-				}
-				// a vertex with different weight has been found - exit
-				return true
-			}
-
-			// a weight vertex has been found - continue
-			return false
-		})
-		if err != nil {
-			return nil, err
-		}
-		if bfsErr != nil {
-			return nil, bfsErr
-		}
-		sort.Strings(enabledModules)
-		if len(enabledModules) > 0 {
-			result[rootVertex.GetWeight()] = enabledModules
+		if prevProps.Attributes[node.TypeAttribute] == string(node.WeightType) {
+			depth = prevDepth
+		} else {
+			depth = prevDepth + 1
 		}
 
-	// get modules of specified weights
-	default:
-		sort.Sort(node.NodeWeightRange(weights))
-		for _, weight := range weights {
-			enabledModulesByOrder, err := s.getEnabledModuleNamesByOrder([]node.NodeWeight{weight}...)
-			if err != nil {
-				return nil, err
-			}
-			for k, v := range enabledModulesByOrder {
-				result[k] = v
+		if vertex.GetState() {
+			if depth > vertices[name] {
+				vertices[name] = depth
 			}
 		}
+
+		return false, depth
+	}); err != nil {
+		return nil, err
 	}
 
-	return result, err
+	if bfsErr != nil {
+		return nil, bfsErr
+	}
+
+	depths := make([]int, 0)
+	verticesByDepth := make(map[int][]string, 0)
+
+	for vertex, depth := range vertices {
+		listOfVertices, found := verticesByDepth[depth]
+		if !found {
+			listOfVertices = make([]string, 0)
+		}
+
+		listOfVertices = append(listOfVertices, vertex)
+		verticesByDepth[depth] = listOfVertices
+		depths = append(depths, depth)
+	}
+
+	slices.Sort(depths)
+	depths = slices.Compact(depths)
+
+	orderedVertices := make([][]string, 0, len(depths))
+	for _, depth := range depths {
+		orderedVertices = append(orderedVertices, verticesByDepth[depth])
+	}
+
+	return orderedVertices, nil
 }
 
 // GetGraphState returns:
@@ -498,7 +639,7 @@ func (s *Scheduler) getEnabledModuleNamesByOrder(weights ...node.NodeWeight) (ma
 // * error if any
 // if s.enabledModules is nil, we infer that the graph hasn't been calculated yet and run RecalculateGraph for the first time.
 // if s.errList isn't empty, we try to recalculate the graph in case there were some minor errors last time.
-func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modules*/ []string /*enabled modules grouped by order*/, map[node.NodeWeight][]string /*modules diff*/, map[string]bool, error) {
+func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modules*/ []string /*enabled modules sorted by order*/, [][]string /*modules diff*/, map[string]bool, error) {
 	var recalculateGraph bool
 	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
 	s.l.Lock()
@@ -510,8 +651,8 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 		recalculateGraph = true
 	}
 
-	if len(s.errList) > 0 {
-		logEntry.Warnf("Module Scheduler: graph in a faulty state and will be recalculated: %s", strings.Join(s.errList, ","))
+	if s.err != nil {
+		logEntry.Warnf("Module Scheduler: graph in a faulty state and will be recalculated: %s", s.err.Error())
 		recalculateGraph = true
 	}
 
@@ -519,8 +660,8 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 		_, _ = s.recalculateGraphState(logLabels)
 	}
 
-	if len(s.errList) > 0 {
-		return nil, nil, nil, fmt.Errorf("couldn't recalculate graph: %s", strings.Join(s.errList, ","))
+	if s.err != nil {
+		return nil, nil, nil, fmt.Errorf("couldn't recalculate graph: %s", s.err.Error())
 	}
 
 	enabledModulesByOrder, err := s.getEnabledModuleNamesByOrder()
@@ -532,16 +673,27 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 func (s *Scheduler) RecalculateGraph(logLabels map[string]string) (bool, []string) {
 	s.l.Lock()
 	defer s.l.Unlock()
+
 	return s.recalculateGraphState(logLabels)
 }
 
 // Filter returns filtering result for the specified extender and module
 func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, logLabels map[string]string) (*bool, error) {
+	s.l.Lock()
+	defer s.l.Unlock()
+	if s.root == nil {
+		return nil, fmt.Errorf("graph is empty")
+	}
+	if s.err != nil {
+		return nil, fmt.Errorf("graph is in a faulty state")
+	}
+
 	for _, e := range s.extenders {
 		if e.ext.Name() == extName {
 			return e.ext.Filter(moduleName, logLabels)
 		}
 	}
+
 	return nil, fmt.Errorf("extender %s not found", extName)
 }
 
@@ -550,132 +702,149 @@ func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, lo
 // It returns:
 // - true if the state of any vertex has changed (enabled/disabled) or there were any errors during the run;
 // - true if some other parameters, apart from state, of a vertex has changed.
-func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Graph's state has changed */ bool /* list of the vertices, which updateBy status have changed */, []string) {
-	diff, updByDiff := make(map[string]bool), make([]string, 0)
-	errList := make([]string, 0)
-	enabledModules := make([]string, 0)
+func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Graph's state has changed */ bool /* list of the vertices, which updateBy statuses have changed */, []string) {
+	stateDiff, metaDiff := make(map[string]bool), make(map[string]struct{}, 0)
+	var graphErr error
 	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
 
-	names, err := graph.StableTopologicalSort(s.dag, moduleSortFunc)
+	vertices, err := s.getModuleVertices()
 	if err != nil {
-		errList = append(errList, fmt.Sprintf("couldn't perform stable topological sort: %s", err.Error()))
-		s.errList = errList
-		return true, updByDiff
+		s.err = fmt.Errorf("couldn't get module vertices: %s", err.Error())
+		return true, nil
 	}
 
-	// create a buffer to store all updates during upcoming run, the updates are applied if there is no errors during the rung
-	vBuf := make(map[string]*vertexState)
+	// create a buffer to store all updates during upcoming run, the updates are applied if there is no errors during the run
+	s.vertexStateBuffer.state = make(map[string]*vertexState, len(vertices))
+	s.vertexStateBuffer.enabledModules = make([]string, 0, len(vertices))
 
 outerCycle:
-	for _, name := range names {
-		vertex, props, err := s.dag.VertexWithProperties(name)
-		if err != nil {
-			errList = append(errList, fmt.Sprintf("couldn't get %s vertex from the graph: %v", name, err))
-			break
-		}
+	for _, vertex := range vertices {
+		var (
+			filterErr    error
+			moduleStatus *bool
+		)
+		moduleName := vertex.GetName()
+		s.vertexStateBuffer.state[moduleName] = &vertexState{}
 
-		if props.Attributes["type"] == string(node.ModuleType) {
-			moduleName := vertex.GetName()
-			vBuf[moduleName] = &vertexState{}
+		for _, e := range s.extenders {
+			// if current extender is a terminating one and by this point the module is already disabled - there's little sense in checking against all other terminators
+			if e.ext.IsTerminator() && !s.vertexStateBuffer.state[moduleName].enabled && !e.filterAhead {
+				break
+			}
 
-			for _, e := range s.extenders {
-				// if current extender is a terminating one and by this point the module is already disabled - there's little sense in checking against all other terminators
-				if e.ext.IsTerminator() && !vBuf[moduleName].enabled && !e.filterAhead {
-					break
+			moduleStatus, filterErr = e.ext.Filter(moduleName, logLabels)
+			if filterErr != nil {
+				if permanent, ok := filterErr.(*exerror.PermanentError); ok {
+					graphErr = multierror.Append(graphErr, fmt.Errorf("%s extender failed to filter %s module: %s", e.ext.Name(), moduleName, permanent.Error()))
+					break outerCycle
 				}
+			}
 
-				moduleStatus, err := e.ext.Filter(moduleName, logLabels)
-				if err != nil {
-					if permanent, ok := err.(*exerror.PermanentError); ok {
-						errList = append(errList, fmt.Sprintf("%s extender failed to filter %s module: %s", e.ext.Name(), moduleName, permanent.Error()))
-						break outerCycle
-					}
-				}
-
-				if moduleStatus != nil {
-					// if current extender is a terminating one and it says to disable - stop cycling over remaining extenders and disable the module
-					if e.ext.IsTerminator() {
-						// if disabled - terminate filtering
-						if !*moduleStatus {
-							// if so far is enabled OR there are ahead other extenders that could enable the module,
-							// mark the module as disabled by the terminator
-							if vBuf[moduleName].enabled || e.filterAhead {
-								vBuf[moduleName].enabled = *moduleStatus
-								vBuf[moduleName].updatedBy = string(e.ext.Name())
-							}
-							break
+			if moduleStatus != nil {
+				// if current extender is a terminating one and it says to disable - stop cycling over remaining extenders and disable the module
+				if e.ext.IsTerminator() {
+					// if disabled - terminate filtering
+					if !*moduleStatus {
+						// if so far is enabled OR there are ahead other extenders that could enable the module,
+						// mark the module as disabled by the terminator
+						if s.vertexStateBuffer.state[moduleName].enabled || e.filterAhead {
+							s.vertexStateBuffer.state[moduleName].enabled = *moduleStatus
+							s.vertexStateBuffer.state[moduleName].updatedBy = string(e.ext.Name())
 						}
-						// continue checking extenders
-						continue
+						break
 					}
-					vBuf[moduleName].enabled = *moduleStatus
-					vBuf[moduleName].updatedBy = string(e.ext.Name())
+					// continue checking extenders
+					continue
+				}
+				s.vertexStateBuffer.state[moduleName].enabled = *moduleStatus
+				s.vertexStateBuffer.state[moduleName].updatedBy = string(e.ext.Name())
+			}
+		}
+
+		if s.vertexStateBuffer.state[moduleName].enabled != vertex.GetState() {
+			stateDiff[moduleName] = s.vertexStateBuffer.state[moduleName].enabled
+		} else {
+			delete(stateDiff, moduleName)
+		}
+
+		if s.vertexStateBuffer.state[moduleName].updatedBy != vertex.GetUpdatedBy() || filterErr != nil {
+			metaDiff[moduleName] = struct{}{}
+		} else {
+			delete(metaDiff, moduleName)
+		}
+
+		if s.vertexStateBuffer.state[moduleName].enabled {
+			if !slices.Contains(s.vertexStateBuffer.enabledModules, moduleName) {
+				s.vertexStateBuffer.enabledModules = append(s.vertexStateBuffer.enabledModules, moduleName)
+			}
+		}
+	}
+
+	if graphErr != nil {
+		s.err = graphErr
+		logEntry.Warnf("Module Scheduler: Graph converge failed: %s", s.err.Error())
+		return true, nil
+	}
+
+	// check the hint storage if any undemanded hints left to update states of the isolated vertices (orphaned vertices)
+	for extenderName, parents := range s.topologicalHints {
+		for _, children := range parents {
+			for _, child := range children {
+				if _, found := s.vertexStateBuffer.state[child]; !found {
+					s.vertexStateBuffer.state[child] = &vertexState{
+						enabled:   false,
+						updatedBy: string(extenderName),
+					}
 				}
 			}
-
-			if vBuf[moduleName].enabled != vertex.GetState() {
-				diff[vertex.GetName()] = vBuf[moduleName].enabled
-			}
-
-			if vBuf[moduleName].updatedBy != vertex.GetUpdatedBy() {
-				updByDiff = append(updByDiff, vertex.GetName())
-			}
-
-			if vBuf[moduleName].enabled {
-				enabledModules = append(enabledModules, name)
-			}
 		}
-	}
-
-	// reset extenders' states if needed (mostly for enabled_script extender)
-	for _, e := range s.extenders {
-		if re, ok := e.ext.(extenders.ResettableExtender); ok {
-			re.Reset()
-		}
-	}
-
-	if len(errList) > 0 {
-		s.errList = errList
-		logEntry.Warnf("Module Scheduler: Graph converge failed with errors: %s", strings.Join(s.errList, ","))
-		return true, updByDiff
 	}
 
 	// merge the state diffs
-	for vertexName, newDiffState := range diff {
+	for vertexName, newStateDiff := range stateDiff {
 		// if a new diff has an opposite state for the module, the module is deleted from the resulting diff
-		if currentDiffState, found := s.diff[vertexName]; found {
-			if currentDiffState != newDiffState {
+		if currentStateDiff, found := s.diff[vertexName]; found {
+			if currentStateDiff != newStateDiff {
 				delete(s.diff, vertexName)
 			}
 			// if current diff doesn't have the module's state - add it to the resulting diff
 		} else {
-			s.diff[vertexName] = newDiffState
+			s.diff[vertexName] = newStateDiff
 		}
 	}
 
 	// commit changes to the graph
-	for vertexName, state := range vBuf {
+	for vertexName, state := range s.vertexStateBuffer.state {
 		vertex, _, err := s.dag.VertexWithProperties(vertexName)
 		if err != nil {
-			errList = append(errList, fmt.Sprintf("couldn't get %s vertex from the graph: %v", vertexName, err))
-			s.errList = errList
-			return true, updByDiff
+			graphErr = multierror.Append(graphErr, fmt.Errorf("couldn't get %s vertex from the graph: %v", vertexName, err))
+			s.err = graphErr
+			return true, nil
 		}
 		vertex.SetState(state.enabled)
 		vertex.SetUpdatedBy(state.updatedBy)
 	}
 
+	enabledModules := make([]string, len(s.vertexStateBuffer.enabledModules))
+	copy(enabledModules, s.vertexStateBuffer.enabledModules)
 	s.enabledModules = &enabledModules
 	// reset any previous errors
-	s.errList = make([]string, 0)
+	s.err = nil
 	logEntry.Debugf("Graph was successfully updated, diff: [%v]", s.diff)
 
-	return len(diff) > 0, updByDiff
+	metaDiffSlice := make([]string, 0, len(metaDiff))
+	for moduleName := range metaDiff {
+		metaDiffSlice = append(metaDiffSlice, moduleName)
+	}
+	slices.Sort(metaDiffSlice)
+
+	return len(stateDiff) > 0, metaDiffSlice
 }
 
 // gleanGraphDiff returns modules diff list
 func (s *Scheduler) gleanGraphDiff() map[string]bool {
 	curDiff := s.diff
 	s.diff = make(map[string]bool)
+
 	return curDiff
 }
