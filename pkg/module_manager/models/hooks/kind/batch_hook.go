@@ -182,7 +182,7 @@ func GetBatchHookConfig(hookPath string) ([]sdkhook.HookConfig, error) {
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	cfgs := make([]sdkhook.HookConfig, 0, 1)
+	cfgs := make([]sdkhook.HookConfig, 0)
 	buf := bytes.NewBuffer(o)
 	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
