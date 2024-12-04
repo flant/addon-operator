@@ -151,6 +151,8 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig, logger *log
 		GlobalHooksDir: cfg.DirectoryConfig.GlobalHooksDir,
 		TempDir:        cfg.DirectoryConfig.TempDir,
 
+		defaultNamespace: app.Namespace,
+
 		moduleLoader: fsLoader,
 
 		dependencies: &cfg.Dependencies,

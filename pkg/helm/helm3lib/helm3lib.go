@@ -44,6 +44,7 @@ func Init(opts *Options, logger *log.Logger, extraLabels map[string]string) erro
 		HelmIgnoreRelease: opts.HelmIgnoreRelease,
 		Logger:            logger.With("operator.component", "helm3lib"),
 	}
+
 	options = opts
 	initPostRenderer(extraLabels)
 
@@ -55,6 +56,7 @@ func ReinitActionConfig(logger *log.Logger) error {
 	hc := &LibClient{
 		Logger: logger.With("operator.component", "helm3lib"),
 	}
+
 	log.Debug("Reinitialize Helm 3 lib action configuration")
 
 	return hc.actionConfigInit()
