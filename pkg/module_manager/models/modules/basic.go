@@ -356,11 +356,9 @@ func isExecutableBatchHookFile(path string, f os.FileInfo) error {
 	case "":
 		return IsFileBatchHook(path, f)
 	// ignore .yaml, .json, .txt, .md files
-	case ".yaml", ".json", ".md", ".txt":
+	default:
 		return ErrFileHasWrongExtension
 	}
-
-	return ErrFileHasNotMetRequirements
 }
 
 var compiledHooksFound = regexp.MustCompile(`Found ([1-9]|[1-9]\d|[1-9]\d\d|[1-9]\d\d\d) items`)
