@@ -37,7 +37,6 @@ type HookMetadata struct {
 	Path           string
 	Global         bool
 	EmbeddedModule bool
-	Module         bool
 	ModuleName     string
 }
 

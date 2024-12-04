@@ -34,7 +34,6 @@ type HookRegistry struct {
 	m                   sync.Mutex
 	globalHooks         []*kind.GoHook
 	embeddedModuleHooks map[string][]*kind.GoHook // [<module-name>]<hook>
-	moduleHooks         map[string][]*kind.GoHook // [<module-name>]<hook>
 }
 
 var (
@@ -132,9 +131,6 @@ func (h *HookRegistry) Add(hook *kind.GoHook) {
 
 	case hookMeta.EmbeddedModule:
 		h.embeddedModuleHooks[hookMeta.ModuleName] = append(h.embeddedModuleHooks[hookMeta.ModuleName], hook)
-
-	case hookMeta.Module:
-		h.moduleHooks[hookMeta.ModuleName] = append(h.moduleHooks[hookMeta.ModuleName], hook)
 
 	default:
 		panic("neither module nor global hook. Who are you?")
