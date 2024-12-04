@@ -25,6 +25,7 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
@@ -265,7 +266,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 			bm.logger.Warn("get batch hook config", slog.String("hook_file_path", hookPath), slog.String("error", err.Error()))
 		}
 
-		shHook := kind.NewShellHook(hookName, hookPath, bm.keepTemporaryHookFiles, false, bm.logger.Named("shell-hook"))
+		shHook := kind.NewShellHook(hookName, hookPath, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"))
 
 		hks = append(hks, shHook)
 	}
@@ -303,7 +304,7 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 
 		for idx, cfg := range sdkcfgs {
 			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), bm.keepTemporaryHookFiles, false, bm.logger.Named("batch-hook"))
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}
