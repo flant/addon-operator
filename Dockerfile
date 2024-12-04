@@ -3,7 +3,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} flant/jq:b6be13d5-musl as libjq
 
 # Go builder.
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.22-alpine AS builder
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.23-alpine AS builder
 
 
 ARG appVersion=latest
@@ -38,7 +38,7 @@ RUN CGO_ENABLED=1 \
     go build -o post-renderer ./cmd/post-renderer
 
 # Final image
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.16
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.20
 ARG TARGETPLATFORM
 # kubectl url has no variant (v7)
 # helm url has dashes and no variant (v7)
