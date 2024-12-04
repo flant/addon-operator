@@ -9,8 +9,9 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
+	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
 	"github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/task"
@@ -24,7 +25,7 @@ type HookMetadata struct {
 	ParallelRunMetadata *ParallelRunMetadata
 	Binding             string // binding name from configuration
 	BindingType         types.BindingType
-	BindingContext      []binding_context.BindingContext
+	BindingContext      []bindingcontext.BindingContext
 	AllowFailure        bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
 
 	DoModuleStartup bool // Execute onStartup and kubernetes@Synchronization hooks for module
@@ -100,6 +101,7 @@ var (
 	_ task_metadata.BindingContextAccessor = HookMetadata{}
 	_ task_metadata.MonitorIDAccessor      = HookMetadata{}
 	_ task.MetadataDescriptionGetter       = HookMetadata{}
+	_ modules.TaskMetadata                 = HookMetadata{}
 )
 
 func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
@@ -153,11 +155,14 @@ func (hm HookMetadata) GetDescription() string {
 	return fmt.Sprintf("%s:%s%s:%s", string(hm.BindingType), hm.HookName, bindingNames, hm.EventDescription)
 }
 
+func (hm HookMetadata) GetKubernetesBindingID() string { return hm.KubernetesBindingId }
+func (hm HookMetadata) GetBinding() string             { return hm.Binding }
+
 func (hm HookMetadata) GetHookName() string {
 	return hm.HookName
 }
 
-func (hm HookMetadata) GetBindingContext() []binding_context.BindingContext {
+func (hm HookMetadata) GetBindingContext() []bindingcontext.BindingContext {
 	return hm.BindingContext
 }
 

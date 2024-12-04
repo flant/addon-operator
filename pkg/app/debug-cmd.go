@@ -5,18 +5,18 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	sh_app "github.com/flant/shell-operator/pkg/app"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	sh_debug "github.com/flant/shell-operator/pkg/debug"
 )
 
 var outputFormat = "text"
 
 func DefineDebugCommands(kpApp *kingpin.Application) {
-	globalCmd := sh_app.CommandWithDefaultUsageTemplate(kpApp, "global", "manage global values")
+	globalCmd := shapp.CommandWithDefaultUsageTemplate(kpApp, "global", "manage global values")
 	globalCmd.Flag("output", "Output format: json|yaml.").Short('o').
 		Default("yaml").
 		EnumVar(&outputFormat, "json", "yaml", "text")
-	sh_app.DefineDebugUnixSocketFlag(globalCmd)
+	shapp.DefineDebugUnixSocketFlag(globalCmd)
 	// -o json|yaml|text
 
 	globalCmd.Command("list", "List global hooks.").
@@ -69,11 +69,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			return nil
 		})
 
-	moduleCmd := sh_app.CommandWithDefaultUsageTemplate(kpApp, "module", "List modules and dump their values")
+	moduleCmd := shapp.CommandWithDefaultUsageTemplate(kpApp, "module", "List modules and dump their values")
 	moduleCmd.Flag("output", "Output format: json|yaml.").Short('o').
 		Default("yaml").
 		EnumVar(&outputFormat, "json", "yaml", "text")
-	sh_app.DefineDebugUnixSocketFlag(moduleCmd)
+	shapp.DefineDebugUnixSocketFlag(moduleCmd)
 
 	moduleCmd.Command("list", "List available modules and their enabled status.").
 		Action(func(_ *kingpin.ParseContext) error {

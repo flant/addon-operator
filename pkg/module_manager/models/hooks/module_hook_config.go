@@ -2,14 +2,17 @@ package hooks
 
 import (
 	"fmt"
+	"strconv"
 
+	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/go-openapi/spec"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	. "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 )
 
 // ModuleHookConfig is a structure with versioned hook configuration
@@ -87,33 +90,182 @@ func getModuleHookConfigSchema(version string) *spec.Schema {
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
 func (c *ModuleHookConfig) LoadAndValidateShellConfig(data []byte) error {
+	// find config version
 	vu := config.NewDefaultVersionedUntyped()
 	err := vu.Load(data)
 	if err != nil {
-		return err
+		return fmt.Errorf("load data: %w", err)
 	}
 
+	// validate config scheme
 	err = config.ValidateConfig(vu.Obj, getModuleHookConfigSchema(vu.Version), "")
 	if err != nil {
-		return err
+		return fmt.Errorf("validate config: %w", err)
 	}
 
 	c.Version = vu.Version
 
+	// unmarshal data and enrich hook config
 	err = c.HookConfig.ConvertAndCheck(data)
 	if err != nil {
-		return err
+		return fmt.Errorf("convert and check hook config: %w", err)
 	}
 
+	// unmarshal data and enrich module hook config
 	err = c.ConvertAndCheck(data)
 	if err != nil {
-		return err
+		return fmt.Errorf("convert and check: %w", err)
 	}
 
 	return nil
 }
 
-func (c *ModuleHookConfig) LoadAndValidateGoConfig(input *go_hook.HookConfig) error {
+func remapHookConfigV1FromHookConfig(hcfg *sdkhook.HookConfig) *config.HookConfigV1 {
+	hcv1 := &config.HookConfigV1{
+		ConfigVersion: hcfg.ConfigVersion,
+	}
+
+	if len(hcfg.Schedule) > 0 {
+		hcv1.Schedule = make([]config.ScheduleConfigV1, 0, len(hcfg.Schedule))
+	}
+
+	if len(hcfg.Kubernetes) > 0 {
+		hcv1.OnKubernetesEvent = make([]config.OnKubernetesEventConfigV1, 0, len(hcfg.Kubernetes))
+	}
+
+	if hcfg.OnStartup != nil {
+		hcv1.OnStartup = float64(*hcfg.OnStartup)
+	}
+
+	if hcfg.Settings != nil {
+		hcv1.Settings = &config.SettingsV1{
+			ExecutionMinInterval: hcfg.Settings.ExecutionMinInterval.String(),
+			ExecutionBurst:       strconv.Itoa(hcfg.Settings.ExecutionBurst),
+		}
+	}
+
+	for _, sch := range hcfg.Schedule {
+		hcv1.Schedule = append(hcv1.Schedule, config.ScheduleConfigV1{
+			Name:    sch.Name,
+			Crontab: sch.Crontab,
+		})
+	}
+
+	for _, kube := range hcfg.Kubernetes {
+		newShCfg := config.OnKubernetesEventConfigV1{
+			ApiVersion:                   kube.APIVersion,
+			Kind:                         kube.Kind,
+			Name:                         kube.Name,
+			LabelSelector:                kube.LabelSelector,
+			JqFilter:                     kube.JqFilter,
+			ExecuteHookOnSynchronization: "true",
+			WaitForSynchronization:       "true",
+			// permanently false
+			KeepFullObjectsInMemory: "false",
+			ResynchronizationPeriod: kube.ResynchronizationPeriod,
+			IncludeSnapshotsFrom:    kube.IncludeSnapshotsFrom,
+			Queue:                   kube.Queue,
+			// TODO: make default constants public to use here
+			// like go hooks apply default
+			Group: "main",
+		}
+
+		if kube.NameSelector != nil {
+			newShCfg.NameSelector = &config.KubeNameSelectorV1{
+				MatchNames: kube.NameSelector.MatchNames,
+			}
+		}
+
+		if kube.NamespaceSelector != nil {
+			newShCfg.Namespace = &config.KubeNamespaceSelectorV1{
+				NameSelector:  (*types.NameSelector)(kube.NamespaceSelector.NameSelector),
+				LabelSelector: kube.NamespaceSelector.LabelSelector,
+			}
+		}
+
+		if kube.FieldSelector != nil {
+			fs := &config.KubeFieldSelectorV1{
+				MatchExpressions: make([]types.FieldSelectorRequirement, 0, len(kube.FieldSelector.MatchExpressions)),
+			}
+
+			for _, expr := range kube.FieldSelector.MatchExpressions {
+				fs.MatchExpressions = append(fs.MatchExpressions, types.FieldSelectorRequirement(expr))
+			}
+
+			newShCfg.FieldSelector = fs
+		}
+
+		if kube.KeepFullObjectsInMemory != nil {
+			newShCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
+		}
+
+		// *bool --> ExecuteHookOnEvents: [All events] || empty array or nothing
+		if kube.ExecuteHookOnEvents != nil && !*kube.ExecuteHookOnEvents {
+			newShCfg.ExecuteHookOnEvents = make([]types.WatchEventType, 0, 1)
+		}
+
+		if kube.ExecuteHookOnSynchronization != nil {
+			newShCfg.ExecuteHookOnSynchronization = strconv.FormatBool(*kube.ExecuteHookOnSynchronization)
+		}
+
+		if kube.WaitForSynchronization != nil {
+			newShCfg.WaitForSynchronization = strconv.FormatBool(*kube.WaitForSynchronization)
+		}
+
+		if kube.KeepFullObjectsInMemory != nil {
+			newShCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
+		}
+
+		if kube.AllowFailure != nil {
+			newShCfg.AllowFailure = *kube.AllowFailure
+		}
+
+		hcv1.OnKubernetesEvent = append(hcv1.OnKubernetesEvent, newShCfg)
+	}
+
+	return hcv1
+}
+
+func (c *ModuleHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) error {
+	c.Version = hcfg.ConfigVersion
+
+	hcv1 := remapHookConfigV1FromHookConfig(hcfg)
+
+	c.HookConfig.V1 = hcv1
+	err := hcv1.ConvertAndCheck(&c.HookConfig)
+	if err != nil {
+		return fmt.Errorf("convert and check from hook config v1: %w", err)
+	}
+
+	if hcfg.OnStartup != nil {
+		c.OnStartup = &OnStartupConfig{}
+		c.OnStartup.AllowFailure = false
+		c.OnStartup.BindingName = string(OnStartup)
+		c.OnStartup.Order = float64(*hcfg.OnStartup)
+	}
+
+	if hcfg.OnBeforeHelm != nil {
+		c.BeforeHelm = &BeforeHelmConfig{}
+		c.BeforeHelm.BindingName = string(BeforeHelm)
+		c.BeforeHelm.Order = float64(*hcfg.OnBeforeHelm)
+	}
+
+	if hcfg.OnAfterHelm != nil {
+		c.AfterHelm = &AfterHelmConfig{}
+		c.AfterHelm.BindingName = string(AfterHelm)
+		c.AfterHelm.Order = float64(*hcfg.OnAfterHelm)
+	}
+
+	if hcfg.OnAfterDeleteHelm != nil {
+		c.AfterDeleteHelm = &AfterDeleteHelmConfig{}
+		c.AfterDeleteHelm.BindingName = string(AfterDeleteHelm)
+		c.AfterDeleteHelm.Order = float64(*hcfg.OnAfterDeleteHelm)
+	}
+
+	return nil
+}
+
+func (c *ModuleHookConfig) LoadAndValidateGoConfig(input *gohook.HookConfig) error {
 	hookConfig, err := newHookConfigFromGoConfig(input)
 	if err != nil {
 		return err

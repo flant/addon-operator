@@ -5,16 +5,16 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 )
 
 func Test_Config_GoHook(t *testing.T) {
 	g := NewWithT(t)
 
-	gh := NewGoHook(&go_hook.HookConfig{
-		OnAfterAll: &go_hook.OrderedConfig{Order: 5},
-	}, func(input *go_hook.HookInput) error {
+	gh := NewGoHook(&gohook.HookConfig{
+		OnAfterAll: &gohook.OrderedConfig{Order: 5},
+	}, func(input *gohook.HookInput) error {
 		input.Values.Set("test", "test")
 		input.MetricsCollector.Set("test", 1.0, nil)
 

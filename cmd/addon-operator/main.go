@@ -20,7 +20,7 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/utils/stdliblogtolog"
 	"github.com/flant/kube-client/klogtolog"
-	sh_app "github.com/flant/shell-operator/pkg/app"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 )
@@ -39,10 +39,10 @@ func main() {
 	log.SetDefault(logger)
 
 	// override usage template to reveal additional commands with information about start command
-	kpApp.UsageTemplate(sh_app.OperatorUsageTemplate(app.AppName))
+	kpApp.UsageTemplate(shapp.OperatorUsageTemplate(app.AppName))
 
 	kpApp.Action(func(_ *kingpin.ParseContext) error {
-		klogtolog.InitAdapter(sh_app.DebugKubernetesAPI, logger.Named("klog"))
+		klogtolog.InitAdapter(shapp.DebugKubernetesAPI, logger.Named("klog"))
 		stdliblogtolog.InitAdapter(logger)
 		return nil
 	})
@@ -68,7 +68,7 @@ func main() {
 
 func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
 	return func(_ *kingpin.ParseContext) error {
-		sh_app.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, sh_app.Version)
+		shapp.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, shapp.Version)
 
 		ctx := context.Background()
 
@@ -92,7 +92,7 @@ func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
 }
 
 func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
-	bk := configmap.New(operator.KubeClient(), app.Namespace, app.ConfigMapName, operator.Logger.Named("kube-config-manager"))
+	bk := configmap.New(operator.KubeClient(), operator.DefaultNamespace, app.ConfigMapName, operator.Logger.Named("kube-config-manager"))
 	operator.SetupKubeConfigManager(bk)
 
 	if err := operator.Setup(); err != nil {

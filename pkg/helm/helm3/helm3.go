@@ -11,7 +11,6 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	k8syaml "sigs.k8s.io/yaml"
 
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -20,10 +19,11 @@ import (
 var Helm3Path = "helm"
 
 type Helm3Options struct {
-	Namespace  string
-	HistoryMax int32
-	Timeout    time.Duration
-	Logger     *log.Logger
+	Namespace         string
+	HistoryMax        int32
+	Timeout           time.Duration
+	HelmIgnoreRelease string
+	Logger            *log.Logger
 }
 
 var Options *Helm3Options
@@ -31,7 +31,8 @@ var Options *Helm3Options
 // Init runs
 func Init(options *Helm3Options) error {
 	hc := &Helm3Client{
-		Logger: options.Logger.With("operator.component", "helm"),
+		Logger:            options.Logger.With("operator.component", "helm"),
+		HelmIgnoreRelease: options.HelmIgnoreRelease,
 	}
 	err := hc.initAndVersion()
 	if err != nil {
@@ -42,8 +43,9 @@ func Init(options *Helm3Options) error {
 }
 
 type Helm3Client struct {
-	Logger    *log.Logger
-	Namespace string
+	Logger            *log.Logger
+	Namespace         string
+	HelmIgnoreRelease string
 }
 
 var _ client.HelmClient = &Helm3Client{}
@@ -55,8 +57,9 @@ func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmCl
 	}
 
 	return &Helm3Client{
-		Logger:    logEntry,
-		Namespace: Options.Namespace,
+		Logger:            logEntry,
+		Namespace:         Options.Namespace,
+		HelmIgnoreRelease: Options.HelmIgnoreRelease,
 	}
 }
 
@@ -238,7 +241,7 @@ func (h *Helm3Client) ListReleasesNames() ([]string, error) {
 	releases := make([]string, 0, len(list))
 	for _, release := range list {
 		// Do not return ignored release or empty string.
-		if release.Name == app.HelmIgnoreRelease || release.Name == "" {
+		if release.Name == h.HelmIgnoreRelease || release.Name == "" {
 			continue
 		}
 

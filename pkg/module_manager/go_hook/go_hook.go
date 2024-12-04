@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
+	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 )
 
@@ -33,18 +33,18 @@ type MetricsCollector interface {
 }
 
 type HookMetadata struct {
-	Name       string
-	Path       string
-	Global     bool
-	Module     bool
-	ModuleName string
+	Name           string
+	Path           string
+	Global         bool
+	EmbeddedModule bool
+	ModuleName     string
 }
 
 type FilterResult interface{}
 
 type Snapshots map[string][]FilterResult
 
-type ILogger interface {
+type Logger interface {
 	Debug(msg string, args ...any)
 	DebugContext(ctx context.Context, msg string, args ...any)
 	// Deprecated: use Debug instead
@@ -79,13 +79,22 @@ type ILogger interface {
 	Handler() slog.Handler
 }
 
+type PatchCollector interface {
+	Create(object interface{}, options ...objectpatch.CreateOption)
+	Delete(apiVersion string, kind string, namespace string, name string, options ...objectpatch.DeleteOption)
+	Filter(filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error), apiVersion string, kind string, namespace string, name string, options ...objectpatch.FilterOption)
+	JSONPatch(jsonPatch interface{}, apiVersion string, kind string, namespace string, name string, options ...objectpatch.PatchOption)
+	MergePatch(mergePatch interface{}, apiVersion string, kind string, namespace string, name string, options ...objectpatch.PatchOption)
+	Operations() []objectpatch.Operation
+}
+
 type HookInput struct {
 	Snapshots        Snapshots
 	Values           *PatchableValues
 	ConfigValues     *PatchableValues
 	MetricsCollector MetricsCollector
-	PatchCollector   *object_patch.PatchCollector
-	Logger           ILogger
+	PatchCollector   PatchCollector
+	Logger           Logger
 	BindingActions   *[]BindingAction
 }
 

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	addon_op_types "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	shell_op_types "github.com/flant/shell-operator/pkg/hook/types"
@@ -57,23 +57,37 @@ func (mh *ModuleHook) Order(binding shell_op_types.BindingType) float64 {
 // InitializeHookConfig initializes the global hook config
 // for GoHook config is precompiled, so we just have to fetch it
 // for ShellHook, that hook will be run with `--config` flag, returns and parses the config
+// for BatchHook, that hook will be run with `hook config` args, returns and parses the config
 func (mh *ModuleHook) InitializeHookConfig() (err error) {
 	switch hk := mh.executableHook.(type) {
 	case *kind.GoHook:
 		cfg := hk.GetConfig()
+
 		err := mh.config.LoadAndValidateGoConfig(cfg)
 		if err != nil {
-			return err
+			return fmt.Errorf("load and validate go hook config: %w", err)
 		}
 
 	case *kind.ShellHook:
 		cfg, err := hk.GetConfig()
 		if err != nil {
-			return err
+			return fmt.Errorf("get shell hook config: %w", err)
 		}
+
 		err = mh.config.LoadAndValidateShellConfig(cfg)
 		if err != nil {
-			return err
+			return fmt.Errorf("load and validate shell hook config: %w", err)
+		}
+
+	case *kind.BatchHook:
+		cfg, err := hk.GetConfig()
+		if err != nil {
+			return fmt.Errorf("get batch hook config: %w", err)
+		}
+
+		err = mh.config.LoadAndValidateBatchConfig(&cfg[hk.ID])
+		if err != nil {
+			return fmt.Errorf("load and validate batch hook config: %w", err)
 		}
 
 	default:
@@ -107,7 +121,7 @@ func (mh *ModuleHook) WithTmpDir(tmpDir string) {
 }
 
 // ApplyBindingActions some kind of runtime monitor bindings update
-func (mh *ModuleHook) ApplyBindingActions(bindingActions []go_hook.BindingAction) error {
+func (mh *ModuleHook) ApplyBindingActions(bindingActions []gohook.BindingAction) error {
 	for _, action := range bindingActions {
 		bindingIdx := -1
 		for i, binding := range mh.config.OnKubernetesEvents {
@@ -145,24 +159,24 @@ func (mh *ModuleHook) ApplyBindingActions(bindingActions []go_hook.BindingAction
 
 // GetConfigDescription returns config description for debugging/logging
 func (mh *ModuleHook) GetConfigDescription() string {
-	bd := strings.Builder{}
+	bd := make([]string, 0, 1)
 
 	if mh.config.BeforeHelm != nil {
-		bd.WriteString(fmt.Sprintf("beforeHelm:%d", int64(mh.config.BeforeHelm.Order)))
+		bd = append(bd, fmt.Sprintf("beforeHelm:%d", int64(mh.config.BeforeHelm.Order)))
 	}
 	if mh.config.AfterHelm != nil {
-		bd.WriteString(", " + fmt.Sprintf("afterHelm:%d", int64(mh.config.AfterHelm.Order)))
+		bd = append(bd, fmt.Sprintf("afterHelm:%d", int64(mh.config.AfterHelm.Order)))
 	}
 	if mh.config.AfterDeleteHelm != nil {
-		bd.WriteString(", " + fmt.Sprintf("afterDeleteHelm:%d", int64(mh.config.AfterDeleteHelm.Order)))
+		bd = append(bd, fmt.Sprintf("afterDeleteHelm:%d", int64(mh.config.AfterDeleteHelm.Order)))
 	}
-	bd.WriteString(", " + mh.executableHook.GetHookConfigDescription())
+	bd = append(bd, mh.executableHook.GetHookConfigDescription())
 
-	return bd.String()
+	return strings.Join(bd, ", ")
 }
 
 // GetGoHookInputSettings proxy method to extract GoHook config settings
-func (mh *ModuleHook) GetGoHookInputSettings() *go_hook.HookConfigSettings {
+func (mh *ModuleHook) GetGoHookInputSettings() *gohook.HookConfigSettings {
 	if mh.GetKind() != kind.HookKindGo {
 		return nil
 	}

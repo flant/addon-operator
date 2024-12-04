@@ -5,9 +5,13 @@ import (
 	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-
-	"github.com/flant/addon-operator/pkg/task"
 )
+
+type TaskMetadata interface {
+	GetKubernetesBindingID() string
+	GetHookName() string
+	GetBinding() string
+}
 
 // kubernetesBindingSynchronizationState is a state of the single Synchronization task
 // for one kubernetes binding.
@@ -64,17 +68,18 @@ func (s *SynchronizationState) IsCompleted() bool {
 	return done
 }
 
-func (s *SynchronizationState) QueuedForBinding(metadata task.HookMetadata) {
+// func (s *SynchronizationState) QueuedForBinding(metadata task.HookMetadata) {
+func (s *SynchronizationState) QueuedForBinding(metadata TaskMetadata) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	var state *kubernetesBindingSynchronizationState
-	state, ok := s.state[metadata.KubernetesBindingId]
+	state, ok := s.state[metadata.GetKubernetesBindingID()]
 	if !ok {
 		state = &kubernetesBindingSynchronizationState{
-			HookName:    metadata.HookName,
-			BindingName: metadata.Binding,
+			HookName:    metadata.GetHookName(),
+			BindingName: metadata.GetBinding(),
 		}
-		s.state[metadata.KubernetesBindingId] = state
+		s.state[metadata.GetKubernetesBindingID()] = state
 	}
 	state.Queued = true
 }

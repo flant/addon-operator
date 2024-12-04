@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	addon_op_types "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	shell_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
@@ -45,6 +45,16 @@ func (h *GlobalHook) InitializeHookConfig() (err error) {
 			return err
 		}
 		err = h.config.LoadAndValidateShellConfig(cfg)
+		if err != nil {
+			return err
+		}
+
+	case *kind.BatchHook:
+		cfg, err := hk.GetConfig()
+		if err != nil {
+			return err
+		}
+		err = h.config.LoadAndValidateBatchConfig(&cfg[hk.ID])
 		if err != nil {
 			return err
 		}
@@ -108,7 +118,7 @@ func (h *GlobalHook) SynchronizationNeeded() bool {
 }
 
 // GetGoHookInputSettings proxy method to extract GoHook config settings
-func (h *GlobalHook) GetGoHookInputSettings() *go_hook.HookConfigSettings {
+func (h *GlobalHook) GetGoHookInputSettings() *gohook.HookConfigSettings {
 	if h.GetKind() != kind.HookKindGo {
 		return nil
 	}

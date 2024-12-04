@@ -6,30 +6,30 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/sdk"
 )
 
-var _ = sdk.RegisterFunc(&go_hook.HookConfig{
-	OnStartup: &go_hook.OrderedConfig{
+var _ = sdk.RegisterFunc(&gohook.HookConfig{
+	OnStartup: &gohook.OrderedConfig{
 		Order: 10,
 	},
 
-	OnBeforeHelm: &go_hook.OrderedConfig{
+	OnBeforeHelm: &gohook.OrderedConfig{
 		Order: 10,
 	},
 
-	Kubernetes: []go_hook.KubernetesConfig{
+	Kubernetes: []gohook.KubernetesConfig{
 		{
 			Name:                         "pods",
 			ApiVersion:                   "v1",
 			Kind:                         "Pods",
 			FilterFunc:                   ObjFilter,
-			ExecuteHookOnSynchronization: go_hook.Bool(true),
+			ExecuteHookOnSynchronization: gohook.Bool(true),
 		},
 	},
 
-	Schedule: []go_hook.ScheduleConfig{
+	Schedule: []gohook.ScheduleConfig{
 		{
 			Name:    "metrics",
 			Crontab: "*/5 * * * * *",
@@ -39,7 +39,7 @@ var _ = sdk.RegisterFunc(&go_hook.HookConfig{
 
 type podSpecFilteredObj v1.PodSpec
 
-func ObjFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
+func ObjFilter(obj *unstructured.Unstructured) (gohook.FilterResult, error) {
 	pod := &v1.Pod{}
 	err := sdk.FromUnstructured(obj, pod)
 	if err != nil {
@@ -51,7 +51,7 @@ func ObjFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
 	return &podSpec, nil
 }
 
-func run(input *go_hook.HookInput) error {
+func run(input *gohook.HookInput) error {
 	for _, o := range input.Snapshots["pods"] {
 		podSpec := o.(*podSpecFilteredObj)
 		input.Logger.Infof("Got podSpec: %+v", podSpec)
