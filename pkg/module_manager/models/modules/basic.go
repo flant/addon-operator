@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -69,13 +70,13 @@ type BasicModule struct {
 // TODO: add options WithLogger
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
-func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, crdsFilters string, keepTemporaryHookFiles bool, logger *log.Logger) (*BasicModule, error) {
+func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, logger *log.Logger) (*BasicModule, error) {
 	valuesStorage, err := NewValuesStorage(name, staticValues, configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
-	crdsFromPath := getCRDsFromPath(path, crdsFilters)
+	crdsFromPath := getCRDsFromPath(path, app.CRDsFilters)
 	return &BasicModule{
 		Name:          name,
 		Order:         order,
@@ -89,7 +90,7 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 			synchronizationState: NewSynchronizationState(),
 		},
 		hooks:                  newHooksStorage(),
-		keepTemporaryHookFiles: keepTemporaryHookFiles,
+		keepTemporaryHookFiles: shapp.DebugKeepTmpFiles,
 		logger:                 logger,
 	}, nil
 }
