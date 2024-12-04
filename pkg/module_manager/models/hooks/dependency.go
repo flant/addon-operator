@@ -5,15 +5,15 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
+	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
-	metric_operation "github.com/flant/shell-operator/pkg/metric_storage/operation"
+	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
+	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 type hooksMetricsStorage interface {
-	SendBatch([]metric_operation.MetricOperation, map[string]string) error
+	SendBatch([]metricoperation.MetricOperation, map[string]string) error
 }
 
 type kubeConfigManager interface {
@@ -26,7 +26,7 @@ type metricStorage interface {
 }
 
 type kubeObjectPatcher interface {
-	ExecuteOperations([]object_patch.Operation) error
+	ExecuteOperations([]objectpatch.Operation) error
 }
 
 type globalValuesGetter interface {
@@ -47,7 +47,7 @@ type executableHook interface {
 	GetName() string
 	GetPath() string
 
-	Execute(configVersion string, bContext []binding_context.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (result *kind.HookResult, err error)
+	Execute(configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (result *kind.HookResult, err error)
 	RateLimitWait(ctx context.Context) error
 
 	WithHookController(ctrl *controller.HookController)

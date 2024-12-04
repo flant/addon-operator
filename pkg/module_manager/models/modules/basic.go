@@ -2,10 +2,13 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -16,16 +19,14 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
 
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
-	sh_app "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
+	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 	"github.com/flant/shell-operator/pkg/utils/measure"
@@ -59,18 +60,21 @@ type BasicModule struct {
 	// dependency
 	dc *hooks.HookExecutionDependencyContainer
 
+	keepTemporaryHookFiles bool
+
 	logger *log.Logger
 }
 
+// TODO: add options WithLogger
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
-func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, logger *log.Logger) (*BasicModule, error) {
+func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, crdsFilters string, keepTemporaryHookFiles bool, logger *log.Logger) (*BasicModule, error) {
 	valuesStorage, err := NewValuesStorage(name, staticValues, configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
-	crdsFromPath := getCRDsFromPath(path)
+	crdsFromPath := getCRDsFromPath(path, crdsFilters)
 	return &BasicModule{
 		Name:          name,
 		Order:         order,
@@ -83,14 +87,15 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 			hookErrors:           make(map[string]error),
 			synchronizationState: NewSynchronizationState(),
 		},
-		hooks:  newHooksStorage(),
-		logger: logger,
+		hooks:                  newHooksStorage(),
+		keepTemporaryHookFiles: keepTemporaryHookFiles,
+		logger:                 logger,
 	}, nil
 }
 
 // getCRDsFromPath scan path/crds directory and store yaml file in slice
 // if file name do not start with `_` or `doc-` prefix
-func getCRDsFromPath(path string) []string {
+func getCRDsFromPath(path string, crdsFilters string) []string {
 	var crdFilesPaths []string
 	err := filepath.Walk(
 		filepath.Join(path, "crds"),
@@ -99,7 +104,7 @@ func getCRDsFromPath(path string) []string {
 				return err
 			}
 
-			if !matchPrefix(path) && filepath.Ext(path) == ".yaml" {
+			if !matchPrefix(path, crdsFilters) && filepath.Ext(path) == ".yaml" {
 				crdFilesPaths = append(crdFilesPaths, path)
 			}
 
@@ -112,8 +117,8 @@ func getCRDsFromPath(path string) []string {
 	return crdFilesPaths
 }
 
-func matchPrefix(path string) bool {
-	filters := strings.Split(app.CRDsFilters, ",")
+func matchPrefix(path string, crdsFilters string) bool {
+	filters := strings.Split(crdsFilters, ",")
 	for _, filter := range filters {
 		if strings.HasPrefix(filepath.Base(path), strings.TrimSpace(filter)) {
 			return true
@@ -183,7 +188,7 @@ func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, e
 
 	hks, err := bm.searchAndRegisterHooks(logger)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("search and register hooks: %w", err)
 	}
 
 	bm.hooks.registered = true
@@ -194,10 +199,15 @@ func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, e
 func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 	shellHooks, err := bm.searchModuleShellHooks()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("search module shell hooks: %w", err)
 	}
 
 	goHooks := bm.searchModuleGoHooks()
+
+	batchHooks, err := bm.searchModuleBatchHooks()
+	if err != nil {
+		return nil, fmt.Errorf("search module batch hooks: %w", err)
+	}
 
 	mHooks := make([]*hooks.ModuleHook, 0, len(shellHooks)+len(goHooks))
 
@@ -208,6 +218,11 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 
 	for _, gh := range goHooks {
 		mh := hooks.NewModuleHook(gh)
+		mHooks = append(mHooks, mh)
+	}
+
+	for _, bh := range batchHooks {
+		mh := hooks.NewModuleHook(bh)
 		mHooks = append(mHooks, mh)
 	}
 
@@ -233,7 +248,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
+	bm.logger.Debugf("Hook paths: %+v", hooksRelativePaths)
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
@@ -241,12 +256,132 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 			return nil, err
 		}
 
-		shHook := kind.NewShellHook(hookName, hookPath, bm.logger.Named("shell-hook"))
+		if filepath.Ext(hookPath) == "" {
+			_, err := kind.GetBatchHookConfig(hookPath)
+			if err == nil {
+				continue
+			}
+
+			bm.logger.Error("get batch hook config", slog.String("hook_file_path", hookPath), slog.String("error", err.Error()))
+		}
+
+		shHook := kind.NewShellHook(hookName, hookPath, bm.keepTemporaryHookFiles, false, bm.logger.Named("shell-hook"))
 
 		hks = append(hks, shHook)
 	}
 
 	return
+}
+
+func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err error) {
+	hooksDir := filepath.Join(bm.Path, "hooks")
+	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, bm.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	hks = make([]*kind.BatchHook, 0)
+
+	// sort hooks by path
+	sort.Strings(hooksRelativePaths)
+	bm.logger.Debug("sorted paths", slog.Any("paths", hooksRelativePaths))
+
+	for _, hookPath := range hooksRelativePaths {
+		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
+		if err != nil {
+			return nil, err
+		}
+
+		sdkcfgs, err := kind.GetBatchHookConfig(hookPath)
+		if err != nil {
+			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
+		}
+
+		for idx, cfg := range sdkcfgs {
+			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), bm.keepTemporaryHookFiles, false, bm.logger.Named("batch-hook"))
+
+			hks = append(hks, shHook)
+		}
+	}
+
+	return
+}
+
+func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]string, error) {
+	paths := make([]string, 0)
+	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if f.IsDir() {
+			// Skip hidden and lib directories inside initial directory
+			if strings.HasPrefix(f.Name(), ".") || f.Name() == "lib" {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		if err := isExecutableBatchHookFile(path, f); err != nil {
+			logger.Warnf("File '%s' is skipped: %v", path, err)
+			return nil
+		}
+
+		paths = append(paths, path)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return paths, nil
+}
+
+var (
+	ErrFileHasNotMetRequirements   = errors.New("file has not met requirements")
+	ErrFileHasWrongExtension       = errors.New("file has wrong extension")
+	ErrFileIsNotBatchHook          = errors.New("file is not batch hook")
+	ErrFileNoExecutablePermissions = errors.New("no executable permissions, chmod +x is required to run this hook")
+)
+
+func isExecutableBatchHookFile(path string, f os.FileInfo) error {
+	switch filepath.Ext(f.Name()) {
+	// ignore any extension and hidden files
+	case "":
+		return IsFileBatchHook(path, f)
+	// ignore .yaml, .json, .txt, .md files
+	case ".yaml", ".json", ".md", ".txt":
+		return ErrFileHasWrongExtension
+	}
+
+	return ErrFileHasNotMetRequirements
+}
+
+var compiledHooksFound = regexp.MustCompile(`Found ([1-9]|[1-9]\d|[1-9]\d\d|[1-9]\d\d\d) items`)
+
+func IsFileBatchHook(path string, f os.FileInfo) error {
+	if f.Mode()&0o111 == 0 {
+		return ErrFileNoExecutablePermissions
+	}
+
+	// TODO: check binary another way
+	args := []string{"hook", "list"}
+	o, err := exec.Command(path, args...).Output()
+	if err != nil {
+		return fmt.Errorf("exec file '%s': %w", path, err)
+	}
+
+	if compiledHooksFound.Match(o) {
+		return nil
+	}
+
+	return ErrFileIsNotBatchHook
 }
 
 func (bm *BasicModule) searchModuleGoHooks() (hks []*kind.GoHook) {
@@ -263,7 +398,7 @@ func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.Modu
 	logger.Debugf("Found %d hooks", len(hks))
 	if logger.GetLevel() == log.LevelDebug {
 		for _, h := range hks {
-			logger.Debugf("  ModuleHook: Name=%s, Path=%s", h.GetName(), h.GetPath())
+			logger.Debugf("ModuleHook: Name=%s, Path=%s", h.GetName(), h.GetPath())
 		}
 	}
 
@@ -276,6 +411,8 @@ func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.Modu
 		if err != nil {
 			return nil, fmt.Errorf("module hook --config invalid: %w", err)
 		}
+
+		bm.logger.Debug("module hook config print", slog.String("module_name", bm.Name), slog.String("hook_name", moduleHook.GetName()), slog.Any("config", moduleHook.GetHookConfig().V1))
 
 		// Add hook info as log labels
 		for _, kubeCfg := range moduleHook.GetHookConfig().OnKubernetesEvents {
@@ -344,7 +481,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 			return err
 		}
 
-		bc := binding_context.BindingContext{
+		bc := bindingcontext.BindingContext{
 			Binding: string(binding),
 		}
 		// Update kubernetes snapshots just before execute a hook
@@ -366,7 +503,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 			defer measure.Duration(func(d time.Duration) {
 				bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels, nil)
 			})()
-			err = bm.executeHook(moduleHook, binding, []binding_context.BindingContext{bc}, logLabels, metricLabels)
+			err = bm.executeHook(moduleHook, binding, []bindingcontext.BindingContext{bc}, logLabels, metricLabels)
 		}()
 		if err != nil {
 			return err
@@ -377,7 +514,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 }
 
 // RunHookByName runs some specified hook by its name
-func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.BindingType, bindingContext []binding_context.BindingContext, logLabels map[string]string) (string, string, error) {
+func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.BindingType, bindingContext []bindingcontext.BindingContext, logLabels map[string]string) (string, string, error) {
 	values := bm.valuesStorage.GetValues(false)
 	valuesChecksum := values.Checksum()
 
@@ -421,7 +558,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		return false, err
 	}
 	defer func() {
-		if sh_app.DebugKeepTmpFiles == "yes" {
+		if bm.keepTemporaryHookFiles {
 			return
 		}
 		err := os.Remove(configValuesPath)
@@ -437,7 +574,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		return false, err
 	}
 	defer func() {
-		if sh_app.DebugKeepTmpFiles == "yes" {
+		if bm.keepTemporaryHookFiles {
 			return
 		}
 		err := os.Remove(valuesPath)
@@ -453,7 +590,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		return false, err
 	}
 	defer func() {
-		if sh_app.DebugKeepTmpFiles == "yes" {
+		if bm.keepTemporaryHookFiles {
 			return
 		}
 		err := os.Remove(enabledResultFilePath)
@@ -471,9 +608,15 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 	envs = append(envs, fmt.Sprintf("VALUES_PATH=%s", valuesPath))
 	envs = append(envs, fmt.Sprintf("MODULE_ENABLED_RESULT=%s", enabledResultFilePath))
 
-	cmd := executor.MakeCommand("", enabledScriptPath, []string{}, envs)
+	cmd := executor.NewExecutor(
+		"",
+		enabledScriptPath,
+		[]string{},
+		envs).
+		WithLogger(bm.logger.Named("executor")).
+		WithCMDStdout(nil)
 
-	usage, err := executor.RunAndLogLines(cmd, logLabels, bm.logger)
+	usage, err := cmd.RunAndLogLines(logLabels)
 	if usage != nil {
 		// usage metrics
 		metricLabels := map[string]string{
@@ -550,7 +693,7 @@ func (bm *BasicModule) prepareValuesJsonFileWith(tmpdir string, values utils.Val
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s hook values:\n%s", bm.Name, values.DebugString())
+	bm.logger.Debugf("Prepared module %s hook values:\n%s", bm.Name, values.DebugString())
 
 	return path, nil
 }
@@ -595,13 +738,13 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s hook config values:\n%s", bm.Name, v.DebugString())
+	bm.logger.Debugf("Prepared module %s hook config values:\n%s", bm.Name, v.DebugString())
 
 	return path, nil
 }
 
 // instead on ModuleHook.Run
-func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.BindingType, bctx []binding_context.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
+func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.BindingType, bctx []bindingcontext.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"hook":      h.GetName(),
 		"hook.type": "module",
@@ -904,7 +1047,7 @@ func (bm *BasicModule) Validate() error {
 	valuesKey := utils.ModuleNameToValuesKey(bm.GetName())
 	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
 
-	log.Infof("Validating module %q from %q", bm.GetName(), bm.GetPath())
+	bm.logger.Infof("Validating module %q from %q", bm.GetName(), bm.GetPath())
 
 	if bm.GetName() != restoredName {
 		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", bm.GetName(), restoredName)

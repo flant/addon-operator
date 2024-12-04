@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path"
+	"path/filepath"
 	"runtime/trace"
 	"sort"
 	"strings"
@@ -25,7 +27,7 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/module_manager"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
@@ -35,14 +37,14 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
-	sh_app "github.com/flant/shell-operator/pkg/app"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 	"github.com/flant/shell-operator/pkg/debug"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	"github.com/flant/shell-operator/pkg/metric_storage"
+	metricstorage "github.com/flant/shell-operator/pkg/metric_storage"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -60,6 +62,8 @@ type AddonOperator struct {
 	engine *shell_operator.ShellOperator
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	DefaultNamespace string
 
 	runtimeConfig *runtimeConfig.Config
 
@@ -89,7 +93,7 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
-	MetricStorage *metric_storage.MetricStorage
+	MetricStorage *metricstorage.MetricStorage
 
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
@@ -147,9 +151,10 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
 	ao := &AddonOperator{
-		ctx:           cctx,
-		cancel:        cancel,
-		ConvergeState: converge.NewConvergeState(),
+		ctx:              cctx,
+		cancel:           cancel,
+		DefaultNamespace: app.Namespace,
+		ConvergeState:    converge.NewConvergeState(),
 		parallelTaskChannels: parallelTaskChannels{
 			channels: make(map[string](chan parallelQueueEvent)),
 		},
@@ -169,7 +174,7 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
-	sh_app.SetupLogging(rc, ao.Logger)
+	shapp.SetupLogging(rc, ao.Logger)
 
 	// Have to initialize common operator to have all common dependencies below
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, map[string]string{
@@ -218,14 +223,19 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
-	helmClient, err := helm.InitHelmClientFactory(op.Logger.Named("helm"), op.CRDExtraLabels)
+	helmClient, err := helm.InitHelmClientFactory(&helm.Options{
+		Namespace:  op.DefaultNamespace,
+		HistoryMax: app.Helm3HistoryMax,
+		Timeout:    app.Helm3Timeout,
+		Logger:     op.Logger.Named("helm"),
+	}, op.CRDExtraLabels)
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
 	}
 
 	// Helm resources monitor.
 	// It uses a separate client-go instance. (Metrics are registered when 'main' client is initialized).
-	helmResourcesManager, err := InitDefaultHelmResourcesManager(op.ctx, op.engine.MetricStorage, op.Logger)
+	helmResourcesManager, err := InitDefaultHelmResourcesManager(op.ctx, op.DefaultNamespace, op.engine.MetricStorage, op.Logger)
 	if err != nil {
 		return fmt.Errorf("initialize Helm resources manager: %s", err)
 	}
@@ -237,9 +247,9 @@ func (op *AddonOperator) Setup() error {
 	if err != nil {
 		return fmt.Errorf("global hooks directory: %s", err)
 	}
-	log.Infof("Global hooks directory: %s", globalHooksDir)
+	log.Infof("global hooks directory: %s", globalHooksDir)
 
-	tempDir, err := fileUtils.EnsureTempDirectory(sh_app.TempDir)
+	tempDir, err := ensureTempDirectory(shapp.TempDir)
 	if err != nil {
 		return fmt.Errorf("temp directory: %s", err)
 	}
@@ -253,11 +263,37 @@ func (op *AddonOperator) Setup() error {
 	return nil
 }
 
+func ensureTempDirectory(inDir string) (string, error) {
+	// No path to temporary dir, use default temporary dir.
+	if inDir == "" {
+		tmpPath := app.AppName + "-*"
+		dir, err := os.MkdirTemp("", tmpPath)
+		if err != nil {
+			return "", fmt.Errorf("create tmp dir in '%s': %s", tmpPath, err)
+		}
+		return dir, nil
+	}
+
+	// Get absolute path for temporary directory and create if needed.
+	dir, err := filepath.Abs(inDir)
+	if err != nil {
+		return "", fmt.Errorf("get absolute path: %v", err)
+	}
+
+	if exists := fileUtils.DirExists(dir); !exists {
+		err := os.Mkdir(dir, os.FileMode(0o777))
+		if err != nil {
+			return "", fmt.Errorf("create tmp dir '%s': %s", dir, err)
+		}
+	}
+	return dir, nil
+}
+
 // Start runs all managers, event and queue handlers.
 // TODO: implement context in various dependencies (ModuleManager, KubeConfigManaer, etc)
 func (op *AddonOperator) Start(_ context.Context) error {
 	if err := op.bootstrap(); err != nil {
-		return err
+		return fmt.Errorf("bootstrap: %w", err)
 	}
 
 	log.Info("Start first converge for modules")
@@ -361,7 +397,7 @@ func (op *AddonOperator) InitModuleManager() error {
 
 type typedHook interface {
 	GetKind() kind.HookKind
-	GetGoHookInputSettings() *go_hook.HookConfigSettings
+	GetGoHookInputSettings() *gohook.HookConfigSettings
 }
 
 // allowHandleScheduleEvent returns false if the Schedule event can be ignored.

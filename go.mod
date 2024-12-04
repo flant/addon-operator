@@ -5,10 +5,11 @@ go 1.22.8
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241106140903-258b93b3334e
+	github.com/deckhouse/module-sdk v0.0.0-20241204090122-4c2df6ebf909
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.2.2
-	github.com/flant/shell-operator v1.5.1
+	github.com/flant/shell-operator v0.0.0-20241129085258-450318914091
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
@@ -60,7 +61,7 @@ require (
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/cli v27.1.0+incompatible // indirect
+	github.com/docker/cli v27.1.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker v27.1.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect

@@ -17,7 +17,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/loader"
 	"github.com/flant/addon-operator/pkg/module_manager/loader/fs"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
@@ -36,11 +36,11 @@ import (
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
-	"github.com/flant/shell-operator/pkg/kube_events_manager"
+	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
+	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube_events_manager"
 	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	"github.com/flant/shell-operator/pkg/metric_storage"
-	"github.com/flant/shell-operator/pkg/schedule_manager"
+	metricstorage "github.com/flant/shell-operator/pkg/metric_storage"
+	schedulemanager "github.com/flant/shell-operator/pkg/schedule_manager"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
@@ -83,14 +83,14 @@ type KubeConfigManager interface {
 
 // ModuleManagerDependencies pass dependencies for ModuleManager
 type ModuleManagerDependencies struct {
-	KubeObjectPatcher    *object_patch.ObjectPatcher
-	KubeEventsManager    kube_events_manager.KubeEventsManager
+	KubeObjectPatcher    *objectpatch.ObjectPatcher
+	KubeEventsManager    kubeeventsmanager.KubeEventsManager
 	KubeConfigManager    KubeConfigManager
-	ScheduleManager      schedule_manager.ScheduleManager
+	ScheduleManager      schedulemanager.ScheduleManager
 	Helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
-	MetricStorage        *metric_storage.MetricStorage
-	HookMetricStorage    *metric_storage.MetricStorage
+	MetricStorage        *metricstorage.MetricStorage
+	HookMetricStorage    *metricstorage.MetricStorage
 	TaskQueues           *queue.TaskQueueSet
 }
 
@@ -104,9 +104,10 @@ type ModuleManager struct {
 	cancel context.CancelFunc
 
 	// Directories.
-	ModulesDir     string
-	GlobalHooksDir string
-	TempDir        string
+	ModulesDir       string
+	GlobalHooksDir   string
+	TempDir          string
+	defaultNamespace string
 
 	moduleLoader loader.ModuleLoader
 
@@ -598,7 +599,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			MetricsStorage:      mm.dependencies.MetricStorage,
 			HelmValuesValidator: schemaStorage,
 		}
-		helmModule, _ := modules.NewHelmModule(ml, mm.TempDir, &hmdeps, schemaStorage, mm.logger.Named("helm-module"))
+		helmModule, _ := modules.NewHelmModule(ml, mm.defaultNamespace, mm.TempDir, &hmdeps, schemaStorage, mm.logger.Named("helm-module"))
 		if helmModule != nil {
 			releaseExists, err := mm.dependencies.Helm.NewClient(mm.logger, deleteLogLabels).IsReleaseExists(ml.GetName())
 			if !releaseExists {
@@ -664,7 +665,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 		MetricsStorage:      mm.dependencies.MetricStorage,
 		HelmValuesValidator: schemaStorage,
 	}
-	helmModule, err := modules.NewHelmModule(bm, mm.TempDir, deps, schemaStorage, mm.logger.Named("helm-module"))
+	helmModule, err := modules.NewHelmModule(bm, mm.defaultNamespace, mm.TempDir, deps, schemaStorage, mm.logger.Named("helm-module"))
 	if err != nil {
 		return false, err
 	}
@@ -897,7 +898,7 @@ func (mm *ModuleManager) GlobalSynchronizationState() *modules.SynchronizationSt
 	return mm.globalSynchronizationState
 }
 
-func (mm *ModuleManager) ApplyBindingActions(moduleHook *hooks.ModuleHook, bindingActions []go_hook.BindingAction) error {
+func (mm *ModuleManager) ApplyBindingActions(moduleHook *hooks.ModuleHook, bindingActions []gohook.BindingAction) error {
 	for _, action := range bindingActions {
 		bindingIdx := -1
 		for i, binding := range moduleHook.GetHookConfig().OnKubernetesEvents {

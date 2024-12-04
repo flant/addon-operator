@@ -1,9 +1,10 @@
 package helm
 
 import (
+	"time"
+
 	"github.com/deckhouse/deckhouse/pkg/log"
 
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
@@ -21,7 +22,15 @@ func (f *ClientFactory) NewClient(logger *log.Logger, logLabels ...map[string]st
 	return nil
 }
 
-func InitHelmClientFactory(logger *log.Logger, extraLabels map[string]string) (*ClientFactory, error) {
+type Options struct {
+	Namespace         string
+	HistoryMax        int32
+	Timeout           time.Duration
+	HelmIgnoreRelease string
+	Logger            *log.Logger
+}
+
+func InitHelmClientFactory(helmopts *Options, extraLabels map[string]string) (*ClientFactory, error) {
 	helmVersion, err := DetectHelmVersion()
 	if err != nil {
 		return nil, err
@@ -35,10 +44,11 @@ func InitHelmClientFactory(logger *log.Logger, extraLabels map[string]string) (*
 		factory.ClientType = Helm3Lib
 		factory.NewClientFn = helm3lib.NewClient
 		err = helm3lib.Init(&helm3lib.Options{
-			Namespace:  app.Namespace,
-			HistoryMax: app.Helm3HistoryMax,
-			Timeout:    app.Helm3Timeout,
-		}, logger, extraLabels)
+			Namespace:         helmopts.Namespace,
+			HistoryMax:        helmopts.HistoryMax,
+			Timeout:           helmopts.Timeout,
+			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
+		}, helmopts.Logger, extraLabels)
 
 	case Helm3:
 		log.Infof("Helm 3 detected (path is '%s')", helm3.Helm3Path)
@@ -46,10 +56,11 @@ func InitHelmClientFactory(logger *log.Logger, extraLabels map[string]string) (*
 		factory.ClientType = Helm3
 		factory.NewClientFn = helm3.NewClient
 		err = helm3.Init(&helm3.Helm3Options{
-			Namespace:  app.Namespace,
-			HistoryMax: app.Helm3HistoryMax,
-			Timeout:    app.Helm3Timeout,
-			Logger:     logger,
+			Namespace:         helmopts.Namespace,
+			HistoryMax:        helmopts.HistoryMax,
+			Timeout:           helmopts.Timeout,
+			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
+			Logger:            helmopts.Logger,
 		})
 	}
 

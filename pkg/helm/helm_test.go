@@ -7,7 +7,6 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 )
@@ -22,9 +21,15 @@ func TestHelmFactory(t *testing.T) {
 		}
 
 		// For integration tests, but should be set before init
-		app.Namespace = os.Getenv("ADDON_OPERATOR_NAMESPACE")
+		namespace := os.Getenv("ADDON_OPERATOR_NAMESPACE")
+
+		opts := &Options{
+			Namespace: namespace,
+			Logger:    log.NewNop(),
+		}
+
 		// Setup Helm client factory.
-		helm, err := InitHelmClientFactory(log.NewNop(), map[string]string{})
+		helm, err := InitHelmClientFactory(opts, map[string]string{})
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Ensure client is a builtin Helm3 library.
@@ -46,7 +51,7 @@ func TestHelmFactory(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(isExists).Should(BeFalse(), "should not found release in the empty cluster")
 
-		err = helmCl.UpgradeRelease("test-release", "helm3lib/testdata/chart", nil, nil, app.Namespace)
+		err = helmCl.UpgradeRelease("test-release", "helm3lib/testdata/chart", nil, nil, namespace)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		releasesAfterUpgrade, err := helmCl.ListReleasesNames()

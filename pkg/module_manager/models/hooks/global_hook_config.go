@@ -5,17 +5,18 @@ import (
 	"fmt"
 
 	"github.com/davecgh/go-spew/spew"
+	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/go-openapi/spec"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
 	. "github.com/flant/addon-operator/pkg/hook/types"
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube_events_manager"
-	event_types "github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	schduler_types "github.com/flant/shell-operator/pkg/schedule_manager/types"
+	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube_events_manager"
+	eventtypes "github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	schdulertypes "github.com/flant/shell-operator/pkg/schedule_manager/types"
 )
 
 const (
@@ -111,7 +112,39 @@ func (c *GlobalHookConfig) LoadAndValidateShellConfig(data []byte) error {
 	return nil
 }
 
-func (c *GlobalHookConfig) LoadAndValidateGoConfig(input *go_hook.HookConfig) error {
+func (c *GlobalHookConfig) LoadAndValidateBatchConfig(hcfg *sdkhook.HookConfig) error {
+	c.Version = hcfg.ConfigVersion
+
+	hcv1 := remapHookConfigV1FromHookConfig(hcfg)
+
+	err := hcv1.ConvertAndCheck(&c.HookConfig)
+	if err != nil {
+		return fmt.Errorf("convert and check from hook config v1: %w", err)
+	}
+
+	if hcfg.OnStartup != nil {
+		c.OnStartup = &OnStartupConfig{}
+		c.OnStartup.AllowFailure = false
+		c.OnStartup.BindingName = string(OnStartup)
+		c.OnStartup.Order = float64(*hcfg.OnStartup)
+	}
+
+	if hcfg.OnBeforeHelm != nil {
+		c.BeforeAll = &BeforeAllConfig{}
+		c.BeforeAll.BindingName = string(BeforeAll)
+		c.BeforeAll.Order = float64(*hcfg.OnBeforeHelm)
+	}
+
+	if hcfg.OnAfterHelm != nil {
+		c.AfterAll = &AfterAllConfig{}
+		c.AfterAll.BindingName = string(AfterAll)
+		c.AfterAll.Order = float64(*hcfg.OnAfterHelm)
+	}
+
+	return nil
+}
+
+func (c *GlobalHookConfig) LoadAndValidateGoConfig(input *gohook.HookConfig) error {
 	hookConfig, err := newHookConfigFromGoConfig(input)
 	if err != nil {
 		return err
@@ -261,7 +294,7 @@ func (c *GlobalHookConfig) BindingsCount() int {
 	return res
 }
 
-func newHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, error) {
+func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, error) {
 	c := config.HookConfig{
 		Version:            "v1",
 		Schedules:          []ScheduleConfig{},
@@ -289,7 +322,7 @@ func newHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		//	return fmt.Errorf("invalid kubernetes config [%d]: %v", i, err)
 		//}
 
-		monitor := &kube_events_manager.MonitorConfig{}
+		monitor := &kubeeventsmanager.MonitorConfig{}
 		monitor.Metadata.DebugName = config.MonitorDebugName(kubeCfg.Name, i)
 		monitor.Metadata.MonitorId = config.MonitorConfigID()
 		monitor.Metadata.LogLabels = map[string]string{}
@@ -308,10 +341,10 @@ func newHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		monitor.FilterFunc = func(obj *unstructured.Unstructured) (interface{}, error) {
 			return filterFunc(obj)
 		}
-		if go_hook.BoolDeref(kubeCfg.ExecuteHookOnEvents, true) {
+		if gohook.BoolDeref(kubeCfg.ExecuteHookOnEvents, true) {
 			monitor.WithEventTypes(nil)
 		} else {
-			monitor.WithEventTypes([]event_types.WatchEventType{})
+			monitor.WithEventTypes([]eventtypes.WatchEventType{})
 		}
 
 		kubeConfig := OnKubernetesEventConfig{}
@@ -328,8 +361,8 @@ func newHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		}
 		kubeConfig.Group = defaultHookGroupName
 
-		kubeConfig.ExecuteHookOnSynchronization = go_hook.BoolDeref(kubeCfg.ExecuteHookOnSynchronization, true)
-		kubeConfig.WaitForSynchronization = go_hook.BoolDeref(kubeCfg.WaitForSynchronization, true)
+		kubeConfig.ExecuteHookOnSynchronization = gohook.BoolDeref(kubeCfg.ExecuteHookOnSynchronization, true)
+		kubeConfig.WaitForSynchronization = gohook.BoolDeref(kubeCfg.WaitForSynchronization, true)
 
 		kubeConfig.KeepFullObjectsInMemory = false
 		kubeConfig.Monitor.KeepFullObjectsInMemory = false
@@ -363,7 +396,7 @@ func newHookConfigFromGoConfig(input *go_hook.HookConfig) (config.HookConfig, er
 		res.BindingName = inSch.Name
 
 		res.AllowFailure = input.AllowFailure
-		res.ScheduleEntry = schduler_types.ScheduleEntry{
+		res.ScheduleEntry = schdulertypes.ScheduleEntry{
 			Crontab: inSch.Crontab,
 			Id:      config.ScheduleID(),
 		}

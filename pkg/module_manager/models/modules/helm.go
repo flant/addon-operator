@@ -13,7 +13,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
 
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -25,6 +24,8 @@ import (
 type HelmModule struct {
 	// Name of the module
 	name string
+	// default namespace for module
+	defaultNamespace string
 	// Path of the module on the fs
 	path string
 
@@ -60,7 +61,7 @@ type HelmModuleDependencies struct {
 }
 
 // NewHelmModule build HelmModule from the Module templates and values + global values
-func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator, logger *log.Logger) (*HelmModule, error) {
+func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator, logger *log.Logger) (*HelmModule, error) {
 	moduleValues := bm.GetValues(false)
 
 	chartValues := map[string]interface{}{
@@ -69,13 +70,14 @@ func NewHelmModule(bm *BasicModule, tmpDir string, deps *HelmModuleDependencies,
 	}
 
 	hm := &HelmModule{
-		name:         bm.Name,
-		path:         bm.Path,
-		values:       chartValues,
-		tmpDir:       tmpDir,
-		dependencies: deps,
-		validator:    validator,
-		logger:       logger,
+		name:             bm.Name,
+		defaultNamespace: namespace,
+		path:             bm.Path,
+		values:           chartValues,
+		tmpDir:           tmpDir,
+		dependencies:     deps,
+		validator:        validator,
+		logger:           logger,
 	}
 
 	isHelm, err := hm.isHelmChart()
@@ -180,7 +182,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 			hm.path,
 			[]string{valuesPath},
 			[]string{},
-			app.Namespace,
+			hm.defaultNamespace,
 			false,
 		)
 	}()
@@ -218,7 +220,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	if !runUpgradeRelease {
 		// Start resources monitor if release is not changed
 		if !hm.dependencies.HelmResourceManager.HasMonitor(hm.name) {
-			hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace, helmClient.LastReleaseStatus)
+			hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, hm.defaultNamespace, helmClient.LastReleaseStatus)
 		}
 		return nil
 	}
@@ -241,7 +243,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 			hm.path,
 			[]string{valuesPath},
 			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
-			app.Namespace,
+			hm.defaultNamespace,
 		)
 	}()
 
@@ -250,7 +252,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 
 	// Start monitor resources if release was successful
-	hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, app.Namespace, helmClient.LastReleaseStatus)
+	hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, hm.defaultNamespace, helmClient.LastReleaseStatus)
 
 	return nil
 }
@@ -300,7 +302,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	}
 
 	// Check if there are absent resources
-	absent, err := hm.dependencies.HelmResourceManager.GetAbsentResources(manifests, app.Namespace)
+	absent, err := hm.dependencies.HelmResourceManager.GetAbsentResources(manifests, hm.defaultNamespace)
 	if err != nil {
 		return false, err
 	}

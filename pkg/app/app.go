@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	sh_app "github.com/flant/shell-operator/pkg/app"
+	shapp "github.com/flant/shell-operator/pkg/app"
 )
 
 var (
@@ -83,7 +83,7 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 	cmd.Flag("tmp-dir", "a path to store temporary files with data for hooks").
 		Envar("ADDON_OPERATOR_TMP_DIR").
 		Default(DefaultTempDir).
-		StringVar(&sh_app.TempDir)
+		StringVar(&shapp.TempDir)
 
 	cmd.Flag("namespace", "Namespace of addon-operator.").
 		Envar("ADDON_OPERATOR_NAMESPACE").
@@ -101,7 +101,7 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 	cmd.Flag("prometheus-metrics-prefix", "Prefix for Prometheus metrics.").
 		Envar("ADDON_OPERATOR_PROMETHEUS_METRICS_PREFIX").
 		Default(DefaultPrometheusMetricsPrefix).
-		StringVar(&sh_app.PrometheusMetricsPrefix)
+		StringVar(&shapp.PrometheusMetricsPrefix)
 	cmd.Flag("helm-history-max", "Helm: limit the maximum number of revisions saved per release. Use 0 for no limit.").
 		Envar("HELM_HISTORY_MAX").
 		Default(strconv.Itoa(int(Helm3HistoryMax))).
@@ -166,10 +166,10 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Default(CRDsFilters).
 		StringVar(&CRDsFilters)
 
-	sh_app.DefineKubeClientFlags(cmd)
-	sh_app.DefineJqFlags(cmd)
-	sh_app.DefineLoggingFlags(cmd)
+	shapp.DefineKubeClientFlags(cmd)
+	shapp.DefineJqFlags(cmd)
+	shapp.DefineLoggingFlags(cmd)
 
-	sh_app.DebugUnixSocket = DefaultDebugUnixSocket
-	sh_app.DefineDebugFlags(kpApp, cmd)
+	shapp.DebugUnixSocket = DefaultDebugUnixSocket
+	shapp.DefineDebugFlags(kpApp, cmd)
 }

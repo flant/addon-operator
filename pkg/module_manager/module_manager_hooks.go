@@ -9,10 +9,12 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/utils"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
@@ -30,7 +32,7 @@ func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
 
 	dirs := utils.SplitToPaths(mm.ModulesDir)
 	for _, dir := range dirs {
-		commonStaticValues, err := utils.LoadValuesFileFromDir(dir)
+		commonStaticValues, err := utils.LoadValuesFileFromDir(dir, app.StrictModeEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +88,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 		MetricStorage:      mm.dependencies.MetricStorage,
 	}
 
-	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, mm.logger.Named("global-module"))
+	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, shapp.DebugKeepTmpFiles, mm.logger.Named("global-module"))
 	if err != nil {
 		return fmt.Errorf("new global module: %w", err)
 	}
@@ -138,7 +140,7 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 
 	hks, err := ml.RegisterHooks(logEntry)
 	if err != nil {
-		return err
+		return fmt.Errorf("register hooks %w", err)
 	}
 
 	for _, hk := range hks {

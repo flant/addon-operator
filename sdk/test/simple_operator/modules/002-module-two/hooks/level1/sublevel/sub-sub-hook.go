@@ -1,13 +1,13 @@
 package sublevel
 
 import (
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/sdk"
 )
 
 // TODO: remove global logger?
-var _ = sdk.RegisterFunc(&go_hook.HookConfig{}, main)
+var _ = sdk.RegisterFunc(&gohook.HookConfig{}, main)
 
-func main(_ *go_hook.HookInput) error {
+func main(_ *gohook.HookInput) error {
 	return nil
 }

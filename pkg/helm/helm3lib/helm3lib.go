@@ -23,7 +23,6 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/post_renderer"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -41,7 +40,9 @@ func initPostRenderer(extraLabels map[string]string) {
 
 func Init(opts *Options, logger *log.Logger, extraLabels map[string]string) error {
 	hc := &LibClient{
-		Logger: logger.With("operator.component", "helm3lib"),
+		Namespace:         opts.Namespace,
+		HelmIgnoreRelease: opts.HelmIgnoreRelease,
+		Logger:            logger.With("operator.component", "helm3lib"),
 	}
 	options = opts
 	initPostRenderer(extraLabels)
@@ -61,14 +62,16 @@ func ReinitActionConfig(logger *log.Logger) error {
 
 // LibClient use helm3 package as Go library.
 type LibClient struct {
-	Logger    *log.Logger
-	Namespace string
+	Logger            *log.Logger
+	Namespace         string
+	HelmIgnoreRelease string
 }
 
 type Options struct {
-	Namespace  string
-	HistoryMax int32
-	Timeout    time.Duration
+	Namespace         string
+	HistoryMax        int32
+	Timeout           time.Duration
+	HelmIgnoreRelease string
 }
 
 var (
@@ -84,8 +87,9 @@ func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmCl
 	}
 
 	return &LibClient{
-		Logger:    logEntry,
-		Namespace: options.Namespace,
+		Logger:            logEntry,
+		Namespace:         options.Namespace,
+		HelmIgnoreRelease: options.HelmIgnoreRelease,
 	}
 }
 
@@ -358,7 +362,7 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	releases := make([]string, 0, len(list))
 	for _, release := range list {
 		// Do not return ignored release or empty string.
-		if release.Name == app.HelmIgnoreRelease || release.Name == "" {
+		if release.Name == h.HelmIgnoreRelease || release.Name == "" {
 			continue
 		}
 

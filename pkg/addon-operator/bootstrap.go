@@ -1,38 +1,40 @@
 package addon_operator
 
 import (
+	"fmt"
+
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/module_manager"
-	sh_app "github.com/flant/shell-operator/pkg/app"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 )
 
 // Bootstrap inits all dependencies for a full-fledged AddonOperator instance.
 func (op *AddonOperator) bootstrap() error {
-	log.Info(sh_app.AppStartMessage)
+	log.Info(shapp.AppStartMessage)
 
 	log.Infof("Search modules in: %s", app.ModulesDir)
 
-	log.Infof("Addon-operator namespace: %s", app.Namespace)
+	log.Infof("Addon-operator namespace: %s", op.DefaultNamespace)
 
 	// Debug server.
-	// TODO: rewrite sh_app global variables to the addon-operator ones
+	// TODO: rewrite shapp global variables to the addon-operator ones
 	var err error
-	op.DebugServer, err = shell_operator.RunDefaultDebugServer(sh_app.DebugUnixSocket, sh_app.DebugHttpServerAddr, op.Logger.Named("debug-server"))
+	op.DebugServer, err = shell_operator.RunDefaultDebugServer(shapp.DebugUnixSocket, shapp.DebugHttpServerAddr, op.Logger.Named("debug-server"))
 	if err != nil {
 		log.Errorf("Fatal: start Debug server: %s", err)
-		return err
+		return fmt.Errorf("start Debug server: %w", err)
 	}
 
 	err = op.Assemble(op.DebugServer)
 	if err != nil {
 		log.Errorf("Fatal: %s", err)
-		return err
+		return fmt.Errorf("assemble Debug server: %w", err)
 	}
 
 	return nil

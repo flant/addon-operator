@@ -16,7 +16,7 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
+	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
@@ -36,6 +36,8 @@ type GlobalModule struct {
 	// dependency
 	dc *hooks.HookExecutionDependencyContainer
 
+	keepTemporaryHookFiles bool
+
 	logger *log.Logger
 }
 
@@ -44,9 +46,10 @@ func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
 	return gm.enabledByHookC
 }
 
+// TODO: add options WithLogger
 // NewGlobalModule build ephemeral global container for global hooks and values
 func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookExecutionDependencyContainer,
-	configBytes, valuesBytes []byte, logger *log.Logger,
+	configBytes, valuesBytes []byte, keepTemporaryHookFiles bool, logger *log.Logger,
 ) (*GlobalModule, error) {
 	valuesStorage, err := NewValuesStorage("global", staticValues, configBytes, valuesBytes)
 	if err != nil {
@@ -54,19 +57,20 @@ func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookE
 	}
 
 	return &GlobalModule{
-		hooksDir:       hooksDir,
-		byBinding:      make(map[sh_op_types.BindingType][]*hooks.GlobalHook),
-		byName:         make(map[string]*hooks.GlobalHook),
-		valuesStorage:  valuesStorage,
-		dc:             dc,
-		enabledByHookC: make(chan *EnabledPatchReport, 10),
-		logger:         logger,
+		hooksDir:               hooksDir,
+		byBinding:              make(map[sh_op_types.BindingType][]*hooks.GlobalHook),
+		byName:                 make(map[string]*hooks.GlobalHook),
+		valuesStorage:          valuesStorage,
+		dc:                     dc,
+		enabledByHookC:         make(chan *EnabledPatchReport, 10),
+		keepTemporaryHookFiles: keepTemporaryHookFiles,
+		logger:                 logger,
 	}, nil
 }
 
 // RegisterHooks finds and registers global hooks
 func (gm *GlobalModule) RegisterHooks() ([]*hooks.GlobalHook, error) {
-	log.Debugf("Search and register global hooks")
+	gm.logger.Debugf("Search and register global hooks")
 
 	hks, err := gm.searchAndRegisterHooks()
 	if err != nil {
@@ -110,7 +114,7 @@ func (gm *GlobalModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.GlobalH
 }
 
 // RunHookByName runs some specified hook by its name
-func (gm *GlobalModule) RunHookByName(hookName string, binding sh_op_types.BindingType, bindingContext []binding_context.BindingContext, logLabels map[string]string) (string, string, error) {
+func (gm *GlobalModule) RunHookByName(hookName string, binding sh_op_types.BindingType, bindingContext []bindingcontext.BindingContext, logLabels map[string]string) (string, string, error) {
 	globalHook := gm.byName[hookName]
 
 	beforeValues := gm.valuesStorage.GetValues(false)
@@ -123,7 +127,7 @@ func (gm *GlobalModule) RunHookByName(hookName string, binding sh_op_types.Bindi
 
 	if binding == types.BeforeAll || binding == types.AfterAll {
 		snapshots := globalHook.GetHookController().KubernetesSnapshots()
-		newBindingContext := make([]binding_context.BindingContext, 0)
+		newBindingContext := make([]bindingcontext.BindingContext, 0)
 		for _, bc := range bindingContext {
 			bc.Snapshots = snapshots
 			bc.Metadata.IncludeAllSnapshots = true
@@ -148,7 +152,7 @@ func (gm *GlobalModule) GetName() string {
 	return utils.GlobalValuesKey
 }
 
-func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types.BindingType, bc []binding_context.BindingContext, logLabels map[string]string) error {
+func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types.BindingType, bc []bindingcontext.BindingContext, logLabels map[string]string) error {
 	// Convert bindingContext for version
 	// versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
 	logEntry := utils.EnrichLoggerWithLabels(gm.logger, logLabels)
@@ -402,7 +406,7 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 	gm.logger.Debugf("Found %d global hooks", len(hks))
 	if gm.logger.GetLevel() == log.LevelDebug {
 		for _, h := range hks {
-			gm.logger.Debugf("  GlobalHook: Name=%s, Path=%s", h.GetName(), h.GetPath())
+			gm.logger.Debugf("GlobalHook: Name=%s, Path=%s", h.GetName(), h.GetPath())
 		}
 	}
 
@@ -444,7 +448,7 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 // searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
 func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error) {
 	if gm.hooksDir == "" {
-		log.Warnf("Global hooks directory path is empty! No global hooks to load.")
+		gm.logger.Warnf("Global hooks directory path is empty! No global hooks to load.")
 		return nil, nil
 	}
 
@@ -454,6 +458,11 @@ func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error)
 	}
 
 	goHooks, err := gm.searchGlobalGoHooks()
+	if err != nil {
+		return nil, err
+	}
+
+	batchHooks, err := gm.searchGlobalBatchHooks(gm.hooksDir)
 	if err != nil {
 		return nil, err
 	}
@@ -470,7 +479,12 @@ func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error)
 		hks = append(hks, glh)
 	}
 
-	log.Debugf("Search global hooks: %d shell, %d golang", len(shellHooks), len(goHooks))
+	for _, bh := range batchHooks {
+		glh := hooks.NewGlobalHook(bh)
+		hks = append(hks, glh)
+	}
+
+	gm.logger.Debug(fmt.Sprintf("Search global hooks: %d shell, %d golang", len(shellHooks), len(goHooks)))
 
 	return hks, nil
 }
@@ -494,7 +508,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	log.Debugf("  Hook paths: %+v", hooksRelativePaths)
+	gm.logger.Debugf("Hook paths: %+v", hooksRelativePaths)
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(hooksDir, hookPath)
@@ -502,7 +516,14 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 			return nil, err
 		}
 
-		globalHook := kind.NewShellHook(hookName, hookPath, gm.logger.Named("shell-hook"))
+		if filepath.Ext(hookPath) == "" {
+			_, err = kind.GetBatchHookConfig(hookPath)
+			if err == nil {
+				continue
+			}
+		}
+
+		globalHook := kind.NewShellHook(hookName, hookPath, gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
 
 		hks = append(hks, globalHook)
 	}
@@ -511,7 +532,58 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 	if len(hks) > 0 {
 		count = strconv.Itoa(len(hks))
 	}
-	log.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
+	gm.logger.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
+
+	return
+}
+
+// searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
+func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.BatchHook, err error) {
+	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	hooksSubDir := filepath.Join(hooksDir, "hooks")
+	if _, err := os.Stat(hooksSubDir); !os.IsNotExist(err) {
+		hooksDir = hooksSubDir
+	}
+
+	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, gm.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	hks = make([]*kind.BatchHook, 0)
+
+	// sort hooks by path
+	sort.Strings(hooksRelativePaths)
+	gm.logger.Debugf("Hook paths: %+v", hooksRelativePaths)
+
+	for _, hookPath := range hooksRelativePaths {
+		hookName, err := filepath.Rel(hooksDir, hookPath)
+		if err != nil {
+			return nil, err
+		}
+
+		sdkcfgs, err := kind.GetBatchHookConfig(hookPath)
+		if err != nil {
+			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
+		}
+
+		for idx, cfg := range sdkcfgs {
+			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
+
+			hks = append(hks, shHook)
+		}
+	}
+
+	count := "no"
+	if len(hks) > 0 {
+		count = strconv.Itoa(len(hks))
+	}
+
+	gm.logger.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
 
 	return
 }
@@ -524,7 +596,7 @@ func (gm *GlobalModule) searchGlobalGoHooks() ([]*kind.GoHook, error) {
 	if len(goHooks) > 0 {
 		count = strconv.Itoa(len(goHooks))
 	}
-	log.Infof("Found %s global Go hooks", count)
+	gm.logger.Infof("Found %s global Go hooks", count)
 
 	return goHooks, nil
 }

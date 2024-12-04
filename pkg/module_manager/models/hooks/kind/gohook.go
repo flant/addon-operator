@@ -5,25 +5,25 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
-	"github.com/flant/shell-operator/pkg/hook/binding_context"
+	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	"github.com/flant/shell-operator/pkg/kube/object_patch"
+	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 )
 
 type GoHook struct {
 	basicHook sh_hook.Hook
 
-	config        *go_hook.HookConfig
+	config        *gohook.HookConfig
 	reconcileFunc ReconcileFunc
 }
 
 // NewGoHook creates a new go hook
-func NewGoHook(config *go_hook.HookConfig, f ReconcileFunc) *GoHook {
+func NewGoHook(config *gohook.HookConfig, f ReconcileFunc) *GoHook {
 	logger := config.Logger
 	if logger == nil {
 		logger = log.NewLogger(log.Options{}).Named("auto-hook-logger")
@@ -45,12 +45,12 @@ func (h *GoHook) BackportHookConfig(cfg *config.HookConfig) {
 }
 
 // Run start ReconcileFunc
-func (h *GoHook) Run(input *go_hook.HookInput) error {
+func (h *GoHook) Run(input *gohook.HookInput) error {
 	return h.reconcileFunc(input)
 }
 
 // AddMetadata add hook metadata, name and path which are resolved by SDK registry
-func (h *GoHook) AddMetadata(meta *go_hook.HookMetadata) {
+func (h *GoHook) AddMetadata(meta *gohook.HookMetadata) {
 	h.basicHook.Name = meta.Name
 	h.basicHook.Path = meta.Path
 }
@@ -87,24 +87,24 @@ func (h *GoHook) GetHookConfigDescription() string {
 }
 
 // Execute runs the hook and return the result of the execution
-func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (result *HookResult, err error) {
+func (h *GoHook) Execute(_ string, bContext []bindingcontext.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (result *HookResult, err error) {
 	// Values are patched in-place, so an error can occur.
-	patchableValues, err := go_hook.NewPatchableValues(values)
+	patchableValues, err := gohook.NewPatchableValues(values)
 	if err != nil {
 		return nil, err
 	}
 
-	patchableConfigValues, err := go_hook.NewPatchableValues(configValues)
+	patchableConfigValues, err := gohook.NewPatchableValues(configValues)
 	if err != nil {
 		return nil, err
 	}
 
-	bindingActions := new([]go_hook.BindingAction)
+	bindingActions := new([]gohook.BindingAction)
 
 	logEntry := utils.EnrichLoggerWithLabels(h.basicHook.Logger, logLabels).
 		With("output", "gohook")
 
-	formattedSnapshots := make(go_hook.Snapshots, len(bContext))
+	formattedSnapshots := make(gohook.Snapshots, len(bContext))
 	for _, bc := range bContext {
 		for snapBindingName, snaps := range bc.Snapshots {
 			for _, snapshot := range snaps {
@@ -115,9 +115,9 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 	}
 
 	metricsCollector := metrics.NewCollector(h.GetName())
-	patchCollector := object_patch.NewPatchCollector()
+	patchCollector := objectpatch.NewPatchCollector()
 
-	err = h.Run(&go_hook.HookInput{
+	err = h.Run(&gohook.HookInput{
 		Snapshots:        formattedSnapshots,
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
@@ -129,7 +129,7 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 	if err != nil {
 		// on error we have to check if status collector has any status patches to apply
 		// return non-nil HookResult if there are status patches
-		if statusPatches := object_patch.GetPatchStatusOperationsOnHookError(patchCollector.Operations()); len(statusPatches) > 0 {
+		if statusPatches := objectpatch.GetPatchStatusOperationsOnHookError(patchCollector.Operations()); len(statusPatches) > 0 {
 			return &HookResult{
 				ObjectPatcherOperations: statusPatches,
 			}, err
@@ -151,7 +151,7 @@ func (h *GoHook) Execute(_ string, bContext []binding_context.BindingContext, _ 
 }
 
 // GetConfig returns hook config, which was set by user, while defining the hook
-func (h *GoHook) GetConfig() *go_hook.HookConfig {
+func (h *GoHook) GetConfig() *gohook.HookConfig {
 	return h.config
 }
 
@@ -171,4 +171,4 @@ func (h *GoHook) GetKind() HookKind {
 }
 
 // ReconcileFunc function which holds the main logic of the hook
-type ReconcileFunc func(input *go_hook.HookInput) error
+type ReconcileFunc func(input *gohook.HookInput) error
