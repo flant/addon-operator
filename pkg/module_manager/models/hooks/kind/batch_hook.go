@@ -183,7 +183,7 @@ func GetBatchHookConfig(hookPath string) ([]sdkhook.HookConfig, error) {
 	}
 
 	cfgs := make([]sdkhook.HookConfig, 0)
-	buf := bytes.NewBuffer(o)
+	buf := bytes.NewReader(o)
 	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
