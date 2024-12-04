@@ -303,7 +303,7 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 		}
 
 		for idx, cfg := range sdkcfgs {
-			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
+			nestedHookName := fmt.Sprintf("%s:%s:%d", hookName, cfg.Metadata.Name, idx)
 			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
