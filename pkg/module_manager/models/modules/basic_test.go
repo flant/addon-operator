@@ -18,7 +18,7 @@ foo:
 `
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))
 	require.NoError(t, err)
-	bm, err := NewBasicModule("test-1", "/tmp/test", 100, value, nil, nil, "doc-,_", false, log.NewNop())
+	bm, err := NewBasicModule("test-1", "/tmp/test", 100, value, nil, nil, log.NewNop())
 	require.NoError(t, err)
 
 	patch := utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
