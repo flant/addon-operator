@@ -355,7 +355,7 @@ func isExecutableBatchHookFile(path string, f os.FileInfo) error {
 	// ignore any extension and hidden files
 	case "":
 		return IsFileBatchHook(path, f)
-	// ignore .yaml, .json, .txt, .md files
+	// ignore all with extensions
 	default:
 		return ErrFileHasWrongExtension
 	}
