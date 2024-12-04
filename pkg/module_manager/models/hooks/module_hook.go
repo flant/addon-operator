@@ -172,7 +172,7 @@ func (mh *ModuleHook) GetConfigDescription() string {
 	}
 	bd = append(bd, mh.executableHook.GetHookConfigDescription())
 
-	return strings.Join(bd, ",")
+	return strings.Join(bd, ", ")
 }
 
 // GetGoHookInputSettings proxy method to extract GoHook config settings
