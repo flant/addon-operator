@@ -170,6 +170,7 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 	shapp.DefineJqFlags(cmd)
 	shapp.DefineLoggingFlags(cmd)
 
+	// TODO: working with global values not need to be in flags definition
 	shapp.DebugUnixSocket = DefaultDebugUnixSocket
 	shapp.DefineDebugFlags(kpApp, cmd)
 }
