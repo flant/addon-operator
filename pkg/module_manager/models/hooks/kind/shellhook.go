@@ -10,7 +10,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -87,16 +86,16 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	versionedContextList := bindingcontext.ConvertBindingContextList(configVersion, bContext)
 	bindingContextBytes, err := versionedContextList.Json()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("versioned context list json: %w", err)
 	}
 
 	tmpFiles, err := sh.prepareTmpFilesForHookRun(bindingContextBytes, moduleSafeName, configValues, values)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("prepare tmp files for hook run: %w", err)
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if shapp.DebugKeepTmpFilesVar == "yes" {
+		if sh.KeepTemporaryHookFiles {
 			return
 		}
 		for _, f := range tmpFiles {
@@ -130,7 +129,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	usage, err := cmd.RunAndLogLines(logLabels)
 	result.Usage = usage
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("run and log lines: %w", err)
 	}
 
 	result.Patches[utils.ConfigMapPatch], err = utils.ValuesPatchFromFile(configValuesPatchPath)
@@ -155,7 +154,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 
 	result.ObjectPatcherOperations, err = objectpatch.ParseOperations(kubernetesPatchBytes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("object patch parse operations: %w", err)
 	}
 
 	return result, nil
