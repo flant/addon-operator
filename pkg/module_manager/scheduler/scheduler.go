@@ -329,6 +329,7 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	}
 
 	log.Infof("The list of applied module extenders: %s", finalList)
+
 	return nil
 }
 
@@ -395,6 +396,7 @@ func (s *Scheduler) getModuleNodes() ([]*node.Node, error) {
 	if bfsErr != nil {
 		return nodes, bfsErr
 	}
+
 	return nodes, err
 }
 
@@ -475,6 +477,7 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 	if err != nil {
 		return false
 	}
+
 	return vertex.GetState()
 }
 
@@ -632,6 +635,7 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 func (s *Scheduler) RecalculateGraph(logLabels map[string]string) (bool, []string) {
 	s.l.Lock()
 	defer s.l.Unlock()
+
 	return s.recalculateGraphState(logLabels)
 }
 
@@ -639,9 +643,13 @@ func (s *Scheduler) RecalculateGraph(logLabels map[string]string) (bool, []strin
 func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, logLabels map[string]string) (*bool, error) {
 	for _, e := range s.extenders {
 		if e.ext.Name() == extName {
+			if _, ok := e.ext.(extenders.ResettableExtender); ok {
+				return nil, fmt.Errorf("extender %s is resettable and can't be accessed directly", extName)
+			}
 			return e.ext.Filter(moduleName, logLabels)
 		}
 	}
+
 	return nil, fmt.Errorf("extender %s not found", extName)
 }
 
