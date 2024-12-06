@@ -26,6 +26,11 @@ type NotificationExtender interface {
 	SetNotifyChannel(context.Context, chan ExtenderEvent)
 }
 
+type TopologicalExtender interface {
+	// GetTopologicalHints returns the list of vertices that should be connected to the specified vertex
+	GetTopologicalHints(string) []string
+}
+
 // Hail to enabled scripts
 type ResettableExtender interface {
 	// Reset resets the extender's cache
