@@ -2,13 +2,13 @@ package modules
 
 import "github.com/deckhouse/deckhouse/pkg/log"
 
-type moduleOption func(optionsApplier ModuleOptionApplier)
+type Option func(optionsApplier ModuleOptionApplier)
 
-func (opt moduleOption) Apply(o ModuleOptionApplier) {
+func (opt Option) Apply(o ModuleOptionApplier) {
 	opt(o)
 }
 
-func WithLogger(logger *log.Logger) moduleOption {
+func WithLogger(logger *log.Logger) Option {
 	return func(optionsApplier ModuleOptionApplier) {
 		optionsApplier.WithLogger(logger)
 	}
