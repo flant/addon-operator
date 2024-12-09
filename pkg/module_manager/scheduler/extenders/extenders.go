@@ -32,7 +32,7 @@ type TopologicalExtender interface {
 }
 
 // Hail to enabled scripts
-type ResettableExtender interface {
-	// Reset resets the extender's cache
-	Reset()
+type StatefulExtender interface {
+	// SetModulesStateHelper sets a helper function to get the list of enabled modules according to the latest vertex state buffer
+	SetModulesStateHelper(func() []string)
 }

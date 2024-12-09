@@ -44,24 +44,40 @@ type Scheduler struct {
 	// list of extenders to cycle over on a run
 	extenders []extenderContainer
 	extCh     chan extenders.ExtenderEvent
+
 	// graph visualization
 	graphImage image.Image
 
 	l sync.Mutex
 	// directed acyclic graph consisting of vertices representing modules and weights
 	dag graph.Graph[string, *node.Node]
+
 	// the root vertex of the dag
 	root *node.Node
-	// cache containing currently enabled vertices
+
+	// list of currently enabled vertices
 	enabledModules *[]string
+
 	// storage for current module diff
 	diff map[string]bool
+
 	// keeps all errors happened on last run
 	errList []string
+
+	// buffer, holding up-to-date vertex states during graph recalculations
+	// gets resetted before each recalculation
+	// provides a shared state of enabled modules to some extenders like script_enabled
+	vertexStateBuffer vertexStateBuffer
+
 	// additional edges to connect vertices with
 	topologicalHints map[extenders.ExtenderName]map[string][]string
 
 	logger *log.Logger
+}
+
+type vertexStateBuffer struct {
+	state          map[string]*vertexState
+	enabledModules []string
 }
 
 type vertexState struct {
@@ -75,14 +91,15 @@ func NewScheduler(ctx context.Context, logger *log.Logger) *Scheduler {
 		return n.GetName()
 	}
 	return &Scheduler{
-		ctx:              ctx,
-		extenders:        make([]extenderContainer, 0),
-		extCh:            make(chan extenders.ExtenderEvent, 1),
-		dag:              graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
-		diff:             make(map[string]bool),
-		errList:          make([]string, 0),
-		topologicalHints: make(map[extenders.ExtenderName]map[string][]string, 0),
-		logger:           logger,
+		ctx:               ctx,
+		extenders:         make([]extenderContainer, 0),
+		extCh:             make(chan extenders.ExtenderEvent, 1),
+		dag:               graph.New(nodeHash, graph.Directed(), graph.Acyclic()),
+		diff:              make(map[string]bool),
+		errList:           make([]string, 0),
+		vertexStateBuffer: vertexStateBuffer{},
+		topologicalHints:  make(map[extenders.ExtenderName]map[string][]string, 0),
+		logger:            logger,
 	}
 }
 
@@ -312,6 +329,11 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 				newExtenders = append(newExtenders, e)
 				if ne, ok := e.ext.(extenders.NotificationExtender); ok {
 					ne.SetNotifyChannel(s.ctx, s.extCh)
+				}
+				if se, ok := e.ext.(extenders.StatefulExtender); ok {
+					se.SetModulesStateHelper(func() []string {
+						return s.vertexStateBuffer.enabledModules
+					})
 				}
 				break
 			}
@@ -643,8 +665,8 @@ func (s *Scheduler) RecalculateGraph(logLabels map[string]string) (bool, []strin
 func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, logLabels map[string]string) (*bool, error) {
 	for _, e := range s.extenders {
 		if e.ext.Name() == extName {
-			if _, ok := e.ext.(extenders.ResettableExtender); ok {
-				return nil, fmt.Errorf("extender %s is resettable and can't be accessed directly", extName)
+			if _, ok := e.ext.(extenders.StatefulExtender); ok {
+				return nil, fmt.Errorf("extender %s is a stateful one and can't be accessed directly", extName)
 			}
 			return e.ext.Filter(moduleName, logLabels)
 		}
@@ -661,7 +683,6 @@ func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, lo
 func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Graph's state has changed */ bool /* list of the vertices, which updateBy statuses have changed */, []string) {
 	diff, updByDiff := make(map[string]bool), make([]string, 0)
 	errList := make([]string, 0)
-	enabledModules := make([]string, 0)
 	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
 
 	nodes, err := s.getModuleNodes()
@@ -672,16 +693,17 @@ func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Grap
 	}
 
 	// create a buffer to store all updates during upcoming run, the updates are applied if there is no errors during the run
-	vBuf := make(map[string]*vertexState)
+	s.vertexStateBuffer.state = make(map[string]*vertexState, len(nodes))
+	s.vertexStateBuffer.enabledModules = make([]string, 0, len(nodes))
 
 outerCycle:
 	for _, node := range nodes {
 		moduleName := node.GetName()
-		vBuf[moduleName] = &vertexState{}
+		s.vertexStateBuffer.state[moduleName] = &vertexState{}
 
 		for _, e := range s.extenders {
 			// if current extender is a terminating one and by this point the module is already disabled - there's little sense in checking against all other terminators
-			if e.ext.IsTerminator() && !vBuf[moduleName].enabled && !e.filterAhead {
+			if e.ext.IsTerminator() && !s.vertexStateBuffer.state[moduleName].enabled && !e.filterAhead {
 				break
 			}
 
@@ -700,30 +722,30 @@ outerCycle:
 					if !*moduleStatus {
 						// if so far is enabled OR there are ahead other extenders that could enable the module,
 						// mark the module as disabled by the terminator
-						if vBuf[moduleName].enabled || e.filterAhead {
-							vBuf[moduleName].enabled = *moduleStatus
-							vBuf[moduleName].updatedBy = string(e.ext.Name())
+						if s.vertexStateBuffer.state[moduleName].enabled || e.filterAhead {
+							s.vertexStateBuffer.state[moduleName].enabled = *moduleStatus
+							s.vertexStateBuffer.state[moduleName].updatedBy = string(e.ext.Name())
 						}
 						break
 					}
 					// continue checking extenders
 					continue
 				}
-				vBuf[moduleName].enabled = *moduleStatus
-				vBuf[moduleName].updatedBy = string(e.ext.Name())
+				s.vertexStateBuffer.state[moduleName].enabled = *moduleStatus
+				s.vertexStateBuffer.state[moduleName].updatedBy = string(e.ext.Name())
 			}
 		}
 
-		if vBuf[moduleName].enabled != node.GetState() {
-			diff[moduleName] = vBuf[moduleName].enabled
+		if s.vertexStateBuffer.state[moduleName].enabled != node.GetState() {
+			diff[moduleName] = s.vertexStateBuffer.state[moduleName].enabled
 		}
 
-		if vBuf[moduleName].updatedBy != node.GetUpdatedBy() {
+		if s.vertexStateBuffer.state[moduleName].updatedBy != node.GetUpdatedBy() {
 			updByDiff = append(updByDiff, moduleName)
 		}
 
-		if vBuf[moduleName].enabled {
-			enabledModules = append(enabledModules, moduleName)
+		if s.vertexStateBuffer.state[moduleName].enabled {
+			s.vertexStateBuffer.enabledModules = append(s.vertexStateBuffer.enabledModules, moduleName)
 		}
 	}
 
@@ -731,19 +753,12 @@ outerCycle:
 	for extenderName, parents := range s.topologicalHints {
 		for _, children := range parents {
 			for _, child := range children {
-				if _, found := vBuf[child]; !found {
-					vBuf[child] = &vertexState{}
+				if _, found := s.vertexStateBuffer.state[child]; !found {
+					s.vertexStateBuffer.state[child] = &vertexState{}
 				}
-				vBuf[child].enabled = false
-				vBuf[child].updatedBy = string(extenderName)
+				s.vertexStateBuffer.state[child].enabled = false
+				s.vertexStateBuffer.state[child].updatedBy = string(extenderName)
 			}
-		}
-	}
-
-	// reset extenders' states if needed (mostly for enabled_script extender)
-	for _, e := range s.extenders {
-		if re, ok := e.ext.(extenders.ResettableExtender); ok {
-			re.Reset()
 		}
 	}
 
@@ -767,7 +782,7 @@ outerCycle:
 	}
 
 	// commit changes to the graph
-	for vertexName, state := range vBuf {
+	for vertexName, state := range s.vertexStateBuffer.state {
 		vertex, _, err := s.dag.VertexWithProperties(vertexName)
 		if err != nil {
 			errList = append(errList, fmt.Sprintf("couldn't get %s vertex from the graph: %v", vertexName, err))
@@ -778,6 +793,8 @@ outerCycle:
 		vertex.SetUpdatedBy(state.updatedBy)
 	}
 
+	enabledModules := make([]string, len(s.vertexStateBuffer.enabledModules))
+	copy(enabledModules, s.vertexStateBuffer.enabledModules)
 	s.enabledModules = &enabledModules
 	// reset any previous errors
 	s.errList = make([]string, 0)
