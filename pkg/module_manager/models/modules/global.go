@@ -77,8 +77,8 @@ func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookE
 	return gmodule, nil
 }
 
-func (bm *GlobalModule) WithLogger(logger *log.Logger) {
-	bm.logger = logger
+func (gm *GlobalModule) WithLogger(logger *log.Logger) {
+	gm.logger = logger
 }
 
 // RegisterHooks finds and registers global hooks

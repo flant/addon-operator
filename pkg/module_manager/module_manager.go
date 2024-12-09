@@ -601,7 +601,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			MetricsStorage:      mm.dependencies.MetricStorage,
 			HelmValuesValidator: schemaStorage,
 		}
-		helmModule, _ := modules.NewHelmModule(ml, mm.defaultNamespace, mm.TempDir, &hmdeps, schemaStorage, mm.logger.Named("helm-module"))
+		helmModule, _ := modules.NewHelmModule(ml, mm.defaultNamespace, mm.TempDir, &hmdeps, schemaStorage, modules.WithLogger(mm.logger.Named("helm-module")))
 		if helmModule != nil {
 			releaseExists, err := mm.dependencies.Helm.NewClient(mm.logger, deleteLogLabels).IsReleaseExists(ml.GetName())
 			if !releaseExists {
@@ -667,7 +667,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 		MetricsStorage:      mm.dependencies.MetricStorage,
 		HelmValuesValidator: schemaStorage,
 	}
-	helmModule, err := modules.NewHelmModule(bm, mm.defaultNamespace, mm.TempDir, deps, schemaStorage, mm.logger.Named("helm-module"))
+	helmModule, err := modules.NewHelmModule(bm, mm.defaultNamespace, mm.TempDir, deps, schemaStorage, modules.WithLogger(mm.logger.Named("helm-module")))
 	if err != nil {
 		return false, err
 	}

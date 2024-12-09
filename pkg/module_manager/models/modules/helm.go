@@ -61,7 +61,7 @@ type HelmModuleDependencies struct {
 }
 
 // NewHelmModule build HelmModule from the Module templates and values + global values
-func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator, logger *log.Logger) (*HelmModule, error) {
+func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator, opts ...ModuleOption) (*HelmModule, error) {
 	moduleValues := bm.GetValues(false)
 
 	chartValues := map[string]interface{}{
@@ -77,7 +77,14 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 		tmpDir:           tmpDir,
 		dependencies:     deps,
 		validator:        validator,
-		logger:           logger,
+	}
+
+	for _, opt := range opts {
+		opt.Apply(hm)
+	}
+
+	if hm.logger == nil {
+		hm.logger = log.NewLogger(log.Options{}).Named("helm-module")
 	}
 
 	isHelm, err := hm.isHelmChart()
@@ -86,11 +93,15 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	if !isHelm {
-		log.Infof("module %q has neither Chart.yaml nor templates/ dir, is't not a helm chart", bm.Name)
+		hm.logger.Infof("module %q has neither Chart.yaml nor templates/ dir, is't not a helm chart", bm.Name)
 		return nil, nil
 	}
 
 	return hm, nil
+}
+
+func (hm *HelmModule) WithLogger(logger *log.Logger) {
+	hm.logger = logger
 }
 
 // isHelmChart check, could it be considered as helm chart or not
