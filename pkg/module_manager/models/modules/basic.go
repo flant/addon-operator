@@ -70,7 +70,7 @@ type BasicModule struct {
 // TODO: add options WithLogger
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
-func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, opts ...BasicModuleOption) (*BasicModule, error) {
+func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, opts ...ModuleOption) (*BasicModule, error) {
 	valuesStorage, err := NewValuesStorage(name, staticValues, configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new values storage: %w", err)

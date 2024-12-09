@@ -88,7 +88,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 		MetricStorage:      mm.dependencies.MetricStorage,
 	}
 
-	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, shapp.DebugKeepTmpFiles, mm.logger.Named("global-module"))
+	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, shapp.DebugKeepTmpFiles, modules.WithLogger(mm.logger.Named("global-module")))
 	if err != nil {
 		return fmt.Errorf("new global module: %w", err)
 	}
