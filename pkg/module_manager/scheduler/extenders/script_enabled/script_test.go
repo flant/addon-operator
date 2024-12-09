@@ -63,10 +63,19 @@ func TestExtender(t *testing.T) {
 		},
 	}
 
+	sharedEnabledModules := make([]string, 0)
+	helper := func() []string {
+		return sharedEnabledModules
+	}
+	e.SetModulesStateHelper(helper)
+
 	logLabels := map[string]string{"source": "TestExtender"}
 	for _, m := range basicModules {
 		e.AddBasicModule(m)
 		enabled, err := e.Filter(m.Name, logLabels)
+		if enabled == nil || (enabled != nil && *enabled) {
+			sharedEnabledModules = append(sharedEnabledModules, m.Name)
+		}
 		switch m.GetName() {
 		case "foo-bar":
 			assert.Equal(t, true, *enabled)
@@ -87,7 +96,7 @@ func TestExtender(t *testing.T) {
 	}
 
 	expected := []string{"ingress-nginx", "cert-manager", "foo-bar"}
-	assert.Equal(t, expected, e.enabledModules)
+	assert.Equal(t, expected, e.GetEnabledModules())
 
 	err = os.RemoveAll(tmp)
 	assert.NoError(t, err)
