@@ -70,14 +70,14 @@ type BasicModule struct {
 // TODO: add options WithLogger
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
-func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, logger *log.Logger) (*BasicModule, error) {
+func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, opts ...BasicModuleOption) (*BasicModule, error) {
 	valuesStorage, err := NewValuesStorage(name, staticValues, configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
 	crdsFromPath := getCRDsFromPath(path, app.CRDsFilters)
-	return &BasicModule{
+	bmodule := &BasicModule{
 		Name:          name,
 		Order:         order,
 		Path:          path,
@@ -91,8 +91,21 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		},
 		hooks:                  newHooksStorage(),
 		keepTemporaryHookFiles: shapp.DebugKeepTmpFiles,
-		logger:                 logger,
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt.Apply(bmodule)
+	}
+
+	if bmodule.logger == nil {
+		bmodule.logger = log.NewLogger(log.Options{}).Named("basic-module").Named(name)
+	}
+
+	return bmodule, nil
+}
+
+func (bm *BasicModule) WithLogger(logger *log.Logger) {
+	bm.logger = logger
 }
 
 // getCRDsFromPath scan path/crds directory and store yaml file in slice
