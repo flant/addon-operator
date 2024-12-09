@@ -754,10 +754,11 @@ outerCycle:
 		for _, children := range parents {
 			for _, child := range children {
 				if _, found := s.vertexStateBuffer.state[child]; !found {
-					s.vertexStateBuffer.state[child] = &vertexState{}
+					s.vertexStateBuffer.state[child] = &vertexState{
+						enabled:   false,
+						updatedBy: string(extenderName),
+					}
 				}
-				s.vertexStateBuffer.state[child].enabled = false
-				s.vertexStateBuffer.state[child].updatedBy = string(extenderName)
 			}
 		}
 	}
