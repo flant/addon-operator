@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/tidwall/gjson"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
+	"github.com/flant/addon-operator/pkg/utils"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 )
@@ -88,10 +90,21 @@ type PatchCollector interface {
 	Operations() []objectpatch.Operation
 }
 
+type PatchableValuesCollector interface {
+	ArrayCount(path string) (int, error)
+	Exists(path string) bool
+	Get(path string) gjson.Result
+	GetOk(path string) (gjson.Result, bool)
+	GetPatches() []*utils.ValuesPatchOperation
+	GetRaw(path string) interface{}
+	Remove(path string)
+	Set(path string, value interface{})
+}
+
 type HookInput struct {
 	Snapshots        Snapshots
-	Values           *PatchableValues
-	ConfigValues     *PatchableValues
+	Values           PatchableValuesCollector
+	ConfigValues     PatchableValuesCollector
 	MetricsCollector MetricsCollector
 	PatchCollector   PatchCollector
 	Logger           Logger
