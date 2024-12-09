@@ -49,14 +49,14 @@ func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
 // TODO: add options WithLogger
 // NewGlobalModule build ephemeral global container for global hooks and values
 func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookExecutionDependencyContainer,
-	configBytes, valuesBytes []byte, keepTemporaryHookFiles bool, logger *log.Logger,
+	configBytes, valuesBytes []byte, keepTemporaryHookFiles bool, opts ...ModuleOption,
 ) (*GlobalModule, error) {
 	valuesStorage, err := NewValuesStorage("global", staticValues, configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
-	return &GlobalModule{
+	gmodule := &GlobalModule{
 		hooksDir:               hooksDir,
 		byBinding:              make(map[sh_op_types.BindingType][]*hooks.GlobalHook),
 		byName:                 make(map[string]*hooks.GlobalHook),
@@ -64,8 +64,21 @@ func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookE
 		dc:                     dc,
 		enabledByHookC:         make(chan *EnabledPatchReport, 10),
 		keepTemporaryHookFiles: keepTemporaryHookFiles,
-		logger:                 logger,
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt.Apply(gmodule)
+	}
+
+	if gmodule.logger == nil {
+		gmodule.logger = log.NewLogger(log.Options{}).Named("global-module")
+	}
+
+	return gmodule, nil
+}
+
+func (gm *GlobalModule) WithLogger(logger *log.Logger) {
+	gm.logger = logger
 }
 
 // RegisterHooks finds and registers global hooks
