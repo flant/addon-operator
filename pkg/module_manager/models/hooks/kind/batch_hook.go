@@ -14,7 +14,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -104,7 +103,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if shapp.DebugKeepTmpFilesVar == "yes" {
+		if sh.KeepTemporaryHookFiles {
 			return
 		}
 		for _, f := range tmpFiles {

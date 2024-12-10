@@ -492,7 +492,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 			// This could happen when the Context is
 			// canceled, or the expected wait time exceeds the Context's Deadline.
 			// The best we can do without proper context usage is to repeat the task.
-			return err
+			return fmt.Errorf("rate limit wait: %w", err)
 		}
 
 		bc := bindingcontext.BindingContext{
@@ -520,7 +520,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 			err = bm.executeHook(moduleHook, binding, []bindingcontext.BindingContext{bc}, logLabels, metricLabels)
 		}()
 		if err != nil {
-			return err
+			return fmt.Errorf("execute hook: %w", err)
 		}
 	}
 
@@ -816,7 +816,7 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 	if len(hookResult.ObjectPatcherOperations) > 0 {
 		err = bm.dc.KubeObjectPatcher.ExecuteOperations(hookResult.ObjectPatcherOperations)
 		if err != nil {
-			return err
+			return fmt.Errorf("execute operations: %w", err)
 		}
 	}
 
@@ -826,14 +826,14 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		"module": bm.Name,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("metric storage send batch: %w", err)
 	}
 
 	// Apply binding actions. (Only Go hook for now).
 	if h.GetKind() == kind.HookKindGo {
 		err = h.ApplyBindingActions(hookResult.BindingActions)
 		if err != nil {
-			return err
+			return fmt.Errorf("apply binding actions: %w", err)
 		}
 	}
 

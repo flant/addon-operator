@@ -656,7 +656,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	err = bm.RunHooksByBinding(BeforeHelm, logLabels)
 	treg.End()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("run hooks by binding, before helm: %w", err)
 	}
 
 	treg = trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm")
@@ -669,7 +669,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	}
 	helmModule, err := modules.NewHelmModule(bm, mm.defaultNamespace, mm.TempDir, deps, schemaStorage, modules.WithLogger(mm.logger.Named("helm-module")))
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("new helm module: %w", err)
 	}
 	if helmModule != nil {
 		// could be nil, if it doesn't contain helm chart
@@ -677,7 +677,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	}
 	treg.End()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("run helm install: %w", err)
 	}
 
 	oldValues := bm.GetValues(false)
@@ -686,7 +686,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	err = bm.RunHooksByBinding(AfterHelm, logLabels)
 	treg.End()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("run hooks by binding, after helm: %w", err)
 	}
 
 	newValues := bm.GetValues(false)
