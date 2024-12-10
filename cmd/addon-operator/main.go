@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"syscall"
@@ -84,7 +83,7 @@ func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
 
 		err := run(ctx, operator)
 		if err != nil {
-			operator.Logger.Fatal("run operator", slog.String("error", err.Error()))
+			operator.Logger.Fatal("run operator", log.Err(err))
 		}
 
 		return nil
@@ -149,7 +148,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 			OnStartedLeading: func(ctx context.Context) {
 				err := run(ctx, operator)
 				if err != nil {
-					operator.Logger.Fatal("run on stardet leading", slog.String("error", err.Error()))
+					operator.Logger.Fatal("run on stardet leading", log.Err(err))
 				}
 			},
 			OnStoppedLeading: func() {
@@ -161,14 +160,14 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 		ReleaseOnCancel: true,
 	})
 	if err != nil {
-		operator.Logger.Fatal("with leader election", slog.String("error", err.Error()))
+		operator.Logger.Fatal("with leader election", log.Err(err))
 	}
 
 	go func() {
 		<-ctx.Done()
 		log.Info("Context canceled received")
 		if err := syscall.Kill(1, syscall.SIGUSR2); err != nil {
-			operator.Logger.Fatal("Couldn't shutdown addon-operator", slog.String("error", err.Error()))
+			operator.Logger.Fatal("Couldn't shutdown addon-operator", log.Err(err))
 		}
 	}()
 

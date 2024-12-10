@@ -277,7 +277,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 				continue
 			}
 
-			bm.logger.Warn("get batch hook config", slog.String("hook_file_path", hookPath), slog.String("error", err.Error()))
+			bm.logger.Warn("get batch hook config", slog.String("hook_file_path", hookPath), log.Err(err))
 		}
 
 		shHook := kind.NewShellHook(hookName, hookPath, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"))
@@ -344,7 +344,7 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 		}
 
 		if err := isExecutableBatchHookFile(path, f); err != nil {
-			logger.Warn("file is skipped", slog.String("path", path), slog.String("error", err.Error()))
+			logger.Warn("file is skipped", slog.String("path", path), log.Err(err))
 			return nil
 		}
 
