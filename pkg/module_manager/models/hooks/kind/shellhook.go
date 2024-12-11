@@ -123,7 +123,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		sh.GetPath(),
 		[]string{},
 		envs).
-		WithLogProxyHookJSON(sh.LogProxyHookJSON).
+		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor"))
 
@@ -171,7 +171,7 @@ func (sh *ShellHook) getConfig() (configOutput []byte, err error) {
 		sh.Path,
 		args,
 		envs).
-		WithLogProxyHookJSON(sh.LogProxyHookJSON).
+		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
 		WithCMDStdout(nil)
