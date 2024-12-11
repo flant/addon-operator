@@ -133,7 +133,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		sh.GetPath(),
 		args,
 		envs).
-		WithLogProxyHookJSON(sh.LogProxyHookJSON).
+		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor"))
 
