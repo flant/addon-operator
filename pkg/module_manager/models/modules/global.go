@@ -16,6 +16,7 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
@@ -536,7 +537,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 			}
 		}
 
-		globalHook := kind.NewShellHook(hookName, hookPath, gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
+		globalHook := kind.NewShellHook(hookName, hookPath, gm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, gm.logger.Named("shell-hook"))
 
 		hks = append(hks, globalHook)
 	}
@@ -585,7 +586,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 
 		for idx, cfg := range sdkcfgs {
 			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), gm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, gm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}

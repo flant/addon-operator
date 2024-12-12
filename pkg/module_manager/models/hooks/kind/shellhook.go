@@ -2,7 +2,6 @@ package kind
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -119,16 +118,12 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
 
-	sh.Logger.Info("WELL IT's LOGPROXYHOOKJSON", slog.Bool("value", sh.LogProxyHookJSON))
-	sh.Logger.Info("WELL IT's LOGPROXYHOOKJSON HOOK", slog.Bool("value", sh.Hook.LogProxyHookJSON))
-	sh.Logger.Info("WELL IT's GLOBALVAR", slog.Bool("value", shapp.LogProxyHookJSON))
-
 	cmd := executor.NewExecutor(
 		"",
 		sh.GetPath(),
 		[]string{},
 		envs).
-		WithLogProxyHookJSON(sh.Hook.LogProxyHookJSON).
+		WithLogProxyHookJSON(sh.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor"))
 
@@ -176,7 +171,7 @@ func (sh *ShellHook) getConfig() (configOutput []byte, err error) {
 		sh.Path,
 		args,
 		envs).
-		WithLogProxyHookJSON(sh.Hook.LogProxyHookJSON).
+		WithLogProxyHookJSON(sh.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
 		WithCMDStdout(nil)
