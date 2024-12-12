@@ -2,6 +2,7 @@ package kind
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +27,8 @@ type ShellHook struct {
 
 // NewShellHook new hook, which runs via the OS interpreter like bash/python/etc
 func NewShellHook(name, path string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *ShellHook {
+	logger.Info("WELL IT's LOGPROXYHOOKJSON", slog.Bool("value", logProxyHookJSON))
+	logger.Info("WELL IT's GLOBALVAR", slog.Bool("value", shapp.LogProxyHookJSON))
 	return &ShellHook{
 		Hook: sh_hook.Hook{
 			Name:                   name,
@@ -123,7 +126,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		sh.GetPath(),
 		[]string{},
 		envs).
-		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
+		WithLogProxyHookJSON(sh.Hook.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor"))
 
@@ -171,7 +174,7 @@ func (sh *ShellHook) getConfig() (configOutput []byte, err error) {
 		sh.Path,
 		args,
 		envs).
-		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
+		WithLogProxyHookJSON(sh.Hook.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
 		WithCMDStdout(nil)
