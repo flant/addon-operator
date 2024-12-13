@@ -188,7 +188,7 @@ func (h *GoHook) GetKind() HookKind {
 type ReconcileFunc func(input *gohook.HookInput) error
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
-func (h *GoHook) LoadAndValidate() (*config.HookConfig, error) {
+func (h *GoHook) LoadAndValidate(_ string) (*config.HookConfig, error) {
 	cfg, err := newHookConfigFromGoConfig(h.config)
 	if err != nil {
 		return nil, err
@@ -205,7 +205,7 @@ func (h *GoHook) LoadOnStartup() (*float64, error) {
 	return nil, nil
 }
 
-func (h *GoHook) LoadBeforeAll(kind string) (*float64, error) {
+func (h *GoHook) LoadBeforeAll() (*float64, error) {
 	if h.config.OnBeforeAll != nil {
 		return &h.config.OnBeforeAll.Order, nil
 	}
@@ -217,7 +217,7 @@ func (h *GoHook) LoadBeforeAll(kind string) (*float64, error) {
 	return nil, nil
 }
 
-func (h *GoHook) LoadAfterAll(kind string) (*float64, error) {
+func (h *GoHook) LoadAfterAll() (*float64, error) {
 	if h.config.OnAfterAll != nil {
 		return &h.config.OnAfterAll.Order, nil
 	}

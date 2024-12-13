@@ -15,6 +15,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -25,6 +26,8 @@ import (
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
+
+var _ gohook.HookConfigLoader = (*BatchHook)(nil)
 
 type BatchHook struct {
 	sh_hook.Hook
@@ -201,7 +204,7 @@ func (h *BatchHook) GetConfig() ([]sdkhook.HookConfig, error) {
 }
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
-func (h *BatchHook) LoadAndValidate() (*config.HookConfig, error) {
+func (h *BatchHook) LoadAndValidate(_ string) (*config.HookConfig, error) {
 	cfg, err := h.GetConfig()
 	if err != nil {
 		return nil, err
@@ -227,12 +230,12 @@ func (h *BatchHook) LoadOnStartup() (*float64, error) {
 	return &res, nil
 }
 
-func (h *BatchHook) LoadBeforeAll(_ string) (*float64, error) {
+func (h *BatchHook) LoadBeforeAll() (*float64, error) {
 	res := float64(*h.config.OnBeforeHelm)
 	return &res, nil
 }
 
-func (h *BatchHook) LoadAfterAll(_ string) (*float64, error) {
+func (h *BatchHook) LoadAfterAll() (*float64, error) {
 	res := float64(*h.config.OnAfterHelm)
 	return &res, nil
 }

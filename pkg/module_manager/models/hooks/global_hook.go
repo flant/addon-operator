@@ -14,16 +14,23 @@ import (
 // GlobalHook is a representation of the hook, which not belongs to any module
 type GlobalHook struct {
 	executableHook
+	hookConfigLoader
 	config *GlobalHookConfig
+}
+
+type executableHookWithLoad interface {
+	executableHook
+	hookConfigLoader
 }
 
 // NewGlobalHook constructs a new global hook
 //
 //	ex - is an executable hook instance (GoHook or ShellHook)
-func NewGlobalHook(ex executableHook) *GlobalHook {
+func NewGlobalHook(ex executableHookWithLoad) *GlobalHook {
 	return &GlobalHook{
-		executableHook: ex,
-		config:         &GlobalHookConfig{},
+		executableHook:   ex,
+		hookConfigLoader: ex,
+		config:           &GlobalHookConfig{},
 	}
 }
 
@@ -33,21 +40,30 @@ func NewGlobalHook(ex executableHook) *GlobalHook {
 func (h *GlobalHook) InitializeHookConfig() (err error) {
 	switch hk := h.executableHook.(type) {
 	case *kind.GoHook:
-		cfg := hk.GetConfig()
-		err := h.config.LoadAndValidateGoConfig(cfg)
+		err := h.config.LoadAndValidateConfig(h.hookConfigLoader)
 		if err != nil {
 			return err
 		}
 
+		// cfg := hk.GetConfig()
+		// err := h.config.LoadAndValidateGoConfig(cfg)
+		// if err != nil {
+		// 	return err
+		// }
+
 	case *kind.ShellHook:
-		cfg, err := hk.GetConfig()
+		err := h.config.LoadAndValidateConfig(h.hookConfigLoader)
 		if err != nil {
 			return err
 		}
-		err = h.config.LoadAndValidateShellConfig(cfg)
-		if err != nil {
-			return err
-		}
+		// cfg, err := hk.GetConfig()
+		// if err != nil {
+		// 	return err
+		// }
+		// err = h.config.LoadAndValidateShellConfig(cfg)
+		// if err != nil {
+		// 	return err
+		// }
 
 	case *kind.BatchHook:
 		cfg, err := hk.GetConfig()

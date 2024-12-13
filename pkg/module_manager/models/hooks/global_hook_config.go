@@ -448,3 +448,48 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 
 	return c, nil
 }
+
+func (c *GlobalHookConfig) LoadAndValidateConfig(configLoader gohook.HookConfigLoader) error {
+	hookConfig, err := configLoader.LoadAndValidate("global")
+	if err != nil {
+		return fmt.Errorf("load and validate: %w", err)
+	}
+
+	c.HookConfig = *hookConfig
+
+	onStartup, err := configLoader.LoadOnStartup()
+	if err != nil {
+		return fmt.Errorf("load on startup: %w", err)
+	}
+
+	if onStartup != nil {
+		c.OnStartup = &OnStartupConfig{}
+		c.OnStartup.AllowFailure = false
+		c.OnStartup.BindingName = string(OnStartup)
+		c.OnStartup.Order = *onStartup
+	}
+
+	beforeAll, err := configLoader.LoadBeforeAll()
+	if err != nil {
+		return fmt.Errorf("load before all: %w", err)
+	}
+
+	if beforeAll != nil {
+		c.BeforeAll = &BeforeAllConfig{}
+		c.BeforeAll.BindingName = string(BeforeAll)
+		c.BeforeAll.Order = *beforeAll
+	}
+
+	afterAll, err := configLoader.LoadAfterAll()
+	if err != nil {
+		return fmt.Errorf("load after all: %w", err)
+	}
+
+	if afterAll != nil {
+		c.AfterAll = &AfterAllConfig{}
+		c.AfterAll.BindingName = string(AfterAll)
+		c.AfterAll.Order = *afterAll
+	}
+
+	return nil
+}

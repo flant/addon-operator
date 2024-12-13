@@ -59,3 +59,11 @@ type executableHook interface {
 	BackportHookConfig(cfg *config.HookConfig)
 	GetHookConfigDescription() string
 }
+
+type hookConfigLoader interface {
+	LoadAndValidate(moduleKind string) (*config.HookConfig, error)
+	LoadOnStartup() (*float64, error)
+	LoadBeforeAll() (*float64, error)
+	LoadAfterAll() (*float64, error)
+	LoadAfterDeleteHelm() (*float64, error)
+}

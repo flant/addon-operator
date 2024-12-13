@@ -24,10 +24,10 @@ type GoHook interface {
 }
 
 type HookConfigLoader interface {
-	LoadAndValidate() (*config.HookConfig, error)
+	LoadAndValidate(moduleKind string) (*config.HookConfig, error)
 	LoadOnStartup() (*float64, error)
-	LoadBeforeAll(kind string) (*float64, error)
-	LoadAfterAll(kind string) (*float64, error)
+	LoadBeforeAll() (*float64, error)
+	LoadAfterAll() (*float64, error)
 	LoadAfterDeleteHelm() (*float64, error)
 }
 

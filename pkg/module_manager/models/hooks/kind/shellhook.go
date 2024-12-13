@@ -11,7 +11,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"gopkg.in/yaml.v2"
 
-	ahtypes "github.com/flant/addon-operator/pkg/hook/types"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	shapp "github.com/flant/shell-operator/pkg/app"
@@ -203,7 +202,7 @@ func (sh *ShellHook) GetConfig() ([]byte, error) {
 }
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
-func (sh *ShellHook) LoadAndValidate() (*config.HookConfig, error) {
+func (sh *ShellHook) LoadAndValidate(moduleKind string) (*config.HookConfig, error) {
 	cfgData, err := sh.GetConfig()
 	if err != nil {
 		return nil, err
@@ -215,29 +214,38 @@ func (sh *ShellHook) LoadAndValidate() (*config.HookConfig, error) {
 		return nil, err
 	}
 
-	err = config.ValidateConfig(vu.Obj, getGlobalHookConfigSchema(vu.Version), "")
+	var validationFunc func(version string) *spec.Schema
+	switch moduleKind {
+	case "global":
+		{
+			validationFunc = getGlobalHookConfigSchema
+		}
+	case "embedded":
+		{
+			validationFunc = getModuleHookConfigSchema
+		}
+	}
+
+	err = config.ValidateConfig(vu.Obj, validationFunc(vu.Version), "")
 	if err != nil {
 		return nil, err
 	}
 
-	hookconfig := new(config.HookConfig)
-	hookconfig.Version = vu.Version
+	sh.Hook.Config = new(config.HookConfig)
+	sh.Hook.Config.Version = vu.Version
 
-	err = hookconfig.ConvertAndCheck(cfgData)
+	err = sh.Hook.Config.ConvertAndCheck(cfgData)
 	if err != nil {
 		return nil, err
 	}
 
-	scheduleConfig := &HookScheduleConfig{}
-	err = yaml.Unmarshal(cfgData, scheduleConfig)
+	sh.ScheduleConfig = &HookScheduleConfig{}
+	err = yaml.Unmarshal(cfgData, sh.ScheduleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal schedile hook config: %s", err)
 	}
 
-	sh.Hook.Config = hookconfig
-	sh.ScheduleConfig = scheduleConfig
-
-	return hookconfig, nil
+	return sh.Hook.Config, nil
 }
 
 func (sh *ShellHook) LoadOnStartup() (*float64, error) {
@@ -250,35 +258,29 @@ func (sh *ShellHook) LoadOnStartup() (*float64, error) {
 	return nil, nil
 }
 
-func (sh *ShellHook) LoadBeforeAll(kind string) (*float64, error) {
-	switch kind {
-	case string(ahtypes.BeforeAll):
-		res, err := ConvertFloatForBinding(sh.ScheduleConfig.BeforeAll, "before all")
-		if res != nil || err != nil {
-			return res, err
-		}
-	case string(ahtypes.BeforeHelm):
-		res, err := ConvertFloatForBinding(sh.ScheduleConfig.BeforeHelm, "before helm")
-		if res != nil || err != nil {
-			return res, err
-		}
+func (sh *ShellHook) LoadBeforeAll() (*float64, error) {
+	res, err := ConvertFloatForBinding(sh.ScheduleConfig.BeforeAll, "before all")
+	if res != nil || err != nil {
+		return res, err
+	}
+
+	res, err = ConvertFloatForBinding(sh.ScheduleConfig.BeforeHelm, "before helm")
+	if res != nil || err != nil {
+		return res, err
 	}
 
 	return nil, nil
 }
 
-func (sh *ShellHook) LoadAfterAll(kind string) (*float64, error) {
-	switch kind {
-	case string(ahtypes.AfterAll):
-		res, err := ConvertFloatForBinding(sh.ScheduleConfig.AfterAll, "after all")
-		if res != nil || err != nil {
-			return res, err
-		}
-	case string(ahtypes.AfterHelm):
-		res, err := ConvertFloatForBinding(sh.ScheduleConfig.AfterHelm, "after helm")
-		if res != nil || err != nil {
-			return res, err
-		}
+func (sh *ShellHook) LoadAfterAll() (*float64, error) {
+	res, err := ConvertFloatForBinding(sh.ScheduleConfig.AfterAll, "after all")
+	if res != nil || err != nil {
+		return res, err
+	}
+
+	res, err = ConvertFloatForBinding(sh.ScheduleConfig.AfterHelm, "after helm")
+	if res != nil || err != nil {
+		return res, err
 	}
 
 	return nil, nil
@@ -335,6 +337,44 @@ func getGlobalHookConfigSchema(version string) *spec.Schema {
     type: integer
     example: 10    
   afterAll:
+    type: integer
+    example: 10    
+`
+		}
+		config.Schemas[globalHookVersion] = schema
+	}
+
+	return config.GetSchema(globalHookVersion)
+}
+
+func getModuleHookConfigSchema(version string) *spec.Schema {
+	globalHookVersion := "module-hook-" + version
+	if _, ok := config.Schemas[globalHookVersion]; !ok {
+		schema := config.Schemas[version]
+		switch version {
+		case "v1":
+			// add beforeHelm, afterHelm and afterDeleteHelm properties
+			schema += `
+  beforeHelm:
+    type: integer
+    example: 10    
+  afterHelm:
+    type: integer
+    example: 10    
+  afterDeleteHelm:
+    type: integer
+    example: 10   
+`
+		case "v0":
+			// add beforeHelm, afterHelm and afterDeleteHelm properties
+			schema += `
+  beforeHelm:
+    type: integer
+    example: 10    
+  afterHelm:
+    type: integer
+    example: 10    
+  afterDeleteHelm:
     type: integer
     example: 10    
 `
