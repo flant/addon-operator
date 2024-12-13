@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/tidwall/gjson"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -20,6 +21,14 @@ import (
 type GoHook interface {
 	Config() *HookConfig
 	Run(input *HookInput) error
+}
+
+type HookConfigLoader interface {
+	LoadAndValidate() (*config.HookConfig, error)
+	LoadOnStartup() (*float64, error)
+	LoadBeforeAll(kind string) (*float64, error)
+	LoadAfterAll(kind string) (*float64, error)
+	LoadAfterDeleteHelm() (*float64, error)
 }
 
 // MetricsCollector collects metric's records for exporting them as a batch
