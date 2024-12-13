@@ -10,7 +10,6 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
 	"github.com/flant/shell-operator/pkg/hook/types"
@@ -44,8 +43,6 @@ type HookMetadata struct {
 
 // ParallelRunMetadata is metadata for a parallel task
 type ParallelRunMetadata struct {
-	// the order the modules are grouped by
-	Order node.NodeWeight
 	// channelId of the parallelTaskChannel to communicate between parallel ModuleRun and ParallelModuleRun tasks
 	ChannelId string
 	// context with cancel to stop ParallelModuleRun task
