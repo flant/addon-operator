@@ -188,53 +188,55 @@ func (h *GoHook) GetKind() HookKind {
 type ReconcileFunc func(input *gohook.HookInput) error
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
-func (h *GoHook) LoadAndValidate(_ string) (*config.HookConfig, error) {
-	cfg, err := newHookConfigFromGoConfig(h.config)
+func (h *GoHook) LoadAndValidate(cfg *config.HookConfig, _ string) error {
+	ghcfg, err := newHookConfigFromGoConfig(h.config)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &cfg, nil
+	*cfg = ghcfg
+
+	return nil
 }
 
-func (h *GoHook) LoadOnStartup() (*float64, error) {
+func (h *GoHook) LoadOnStartup() *float64 {
 	if h.config.OnStartup != nil {
-		return &h.config.OnStartup.Order, nil
+		return &h.config.OnStartup.Order
 	}
 
-	return nil, nil
+	return nil
 }
 
-func (h *GoHook) LoadBeforeAll() (*float64, error) {
+func (h *GoHook) LoadBeforeAll() *float64 {
 	if h.config.OnBeforeAll != nil {
-		return &h.config.OnBeforeAll.Order, nil
+		return &h.config.OnBeforeAll.Order
 	}
 
 	if h.config.OnBeforeHelm != nil {
-		return &h.config.OnBeforeHelm.Order, nil
+		return &h.config.OnBeforeHelm.Order
 	}
 
-	return nil, nil
+	return nil
 }
 
-func (h *GoHook) LoadAfterAll() (*float64, error) {
+func (h *GoHook) LoadAfterAll() *float64 {
 	if h.config.OnAfterAll != nil {
-		return &h.config.OnAfterAll.Order, nil
+		return &h.config.OnAfterAll.Order
 	}
 
 	if h.config.OnAfterHelm != nil {
-		return &h.config.OnAfterHelm.Order, nil
+		return &h.config.OnAfterHelm.Order
 	}
 
-	return nil, nil
+	return nil
 }
 
-func (h *GoHook) LoadAfterDeleteHelm() (*float64, error) {
+func (h *GoHook) LoadAfterDeleteHelm() *float64 {
 	if h.config.OnAfterDeleteHelm != nil {
-		return &h.config.OnAfterDeleteHelm.Order, nil
+		return &h.config.OnAfterDeleteHelm.Order
 	}
 
-	return nil, nil
+	return nil
 }
 
 func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, error) {

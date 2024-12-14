@@ -61,28 +61,10 @@ func (mh *ModuleHook) Order(binding shell_op_types.BindingType) float64 {
 // for GoHook config is precompiled, so we just have to fetch it
 // for ShellHook, that hook will be run with `--config` flag, returns and parses the config
 // for BatchHook, that hook will be run with `hook config` args, returns and parses the config
-func (mh *ModuleHook) InitializeHookConfig() (err error) {
-	switch hk := mh.executableHook.(type) {
-	case *kind.GoHook:
-		err := mh.config.LoadAndValidateConfig(mh.hookConfigLoader)
-		if err != nil {
-			return fmt.Errorf("load and validate go hook config: %w", err)
-		}
-
-	case *kind.ShellHook:
-		err := mh.config.LoadAndValidateConfig(mh.hookConfigLoader)
-		if err != nil {
-			return fmt.Errorf("load and validate go hook config: %w", err)
-		}
-
-	case *kind.BatchHook:
-		err := mh.config.LoadAndValidateConfig(mh.hookConfigLoader)
-		if err != nil {
-			return fmt.Errorf("load and validate go hook config: %w", err)
-		}
-
-	default:
-		return fmt.Errorf("unknown hook kind: %T", hk)
+func (mh *ModuleHook) InitializeHookConfig() error {
+	err := mh.config.LoadAndValidateConfig(mh.hookConfigLoader)
+	if err != nil {
+		return fmt.Errorf("load and validate go hook config: %w", err)
 	}
 
 	// Make HookController and GetConfigDescription work.

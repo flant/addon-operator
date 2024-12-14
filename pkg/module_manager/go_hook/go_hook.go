@@ -24,11 +24,11 @@ type GoHook interface {
 }
 
 type HookConfigLoader interface {
-	LoadAndValidate(moduleKind string) (*config.HookConfig, error)
-	LoadOnStartup() (*float64, error)
-	LoadBeforeAll() (*float64, error)
-	LoadAfterAll() (*float64, error)
-	LoadAfterDeleteHelm() (*float64, error)
+	LoadAndValidate(cfg *config.HookConfig, moduleKind string) error
+	LoadOnStartup() *float64
+	LoadBeforeAll() *float64
+	LoadAfterAll() *float64
+	LoadAfterDeleteHelm() *float64
 }
 
 // MetricsCollector collects metric's records for exporting them as a batch

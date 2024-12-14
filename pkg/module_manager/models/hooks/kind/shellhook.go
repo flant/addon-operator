@@ -202,16 +202,16 @@ func (sh *ShellHook) GetConfig() ([]byte, error) {
 }
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
-func (sh *ShellHook) LoadAndValidate(moduleKind string) (*config.HookConfig, error) {
+func (sh *ShellHook) LoadAndValidate(cfg *config.HookConfig, moduleKind string) error {
 	cfgData, err := sh.GetConfig()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	vu := config.NewDefaultVersionedUntyped()
 	err = vu.Load(cfgData)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var validationFunc func(version string) *spec.Schema
@@ -228,91 +228,90 @@ func (sh *ShellHook) LoadAndValidate(moduleKind string) (*config.HookConfig, err
 
 	err = config.ValidateConfig(vu.Obj, validationFunc(vu.Version), "")
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	sh.Hook.Config = new(config.HookConfig)
-	sh.Hook.Config.Version = vu.Version
+	cfg.Version = vu.Version
 
-	err = sh.Hook.Config.ConvertAndCheck(cfgData)
+	err = cfg.ConvertAndCheck(cfgData)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	sh.ScheduleConfig = &HookScheduleConfig{}
 	err = yaml.Unmarshal(cfgData, sh.ScheduleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal schedile hook config: %s", err)
+		return fmt.Errorf("unmarshal schedile hook config: %s", err)
 	}
 
-	return sh.Hook.Config, nil
+	return nil
 }
 
-func (sh *ShellHook) LoadOnStartup() (*float64, error) {
+func (sh *ShellHook) LoadOnStartup() *float64 {
 	if sh.Config != nil {
 		if sh.Config.OnStartup != nil {
-			return &sh.Config.OnStartup.Order, nil
+			return &sh.Config.OnStartup.Order
 		}
 	}
 
-	return nil, nil
+	return nil
 }
 
-func (sh *ShellHook) LoadBeforeAll() (*float64, error) {
-	res, err := ConvertFloatForBinding(sh.ScheduleConfig.BeforeAll, "before all")
-	if res != nil || err != nil {
-		return res, err
+func (sh *ShellHook) LoadBeforeAll() *float64 {
+	res := ConvertFloatForBinding(sh.ScheduleConfig.BeforeAll, "before all")
+	if res != nil {
+		return res
 	}
 
-	res, err = ConvertFloatForBinding(sh.ScheduleConfig.BeforeHelm, "before helm")
-	if res != nil || err != nil {
-		return res, err
+	res = ConvertFloatForBinding(sh.ScheduleConfig.BeforeHelm, "before helm")
+	if res != nil {
+		return res
 	}
 
-	return nil, nil
+	return nil
 }
 
-func (sh *ShellHook) LoadAfterAll() (*float64, error) {
-	res, err := ConvertFloatForBinding(sh.ScheduleConfig.AfterAll, "after all")
-	if res != nil || err != nil {
-		return res, err
+func (sh *ShellHook) LoadAfterAll() *float64 {
+	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterAll, "after all")
+	if res != nil {
+		return res
 	}
 
-	res, err = ConvertFloatForBinding(sh.ScheduleConfig.AfterHelm, "after helm")
-	if res != nil || err != nil {
-		return res, err
+	res = ConvertFloatForBinding(sh.ScheduleConfig.AfterHelm, "after helm")
+	if res != nil {
+		return res
 	}
 
-	return nil, nil
+	return nil
 }
 
-func (sh *ShellHook) LoadAfterDeleteHelm() (*float64, error) {
-	res, err := ConvertFloatForBinding(sh.ScheduleConfig.AfterDeleteHelm, "after delete helm")
-	if res != nil || err != nil {
-		return res, err
+func (sh *ShellHook) LoadAfterDeleteHelm() *float64 {
+	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterDeleteHelm, "after delete helm")
+	if res != nil {
+		return res
 	}
 
-	return nil, nil
+	return nil
 }
 
 type HookScheduleConfig struct {
 	// global module
-	BeforeAll interface{} `json:"beforeAll"`
-	AfterAll  interface{} `json:"afterAll"`
+	BeforeAll *uint `json:"beforeAll" yaml:"beforeAll"`
+	AfterAll  *uint `json:"afterAll" yaml:"afterAll"`
 	// embedded module
-	BeforeHelm      interface{} `json:"beforeHelm"`
-	AfterHelm       interface{} `json:"afterHelm"`
-	AfterDeleteHelm interface{} `json:"afterDeleteHelm"`
+	BeforeHelm      *uint `json:"beforeHelm" yaml:"beforeHelm"`
+	AfterHelm       *uint `json:"afterHelm" yaml:"afterHelm"`
+	AfterDeleteHelm *uint `json:"afterDeleteHelm" yaml:"afterDeleteHelm"`
 }
 
-func ConvertFloatForBinding(value interface{}, bindingName string) (*float64, error) {
+func ConvertFloatForBinding(value *uint, bindingName string) *float64 {
 	if value == nil {
-		return nil, nil
+		return nil
 	}
-	if floatValue, ok := value.(float64); ok {
-		return &floatValue, nil
-	}
-	return nil, fmt.Errorf("binding %s has unsupported value '%v'", bindingName, value)
+
+	res := float64(*value)
+
+	return &res
 }
 
 func getGlobalHookConfigSchema(version string) *spec.Schema {
