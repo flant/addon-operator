@@ -13,6 +13,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/shell-operator/pkg/hook/config"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 )
@@ -20,6 +21,14 @@ import (
 type GoHook interface {
 	Config() *HookConfig
 	Run(input *HookInput) error
+}
+
+type HookConfigLoader interface {
+	GetConfigForModule(moduleKind string) (*config.HookConfig, error)
+	GetOnStartup() *float64
+	GetBeforeAll() *float64
+	GetAfterAll() *float64
+	GetAfterDeleteHelm() *float64
 }
 
 // MetricsCollector collects metric's records for exporting them as a batch
