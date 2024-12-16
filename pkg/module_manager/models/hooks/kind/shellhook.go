@@ -258,12 +258,12 @@ func (sh *ShellHook) LoadOnStartup() *float64 {
 }
 
 func (sh *ShellHook) LoadBeforeAll() *float64 {
-	res := ConvertFloatForBinding(sh.ScheduleConfig.BeforeAll, "before all")
+	res := ConvertFloatForBinding(sh.ScheduleConfig.BeforeAll)
 	if res != nil {
 		return res
 	}
 
-	res = ConvertFloatForBinding(sh.ScheduleConfig.BeforeHelm, "before helm")
+	res = ConvertFloatForBinding(sh.ScheduleConfig.BeforeHelm)
 	if res != nil {
 		return res
 	}
@@ -272,12 +272,12 @@ func (sh *ShellHook) LoadBeforeAll() *float64 {
 }
 
 func (sh *ShellHook) LoadAfterAll() *float64 {
-	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterAll, "after all")
+	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterAll)
 	if res != nil {
 		return res
 	}
 
-	res = ConvertFloatForBinding(sh.ScheduleConfig.AfterHelm, "after helm")
+	res = ConvertFloatForBinding(sh.ScheduleConfig.AfterHelm)
 	if res != nil {
 		return res
 	}
@@ -286,7 +286,7 @@ func (sh *ShellHook) LoadAfterAll() *float64 {
 }
 
 func (sh *ShellHook) LoadAfterDeleteHelm() *float64 {
-	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterDeleteHelm, "after delete helm")
+	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterDeleteHelm)
 	if res != nil {
 		return res
 	}
@@ -304,7 +304,7 @@ type HookScheduleConfig struct {
 	AfterDeleteHelm *uint `json:"afterDeleteHelm" yaml:"afterDeleteHelm"`
 }
 
-func ConvertFloatForBinding(value *uint, bindingName string) *float64 {
+func ConvertFloatForBinding(value *uint) *float64 {
 	if value == nil {
 		return nil
 	}

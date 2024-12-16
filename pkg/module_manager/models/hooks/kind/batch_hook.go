@@ -11,8 +11,6 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
-	kemtypes "github.com/flant/shell-operator/pkg/kube_events_manager/types"
-
 	"github.com/gofrs/uuid/v5"
 
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
@@ -24,6 +22,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
+	kemtypes "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 

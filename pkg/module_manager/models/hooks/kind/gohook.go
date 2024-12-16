@@ -6,7 +6,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/deckhouse/deckhouse/pkg/log"
-	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube_events_manager"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
@@ -18,6 +17,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
+	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube_events_manager"
 	eventtypes "github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	schdulertypes "github.com/flant/shell-operator/pkg/schedule_manager/types"
 )
