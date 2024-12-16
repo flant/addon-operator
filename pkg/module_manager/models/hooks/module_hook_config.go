@@ -90,13 +90,15 @@ func (c *ModuleHookConfig) BindingsCount() int {
 	return res
 }
 
-func (c *ModuleHookConfig) LoadAndValidateConfig(configLoader gohook.HookConfigLoader) error {
-	err := configLoader.LoadAndValidate(&c.HookConfig, "embedded")
+func (c *ModuleHookConfig) LoadHookConfig(configLoader gohook.HookConfigLoader) error {
+	cfg, err := configLoader.GetConfigForModule("embedded")
 	if err != nil {
 		return fmt.Errorf("load and validate: %w", err)
 	}
 
-	onStartup := configLoader.LoadOnStartup()
+	c.HookConfig = *cfg
+
+	onStartup := configLoader.GetOnStartup()
 	if onStartup != nil {
 		c.OnStartup = &OnStartupConfig{}
 		c.OnStartup.AllowFailure = false
@@ -104,21 +106,21 @@ func (c *ModuleHookConfig) LoadAndValidateConfig(configLoader gohook.HookConfigL
 		c.OnStartup.Order = *onStartup
 	}
 
-	beforeAll := configLoader.LoadBeforeAll()
+	beforeAll := configLoader.GetBeforeAll()
 	if beforeAll != nil {
 		c.BeforeHelm = &BeforeHelmConfig{}
 		c.BeforeHelm.BindingName = string(BeforeHelm)
 		c.BeforeHelm.Order = *beforeAll
 	}
 
-	afterAll := configLoader.LoadAfterAll()
+	afterAll := configLoader.GetAfterAll()
 	if afterAll != nil {
 		c.AfterHelm = &AfterHelmConfig{}
 		c.AfterHelm.BindingName = string(AfterHelm)
 		c.AfterHelm.Order = *afterAll
 	}
 
-	afterDelete := configLoader.LoadAfterDeleteHelm()
+	afterDelete := configLoader.GetAfterDeleteHelm()
 	if afterDelete != nil {
 		c.AfterDeleteHelm = &AfterDeleteHelmConfig{}
 		c.AfterDeleteHelm.BindingName = string(AfterDeleteHelm)

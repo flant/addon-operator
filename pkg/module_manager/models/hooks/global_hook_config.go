@@ -80,13 +80,15 @@ func (c *GlobalHookConfig) BindingsCount() int {
 	return res
 }
 
-func (c *GlobalHookConfig) LoadAndValidateConfig(configLoader gohook.HookConfigLoader) error {
-	err := configLoader.LoadAndValidate(&c.HookConfig, "global")
+func (c *GlobalHookConfig) LoadHookConfig(configLoader gohook.HookConfigLoader) error {
+	cfg, err := configLoader.GetConfigForModule("global")
 	if err != nil {
 		return fmt.Errorf("load and validate: %w", err)
 	}
 
-	onStartup := configLoader.LoadOnStartup()
+	c.HookConfig = *cfg
+
+	onStartup := configLoader.GetOnStartup()
 	if onStartup != nil {
 		c.OnStartup = &OnStartupConfig{}
 		c.OnStartup.AllowFailure = false
@@ -94,14 +96,14 @@ func (c *GlobalHookConfig) LoadAndValidateConfig(configLoader gohook.HookConfigL
 		c.OnStartup.Order = *onStartup
 	}
 
-	beforeAll := configLoader.LoadBeforeAll()
+	beforeAll := configLoader.GetBeforeAll()
 	if beforeAll != nil {
 		c.BeforeAll = &BeforeAllConfig{}
 		c.BeforeAll.BindingName = string(BeforeAll)
 		c.BeforeAll.Order = *beforeAll
 	}
 
-	afterAll := configLoader.LoadAfterAll()
+	afterAll := configLoader.GetAfterAll()
 	if afterAll != nil {
 		c.AfterAll = &AfterAllConfig{}
 		c.AfterAll.BindingName = string(AfterAll)

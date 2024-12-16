@@ -202,16 +202,16 @@ func (sh *ShellHook) GetConfig() ([]byte, error) {
 }
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
-func (sh *ShellHook) LoadAndValidate(cfg *config.HookConfig, moduleKind string) error {
+func (sh *ShellHook) GetConfigForModule(moduleKind string) (*config.HookConfig, error) {
 	cfgData, err := sh.GetConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	vu := config.NewDefaultVersionedUntyped()
 	err = vu.Load(cfgData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var validationFunc func(version string) *spec.Schema
@@ -228,26 +228,27 @@ func (sh *ShellHook) LoadAndValidate(cfg *config.HookConfig, moduleKind string) 
 
 	err = config.ValidateConfig(vu.Obj, validationFunc(vu.Version), "")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	cfg := new(config.HookConfig)
 	cfg.Version = vu.Version
 
 	err = cfg.ConvertAndCheck(cfgData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	sh.ScheduleConfig = &HookScheduleConfig{}
 	err = yaml.Unmarshal(cfgData, sh.ScheduleConfig)
 	if err != nil {
-		return fmt.Errorf("unmarshal schedile hook config: %s", err)
+		return nil, fmt.Errorf("unmarshal schedile hook config: %s", err)
 	}
 
-	return nil
+	return cfg, nil
 }
 
-func (sh *ShellHook) LoadOnStartup() *float64 {
+func (sh *ShellHook) GetOnStartup() *float64 {
 	if sh.Config != nil {
 		if sh.Config.OnStartup != nil {
 			return &sh.Config.OnStartup.Order
@@ -257,7 +258,7 @@ func (sh *ShellHook) LoadOnStartup() *float64 {
 	return nil
 }
 
-func (sh *ShellHook) LoadBeforeAll() *float64 {
+func (sh *ShellHook) GetBeforeAll() *float64 {
 	res := ConvertFloatForBinding(sh.ScheduleConfig.BeforeAll)
 	if res != nil {
 		return res
@@ -271,7 +272,7 @@ func (sh *ShellHook) LoadBeforeAll() *float64 {
 	return nil
 }
 
-func (sh *ShellHook) LoadAfterAll() *float64 {
+func (sh *ShellHook) GetAfterAll() *float64 {
 	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterAll)
 	if res != nil {
 		return res
@@ -285,7 +286,7 @@ func (sh *ShellHook) LoadAfterAll() *float64 {
 	return nil
 }
 
-func (sh *ShellHook) LoadAfterDeleteHelm() *float64 {
+func (sh *ShellHook) GetAfterDeleteHelm() *float64 {
 	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterDeleteHelm)
 	if res != nil {
 		return res

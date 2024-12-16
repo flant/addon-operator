@@ -203,40 +203,42 @@ func (h *BatchHook) GetConfig() ([]sdkhook.HookConfig, error) {
 }
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
-func (h *BatchHook) LoadAndValidate(cfg *config.HookConfig, _ string) error {
+func (h *BatchHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 	bhcfg, err := h.GetConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	h.config = &bhcfg[h.ID]
 
 	hcv1 := remapHookConfigV1FromHookConfig(h.config)
 
+	cfg := new(config.HookConfig)
+
 	err = hcv1.ConvertAndCheck(cfg)
 	if err != nil {
-		return fmt.Errorf("convert and check from hook config v1: %w", err)
+		return nil, fmt.Errorf("convert and check from hook config v1: %w", err)
 	}
 
-	return nil
+	return cfg, nil
 }
 
-func (h *BatchHook) LoadOnStartup() *float64 {
+func (h *BatchHook) GetOnStartup() *float64 {
 	res := float64(*h.config.OnStartup)
 	return &res
 }
 
-func (h *BatchHook) LoadBeforeAll() *float64 {
+func (h *BatchHook) GetBeforeAll() *float64 {
 	res := float64(*h.config.OnBeforeHelm)
 	return &res
 }
 
-func (h *BatchHook) LoadAfterAll() *float64 {
+func (h *BatchHook) GetAfterAll() *float64 {
 	res := float64(*h.config.OnAfterHelm)
 	return &res
 }
 
-func (h *BatchHook) LoadAfterDeleteHelm() *float64 {
+func (h *BatchHook) GetAfterDeleteHelm() *float64 {
 	res := float64(*h.config.OnAfterDeleteHelm)
 	return &res
 }

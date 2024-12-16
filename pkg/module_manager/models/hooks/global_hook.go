@@ -37,9 +37,9 @@ func NewGlobalHook(ex executableHookWithLoad) *GlobalHook {
 // for GoHook config is precompiled, so we just have to fetch it
 // for ShellHook, that hook will be run with `--config` flag, returns and parses the config
 func (h *GlobalHook) InitializeHookConfig() error {
-	err := h.config.LoadAndValidateConfig(h.hookConfigLoader)
+	err := h.config.LoadHookConfig(h.hookConfigLoader)
 	if err != nil {
-		return err
+		return fmt.Errorf("load and validate hook config: %w", err)
 	}
 
 	// Make HookController and GetConfigDescription work.

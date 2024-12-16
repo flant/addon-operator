@@ -62,9 +62,9 @@ func (mh *ModuleHook) Order(binding shell_op_types.BindingType) float64 {
 // for ShellHook, that hook will be run with `--config` flag, returns and parses the config
 // for BatchHook, that hook will be run with `hook config` args, returns and parses the config
 func (mh *ModuleHook) InitializeHookConfig() error {
-	err := mh.config.LoadAndValidateConfig(mh.hookConfigLoader)
+	err := mh.config.LoadHookConfig(mh.hookConfigLoader)
 	if err != nil {
-		return fmt.Errorf("load and validate go hook config: %w", err)
+		return fmt.Errorf("load and validate hook config: %w", err)
 	}
 
 	// Make HookController and GetConfigDescription work.
