@@ -1,6 +1,7 @@
 package static
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,19 +29,22 @@ func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 		valuesFile := filepath.Join(dir, "values.yaml")
 		fileInfo, err := os.Stat(valuesFile)
 		if err != nil {
-			log.Errorf("Couldn't stat %s", valuesFile)
+			log.Error("Couldn't stat file",
+				slog.String("file", valuesFile))
 			continue
 		}
 
 		if fileInfo.IsDir() {
-			log.Errorf("File %s is a directory", valuesFile)
+			log.Error("File is a directory",
+				slog.String("file", valuesFile))
 			continue
 		}
 
 		f, err := os.Open(valuesFile)
 		if err != nil {
 			if os.IsNotExist(err) {
-				log.Debugf("File %s doesn't exist", valuesFile)
+				log.Debug("File doesn't exist",
+					slog.String("file", valuesFile))
 				continue
 			}
 			return nil, err

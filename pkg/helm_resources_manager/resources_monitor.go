@@ -3,6 +3,7 @@ package helm_resources_manager
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"sort"
 	"sync"
@@ -101,11 +102,13 @@ func (r *ResourcesMonitor) Start() {
 				// Check release status
 				status, err := r.GetHelmReleaseStatus(r.moduleName)
 				if err != nil {
-					r.logger.Errorf("cannot get helm release status: %s", err)
+					r.logger.Error("cannot get helm release status", log.Err(err))
 				}
 
 				if status != "deployed" {
-					r.logger.Debugf("Helm release %s is in unexpected status: %s", r.moduleName, status)
+					r.logger.Debug("Helm release is in unexpected status",
+						slog.String("module", r.moduleName),
+						slog.String("status", status))
 					if r.absentCb != nil {
 						r.absentCb(r.moduleName, true, []manifest.Manifest{}, r.defaultNamespace)
 					}
@@ -114,7 +117,7 @@ func (r *ResourcesMonitor) Start() {
 				// Check resources
 				absent, err := r.AbsentResources()
 				if err != nil {
-					r.logger.Errorf("cannot list helm resources: %s", err)
+					r.logger.Error("cannot list helm resources", log.Err(err))
 				}
 
 				if len(absent) > 0 {
@@ -140,7 +143,10 @@ func (r *ResourcesMonitor) GetHelmReleaseStatus(moduleName string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	r.logger.Debugf("Helm release %s, revision %s, status: %s", moduleName, revision, status)
+	r.logger.Debug("Helm release",
+		slog.String("module", moduleName),
+		slog.String("revision", revision),
+		slog.String("status", status))
 	return status, nil
 }
 
@@ -280,7 +286,8 @@ func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvk namespacedGV
 		Version: nsgvk.GVK.Version,
 		Kind:    nsgvk.GVK.Kind + "List",
 	})
-	log.Debugf("List objects from cache for %v", nsgvk)
+	log.Debug("List objects from cache",
+		slog.String("nsgvk", fmt.Sprintf("%v", nsgvk)))
 	err := r.cache.List(ctx, objList, cr_client.InNamespace(nsgvk.Namespace))
 	if err != nil {
 		return nil, fmt.Errorf("couldn't list objects from cache: %v", err)

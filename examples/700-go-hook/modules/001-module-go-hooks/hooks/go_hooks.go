@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"fmt"
+	"log/slog"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -54,11 +56,12 @@ func ObjFilter(obj *unstructured.Unstructured) (gohook.FilterResult, error) {
 func run(input *gohook.HookInput) error {
 	for _, o := range input.Snapshots["pods"] {
 		podSpec := o.(*podSpecFilteredObj)
-		input.Logger.Infof("Got podSpec: %+v", podSpec)
+		input.Logger.Info("Got podSpec",
+			slog.String("spec", fmt.Sprintf("%+v", podSpec)))
 	}
 
-	input.Logger.Infof("Hello from on_kube.pods2! I have %d snapshots\n",
-		len(input.Snapshots))
+	input.Logger.Info("Hello from on_kube.pods2! I have snapshots",
+		slog.Int("count", len(input.Snapshots)))
 
 	input.MetricsCollector.Add("addon_go_hooks_total", 1.0, nil)
 

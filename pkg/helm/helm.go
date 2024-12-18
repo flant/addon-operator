@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -51,7 +52,7 @@ func InitHelmClientFactory(helmopts *Options, extraLabels map[string]string) (*C
 		}, helmopts.Logger, extraLabels)
 
 	case Helm3:
-		log.Infof("Helm 3 detected (path is '%s')", helm3.Helm3Path)
+		log.Info("Helm 3 detected", slog.String("path", helm3.Helm3Path))
 		// Use helm3 client.
 		factory.ClientType = Helm3
 		factory.NewClientFn = helm3.NewClient

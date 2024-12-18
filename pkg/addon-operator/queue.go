@@ -1,6 +1,8 @@
 package addon_operator
 
 import (
+	"log/slog"
+
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
@@ -114,13 +116,21 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 
 				case task.ParallelModuleRun:
 					if hm.ParallelRunMetadata == nil || hm.ParallelRunMetadata.CancelF == nil {
-						logEntry.Warnf("Couldn't get parallelRun metadata for the parallel task of type: %s, module: %s, description: %s, from queue %s", t.GetType(), hm.ModuleName, hm.EventDescription, queue.Name)
+						logEntry.Warn("Couldn't get parallelRun metadata for the parallel task",
+							slog.String("type", string(t.GetType())),
+							slog.String("module", hm.ModuleName),
+							slog.String("description", hm.EventDescription),
+							slog.String("queue", queue.Name))
 					} else {
 						// cancel parallel task context
 						hm.ParallelRunMetadata.CancelF()
 					}
 				}
-				logEntry.Debugf("Drained converge task of type: %s, module: %s, description: %s, from queue %s", t.GetType(), hm.ModuleName, hm.EventDescription, queue.Name)
+				logEntry.Debug("Drained converge task",
+					slog.String("type", string(t.GetType())),
+					slog.String("module", hm.ModuleName),
+					slog.String("description", hm.EventDescription),
+					slog.String("queue", queue.Name))
 				return false
 			}
 			return true
@@ -164,7 +174,10 @@ func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLab
 				stop = true
 			}
 			hm := task.HookMetadataAccessor(t)
-			logEntry.Debugf("Drained converge task of type: %s, module: %s, description: %s", t.GetType(), hm.ModuleName, hm.EventDescription)
+			logEntry.Debug("Drained converge task",
+				slog.String("type", string(t.GetType())),
+				slog.String("module", hm.ModuleName),
+				slog.String("description", hm.EventDescription))
 			return false
 		}
 		return true
@@ -198,7 +211,9 @@ func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels
 		// Remove ConvergeModules after current.
 		if t.GetType() == task.ConvergeModules {
 			hm := task.HookMetadataAccessor(t)
-			logEntry.Debugf("Drained adjacent ConvergeModules task of type: %s, description: %s", t.GetType(), hm.EventDescription)
+			logEntry.Debug("Drained adjacent ConvergeModules task",
+				slog.String("type", string(t.GetType())),
+				slog.String("description", hm.EventDescription))
 			return false
 		}
 

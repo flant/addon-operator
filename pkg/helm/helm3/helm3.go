@@ -3,6 +3,7 @@ package helm3
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"sort"
 	"strings"
@@ -87,7 +88,7 @@ func (h *Helm3Client) initAndVersion() error {
 	}
 	stdout = strings.Join([]string{stdout, stderr}, "\n")
 	stdout = strings.ReplaceAll(stdout, "\n", " ")
-	log.Infof("Helm 3 version: %s", stdout)
+	log.Info("Helm 3 version", slog.String("version", stdout))
 
 	return nil
 }
@@ -161,12 +162,20 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 		args = append(args, setValue)
 	}
 
-	h.Logger.Infof("Running helm upgrade for release '%s' with chart '%s' in namespace '%s' ...", releaseName, chart, namespace)
+	h.Logger.Info("Running helm upgrade for release ...",
+		slog.String("release", releaseName),
+		slog.String("chart", chart),
+		slog.String("namespace", namespace))
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
 	}
-	h.Logger.Infof("Helm upgrade for release '%s' with chart '%s' in namespace '%s' successful:\n%s\n%s", releaseName, chart, namespace, stdout, stderr)
+	h.Logger.Info("Helm upgrade for release successful",
+		slog.String("release", releaseName),
+		slog.String("chart", chart),
+		slog.String("namespace", namespace),
+		slog.String("stdout", stdout),
+		slog.String("stderr", stderr))
 
 	return nil
 }
@@ -191,7 +200,7 @@ func (h *Helm3Client) GetReleaseValues(releaseName string) (utils.Values, error)
 }
 
 func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
-	h.Logger.Debugf("helm release '%s': execute helm uninstall", releaseName)
+	h.Logger.Debug("helm release: execute helm uninstall", slog.String("release", releaseName))
 
 	args := []string{
 		"uninstall", releaseName,
@@ -202,7 +211,7 @@ func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n%v %v", releaseName, err, stdout, stderr)
 	}
 
-	h.Logger.Debugf("helm release %s deleted", releaseName)
+	h.Logger.Debug("helm release deleted", slog.String("release", releaseName))
 	return
 }
 
@@ -230,9 +239,9 @@ func (h *Helm3Client) ListReleasesNames() ([]string, error) {
 		return nil, fmt.Errorf("helm list failed: %v\n%s %s", err, stdout, stderr)
 	}
 
-	list := []struct {
+	var list []struct {
 		Name string `json:"name"`
-	}{}
+	}
 
 	if err := k8syaml.Unmarshal([]byte(stdout), &list); err != nil {
 		return nil, fmt.Errorf("helm list returned invalid json: %v", err)
@@ -278,12 +287,15 @@ func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []str
 		args = append(args, setValue)
 	}
 
-	h.Logger.Debugf("Render helm templates for chart '%s' in namespace '%s' ...", chart, namespace)
+	h.Logger.Debug("Render helm templates for chart ...",
+		slog.String("chart", chart),
+		slog.String("namespace", namespace))
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return "", fmt.Errorf("helm upgrade failed: %s:\n%s %s", err, stdout, stderr)
 	}
-	h.Logger.Infof("Render helm templates for chart '%s' was successful", chart)
+	h.Logger.Info("Render helm templates for chart was successful",
+		slog.String("chart", chart))
 
 	return stdout, nil
 }
