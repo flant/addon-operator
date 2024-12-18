@@ -3,6 +3,7 @@ package modules
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -83,7 +84,7 @@ func (gm *GlobalModule) WithLogger(logger *log.Logger) {
 
 // RegisterHooks finds and registers global hooks
 func (gm *GlobalModule) RegisterHooks() ([]*hooks.GlobalHook, error) {
-	gm.logger.Debugf("Search and register global hooks")
+	gm.logger.Debug("Search and register global hooks")
 
 	hks, err := gm.searchAndRegisterHooks()
 	if err != nil {
@@ -171,7 +172,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 	logEntry := utils.EnrichLoggerWithLabels(gm.logger, logLabels)
 
 	for _, info := range h.GetHookController().SnapshotsInfo() {
-		logEntry.Debugf("snapshot info: %s", info)
+		logEntry.Debug("snapshot info", slog.String("value", info))
 	}
 
 	prefixedConfigValues := gm.valuesStorage.GetConfigValues(true)
@@ -192,6 +193,10 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 	}
 	if err != nil {
 		return fmt.Errorf("global hook '%s' failed: %s", h.GetName(), err)
+	}
+
+	if hookResult == nil {
+		return nil
 	}
 
 	// Apply metric operations
@@ -218,7 +223,8 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		}
 
 		if configValuesPatchResult != nil && configValuesPatchResult.ValuesChanged {
-			logEntry.Debugf("Global hook '%s': validate global config values before update", h.GetName())
+			logEntry.Debug("Global hook: validate global config values before update",
+				slog.String("hook", h.GetName()))
 			// Validate merged static and new values.
 			// TODO: probably, we have to replace with with some transaction method on valuesStorage
 			newValues, validationErr := gm.valuesStorage.GenerateNewConfigValues(configValuesPatchResult.Values, true)
@@ -228,14 +234,17 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 
 			err := gm.dc.KubeConfigManager.SaveConfigValues(utils.GlobalValuesKey, configValuesPatchResult.Values)
 			if err != nil {
-				logEntry.Debugf("Global hook '%s' kube config global values stay unchanged:\n%s", h.GetName(), gm.valuesStorage.GetConfigValues(false).DebugString())
+				logEntry.Debug("Global hook kube config global values stay unchanged",
+					slog.String("hook", h.GetName()),
+					slog.String("value", gm.valuesStorage.GetConfigValues(false).DebugString()))
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.GetName(), err)
 			}
 
 			gm.valuesStorage.SaveConfigValues(newValues)
 
-			logEntry.Debugf("Global hook '%s': kube config global values updated", h.GetName())
-			logEntry.Debugf("New kube config global values:\n%s\n", gm.valuesStorage.GetConfigValues(false).DebugString())
+			logEntry.Debug("Global hook: kube config global values updated", slog.String("hook", h.GetName()))
+			logEntry.Debug("New kube config global values",
+				slog.String("values", gm.valuesStorage.GetConfigValues(false).DebugString()))
 		}
 
 		// Apply patches for *Enabled keys.
@@ -256,7 +265,8 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		// MemoryValuesPatch from global hook can contains patches for *Enabled keys
 		// and no patches for 'global' section — valuesPatchResult will be nil in this case.
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
-			logEntry.Debugf("Global hook '%s': validate global values before update", h.GetName())
+			logEntry.Debug("Global hook: validate global values before update",
+				slog.String("hook", h.GetName()))
 			validationErr := gm.valuesStorage.validateValues(valuesPatchResult.Values)
 			if validationErr != nil {
 				return fmt.Errorf("cannot apply values patch for global values: %w", validationErr)
@@ -268,8 +278,9 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 				return fmt.Errorf("error on commit values: %w", err)
 			}
 
-			logEntry.Debugf("Global hook '%s': kube global values updated", h.GetName())
-			logEntry.Debugf("New global values:\n%s", gm.valuesStorage.GetValues(false).DebugString())
+			logEntry.Debug("Global hook: kube global values updated", slog.String("hook", h.GetName()))
+			logEntry.Debug("New global values",
+				slog.String("values", gm.valuesStorage.GetValues(false).DebugString()))
 		}
 
 		// Apply patches for *Enabled keys.
@@ -416,10 +427,12 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 		return nil, fmt.Errorf("search module hooks failed: %w", err)
 	}
 
-	gm.logger.Debugf("Found %d global hooks", len(hks))
+	gm.logger.Debug("Found global hooks", slog.Int("count", len(hks)))
 	if gm.logger.GetLevel() == log.LevelDebug {
 		for _, h := range hks {
-			gm.logger.Debugf("GlobalHook: Name=%s, Path=%s", h.GetName(), h.GetPath())
+			gm.logger.Debug("GlobalHook",
+				slog.String("hook", h.GetName()),
+				slog.String("path", h.GetPath()))
 		}
 	}
 
@@ -452,7 +465,9 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 			gm.byBinding[binding] = append(gm.byBinding[binding], globalHook)
 		}
 
-		hookLogEntry.Debugf("Module hook from '%s'. Bindings: %s", globalHook.GetPath(), globalHook.GetConfigDescription())
+		hookLogEntry.Debug("Module hook from path",
+			slog.String("path", globalHook.GetPath()),
+			slog.String("bindings", globalHook.GetConfigDescription()))
 	}
 
 	return hks, nil
@@ -461,7 +476,7 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 // searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
 func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error) {
 	if gm.hooksDir == "" {
-		gm.logger.Warnf("Global hooks directory path is empty! No global hooks to load.")
+		gm.logger.Warn("Global hooks directory path is empty! No global hooks to load.")
 		return nil, nil
 	}
 
@@ -521,7 +536,8 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	gm.logger.Debugf("Hook paths: %+v", hooksRelativePaths)
+	gm.logger.Debug("Hook paths",
+		slog.Any("paths", hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(hooksDir, hookPath)
@@ -545,7 +561,9 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 	if len(hks) > 0 {
 		count = strconv.Itoa(len(hks))
 	}
-	gm.logger.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
+	gm.logger.Info("Found global shell hooks in dir",
+		slog.String("count", count),
+		slog.String("dir", hooksDir))
 
 	return
 }
@@ -570,7 +588,8 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	gm.logger.Debugf("Hook paths: %+v", hooksRelativePaths)
+	gm.logger.Debug("Hook paths",
+		slog.Any("path", hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(hooksDir, hookPath)
@@ -596,7 +615,9 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 		count = strconv.Itoa(len(hks))
 	}
 
-	gm.logger.Infof("Found %s global shell hooks in '%s'", count, hooksDir)
+	gm.logger.Info("Found global shell hooks in dir",
+		slog.String("count", count),
+		slog.String("dir", hooksDir))
 
 	return
 }
@@ -609,7 +630,8 @@ func (gm *GlobalModule) searchGlobalGoHooks() ([]*kind.GoHook, error) {
 	if len(goHooks) > 0 {
 		count = strconv.Itoa(len(goHooks))
 	}
-	gm.logger.Infof("Found %s global Go hooks", count)
+	gm.logger.Info("Found global Go hooks",
+		slog.String("count", count))
 
 	return goHooks, nil
 }

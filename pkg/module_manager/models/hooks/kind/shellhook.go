@@ -2,6 +2,7 @@ package kind
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -111,7 +112,9 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 			err := os.Remove(f)
 			if err != nil {
 				sh.Hook.Logger.With("hook", sh.GetName()).
-					Errorf("Remove tmp file '%s': %s", f, err)
+					Error("Remove tmp file",
+						slog.String("file", f),
+						log.Err(err))
 			}
 		}
 	}()
@@ -184,15 +187,21 @@ func (sh *ShellHook) getConfig() (configOutput []byte, err error) {
 		WithLogger(sh.Logger.Named("executor")).
 		WithCMDStdout(nil)
 
-	sh.Hook.Logger.Debugf("Executing hook in: '%s'", strings.Join(args, " "))
+	sh.Hook.Logger.Debug("Executing hook",
+		slog.String("args", strings.Join(args, " ")))
 
 	output, err := cmd.Output()
 	if err != nil {
-		sh.Hook.Logger.Debugf("Hook '%s' config failed: %v, output:\n%s", sh.Name, err, string(output))
+		sh.Hook.Logger.Debug("Hook config failed",
+			slog.String("hook", sh.Name),
+			log.Err(err),
+			slog.String("output", string(output)))
 		return nil, err
 	}
 
-	sh.Hook.Logger.Debugf("Hook '%s' config output:\n%s", sh.Name, string(output))
+	sh.Hook.Logger.Debug("Hook config output",
+		slog.String("hook", sh.Name),
+		slog.String("output", string(output)))
 
 	return output, nil
 }
@@ -489,7 +498,9 @@ func (sh *ShellHook) prepareConfigValuesJsonFile(moduleSafeName string, configVa
 		return "", err
 	}
 
-	sh.Hook.Logger.Debugf("Prepared module %s hook config values:\n%s", moduleSafeName, configValues.DebugString())
+	sh.Hook.Logger.Debug("Prepared module hook config values",
+		slog.String("module", moduleSafeName),
+		slog.String("values", configValues.DebugString()))
 
 	return path, nil
 }
@@ -506,7 +517,9 @@ func (sh *ShellHook) prepareValuesJsonFile(moduleSafeName string, values utils.V
 		return "", err
 	}
 
-	sh.Hook.Logger.Debugf("Prepared module %s hook values:\n%s", moduleSafeName, values.DebugString())
+	sh.Hook.Logger.Debug("Prepared module hook values",
+		slog.String("module", moduleSafeName),
+		slog.String("values", values.DebugString()))
 
 	return path, nil
 }

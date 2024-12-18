@@ -10,6 +10,6 @@ var _ = sdk.RegisterFunc(&gohook.HookConfig{
 }, handler)
 
 func handler(input *gohook.HookInput) error {
-	input.Logger.Infof("Start Global Go hook")
+	input.Logger.Info("Start Global Go hook")
 	return nil
 }

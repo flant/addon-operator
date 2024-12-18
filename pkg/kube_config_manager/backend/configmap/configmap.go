@@ -3,6 +3,7 @@ package configmap
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -55,7 +56,8 @@ func (b Backend) LoadConfig(ctx context.Context, _ ...string) (*config.KubeConfi
 	}
 
 	if obj == nil {
-		b.logger.Infof("Initial config from ConfigMap/%s: resource is not found", b.name)
+		b.logger.Info("Initial config from ConfigMap: resource is not found",
+			slog.String("name", b.name))
 		return nil, nil
 	}
 
@@ -81,9 +83,11 @@ func (b Backend) saveGlobalConfigValues(ctx context.Context, values utils.Values
 	}
 
 	if b.isDebugEnabled(ctx) {
-		b.logger.Infof("Save global values to ConfigMap/%s:\n%s", b.name, values.DebugString())
+		b.logger.Info("Save global values to ConfigMap",
+			slog.String("name", b.name),
+			slog.String("values", values.DebugString()))
 	} else {
-		b.logger.Infof("Save global values to ConfigMap/%s", b.name)
+		b.logger.Info("Save global values to ConfigMap", slog.String("name", b.name))
 	}
 
 	err = b.mergeValues(ctx, globalKubeConfig.GetValuesWithGlobalName())
@@ -110,9 +114,14 @@ func (b Backend) saveModuleConfigValues(ctx context.Context, moduleName string, 
 	}
 
 	if b.isDebugEnabled(ctx) {
-		b.logger.Infof("Save module '%s' values to ConfigMap/%s:\n%s", moduleName, b.name, values.DebugString())
+		b.logger.Info("Save module values to ConfigMap",
+			slog.String("moduleName", moduleName),
+			slog.String("configMapName", b.name),
+			slog.String("values", values.DebugString()))
 	} else {
-		b.logger.Infof("Save module '%s' values to ConfigMap/%s", moduleName, b.name)
+		b.logger.Info("Save module values to ConfigMap",
+			slog.String("moduleName", moduleName),
+			slog.String("configMapName", b.name))
 	}
 
 	err := b.mergeValues(ctx, moduleKubeConfig.GetValuesWithModuleName()) //nolint: staticcheck,nolintlint
@@ -334,14 +343,18 @@ func (b Backend) StartInformer(ctx context.Context, eventC chan config.Event) {
 			b.logConfigMapEvent(ctx, obj, "add")
 			err := b.handleConfigMapEvent(obj.(*v1.ConfigMap), eventC)
 			if err != nil {
-				b.logger.Errorf("Handle ConfigMap/%s 'add' error: %s", b.name, err)
+				b.logger.Error("Handle ConfigMap 'add' error",
+					slog.String("configMapName", b.name),
+					log.Err(err))
 			}
 		},
 		UpdateFunc: func(_ interface{}, obj interface{}) {
 			b.logConfigMapEvent(ctx, obj, "update")
 			err := b.handleConfigMapEvent(obj.(*v1.ConfigMap), eventC)
 			if err != nil {
-				b.logger.Errorf("Handle ConfigMap/%s 'update' error: %s", b.name, err)
+				b.logger.Error("Handle ConfigMap 'update' error",
+					slog.String("configMapName", b.name),
+					log.Err(err))
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -362,10 +375,16 @@ func (b Backend) logConfigMapEvent(ctx context.Context, obj interface{}, eventNa
 
 	objYaml, err := yaml.Marshal(obj)
 	if err != nil {
-		b.logger.Infof("Dump ConfigMap/%s '%s' error: %s", b.name, eventName, err)
+		b.logger.Info("Dump ConfigMap error",
+			slog.String("configMapName", b.name),
+			slog.String("eventName", eventName),
+			log.Err(err))
 		return
 	}
-	b.logger.Infof("Dump ConfigMap/%s '%s':\n%s", b.name, eventName, objYaml)
+	b.logger.Info("Dump ConfigMap",
+		slog.String("configMapName", b.name),
+		slog.String("eventName", eventName),
+		slog.String("value", string(objYaml)))
 }
 
 func (b Backend) handleConfigMapEvent(obj *v1.ConfigMap, eventC chan config.Event) error {
@@ -379,7 +398,9 @@ func (b Backend) handleConfigMapEvent(obj *v1.ConfigMap, eventC chan config.Even
 	if err != nil {
 		eventC <- config.Event{Key: "batch", Err: err}
 		// Do not update caches to detect changes on next update.
-		b.logger.Errorf("ConfigMap/%s invalid: %v", b.name, err)
+		b.logger.Error("ConfigMap invalid",
+			slog.String("configMapName", b.name),
+			log.Err(err))
 		return err
 	}
 

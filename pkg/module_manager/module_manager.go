@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"log/slog"
 	"runtime/trace"
 	"strings"
 	"sync"
@@ -190,7 +191,7 @@ func (mm *ModuleManager) GetGlobal() *modules.GlobalModule {
 func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig, globalValuesChanged bool) error {
 	if kubeConfig == nil {
 		// have no idea, how it could be, just skip run
-		log.Warnf("No KubeConfig is set")
+		log.Warn("No KubeConfig is set")
 		return nil
 	}
 
@@ -212,7 +213,8 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 	newGlobalValues, ok := valuesMap[mm.global.GetName()]
 	if ok {
 		if globalValuesChanged {
-			log.Debugf("Applying global values: %v", newGlobalValues)
+			log.Debug("Applying global values",
+				slog.String("values", fmt.Sprintf("%v", newGlobalValues)))
 			mm.global.SaveConfigValues(newGlobalValues)
 		}
 		delete(valuesMap, mm.global.GetName())
@@ -226,7 +228,10 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 		}
 
 		if mod.GetConfigValues(false).Checksum() != values.Checksum() {
-			log.Debugf("Applying values to %s module: new values: %v, previous ones: %v", moduleName, values, mod.GetConfigValues(false))
+			log.Debug("Applying values to module",
+				slog.String("moduleName", moduleName),
+				slog.String("values", fmt.Sprintf("%v", values)),
+				slog.String("oldValues", fmt.Sprintf("%v", mod.GetConfigValues(false))))
 			mod.SaveConfigValues(values)
 		}
 	}
@@ -293,7 +298,8 @@ func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *config.KubeConfig) 
 		}
 	}
 	if len(unknownNames) > 0 {
-		log.Warnf("KubeConfigManager has values for unknown modules: %+v", unknownNames)
+		log.Warn("KubeConfigManager has values for unknown modules",
+			slog.Any("modules", unknownNames))
 	}
 }
 
@@ -398,7 +404,8 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Following releases found: %v", releasedModules)
+	log.Debug("Following releases found",
+		slog.Any("modules", releasedModules))
 
 	return mm.stateFromHelmReleases(releasedModules), nil
 }
@@ -416,7 +423,8 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 	purge = utils.SortReverse(purge)
 
 	if len(purge) > 0 {
-		log.Infof("Modules to purge found: %v", purge)
+		log.Info("Modules to purge found",
+			slog.Any("modules", purge))
 	}
 
 	return &ModulesState{
@@ -465,7 +473,8 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 		return nil, err
 	}
 
-	logEntry.Infof("Enabled modules: %+v", enabledModules)
+	logEntry.Info("Enabled modules",
+		slog.Any("modules", enabledModules))
 	once.Do(mm.modules.SetInited)
 
 	var (
@@ -486,13 +495,10 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	modulesToDisable = utils.SortReverseByReference(modulesToDisable, mm.modules.NamesInOrder())
 	modulesToEnable = utils.SortByReference(modulesToEnable, mm.modules.NamesInOrder())
 
-	logEntry.Debugf("Refresh state results:\n"+
-		"    enabledModules: %v\n"+
-		"    modulesToDisable: %v\n"+
-		"    modulesToEnable: %v\n",
-		enabledModules,
-		modulesToDisable,
-		modulesToEnable)
+	logEntry.Debug("Refresh state results",
+		slog.Any("enabledModules", enabledModules),
+		slog.Any("modulesToDisable", modulesToDisable),
+		slog.Any("modulesToEnable", modulesToEnable))
 
 	// We've to ignore enabledModules patch in case default moduleLoader is in use, otherwise it breaks applying global hooks patches with default moduleLoader
 	switch mm.moduleLoader.(type) {
@@ -605,9 +611,12 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			releaseExists, err := mm.dependencies.Helm.NewClient(mm.logger, deleteLogLabels).IsReleaseExists(ml.GetName())
 			if !releaseExists {
 				if err != nil {
-					logEntry.Warnf("Cannot find helm release '%s' for module '%s'. Helm error: %s", ml.GetName(), ml.GetName(), err)
+					logEntry.Warn("Cannot find helm release for module",
+						slog.String("module", ml.GetName()),
+						log.Err(err))
 				} else {
-					logEntry.Warnf("Cannot find helm release '%s' for module '%s'.", ml.GetName(), ml.GetName())
+					logEntry.Warn("Cannot find helm release for module.",
+						slog.String("module", ml.GetName()))
 				}
 			} else {
 				// Chart and release are existed, so run helm delete command
@@ -860,12 +869,18 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 		}
 		switch op.Op {
 		case "add":
-			log.Debugf("apply dynamic enable: module %s set to '%v'", modName, *v)
+			log.Debug("apply dynamic enable",
+				slog.String("module", modName),
+				slog.Bool("value", *v))
 		case "remove":
-			log.Debugf("apply dynamic enable: module %s removed from dynamic enable", modName)
+			log.Debug("apply dynamic enable: module removed from dynamic enable",
+				slog.String("module", modName))
 		}
 		extender.UpdateStatus(modName, op.Op, *v)
-		log.Infof("dynamically enabled module status change: module %s, operation %s, state %v", modName, op.Op, *v)
+		log.Info("dynamically enabled module status change",
+			slog.String("module", modName),
+			slog.String("operation", op.Op),
+			slog.Bool("state", *v))
 	}
 
 	return nil
@@ -1022,7 +1037,7 @@ func (mm *ModuleManager) RunModuleWithNewOpenAPISchema(moduleName, moduleSource,
 // RegisterModule checks if a module already exists and reapplies(reloads) its configuration.
 // If it's a new module - converges all modules - EXPERIMENTAL
 func (mm *ModuleManager) RegisterModule(_, _ string) error {
-	return fmt.Errorf("Not implemented yet")
+	return fmt.Errorf("not implemented yet")
 }
 
 /*
@@ -1234,12 +1249,12 @@ func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool
 // registerModules load all available modules from modules directory.
 func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.Extender) error {
 	if mm.ModulesDir == "" {
-		log.Warnf("Empty modules directory is passed! No modules to load.")
+		log.Warn("Empty modules directory is passed! No modules to load.")
 		return nil
 	}
 
 	if mm.moduleLoader == nil {
-		log.Errorf("no module loader set")
+		log.Error("no module loader set")
 		return fmt.Errorf("no module loader set")
 	}
 
@@ -1263,7 +1278,9 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 
 	for _, mod := range mods {
 		if set.Has(mod.GetName()) {
-			log.Warnf("module %q from path %q is not registered, because it has a duplicate", mod.GetName(), mod.GetPath())
+			log.Warn("module is not registered, because it has a duplicate",
+				slog.String("module", mod.GetName()),
+				slog.String("path", mod.GetPath()))
 			continue
 		}
 
@@ -1282,7 +1299,8 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		})
 	}
 
-	log.Debugf("Found modules: %v", set.NamesInOrder())
+	log.Debug("Found modules",
+		slog.Any("modules", set.NamesInOrder()))
 
 	mm.modules = set
 

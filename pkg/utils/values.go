@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"reflect"
 
 	"github.com/davecgh/go-spew/spew"
@@ -127,7 +128,7 @@ func (v Values) Global() Values {
 		data := map[string]interface{}{GlobalValuesKey: globalValues}
 		newV, err := NewValues(data)
 		if err != nil {
-			log.Errorf("get global Values: %s", err)
+			log.Error("get global Values", log.Err(err))
 		}
 		return newV
 	}
@@ -141,7 +142,9 @@ func (v Values) SectionByKey(key string) Values {
 		data := map[string]interface{}{key: sectionValues}
 		newV, err := NewValues(data)
 		if err != nil {
-			log.Errorf("get section '%s' Values: %s", key, err)
+			log.Error("get section Values",
+				slog.String("key", key),
+				log.Err(err))
 		}
 		return newV
 	}
