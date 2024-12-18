@@ -326,35 +326,41 @@ func (c *ModuleHookConfig) ConvertAndCheck(data []byte) error {
 	return nil
 }
 
-func (c *ModuleHookConfig) ConvertAndCheckV0() (err error) {
+func (c *ModuleHookConfig) ConvertAndCheckV0() error {
+	var err error
 	c.BeforeHelm, err = c.ConvertBeforeHelm(c.ModuleV0.BeforeHelm)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v0 beforeHelm: %w", err)
 	}
+
 	c.AfterHelm, err = c.ConvertAfterHelm(c.ModuleV0.AfterHelm)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v0 afterHelm: %w", err)
 	}
+
 	c.AfterDeleteHelm, err = c.ConvertAfterDeleteHelm(c.ModuleV0.AfterDeleteHelm)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v0 afterDeleteHelm: %w", err)
 	}
 
 	return nil
 }
 
-func (c *ModuleHookConfig) ConvertAndCheckV1() (err error) {
+func (c *ModuleHookConfig) ConvertAndCheckV1() error {
+	var err error
 	c.BeforeHelm, err = c.ConvertBeforeHelm(c.ModuleV1.BeforeHelm)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v1 beforeHelm: %w", err)
 	}
+
 	c.AfterHelm, err = c.ConvertAfterHelm(c.ModuleV1.AfterHelm)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v1 afterHelm: %w", err)
 	}
+
 	c.AfterDeleteHelm, err = c.ConvertAfterDeleteHelm(c.ModuleV1.AfterDeleteHelm)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v1 afterDeleteHelm: %w", err)
 	}
 
 	return nil

@@ -65,7 +65,7 @@ func KeysSortedByReference(m map[string]struct{}, ref []string) []string {
 
 // ListSubtract creates a new array from 'src' array with items that are
 // not present in 'ignored' arrays.
-func ListSubtract(src []string, ignored ...[]string) (result []string) {
+func ListSubtract(src []string, ignored ...[]string) []string {
 	ignoredMap := make(map[string]bool)
 	for _, arr := range ignored {
 		for _, v := range arr {
@@ -73,18 +73,20 @@ func ListSubtract(src []string, ignored ...[]string) (result []string) {
 		}
 	}
 
+	result := make([]string, 0, len(src))
 	for _, v := range src {
 		if _, ok := ignoredMap[v]; !ok {
 			result = append(result, v)
 		}
 	}
-	return
+
+	return result
 }
 
 // ListIntersection returns an array with items that are present in all 'arrs' arrays.
-func ListIntersection(arrs ...[]string) (result []string) {
+func ListIntersection(arrs ...[]string) []string {
 	if len(arrs) == 0 {
-		return
+		return nil
 	}
 
 	// Counts each item in arrays.
@@ -95,13 +97,14 @@ func ListIntersection(arrs ...[]string) (result []string) {
 		}
 	}
 
+	result := make([]string, 0, len(m))
 	for k, v := range m {
 		if v == len(arrs) {
 			result = append(result, k)
 		}
 	}
 
-	return
+	return result
 }
 
 // ListUnion creates a new array with unique items from all src arrays.
