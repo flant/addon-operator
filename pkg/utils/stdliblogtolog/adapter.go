@@ -20,7 +20,7 @@ type writer struct {
 	logger *log.Logger
 }
 
-func (w *writer) Write(msg []byte) (n int, err error) {
+func (w *writer) Write(msg []byte) (int, error) {
 	// There is no loglevel for stdlib logger
 	w.logger.Log(logctx.SetCustomKeyContext(context.Background()), log.LevelInfo.Level(), strings.TrimSpace(string(msg)))
 

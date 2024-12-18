@@ -30,7 +30,7 @@ func NewGlobalHook(ex executableHook) *GlobalHook {
 // InitializeHookConfig initializes the global hook config
 // for GoHook config is precompiled, so we just have to fetch it
 // for ShellHook, that hook will be run with `--config` flag, returns and parses the config
-func (h *GlobalHook) InitializeHookConfig() (err error) {
+func (h *GlobalHook) InitializeHookConfig() error {
 	switch hk := h.executableHook.(type) {
 	case *kind.GoHook:
 		cfg := hk.GetConfig()

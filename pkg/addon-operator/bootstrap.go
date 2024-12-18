@@ -40,7 +40,7 @@ func (op *AddonOperator) bootstrap() error {
 	return nil
 }
 
-func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
+func (op *AddonOperator) Assemble(debugServer *debug.Server) error {
 	op.registerDefaultRoutes()
 	if app.AdmissionServerEnabled {
 		op.AdmissionServer.start(op.ctx)
@@ -55,8 +55,7 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
 	op.RegisterDebugModuleRoutes(debugServer)
 	op.RegisterDiscoveryRoute(debugServer)
 
-	err = op.InitModuleManager()
-	if err != nil {
+	if err := op.InitModuleManager(); err != nil {
 		return err
 	}
 

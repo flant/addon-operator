@@ -58,7 +58,7 @@ func (mh *ModuleHook) Order(binding shell_op_types.BindingType) float64 {
 // for GoHook config is precompiled, so we just have to fetch it
 // for ShellHook, that hook will be run with `--config` flag, returns and parses the config
 // for BatchHook, that hook will be run with `hook config` args, returns and parses the config
-func (mh *ModuleHook) InitializeHookConfig() (err error) {
+func (mh *ModuleHook) InitializeHookConfig() error {
 	switch hk := mh.executableHook.(type) {
 	case *kind.GoHook:
 		cfg := hk.GetConfig()

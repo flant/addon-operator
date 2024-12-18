@@ -738,12 +738,15 @@ func (op *AddonOperator) CreatePurgeTasks(modulesToPurge []string, t sh_task.Tas
 }
 
 // ApplyKubeConfigValues
-func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels map[string]string) (res queue.TaskResult) {
-	var handleErr error
+func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "HandleApplyKubeConfigValues").End()
-	logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 
-	hm := task.HookMetadataAccessor(t)
+	var (
+		handleErr error
+		res       queue.TaskResult
+		logEntry  = utils.EnrichLoggerWithLabels(op.Logger, logLabels)
+		hm        = task.HookMetadataAccessor(t)
+	)
 
 	op.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
 		handleErr = op.ModuleManager.ApplyNewKubeConfigValues(config, hm.GlobalValuesChanged)
@@ -759,14 +762,16 @@ func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels m
 	}
 
 	res.Status = queue.Success
-
 	logEntry.Debugf("HandleApplyKubeConfigValues success")
-	return
+
+	return res
 }
 
 // HandleConvergeModules is a multi-phase task.
-func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[string]string) (res queue.TaskResult) {
+func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "ConvergeModules").End()
+
+	var res queue.TaskResult
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 
 	taskEvent, ok := t.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
@@ -798,7 +803,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			res.HeadTasks = tasks
 			res.Status = queue.Keep
 			op.logTaskAdd(logEntry, "head", res.HeadTasks...)
-			return
+			return res
 		}
 	}
 
@@ -825,7 +830,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 				res.HeadTasks = tasks
 				res.Status = queue.Keep
 				op.logTaskAdd(logEntry, "head", res.HeadTasks...)
-				return
+				return res
 			}
 		}
 	}
@@ -840,7 +845,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 				res.HeadTasks = tasks
 				res.Status = queue.Keep
 				op.logTaskAdd(logEntry, "head", res.HeadTasks...)
-				return
+				return res
 			}
 		}
 	}
@@ -864,6 +869,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 
 	logEntry.Debugf("ConvergeModules success")
 	res.Status = queue.Success
+
 	return res
 }
 
@@ -906,6 +912,7 @@ func (op *AddonOperator) CreateBeforeAllTasks(logLabels map[string]string, event
 			})
 		tasks = append(tasks, newTask.WithQueuedAt(queuedAt))
 	}
+
 	return tasks
 }
 
@@ -962,6 +969,7 @@ func (op *AddonOperator) CreateAndStartQueue(queueName string) bool {
 	}
 	op.engine.TaskQueues.NewNamedQueue(queueName, op.TaskHandler)
 	op.engine.TaskQueues.GetByName(queueName).Start()
+
 	return true
 }
 
@@ -1434,9 +1442,10 @@ func (op *AddonOperator) UpdateWaitInQueueMetric(t sh_task.Task) {
 }
 
 // HandleGlobalHookEnableKubernetesBindings add Synchronization tasks.
-func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task, labels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
 
+	var res queue.TaskResult
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Global hook enable kubernetes bindings")
 
@@ -1507,7 +1516,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 		t.UpdateFailureMessage(err.Error())
 		t.WithQueuedAt(queuedAt)
 		res.Status = queue.Fail
-		return
+		return res
 	}
 	// Substitute current task with Synchronization tasks for the main queue.
 	// Other Synchronization tasks are queued into specified queues.
@@ -1544,13 +1553,14 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 
 	res.Status = queue.Success
 
-	return
+	return res
 }
 
 // HandleDiscoverHelmReleases runs RefreshStateFromHelmReleases to detect modules state at start.
-func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
 
+	var res queue.TaskResult
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Discover Helm releases state")
 
@@ -1560,20 +1570,21 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 		logEntry.Errorf("Discover helm releases failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
 		t.UpdateFailureMessage(err.Error())
 		t.WithQueuedAt(time.Now())
-		return
+		return res
 	}
 
 	res.Status = queue.Success
 	tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
 	res.AfterTasks = tasks
 	op.logTaskAdd(logEntry, "after", res.AfterTasks...)
-	return
+	return res
 }
 
 // HandleModulePurge run helm purge for unknown module.
-func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]string) (status queue.TaskStatus) {
+func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]string) queue.TaskStatus {
 	defer trace.StartRegion(context.Background(), "ModulePurge").End()
 
+	var status queue.TaskStatus
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Module purge start")
 
@@ -1587,18 +1598,17 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	}
 
 	status = queue.Success
-	return
+
+	return status
 }
 
 // HandleModuleDelete deletes helm release for known module.
-func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]string) (status queue.TaskStatus) {
+func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]string) queue.TaskStatus {
 	defer trace.StartRegion(context.Background(), "ModuleDelete").End()
 
+	var status queue.TaskStatus
 	hm := task.HookMetadataAccessor(t)
-	status = queue.Success
-
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
-
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Module delete '%s'", hm.ModuleName)
 
@@ -1629,18 +1639,18 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 		status = queue.Success
 	}
 
-	return
+	return status
 }
 
 // HandleModuleEnsureCRDs ensure CRDs for module.
-func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "ModuleEnsureCRDs").End()
 
 	hm := task.HookMetadataAccessor(t)
-	res.Status = queue.Success
-
+	res := queue.TaskResult{
+		Status: queue.Success,
+	}
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
-
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	logEntry.Debugf("Module ensureCRDs '%s'", hm.ModuleName)
 
@@ -1658,12 +1668,14 @@ func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[strin
 		op.discoveredGVKsLock.Unlock()
 	}
 
-	return
+	return res
 }
 
 // HandleParallelModuleRun runs multiple HandleModuleRun tasks in parallel and aggregates their results
-func (op *AddonOperator) HandleParallelModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+func (op *AddonOperator) HandleParallelModuleRun(t sh_task.Task, labels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "ParallelModuleRun").End()
+
+	var res queue.TaskResult
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	hm := task.HookMetadataAccessor(t)
 
@@ -1751,6 +1763,7 @@ L:
 	}
 	op.parallelTaskChannels.Delete(t.GetId())
 	res.Status = queue.Success
+
 	return res
 }
 
@@ -1760,6 +1773,7 @@ func formatErrorSummary(errors map[string]string) string {
 	for moduleName, moduleErr := range errors {
 		errSummary += fmt.Sprintf("\t- %s: %s", moduleName, moduleErr)
 	}
+
 	return errSummary
 }
 
@@ -1777,17 +1791,18 @@ func formatErrorSummary(errors map[string]string) string {
 //
 // ModuleRun is restarted if hook or chart is failed.
 // After first HandleModuleRun success, no onStartup and kubernetes.Synchronization tasks will run.
-func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "ModuleRun").End()
-	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 
+	var res queue.TaskResult
+	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	hm := task.HookMetadataAccessor(t)
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
 	// Break error loop when module becomes disabled.
 	if !op.ModuleManager.IsModuleEnabled(baseModule.GetName()) {
 		res.Status = queue.Success
-		return
+		return res
 	}
 
 	metricLabels := map[string]string{
@@ -1949,7 +1964,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				res.HeadTasks = mainSyncTasks
 				res.Status = queue.Keep
 				op.logTaskAdd(logEntry, "head", mainSyncTasks...)
-				return
+				return res
 			}
 		}
 	}
@@ -1969,7 +1984,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			logEntry.Debugf("Synchronization not completed, keep ModuleRun task in repeat mode")
 			t.WithQueuedAt(time.Now())
 			res.Status = queue.Repeat
-			return
+			return res
 		}
 	}
 
@@ -2015,14 +2030,15 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			logEntry.Infof("ModuleRun success, module is ready")
 		}
 	}
-	return
+
+	return res
 }
 
-func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "ModuleHookRun").End()
 
+	var res queue.TaskResult
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-
 	hm := task.HookMetadataAccessor(t)
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 	// TODO: check if module exists
@@ -2031,7 +2047,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	// Prevent hook running in parallel queue if module is disabled in "main" queue.
 	if !op.ModuleManager.IsModuleEnabled(baseModule.GetName()) {
 		res.Status = queue.Success
-		return
+		return res
 	}
 
 	err := taskHook.RateLimitWait(context.Background())
@@ -2040,7 +2056,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 		// canceled, or the expected wait time exceeds the Context's Deadline.
 		// The best we can do without proper context usage is to repeat the task.
 		res.Status = queue.Repeat
-		return
+		return res
 	}
 
 	metricLabels := map[string]string{
@@ -2213,11 +2229,11 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 	return res
 }
 
-func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
+func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "GlobalHookRun").End()
 
+	var res queue.TaskResult
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-
 	hm := task.HookMetadataAccessor(t)
 	taskHook := op.ModuleManager.GetGlobalHook(hm.HookName)
 
@@ -2226,9 +2242,8 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		// This could happen when the Context is
 		// canceled, or the expected wait time exceeds the Context's Deadline.
 		// The best we can do without proper context usage is to repeat the task.
-		return queue.TaskResult{
-			Status: "Repeat",
-		}
+		res.Status = "Repeat"
+		return res
 	}
 
 	metricLabels := map[string]string{

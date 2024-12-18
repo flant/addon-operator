@@ -199,29 +199,33 @@ func (c *GlobalHookConfig) ConvertAndCheck(data []byte) error {
 	return nil
 }
 
-func (c *GlobalHookConfig) ConvertAndCheckV0() (err error) {
+func (c *GlobalHookConfig) ConvertAndCheckV0() error {
+	var err error
+
 	c.BeforeAll, err = c.ConvertBeforeAll(c.GlobalV0.BeforeAll)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v0 beforeAll: %w", err)
 	}
 
 	c.AfterAll, err = c.ConvertAfterAll(c.GlobalV0.AfterAll)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v0 afterAll: %w", err)
 	}
 
 	return nil
 }
 
-func (c *GlobalHookConfig) ConvertAndCheckV1() (err error) {
+func (c *GlobalHookConfig) ConvertAndCheckV1() error {
+	var err error
+
 	c.BeforeAll, err = c.ConvertBeforeAll(c.GlobalV1.BeforeAll)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v1 beforeAll: %w", err)
 	}
 
 	c.AfterAll, err = c.ConvertAfterAll(c.GlobalV1.AfterAll)
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting v1 afterAll: %w", err)
 	}
 
 	return nil
