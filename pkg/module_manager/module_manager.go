@@ -708,7 +708,7 @@ func (mm *ModuleManager) RunGlobalHook(hookName string, binding BindingType, bin
 	return mm.global.RunHookByName(hookName, binding, bindingContext, logLabels)
 }
 
-func (mm *ModuleManager) RunModuleHook(moduleName, hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (beforeChecksum string, afterChecksum string, err error) {
+func (mm *ModuleManager) RunModuleHook(moduleName, hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string /*beforeChecksum*/, string /*afterChecksum*/, error) {
 	ml := mm.GetModule(moduleName)
 
 	return ml.RunHookByName(hookName, binding, bindingContext, logLabels)
