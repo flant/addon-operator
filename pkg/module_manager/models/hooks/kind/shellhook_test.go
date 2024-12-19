@@ -109,14 +109,17 @@ afterAll: 10
 					Path:   filename,
 					Logger: log.NewNop(),
 				},
+				ScheduleConfig: &kind.HookScheduleConfig{},
 			}
 
-			err := os.WriteFile(filename, []byte(`#!/bin/sh
+			fileContent := `#!/bin/sh
 if [[ "${1:-}" == "--config" ]] ; then
-echo '`+strings.ReplaceAll(tt.args.data, "\n", "'\n echo '")+`'
+echo '` + strings.ReplaceAll(tt.args.data, "\n", "'\n echo '") + `'
 exit 0
 fi
-`), 0o777)
+`
+
+			err := os.WriteFile(filename, []byte(fileContent), 0o777)
 			defer func() {
 				os.Remove(filename)
 			}()
@@ -125,6 +128,7 @@ fi
 			_, err = shHook.GetConfigForModule("global")
 			if err != nil {
 				assert.Equal(t, err.Error(), "")
+				fmt.Println("file content", fileContent)
 			}
 			assert.Equal(t, tt.wants.err, err)
 			assert.Equal(t, tt.wants.beforeAll, shHook.GetBeforeAll())
@@ -316,20 +320,24 @@ afterDeleteHelm: 18
 					Path:   filename,
 					Logger: log.NewNop(),
 				},
+				ScheduleConfig: &kind.HookScheduleConfig{},
 			}
 
-			err := os.WriteFile(filename, []byte(`#!/bin/sh
+			fileContent := `#!/bin/sh
 if [[ "${1:-}" == "--config" ]] ; then
-echo '`+strings.ReplaceAll(tt.args.data, "\n", "'\n echo '")+`'
+echo '` + strings.ReplaceAll(tt.args.data, "\n", "'\n echo '") + `'
 exit 0
 fi
-`), 0o777)
+`
+
+			err := os.WriteFile(filename, []byte(fileContent), 0o777)
 			defer func() {
 				os.Remove(filename)
 			}()
 			assert.NoError(t, err)
 
 			_, err = shHook.GetConfigForModule("embedded")
+			fmt.Println("file content", fileContent)
 			if tt.wants.err == nil {
 				assert.NoError(t, err)
 			} else {
