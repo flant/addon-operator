@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/module-sdk/pkg/utils/ptr"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/shell-operator/pkg/hook"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/utils/ptr"
 )
 
 func Test_ShellHook_Config_v0_v1(t *testing.T) {
@@ -22,8 +23,7 @@ func Test_ShellHook_Config_v0_v1(t *testing.T) {
 		enabled bool
 	}
 
-	type fields struct {
-	}
+	type fields struct{}
 
 	type args struct {
 		data string
@@ -125,7 +125,6 @@ fi
 			assert.Equal(t, tt.wants.err, err)
 			assert.Equal(t, tt.wants.beforeAll, shHook.GetBeforeAll())
 			assert.Equal(t, tt.wants.afterAll, shHook.GetAfterAll())
-
 		})
 	}
 }
