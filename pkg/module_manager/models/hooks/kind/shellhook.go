@@ -242,7 +242,7 @@ func (sh *ShellHook) GetConfigForModule(moduleKind string) (*config.HookConfig, 
 	sh.ScheduleConfig = &HookScheduleConfig{}
 	err = yaml.Unmarshal(cfgData, sh.ScheduleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal schedile hook config: %s", err)
+		return nil, fmt.Errorf("unmarshal schedule yaml hook config: %s", err)
 	}
 
 	return cfg, nil
