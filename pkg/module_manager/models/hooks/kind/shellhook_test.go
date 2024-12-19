@@ -123,6 +123,9 @@ fi
 			assert.NoError(t, err)
 
 			_, err = shHook.GetConfigForModule("global")
+			if err != nil {
+				assert.Equal(t, err.Error(), "")
+			}
 			assert.Equal(t, tt.wants.err, err)
 			assert.Equal(t, tt.wants.beforeAll, shHook.GetBeforeAll())
 			assert.Equal(t, tt.wants.afterAll, shHook.GetAfterAll())
