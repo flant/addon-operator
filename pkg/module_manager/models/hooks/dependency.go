@@ -3,6 +3,7 @@ package hooks
 import (
 	"context"
 
+	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -59,3 +60,5 @@ type executableHook interface {
 	BackportHookConfig(cfg *config.HookConfig)
 	GetHookConfigDescription() string
 }
+
+type hookConfigLoader gohook.HookConfigLoader

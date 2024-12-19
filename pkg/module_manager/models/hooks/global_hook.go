@@ -2,7 +2,6 @@ package hooks
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	addon_op_types "github.com/flant/addon-operator/pkg/hook/types"
@@ -14,53 +13,33 @@ import (
 // GlobalHook is a representation of the hook, which not belongs to any module
 type GlobalHook struct {
 	executableHook
+	hookConfigLoader
 	config *GlobalHookConfig
+}
+
+type executableHookWithLoad interface {
+	executableHook
+	hookConfigLoader
 }
 
 // NewGlobalHook constructs a new global hook
 //
 //	ex - is an executable hook instance (GoHook or ShellHook)
-func NewGlobalHook(ex executableHook) *GlobalHook {
+func NewGlobalHook(ex executableHookWithLoad) *GlobalHook {
 	return &GlobalHook{
-		executableHook: ex,
-		config:         &GlobalHookConfig{},
+		executableHook:   ex,
+		hookConfigLoader: ex,
+		config:           &GlobalHookConfig{},
 	}
 }
 
 // InitializeHookConfig initializes the global hook config
 // for GoHook config is precompiled, so we just have to fetch it
 // for ShellHook, that hook will be run with `--config` flag, returns and parses the config
-func (h *GlobalHook) InitializeHookConfig() (err error) {
-	switch hk := h.executableHook.(type) {
-	case *kind.GoHook:
-		cfg := hk.GetConfig()
-		err := h.config.LoadAndValidateGoConfig(cfg)
-		if err != nil {
-			return err
-		}
-
-	case *kind.ShellHook:
-		cfg, err := hk.GetConfig()
-		if err != nil {
-			return err
-		}
-		err = h.config.LoadAndValidateShellConfig(cfg)
-		if err != nil {
-			return err
-		}
-
-	case *kind.BatchHook:
-		cfg, err := hk.GetConfig()
-		if err != nil {
-			return err
-		}
-		err = h.config.LoadAndValidateBatchConfig(&cfg[hk.ID])
-		if err != nil {
-			return err
-		}
-
-	default:
-		return fmt.Errorf("unknown hook kind: %s", reflect.TypeOf(hk))
+func (h *GlobalHook) InitializeHookConfig() error {
+	err := h.config.LoadHookConfig(h.hookConfigLoader)
+	if err != nil {
+		return fmt.Errorf("load and validate hook config: %w", err)
 	}
 
 	// Make HookController and GetConfigDescription work.

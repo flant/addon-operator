@@ -14,16 +14,19 @@ import (
 // ModuleHook hook which belongs to some module
 type ModuleHook struct {
 	executableHook
+	hookConfigLoader
+
 	config *ModuleHookConfig
 }
 
 // NewModuleHook build new hook for a module
 //
 //	ex - some kind of executable hook (GoHook or ShellHook)
-func NewModuleHook(ex executableHook) *ModuleHook {
+func NewModuleHook(ex executableHookWithLoad) *ModuleHook {
 	return &ModuleHook{
-		executableHook: ex,
-		config:         &ModuleHookConfig{},
+		executableHook:   ex,
+		hookConfigLoader: ex,
+		config:           &ModuleHookConfig{},
 	}
 }
 
@@ -58,40 +61,10 @@ func (mh *ModuleHook) Order(binding shell_op_types.BindingType) float64 {
 // for GoHook config is precompiled, so we just have to fetch it
 // for ShellHook, that hook will be run with `--config` flag, returns and parses the config
 // for BatchHook, that hook will be run with `hook config` args, returns and parses the config
-func (mh *ModuleHook) InitializeHookConfig() (err error) {
-	switch hk := mh.executableHook.(type) {
-	case *kind.GoHook:
-		cfg := hk.GetConfig()
-
-		err := mh.config.LoadAndValidateGoConfig(cfg)
-		if err != nil {
-			return fmt.Errorf("load and validate go hook config: %w", err)
-		}
-
-	case *kind.ShellHook:
-		cfg, err := hk.GetConfig()
-		if err != nil {
-			return fmt.Errorf("get shell hook config: %w", err)
-		}
-
-		err = mh.config.LoadAndValidateShellConfig(cfg)
-		if err != nil {
-			return fmt.Errorf("load and validate shell hook config: %w", err)
-		}
-
-	case *kind.BatchHook:
-		cfg, err := hk.GetConfig()
-		if err != nil {
-			return fmt.Errorf("get batch hook config: %w", err)
-		}
-
-		err = mh.config.LoadAndValidateBatchConfig(&cfg[hk.ID])
-		if err != nil {
-			return fmt.Errorf("load and validate batch hook config: %w", err)
-		}
-
-	default:
-		return fmt.Errorf("unknown hook kind: %T", hk)
+func (mh *ModuleHook) InitializeHookConfig() error {
+	err := mh.config.LoadHookConfig(mh.hookConfigLoader)
+	if err != nil {
+		return fmt.Errorf("load and validate hook config: %w", err)
 	}
 
 	// Make HookController and GetConfigDescription work.
