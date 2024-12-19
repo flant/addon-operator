@@ -2,6 +2,7 @@ package dynamically_enabled
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -43,7 +44,8 @@ func (e *Extender) UpdateStatus(moduleName, operation string, value bool) {
 			e.sendNotify()
 		}
 	default:
-		log.Warnf("Unknown patch operation: %s", operation)
+		log.Warn("Unknown patch operation",
+			slog.String("operation", operation))
 	}
 	e.l.Unlock()
 }

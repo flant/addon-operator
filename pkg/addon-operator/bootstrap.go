@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
@@ -18,22 +19,24 @@ import (
 func (op *AddonOperator) bootstrap() error {
 	log.Info(shapp.AppStartMessage)
 
-	log.Infof("Search modules in: %s", app.ModulesDir)
+	log.Info("Search modules",
+		slog.String("path", app.ModulesDir))
 
-	log.Infof("Addon-operator namespace: %s", op.DefaultNamespace)
+	log.Info("Addon-operator namespace",
+		slog.String("namespace", op.DefaultNamespace))
 
 	// Debug server.
 	// TODO: rewrite shapp global variables to the addon-operator ones
 	var err error
 	op.DebugServer, err = shell_operator.RunDefaultDebugServer(shapp.DebugUnixSocket, shapp.DebugHttpServerAddr, op.Logger.Named("debug-server"))
 	if err != nil {
-		log.Errorf("Fatal: start Debug server: %s", err)
+		log.Error("Fatal: start Debug server", log.Err(err))
 		return fmt.Errorf("start Debug server: %w", err)
 	}
 
 	err = op.Assemble(op.DebugServer)
 	if err != nil {
-		log.Errorf("Fatal: %s", err)
+		log.Error("Fatal", log.Err(err))
 		return fmt.Errorf("assemble Debug server: %w", err)
 	}
 
@@ -68,7 +71,7 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) (err error) {
 // SetupKubeConfigManager sets manager, which reads configuration for Modules from a cluster
 func (op *AddonOperator) SetupKubeConfigManager(bk backend.ConfigHandler) {
 	if op.KubeConfigManager != nil {
-		log.Warnf("KubeConfigManager is already set")
+		log.Warn("KubeConfigManager is already set")
 		// return if kube config manager is already set
 		return
 	}

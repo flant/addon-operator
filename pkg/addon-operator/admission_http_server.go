@@ -3,6 +3,7 @@ package addon_operator
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path"
 	"time"
@@ -27,7 +28,8 @@ func NewAdmissionServer(listenPort, certsDir string) *AdmissionServer {
 
 func (as *AdmissionServer) RegisterHandler(route string, handler http.Handler) {
 	if _, ok := as.routes[route]; ok {
-		log.Fatalf("Route %q is already registered", route)
+		log.Fatal("Route is already registered",
+			slog.String("route", route))
 	}
 
 	as.routes[route] = handler
@@ -41,7 +43,8 @@ func (as *AdmissionServer) start(ctx context.Context) {
 		mux.Handle(route, handler)
 	}
 
-	log.Debugf("Registered admission routes: %v", as.routes)
+	log.Debug("Registered admission routes",
+		slog.String("routes", fmt.Sprintf("%v", as.routes)))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", as.listenPort),
@@ -67,7 +70,7 @@ func (as *AdmissionServer) start(ctx context.Context) {
 			cancel()
 		}()
 		if err := srv.Shutdown(ctx); err != nil {
-			log.Fatalf("Server Shutdown Failed:%+v", err)
+			log.Fatal("Server Shutdown Failed", log.Err(err))
 		}
 	}()
 }

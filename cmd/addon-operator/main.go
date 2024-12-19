@@ -95,11 +95,11 @@ func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
 	operator.SetupKubeConfigManager(bk)
 
 	if err := operator.Setup(); err != nil {
-		operator.Logger.Fatalf("setup failed: %s\n", err)
+		operator.Logger.Fatal("setup failed", log.Err(err))
 	}
 
 	if err := operator.Start(ctx); err != nil {
-		operator.Logger.Fatalf("start failed: %s\n", err)
+		operator.Logger.Fatal("start failed", log.Err(err))
 	}
 
 	// Block action by waiting signals from OS.

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,9 @@ func LoadValuesFileFromDir(dir string, strictModeEnabled bool) (Values, error) {
 	valuesFilePath := filepath.Join(dir, ValuesFileName)
 	valuesYaml, err := os.ReadFile(valuesFilePath)
 	if err != nil && os.IsNotExist(err) && !strictModeEnabled {
-		log.Debugf("No static values file '%s': %v", valuesFilePath, err)
+		log.Debug("No static values file",
+			slog.String("path", valuesFilePath),
+			log.Err(err))
 		return nil, nil
 	}
 	if err != nil {

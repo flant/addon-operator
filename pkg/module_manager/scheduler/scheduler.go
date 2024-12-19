@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -229,7 +230,8 @@ func (s *Scheduler) addWeightVertex(vertex *node.Node) error {
 func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	appliedExtenders := []extenders.ExtenderName{}
 	if len(extendersEnv) == 0 {
-		log.Warnf("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS variable isn't set - default list of %s will be applied", defaultAppliedExtenders)
+		log.Warn("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS variable isn't set - default list will be applied",
+			slog.Any("values", defaultAppliedExtenders))
 		appliedExtenders = defaultAppliedExtenders
 	} else {
 		availableExtenders := make(map[extenders.ExtenderName]bool, len(s.extenders))
@@ -280,7 +282,8 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 		finalList = append(finalList, e.ext.Name())
 	}
 
-	log.Infof("The list of applied module extenders: %s", finalList)
+	log.Info("The list of applied module extenders",
+		slog.Any("finalList", finalList))
 	return nil
 }
 
@@ -340,7 +343,7 @@ func (s *Scheduler) GetModuleNodes() ([]*node.Node, error) {
 
 // PrintSummary returns resulting consisting of all module-type vertices, their states and last applied extenders
 func (s *Scheduler) PrintSummary() (map[string]bool, error) {
-	result := make(map[string]bool, 0)
+	result := make(map[string]bool)
 	vertices, err := s.GetModuleNodes()
 	if err != nil {
 		return result, err
@@ -401,7 +404,7 @@ func (s *Scheduler) getEnabledModuleNamesByOrder(weights ...node.NodeWeight) (ma
 	if s.root == nil {
 		return nil, fmt.Errorf("graph is empty")
 	}
-	result := make(map[node.NodeWeight][]string, 0)
+	result := make(map[node.NodeWeight][]string)
 	var err error
 	switch {
 	// get modules of all weights
@@ -506,12 +509,13 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 
 	// graph hasn't been initialized yet
 	if s.enabledModules == nil {
-		logEntry.Infof("Module Scheduler: graph hasn't been calculated yet")
+		logEntry.Info("Module Scheduler: graph hasn't been calculated yet")
 		recalculateGraph = true
 	}
 
 	if len(s.errList) > 0 {
-		logEntry.Warnf("Module Scheduler: graph in a faulty state and will be recalculated: %s", strings.Join(s.errList, ","))
+		logEntry.Warn("Module Scheduler: graph in a faulty state and will be recalculated",
+			slog.String("error", strings.Join(s.errList, ",")))
 		recalculateGraph = true
 	}
 
@@ -586,7 +590,8 @@ outerCycle:
 
 				moduleStatus, err := e.ext.Filter(moduleName, logLabels)
 				if err != nil {
-					if permanent, ok := err.(*exerror.PermanentError); ok {
+					var permanent *exerror.PermanentError
+					if errors.As(err, &permanent) {
 						errList = append(errList, fmt.Sprintf("%s extender failed to filter %s module: %s", e.ext.Name(), moduleName, permanent.Error()))
 						break outerCycle
 					}
@@ -636,7 +641,8 @@ outerCycle:
 
 	if len(errList) > 0 {
 		s.errList = errList
-		logEntry.Warnf("Module Scheduler: Graph converge failed with errors: %s", strings.Join(s.errList, ","))
+		logEntry.Warn("Module Scheduler: Graph converge failed with errors",
+			slog.String("error", strings.Join(s.errList, ",")))
 		return true, updByDiff
 	}
 
@@ -668,7 +674,8 @@ outerCycle:
 	s.enabledModules = &enabledModules
 	// reset any previous errors
 	s.errList = make([]string, 0)
-	logEntry.Debugf("Graph was successfully updated, diff: [%v]", s.diff)
+	logEntry.Debug("Graph was successfully updated",
+		slog.String("diff", fmt.Sprintf("%v", s.diff)))
 
 	return len(diff) > 0, updByDiff
 }

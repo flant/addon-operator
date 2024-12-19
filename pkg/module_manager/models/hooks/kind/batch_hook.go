@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,7 +112,9 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 			err := os.Remove(f)
 			if err != nil {
 				sh.Hook.Logger.With("hook", sh.GetName()).
-					Errorf("Remove tmp file '%s': %s", f, err)
+					Error("Remove tmp file",
+						slog.String("file", f),
+						log.Err(err))
 			}
 		}
 	}()
@@ -299,7 +302,9 @@ func (sh *BatchHook) prepareConfigValuesJsonFile(moduleSafeName string, configVa
 		return "", err
 	}
 
-	sh.Hook.Logger.Debugf("Prepared module %s hook config values:\n%s", moduleSafeName, configValues.DebugString())
+	sh.Hook.Logger.Debug("Prepared module hook config values",
+		slog.String("module", moduleSafeName),
+		slog.String("values", configValues.DebugString()))
 
 	return path, nil
 }
@@ -316,7 +321,9 @@ func (sh *BatchHook) prepareValuesJsonFile(moduleSafeName string, values utils.V
 		return "", err
 	}
 
-	sh.Hook.Logger.Debugf("Prepared module %s hook values:\n%s", moduleSafeName, values.DebugString())
+	sh.Hook.Logger.Debug("Prepared module hook values",
+		slog.String("module", moduleSafeName),
+		slog.String("values", values.DebugString()))
 
 	return path, nil
 }

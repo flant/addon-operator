@@ -3,6 +3,7 @@ package helm_resources_manager
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"k8s.io/apimachinery/pkg/labels"
@@ -103,7 +104,8 @@ func (hm *helmResourcesManager) Ch() chan ReleaseStatusEvent {
 }
 
 func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, lastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
-	log.Debugf("Start helm resources monitor for '%s'", moduleName)
+	log.Debug("Start helm resources monitor for module",
+		slog.String("module", moduleName))
 	hm.StopMonitor(moduleName)
 
 	cfg := &ResourceMonitorConfig{
@@ -125,9 +127,13 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 }
 
 func (hm *helmResourcesManager) absentResourcesCallback(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string) {
-	log.Debugf("Detect absent resources for %s", moduleName)
+	log.Debug("Detect absent resources for module",
+		slog.String("module", moduleName))
 	for _, m := range absent {
-		log.Debugf("%s/%s/%s", m.Namespace(defaultNs), m.Kind(), m.Name())
+		log.Debug("absent module",
+			slog.String("namespace", m.Namespace(defaultNs)),
+			slog.String("kind", m.Kind()),
+			slog.String("module", m.Name()))
 	}
 	hm.eventCh <- ReleaseStatusEvent{
 		ModuleName:       moduleName,
