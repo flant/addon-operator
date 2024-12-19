@@ -214,6 +214,7 @@ func (h *BatchHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 	hcv1 := remapHookConfigV1FromHookConfig(h.config)
 
 	cfg := new(config.HookConfig)
+	cfg.V1 = hcv1
 
 	err = hcv1.ConvertAndCheck(cfg)
 	if err != nil {
