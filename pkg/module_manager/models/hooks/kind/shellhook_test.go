@@ -102,7 +102,7 @@ afterAll: 10
 		t.Run(tt.meta.name, func(t *testing.T) {
 			t.Parallel()
 
-			filename := fmt.Sprintf("./%d-%s-hook.sh", time.Now().Nanosecond(), tt.meta.name)
+			filename := fmt.Sprintf("./%d-%s-hook.sh", time.Now().Nanosecond(), strings.ReplaceAll(tt.meta.name, " ", "-"))
 
 			shHook := &kind.ShellHook{
 				Hook: hook.Hook{
@@ -112,7 +112,7 @@ afterAll: 10
 				ScheduleConfig: &kind.HookScheduleConfig{},
 			}
 
-			fileContent := `#!/bin/sh
+			fileContent := `#!/bin/bash
 if [[ "${1:-}" == "--config" ]] ; then
 echo '` + strings.ReplaceAll(tt.args.data, "\n", "'\n echo '") + `'
 exit 0
@@ -313,7 +313,7 @@ afterDeleteHelm: 18
 		t.Run(tt.meta.name, func(t *testing.T) {
 			t.Parallel()
 
-			filename := fmt.Sprintf("./%d-%s-hook.sh", time.Now().Nanosecond(), tt.meta.name)
+			filename := fmt.Sprintf("./%d-%s-hook.sh", time.Now().Nanosecond(), strings.ReplaceAll(tt.meta.name, " ", "-"))
 
 			shHook := &kind.ShellHook{
 				Hook: hook.Hook{
@@ -323,7 +323,7 @@ afterDeleteHelm: 18
 				ScheduleConfig: &kind.HookScheduleConfig{},
 			}
 
-			fileContent := `#!/bin/sh
+			fileContent := `#!/bin/bash
 if [[ "${1:-}" == "--config" ]] ; then
 echo '` + strings.ReplaceAll(tt.args.data, "\n", "'\n echo '") + `'
 exit 0

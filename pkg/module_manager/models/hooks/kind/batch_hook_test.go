@@ -102,7 +102,7 @@ func Test_BatchHook_Config(t *testing.T) {
 		t.Run(tt.meta.name, func(t *testing.T) {
 			t.Parallel()
 
-			filename := fmt.Sprintf("./%d-%s-hook.sh", time.Now().Nanosecond(), tt.meta.name)
+			filename := fmt.Sprintf("./%d-%s-hook.sh", time.Now().Nanosecond(), strings.ReplaceAll(tt.meta.name, " ", "-"))
 
 			bHook := &kind.BatchHook{
 				Hook: hook.Hook{
@@ -111,7 +111,7 @@ func Test_BatchHook_Config(t *testing.T) {
 				},
 			}
 
-			err := os.WriteFile(filename, []byte(`#!/bin/sh
+			err := os.WriteFile(filename, []byte(`#!/bin/bash
 if [[ "${1:-}" == "hook" && "${2:-}" == "config" ]] ; then
 echo '`+strings.ReplaceAll(tt.args.data, "\n", "'\n echo '")+`'
 exit 0
