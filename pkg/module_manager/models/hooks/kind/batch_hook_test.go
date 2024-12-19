@@ -118,7 +118,7 @@ exit 0
 fi
 `), 0o777)
 			defer func() {
-				// os.Remove(filename)
+				os.Remove(filename)
 			}()
 			assert.NoError(t, err)
 
