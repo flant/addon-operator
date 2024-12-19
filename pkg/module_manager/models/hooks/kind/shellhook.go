@@ -41,6 +41,7 @@ func NewShellHook(name, path string, keepTemporaryHookFiles bool, logProxyHookJS
 			LogProxyHookJSON:       logProxyHookJSON,
 			Logger:                 logger,
 		},
+		ScheduleConfig: &HookScheduleConfig{},
 	}
 }
 
@@ -239,6 +240,7 @@ func (sh *ShellHook) GetConfigForModule(moduleKind string) (*config.HookConfig, 
 		return nil, err
 	}
 
+	sh.Config = cfg
 	sh.ScheduleConfig = &HookScheduleConfig{}
 	err = yaml.Unmarshal(cfgData, sh.ScheduleConfig)
 	if err != nil {
