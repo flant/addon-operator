@@ -102,7 +102,7 @@ func Test_BatchHook_Config(t *testing.T) {
 		t.Run(tt.meta.name, func(t *testing.T) {
 			t.Parallel()
 
-			filename := fmt.Sprintf("./%d-hook.sh", time.Now().Nanosecond())
+			filename := fmt.Sprintf("./%d-%s-hook.sh", time.Now().Nanosecond(), tt.meta.name)
 
 			bHook := &kind.BatchHook{
 				Hook: hook.Hook{
