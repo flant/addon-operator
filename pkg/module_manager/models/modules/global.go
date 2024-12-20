@@ -548,7 +548,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 			}
 		}
 
-		globalHook := kind.NewShellHook(hookName, hookPath, gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
+		globalHook := kind.NewShellHook(hookName, hookPath, "global", gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
 
 		hks = append(hks, globalHook)
 	}
@@ -600,7 +600,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 
 		for idx, cfg := range sdkcfgs {
 			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}

@@ -30,6 +30,7 @@ import (
 var _ gohook.HookConfigLoader = (*BatchHook)(nil)
 
 type BatchHook struct {
+	moduleName string
 	sh_hook.Hook
 	// hook ID in batch
 	ID     uint
@@ -37,8 +38,9 @@ type BatchHook struct {
 }
 
 // NewBatchHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewBatchHook(name, path string, id uint, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+func NewBatchHook(name, path, moduleName string, id uint, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
 	return &BatchHook{
+		moduleName: moduleName,
 		Hook: sh_hook.Hook{
 			Name:                   name,
 			Path:                   path,
@@ -143,7 +145,8 @@ func (h *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bind
 		envs).
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(h.LogProxyHookJSONKey).
-		WithLogger(h.Logger.Named("executor"))
+		WithLogger(h.Logger.Named("executor")).
+		WithChroot(utils.GetModuleChrootPath(h.moduleName))
 
 	usage, err := cmd.RunAndLogLines(logLabels)
 	result.Usage = usage

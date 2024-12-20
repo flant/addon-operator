@@ -18,6 +18,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	environmentmanager "github.com/flant/addon-operator/pkg/module_manager/environment_manager"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/loader"
 	"github.com/flant/addon-operator/pkg/module_manager/loader/fs"
@@ -71,6 +72,7 @@ type DirectoryConfig struct {
 	ModulesDir     string
 	GlobalHooksDir string
 	TempDir        string
+	ChrootDir      string
 }
 
 type KubeConfigManager interface {
@@ -114,9 +116,6 @@ type ModuleManager struct {
 	// Dependencies.
 	dependencies *ModuleManagerDependencies
 
-	// All known modules from specified directories ($MODULES_DIR)
-	modules *moduleset.ModulesSet
-
 	global *modules.GlobalModule
 
 	globalSynchronizationState *modules.SynchronizationState
@@ -131,7 +130,13 @@ type ModuleManager struct {
 
 	moduleScheduler *scheduler.Scheduler
 
+	environmentManager *environmentmanager.Manager
+
 	logger *log.Logger
+
+	l sync.Mutex
+	// All known modules from specified directories ($MODULES_DIR)
+	modules *moduleset.ModulesSet
 }
 
 var once sync.Once
@@ -143,7 +148,7 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig, logger *log
 	// default loader, maybe we can register another one on startup
 	fsLoader := fs.NewFileSystemLoader(cfg.DirectoryConfig.ModulesDir, logger.Named("file-system-loader"))
 
-	return &ModuleManager{
+	mm := &ModuleManager{
 		ctx:    cctx,
 		cancel: cancel,
 
@@ -164,6 +169,20 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig, logger *log
 		moduleScheduler: scheduler.NewScheduler(cctx, logger.Named("scheduler")),
 
 		logger: logger,
+	}
+
+	if len(cfg.DirectoryConfig.ChrootDir) > 0 {
+		mm.environmentManager = environmentmanager.NewManager(cfg.DirectoryConfig.ChrootDir, mm.logger)
+	}
+
+	return mm
+}
+
+// AddObjectsToChrootEnvironment sets the list of objects to implement in the modules' chroot directories
+func (mm *ModuleManager) AddObjectsToChrootEnvironment(objects ...environmentmanager.ObjectDescriptor) {
+	if mm.EnvironmentManagerEnabled() {
+		mm.logger.Debug("Add objects to the module's chroot environment")
+		mm.environmentManager.AddObjectsToEnvironment(objects...)
 	}
 }
 
@@ -639,7 +658,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 	// Unregister module hooks.
 	ml.DeregisterHooks()
 
-	return nil
+	return ml.DisassembleEnvironmentForModule()
 }
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
@@ -1007,6 +1026,8 @@ func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bo
 
 // AreModulesInited returns true if modulemanager's moduleset has already been initialized
 func (mm *ModuleManager) AreModulesInited() bool {
+	mm.l.Lock()
+	defer mm.l.Unlock()
 	return mm.modules.IsInited()
 }
 
@@ -1267,13 +1288,13 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 
 	set := &moduleset.ModulesSet{}
 
-	// load and registry global hooks
 	dep := &hooks.HookExecutionDependencyContainer{
 		HookMetricsStorage: mm.dependencies.HookMetricStorage,
 		KubeConfigManager:  mm.dependencies.KubeConfigManager,
 		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
 		MetricStorage:      mm.dependencies.MetricStorage,
 		GlobalValuesGetter: mm.global,
+		EnvironmentManager: mm.environmentManager,
 	}
 
 	for _, mod := range mods {
@@ -1285,12 +1306,12 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		}
 
 		mod.WithDependencies(dep)
-
 		set.Add(mod)
-		err := mm.moduleScheduler.AddModuleVertex(mod)
-		if err != nil {
-			return err
+
+		if err := mm.moduleScheduler.AddModuleVertex(mod); err != nil {
+			return fmt.Errorf("add module vertex: %w", err)
 		}
+
 		scriptEnabledExtender.AddBasicModule(mod)
 
 		mm.SendModuleEvent(events.ModuleEvent{
@@ -1302,7 +1323,9 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 	log.Debug("Found modules",
 		slog.Any("modules", set.NamesInOrder()))
 
+	mm.l.Lock()
 	mm.modules = set
+	mm.l.Unlock()
 
 	return nil
 }
@@ -1330,6 +1353,10 @@ func (mm *ModuleManager) SchedulerEventCh() chan extenders.ExtenderEvent {
 
 func (mm *ModuleManager) ModuleHasCRDs(moduleName string) bool {
 	return mm.GetModule(moduleName).CRDExist()
+}
+
+func (mm *ModuleManager) EnvironmentManagerEnabled() bool {
+	return mm.environmentManager != nil
 }
 
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
