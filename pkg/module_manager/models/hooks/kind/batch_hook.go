@@ -13,6 +13,7 @@ import (
 	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/gofrs/uuid/v5"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/utils"
 	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -135,7 +136,8 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		envs).
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
-		WithLogger(sh.Logger.Named("executor"))
+		WithLogger(sh.Logger.Named("executor")).
+		WithChroot(app.ShellChrootDir)
 
 	usage, err := cmd.RunAndLogLines(logLabels)
 	result.Usage = usage
