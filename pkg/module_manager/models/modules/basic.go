@@ -628,7 +628,9 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		[]string{},
 		envs).
 		WithLogger(bm.logger.Named("executor")).
-		WithCMDStdout(nil)
+		WithCMDStdout(nil).
+		WithChroot(app.ShellChrootDir).
+		WithWrapper(app.ShellWrapper)
 
 	usage, err := cmd.RunAndLogLines(logLabels)
 	if usage != nil {

@@ -24,6 +24,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
+	mountmanager "github.com/flant/addon-operator/pkg/module_manager/mount_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
@@ -71,6 +72,7 @@ type DirectoryConfig struct {
 	ModulesDir     string
 	GlobalHooksDir string
 	TempDir        string
+	ChrootDir      string
 }
 
 type KubeConfigManager interface {
@@ -131,6 +133,8 @@ type ModuleManager struct {
 
 	moduleScheduler *scheduler.Scheduler
 
+	mountManager *mountmanager.Manager
+
 	logger *log.Logger
 }
 
@@ -143,7 +147,7 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig, logger *log
 	// default loader, maybe we can register another one on startup
 	fsLoader := fs.NewFileSystemLoader(cfg.DirectoryConfig.ModulesDir, logger.Named("file-system-loader"))
 
-	return &ModuleManager{
+	mm := &ModuleManager{
 		ctx:    cctx,
 		cancel: cancel,
 
@@ -164,6 +168,19 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig, logger *log
 		moduleScheduler: scheduler.NewScheduler(cctx, logger.Named("scheduler")),
 
 		logger: logger,
+	}
+
+	if len(cfg.DirectoryConfig.ChrootDir) > 0 {
+		mm.mountManager = mountmanager.NewManager(cfg.DirectoryConfig.ChrootDir)
+	}
+
+	return mm
+}
+
+// SetRequiredMounts sets the list of directories to mount into the chroot directory
+func (mm *ModuleManager) SetRequiredMounts(dirs ...string) {
+	if mm.mountManager != nil {
+		mm.mountManager.AddDirsToMount(dirs...)
 	}
 }
 
@@ -1269,6 +1286,12 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		mod.WithDependencies(dep)
 
 		set.Add(mod)
+		if mm.mountManager != nil {
+			if err := mm.mountManager.PrepareMountsForModule(mod.GetName()); err != nil {
+				return err
+			}
+		}
+
 		err := mm.moduleScheduler.AddModuleVertex(mod)
 		if err != nil {
 			return err

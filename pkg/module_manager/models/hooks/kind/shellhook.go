@@ -9,6 +9,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 
+	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/utils"
 	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -125,7 +126,9 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		envs).
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
-		WithLogger(sh.Logger.Named("executor"))
+		WithLogger(sh.Logger.Named("executor")).
+		WithChroot(app.ShellChrootDir).
+		WithWrapper(app.ShellWrapper)
 
 	usage, err := cmd.RunAndLogLines(logLabels)
 	result.Usage = usage
@@ -174,7 +177,9 @@ func (sh *ShellHook) getConfig() (configOutput []byte, err error) {
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
-		WithCMDStdout(nil)
+		WithCMDStdout(nil).
+		WithChroot(app.ShellChrootDir).
+		WithWrapper(app.ShellWrapper)
 
 	sh.Hook.Logger.Debugf("Executing hook in: '%s'", strings.Join(args, " "))
 

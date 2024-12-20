@@ -9,8 +9,8 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.2.2
-	github.com/flant/shell-operator v0.0.0-20241209162655-7e40c61f7666
-	github.com/go-chi/chi/v5 v5.1.0
+	github.com/flant/shell-operator v0.0.0-20241226064644-82c605caf9ba
+	github.com/go-chi/chi/v5 v5.2.0
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
@@ -21,7 +21,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
-	github.com/onsi/gomega v1.35.1
+	github.com/onsi/gomega v1.36.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.14.4
