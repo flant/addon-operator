@@ -260,17 +260,11 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 	/*** A HUGE copy paste from shell-operator’s hook_config.ConvertAndCheckV1   ***/
 	// WARNING no checks and defaults!
 	for i, kubeCfg := range input.Kubernetes {
-		// err := c.CheckOnKubernetesEventV1(kubeCfg, fmt.Sprintf("kubernetes[%d]", i))
-		// if err != nil {
-		//	return fmt.Errorf("invalid kubernetes config [%d]: %v", i, err)
-		//}
-
 		monitor := &kubeeventsmanager.MonitorConfig{}
 		monitor.Metadata.DebugName = config.MonitorDebugName(kubeCfg.Name, i)
 		monitor.Metadata.MonitorId = config.MonitorConfigID()
 		monitor.Metadata.LogLabels = map[string]string{}
 		monitor.Metadata.MetricLabels = map[string]string{}
-		// monitor.WithMode(kubeCfg.Mode)
 		monitor.ApiVersion = kubeCfg.ApiVersion
 		monitor.Kind = kubeCfg.Kind
 		monitor.WithNameSelector(kubeCfg.NameSelector)
@@ -313,24 +307,10 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		c.OnKubernetesEvents = append(c.OnKubernetesEvents, kubeConfig)
 	}
 
-	// for i, kubeCfg := range c.V1.OnKubernetesEvent {
-	//	if len(kubeCfg.IncludeSnapshotsFrom) > 0 {
-	//		err := c.CheckIncludeSnapshots(kubeCfg.IncludeSnapshotsFrom...)
-	//		if err != nil {
-	//			return fmt.Errorf("invalid kubernetes config [%d]: includeSnapshots %v", i, err)
-	//		}
-	//	}
-	//}
-
 	// schedule bindings with includeSnapshotsFrom
 	// are depend on kubernetes bindings.
 	c.Schedules = []htypes.ScheduleConfig{}
 	for _, inSch := range input.Schedule {
-		// err := c.CheckScheduleV1(rawSchedule)
-		// if err != nil {
-		//	return fmt.Errorf("invalid schedule config [%d]: %v", i, err)
-		//}
-
 		res := htypes.ScheduleConfig{}
 
 		if inSch.Name == "" {
@@ -351,10 +331,6 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		}
 		res.Group = "main"
 
-		// schedule, err := c.ConvertScheduleV1(rawSchedule)
-		// if err != nil {
-		//	return err
-		//}
 		c.Schedules = append(c.Schedules, res)
 	}
 
