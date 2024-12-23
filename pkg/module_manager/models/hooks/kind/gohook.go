@@ -2,8 +2,11 @@ package kind
 
 import (
 	"context"
+	"errors"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
@@ -12,8 +15,19 @@ import (
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
+	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
+	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube_events_manager"
+	eventtypes "github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	schdulertypes "github.com/flant/shell-operator/pkg/schedule_manager/types"
 )
+
+const (
+	defaultHookGroupName = "main"
+	defaultHookQueueName = "main"
+)
+
+var _ gohook.HookConfigLoader = (*GoHook)(nil)
 
 type GoHook struct {
 	basicHook sh_hook.Hook
@@ -172,3 +186,184 @@ func (h *GoHook) GetKind() HookKind {
 
 // ReconcileFunc function which holds the main logic of the hook
 type ReconcileFunc func(input *gohook.HookInput) error
+
+// LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
+func (h *GoHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
+	ghcfg, err := newHookConfigFromGoConfig(h.config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ghcfg, nil
+}
+
+func (h *GoHook) GetOnStartup() *float64 {
+	if h.config.OnStartup != nil {
+		return &h.config.OnStartup.Order
+	}
+
+	return nil
+}
+
+func (h *GoHook) GetBeforeAll() *float64 {
+	if h.config.OnBeforeAll != nil {
+		return &h.config.OnBeforeAll.Order
+	}
+
+	if h.config.OnBeforeHelm != nil {
+		return &h.config.OnBeforeHelm.Order
+	}
+
+	return nil
+}
+
+func (h *GoHook) GetAfterAll() *float64 {
+	if h.config.OnAfterAll != nil {
+		return &h.config.OnAfterAll.Order
+	}
+
+	if h.config.OnAfterHelm != nil {
+		return &h.config.OnAfterHelm.Order
+	}
+
+	return nil
+}
+
+func (h *GoHook) GetAfterDeleteHelm() *float64 {
+	if h.config.OnAfterDeleteHelm != nil {
+		return &h.config.OnAfterDeleteHelm.Order
+	}
+
+	return nil
+}
+
+func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, error) {
+	c := config.HookConfig{
+		Version:            "v1",
+		Schedules:          []htypes.ScheduleConfig{},
+		OnKubernetesEvents: []htypes.OnKubernetesEventConfig{},
+	}
+
+	if input.Settings != nil {
+		c.Settings = &htypes.Settings{
+			ExecutionMinInterval: input.Settings.ExecutionMinInterval,
+			ExecutionBurst:       input.Settings.ExecutionBurst,
+		}
+	}
+
+	if input.OnStartup != nil {
+		c.OnStartup = &htypes.OnStartupConfig{}
+		c.OnStartup.BindingName = string(htypes.OnStartup)
+		c.OnStartup.Order = input.OnStartup.Order
+	}
+
+	/*** A HUGE copy paste from shell-operator’s hook_config.ConvertAndCheckV1   ***/
+	// WARNING no checks and defaults!
+	for i, kubeCfg := range input.Kubernetes {
+		monitor := &kubeeventsmanager.MonitorConfig{}
+		monitor.Metadata.DebugName = config.MonitorDebugName(kubeCfg.Name, i)
+		monitor.Metadata.MonitorId = config.MonitorConfigID()
+		monitor.Metadata.LogLabels = map[string]string{}
+		monitor.Metadata.MetricLabels = map[string]string{}
+		monitor.ApiVersion = kubeCfg.ApiVersion
+		monitor.Kind = kubeCfg.Kind
+		monitor.WithNameSelector(kubeCfg.NameSelector)
+		monitor.WithFieldSelector(kubeCfg.FieldSelector)
+		monitor.WithNamespaceSelector(kubeCfg.NamespaceSelector)
+		monitor.WithLabelSelector(kubeCfg.LabelSelector)
+		if kubeCfg.FilterFunc == nil {
+			return config.HookConfig{}, errors.New(`"FilterFunc" in KubernetesConfig cannot be nil`)
+		}
+		filterFunc := kubeCfg.FilterFunc
+		monitor.FilterFunc = func(obj *unstructured.Unstructured) (interface{}, error) {
+			return filterFunc(obj)
+		}
+		if gohook.BoolDeref(kubeCfg.ExecuteHookOnEvents, true) {
+			monitor.WithEventTypes(nil)
+		} else {
+			monitor.WithEventTypes([]eventtypes.WatchEventType{})
+		}
+
+		kubeConfig := htypes.OnKubernetesEventConfig{}
+		kubeConfig.Monitor = monitor
+		kubeConfig.AllowFailure = input.AllowFailure
+		if kubeCfg.Name == "" {
+			return c, spew.Errorf(`"name" is a required field in binding: %v`, kubeCfg)
+		}
+		kubeConfig.BindingName = kubeCfg.Name
+		if input.Queue == "" {
+			kubeConfig.Queue = defaultHookQueueName
+		} else {
+			kubeConfig.Queue = input.Queue
+		}
+		kubeConfig.Group = defaultHookGroupName
+
+		kubeConfig.ExecuteHookOnSynchronization = gohook.BoolDeref(kubeCfg.ExecuteHookOnSynchronization, true)
+		kubeConfig.WaitForSynchronization = gohook.BoolDeref(kubeCfg.WaitForSynchronization, true)
+
+		kubeConfig.KeepFullObjectsInMemory = false
+		kubeConfig.Monitor.KeepFullObjectsInMemory = false
+
+		c.OnKubernetesEvents = append(c.OnKubernetesEvents, kubeConfig)
+	}
+
+	// schedule bindings with includeSnapshotsFrom
+	// are depend on kubernetes bindings.
+	c.Schedules = []htypes.ScheduleConfig{}
+	for _, inSch := range input.Schedule {
+		res := htypes.ScheduleConfig{}
+
+		if inSch.Name == "" {
+			return c, spew.Errorf(`"name" is a required field in binding: %v`, inSch)
+		}
+		res.BindingName = inSch.Name
+
+		res.AllowFailure = input.AllowFailure
+		res.ScheduleEntry = schdulertypes.ScheduleEntry{
+			Crontab: inSch.Crontab,
+			Id:      config.ScheduleID(),
+		}
+
+		if input.Queue == "" {
+			res.Queue = "main"
+		} else {
+			res.Queue = input.Queue
+		}
+		res.Group = "main"
+
+		c.Schedules = append(c.Schedules, res)
+	}
+
+	// Update IncludeSnapshotsFrom for every binding with a group.
+	// Merge binding's IncludeSnapshotsFrom with snapshots list calculated for group.
+	groupSnapshots := make(map[string][]string)
+	for _, kubeCfg := range c.OnKubernetesEvents {
+		if kubeCfg.Group == "" {
+			continue
+		}
+		if _, ok := groupSnapshots[kubeCfg.Group]; !ok {
+			groupSnapshots[kubeCfg.Group] = make([]string, 0)
+		}
+		groupSnapshots[kubeCfg.Group] = append(groupSnapshots[kubeCfg.Group], kubeCfg.BindingName)
+	}
+	newKubeEvents := make([]htypes.OnKubernetesEventConfig, 0)
+	for _, cfg := range c.OnKubernetesEvents {
+		if snapshots, ok := groupSnapshots[cfg.Group]; ok {
+			cfg.IncludeSnapshotsFrom = config.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
+		}
+		newKubeEvents = append(newKubeEvents, cfg)
+	}
+	c.OnKubernetesEvents = newKubeEvents
+	newSchedules := make([]htypes.ScheduleConfig, 0)
+	for _, cfg := range c.Schedules {
+		if snapshots, ok := groupSnapshots[cfg.Group]; ok {
+			cfg.IncludeSnapshotsFrom = config.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
+		}
+		newSchedules = append(newSchedules, cfg)
+	}
+	c.Schedules = newSchedules
+
+	/*** END Copy Paste ***/
+
+	return c, nil
+}
