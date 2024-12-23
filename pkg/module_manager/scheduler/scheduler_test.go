@@ -5,14 +5,17 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/dominikbraun/graph"
+	"github.com/dominikbraun/graph/draw"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	extender_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/mock"
@@ -158,9 +161,11 @@ func TestGetEnabledModuleNamesByOrder(t *testing.T) {
 nodeLocalDnsEnabled: true
 certManagerEnabled: true
 prometheusEnabled: true
+prometheusCrdEnabled: true
 istioEnabled: true
 admissionPolicyEngineEnabled: true
 kubeDnsEnabled: false
+operatorTrivyEnabled: true
 `
 	logLabels := map[string]string{"source": "TestGetEnabledModuleNamesByOrder"}
 	basicModules := []*node_mock.MockModule{
@@ -177,6 +182,10 @@ kubeDnsEnabled: false
 			Order: 20,
 		},
 		{
+			Name:  "prometheus-crd",
+			Order: 10,
+		},
+		{
 			Name:  "prometheus",
 			Order: 20,
 		},
@@ -191,6 +200,10 @@ kubeDnsEnabled: false
 		{
 			Name:  "admission-policy-engine",
 			Order: 402,
+		},
+		{
+			Name:  "operator-trivy",
+			Order: 5,
 		},
 	}
 
@@ -209,6 +222,9 @@ kubeDnsEnabled: false
 	err = s.AddExtender(se)
 	require.NoError(t, err)
 
+	err = s.AddExtender(&extender_mock.TopologicalOne{})
+	require.NoError(t, err)
+
 	for _, m := range basicModules {
 		err := s.AddModuleVertex(m)
 		assert.NoError(t, err)
@@ -219,35 +235,21 @@ kubeDnsEnabled: false
 
 	_, _ = s.RecalculateGraph(logLabels)
 
+	file, _ := os.Create("./mygraph.gv")
+	_ = draw.DOT(s.dag, file)
+
 	// get all enabled modules by order case
 	enabledModules, err := s.getEnabledModuleNamesByOrder()
-	assert.NoError(t, err)
-	expected := map[node.NodeWeight][]string{
-		node.NodeWeight(20):  {"istio", "node-local-dns", "prometheus"},
-		node.NodeWeight(30):  {"cert-manager"},
-		node.NodeWeight(402): {"admission-policy-engine"},
+	for _, v := range enabledModules {
+		slices.Sort(v)
 	}
-	assert.Equal(t, expected, enabledModules)
-
-	// get all enabled modules for a nonexistent order
-	_, err = s.getEnabledModuleNamesByOrder(node.NodeWeight(555), node.NodeWeight(20))
-	assert.Error(t, err)
-	assert.Equal(t, errors.New("vertex not found"), err)
-
-	// get all enabled modules for an existent order
-	enabledModules, err = s.getEnabledModuleNamesByOrder(node.NodeWeight(20))
 	assert.NoError(t, err)
-	expected = map[node.NodeWeight][]string{
-		node.NodeWeight(20): {"istio", "node-local-dns", "prometheus"},
-	}
-	assert.Equal(t, expected, enabledModules)
-
-	// get all enabled modules for several orders
-	enabledModules, err = s.getEnabledModuleNamesByOrder(node.NodeWeight(402), node.NodeWeight(30))
-	assert.NoError(t, err)
-	expected = map[node.NodeWeight][]string{
-		node.NodeWeight(30):  {"cert-manager"},
-		node.NodeWeight(402): {"admission-policy-engine"},
+	expected := [][]string{
+		{"prometheus-crd"},
+		{"istio", "node-local-dns", "prometheus"},
+		{"cert-manager"},
+		{"admission-policy-engine"},
+		{"operator-trivy"},
 	}
 	assert.Equal(t, expected, enabledModules)
 
@@ -326,6 +328,10 @@ certManagerEnabled: true
 func TestAddModuleVertex(t *testing.T) {
 	var nodePtr *node.Node
 	s := NewScheduler(context.TODO(), log.NewNop())
+
+	err := s.AddExtender(&extender_mock.TopologicalOne{})
+	require.NoError(t, err)
+
 	// no root
 	assert.Equal(t, nodePtr, s.root)
 	basicModuleIngress := &node_mock.MockModule{
@@ -333,7 +339,7 @@ func TestAddModuleVertex(t *testing.T) {
 		Order: 402,
 	}
 
-	err := s.AddModuleVertex(basicModuleIngress)
+	err = s.AddModuleVertex(basicModuleIngress)
 	assert.NoError(t, err)
 
 	// new module vertex is in place
@@ -422,21 +428,70 @@ func TestAddModuleVertex(t *testing.T) {
 	err = s.AddModuleVertex(basicModuleFoo)
 	assert.NoError(t, err)
 
-	weightVertexFoo, err := s.dag.Vertex(basicModuleFoo.GetName())
+	vertexFoo, err := s.dag.Vertex(basicModuleFoo.GetName())
 	assert.NoError(t, err)
 
-	_, err = s.dag.Edge(weightVertexFoo.GetWeight().String(), basicModuleFoo.GetName())
+	weightVertexFoo, err := s.dag.Vertex(vertexFoo.GetWeight().String())
 	assert.NoError(t, err)
 
-	_, err = s.dag.Edge(weightVertexAPE.GetWeight().String(), weightVertexFoo.GetWeight().String())
+	_, err = s.dag.Edge(weightVertexFoo.GetName(), basicModuleFoo.GetName())
 	assert.NoError(t, err)
 
-	_, err = s.dag.Edge(weightVertexFoo.GetWeight().String(), weightVertexIngress.GetWeight().String())
+	_, err = s.dag.Edge(weightVertexAPE.GetWeight().String(), weightVertexFoo.GetName())
 	assert.NoError(t, err)
 
-	_, err = s.dag.Edge(weightVertexAPE.GetWeight().String(), weightVertexIngress.GetWeight().String())
+	_, err = s.dag.Edge(weightVertexFoo.GetName(), weightVertexIngress.GetName())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(weightVertexAPE.GetName(), weightVertexIngress.GetName())
 	assert.Error(t, err)
 	assert.Equal(t, graph.ErrEdgeNotFound, err)
+
+	// new vertex with topological hints, dependent on "foo" and "bar" vertices
+	basicModuleFooBar := &node_mock.MockModule{
+		Name:  "foobar",
+		Order: 400,
+	}
+
+	err = s.AddModuleVertex(basicModuleFooBar)
+	assert.NoError(t, err)
+
+	vertexFooBar, err := s.dag.Vertex(basicModuleFooBar.GetName())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Vertex(vertexFooBar.GetWeight().String())
+	assert.Error(t, err)
+	assert.Equal(t, graph.ErrVertexNotFound, err)
+
+	_, err = s.dag.Edge(vertexFoo.GetName(), vertexFooBar.GetName())
+	assert.NoError(t, err)
+
+	// missing hint (vertex "bar" doesn't exist) is kept in the store
+	assert.Equal(t, s.topologicalHints, map[extenders.ExtenderName]map[string][]string{"TopologicalOne": {"bar": []string{"foobar"}}})
+
+	// new missing vertex - bar
+	basicModuleBar := &node_mock.MockModule{
+		Name:  "bar",
+		Order: 900,
+	}
+
+	err = s.AddModuleVertex(basicModuleBar)
+	assert.NoError(t, err)
+
+	vertexBar, err := s.dag.Vertex(basicModuleBar.GetName())
+	assert.NoError(t, err)
+
+	weightVertexBar, err := s.dag.Vertex(vertexBar.GetWeight().String())
+	assert.NoError(t, err)
+
+	_, err = s.dag.Edge(weightVertexBar.GetName(), basicModuleBar.GetName())
+	assert.NoError(t, err)
+
+	// hint store has to be empty
+	assert.Equal(t, s.topologicalHints, map[extenders.ExtenderName]map[string][]string{"TopologicalOne": {}})
+
+	_, err = s.dag.Edge(vertexBar.GetName(), vertexFooBar.GetName())
+	assert.NoError(t, err)
 }
 
 func TestSetExtendersMeta(t *testing.T) {
@@ -585,7 +640,7 @@ kubeDnsEnabled: false
 		"kube-dns",
 	}
 
-	summary, err := s.PrintSummary()
+	summary, err := s.printSummary()
 	assert.NoError(t, err)
 
 	assert.Equal(t, expectedSummary, summary)
@@ -612,7 +667,7 @@ kubeDnsEnabled: false
 	_, _, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
-	summary, err = s.PrintSummary()
+	summary, err = s.printSummary()
 	assert.NoError(t, err)
 
 	assert.Equal(t, expectedSummary, summary)
@@ -646,7 +701,7 @@ kubeDnsEnabled: false
 	_, _, diff, err = s.GetGraphState(logLabels)
 	assert.NoError(t, err)
 
-	summary, err = s.PrintSummary()
+	summary, err = s.printSummary()
 	assert.NoError(t, err)
 
 	assert.Equal(t, expectedSummary, summary)
@@ -659,6 +714,7 @@ kubeDnsEnabled: false
 }
 
 func TestRecalculateGraph(t *testing.T) {
+	// initial values
 	values := `
 # Default global values section
 # todo remove duplicate config values they should be in global-hooks/openapi/config-values.yaml only
@@ -680,6 +736,8 @@ global:
 admissionPolicyEngineEnabled: true
 certManagerEnabled: true
 chronyEnabled: true
+
+myModuleEnabled: true
 
 # BE Bundle "Default"
 nodeLocalDnsEnabled: true
@@ -763,9 +821,22 @@ l2LoadBalancerEnabled: false
 			Order:               35,
 			EnabledScriptResult: true,
 		},
+		{
+			Name:                "my-module",
+			Order:               350,
+			EnabledScriptResult: true,
+		},
 	}
 
+	// init scheduler
 	s := NewScheduler(context.TODO(), log.NewNop())
+
+	// add and apply topological extenders
+	err := s.AddExtender(&extender_mock.TopologicalOne{})
+	require.NoError(t, err)
+	err = s.AddExtender(&extender_mock.TopologicalTwo{})
+	require.NoError(t, err)
+
 	for _, m := range basicModules {
 		err := s.AddModuleVertex(m)
 		assert.NoError(t, err)
@@ -777,13 +848,14 @@ l2LoadBalancerEnabled: false
 	err = os.WriteFile(valuesFile, []byte(values), 0o644)
 	require.NoError(t, err)
 
+	// add and apply static extender
 	se, err := static.NewExtender(tmp)
 	require.NoError(t, err)
 
 	err = s.AddExtender(se)
 	require.NoError(t, err)
 
-	err = s.ApplyExtenders("Static")
+	err = s.ApplyExtenders("TopologicalOne,TopologicalTwo,Static")
 	require.NoError(t, err)
 
 	updated, verticesToUpdate := s.RecalculateGraph(logLabels)
@@ -805,6 +877,7 @@ l2LoadBalancerEnabled: false
 		"prometheus-crd/":                false,
 		"prometheus/":                    false,
 		"echo/":                          false,
+		"my-module/TopologicalTwo":       false,
 	}
 
 	expectedDiff := map[string]bool{
@@ -818,22 +891,23 @@ l2LoadBalancerEnabled: false
 
 	expectedVerticesToUpdate := []string{
 		"admission-policy-engine",
-		"node-local-dns",
 		"cert-manager",
 		"chrony",
-		"foo-bar",
-		"monitoring-applications",
-		"l2-load-balancer",
 		"flant-integration",
+		"foo-bar",
+		"l2-load-balancer",
+		"monitoring-applications",
+		"node-local-dns",
 	}
 
-	summary, err := s.PrintSummary()
+	summary, err := s.printSummary()
 	assert.NoError(t, err)
 
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
 	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
+	// add and apply dynamic extender
 	de := dynamically_enabled.NewExtender()
 	go func() {
 		//nolint:revive
@@ -869,6 +943,7 @@ l2LoadBalancerEnabled: false
 		"prometheus-crd/":                             false,
 		"prometheus/":                                 false,
 		"echo/":                                       false,
+		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = map[string]bool{
@@ -877,16 +952,17 @@ l2LoadBalancerEnabled: false
 	}
 
 	expectedVerticesToUpdate = []string{
-		"openstack-cloud-provider",
 		"l2-load-balancer",
+		"openstack-cloud-provider",
 	}
 
-	summary, err = s.PrintSummary()
+	summary, err = s.printSummary()
 	assert.NoError(t, err)
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
 	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
+	// add amd apply kube config extender
 	kce := kube_config.NewExtender(kcmMock{
 		modulesStatus: map[string]bool{
 			"cert-manager":   true,
@@ -925,6 +1001,7 @@ l2LoadBalancerEnabled: false
 		"echo/KubeConfig":                             true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
+		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = map[string]bool{
@@ -936,21 +1013,22 @@ l2LoadBalancerEnabled: false
 	}
 
 	expectedVerticesToUpdate = []string{
-		"prometheus-crd",
-		"node-local-dns",
 		"cert-manager",
 		"chrony",
-		"foo-bar",
-		"prometheus",
 		"echo",
+		"foo-bar",
+		"node-local-dns",
+		"prometheus",
+		"prometheus-crd",
 	}
 
-	summary, err = s.PrintSummary()
+	summary, err = s.printSummary()
 	assert.NoError(t, err)
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
 	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
+	// add and apply script_enabled extender
 	scripte, err := script_enabled.NewExtender(tmp)
 	require.NoError(t, err)
 	err = s.AddExtender(scripte)
@@ -982,6 +1060,7 @@ l2LoadBalancerEnabled: false
 		"echo/KubeConfig":                             true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
+		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = map[string]bool{
@@ -991,17 +1070,18 @@ l2LoadBalancerEnabled: false
 	}
 
 	expectedVerticesToUpdate = []string{
+		"flant-integration",
 		"foo-bar",
 		"monitoring-applications",
-		"flant-integration",
 	}
 
-	summary, err = s.PrintSummary()
+	summary, err = s.printSummary()
 	assert.NoError(t, err)
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
 	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
+	// some tests with dynamic extender
 	de.UpdateStatus("openstack-cloud-provider", "add", false)
 	de.UpdateStatus("ingress-nginx", "add", true)
 	de.UpdateStatus("node-local-dns", "add", true)
@@ -1029,6 +1109,7 @@ l2LoadBalancerEnabled: false
 		"echo/KubeConfig":                             true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
+		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = map[string]bool{
@@ -1038,7 +1119,7 @@ l2LoadBalancerEnabled: false
 
 	expectedVerticesToUpdate = []string{}
 
-	summary, err = s.PrintSummary()
+	summary, err = s.printSummary()
 	assert.NoError(t, err)
 
 	assert.Equal(t, expected, summary)
@@ -1068,15 +1149,16 @@ l2LoadBalancerEnabled: false
 		"echo/KubeConfig":                             true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
+		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = nil
-	expectedVerticesToUpdate = []string{}
+	expectedVerticesToUpdate = nil
 
 	assert.Equal(t, expected, summary)
 	assert.Equal(t, expectedDiff, diff)
 	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
-	assert.Equal(t, []string{"ScriptEnabled extender failed to filter ingress-nginx module: failed to execute 'ingress-nginx' module's enabled script: Exit code not 0"}, s.errList)
+	assert.Equal(t, "1 error occurred:\n\t* ScriptEnabled extender failed to filter ingress-nginx module: failed to execute 'ingress-nginx' module's enabled script: Exit code not 0\n\n", s.err.Error())
 
 	err = os.RemoveAll(tmp)
 	require.NoError(t, err)

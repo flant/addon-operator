@@ -100,3 +100,54 @@ func (f *TerminatorThree) Filter(_ string, _ map[string]string) (*bool, error) {
 func (f *TerminatorThree) IsTerminator() bool {
 	return true
 }
+
+type TopologicalOne struct{}
+
+func (f *TopologicalOne) Name() extenders.ExtenderName {
+	return extenders.ExtenderName("TopologicalOne")
+}
+
+func (f *TopologicalOne) Filter(_ string, _ map[string]string) (*bool, error) {
+	return nil, nil
+}
+
+func (f *TopologicalOne) IsTerminator() bool {
+	return true
+}
+
+func (f *TopologicalOne) GetTopologicalHints(moduleName string) []string {
+	switch moduleName {
+	case "echo":
+		return []string{"prometheus", "cert-manager"}
+	case "prometheus":
+		return []string{"prometheus-crd"}
+	case "foobar":
+		return []string{"foo", "bar"}
+	case "operator-trivy":
+		return []string{"istio", "admission-policy-engine"}
+	}
+
+	return nil
+}
+
+type TopologicalTwo struct{}
+
+func (f *TopologicalTwo) Name() extenders.ExtenderName {
+	return extenders.ExtenderName("TopologicalTwo")
+}
+
+func (f *TopologicalTwo) Filter(_ string, _ map[string]string) (*bool, error) {
+	return nil, nil
+}
+
+func (f *TopologicalTwo) IsTerminator() bool {
+	return true
+}
+
+func (f *TopologicalTwo) GetTopologicalHints(moduleName string) []string {
+	if moduleName == "my-module" {
+		return []string{"unknown-module"}
+	}
+
+	return nil
+}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	pointer "k8s.io/utils/ptr"
@@ -30,9 +29,7 @@ type scriptState string
 type Extender struct {
 	tmpDir                 string
 	basicModuleDescriptors map[string]moduleDescriptor
-
-	l              sync.RWMutex
-	enabledModules []string
+	modulesStateHelper     func() []string
 }
 
 type moduleDescriptor struct {
@@ -53,7 +50,6 @@ func NewExtender(tmpDir string) (*Extender, error) {
 
 	e := &Extender{
 		basicModuleDescriptors: make(map[string]moduleDescriptor),
-		enabledModules:         make([]string, 0),
 		tmpDir:                 tmpDir,
 	}
 
@@ -89,12 +85,6 @@ func (e *Extender) Name() extenders.ExtenderName {
 	return Name
 }
 
-func (e *Extender) Reset() {
-	e.l.Lock()
-	e.enabledModules = make([]string, 0)
-	e.l.Unlock()
-}
-
 func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool, error) {
 	if moduleDescriptor, found := e.basicModuleDescriptors[moduleName]; found {
 		var err error
@@ -106,7 +96,7 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
 				"extender": "ScriptEnabled",
 			})
-			isEnabled, err = moduleDescriptor.module.RunEnabledScript(e.tmpDir, e.enabledModules, refreshLogLabels)
+			isEnabled, err = moduleDescriptor.module.RunEnabledScript(e.tmpDir, e.GetEnabledModules(), refreshLogLabels)
 			if err != nil {
 				err = fmt.Errorf("failed to execute '%s' module's enabled script: %v", moduleDescriptor.module.GetName(), err)
 			}
@@ -124,19 +114,28 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			log.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", moduleDescriptor.module.GetName())
 		}
 
-		if enabled == nil || (enabled != nil && *enabled) {
-			e.l.Lock()
-			e.enabledModules = append(e.enabledModules, moduleDescriptor.module.GetName())
-			e.l.Unlock()
-		}
 		if err != nil {
 			return enabled, exerror.Permanent(err)
 		}
+
 		return enabled, nil
 	}
+
 	return nil, nil
 }
 
 func (e *Extender) IsTerminator() bool {
 	return true
+}
+
+func (e *Extender) SetModulesStateHelper(f func() []string) {
+	e.modulesStateHelper = f
+}
+
+func (e *Extender) GetEnabledModules() []string {
+	if e.modulesStateHelper == nil {
+		return nil
+	}
+
+	return e.modulesStateHelper()
 }

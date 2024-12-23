@@ -8,7 +8,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/trace"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -33,7 +32,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
@@ -2471,25 +2469,15 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
 	log.Debugf("The following modules are going to be enabled/rerun: %v", state.AllEnabledModulesByOrder)
-	// sort modules' orders
-	sortedOrders := make(node.NodeWeightRange, 0, len(state.AllEnabledModulesByOrder))
-	for order := range state.AllEnabledModulesByOrder {
-		sortedOrders = append(sortedOrders, order)
-	}
-	sort.Sort(sortedOrders)
 
-	for _, order := range sortedOrders {
+	for _, modules := range state.AllEnabledModulesByOrder {
 		newLogLabels := utils.MergeLabels(logLabels)
 		delete(newLogLabels, "task.id")
-		modules := state.AllEnabledModulesByOrder[order]
-		// create parallel moduleRun task
 		switch {
+		// create parallel moduleRun task
 		case len(modules) > 1:
+			parallelRunMetadata := task.ParallelRunMetadata{}
 			newLogLabels["modules"] = strings.Join(modules, ",")
-			newLogLabels["order"] = order.String()
-			parallelRunMetadata := task.ParallelRunMetadata{
-				Order: order,
-			}
 			for _, moduleName := range modules {
 				ev := events.ModuleEvent{
 					ModuleName: moduleName,
