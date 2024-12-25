@@ -30,7 +30,6 @@ import (
 	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -55,7 +54,7 @@ type ModulesState struct {
 	// All enabled modules.
 	AllEnabledModules []string
 	// All enabled modules grouped by order.
-	AllEnabledModulesByOrder map[node.NodeWeight][]string
+	AllEnabledModulesByOrder [][]string
 	// Modules that should be deleted.
 	ModulesToDisable []string
 	// Modules that was disabled and now are enabled.
@@ -881,6 +880,7 @@ func (mm *ModuleManager) RecalculateGraph(logLabels map[string]string) bool {
 			EventType:  events.ModuleStateChanged,
 		})
 	}
+
 	return stateChanged
 }
 
@@ -893,6 +893,7 @@ func (mm *ModuleManager) GlobalSynchronizationNeeded() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
