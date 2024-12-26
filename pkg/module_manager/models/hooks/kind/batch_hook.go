@@ -26,14 +26,16 @@ import (
 )
 
 type BatchHook struct {
+	moduleName string
 	sh_hook.Hook
 	// hook ID in batch
 	ID uint
 }
 
 // NewBatchHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewBatchHook(name, path string, id uint, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+func NewBatchHook(name, path, moduleName string, id uint, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
 	return &BatchHook{
+		moduleName: moduleName,
 		Hook: sh_hook.Hook{
 			Name:                   name,
 			Path:                   path,
@@ -137,7 +139,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
-		WithChroot(app.ShellChrootDir).
+		WithChroot(utils.GetModuleChrootPath(sh.moduleName)).
 		WithWrapper(app.ShellWrapper)
 
 	usage, err := cmd.RunAndLogLines(logLabels)

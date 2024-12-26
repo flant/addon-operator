@@ -22,12 +22,14 @@ import (
 )
 
 type ShellHook struct {
+	moduleName string
 	sh_hook.Hook
 }
 
 // NewShellHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewShellHook(name, path string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *ShellHook {
+func NewShellHook(name, path, moduleName string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *ShellHook {
 	return &ShellHook{
+		moduleName: moduleName,
 		Hook: sh_hook.Hook{
 			Name:                   name,
 			Path:                   path,
@@ -127,7 +129,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
-		WithChroot(app.ShellChrootDir).
+		WithChroot(utils.GetModuleChrootPath(sh.moduleName)).
 		WithWrapper(app.ShellWrapper)
 
 	usage, err := cmd.RunAndLogLines(logLabels)
@@ -178,7 +180,7 @@ func (sh *ShellHook) getConfig() (configOutput []byte, err error) {
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
 		WithCMDStdout(nil).
-		WithChroot(app.ShellChrootDir).
+		WithChroot(utils.GetModuleChrootPath(sh.moduleName)).
 		WithWrapper(app.ShellWrapper)
 
 	sh.Hook.Logger.Debugf("Executing hook in: '%s'", strings.Join(args, " "))
