@@ -1,6 +1,7 @@
 package mount_manager
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -8,9 +9,10 @@ import (
 )
 
 type MountDescriptor struct {
-	Source string
-	Target string
-	Flags  uintptr
+	Source   string
+	Target   string
+	Flags    uintptr
+	TypeFile bool
 }
 
 type Manager struct {
@@ -45,20 +47,36 @@ func (m *Manager) PrepareMountsForModule(moduleName, modulePath string) error {
 
 	chrootedModuleEnvPath := filepath.Join(m.chroot, moduleName)
 	for _, properties := range m.mounts {
-		var chrootedDirPath string
+		var chrootedMountPath string
 		if len(properties.Target) > 0 {
-			chrootedDirPath = filepath.Join(chrootedModuleEnvPath, properties.Target)
+			chrootedMountPath = filepath.Join(chrootedModuleEnvPath, properties.Target)
 		} else {
-			chrootedDirPath = filepath.Join(chrootedModuleEnvPath, properties.Source)
+			chrootedMountPath = filepath.Join(chrootedModuleEnvPath, properties.Source)
 		}
 
-		if err := os.MkdirAll(chrootedDirPath, 0o755); err != nil {
-			return err
+		if properties.TypeFile {
+			if err := os.MkdirAll(filepath.Dir(chrootedMountPath), 0o755); err != nil {
+				return err
+			}
+
+			bytesRead, err := ioutil.ReadFile(properties.Source)
+			if err != nil {
+				return err
+			}
+
+			if err = ioutil.WriteFile(chrootedMountPath, bytesRead, 0o644); err != nil {
+				return err
+			}
+		} else {
+			if err := os.MkdirAll(chrootedMountPath, 0o755); err != nil {
+				return err
+			}
+
+			if err := syscall.Mount(properties.Source, chrootedMountPath, "", properties.Flags, ""); err != nil {
+				return err
+			}
 		}
 
-		if err := syscall.Mount(properties.Source, chrootedDirPath, "", properties.Flags, ""); err != nil {
-			return err
-		}
 	}
 
 	chrootedModuleDir := filepath.Join(chrootedModuleEnvPath, modulePath)
