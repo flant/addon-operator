@@ -1814,7 +1814,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 				// Prepare chrooted environment if needed
 				if op.ModuleManager.MountManagerEnabled() && baseModule.ExecutesShellScripts() {
-					op.ModuleManager.PrepareMountsForModule(baseModule.GetName())
+					op.ModuleManager.PrepareMountsForModule(baseModule.GetName(), baseModule.GetPath())
 				}
 
 				// Start queues for module hooks.

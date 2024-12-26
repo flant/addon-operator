@@ -1293,7 +1293,7 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		scriptEnabledExtender.AddBasicModule(mod)
 
 		if mm.MountManagerEnabled() && mod.ExecutesShellScripts() {
-			if err := mm.PrepareMountsForModule(mod.GetName()); err != nil {
+			if err := mm.PrepareMountsForModule(mod.GetName(), mod.GetPath()); err != nil {
 				return err
 			}
 		}
@@ -1311,13 +1311,8 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 	return nil
 }
 
-func (mm *ModuleManager) PrepareMountsForModule(moduleName string) error {
-	bm := mm.GetModule(moduleName)
-	if bm == nil {
-		return fmt.Errorf("module %q not found", moduleName)
-	}
-
-	return mm.mountManager.PrepareMountsForModule(moduleName, bm.GetPath())
+func (mm *ModuleManager) PrepareMountsForModule(moduleName, modulePath string) error {
+	return mm.mountManager.PrepareMountsForModule(moduleName, modulePath)
 }
 
 func (mm *ModuleManager) MountManagerEnabled() bool {
