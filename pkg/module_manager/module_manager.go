@@ -1312,7 +1312,12 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 }
 
 func (mm *ModuleManager) PrepareMountsForModule(moduleName string) error {
-	return mm.mountManager.PrepareMountsForModule(moduleName)
+	bm := mm.GetModule(moduleName)
+	if bm == nil {
+		return fmt.Errorf("module %q not found", moduleName)
+	}
+
+	return mm.mountManager.PrepareMountsForModule(moduleName, bm.GetPath())
 }
 
 func (mm *ModuleManager) MountManagerEnabled() bool {

@@ -35,7 +35,7 @@ func (m *Manager) AddDirsToMount(mounts ...MountDescriptor) {
 	}
 }
 
-func (m *Manager) PrepareMountsForModule(moduleName string) error {
+func (m *Manager) PrepareMountsForModule(moduleName, modulePath string) error {
 	m.l.Lock()
 	defer m.l.Unlock()
 
@@ -43,13 +43,13 @@ func (m *Manager) PrepareMountsForModule(moduleName string) error {
 		return nil
 	}
 
-	chrootedModulePath := filepath.Join(m.chroot, moduleName)
+	chrootedModuleEnvPath := filepath.Join(m.chroot, moduleName)
 	for _, properties := range m.mounts {
 		var chrootedDirPath string
 		if len(properties.Target) > 0 {
-			chrootedDirPath = filepath.Join(chrootedModulePath, properties.Target)
+			chrootedDirPath = filepath.Join(chrootedModuleEnvPath, properties.Target)
 		} else {
-			chrootedDirPath = filepath.Join(chrootedModulePath, properties.Source)
+			chrootedDirPath = filepath.Join(chrootedModuleEnvPath, properties.Source)
 		}
 
 		if err := os.MkdirAll(chrootedDirPath, 0o755); err != nil {
@@ -59,6 +59,15 @@ func (m *Manager) PrepareMountsForModule(moduleName string) error {
 		if err := syscall.Mount(properties.Source, chrootedDirPath, "", properties.Flags, ""); err != nil {
 			return err
 		}
+	}
+
+	chrootedModuleDir := filepath.Join(chrootedModuleEnvPath, modulePath)
+	if err := os.MkdirAll(chrootedModuleDir, 0o755); err != nil {
+		return err
+	}
+
+	if err := syscall.Mount(modulePath, chrootedModuleDir, "", syscall.MS_BIND|syscall.MS_RDONLY, ""); err != nil {
+		return err
 	}
 
 	m.mountedModules[moduleName] = struct{}{}
