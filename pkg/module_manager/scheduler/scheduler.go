@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"image"
 	"log/slog"
-	"sort"
 	"slices"
 	"strings"
 	"sync"
@@ -656,7 +655,8 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 
 	if s.err != nil {
 		logEntry.Warn("Module Scheduler: graph in a faulty state and will be recalculated",
-			slog.String("error", strings.Join(s.errList, ",")))
+			slog.String("error", s.err.Error()))
+		recalculateGraph = true
 	}
 
 	if recalculateGraph {
@@ -737,8 +737,7 @@ outerCycle:
 
 			moduleStatus, filterErr = e.ext.Filter(moduleName, logLabels)
 			if filterErr != nil {
-				var permanent *exerror.PermanentError
-				if errors.As(err, &permanent) {
+				if permanent, ok := filterErr.(*exerror.PermanentError); ok {
 					graphErr = multierror.Append(graphErr, fmt.Errorf("%s extender failed to filter %s module: %s", e.ext.Name(), moduleName, permanent.Error()))
 					break outerCycle
 				}
@@ -786,7 +785,7 @@ outerCycle:
 
 	if graphErr != nil {
 		s.err = graphErr
-		logEntry.Warnf("Module Scheduler: Graph converge failed: %s", s.err.Error())
+		logEntry.Warn("Module Scheduler: Graph converge failed", log.Err(s.err))
 		return true, nil
 	}
 

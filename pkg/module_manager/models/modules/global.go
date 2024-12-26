@@ -195,10 +195,6 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 		return fmt.Errorf("global hook '%s' failed: %s", h.GetName(), err)
 	}
 
-	if hookResult == nil {
-		return nil
-	}
-
 	// Apply metric operations
 	err = gm.dc.HookMetricsStorage.SendBatch(hookResult.Metrics, map[string]string{
 		"hook": h.GetName(),
