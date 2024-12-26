@@ -9,6 +9,7 @@ import (
 
 type MountDescriptor struct {
 	Source string
+	Target string
 	Flags  uintptr
 }
 
@@ -44,7 +45,13 @@ func (m *Manager) PrepareMountsForModule(moduleName string) error {
 
 	chrootedModulePath := filepath.Join(m.chroot, moduleName)
 	for _, properties := range m.mounts {
-		chrootedDirPath := filepath.Join(chrootedModulePath, properties.Source)
+		var chrootedDirPath string
+		if len(properties.Target) > 0 {
+			chrootedDirPath = filepath.Join(chrootedModulePath, properties.Target)
+		} else {
+			chrootedDirPath = filepath.Join(chrootedModulePath, properties.Source)
+		}
+
 		if err := os.MkdirAll(chrootedDirPath, 0o755); err != nil {
 			return err
 		}
