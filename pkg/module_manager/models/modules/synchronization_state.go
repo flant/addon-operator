@@ -71,7 +71,7 @@ func (s *SynchronizationState) IsCompleted() bool {
 	return done
 }
 
-// QueuedForBinding ...
+// QueuedForBinding marks a Kubernetes binding as queued for synchronization
 func (s *SynchronizationState) QueuedForBinding(metadata TaskMetadata) {
 	s.m.Lock()
 	defer s.m.Unlock()

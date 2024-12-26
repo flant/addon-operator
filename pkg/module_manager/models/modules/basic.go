@@ -361,8 +361,6 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 }
 
 var (
-	// ErrFileHasNotMetRequirements   = errors.New("file has not met requirements")
-
 	ErrFileHasWrongExtension       = errors.New("file has wrong extension")
 	ErrFileIsNotBatchHook          = errors.New("file is not batch hook")
 	ErrFileNoExecutablePermissions = errors.New("no executable permissions, chmod +x is required to run this hook")
