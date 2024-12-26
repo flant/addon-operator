@@ -633,7 +633,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		envs).
 		WithLogger(bm.logger.Named("executor")).
 		WithCMDStdout(nil).
-		WithChroot(fmt.Sprintf("%s/%s", app.ShellChrootDir, bm.Name)).
+		WithChroot(utils.GetModuleChrootPath(bm.Name)).
 		WithWrapper(app.ShellWrapper)
 
 	usage, err := cmd.RunAndLogLines(logLabels)
