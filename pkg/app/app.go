@@ -34,7 +34,7 @@ var (
 	GlobalHooksDir = "global-hooks"
 	ModulesDir     = "modules"
 	ShellChrootDir = ""
-	ShellWrapper = ""
+	ShellWrapper   = ""
 
 	UnnumberedModuleOrder = 1
 

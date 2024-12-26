@@ -17,6 +17,8 @@ import (
 	utils_file "github.com/flant/shell-operator/pkg/utils/file"
 )
 
+type scriptState string
+
 const (
 	Name extenders.ExtenderName = "ScriptEnabled"
 
@@ -24,8 +26,6 @@ const (
 	nonExecutableScript scriptState = "NonExecutableScript"
 	statError           scriptState = "StatError"
 )
-
-type scriptState string
 
 type Extender struct {
 	tmpDir                 string
@@ -48,7 +48,7 @@ func NewExtender(tmpDir string) (*Extender, error) {
 	}
 
 	if !info.IsDir() {
-		return nil, fmt.Errorf("%s path isn't a directory", tmpDir)
+		return nil, fmt.Errorf("%q path isn't a directory", tmpDir)
 	}
 
 	e := &Extender{
@@ -82,7 +82,11 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 			log.Warnf("Found non-executable enabled script for '%s' module - assuming enabled state", module.GetName())
 		}
 	}
+
 	e.basicModuleDescriptors[module.GetName()] = moduleD
+	if len(moduleD.scriptState) == 0 {
+		module.SetExecutesShellScripts()
+	}
 }
 
 func (e *Extender) Name() extenders.ExtenderName {
@@ -132,8 +136,10 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 		if err != nil {
 			return enabled, exerror.Permanent(err)
 		}
+
 		return enabled, nil
 	}
+
 	return nil, nil
 }
 

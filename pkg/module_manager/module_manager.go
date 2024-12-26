@@ -178,9 +178,9 @@ func NewModuleManager(ctx context.Context, cfg *ModuleManagerConfig, logger *log
 }
 
 // SetRequiredMounts sets the list of directories to mount into the chroot directory
-func (mm *ModuleManager) SetRequiredMounts(dirs ...string) {
-	if mm.mountManager != nil {
-		mm.mountManager.AddDirsToMount(dirs...)
+func (mm *ModuleManager) SetRequiredMounts(mounts ...mountmanager.MountDescriptor) {
+	if mm.MountManagerEnabled() {
+		mm.mountManager.AddDirsToMount(mounts...)
 	}
 }
 
@@ -1284,19 +1284,19 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		}
 
 		mod.WithDependencies(dep)
-
 		set.Add(mod)
-		if mm.mountManager != nil {
-			if err := mm.mountManager.PrepareMountsForModule(mod.GetName()); err != nil {
+
+		if err := mm.moduleScheduler.AddModuleVertex(mod); err != nil {
+			return err
+		}
+
+		scriptEnabledExtender.AddBasicModule(mod)
+
+		if mm.MountManagerEnabled() && mod.ExecutesShellScripts() {
+			if err := mm.PrepareMountsForModule(mod.GetName()); err != nil {
 				return err
 			}
 		}
-
-		err := mm.moduleScheduler.AddModuleVertex(mod)
-		if err != nil {
-			return err
-		}
-		scriptEnabledExtender.AddBasicModule(mod)
 
 		mm.SendModuleEvent(events.ModuleEvent{
 			ModuleName: mod.GetName(),
@@ -1309,6 +1309,14 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 	mm.modules = set
 
 	return nil
+}
+
+func (mm *ModuleManager) PrepareMountsForModule(moduleName string) error {
+	return mm.mountManager.PrepareMountsForModule(moduleName)
+}
+
+func (mm *ModuleManager) MountManagerEnabled() bool {
+	return mm.mountManager != nil
 }
 
 // SetModuleEventsChannel sets an event channel for Module Manager

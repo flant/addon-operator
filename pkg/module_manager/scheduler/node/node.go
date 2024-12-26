@@ -9,6 +9,7 @@ type ModuleInterface interface {
 	GetName() string
 	GetOrder() uint32
 	GetPath() string
+	SetExecutesShellScripts()
 }
 
 type NodeType string

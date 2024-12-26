@@ -224,6 +224,10 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 		return nil, fmt.Errorf("search module batch hooks: %w", err)
 	}
 
+	if len(shellHooks)+len(batchHooks) > 0 {
+		bm.SetExecutesShellScripts()
+	}
+
 	mHooks := make([]*hooks.ModuleHook, 0, len(shellHooks)+len(goHooks))
 
 	for _, sh := range shellHooks {
@@ -1082,6 +1086,14 @@ func (bm *BasicModule) Validate() error {
 	return nil
 }
 
+func (bm *BasicModule) SetExecutesShellScripts() {
+	bm.state.executesShellScripts = true
+}
+
+func (bm *BasicModule) ExecutesShellScripts() bool {
+	return bm.state.executesShellScripts
+}
+
 func (bm *BasicModule) ValidateValues() error {
 	return bm.valuesStorage.validateValues(bm.GetValues(false))
 }
@@ -1125,4 +1137,5 @@ type moduleState struct {
 	hookErrorsLock       sync.RWMutex
 	synchronizationState *SynchronizationState
 	enabledScriptResult  *bool
+	executesShellScripts bool
 }

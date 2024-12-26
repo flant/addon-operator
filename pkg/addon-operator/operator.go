@@ -1812,6 +1812,11 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
 
+				// Prepare chrooted environment if needed
+				if op.ModuleManager.MountManagerEnabled() && baseModule.ExecutesShellScripts() {
+					op.ModuleManager.PrepareMountsForModule(baseModule.GetName())
+				}
+
 				// Start queues for module hooks.
 				op.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
 

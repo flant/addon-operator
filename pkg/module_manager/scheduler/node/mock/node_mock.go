@@ -20,6 +20,9 @@ func (m MockModule) GetOrder() uint32 {
 	return m.Order
 }
 
+func (m MockModule) SetExecutesShellScripts() {
+}
+
 func (m MockModule) RunEnabledScript(_ string, _ []string, _ map[string]string) (bool, error) {
 	if m.EnabledScriptErr != nil {
 		return false, m.EnabledScriptErr
