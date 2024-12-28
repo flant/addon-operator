@@ -3,6 +3,7 @@ package validation
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 
@@ -86,7 +87,9 @@ func (st *SchemaStorage) ValidateValues(moduleName string, values utils.Values) 
 func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, values utils.Values) error {
 	schema := st.Schemas[valuesType]
 	if schema == nil {
-		log.Warnf("schema (%s) for '%s' values is not found", moduleName, valuesType)
+		log.Warn("schema is not found",
+			slog.String("module", moduleName),
+			slog.String("valuesType", string(valuesType)))
 		return nil
 	}
 
@@ -97,9 +100,12 @@ func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, valu
 
 	validationErr := validateObject(obj, schema, moduleName)
 	if validationErr == nil {
-		log.Debugf("'%s' values are valid", valuesType)
+		log.Debug("values are valid",
+			slog.String("valuesType", string(valuesType)))
 	} else {
-		log.Debugf("'%s' values are NOT valid: %v", valuesType, validationErr)
+		log.Debug("values are NOT valid",
+			slog.String("valuesType", string(valuesType)),
+			log.Err(validationErr))
 	}
 	return validationErr
 }

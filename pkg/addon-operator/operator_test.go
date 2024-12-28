@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -513,7 +514,8 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 
 	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
 
-	log.Infof("Converge done, got %d tasks in history", len(taskHandleHistory))
+	log.Info("Converge done, got tasks in history",
+		slog.Int("count", len(taskHandleHistory)))
 
 	// Save current history length to ignore first converge tasks later.
 	ignoreTasksCount := len(taskHandleHistory)
@@ -534,7 +536,8 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 	g.Expect(cmPatched.Data).Should(HaveKey("global"))
 	g.Expect(cmPatched.Data["global"]).Should(Equal("param: newValue"))
 
-	log.Infof("ConfigMap patched, got %d tasks in history", len(taskHandleHistory))
+	log.Info("ConfigMap patched, got tasks in history",
+		slog.Int("count", len(taskHandleHistory)))
 
 	// Expect ConvergeModules appears in queue.
 	g.Eventually(func() bool {

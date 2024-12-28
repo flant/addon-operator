@@ -3,6 +3,7 @@ package go_hook
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -66,7 +67,9 @@ func (p *PatchableValues) Set(path string, value interface{}) {
 	if err != nil {
 		// The struct returned from a Go hook expected to be marshalable in all cases.
 		// TODO(nabokihms): return a meaningful error.
-		log.Errorf("patch path %s: %v\n", path, err)
+		log.Error("patch path",
+			slog.String("path", path),
+			log.Err(err))
 		return
 	}
 

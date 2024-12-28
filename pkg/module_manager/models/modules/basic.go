@@ -195,11 +195,11 @@ func (bm *BasicModule) ResetState() {
 // RegisterHooks find and registers all module hooks from a filesystem or GoHook Registry
 func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, error) {
 	if bm.hooks.registered {
-		logger.Debugf("Module hooks already registered")
+		logger.Debug("Module hooks already registered")
 		return nil, nil
 	}
 
-	logger.Debugf("Search and register hooks")
+	logger.Debug("Search and register hooks")
 
 	hks, err := bm.searchAndRegisterHooks(logger)
 	if err != nil {
@@ -263,7 +263,8 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	bm.logger.Debugf("Hook paths: %+v", hooksRelativePaths)
+	bm.logger.Debug("Hook paths",
+		slog.Any("paths", hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
@@ -360,7 +361,6 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 }
 
 var (
-	ErrFileHasNotMetRequirements   = errors.New("file has not met requirements")
 	ErrFileHasWrongExtension       = errors.New("file has wrong extension")
 	ErrFileIsNotBatchHook          = errors.New("file is not batch hook")
 	ErrFileNoExecutablePermissions = errors.New("no executable permissions, chmod +x is required to run this hook")
@@ -409,10 +409,12 @@ func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.Modu
 		return nil, fmt.Errorf("search module hooks failed: %w", err)
 	}
 
-	logger.Debugf("Found %d hooks", len(hks))
+	logger.Debug("Found hooks", slog.Int("count", len(hks)))
 	if logger.GetLevel() == log.LevelDebug {
 		for _, h := range hks {
-			logger.Debugf("ModuleHook: Name=%s, Path=%s", h.GetName(), h.GetPath())
+			logger.Debug("ModuleHook",
+				slog.String("name", h.GetName()),
+				slog.String("path", h.GetPath()))
 		}
 	}
 
@@ -445,7 +447,9 @@ func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.Modu
 		// register module hook in indexes
 		bm.hooks.AddHook(moduleHook)
 
-		hookLogEntry.Debugf("Module hook from '%s'. Bindings: %s", moduleHook.GetPath(), moduleHook.GetConfigDescription())
+		hookLogEntry.Debug("Module hook",
+			slog.String("path", moduleHook.GetPath()),
+			slog.String("bindings", moduleHook.GetConfigDescription()))
 	}
 
 	return hks, nil
@@ -568,7 +572,9 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 	enabledScriptPath := filepath.Join(bm.Path, "enabled")
 	configValuesPath, err := bm.prepareConfigValuesJsonFile(tmpDir)
 	if err != nil {
-		logEntry.Errorf("Prepare CONFIG_VALUES_PATH file for '%s': %s", enabledScriptPath, err)
+		logEntry.Error("Prepare CONFIG_VALUES_PATH file",
+			slog.String("path", enabledScriptPath),
+			log.Err(err))
 		return false, err
 	}
 	defer func() {
@@ -578,13 +584,17 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		err := os.Remove(configValuesPath)
 		if err != nil {
 			bm.logger.With("module", bm.Name).
-				Errorf("Remove tmp file '%s': %s", configValuesPath, err)
+				Error("Remove tmp file",
+					slog.String("path", enabledScriptPath),
+					log.Err(err))
 		}
 	}()
 
 	valuesPath, err := bm.prepareValuesJsonFileForEnabledScript(tmpDir, precedingEnabledModules)
 	if err != nil {
-		logEntry.Errorf("Prepare VALUES_PATH file for '%s': %s", enabledScriptPath, err)
+		logEntry.Error("Prepare VALUES_PATH file",
+			slog.String("path", enabledScriptPath),
+			log.Err(err))
 		return false, err
 	}
 	defer func() {
@@ -594,13 +604,17 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		err := os.Remove(valuesPath)
 		if err != nil {
 			bm.logger.With("module", bm.Name).
-				Errorf("Remove tmp file '%s': %s", configValuesPath, err)
+				Error("Remove tmp file",
+					slog.String("path", configValuesPath),
+					log.Err(err))
 		}
 	}()
 
 	enabledResultFilePath, err := bm.prepareModuleEnabledResultFile(tmpDir)
 	if err != nil {
-		logEntry.Errorf("Prepare MODULE_ENABLED_RESULT file for '%s': %s", enabledScriptPath, err)
+		logEntry.Error("Prepare MODULE_ENABLED_RESULT file",
+			slog.String("path", enabledScriptPath),
+			log.Err(err))
 		return false, err
 	}
 	defer func() {
@@ -610,11 +624,15 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		err := os.Remove(enabledResultFilePath)
 		if err != nil {
 			bm.logger.With("module", bm.Name).
-				Errorf("Remove tmp file '%s': %s", configValuesPath, err)
+				Error("Remove tmp file",
+					slog.String("path", configValuesPath),
+					log.Err(err))
 		}
 	}()
 
-	logEntry.Debugf("Execute enabled script '%s', preceding modules: %v", enabledScriptPath, precedingEnabledModules)
+	logEntry.Debug("Execute enabled script",
+		slog.String("path", enabledScriptPath),
+		slog.Any("modules", precedingEnabledModules))
 
 	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
@@ -645,13 +663,17 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		bm.dc.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(usage.MaxRss)*1024, metricLabels)
 	}
 	if err != nil {
-		logEntry.Errorf("Fail to run enabled script '%s': %s", enabledScriptPath, err)
+		logEntry.Error("Fail to run enabled script",
+			slog.String("path", enabledScriptPath),
+			log.Err(err))
 		return false, err
 	}
 
 	moduleEnabled, err := bm.readModuleEnabledResult(enabledResultFilePath)
 	if err != nil {
-		logEntry.Errorf("Read enabled result from '%s': %s", enabledScriptPath, err)
+		logEntry.Error("Read enabled result",
+			slog.String("path", enabledScriptPath),
+			log.Err(err))
 		return false, fmt.Errorf("bad enabled result")
 	}
 
@@ -659,7 +681,9 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 	if moduleEnabled {
 		result = "Enabled"
 	}
-	logEntry.Infof("Enabled script run successful, result '%v', module '%s'", moduleEnabled, result)
+	logEntry.Info("Enabled script run successful",
+		slog.Bool("result", moduleEnabled),
+		slog.String("status", result))
 	bm.state.enabledScriptResult = &moduleEnabled
 	return moduleEnabled, nil
 }
@@ -707,7 +731,9 @@ func (bm *BasicModule) prepareValuesJsonFileWith(tmpdir string, values utils.Val
 		return "", err
 	}
 
-	bm.logger.Debugf("Prepared module %s hook values:\n%s", bm.Name, values.DebugString())
+	bm.logger.Debug("Prepared module hook values",
+		slog.String("module", bm.Name),
+		slog.String("values", values.DebugString()))
 
 	return path, nil
 }
@@ -752,7 +778,9 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 		return "", err
 	}
 
-	bm.logger.Debugf("Prepared module %s hook config values:\n%s", bm.Name, v.DebugString())
+	bm.logger.Debug("Prepared module hook config values",
+		slog.String("module", bm.Name),
+		slog.String("values", v.DebugString()))
 
 	return path, nil
 }
@@ -776,7 +804,8 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 	logEntry.Log(context.Background(), logStartLevel.Level(), "Module hook start", slog.String(bm.Name, h.GetName()))
 
 	for _, info := range h.GetHookController().SnapshotsInfo() {
-		logEntry.Debugf("snapshot info: %s", info)
+		logEntry.Debug("snapshot info",
+			slog.String("value", info))
 	}
 
 	prefixedConfigValues := bm.valuesStorage.GetConfigValues(true)
@@ -846,7 +875,8 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 		}
 
 		if configValuesPatchResult.ValuesChanged {
-			logEntry.Debugf("Module hook '%s': validate module config values before update", h.GetName())
+			logEntry.Debug("Module hook: validate module config values before update",
+				slog.String("module", h.GetName()))
 			// Validate merged static and new values.
 			newValues, validationErr := bm.valuesStorage.GenerateNewConfigValues(configValuesPatchResult.Values, true)
 			if validationErr != nil {
@@ -858,13 +888,18 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 
 			err := bm.dc.KubeConfigManager.SaveConfigValues(bm.Name, configValuesPatchResult.Values)
 			if err != nil {
-				logEntry.Debugf("Module hook '%s' kube module config values stay unchanged:\n%s", h.GetName(), bm.valuesStorage.GetConfigValues(false).DebugString())
+				logEntry.Debug("Module hook kube module config values stay unchanged",
+					slog.String("module", h.GetName()),
+					slog.String("values", bm.valuesStorage.GetConfigValues(false).DebugString()))
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.GetName(), err)
 			}
 
 			bm.valuesStorage.SaveConfigValues(newValues)
 
-			logEntry.Debugf("Module hook '%s': kube module '%s' config values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetConfigValues(false).DebugString())
+			logEntry.Debug("Module hook: kube module config values updated",
+				slog.String("hook", h.GetName()),
+				slog.String("module", bm.Name),
+				slog.String("values", bm.valuesStorage.GetConfigValues(false).DebugString()))
 		}
 	}
 
@@ -876,7 +911,8 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 			return fmt.Errorf("module hook '%s': dynamic module values update error: %s", h.GetName(), err)
 		}
 		if valuesPatchResult.ValuesChanged {
-			logEntry.Debugf("Module hook '%s': validate module values before update", h.GetName())
+			logEntry.Debug("Module hook: validate module values before update",
+				slog.String("module", h.GetName()))
 
 			// Validate schema for updated module values
 			validationErr := bm.valuesStorage.validateValues(valuesPatchResult.Values)
@@ -894,11 +930,16 @@ func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.
 				return fmt.Errorf("error on commit values: %w", err)
 			}
 
-			logEntry.Debugf("Module hook '%s': dynamic module '%s' values updated:\n%s", h.GetName(), bm.Name, bm.valuesStorage.GetValues(false).DebugString())
+			logEntry.Debug("Module hook: dynamic module values updated",
+				slog.String("hook", h.GetName()),
+				slog.String("module", bm.Name),
+				slog.String("values", bm.valuesStorage.GetValues(false).DebugString()))
 		}
 	}
 
-	logEntry.Debugf("Module hook success %s/%s", bm.Name, h.GetName())
+	logEntry.Debug("Module hook success",
+		slog.String("module", bm.Name),
+		slog.String("hook", h.GetName()))
 
 	return nil
 }
@@ -1061,7 +1102,9 @@ func (bm *BasicModule) Validate() error {
 	valuesKey := utils.ModuleNameToValuesKey(bm.GetName())
 	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
 
-	bm.logger.Infof("Validating module %q from %q", bm.GetName(), bm.GetPath())
+	bm.logger.Info("Validating module",
+		slog.String("module", bm.GetName()),
+		slog.String("path", bm.GetPath()))
 
 	if bm.GetName() != restoredName {
 		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", bm.GetName(), restoredName)

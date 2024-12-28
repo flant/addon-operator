@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime/trace"
@@ -93,7 +94,8 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	if !isHelm {
-		hm.logger.Infof("module %q has neither Chart.yaml nor templates/ dir, is't not a helm chart", bm.Name)
+		hm.logger.Info("module has neither Chart.yaml nor templates/ dir, is't not a helm chart",
+			slog.String("name", bm.Name))
 		return nil, nil
 	}
 
@@ -121,7 +123,7 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 		if err == nil {
 			return true, hm.createChartYaml(chartPath)
 		}
-		if err != nil && os.IsNotExist(err) {
+		if os.IsNotExist(err) {
 			// if templates not exists - it's not a helm module
 			return false, nil
 		}
@@ -206,7 +208,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	if err != nil {
 		return err
 	}
-	logEntry.Debugf("chart has %d resources", len(manifests))
+	logEntry.Debug("chart has resources", slog.Int("count", len(manifests)))
 
 	// Skip upgrades if nothing is changed
 	var runUpgradeRelease bool
@@ -275,7 +277,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	revision, status, err := helmClient.LastReleaseStatus(releaseName)
 
 	if revision == "0" {
-		logEntry.Debugf("helm release '%s' not exists: should run upgrade", releaseName)
+		logEntry.Debug("helm release not exists: should run upgrade", slog.String("release", releaseName))
 		return true, nil
 	}
 
@@ -285,21 +287,26 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 
 	// Run helm upgrade if last release isn't `deployed`
 	if strings.ToLower(status) != "deployed" {
-		logEntry.Debugf("helm release '%s' has %s status: should run upgrade", releaseName, strings.ToLower(status))
+		logEntry.Debug("helm release: should run upgrade",
+			slog.String("release", releaseName),
+			slog.String("status", strings.ToLower(status)))
 		return true, nil
 	}
 
 	// Get values for a non-failed release.
 	releaseValues, err := helmClient.GetReleaseValues(releaseName)
 	if err != nil {
-		logEntry.Debugf("helm release '%s' get values error, no upgrade: %v", releaseName, err)
+		logEntry.Debug("helm release get values error, no upgrade",
+			slog.String("release", releaseName),
+			log.Err(err))
 		return false, err
 	}
 
 	// Run helm upgrade if there is no stored checksum
 	recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]
 	if !hasKey {
-		logEntry.Debugf("helm release '%s' has no saved checksum of values: should run upgrade", releaseName)
+		logEntry.Debug("helm release has no saved checksum of values: should run upgrade",
+			slog.String("release", releaseName))
 		return true, nil
 	}
 
@@ -307,7 +314,10 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	// Run helm upgrade if checksum is changed.
 	if recordedChecksumStr, ok := recordedChecksum.(string); ok {
 		if recordedChecksumStr != checksum {
-			logEntry.Debugf("helm release '%s' checksum '%s' is changed to '%s': should run upgrade", releaseName, recordedChecksumStr, checksum)
+			logEntry.Debug("helm release checksum is changed: should run upgrade",
+				slog.String("release", releaseName),
+				slog.String("checksum", recordedChecksumStr),
+				slog.String("newChecksum", checksum))
 			return true, nil
 		}
 	}
@@ -320,11 +330,14 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 
 	// Run helm upgrade if there are absent resources
 	if len(absent) > 0 {
-		logEntry.Debugf("helm release '%s' has %d absent resources: should run upgrade", releaseName, len(absent))
+		logEntry.Debug("helm release has absent resources: should run upgrade",
+			slog.String("release", releaseName),
+			slog.Int("count", len(absent)))
 		return true, nil
 	}
 
-	logEntry.Debugf("helm release '%s' is unchanged: skip release upgrade", releaseName)
+	logEntry.Debug("helm release is unchanged: skip release upgrade",
+		slog.String("release", releaseName))
 	return false, nil
 }
 
@@ -340,7 +353,9 @@ func (hm *HelmModule) PrepareValuesYamlFile() (string, error) {
 		return "", err
 	}
 
-	log.Debugf("Prepared module %s helm values:\n%s", hm.name, hm.values.DebugString())
+	log.Debug("Prepared module helm values info",
+		slog.String("moduleName", hm.name),
+		slog.String("values", hm.values.DebugString()))
 
 	return path, nil
 }

@@ -3,6 +3,7 @@ package script_enabled
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -66,7 +67,8 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			moduleD.scriptState = noEnabledScript
-			log.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", module.GetName())
+			log.Debug("MODULE is ENABLED. Enabled script doesn't exist!",
+				slog.String("module", module.GetName()))
 		} else {
 			moduleD.scriptState = statError
 			moduleD.stateDescription = fmt.Sprintf("Cannot stat enabled script for '%s' module: %v", module.GetName(), err)
@@ -75,7 +77,8 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 	} else {
 		if !utils_file.IsFileExecutable(f) {
 			moduleD.scriptState = nonExecutableScript
-			log.Warnf("Found non-executable enabled script for '%s' module - assuming enabled state", module.GetName())
+			log.Warn("Found non-executable enabled script for module - assuming enabled state",
+				slog.String("module", module.GetName()))
 		}
 	}
 	e.basicModuleDescriptors[module.GetName()] = moduleD
@@ -108,10 +111,12 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			err = errors.New(moduleDescriptor.stateDescription)
 
 		case nonExecutableScript:
-			log.Warnf("Found non-executable enabled script for '%s' module - assuming enabled state", moduleDescriptor.module.GetName())
+			log.Warn("Found non-executable enabled script for module - assuming enabled state",
+				slog.String("module", moduleDescriptor.module.GetName()))
 
 		case noEnabledScript:
-			log.Debugf("MODULE '%s' is ENABLED. Enabled script doesn't exist!", moduleDescriptor.module.GetName())
+			log.Debug("MODULE is ENABLED. Enabled script doesn't exist!",
+				slog.String("module", moduleDescriptor.module.GetName()))
 		}
 
 		if err != nil {

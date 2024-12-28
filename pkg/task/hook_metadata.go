@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -104,12 +105,14 @@ var (
 func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
 	taskMeta := t.GetMetadata()
 	if taskMeta == nil {
-		log.Errorf("Possible Bug! task metadata is nil")
+		log.Error("Possible Bug! task metadata is nil")
 		return
 	}
 	meta, ok := taskMeta.(HookMetadata)
 	if !ok {
-		log.Errorf("Possible Bug! task '%s' metadata is not of type ModuleHookMetadata: got %T", t.GetType(), meta)
+		log.Error("Possible Bug! task metadata is not of type ModuleHookMetadata",
+			slog.String("type", string(t.GetType())),
+			slog.String("got", fmt.Sprintf("%T", meta)))
 		return
 	}
 	return

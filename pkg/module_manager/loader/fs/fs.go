@@ -1,8 +1,10 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -72,7 +74,7 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 	return m, nil
 }
 
-// reads single directory and returns BasicModule
+// LoadModule reads single directory and returns BasicModule
 func (fl *FileSystemLoader) LoadModule(_, modulePath string) (*modules.BasicModule, error) {
 	// the module's parent directory
 	var modulesDir string
@@ -188,9 +190,11 @@ func resolveDirEntry(dirPath string, entry os.DirEntry) (string, string, error) 
 	// Check if entry is a symlink to a directory.
 	targetPath, err := resolveSymlinkToDir(dirPath, entry)
 	if err != nil {
-		if e, ok := err.(*fs.PathError); ok {
+		var e *fs.PathError
+		if errors.As(err, &e) {
 			if e.Err.Error() == "no such file or directory" {
-				log.Warnf("Symlink target %q does not exist. Ignoring module", dirPath)
+				log.Warn("Symlink target does not exist. Ignoring module",
+					slog.String("dir", dirPath))
 				return "", "", nil
 			}
 		}
@@ -203,7 +207,8 @@ func resolveDirEntry(dirPath string, entry os.DirEntry) (string, string, error) 
 	}
 
 	if name != utils.ValuesFileName {
-		log.Warnf("Ignore '%s' while searching for modules", absPath)
+		log.Warn("Ignore dir while searching for modules",
+			slog.String("dir", absPath))
 	}
 	return "", "", nil
 }

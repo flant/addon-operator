@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -294,7 +295,8 @@ func (s *Scheduler) addWeightVertex(vertex *node.Node) error {
 func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	appliedExtenders := []extenders.ExtenderName{}
 	if len(extendersEnv) == 0 {
-		log.Warnf("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS variable isn't set - default list of %s will be applied", defaultAppliedExtenders)
+		log.Warn("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS variable isn't set - default list will be applied",
+			slog.Any("values", defaultAppliedExtenders))
 		appliedExtenders = defaultAppliedExtenders
 	} else {
 		availableExtenders := make(map[extenders.ExtenderName]bool, len(s.extenders))
@@ -350,8 +352,8 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 		finalList = append(finalList, e.ext.Name())
 	}
 
-	log.Infof("The list of applied module extenders: %s", finalList)
-
+	log.Info("The list of applied module extenders",
+		slog.Any("finalList", finalList))
 	return nil
 }
 
@@ -647,12 +649,13 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 
 	// graph hasn't been initialized yet
 	if s.enabledModules == nil {
-		logEntry.Infof("Module Scheduler: graph hasn't been calculated yet")
+		logEntry.Info("Module Scheduler: graph hasn't been calculated yet")
 		recalculateGraph = true
 	}
 
 	if s.err != nil {
-		logEntry.Warnf("Module Scheduler: graph in a faulty state and will be recalculated: %s", s.err.Error())
+		logEntry.Warn("Module Scheduler: graph in a faulty state and will be recalculated",
+			slog.String("error", s.err.Error()))
 		recalculateGraph = true
 	}
 
@@ -782,7 +785,7 @@ outerCycle:
 
 	if graphErr != nil {
 		s.err = graphErr
-		logEntry.Warnf("Module Scheduler: Graph converge failed: %s", s.err.Error())
+		logEntry.Warn("Module Scheduler: Graph converge failed", log.Err(s.err))
 		return true, nil
 	}
 
@@ -830,7 +833,8 @@ outerCycle:
 	s.enabledModules = &enabledModules
 	// reset any previous errors
 	s.err = nil
-	logEntry.Debugf("Graph was successfully updated, diff: [%v]", s.diff)
+	logEntry.Debug("Graph was successfully updated",
+		slog.String("diff", fmt.Sprintf("%v", s.diff)))
 
 	metaDiffSlice := make([]string, 0, len(metaDiff))
 	for moduleName := range metaDiff {

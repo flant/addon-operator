@@ -154,9 +154,9 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 		DefaultNamespace: app.Namespace,
 		ConvergeState:    converge.NewConvergeState(),
 		parallelTaskChannels: parallelTaskChannels{
-			channels: make(map[string](chan parallelQueueEvent)),
+			channels: make(map[string]chan parallelQueueEvent),
 		},
-		discoveredGVKs: make(map[string]struct{}, 0),
+		discoveredGVKs: make(map[string]struct{}),
 	}
 
 	for _, opt := range opts {
@@ -245,7 +245,8 @@ func (op *AddonOperator) Setup() error {
 	if err != nil {
 		return fmt.Errorf("global hooks directory: %s", err)
 	}
-	log.Infof("global hooks directory: %s", globalHooksDir)
+	log.Info("global hooks directory",
+		slog.String("dir", globalHooksDir))
 
 	tempDir, err := ensureTempDirectory(shapp.TempDir)
 	if err != nil {
@@ -437,7 +438,8 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 			"binding":  string(htypes.Schedule),
 		}
 		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
-		logEntry.Debugf("Create tasks for 'schedule' event '%s'", crontab)
+		logEntry.Debug("Create tasks for 'schedule' event",
+			slog.String("event", crontab))
 
 		var tasks []sh_task.Task
 		op.ModuleManager.HandleScheduleEvent(crontab,
@@ -508,7 +510,8 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 			"binding":  string(htypes.OnKubernetesEvent),
 		}
 		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
-		logEntry.Debugf("Create tasks for 'kubernetes' event '%s'", kubeEvent.String())
+		logEntry.Debug("Create tasks for 'kubernetes' event",
+			slog.String("event", kubeEvent.String()))
 
 		var tasks []sh_task.Task
 		op.ModuleManager.HandleKubeEvent(kubeEvent,
@@ -735,7 +738,7 @@ func (op *AddonOperator) CreatePurgeTasks(modulesToPurge []string, t sh_task.Tas
 	return newTasks
 }
 
-// ApplyKubeConfigValues
+// HandleApplyKubeConfigValues ...
 func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels map[string]string) (res queue.TaskResult) {
 	var handleErr error
 	defer trace.StartRegion(context.Background(), "HandleApplyKubeConfigValues").End()
@@ -749,7 +752,9 @@ func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels m
 
 	if handleErr != nil {
 		res.Status = queue.Fail
-		logEntry.Errorf("HandleApplyKubeConfigValues failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, handleErr)
+		logEntry.Error("HandleApplyKubeConfigValues failed, requeue task to retry after delay.",
+			slog.Int("count", t.GetFailureCount()+1),
+			log.Err(handleErr))
 		op.engine.MetricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
 		t.UpdateFailureMessage(handleErr.Error())
 		t.WithQueuedAt(time.Now())
@@ -758,7 +763,7 @@ func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels m
 
 	res.Status = queue.Success
 
-	logEntry.Debugf("HandleApplyKubeConfigValues success")
+	logEntry.Debug("HandleApplyKubeConfigValues success")
 	return
 }
 
@@ -769,7 +774,8 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 
 	taskEvent, ok := t.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 	if !ok {
-		logEntry.Errorf("Possible bug! Wrong prop type in ConvergeModules: got %T(%#[1]v) instead string.", t.GetProp("event"))
+		logEntry.Error("Possible bug! Wrong prop type in ConvergeModules: got another type instead string.",
+			slog.String("type", fmt.Sprintf("%T(%#[1]v)", t.GetProp("event"))))
 		res.Status = queue.Fail
 		return res
 	}
@@ -781,7 +787,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 	op.ConvergeState.PhaseLock.Lock()
 	defer op.ConvergeState.PhaseLock.Unlock()
 	if op.ConvergeState.Phase == converge.StandBy {
-		logEntry.Debugf("ConvergeModules: start")
+		logEntry.Debug("ConvergeModules: start")
 
 		// Deduplicate tasks: remove ConvergeModules tasks right after the current task.
 		RemoveAdjacentConvergeModules(op.engine.TaskQueues.GetByName(t.GetQueueName()), t.GetId(), logLabels, op.Logger)
@@ -801,7 +807,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 	}
 
 	if op.ConvergeState.Phase == converge.WaitBeforeAll {
-		logEntry.Infof("ConvergeModules: beforeAll hooks done, run modules")
+		logEntry.Info("ConvergeModules: beforeAll hooks done, run modules")
 		var state *module_manager.ModulesState
 
 		state, handleErr = op.ModuleManager.RefreshEnabledState(t.GetLogLabels())
@@ -829,7 +835,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 	}
 
 	if op.ConvergeState.Phase == converge.WaitDeleteAndRunModules {
-		logEntry.Infof("ConvergeModules: ModuleRun tasks done, execute AfterAll global hooks")
+		logEntry.Info("ConvergeModules: ModuleRun tasks done, execute AfterAll global hooks")
 		// Put AfterAll tasks before current task.
 		tasks, handleErr := op.CreateAfterAllTasks(t.GetLogLabels(), hm.EventDescription)
 		if handleErr == nil {
@@ -846,21 +852,24 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 	// It is the last phase of ConvergeModules task, reset operator's Converge phase.
 	if op.ConvergeState.Phase == converge.WaitAfterAll {
 		op.ConvergeState.Phase = converge.StandBy
-		logEntry.Infof("ConvergeModules task done")
+		logEntry.Info("ConvergeModules task done")
 		res.Status = queue.Success
 		return res
 	}
 
 	if handleErr != nil {
 		res.Status = queue.Fail
-		logEntry.Errorf("ConvergeModules failed in phase '%s', requeue task to retry after delay. Failed count is %d. Error: %s", op.ConvergeState.Phase, t.GetFailureCount()+1, handleErr)
+		logEntry.Error("ConvergeModules failed, requeue task to retry after delay.",
+			slog.String("phase", string(op.ConvergeState.Phase)),
+			slog.Int("count", t.GetFailureCount()+1),
+			log.Err(handleErr))
 		op.engine.MetricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
 		t.UpdateFailureMessage(handleErr.Error())
 		t.WithQueuedAt(time.Now())
 		return res
 	}
 
-	logEntry.Debugf("ConvergeModules success")
+	logEntry.Debug("ConvergeModules success")
 	res.Status = queue.Success
 	return res
 }
@@ -971,12 +980,16 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 		h := op.ModuleManager.GetGlobalHook(hookName)
 		for _, hookBinding := range h.GetHookConfig().Schedules {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
-				log.Debugf("Queue '%s' started for global 'schedule' hook %s", hookBinding.Queue, hookName)
+				log.Debug("Queue started for global 'schedule' hook",
+					slog.String("queue", hookBinding.Queue),
+					slog.String("hook", hookName))
 			}
 		}
 		for _, hookBinding := range h.GetHookConfig().OnKubernetesEvents {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
-				log.Debugf("Queue '%s' started for global 'kubernetes' hook %s", hookBinding.Queue, hookName)
+				log.Debug("Queue started for global 'kubernetes' hook",
+					slog.String("queue", hookBinding.Queue),
+					slog.String("hook", hookName))
 			}
 		}
 	}
@@ -995,7 +1008,9 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range scheduleHooks {
 		for _, hookBinding := range hook.GetHookConfig().Schedules {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
-				log.Debugf("Queue '%s' started for module 'schedule' hook %s", hookBinding.Queue, hook.GetName())
+				log.Debug("Queue started for module 'schedule'",
+					slog.String("queue", hookBinding.Queue),
+					slog.String("hook", hook.GetName()))
 			}
 		}
 	}
@@ -1004,7 +1019,9 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range kubeEventsHooks {
 		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
 			if op.CreateAndStartQueue(hookBinding.Queue) {
-				log.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hook.GetName())
+				log.Debug("Queue started for module 'kubernetes'",
+					slog.String("queue", hookBinding.Queue),
+					slog.String("hook", hook.GetName()))
 			}
 		}
 	}
@@ -1031,7 +1048,7 @@ func (op *AddonOperator) CreateAndStartParallelQueues() {
 	for i := 0; i < app.NumberOfParallelQueues; i++ {
 		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i)
 		if op.engine.TaskQueues.GetByName(queueName) != nil {
-			log.Warnf("Parallel queue %s already exists", queueName)
+			log.Warn("Parallel queue already exists", slog.String("queue", queueName))
 			continue
 		}
 		op.engine.TaskQueues.NewNamedQueue(queueName, op.ParallelTasksHandler)
@@ -1042,7 +1059,7 @@ func (op *AddonOperator) CreateAndStartParallelQueues() {
 func (op *AddonOperator) DrainModuleQueues(modName string) {
 	m := op.ModuleManager.GetModule(modName)
 	if m == nil {
-		log.Warnf("Module %q is absent when we try to drain its queue", modName)
+		log.Warn("Module is absent when we try to drain its queue", slog.String("module", modName))
 		return
 	}
 
@@ -1089,7 +1106,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 					// if global hooks haven't been run yet, script enabled extender fails due to missing global values
 					if op.globalHooksNotExecutedYet() {
-						eventLogEntry.Infof("Global hook dynamic modification detected, ignore until starting first converge")
+						eventLogEntry.Info("Global hook dynamic modification detected, ignore until starting first converge")
 						break
 					}
 
@@ -1104,12 +1121,13 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						)
 						// if converge has already begun - restart it immediately
 						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) && op.ConvergeState.Phase != converge.StandBy {
-							logEntry.Infof("ConvergeModules: global hook dynamic modification detected, restart current converge process (%s)", op.ConvergeState.Phase)
+							logEntry.Info("ConvergeModules: global hook dynamic modification detected, restart current converge process",
+								slog.String("phase", string(op.ConvergeState.Phase)))
 							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
 							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
 						} else {
 							// if convege hasn't started - make way for global hooks and etc
-							logEntry.Infof("ConvergeModules:  global hook dynamic modification detected, rerun all modules required")
+							logEntry.Info("ConvergeModules:  global hook dynamic modification detected, rerun all modules required")
 							op.engine.TaskQueues.GetMain().AddLast(convergeTask)
 						}
 						// ConvergeModules may be in progress, Reset converge state.
@@ -1128,12 +1146,15 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					switch event.Type {
 					case config.KubeConfigInvalid:
 						op.ModuleManager.SetKubeConfigValid(false)
-						eventLogEntry.Infof("KubeConfig become invalid")
+						eventLogEntry.Info("KubeConfig become invalid")
 
 					case config.KubeConfigChanged:
-						eventLogEntry.Debugf("ModuleManagerEventHandler-KubeConfigChanged: GlobalSectionChanged %v, ModuleValuesChanged %s, ModuleEnabledStateChanged %s", event.GlobalSectionChanged, event.ModuleValuesChanged, event.ModuleEnabledStateChanged)
+						eventLogEntry.Debug("ModuleManagerEventHandler-KubeConfigChanged",
+							slog.Bool("globalSectionChanged", event.GlobalSectionChanged),
+							slog.Any("moduleValuesChanged", event.ModuleValuesChanged),
+							slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged))
 						if !op.ModuleManager.GetKubeConfigValid() {
-							eventLogEntry.Infof("KubeConfig become valid")
+							eventLogEntry.Info("KubeConfig become valid")
 						}
 						// Config is valid now, add task to update ModuleManager state.
 						op.ModuleManager.SetKubeConfigValid(true)
@@ -1160,7 +1181,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								op.engine.TaskQueues.GetMain().CancelTaskDelay()
 								op.logTaskAdd(eventLogEntry, "KubeConfigExtender is updated, put first", kubeConfigTask)
 							}
-							eventLogEntry.Infof("Kube config modification detected, ignore until starting first converge")
+							eventLogEntry.Info("Kube config modification detected, ignore until starting first converge")
 							break
 						}
 
@@ -1176,7 +1197,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							)
 							// if main queue isn't empty and there was another convergeModules task:
 							if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) {
-								logEntry.Infof("ConvergeModules: kube config modification detected,  restart current converge process (%s)", op.ConvergeState.Phase)
+								logEntry.Info("ConvergeModules: kube config modification detected,  restart current converge process",
+									slog.String("phase", string(op.ConvergeState.Phase)))
 								// put ApplyKubeConfig->NewConvergeModulesTask sequence in the beginning of the main queue
 								if kubeConfigTask != nil {
 									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
@@ -1193,7 +1215,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								if kubeConfigTask != nil {
 									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
 								}
-								logEntry.Infof("ConvergeModules: kube config modification detected, rerun all modules required")
+								logEntry.Info("ConvergeModules: kube config modification detected, rerun all modules required")
 								op.engine.TaskQueues.GetMain().AddLast(convergeTask)
 							}
 							// ConvergeModules may be in progress, Reset converge state.
@@ -1214,7 +1236,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 									for i := len(reloadTasks) - 1; i >= 0; i-- {
 										op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), reloadTasks[i])
 									}
-									logEntry.Infof("ConvergeModules: kube config modification detected, append %d tasks to rerun modules %+v", len(reloadTasks), modulesToRerun)
+									logEntry.Info("ConvergeModules: kube config modification detected, append tasks to rerun modules",
+										slog.Int("count", len(reloadTasks)),
+										slog.Any("modules", modulesToRerun))
 									op.logTaskAdd(logEntry, "tail", reloadTasks...)
 								}
 							}
@@ -1258,7 +1282,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					op.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 					op.logTaskAdd(logEntry, fmt.Sprintf("detected %s, append", additionalDescription), newTask)
 				} else {
-					eventLogEntry.With("task.flow", "noop").Infof("Detected %s, ModuleRun task already queued", additionalDescription)
+					eventLogEntry.With("task.flow", "noop").Info("Detected event, ModuleRun task already queued",
+						slog.String("description", additionalDescription))
 				}
 			}
 		}
@@ -1436,7 +1461,7 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
 
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-	logEntry.Debugf("Global hook enable kubernetes bindings")
+	logEntry.Debug("Global hook enable kubernetes bindings")
 
 	hm := task.HookMetadataAccessor(t)
 	globalHook := op.ModuleManager.GetGlobalHook(hm.HookName)
@@ -1501,7 +1526,9 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 			"queue":      t.GetQueueName(),
 			"activation": "OperatorStartup",
 		})
-		logEntry.Errorf("Global hook enable kubernetes bindings failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
+		logEntry.Error("Global hook enable kubernetes bindings failed, requeue task to retry after delay.",
+			slog.Int("count", t.GetFailureCount()+1),
+			log.Err(err))
 		t.UpdateFailureMessage(err.Error())
 		t.WithQueuedAt(queuedAt)
 		res.Status = queue.Fail
@@ -1510,13 +1537,14 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 	// Substitute current task with Synchronization tasks for the main queue.
 	// Other Synchronization tasks are queued into specified queues.
 	// Informers can be started now — their events will be added to the queue tail.
-	logEntry.Debugf("Global hook enable kubernetes bindings success")
+	logEntry.Debug("Global hook enable kubernetes bindings success")
 
 	// "Wait" tasks are queued first
 	for _, tsk := range parallelSyncTasksToWait {
 		q := op.engine.TaskQueues.GetByName(tsk.GetQueueName())
 		if q == nil {
-			log.Errorf("Queue %s is not created while run GlobalHookEnableKubernetesBindings task!", tsk.GetQueueName())
+			log.Error("Queue is not created while run GlobalHookEnableKubernetesBindings task!",
+				slog.String("queue", tsk.GetQueueName()))
 		} else {
 			// Skip state creation if WaitForSynchronization is disabled.
 			thm := task.HookMetadataAccessor(tsk)
@@ -1529,7 +1557,8 @@ func (op *AddonOperator) HandleGlobalHookEnableKubernetesBindings(t sh_task.Task
 	for _, tsk := range parallelSyncTasks {
 		q := op.engine.TaskQueues.GetByName(tsk.GetQueueName())
 		if q == nil {
-			log.Errorf("Queue %s is not created while run GlobalHookEnableKubernetesBindings task!", tsk.GetQueueName())
+			log.Error("Queue is not created while run GlobalHookEnableKubernetesBindings task!",
+				slog.String("queue", tsk.GetQueueName()))
 		} else {
 			q.AddLast(tsk)
 		}
@@ -1550,12 +1579,14 @@ func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[s
 	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
 
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-	logEntry.Debugf("Discover Helm releases state")
+	logEntry.Debug("Discover Helm releases state")
 
 	state, err := op.ModuleManager.RefreshStateFromHelmReleases(t.GetLogLabels())
 	if err != nil {
 		res.Status = queue.Fail
-		logEntry.Errorf("Discover helm releases failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
+		logEntry.Error("Discover helm releases failed, requeue task to retry after delay.",
+			slog.Int("count", t.GetFailureCount()+1),
+			log.Err(err))
 		t.UpdateFailureMessage(err.Error())
 		t.WithQueuedAt(time.Now())
 		return
@@ -1573,15 +1604,15 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	defer trace.StartRegion(context.Background(), "ModulePurge").End()
 
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-	logEntry.Debugf("Module purge start")
+	logEntry.Debug("Module purge start")
 
 	hm := task.HookMetadataAccessor(t)
 	err := op.Helm.NewClient(op.Logger.Named("helm-client"), t.GetLogLabels()).DeleteRelease(hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
-		logEntry.Warnf("Module purge failed, no retry. Error: %s", err)
+		logEntry.Warn("Module purge failed, no retry.", log.Err(err))
 	} else {
-		logEntry.Debugf("Module purge success")
+		logEntry.Debug("Module purge success")
 	}
 
 	status = queue.Success
@@ -1598,7 +1629,7 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-	logEntry.Debugf("Module delete '%s'", hm.ModuleName)
+	logEntry.Debug("Module delete", slog.String("name", hm.ModuleName))
 
 	// Register module hooks to run afterHelmDelete hooks on startup.
 	// It's a noop if registration is done before.
@@ -1618,12 +1649,14 @@ func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]st
 
 	if err != nil {
 		op.engine.MetricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
-		logEntry.Errorf("Module delete failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
+		logEntry.Error("Module delete failed, requeue task to retry after delay.",
+			slog.Int("count", t.GetFailureCount()+1),
+			log.Err(err))
 		t.UpdateFailureMessage(err.Error())
 		t.WithQueuedAt(time.Now())
 		status = queue.Fail
 	} else {
-		logEntry.Debugf("Module delete success '%s'", hm.ModuleName)
+		logEntry.Debug("Module delete success", slog.String("name", hm.ModuleName))
 		status = queue.Success
 	}
 
@@ -1640,11 +1673,11 @@ func (op *AddonOperator) HandleModuleEnsureCRDs(t sh_task.Task, labels map[strin
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
 
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-	logEntry.Debugf("Module ensureCRDs '%s'", hm.ModuleName)
+	logEntry.Debug("Module ensureCRDs", slog.String("name", hm.ModuleName))
 
 	if appliedGVKs, err := op.EnsureCRDs(baseModule); err != nil {
 		op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, err)
-		logEntry.Errorf("ModuleEnsureCRDs failed. Error: %s", err)
+		logEntry.Error("ModuleEnsureCRDs failed.", log.Err(err))
 		t.UpdateFailureMessage(err.Error())
 		t.WithQueuedAt(time.Now())
 		res.Status = queue.Fail
@@ -1666,7 +1699,8 @@ func (op *AddonOperator) HandleParallelModuleRun(t sh_task.Task, labels map[stri
 	hm := task.HookMetadataAccessor(t)
 
 	if hm.ParallelRunMetadata == nil {
-		logEntry.Errorf("Possible bug! Couldn't get task ParallelRunMetadata for a parallel task: %s", hm.EventDescription)
+		logEntry.Error("Possible bug! Couldn't get task ParallelRunMetadata for a parallel task.",
+			slog.String("description", hm.EventDescription))
 		res.Status = queue.Fail
 		return res
 	}
@@ -1674,7 +1708,8 @@ func (op *AddonOperator) HandleParallelModuleRun(t sh_task.Task, labels map[stri
 	i := 0
 	parallelChannel := make(chan parallelQueueEvent)
 	op.parallelTaskChannels.Set(t.GetId(), parallelChannel)
-	logEntry.Debugf("ParallelModuleRun available parallel event channels %v", op.parallelTaskChannels.channels)
+	logEntry.Debug("ParallelModuleRun available parallel event channels",
+		slog.String("channels", fmt.Sprintf("%v", op.parallelTaskChannels.channels)))
 	for moduleName, moduleMetadata := range hm.ParallelRunMetadata.GetModulesMetadata() {
 		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i%(app.NumberOfParallelQueues-1))
 		newLogLabels := utils.MergeLabels(labels)
@@ -1702,7 +1737,8 @@ L:
 	for {
 		select {
 		case parallelEvent := <-parallelChannel:
-			logEntry.Debugf("ParallelModuleRun event '%v' received", parallelEvent)
+			logEntry.Debug("ParallelModuleRun event received",
+				slog.String("event", fmt.Sprintf("%v", parallelEvent)))
 			if len(parallelEvent.errMsg) != 0 {
 				if tasksErrors[parallelEvent.moduleName] != parallelEvent.errMsg {
 					tasksErrors[parallelEvent.moduleName] = parallelEvent.errMsg
@@ -1806,7 +1842,8 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		moduleRunErr = op.ModuleManager.RegisterModuleHooks(baseModule, labels)
 		if moduleRunErr == nil {
 			if hm.DoModuleStartup {
-				logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
+				logEntry.Debug("ModuleRun phase",
+					slog.String("phase", string(baseModule.GetPhase())))
 
 				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
 
@@ -1826,7 +1863,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	}
 
 	if baseModule.GetPhase() == modules.OnStartupDone {
-		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
+		logEntry.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 		if baseModule.HasKubernetesHooks() {
 			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.QueueSynchronizationTasks)
 		} else {
@@ -1837,7 +1874,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 	// Note: All hooks should be queued to fill snapshots before proceed to beforeHelm hooks.
 	if baseModule.GetPhase() == modules.QueueSynchronizationTasks {
-		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
+		logEntry.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 
 		// ModuleHookRun.Synchronization tasks for bindings with the "main" queue.
 		mainSyncTasks := make([]sh_task.Task, 0)
@@ -1910,7 +1947,8 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			for _, tsk := range parallelSyncTasksToWait {
 				q := op.engine.TaskQueues.GetByName(tsk.GetQueueName())
 				if q == nil {
-					logEntry.Errorf("queue %s is not found while EnableKubernetesBindings task", tsk.GetQueueName())
+					logEntry.Error("queue is not found while EnableKubernetesBindings task",
+						slog.String("queue", tsk.GetQueueName()))
 				} else {
 					thm := task.HookMetadataAccessor(tsk)
 					q.AddLast(tsk)
@@ -1923,7 +1961,8 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			for _, tsk := range parallelSyncTasks {
 				q := op.engine.TaskQueues.GetByName(tsk.GetQueueName())
 				if q == nil {
-					logEntry.Errorf("queue %s is not found while EnableKubernetesBindings task", tsk.GetQueueName())
+					logEntry.Error("queue is not found while EnableKubernetesBindings task",
+						slog.String("queue", tsk.GetQueueName()))
 				} else {
 					q.AddLast(tsk)
 				}
@@ -1939,7 +1978,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 				op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.WaitForSynchronization)
 				logEntry.With("module.state", "wait-for-synchronization").
-					Debugf("ModuleRun wait for Synchronization")
+					Debug("ModuleRun wait for Synchronization")
 			}
 
 			// Put Synchronization tasks for kubernetes hooks before ModuleRun task.
@@ -1961,10 +2000,14 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		} else {
 			// Debug messages every fifth second: print Synchronization state.
 			if time.Now().UnixNano()%5000000000 == 0 {
-				logEntry.Debugf("ModuleRun wait Synchronization state: moduleStartup:%v syncNeeded:%v syncQueued:%v syncDone:%v", hm.DoModuleStartup, baseModule.SynchronizationNeeded(), baseModule.Synchronization().HasQueued(), baseModule.Synchronization().IsCompleted())
+				logEntry.Debug("ModuleRun wait Synchronization state",
+					slog.Bool("moduleStartup", hm.DoModuleStartup),
+					slog.Bool("syncNeeded", baseModule.SynchronizationNeeded()),
+					slog.Bool("syncQueued", baseModule.Synchronization().HasQueued()),
+					slog.Bool("syncDone", baseModule.Synchronization().IsCompleted()))
 				baseModule.Synchronization().DebugDumpState(logEntry)
 			}
-			logEntry.Debugf("Synchronization not completed, keep ModuleRun task in repeat mode")
+			logEntry.Debug("Synchronization not completed, keep ModuleRun task in repeat mode")
 			t.WithQueuedAt(time.Now())
 			res.Status = queue.Repeat
 			return
@@ -1973,7 +2016,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 	// Enable schedule events once at module start.
 	if baseModule.GetPhase() == modules.EnableScheduleBindings {
-		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
+		logEntry.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 
 		op.ModuleManager.EnableModuleScheduleBindings(hm.ModuleName)
 		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
@@ -1981,7 +2024,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 	// Module start is done, module is ready to run hooks and helm chart.
 	if baseModule.GetPhase() == modules.CanRunHelm {
-		logEntry.Debugf("ModuleRun '%s' phase", baseModule.GetPhase())
+		logEntry.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 		// run beforeHelm, helm, afterHelm
 		valuesChanged, moduleRunErr = op.ModuleManager.RunModule(baseModule.Name, t.GetLogLabels())
 	}
@@ -1989,14 +2032,17 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
 	if moduleRunErr != nil {
 		res.Status = queue.Fail
-		logEntry.Errorf("ModuleRun failed in phase '%s'. Requeue task to retry after delay. Failed count is %d. Error: %s", baseModule.GetPhase(), t.GetFailureCount()+1, moduleRunErr)
+		logEntry.Error("ModuleRun failed. Requeue task to retry after delay.",
+			slog.String("phase", string(baseModule.GetPhase())),
+			slog.Int("count", t.GetFailureCount()+1),
+			log.Err(moduleRunErr))
 		op.engine.MetricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
 		t.UpdateFailureMessage(moduleRunErr.Error())
 		t.WithQueuedAt(time.Now())
 	} else {
 		res.Status = queue.Success
 		if valuesChanged {
-			logEntry.Infof("ModuleRun success, values changed, restart module")
+			logEntry.Info("ModuleRun success, values changed, restart module")
 			// One of afterHelm hooks changes values, run ModuleRun again: copy task, but disable startup hooks.
 			hm.DoModuleStartup = false
 			hm.EventDescription = "AfterHelm-Hooks-Change-Values"
@@ -2010,7 +2056,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
 			op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 		} else {
-			logEntry.Infof("ModuleRun success, module is ready")
+			logEntry.Info("ModuleRun success, module is ready")
 		}
 	}
 	return
@@ -2085,7 +2131,10 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 			}
 			// Task 'tsk' will be combined, so remove it from the SynchronizationState.
 			if thm.IsSynchronization() {
-				logEntry.Debugf("Synchronization task for %s/%s is combined, mark it as Done: id=%s", thm.HookName, thm.Binding, thm.KubernetesBindingId)
+				logEntry.Debug("Synchronization task is combined, mark it as Done",
+					slog.String("name", thm.HookName),
+					slog.String("binding", thm.Binding),
+					slog.String("id", thm.KubernetesBindingId))
 				baseModule.Synchronization().DoneForBinding(thm.KubernetesBindingId)
 			}
 			return false // do not stop combine process on this task
@@ -2097,7 +2146,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 			if len(combineResult.MonitorIDs) > 0 {
 				hm.MonitorIDs = append(hm.MonitorIDs, combineResult.MonitorIDs...)
 			}
-			logEntry.Debugf("Got monitorIDs: %+v", hm.MonitorIDs)
+			logEntry.Debug("Got monitorIDs", slog.Any("monitorIDs", hm.MonitorIDs))
 			t.UpdateMetadata(hm)
 		}
 	}
@@ -2119,12 +2168,14 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 		if err != nil {
 			if hm.AllowFailure {
 				allowed = 1.0
-				logEntry.Infof("Module hook failed, but allowed to fail. Error: %v", err)
+				logEntry.Info("Module hook failed, but allowed to fail.", log.Err(err))
 				res.Status = queue.Success
 				op.ModuleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, nil)
 			} else {
 				errors = 1.0
-				logEntry.Errorf("Module hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
+				logEntry.Error("Module hook failed, requeue task to retry after delay.",
+					slog.Int("count", t.GetFailureCount()+1),
+					log.Err(err))
 				t.UpdateFailureMessage(err.Error())
 				t.WithQueuedAt(time.Now())
 				res.Status = queue.Fail
@@ -2132,7 +2183,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 			}
 		} else {
 			success = 1.0
-			logEntry.Debugf("Module hook success '%s'", hm.HookName)
+			logEntry.Debug("Module hook success", slog.String("name", hm.HookName))
 			res.Status = queue.Success
 			op.ModuleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, nil)
 
@@ -2142,7 +2193,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 			switch hm.BindingType {
 			case htypes.Schedule:
 				if beforeChecksum != afterChecksum {
-					logEntry.Infof("Module hook changed values, will restart ModuleRun.")
+					logEntry.Info("Module hook changed values, will restart ModuleRun.")
 					reloadModule = true
 					eventDescription = "Schedule-Change-ModuleValues"
 				}
@@ -2150,9 +2201,9 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 				// Do not reload module on changes during Synchronization.
 				if beforeChecksum != afterChecksum {
 					if hm.IsSynchronization() {
-						logEntry.Infof("Module hook changed values, but restart ModuleRun is ignored for the Synchronization task.")
+						logEntry.Info("Module hook changed values, but restart ModuleRun is ignored for the Synchronization task.")
 					} else {
-						logEntry.Infof("Module hook changed values, will restart ModuleRun.")
+						logEntry.Info("Module hook changed values, will restart ModuleRun.")
 						reloadModule = true
 						eventDescription = "Kubernetes-Change-ModuleValues"
 					}
@@ -2189,7 +2240,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 					op.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 					op.logTaskAdd(logEntry, "module values are changed, append", newTask)
 				} else {
-					logEntry.With("task.flow", "noop").Infof("module values are changed, ModuleRun task already queued")
+					logEntry.With("task.flow", "noop").Info("module values are changed, ModuleRun task already queued")
 				}
 			}
 		}
@@ -2245,13 +2296,13 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 	if isSynchronization {
 		// Synchronization is not a part of v0 contract, skip hook execution.
 		if taskHook.GetHookConfig().Version == "v0" {
-			logEntry.Infof("Execute on Synchronization ignored for v0 hooks")
+			logEntry.Info("Execute on Synchronization ignored for v0 hooks")
 			shouldRunHook = false
 			res.Status = queue.Success
 		}
 		// Check for "executeOnSynchronization: false".
 		if !hm.ExecuteOnSynchronization {
-			logEntry.Infof("Execute on Synchronization disabled in hook config: ExecuteOnSynchronization=false")
+			logEntry.Info("Execute on Synchronization disabled in hook config: ExecuteOnSynchronization=false")
 			shouldRunHook = false
 			res.Status = queue.Success
 		}
@@ -2273,7 +2324,10 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 			}
 			// Task 'tsk' will be combined, so remove it from the GlobalSynchronizationState.
 			if thm.IsSynchronization() {
-				logEntry.Debugf("Synchronization task for %s/%s is combined, mark it as Done: id=%s", thm.HookName, thm.Binding, thm.KubernetesBindingId)
+				logEntry.Debug("Synchronization task is combined, mark it as Done",
+					slog.String("name", thm.HookName),
+					slog.String("binding", thm.Binding),
+					slog.String("id", thm.KubernetesBindingId))
 				op.ModuleManager.GlobalSynchronizationState().DoneForBinding(thm.KubernetesBindingId)
 			}
 			return false // Combine tsk.
@@ -2283,10 +2337,13 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 			hm.BindingContext = combineResult.BindingContexts
 			// Extra monitor IDs can be returned if several Synchronization binding contexts are combined.
 			if len(combineResult.MonitorIDs) > 0 {
-				logEntry.Debugf("Task monitorID: %s, combined monitorIDs: %+v", hm.MonitorIDs, combineResult.MonitorIDs)
+				logEntry.Debug("Task monitorID. Combined monitorIDs.",
+					slog.Any("monitorIDs", hm.MonitorIDs),
+					slog.Any("combinedMonitorIDs", combineResult.MonitorIDs))
 				hm.MonitorIDs = combineResult.MonitorIDs
 			}
-			logEntry.Debugf("Got monitorIDs: %+v", hm.MonitorIDs)
+			logEntry.Debug("Got monitorIDs",
+				slog.Any("monitorIDs", hm.MonitorIDs))
 			t.UpdateMetadata(hm)
 		}
 	}
@@ -2295,7 +2352,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 	// op.HelmResourcesManager.PauseMonitors()
 
 	if shouldRunHook {
-		logEntry.Debugf("Global hook run")
+		logEntry.Debug("Global hook run")
 
 		errors := 0.0
 		success := 0.0
@@ -2306,11 +2363,13 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		if err != nil {
 			if hm.AllowFailure {
 				allowed = 1.0
-				logEntry.Infof("Global hook failed, but allowed to fail. Error: %v", err)
+				logEntry.Info("Global hook failed, but allowed to fail.", log.Err(err))
 				res.Status = queue.Success
 			} else {
 				errors = 1.0
-				logEntry.Errorf("Global hook failed, requeue task to retry after delay. Failed count is %d. Error: %s", t.GetFailureCount()+1, err)
+				logEntry.Error("Global hook failed, requeue task to retry after delay.",
+					slog.Int("count", t.GetFailureCount()+1),
+					log.Err(err))
 				t.UpdateFailureMessage(err.Error())
 				t.WithQueuedAt(time.Now())
 				res.Status = queue.Fail
@@ -2318,7 +2377,10 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 		} else {
 			// Calculate new checksum of *Enabled values.
 			success = 1.0
-			logEntry.Debugf("GlobalHookRun success, checksums: before=%s after=%s saved=%s", beforeChecksum, afterChecksum, hm.ValuesChecksum)
+			logEntry.Debug("GlobalHookRun success",
+				slog.String("beforeChecksum", beforeChecksum),
+				slog.String("afterChecksum", afterChecksum),
+				slog.String("savedChecksum", hm.ValuesChecksum))
 			res.Status = queue.Success
 
 			reloadAll := false
@@ -2326,28 +2388,28 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 			switch hm.BindingType {
 			case htypes.Schedule:
 				if beforeChecksum != afterChecksum {
-					logEntry.Infof("Global hook changed values, will run ReloadAll.")
+					logEntry.Info("Global hook changed values, will run ReloadAll.")
 					reloadAll = true
 					eventDescription = "Schedule-Change-GlobalValues"
 				}
 			case htypes.OnKubernetesEvent:
 				if beforeChecksum != afterChecksum {
 					if hm.ReloadAllOnValuesChanges {
-						logEntry.Infof("Global hook changed values, will run ReloadAll.")
+						logEntry.Info("Global hook changed values, will run ReloadAll.")
 						reloadAll = true
 						eventDescription = "Kubernetes-Change-GlobalValues"
 					} else {
-						logEntry.Infof("Global hook changed values, but ReloadAll ignored for the Synchronization task.")
+						logEntry.Info("Global hook changed values, but ReloadAll ignored for the Synchronization task.")
 					}
 				}
 			case hookTypes.AfterAll:
 				if !hm.LastAfterAllHook && afterChecksum != beforeChecksum {
-					logEntry.Infof("Global hook changed values, but ReloadAll ignored: more AfterAll hooks to execute.")
+					logEntry.Info("Global hook changed values, but ReloadAll ignored: more AfterAll hooks to execute.")
 				}
 
 				// values are changed when afterAll hooks are executed
 				if hm.LastAfterAllHook && afterChecksum != hm.ValuesChecksum {
-					logEntry.Infof("Global values changed by AfterAll hooks, will run ReloadAll.")
+					logEntry.Info("Global values changed by AfterAll hooks, will run ReloadAll.")
 					reloadAll = true
 					eventDescription = "AfterAll-Hooks-Change-GlobalValues"
 				}
@@ -2357,7 +2419,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 				// if helm3lib is in use - reinit helm action configuration to update helm capabilities (newly available apiVersions and resoruce kinds)
 				if op.Helm.ClientType == helm.Helm3Lib {
 					if err := helm3lib.ReinitActionConfig(op.Logger.Named("helm3-client")); err != nil {
-						logEntry.Errorf("Couldn't reinitialize helm3lib action configuration: %s", err)
+						logEntry.Error("Couldn't reinitialize helm3lib action configuration", log.Err(err))
 						t.UpdateFailureMessage(err.Error())
 						t.WithQueuedAt(time.Now())
 						res.Status = queue.Fail
@@ -2400,7 +2462,7 @@ func (op *AddonOperator) HandleGlobalHookRun(t sh_task.Task, labels map[string]s
 	if isSynchronization && res.Status == queue.Success {
 		op.ModuleManager.GlobalSynchronizationState().DoneForBinding(hm.KubernetesBindingId)
 		// Unlock Kubernetes events for all monitors when Synchronization task is done.
-		logEntry.Debugf("Synchronization done, unlock Kubernetes events")
+		logEntry.Debug("Synchronization done, unlock Kubernetes events")
 		for _, monitorID := range hm.MonitorIDs {
 			taskHook.GetHookController().UnlockKubernetesEventsFor(monitorID)
 		}
@@ -2445,7 +2507,8 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 	queuedAt := time.Now()
 
 	// Add ModuleDelete tasks to delete helm releases of disabled modules.
-	log.Debugf("The following modules are going to be disabled: %v", state.ModulesToDisable)
+	log.Debug("The following modules are going to be disabled",
+		slog.Any("modules", state.ModulesToDisable))
 	for _, moduleName := range state.ModulesToDisable {
 		ev := events.ModuleEvent{
 			ModuleName: moduleName,
@@ -2468,7 +2531,8 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
-	log.Debugf("The following modules are going to be enabled/rerun: %v", state.AllEnabledModulesByOrder)
+	log.Debug("The following modules are going to be enabled/rerun",
+		slog.String("modules", fmt.Sprintf("%v", state.AllEnabledModulesByOrder)))
 
 	for _, modules := range state.AllEnabledModulesByOrder {
 		newLogLabels := utils.MergeLabels(logLabels)
@@ -2550,7 +2614,8 @@ func (op *AddonOperator) CreateConvergeModulesTasks(state *module_manager.Module
 			modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
 
 		default:
-			log.Errorf("Invalid ModulesState %v", state)
+			log.Error("Invalid ModulesState",
+				slog.String("state", fmt.Sprintf("%v", state)))
 		}
 	}
 	// as resultingTasks contains new ensureCRDsTasks we invalidate
@@ -2614,7 +2679,8 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 	// Report modules left to process.
 	if convergeTasks > 0 && (t.GetType() == task.ModuleRun || t.GetType() == task.ModuleDelete) {
 		moduleTasks := ConvergeModulesInQueue(op.engine.TaskQueues.GetMain())
-		log.Infof("Converge modules in progress: %d modules left to process in queue 'main'", moduleTasks)
+		log.Info("Converge modules in progress",
+			slog.Int("count", moduleTasks))
 	}
 }
 
@@ -2632,7 +2698,7 @@ func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
 	case converge.FirstStarted:
 		// Switch to 'done' state after first converge is started and when no 'converge' tasks left in the queue.
 		if convergeTasks == 0 {
-			log.Infof("First converge is finished. Operator is ready now.")
+			log.Info("First converge is finished. Operator is ready now.")
 			op.ConvergeState.SetFirstRunPhase(converge.FirstDone)
 		}
 	}

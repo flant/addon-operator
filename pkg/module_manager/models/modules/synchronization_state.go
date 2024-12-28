@@ -2,6 +2,7 @@ package modules
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -61,14 +62,16 @@ func (s *SynchronizationState) IsCompleted() bool {
 	for _, state := range s.state {
 		if !state.Done {
 			done = false
-			log.Debugf("Synchronization isn't done for %s/%s", state.HookName, state.BindingName)
+			log.Debug("Synchronization isn't done",
+				slog.String("hook", state.HookName),
+				slog.String("binding", state.BindingName))
 			break
 		}
 	}
 	return done
 }
 
-// func (s *SynchronizationState) QueuedForBinding(metadata task.HookMetadata) {
+// QueuedForBinding marks a Kubernetes binding as queued for synchronization
 func (s *SynchronizationState) QueuedForBinding(metadata TaskMetadata) {
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -93,7 +96,9 @@ func (s *SynchronizationState) DoneForBinding(id string) {
 		state = &kubernetesBindingSynchronizationState{}
 		s.state[id] = state
 	}
-	log.Debugf("Synchronization done for %s/%s", state.HookName, state.BindingName)
+	log.Debug("Synchronization done",
+		slog.String("hook", state.HookName),
+		slog.String("binding", state.BindingName))
 	state.Done = true
 }
 
@@ -101,6 +106,6 @@ func (s *SynchronizationState) DebugDumpState(logEntry *log.Logger) {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	for id, state := range s.state {
-		logEntry.Debugf("%s/%s: queued=%v done=%v id=%s", state.HookName, state.BindingName, state.Queued, state.Done, id)
+		logEntry.Debug(fmt.Sprintf("%s/%s: queued=%v done=%v id=%s", state.HookName, state.BindingName, state.Queued, state.Done, id))
 	}
 }
