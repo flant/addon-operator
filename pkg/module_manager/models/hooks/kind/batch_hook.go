@@ -92,7 +92,7 @@ func (h *BatchHook) GetHookConfigDescription() string {
 }
 
 // Execute runs the hook via the OS interpreter and returns the result of the execution
-func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
+func (h *BatchHook) Execute(configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
 	result := &HookResult{
 		Patches: make(map[utils.ValuesPatchType]*utils.ValuesPatch),
 	}
@@ -104,7 +104,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	}
 
 	// tmp files has uuid in name and create only in tmp folder (because of RO filesystem)
-	tmpFiles, err := sh.prepareTmpFilesForHookRun(bindingContextBytes, moduleSafeName, configValues, values)
+	tmpFiles, err := h.prepareTmpFilesForHookRun(bindingContextBytes, moduleSafeName, configValues, values)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
-				sh.Hook.Logger.With("hook", sh.GetName()).
+				h.Hook.Logger.With("hook", h.GetName()).
 					Error("Remove tmp file",
 						slog.String("file", f),
 						log.Err(err))
@@ -130,7 +130,7 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 
 	envs := make([]string, 0)
 	args := make([]string, 0)
-	args = append(args, "hook", "run", strconv.Itoa(int(sh.ID)))
+	args = append(args, "hook", "run", strconv.Itoa(int(h.ID)))
 	envs = append(envs, os.Environ()...)
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
@@ -138,12 +138,12 @@ func (sh *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bin
 
 	cmd := executor.NewExecutor(
 		"",
-		sh.GetPath(),
+		h.GetPath(),
 		args,
 		envs).
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
-		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
-		WithLogger(sh.Logger.Named("executor"))
+		WithLogProxyHookJSONKey(h.LogProxyHookJSONKey).
+		WithLogger(h.Logger.Named("executor"))
 
 	usage, err := cmd.RunAndLogLines(logLabels)
 	result.Usage = usage
@@ -248,41 +248,41 @@ func (h *BatchHook) GetAfterDeleteHelm() *float64 {
 }
 
 // PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
-func (sh *BatchHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafeName string, configValues, values utils.Values) (map[string]string, error) {
+func (h *BatchHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafeName string, configValues, values utils.Values) (map[string]string, error) {
 	var err error
 	tmpFiles := make(map[string]string)
 
-	tmpFiles["CONFIG_VALUES_PATH"], err = sh.prepareConfigValuesJsonFile(moduleSafeName, configValues)
+	tmpFiles["CONFIG_VALUES_PATH"], err = h.prepareConfigValuesJsonFile(moduleSafeName, configValues)
 	if err != nil {
 		return tmpFiles, err
 	}
 
-	tmpFiles["VALUES_PATH"], err = sh.prepareValuesJsonFile(moduleSafeName, values)
+	tmpFiles["VALUES_PATH"], err = h.prepareValuesJsonFile(moduleSafeName, values)
 	if err != nil {
 		return tmpFiles, err
 	}
 
-	tmpFiles["BINDING_CONTEXT_PATH"], err = sh.prepareBindingContextJsonFile(moduleSafeName, bindingContext)
+	tmpFiles["BINDING_CONTEXT_PATH"], err = h.prepareBindingContextJsonFile(moduleSafeName, bindingContext)
 	if err != nil {
 		return tmpFiles, err
 	}
 
-	tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"], err = sh.prepareConfigValuesJsonPatchFile()
+	tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"], err = h.prepareConfigValuesJsonPatchFile()
 	if err != nil {
 		return tmpFiles, err
 	}
 
-	tmpFiles["VALUES_JSON_PATCH_PATH"], err = sh.prepareValuesJsonPatchFile()
+	tmpFiles["VALUES_JSON_PATCH_PATH"], err = h.prepareValuesJsonPatchFile()
 	if err != nil {
 		return tmpFiles, err
 	}
 
-	tmpFiles["METRICS_PATH"], err = sh.prepareMetricsFile()
+	tmpFiles["METRICS_PATH"], err = h.prepareMetricsFile()
 	if err != nil {
 		return tmpFiles, err
 	}
 
-	tmpFiles["KUBERNETES_PATCH_PATH"], err = sh.prepareKubernetesPatchFile()
+	tmpFiles["KUBERNETES_PATCH_PATH"], err = h.prepareKubernetesPatchFile()
 	if err != nil {
 		return tmpFiles, err
 	}
