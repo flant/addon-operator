@@ -101,7 +101,7 @@ func (h *GoHook) GetHookConfigDescription() string {
 }
 
 // Execute runs the hook and return the result of the execution
-func (h *GoHook) Execute(_ string, bContext []bindingcontext.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (result *HookResult, err error) {
+func (h *GoHook) Execute(_ string, bContext []bindingcontext.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
 	// Values are patched in-place, so an error can occur.
 	patchableValues, err := gohook.NewPatchableValues(values)
 	if err != nil {
@@ -151,7 +151,7 @@ func (h *GoHook) Execute(_ string, bContext []bindingcontext.BindingContext, _ s
 		return nil, err
 	}
 
-	result = &HookResult{
+	result := &HookResult{
 		Patches: map[utils.ValuesPatchType]*utils.ValuesPatch{
 			utils.MemoryValuesPatch: {Operations: patchableValues.GetPatches()},
 			utils.ConfigMapPatch:    {Operations: patchableConfigValues.GetPatches()},

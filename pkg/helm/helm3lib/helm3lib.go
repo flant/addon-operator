@@ -148,7 +148,7 @@ func (h *LibClient) initAndVersion() error {
 }
 
 // LastReleaseStatus returns last known revision for release and its status
-func (h *LibClient) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
+func (h *LibClient) LastReleaseStatus(releaseName string) (string /*revision*/, string /*status*/, error) {
 	lastRelease, err := actionConfig.Releases.Last(releaseName)
 	if err != nil {
 		// in the Last(x) function we have the condition:

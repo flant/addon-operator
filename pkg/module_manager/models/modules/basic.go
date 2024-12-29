@@ -248,7 +248,7 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 	return mHooks, nil
 }
 
-func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err error) {
+func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 	hooksDir := filepath.Join(bm.Path, "hooks")
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
@@ -259,7 +259,7 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 		return nil, err
 	}
 
-	hks = make([]*kind.ShellHook, 0)
+	hks := make([]*kind.ShellHook, 0)
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
@@ -286,10 +286,10 @@ func (bm *BasicModule) searchModuleShellHooks() (hks []*kind.ShellHook, err erro
 		hks = append(hks, shHook)
 	}
 
-	return
+	return hks, nil
 }
 
-func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err error) {
+func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 	hooksDir := filepath.Join(bm.Path, "hooks")
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
@@ -300,7 +300,7 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 		return nil, err
 	}
 
-	hks = make([]*kind.BatchHook, 0)
+	hks := make([]*kind.BatchHook, 0)
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
@@ -325,7 +325,7 @@ func (bm *BasicModule) searchModuleBatchHooks() (hks []*kind.BatchHook, err erro
 		}
 	}
 
-	return
+	return hks, nil
 }
 
 func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]string, error) {
@@ -398,7 +398,7 @@ func IsFileBatchHook(path string, f os.FileInfo) error {
 	return ErrFileIsNotBatchHook
 }
 
-func (bm *BasicModule) searchModuleGoHooks() (hks []*kind.GoHook) {
+func (bm *BasicModule) searchModuleGoHooks() []*kind.GoHook {
 	// find module hooks in go hooks registry
 	return sdk.Registry().GetModuleHooks(bm.Name)
 }

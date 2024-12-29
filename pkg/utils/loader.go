@@ -61,7 +61,7 @@ func LoadValuesFileFromDir(dir string, strictModeEnabled bool) (Values, error) {
 //
 //	/modules/XXX-module-name/openapi/config-values.yaml
 //	/modules/XXX-module-name/openapi/values.yaml
-func ReadOpenAPIFiles(openApiDir string) (configValuesBytes, valuesBytes []byte, err error) {
+func ReadOpenAPIFiles(openApiDir string) ([]byte /*configValuesBytes*/, []byte /*valuesBytes*/, error) {
 	if openApiDir == "" {
 		return nil, nil, nil
 	}
@@ -69,21 +69,23 @@ func ReadOpenAPIFiles(openApiDir string) (configValuesBytes, valuesBytes []byte,
 		return nil, nil, nil
 	}
 
+	configValuesBytes := make([]byte, 0)
 	configPath := filepath.Join(openApiDir, ConfigValuesFileName)
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		configValuesBytes, err = os.ReadFile(configPath)
 		if err != nil {
-			return nil, nil, fmt.Errorf("read file '%s': %v", configPath, err)
+			return nil, nil, fmt.Errorf("read file '%s': %w", configPath, err)
 		}
 	}
 
+	valuesBytes := make([]byte, 0)
 	valuesPath := filepath.Join(openApiDir, ValuesFileName)
 	if _, err := os.Stat(valuesPath); !os.IsNotExist(err) {
 		valuesBytes, err = os.ReadFile(valuesPath)
 		if err != nil {
-			return nil, nil, fmt.Errorf("read file '%s': %v", valuesPath, err)
+			return nil, nil, fmt.Errorf("read file '%s': %w", valuesPath, err)
 		}
 	}
 
-	return
+	return configValuesBytes, valuesBytes, nil
 }
