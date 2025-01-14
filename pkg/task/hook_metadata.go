@@ -102,20 +102,22 @@ var (
 	_ modules.TaskMetadata                 = HookMetadata{}
 )
 
-func HookMetadataAccessor(t task.Task) (meta HookMetadata) {
+func HookMetadataAccessor(t task.Task) HookMetadata {
 	taskMeta := t.GetMetadata()
 	if taskMeta == nil {
 		log.Error("Possible Bug! task metadata is nil")
-		return
+		return HookMetadata{}
 	}
+
 	meta, ok := taskMeta.(HookMetadata)
 	if !ok {
 		log.Error("Possible Bug! task metadata is not of type ModuleHookMetadata",
 			slog.String("type", string(t.GetType())),
 			slog.String("got", fmt.Sprintf("%T", meta)))
-		return
+		return HookMetadata{}
 	}
-	return
+
+	return meta
 }
 
 func (hm HookMetadata) GetDescription() string {

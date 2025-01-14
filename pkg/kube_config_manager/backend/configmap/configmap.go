@@ -144,8 +144,10 @@ func (b Backend) getConfigMap(ctx context.Context) (*v1.ConfigMap, error) {
 	return obj, err
 }
 
-func parseConfigMapData(data map[string]string) (cfg *config.KubeConfig, err error) {
-	cfg = config.NewConfig()
+func parseConfigMapData(data map[string]string) (*config.KubeConfig, error) {
+	var err error
+	cfg := config.NewConfig()
+
 	// Parse values in global section.
 	cfg.Global, err = getGlobalKubeConfigFromConfigData(data)
 	if err != nil {

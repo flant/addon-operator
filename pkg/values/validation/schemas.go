@@ -112,7 +112,7 @@ func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, valu
 
 // validateObject uses schema to validate data structure in the dataObj.
 // See https://github.com/kubernetes/apiextensions-apiserver/blob/1bb376f70aa2c6f2dec9a8c7f05384adbfac7fbb/pkg/apiserver/validation/validation.go#L47
-func validateObject(dataObj interface{}, s *spec.Schema, rootName string) (multiErr error) {
+func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error {
 	if s == nil {
 		return fmt.Errorf("validate config: schema is not provided")
 	}
@@ -143,6 +143,7 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) (multi
 	if allErrs == nil || allErrs.Len() == 0 {
 		allErrs = multierror.Append(allErrs, fmt.Errorf("configuration is not valid"))
 	}
+
 	return allErrs.ErrorOrNil()
 }
 
@@ -220,7 +221,7 @@ func LoadSchemaFromBytes(openApiContent []byte) (*spec.Schema, error) {
 }
 
 // PrepareSchemas loads schemas for config values, values and helm values.
-func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*spec.Schema, err error) {
+func PrepareSchemas(configBytes, valuesBytes []byte) (map[SchemaType]*spec.Schema, error) {
 	res := make(map[SchemaType]*spec.Schema)
 	if len(configBytes) > 0 {
 		schemaObj, err := LoadSchemaFromBytes(configBytes)
@@ -238,6 +239,7 @@ func PrepareSchemas(configBytes, valuesBytes []byte) (schemas map[SchemaType]*sp
 		if err != nil {
 			return nil, fmt.Errorf("load '%s' schema: %w", ValuesSchema, err)
 		}
+
 		res[ValuesSchema] = schema.TransformSchema(
 			schemaObj,
 			&schema.ExtendTransformer{Parent: res[ConfigValuesSchema]},

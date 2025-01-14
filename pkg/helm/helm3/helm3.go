@@ -65,19 +65,19 @@ func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmCl
 }
 
 // cmd runs Helm binary with specified arguments.
-func (h *Helm3Client) cmd(args ...string) (stdout string, stderr string, err error) {
-	cmd := exec.Command(Helm3Path, args...)
-
+func (h *Helm3Client) cmd(args ...string) (string /*stdout*/, string /*stderr*/, error) {
 	var stdoutBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
 	var stderrBuf bytes.Buffer
+
+	cmd := exec.Command(Helm3Path, args...)
+	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	err = executor.Run(cmd)
-	stdout = strings.TrimSpace(stdoutBuf.String())
-	stderr = strings.TrimSpace(stderrBuf.String())
+	err := executor.Run(cmd)
+	stdout := strings.TrimSpace(stdoutBuf.String())
+	stderr := strings.TrimSpace(stderrBuf.String())
 
-	return
+	return stdout, stderr, err
 }
 
 // initAndVersion runs helm version command.
@@ -98,7 +98,7 @@ func (h *Helm3Client) initAndVersion() error {
 //	Example helm history output:
 //	REVISION	UPDATED                 	STATUS    	CHART                 	DESCRIPTION
 //	1        Fri Jul 14 18:25:00 2017	SUPERSEDED	symfony-demo-0.1.0    	Install complete
-func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, status string, err error) {
+func (h *Helm3Client) LastReleaseStatus(releaseName string) (string /*revision*/, string /*status*/, error) {
 	stdout, stderr, err := h.cmd(
 		"history", releaseName,
 		"--namespace", h.Namespace,
@@ -109,33 +109,33 @@ func (h *Helm3Client) LastReleaseStatus(releaseName string) (revision string, st
 		errLine := strings.Split(stderr, "\n")[0]
 		if strings.Contains(errLine, "Error:") && strings.Contains(errLine, "not found") {
 			// Bad module name or no releases installed
-			err = fmt.Errorf("release '%s' not found\n%v %v", releaseName, stdout, stderr)
-			revision = "0"
-			return
+			return "0", "", fmt.Errorf("release '%s' not found\n%s %s", releaseName, stdout, stderr)
 		}
 
-		err = fmt.Errorf("cannot get history for release '%s'\n%v %v", releaseName, stdout, stderr)
-		return
+		return "", "", fmt.Errorf("cannot get history for release '%s'\n%s %s", releaseName, stdout, stderr)
 	}
 
-	var historyInfo []map[string]string
-
+	historyInfo := make([]map[string]string, 0)
 	err = k8syaml.Unmarshal([]byte(stdout), &historyInfo)
 	if err != nil {
-		return "", "", fmt.Errorf("helm history returns invalid json: %v", err)
+		return "", "", fmt.Errorf("helm history returns invalid json: %w", err)
 	}
+
 	if len(historyInfo) == 0 {
 		return "", "", fmt.Errorf("helm history is empty: '%s'", stdout)
 	}
+
 	status, has := historyInfo[0]["status"]
 	if !has {
 		return "", "", fmt.Errorf("helm history has no 'status' field: '%s'", stdout)
 	}
-	revision, has = historyInfo[0]["revision"]
+
+	revision, has := historyInfo[0]["revision"]
 	if !has {
 		return "", "", fmt.Errorf("helm history has no 'revision' field: '%s'", stdout)
 	}
-	return
+
+	return revision, status, nil
 }
 
 func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
@@ -199,7 +199,7 @@ func (h *Helm3Client) GetReleaseValues(releaseName string) (utils.Values, error)
 	return values, nil
 }
 
-func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
+func (h *Helm3Client) DeleteRelease(releaseName string) error {
 	h.Logger.Debug("helm release: execute helm uninstall", slog.String("release", releaseName))
 
 	args := []string{
@@ -208,11 +208,12 @@ func (h *Helm3Client) DeleteRelease(releaseName string) (err error) {
 	}
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
-		return fmt.Errorf("helm uninstall %s invocation error: %v\n%v %v", releaseName, err, stdout, stderr)
+		return fmt.Errorf("helm uninstall %s invocation error: %w\n%v %v", releaseName, err, stdout, stderr)
 	}
 
 	h.Logger.Debug("helm release deleted", slog.String("release", releaseName))
-	return
+
+	return nil
 }
 
 func (h *Helm3Client) IsReleaseExists(releaseName string) (bool, error) {

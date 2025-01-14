@@ -470,7 +470,7 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 }
 
 // searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
-func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error) {
+func (gm *GlobalModule) searchGlobalHooks() ([]*hooks.GlobalHook, error) {
 	if gm.hooksDir == "" {
 		gm.logger.Warn("Global hooks directory path is empty! No global hooks to load.")
 		return nil, nil
@@ -491,7 +491,7 @@ func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error)
 		return nil, err
 	}
 
-	hks = make([]*hooks.GlobalHook, 0, len(shellHooks)+len(goHooks))
+	hks := make([]*hooks.GlobalHook, 0, len(shellHooks)+len(goHooks))
 
 	for _, sh := range shellHooks {
 		gh := hooks.NewGlobalHook(sh)
@@ -514,7 +514,7 @@ func (gm *GlobalModule) searchGlobalHooks() (hks []*hooks.GlobalHook, err error)
 }
 
 // searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
-func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.ShellHook, err error) {
+func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHook, error) {
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -528,7 +528,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 		return nil, err
 	}
 
-	hks = make([]*kind.ShellHook, 0)
+	hks := make([]*kind.ShellHook, 0)
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
@@ -561,11 +561,11 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) (hks []*kind.She
 		slog.String("count", count),
 		slog.String("dir", hooksDir))
 
-	return
+	return hks, nil
 }
 
 // searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
-func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.BatchHook, err error) {
+func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHook, error) {
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -580,7 +580,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 		return nil, err
 	}
 
-	hks = make([]*kind.BatchHook, 0)
+	hks := make([]*kind.BatchHook, 0)
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
@@ -615,7 +615,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) (hks []*kind.Bat
 		slog.String("count", count),
 		slog.String("dir", hooksDir))
 
-	return
+	return hks, nil
 }
 
 func (gm *GlobalModule) searchGlobalGoHooks() ([]*kind.GoHook, error) {

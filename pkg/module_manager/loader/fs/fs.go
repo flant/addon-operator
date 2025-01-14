@@ -283,6 +283,6 @@ func parseUintOrDefault(num string, defaultValue uint32) uint32 {
 //
 //	/modules/XXX-module-name/openapi/config-values.yaml
 //	/modules/XXX-module-name/openapi/values.yaml
-func (fl *FileSystemLoader) readOpenAPIFiles(openApiDir string) (configValuesBytes, valuesBytes []byte, err error) {
+func (fl *FileSystemLoader) readOpenAPIFiles(openApiDir string) ([]byte /*configValuesBytes*/, []byte /*valuesBytes*/, error) {
 	return utils.ReadOpenAPIFiles(openApiDir)
 }

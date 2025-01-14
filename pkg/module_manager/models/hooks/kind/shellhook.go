@@ -88,8 +88,8 @@ func (sh *ShellHook) GetHookConfigDescription() string {
 }
 
 // Execute runs the hook via the OS interpreter and returns the result of the execution
-func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (result *HookResult, err error) {
-	result = &HookResult{
+func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
+	result := &HookResult{
 		Patches: make(map[utils.ValuesPatchType]*utils.ValuesPatch),
 	}
 
@@ -146,22 +146,22 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 
 	result.Patches[utils.ConfigMapPatch], err = utils.ValuesPatchFromFile(configValuesPatchPath)
 	if err != nil {
-		return result, fmt.Errorf("got bad json patch for config values: %s", err)
+		return result, fmt.Errorf("got bad json patch for config values: %w", err)
 	}
 
 	result.Patches[utils.MemoryValuesPatch], err = utils.ValuesPatchFromFile(valuesPatchPath)
 	if err != nil {
-		return result, fmt.Errorf("got bad json patch for values: %s", err)
+		return result, fmt.Errorf("got bad json patch for values: %w", err)
 	}
 
 	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath)
 	if err != nil {
-		return result, fmt.Errorf("got bad metrics: %s", err)
+		return result, fmt.Errorf("got bad metrics: %w", err)
 	}
 
 	kubernetesPatchBytes, err := os.ReadFile(kubernetesPatchPath)
 	if err != nil {
-		return result, fmt.Errorf("can't read kubernetes patch file: %s", err)
+		return result, fmt.Errorf("can't read kubernetes patch file: %w", err)
 	}
 
 	result.ObjectPatcherOperations, err = objectpatch.ParseOperations(kubernetesPatchBytes)
@@ -172,7 +172,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	return result, nil
 }
 
-func (sh *ShellHook) getConfig() (configOutput []byte, err error) {
+func (sh *ShellHook) getConfig() ([]byte, error) {
 	envs := make([]string, 0)
 	envs = append(envs, os.Environ()...)
 	args := []string{"--config"}
@@ -397,45 +397,46 @@ func getModuleHookConfigSchema(version string) *spec.Schema {
 }
 
 // PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
-func (sh *ShellHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafeName string, configValues, values utils.Values) (tmpFiles map[string]string, err error) {
-	tmpFiles = make(map[string]string)
+func (sh *ShellHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafeName string, configValues, values utils.Values) (map[string]string, error) {
+	var err error
+	tmpFiles := make(map[string]string)
 
 	tmpFiles["CONFIG_VALUES_PATH"], err = sh.prepareConfigValuesJsonFile(moduleSafeName, configValues)
 	if err != nil {
-		return
+		return tmpFiles, err
 	}
 
 	tmpFiles["VALUES_PATH"], err = sh.prepareValuesJsonFile(moduleSafeName, values)
 	if err != nil {
-		return
+		return tmpFiles, err
 	}
 
 	tmpFiles["BINDING_CONTEXT_PATH"], err = sh.prepareBindingContextJsonFile(moduleSafeName, bindingContext)
 	if err != nil {
-		return
+		return tmpFiles, err
 	}
 
 	tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"], err = sh.prepareConfigValuesJsonPatchFile()
 	if err != nil {
-		return
+		return tmpFiles, err
 	}
 
 	tmpFiles["VALUES_JSON_PATCH_PATH"], err = sh.prepareValuesJsonPatchFile()
 	if err != nil {
-		return
+		return tmpFiles, err
 	}
 
 	tmpFiles["METRICS_PATH"], err = sh.prepareMetricsFile()
 	if err != nil {
-		return
+		return tmpFiles, err
 	}
 
 	tmpFiles["KUBERNETES_PATCH_PATH"], err = sh.prepareKubernetesPatchFile()
 	if err != nil {
-		return
+		return tmpFiles, err
 	}
 
-	return
+	return tmpFiles, err
 }
 
 // METRICS_PATH

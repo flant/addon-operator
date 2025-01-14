@@ -34,8 +34,8 @@ import (
 */
 
 // FilesFromRoot returns a map with path and array of files under it
-func FilesFromRoot(root string, filterFn func(dir string, name string, info os.FileInfo) bool) (files map[string]map[string]string, err error) {
-	files = make(map[string]map[string]string)
+func FilesFromRoot(root string, filterFn func(dir string, name string, info os.FileInfo) bool) (map[string]map[string]string, error) {
+	files := make(map[string]map[string]string)
 
 	symlinkedDirs, err := WalkSymlinks(root, "", files, filterFn)
 	if err != nil {
@@ -82,7 +82,7 @@ func FilesFromRoot(root string, filterFn func(dir string, name string, info os.F
 	return files, nil
 }
 
-func SymlinkInfo(path string, info os.FileInfo) (target string, isDir bool, err error) {
+func SymlinkInfo(path string, info os.FileInfo) (string, bool, error) {
 	// return empty path if not a symlink
 	if info.Mode()&os.ModeSymlink == 0 {
 		return "", false, nil
@@ -90,7 +90,7 @@ func SymlinkInfo(path string, info os.FileInfo) (target string, isDir bool, err 
 
 	// Eval symlink path and get stat of a target path
 
-	target, err = filepath.EvalSymlinks(path)
+	target, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return "", false, err
 	}
@@ -104,10 +104,10 @@ func SymlinkInfo(path string, info os.FileInfo) (target string, isDir bool, err 
 }
 
 // WalkSymlinks walks a directory, updates files map and returns symlinked directories
-func WalkSymlinks(target string, linkName string, files map[string]map[string]string, filterFn func(dir string, name string, info os.FileInfo) bool) (symlinkedDirectories map[string]string, err error) {
-	symlinkedDirectories = map[string]string{}
+func WalkSymlinks(target string, linkName string, files map[string]map[string]string, filterFn func(dir string, name string, info os.FileInfo) bool) (map[string]string, error) {
+	symlinkedDirectories := map[string]string{}
 
-	err = filepath.Walk(target, func(foundPath string, info os.FileInfo, err error) error {
+	err := filepath.Walk(target, func(foundPath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return fmt.Errorf("failure accessing a path '%s': %v\n", foundPath, err)
 		}
@@ -146,17 +146,16 @@ func WalkSymlinks(target string, linkName string, files map[string]map[string]st
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("walk symlinks dir %s: %v", target, err)
+		return nil, fmt.Errorf("walk symlinks dir %s: %w", target, err)
 	}
 
 	return symlinkedDirectories, nil
 }
 
 // FindExecutableFilesInPath returns a list of executable and a list of non-executable files in path
-func FindExecutableFilesInPath(dir string) (executables []string, nonExecutables []string, err error) {
-	executables = make([]string, 0)
-
-	nonExecutables = make([]string, 0)
+func FindExecutableFilesInPath(dir string) ([]string, []string, error) {
+	executables := make([]string, 0)
+	nonExecutables := make([]string, 0)
 
 	// Find only executable files
 	files, err := FilesFromRoot(dir, func(dir string, name string, info os.FileInfo) bool {
@@ -167,7 +166,7 @@ func FindExecutableFilesInPath(dir string) (executables []string, nonExecutables
 		return false
 	})
 	if err != nil {
-		return
+		return executables, nonExecutables, err
 	}
 
 	for dirPath, filePaths := range files {
@@ -178,5 +177,5 @@ func FindExecutableFilesInPath(dir string) (executables []string, nonExecutables
 
 	sort.Strings(executables)
 
-	return
+	return executables, nonExecutables, nil
 }
