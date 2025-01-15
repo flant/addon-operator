@@ -17,8 +17,6 @@ import (
 )
 
 func Test_ShellHook_Global_Config_v0_v1(t *testing.T) {
-	t.Parallel()
-
 	type meta struct {
 		name    string
 		enabled bool
@@ -100,8 +98,6 @@ afterAll: 10
 		}
 
 		t.Run(tt.meta.name, func(t *testing.T) {
-			t.Parallel()
-
 			filename := fmt.Sprintf("./%d-%s-hook.sh", time.Now().Nanosecond(), strings.ReplaceAll(tt.meta.name, " ", "-"))
 
 			shHook := &kind.ShellHook{
@@ -138,8 +134,6 @@ fi
 }
 
 func Test_ShellHook_Embedded_Config_v0_v1(t *testing.T) {
-	t.Parallel()
-
 	type meta struct {
 		name    string
 		enabled bool
@@ -311,8 +305,6 @@ afterDeleteHelm: 18
 		}
 
 		t.Run(tt.meta.name, func(t *testing.T) {
-			t.Parallel()
-
 			filename := fmt.Sprintf("./%d-%s-hook.sh", time.Now().Nanosecond(), strings.ReplaceAll(tt.meta.name, " ", "-"))
 
 			shHook := &kind.ShellHook{
