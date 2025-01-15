@@ -89,8 +89,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241205040953-7b376bae249c h1:dK30IW9uGg0DvSy+IcdQ6zwEBRV55R7tEtaruEKYkSA=
 github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241205040953-7b376bae249c/go.mod h1:Mk5HRzkc5pIcDIZ2JJ6DPuuqnwhXVkb3you8M8Mg+4w=
-github.com/deckhouse/module-sdk v0.1.1-0.20250115122429-d9c670ed1a02 h1:bA1hK30GLUU+LvpNzLJZVwJgt10lhp5alkSRHxa0zuY=
-github.com/deckhouse/module-sdk v0.1.1-0.20250115122429-d9c670ed1a02/go.mod h1:79kILbbIL4e3B/8nwEGYsox8vH8v27LxFDTFu0OhBtc=
+github.com/deckhouse/module-sdk v0.1.1-0.20250115123908-cb513326a75d h1:txxR0gqGNAvzObA6NC7uofwUGgbqY55jKPo7hAqHZG8=
+github.com/deckhouse/module-sdk v0.1.1-0.20250115123908-cb513326a75d/go.mod h1:79kILbbIL4e3B/8nwEGYsox8vH8v27LxFDTFu0OhBtc=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/distribution/distribution/v3 v3.0.0-beta.1 h1:X+ELTxPuZ1Xe5MsD3kp2wfGUhc8I+MPfRis8dZ818Ic=
