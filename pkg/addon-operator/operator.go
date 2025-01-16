@@ -826,6 +826,20 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			// Set ModulesToEnable list to properly run onStartup hooks for first converge.
 			if !op.IsStartupConvergeDone() {
 				state.ModulesToEnable = state.AllEnabledModules
+				// send ModuleEvents for each disabled module on first converge to update dsabled modules' states (for the sake of disabled by <extender_name>)
+				enabledModules := make(map[string]struct{}, len(state.AllEnabledModules))
+				for _, enabledModule := range state.AllEnabledModules {
+					enabledModules[enabledModule] = struct{}{}
+				}
+
+				for _, moduleName := range op.ModuleManager.GetModuleNames() {
+					if _, enabled := enabledModules[moduleName]; !enabled {
+						op.ModuleManager.SendModuleEvent(events.ModuleEvent{
+							ModuleName: moduleName,
+							EventType:  events.ModuleDisabled,
+						})
+					}
+				}
 			}
 			tasks := op.CreateConvergeModulesTasks(state, t.GetLogLabels(), string(taskEvent))
 
