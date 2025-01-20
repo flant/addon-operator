@@ -189,6 +189,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	upg.Install = true
+	upg.SkipCRDs = true
 	upg.MaxHistory = int(options.HistoryMax)
 	upg.Timeout = options.Timeout
 
@@ -235,6 +236,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		if helmPostRenderer != nil {
 			instClient.PostRenderer = helmPostRenderer
 		}
+		instClient.SkipCRDs = true
 		instClient.Timeout = options.Timeout
 		instClient.ReleaseName = releaseName
 		instClient.UseReleaseName = true
@@ -434,14 +436,14 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
 
-	inst := newInstAction(namespace, releaseName)
+	inst := newDryRunInstAction(namespace, releaseName)
 
 	rs, err := inst.Run(chart, resultValues)
 	if err != nil {
 		// helm render can fail because the CRD were previously created
 		// handling this case we can reinitialize RESTClient and repeat one more time by backoff
 		_ = h.actionConfigInit()
-		inst = newInstAction(namespace, releaseName)
+		inst = newDryRunInstAction(namespace, releaseName)
 
 		rs, err = inst.Run(chart, resultValues)
 	}
@@ -462,7 +464,7 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	return rs.Manifest, nil
 }
 
-func newInstAction(namespace, releaseName string) *action.Install {
+func newDryRunInstAction(namespace, releaseName string) *action.Install {
 	inst := action.NewInstall(actionConfig)
 	inst.DryRun = true
 
