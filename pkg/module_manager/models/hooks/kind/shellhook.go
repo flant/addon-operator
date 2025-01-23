@@ -10,7 +10,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/go-openapi/spec"
 	"github.com/gofrs/uuid/v5"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
