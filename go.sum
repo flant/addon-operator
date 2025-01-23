@@ -99,6 +99,8 @@ github.com/deckhouse/module-sdk v0.1.1-0.20250115123908-cb513326a75d h1:txxR0gqG
 github.com/deckhouse/module-sdk v0.1.1-0.20250115123908-cb513326a75d/go.mod h1:79kILbbIL4e3B/8nwEGYsox8vH8v27LxFDTFu0OhBtc=
 github.com/deckhouse/module-sdk v0.1.1-0.20250116104156-c497af07ce39 h1:vDqgczLQSdYZMH7HZ5qP+/boy3gvPWyeddMY1Z7wnAM=
 github.com/deckhouse/module-sdk v0.1.1-0.20250116104156-c497af07ce39/go.mod h1:79kILbbIL4e3B/8nwEGYsox8vH8v27LxFDTFu0OhBtc=
+github.com/deckhouse/module-sdk v0.1.1-0.20250123063508-23477139b92f h1:NQCZyE/N542bjEVrOzjUr+XlDLly1wAvCwKoqdikCS0=
+github.com/deckhouse/module-sdk v0.1.1-0.20250123063508-23477139b92f/go.mod h1:ApufGFVUNGE02IBTYSRNGfCT43tt4jv2+wG9V077eZ0=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/distribution/distribution/v3 v3.0.0-beta.1 h1:X+ELTxPuZ1Xe5MsD3kp2wfGUhc8I+MPfRis8dZ818Ic=
