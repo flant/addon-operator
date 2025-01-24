@@ -228,22 +228,42 @@ func (h *BatchHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 }
 
 func (h *BatchHook) GetOnStartup() *float64 {
+	if h.config == nil || h.config.OnStartup == nil {
+		return nil
+	}
+
 	res := float64(*h.config.OnStartup)
+
 	return &res
 }
 
 func (h *BatchHook) GetBeforeAll() *float64 {
+	if h.config == nil || h.config.OnBeforeHelm == nil {
+		return nil
+	}
+
 	res := float64(*h.config.OnBeforeHelm)
+
 	return &res
 }
 
 func (h *BatchHook) GetAfterAll() *float64 {
+	if h.config == nil || h.config.OnAfterHelm == nil {
+		return nil
+	}
+
 	res := float64(*h.config.OnAfterHelm)
+
 	return &res
 }
 
 func (h *BatchHook) GetAfterDeleteHelm() *float64 {
+	if h.config == nil || h.config.OnAfterDeleteHelm == nil {
+		return nil
+	}
+
 	res := float64(*h.config.OnAfterDeleteHelm)
+
 	return &res
 }
 

@@ -198,31 +198,27 @@ func (h *GoHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 }
 
 func (h *GoHook) GetOnStartup() *float64 {
-	if h.config.OnStartup != nil {
-		return &h.config.OnStartup.Order
+	if h.config == nil || h.config.OnStartup == nil {
+		return nil
 	}
 
-	return nil
+	return &h.config.OnStartup.Order
 }
 
 func (h *GoHook) GetBeforeAll() *float64 {
-	if h.config.OnBeforeAll != nil {
-		return &h.config.OnBeforeAll.Order
+	if h.config == nil || h.config.OnBeforeAll == nil {
+		return nil
 	}
 
-	if h.config.OnBeforeHelm != nil {
-		return &h.config.OnBeforeHelm.Order
-	}
-
-	return nil
+	return &h.config.OnBeforeAll.Order
 }
 
 func (h *GoHook) GetAfterAll() *float64 {
-	if h.config.OnAfterAll != nil {
+	if h.config != nil && h.config.OnAfterAll != nil {
 		return &h.config.OnAfterAll.Order
 	}
 
-	if h.config.OnAfterHelm != nil {
+	if h.config != nil && h.config.OnAfterHelm != nil {
 		return &h.config.OnAfterHelm.Order
 	}
 
@@ -230,11 +226,11 @@ func (h *GoHook) GetAfterAll() *float64 {
 }
 
 func (h *GoHook) GetAfterDeleteHelm() *float64 {
-	if h.config.OnAfterDeleteHelm != nil {
-		return &h.config.OnAfterDeleteHelm.Order
+	if h.config == nil || h.config.OnAfterDeleteHelm == nil {
+		return nil
 	}
 
-	return nil
+	return &h.config.OnAfterDeleteHelm.Order
 }
 
 func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, error) {
