@@ -206,11 +206,15 @@ func (h *GoHook) GetOnStartup() *float64 {
 }
 
 func (h *GoHook) GetBeforeAll() *float64 {
-	if h.config == nil || h.config.OnBeforeAll == nil {
-		return nil
+	if h.config != nil && h.config.OnBeforeAll != nil {
+		return &h.config.OnBeforeAll.Order
 	}
 
-	return &h.config.OnBeforeAll.Order
+	if h.config != nil && h.config.OnBeforeHelm != nil {
+		return &h.config.OnBeforeHelm.Order
+	}
+
+	return nil
 }
 
 func (h *GoHook) GetAfterAll() *float64 {
