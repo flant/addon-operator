@@ -5,7 +5,7 @@ go 1.22.8
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241205040953-7b376bae249c
-	github.com/deckhouse/module-sdk v0.1.0
+	github.com/deckhouse/module-sdk v0.1.1-0.20250123063508-23477139b92f
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.2.2
@@ -18,7 +18,6 @@ require (
 	github.com/go-openapi/validate v0.19.12
 	github.com/goccy/go-graphviz v0.1.3
 	github.com/gofrs/uuid/v5 v5.3.0
-	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/gomega v1.35.1
@@ -26,10 +25,10 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.14.4
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
+	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.14.2
 	k8s.io/api v0.29.8
-	k8s.io/apiextensions-apiserver v0.29.0
 	k8s.io/apimachinery v0.29.8
 	k8s.io/cli-runtime v0.29.0
 	k8s.io/client-go v0.29.8
@@ -92,6 +91,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -137,6 +137,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rubenv/sql-migrate v1.5.2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
@@ -169,7 +170,7 @@ require (
 	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
+	k8s.io/apiextensions-apiserver v0.29.0 // indirect
 	k8s.io/apiserver v0.29.0 // indirect
 	k8s.io/component-base v0.29.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
