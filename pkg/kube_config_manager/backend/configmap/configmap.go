@@ -74,12 +74,9 @@ func (b Backend) SaveConfigValues(ctx context.Context, key string, values utils.
 }
 
 func (b Backend) saveGlobalConfigValues(ctx context.Context, values utils.Values) ( /*checksum*/ string, error) {
-	globalKubeConfig, err := config.ParseGlobalKubeConfigFromValues(values)
-	if err != nil {
-		return "", err
-	}
-	if globalKubeConfig == nil {
-		return "", nil
+	globalKubeConfig := &config.GlobalKubeConfig{
+		Values:   values,
+		Checksum: values.Checksum(),
 	}
 
 	if b.isDebugEnabled(ctx) {
@@ -90,7 +87,7 @@ func (b Backend) saveGlobalConfigValues(ctx context.Context, values utils.Values
 		b.logger.Info("Save global values to ConfigMap", slog.String("name", b.name))
 	}
 
-	err = b.mergeValues(ctx, globalKubeConfig.GetValuesWithGlobalName())
+	err := b.mergeValues(ctx, "global", globalKubeConfig.GetValues())
 
 	return globalKubeConfig.Checksum, err
 }
@@ -107,10 +104,9 @@ func (b Backend) isDebugEnabled(ctx context.Context) bool {
 // saveModuleConfigValues updates module section in ConfigMap.
 // It uses knownChecksums to prevent KubeConfigChanged event on self-update.
 func (b Backend) saveModuleConfigValues(ctx context.Context, moduleName string, values utils.Values) ( /*checksum*/ string, error) {
-	moduleKubeConfig := config.ParseModuleKubeConfigFromValues(moduleName, values)
-
-	if moduleKubeConfig == nil {
-		return "", nil
+	moduleKubeConfig := &config.ModuleKubeConfig{
+		ModuleConfig: *utils.NewModuleConfig(moduleName, values),
+		Checksum:     values.Checksum(),
 	}
 
 	if b.isDebugEnabled(ctx) {
@@ -124,7 +120,7 @@ func (b Backend) saveModuleConfigValues(ctx context.Context, moduleName string, 
 			slog.String("configMapName", b.name))
 	}
 
-	err := b.mergeValues(ctx, moduleKubeConfig.GetValuesWithModuleName()) //nolint: staticcheck,nolintlint
+	err := b.mergeValues(ctx, utils.ModuleNameToValuesKey(moduleName), moduleKubeConfig.GetValues()) //nolint: staticcheck,nolintlint
 
 	return moduleKubeConfig.Checksum, err
 }
@@ -282,15 +278,14 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 	return mc.LoadFromValues(configValues)
 }
 
-func (b Backend) mergeValues(ctx context.Context, values utils.Values) error {
-	cmData, err := values.AsConfigMapData()
-	if err != nil {
-		return err
-	}
+func (b Backend) mergeValues(ctx context.Context, moduleName string, values utils.Values) error {
 	return b.updateConfigMap(ctx, func(obj *v1.ConfigMap) error {
-		for k, v := range cmData {
-			obj.Data[k] = v
+		data, err := yaml.Marshal(values)
+		if err != nil {
+			return err
 		}
+
+		obj.Data[moduleName] = string(data)
 		return nil
 	})
 }
