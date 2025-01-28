@@ -12,6 +12,10 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
+	"github.com/flant/addon-operator/pkg/helm/client"
+	"github.com/flant/addon-operator/pkg/helm/post_renderer"
+	"github.com/flant/addon-operator/pkg/utils"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -24,10 +28,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
-
-	"github.com/flant/addon-operator/pkg/helm/client"
-	"github.com/flant/addon-operator/pkg/helm/post_renderer"
-	"github.com/flant/addon-operator/pkg/utils"
 )
 
 var helmPostRenderer *post_renderer.PostRenderer
@@ -127,7 +127,13 @@ func (h *LibClient) actionConfigInit() error {
 
 	// If env is empty - default storage backend ('secrets') will be used
 	helmDriver := os.Getenv("HELM_DRIVER")
-	err := ac.Init(getter, options.Namespace, helmDriver, h.Logger.Debug)
+
+	formattedLogFunc := func(format string, v ...interface{}) {
+		ctx := logContext.SetCustomKeyContext(context.Background())
+		h.Logger.Log(ctx, slog.LevelDebug, fmt.Sprintf(format, v))
+	}
+
+	err := ac.Init(getter, options.Namespace, helmDriver, formattedLogFunc)
 	if err != nil {
 		return fmt.Errorf("init helm action config: %v", err)
 	}
