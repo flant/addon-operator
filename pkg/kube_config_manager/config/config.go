@@ -14,12 +14,6 @@ type GlobalKubeConfig struct {
 	Checksum string
 }
 
-// GetValuesWithGlobalName
-// Deprecated: use GetValues instead
-func (gkc GlobalKubeConfig) GetValuesWithGlobalName() utils.Values {
-	return gkc.Values
-}
-
 // GetValues returns global values, enrich them with top level key 'global'
 func (gkc GlobalKubeConfig) GetValues() utils.Values {
 	if len(gkc.Values) == 0 {
@@ -64,35 +58,3 @@ const (
 	KubeConfigChanged KubeConfigType = "Changed"
 	KubeConfigInvalid KubeConfigType = "Invalid"
 )
-
-func ParseGlobalKubeConfigFromValues(values utils.Values) (*GlobalKubeConfig, error) {
-	if !values.HasGlobal() {
-		return nil, nil
-	}
-
-	globalValues := values.Global()
-
-	checksum := globalValues.Checksum()
-
-	return &GlobalKubeConfig{
-		Values:   globalValues,
-		Checksum: checksum,
-	}, nil
-}
-
-func ParseModuleKubeConfigFromValues(moduleName string, values utils.Values) *ModuleKubeConfig {
-	valuesKey := utils.ModuleNameToValuesKey(moduleName)
-	if !values.HasKey(valuesKey) {
-		return nil
-	}
-
-	//nolint: staticcheck,nolintlint
-	moduleValues := values.SectionByKey(valuesKey)
-
-	checksum := moduleValues.Checksum()
-
-	return &ModuleKubeConfig{
-		ModuleConfig: *utils.NewModuleConfig(moduleName, moduleValues),
-		Checksum:     checksum,
-	}
-}

@@ -168,20 +168,6 @@ func (v Values) AsString(format string) string {
 	return string(b)
 }
 
-// AsConfigMapData returns values as map that can be used as a 'data' field in the ConfigMap.
-func (v Values) AsConfigMapData() (map[string]string, error) {
-	res := make(map[string]string)
-
-	for k, value := range v {
-		dump, err := yaml.Marshal(value)
-		if err != nil {
-			return nil, err
-		}
-		res[k] = string(dump)
-	}
-	return res, nil
-}
-
 func (v Values) JsonString() string {
 	return v.AsString("json")
 }
