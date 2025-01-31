@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -127,7 +128,13 @@ func (h *LibClient) actionConfigInit() error {
 
 	// If env is empty - default storage backend ('secrets') will be used
 	helmDriver := os.Getenv("HELM_DRIVER")
-	err := ac.Init(getter, options.Namespace, helmDriver, h.Logger.Debug)
+
+	formattedLogFunc := func(format string, v ...interface{}) {
+		ctx := logContext.SetCustomKeyContext(context.Background())
+		h.Logger.Log(ctx, slog.LevelDebug, fmt.Sprintf(format, v))
+	}
+
+	err := ac.Init(getter, options.Namespace, helmDriver, formattedLogFunc)
 	if err != nil {
 		return fmt.Errorf("init helm action config: %v", err)
 	}
