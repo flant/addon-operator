@@ -75,7 +75,7 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 			log.Error(moduleD.stateDescription)
 		}
 	} else {
-		if utils_file.IsFileExecutable(f) != nil {
+		if utils_file.CheckExecutablePermissions(f) != nil {
 			moduleD.scriptState = nonExecutableScript
 			log.Warn("Found non-executable enabled script for module - assuming enabled state",
 				slog.String("module", module.GetName()))
