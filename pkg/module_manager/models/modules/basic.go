@@ -345,7 +345,14 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 		}
 
 		if err := isExecutableBatchHookFile(path, f); err != nil {
-			logger.Warn("file is skipped", slog.String("path", path), log.Err(err))
+			if errors.Is(err, ErrFileNoExecutablePermissions) {
+				logger.Warn("file is skipped", slog.String("path", path), log.Err(err))
+
+				return nil
+			}
+
+			logger.Debug("file is skipped", slog.String("path", path), log.Err(err))
+
 			return nil
 		}
 

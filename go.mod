@@ -9,8 +9,8 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.2.2
-	github.com/flant/shell-operator v0.0.0-20241209162655-7e40c61f7666
-	github.com/go-chi/chi/v5 v5.1.0
+	github.com/flant/shell-operator v1.5.4-0.20250205135215-f632bb655900
+	github.com/go-chi/chi/v5 v5.2.0
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
@@ -20,7 +20,7 @@ require (
 	github.com/gofrs/uuid/v5 v5.3.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
-	github.com/onsi/gomega v1.35.1
+	github.com/onsi/gomega v1.36.2
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.14.4
@@ -163,10 +163,10 @@ require (
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/term v0.27.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	golang.org/x/time v0.8.0 // indirect
+	golang.org/x/time v0.9.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
 	google.golang.org/grpc v1.59.0 // indirect
-	google.golang.org/protobuf v1.35.1 // indirect
+	google.golang.org/protobuf v1.36.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
