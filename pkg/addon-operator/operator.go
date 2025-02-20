@@ -82,9 +82,6 @@ type AddonOperator struct {
 	// HelmResourcesManager monitors absent resources created for modules.
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 
-	// converge state
-	ConvergeState *converge.ConvergeState
-
 	// Initial KubeConfig to bypass initial loading from the ConfigMap.
 	InitialKubeConfig *config.KubeConfig
 
@@ -105,6 +102,10 @@ type AddonOperator struct {
 	discoveredGVKs map[string]struct{}
 
 	Logger *log.Logger
+
+	l sync.Mutex
+	// converge state
+	ConvergeState *converge.ConvergeState
 }
 
 type parallelQueueEvent struct {
@@ -832,14 +833,17 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 					enabledModules[enabledModule] = struct{}{}
 				}
 
-				for _, moduleName := range op.ModuleManager.GetModuleNames() {
-					if _, enabled := enabledModules[moduleName]; !enabled {
-						op.ModuleManager.SendModuleEvent(events.ModuleEvent{
-							ModuleName: moduleName,
-							EventType:  events.ModuleDisabled,
-						})
+				logEntry.Debug("ConvergeModules: send module disabled events")
+				go func() {
+					for _, moduleName := range op.ModuleManager.GetModuleNames() {
+						if _, enabled := enabledModules[moduleName]; !enabled {
+							op.ModuleManager.SendModuleEvent(events.ModuleEvent{
+								ModuleName: moduleName,
+								EventType:  events.ModuleDisabled,
+							})
+						}
 					}
-				}
+				}()
 			}
 			tasks := op.CreateConvergeModulesTasks(state, t.GetLogLabels(), string(taskEvent))
 
@@ -2685,6 +2689,7 @@ func (op *AddonOperator) CheckCRDsEnsured(t sh_task.Task) {
 func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 	convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
 
+	op.l.Lock()
 	// Converge state is 'Started'. Update StartedAt and
 	// Activation if the converge process is just started.
 	if convergeTasks > 0 && op.ConvergeState.StartedAt == 0 {
@@ -2704,6 +2709,7 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 
 	// Update field for the first converge.
 	op.UpdateFirstConvergeStatus(convergeTasks)
+	op.l.Unlock()
 
 	// Report modules left to process.
 	if convergeTasks > 0 && (t.GetType() == task.ModuleRun || t.GetType() == task.ModuleDelete) {
