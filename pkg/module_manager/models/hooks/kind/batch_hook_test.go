@@ -10,10 +10,50 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/module-sdk/pkg/utils/ptr"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/shell-operator/pkg/hook"
 )
+
+func TestGetBatchHookConfig(t *testing.T) {
+	hookPath := "./batchhook"
+
+	err := os.WriteFile(hookPath, []byte(`#!/bin/bash
+if [ "${1}" == "hook" ] && [ "${2}" == "config" ] ; then
+echo '[{"configVersion":"v1",
+"onStartup":10,
+"beforeHelm":5,
+"afterHelm":15,
+"afterDeleteHelm":25,
+"metadata":{
+"name":"main",
+"path":"some-path/hooks/"},
+"kubernetes":[
+{"name":"apiservers",
+"apiVersion":"v1",
+"kind":"Pod",
+"namespace":{
+"nameSelector":{
+"matchNames":["kube-system"]}},
+"labelSelector":{
+"matchLabels":{"component":"kube-apiserver"}},
+"keepFullObjectsInMemory":false,
+"jqFilter":".metadata.name"}]}]'
+fi
+`), 0o555)
+	defer os.Remove(hookPath)
+	require.NoError(t, err)
+
+	cfg, err := kind.GetBatchHookConfig("moduleName", hookPath)
+	require.NoError(t, err)
+	assert.Equal(t, "main", cfg[0].Metadata.Name)
+	assert.Equal(t, "some-path/hooks/", cfg[0].Metadata.Path)
+	assert.Equal(t, ptr.To(uint(10)), cfg[0].OnStartup)
+	assert.Equal(t, ptr.To(uint(5)), cfg[0].OnBeforeHelm)
+	assert.Equal(t, ptr.To(uint(15)), cfg[0].OnAfterHelm)
+	assert.Equal(t, ptr.To(uint(25)), cfg[0].OnAfterDeleteHelm)
+}
 
 func Test_BatchHook_Config(t *testing.T) {
 	t.Parallel()

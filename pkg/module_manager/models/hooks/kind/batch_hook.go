@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 
@@ -183,12 +182,20 @@ func (h *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bind
 }
 
 func (h *BatchHook) getConfig() ([]sdkhook.HookConfig, error) {
-	return GetBatchHookConfig(h.Path)
+	return GetBatchHookConfig(h.moduleName, h.Path)
 }
 
-func GetBatchHookConfig(hookPath string) ([]sdkhook.HookConfig, error) {
+func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, error) {
 	args := []string{"hook", "config"}
-	o, err := exec.Command(hookPath, args...).Output()
+
+	cmd := executor.NewExecutor(
+		"",
+		hookPath,
+		args,
+		[]string{}).
+		WithChroot(utils.GetModuleChrootPath(moduleName))
+
+	o, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}

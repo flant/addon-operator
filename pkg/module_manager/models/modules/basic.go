@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -296,7 +295,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 		}
 
 		if filepath.Ext(hookPath) == "" {
-			_, err := kind.GetBatchHookConfig(hookPath)
+			_, err := kind.GetBatchHookConfig(bm.safeName(), hookPath)
 			if err == nil {
 				continue
 			}
@@ -304,7 +303,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 			bm.logger.Warn("get batch hook config", slog.String("hook_file_path", hookPath), log.Err(err))
 		}
 
-		shHook := kind.NewShellHook(hookName, hookPath, bm.Name, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"))
+		shHook := kind.NewShellHook(hookName, hookPath, bm.safeName(), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"))
 
 		hks = append(hks, shHook)
 	}
@@ -318,7 +317,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 		return nil, nil
 	}
 
-	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, bm.logger)
+	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(bm.safeName(), hooksDir, bm.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -335,14 +334,14 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 			return nil, err
 		}
 
-		sdkcfgs, err := kind.GetBatchHookConfig(hookPath)
+		sdkcfgs, err := kind.GetBatchHookConfig(bm.safeName(), hookPath)
 		if err != nil {
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
 
 		for idx, cfg := range sdkcfgs {
 			nestedHookName := fmt.Sprintf("%s:%s:%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.Name, uint(idx), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), uint(idx), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}
@@ -351,7 +350,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 	return hks, nil
 }
 
-func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]string, error) {
+func RecursiveGetBatchHookExecutablePaths(moduleName, dir string, logger *log.Logger) ([]string, error) {
 	paths := make([]string, 0)
 	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
@@ -367,7 +366,7 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 			return nil
 		}
 
-		if err := isExecutableBatchHookFile(path, f); err != nil {
+		if err := isExecutableBatchHookFile(moduleName, path, f); err != nil {
 			if errors.Is(err, ErrFileNoExecutablePermissions) {
 				logger.Warn("file is skipped", slog.String("path", path), log.Err(err))
 
@@ -396,11 +395,11 @@ var (
 	ErrFileNoExecutablePermissions = errors.New("no executable permissions, chmod +x is required to run this hook")
 )
 
-func isExecutableBatchHookFile(path string, f os.FileInfo) error {
+func isExecutableBatchHookFile(moduleName, path string, f os.FileInfo) error {
 	switch filepath.Ext(f.Name()) {
 	// ignore any extension and hidden files
 	case "":
-		return IsFileBatchHook(path, f)
+		return IsFileBatchHook(moduleName, path, f)
 	// ignore all with extensions
 	default:
 		return ErrFileHasWrongExtension
@@ -409,7 +408,7 @@ func isExecutableBatchHookFile(path string, f os.FileInfo) error {
 
 var compiledHooksFound = regexp.MustCompile(`Found ([1-9]|[1-9]\d|[1-9]\d\d|[1-9]\d\d\d) items`)
 
-func IsFileBatchHook(path string, f os.FileInfo) error {
+func IsFileBatchHook(moduleName, path string, f os.FileInfo) error {
 	if f.Mode()&0o111 == 0 {
 		return ErrFileNoExecutablePermissions
 	}
@@ -417,7 +416,14 @@ func IsFileBatchHook(path string, f os.FileInfo) error {
 	// TODO: check binary another way
 	args := []string{"hook", "list"}
 
-	o, err := exec.Command(path, args...).Output()
+	cmd := executor.NewExecutor(
+		"",
+		path,
+		args,
+		[]string{}).
+		WithChroot(utils.GetModuleChrootPath(moduleName))
+
+	o, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("exec file '%s': %w", path, err)
 	}

@@ -542,7 +542,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 		}
 
 		if filepath.Ext(hookPath) == "" {
-			_, err = kind.GetBatchHookConfig(hookPath)
+			_, err = kind.GetBatchHookConfig(gm.GetName(), hookPath)
 			if err == nil {
 				continue
 			}
@@ -575,7 +575,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 		hooksDir = hooksSubDir
 	}
 
-	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, gm.logger)
+	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(gm.GetName(), hooksDir, gm.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -593,7 +593,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 			return nil, err
 		}
 
-		sdkcfgs, err := kind.GetBatchHookConfig(hookPath)
+		sdkcfgs, err := kind.GetBatchHookConfig(gm.GetName(), hookPath)
 		if err != nil {
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}

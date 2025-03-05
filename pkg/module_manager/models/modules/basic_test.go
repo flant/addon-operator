@@ -2,6 +2,7 @@ package modules
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,4 +41,23 @@ foo:
   xxx: yyy
 `,
 		res.Values.AsString("yaml"))
+}
+
+func TestIsFileBatchHook(t *testing.T) {
+	hookPath := "./testdata/batchhook"
+
+	err := os.WriteFile(hookPath, []byte(`#!/bin/bash
+if [ "${1}" == "hook" ] && [ "${2}" == "list" ]; then
+	echo "Found 3 items"
+fi
+`), 0o555)
+	require.NoError(t, err)
+
+	defer os.Remove(hookPath)
+
+	fileInfo, err := os.Stat(hookPath)
+	require.NoError(t, err)
+
+	err = IsFileBatchHook("moduleName", hookPath, fileInfo)
+	require.NoError(t, err)
 }
