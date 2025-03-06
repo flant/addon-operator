@@ -52,18 +52,39 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 }
 
 func (op *AddonOperator) RegisterDebugGraphRoutes(dbgSrv *debug.Server) {
-	dbgSrv.RegisterHandler(http.MethodGet, "/graph", func(_ *http.Request) (interface{}, error) {
+	dbgSrv.Router.Get("/graph", func(w http.ResponseWriter, req *http.Request) {
+		format := req.URL.Query().Get("format")
+		if format == "text" {
+			dotDesc, err := op.ModuleManager.GetGraphDOTDescription()
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(err.Error()))
+				return
+			}
+
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(dotDesc)
+			return
+		}
+
 		image, err := op.ModuleManager.GetGraphImage()
 		if err != nil {
-			return nil, fmt.Errorf("couldn't get graph's image: %w", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(fmt.Sprintf("couldn't get graph's image: %s", err)))
+			return
 		}
 
 		buf := new(bytes.Buffer)
 		if err = png.Encode(buf, image); err != nil {
-			return nil, fmt.Errorf("couldn't encode graph's image: %w", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(fmt.Errorf("couldn't encode png graph's image").Error()))
+			return
 		}
 
-		return buf.String(), nil
+		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(buf.Bytes())
 	})
 }
 
