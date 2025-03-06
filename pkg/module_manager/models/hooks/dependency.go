@@ -4,6 +4,7 @@ import (
 	"context"
 
 	sdkpkg "github.com/deckhouse/module-sdk/pkg"
+
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"

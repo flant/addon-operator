@@ -2,6 +2,7 @@ package kind
 
 import (
 	sdkpkg "github.com/deckhouse/module-sdk/pkg"
+
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
