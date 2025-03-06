@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image/png"
 	"net/http"
@@ -70,7 +71,7 @@ func (op *AddonOperator) RegisterDebugGraphRoutes(dbgSrv *debug.Server) {
 		image, err := op.ModuleManager.GetGraphImage()
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(err.Error()))
+			_, _ = w.Write([]byte(fmt.Sprintf("couldn't get graph's image: %s", err)))
 			return
 		}
 
@@ -147,13 +148,19 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
-			return nil, fmt.Errorf("Module not found")
+			return nil, fmt.Errorf("module not found")
 		}
 
 		deps := &modules.HelmModuleDependencies{
 			HelmClientFactory: op.Helm,
 		}
+
 		hm, err := modules.NewHelmModule(m, op.DefaultNamespace, op.ModuleManager.TempDir, deps, nil, modules.WithLogger(op.Logger.Named("helm-module")))
+		// if module is not helm, success empty result
+		if err != nil && errors.Is(err, modules.ErrModuleIsNotHelm) {
+			return nil, nil
+		}
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to create helm module: %w", err)
 		}
@@ -166,7 +173,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
-			return nil, fmt.Errorf("Unknown module %s", modName)
+			return nil, fmt.Errorf("unknown module %s", modName)
 		}
 
 		return m.GetValuesPatches(), nil
@@ -193,7 +200,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 		m := op.ModuleManager.GetModule(modName)
 		if m == nil {
-			return nil, fmt.Errorf("Module not found")
+			return nil, fmt.Errorf("module not found")
 		}
 
 		mHooks := m.GetHooks()
@@ -224,7 +231,7 @@ func (op *AddonOperator) RegisterDiscoveryRoute(dbgSrv *debug.Server) {
 
 		err := chi.Walk(dbgSrv.Router, walkFn)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("chi walk: %w", err)
 		}
 
 		return buf, nil
