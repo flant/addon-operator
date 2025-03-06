@@ -108,34 +108,48 @@ func (s *Scheduler) EventCh() chan extenders.ExtenderEvent {
 	return s.extCh
 }
 
+// GetGraphDOTDescription returns DOT(graph description language) description of the current graph
+func (s *Scheduler) GetGraphDOTDescription() ([]byte, error) {
+	return s.getGraphDOTDescription()
+}
+
+func (s *Scheduler) getGraphDOTDescription() ([]byte, error) {
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+
+	if err := draw.DOT(s.dag, writer, draw.GraphAttribute("label", "Module Scheduler's Graph")); err != nil {
+		return nil, fmt.Errorf("couldn't write graph file: %w", err)
+	}
+	writer.Flush()
+
+	return b.Bytes(), nil
+}
+
 // GetGraphImage draws current graph's image
 func (s *Scheduler) GetGraphImage() (image.Image, error) {
 	if s.graphImage != nil {
 		return s.graphImage, nil
 	}
 
-	var b bytes.Buffer
-	writer := bufio.NewWriter(&b)
-
-	if err := draw.DOT(s.dag, writer, draw.GraphAttribute("label", "Module Scheduler's Graph")); err != nil {
-		return nil, fmt.Errorf("Couldn't write graph file: %w", err)
-	}
-	writer.Flush()
-
-	graph, err := graphviz.ParseBytes(b.Bytes())
+	dotDesc, err := s.getGraphDOTDescription()
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't parse graph file: %w", err)
+		return nil, err
+	}
+
+	graphvizGraph, err := graphviz.ParseBytes(dotDesc)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse graph file: %w", err)
 	}
 
 	g := graphviz.New()
 
-	image, err := g.RenderImage(graph)
+	graphvizImage, err := g.RenderImage(graphvizGraph)
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't render graph image: %w", err)
+		return nil, fmt.Errorf("couldn't render graph image: %w", err)
 	}
-	s.graphImage = image
+	s.graphImage = graphvizImage
 
-	return image, nil
+	return graphvizImage, nil
 }
 
 // AddModuleVertex adds a new vertex of type Module to the graph
