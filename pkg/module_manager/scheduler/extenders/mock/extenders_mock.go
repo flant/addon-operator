@@ -117,9 +117,11 @@ func (f *TopologicalOne) IsTerminator() bool {
 
 func (f *TopologicalOne) GetTopologicalHints(moduleName string) []string {
 	switch moduleName {
-	case "echo":
+	case "test-echo":
 		return []string{"prometheus", "cert-manager"}
 	case "prometheus":
+		return []string{"operator-prometheus"}
+	case "operator-prometheus":
 		return []string{"prometheus-crd"}
 	case "foobar":
 		return []string{"foo", "bar"}

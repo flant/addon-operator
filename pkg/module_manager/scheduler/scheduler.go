@@ -28,6 +28,11 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
+const (
+	getEnabled = true
+	getAll     = false
+)
+
 var defaultAppliedExtenders = []extenders.ExtenderName{
 	static_extender.Name,
 	dynamic_extender.Name,
@@ -394,34 +399,23 @@ func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 	return nil
 }
 
-// getModuleVertices traverses the graph in BFS-way and returns all connected Module-type vertices
-func (s *Scheduler) getModuleVertices() ([]*node.Node, error) {
-	if s.root == nil {
-		return nil, fmt.Errorf("graph is empty")
+// getModuleVerticesByOrder traverses the graph in a custom BFS-way and returns all connected Module-type vertices in order
+func (s *Scheduler) getModuleVerticesByOrder(logLabels map[string]string) ([]*node.Node, error) {
+	var nodes []*node.Node
+
+	verticesNamesByOrder, err := s.getModuleNamesByOrder(getAll, logLabels)
+	if err != nil {
+		return nil, fmt.Errorf("could not get an ordered list of vertices names: %w", err)
 	}
 
-	var (
-		nodes  []*node.Node
-		bfsErr error
-	)
-
-	err := s.customBFS(s.root.GetName(), func(name, _ string, _ int) (bool, int) {
-		var dummyDepth int
-		vertex, props, err := s.dag.VertexWithProperties(name)
-		if err != nil {
-			bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %w", name, err)
-			return true, dummyDepth
-		}
-
-		if props.Attributes[node.TypeAttribute] == string(node.ModuleType) {
+	for _, order := range verticesNamesByOrder {
+		for _, vertexName := range order {
+			vertex, err := s.dag.Vertex(vertexName)
+			if err != nil {
+				return nil, fmt.Errorf("could not get %s vertex from the graph: %w", vertexName, err)
+			}
 			nodes = append(nodes, vertex)
 		}
-
-		return false, dummyDepth
-	})
-
-	if bfsErr != nil {
-		return nodes, bfsErr
 	}
 
 	return nodes, err
@@ -440,9 +434,9 @@ func (s *Scheduler) customBFS(root string, visit func(node, prevNode string, pre
 
 	// ad-hoc type to save additional meta about vertices
 	type vertex struct {
-		name       string
-		prevVertex string
-		prevDepth  int
+		name      string
+		prevName  string
+		prevDepth int
 	}
 
 	queue := make([]vertex, 0)
@@ -450,7 +444,7 @@ func (s *Scheduler) customBFS(root string, visit func(node, prevNode string, pre
 
 	for len(queue) > 0 {
 		currentHash := queue[0].name
-		prevHash := queue[0].prevVertex
+		prevHash := queue[0].prevName
 		prevDepth := queue[0].prevDepth
 		depth := prevDepth + 1
 
@@ -473,7 +467,7 @@ func (s *Scheduler) customBFS(root string, visit func(node, prevNode string, pre
 
 		slices.Sort(sliceOfAdjacencies)
 		for _, adj := range sliceOfAdjacencies {
-			queue = append(queue, vertex{name: adj, prevVertex: currentHash, prevDepth: depth})
+			queue = append(queue, vertex{name: adj, prevName: currentHash, prevDepth: depth})
 		}
 	}
 
@@ -486,14 +480,14 @@ func (s *Scheduler) printSummary() (map[string]bool, error) {
 	result := make(map[string]bool, 0)
 
 	s.l.Lock()
-	vertices, err := s.getModuleVertices()
+	vertices, err := s.getModuleVerticesByOrder(map[string]string{})
 	if err != nil {
 		return nil, err
 	}
 
 	for _, vertex := range vertices {
 		if vertex.GetType() == node.ModuleType {
-			result[fmt.Sprintf("%s/%s", vertex.GetName(), vertex.GetUpdatedBy())] = vertex.GetState()
+			result[fmt.Sprintf("%s/%s", vertex.GetName(), vertex.GetUpdatedBy())] = vertex.IsEnabled()
 		}
 	}
 
@@ -538,7 +532,7 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 		return false
 	}
 
-	return vertex.GetState()
+	return vertex.IsEnabled()
 }
 
 // GetEnabledModuleNames returns a list of all enabled module-type vertices from s.enabledModules
@@ -560,45 +554,63 @@ func (s *Scheduler) getEnabledModuleNames() []string {
 	return enabledModules
 }
 
-func (s *Scheduler) getEnabledModuleNamesByOrder() ([][]string, error) {
+func (s *Scheduler) getModuleNamesByOrder(onlyEnabled bool, logLabels map[string]string) ([][]string, error) {
 	if s.root == nil {
 		return nil, fmt.Errorf("graph is empty")
 	}
 
+	var dagOrder int
+	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
+
+	if s.enabledModules != nil {
+		dagOrder = len(*s.enabledModules)
+	} else {
+		order, err := s.dag.Order()
+		if err != nil {
+			return nil, fmt.Errorf("could not get the graph's order: %w", err)
+		}
+
+		dagOrder = order
+	}
+
 	var (
-		vertices = make(map[string]int, len(*s.enabledModules))
+		vertices = make(map[string]int, dagOrder)
 		bfsErr   error
 	)
 
-	if err := s.customBFS(s.root.GetName(), func(name, prevNodeName string, prevDepth int) (bool, int) {
+	if err := s.customBFS(s.root.GetName(), func(name, prevName string, prevDepth int) (bool, int) {
+		logEntry.Debug("Module Scheduler: traversing the graph",
+			slog.String("vertex", name))
+
 		var depth int
 		vertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
-			bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %w", name, err)
+			bfsErr = fmt.Errorf("couldn not get %s vertex from the graph: %w", name, err)
 			return true, depth
 		}
 
 		// skip weight nodes
 		if props.Attributes[node.TypeAttribute] == string(node.WeightType) {
+			return false, prevDepth + 1000
+		}
+
+		depth = prevDepth + 1
+
+		// if the list of enabled modules is empty, it's first run through the graph
+		if s.enabledModules == nil && len(prevName) > 0 {
+			err := s.dag.UpdateEdge(prevName, name, graph.EdgeAttribute("labeltooltip", "depth"), graph.EdgeAttribute("label", fmt.Sprintf("%d", depth)))
+			if err != nil {
+				bfsErr = fmt.Errorf("couldn not get %s-%s edge from the graph: %w", prevName, name, err)
+				return true, depth
+			}
+		}
+
+		if onlyEnabled && !vertex.IsEnabled() {
 			return false, depth
 		}
 
-		_, prevProps, err := s.dag.VertexWithProperties(prevNodeName)
-		if err != nil {
-			bfsErr = fmt.Errorf("couldn't get %s vertex from the graph: %w", prevNodeName, err)
-			return true, depth
-		}
-
-		if prevProps.Attributes[node.TypeAttribute] == string(node.WeightType) {
-			depth = prevDepth
-		} else {
-			depth = prevDepth + 1
-		}
-
-		if vertex.GetState() {
-			if depth > vertices[name] {
-				vertices[name] = depth
-			}
+		if depth > vertices[name] {
+			vertices[name] = depth
 		}
 
 		return false, depth
@@ -667,7 +679,7 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 		return nil, nil, nil, fmt.Errorf("couldn't recalculate graph: %s", s.err.Error())
 	}
 
-	enabledModulesByOrder, err := s.getEnabledModuleNamesByOrder()
+	enabledModulesByOrder, err := s.getModuleNamesByOrder(getEnabled, logLabels)
 
 	return s.getEnabledModuleNames(), enabledModulesByOrder, s.gleanGraphDiff(), err
 }
@@ -688,7 +700,7 @@ func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, lo
 		return nil, fmt.Errorf("graph is empty")
 	}
 	if s.err != nil {
-		return nil, fmt.Errorf("graph is in a faulty state")
+		return nil, fmt.Errorf("graph is in a faulty state: %w", s.err)
 	}
 
 	for _, e := range s.extenders {
@@ -710,7 +722,7 @@ func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Grap
 	var graphErr error
 	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
 
-	vertices, err := s.getModuleVertices()
+	vertices, err := s.getModuleVerticesByOrder(logLabels)
 	if err != nil {
 		s.err = fmt.Errorf("couldn't get module vertices: %s", err.Error())
 		return true, nil
@@ -764,7 +776,7 @@ outerCycle:
 			}
 		}
 
-		if s.vertexStateBuffer.state[moduleName].enabled != vertex.GetState() {
+		if s.vertexStateBuffer.state[moduleName].enabled != vertex.IsEnabled() {
 			stateDiff[moduleName] = s.vertexStateBuffer.state[moduleName].enabled
 		} else {
 			delete(stateDiff, moduleName)
