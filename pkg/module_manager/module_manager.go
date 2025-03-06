@@ -436,6 +436,10 @@ func (mm *ModuleManager) GetGraphImage() (image.Image, error) {
 	return mm.moduleScheduler.GetGraphImage()
 }
 
+func (mm *ModuleManager) GetGraphDOTDescription() ([]byte, error) {
+	return mm.moduleScheduler.GetGraphDOTDescription()
+}
+
 // SetGlobalDiscoveryAPIVersions applies global values patch to .global.discovery.apiVersions key
 // if non-default moduleLoader is in use
 func (mm *ModuleManager) SetGlobalDiscoveryAPIVersions(apiVersions []string) {
