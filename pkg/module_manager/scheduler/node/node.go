@@ -70,7 +70,7 @@ func (n Node) GetWeight() NodeWeight {
 	return n.weight
 }
 
-func (n Node) GetState() bool {
+func (n Node) IsEnabled() bool {
 	return n.enabled
 }
 
