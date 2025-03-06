@@ -3,13 +3,13 @@ package hooks
 import (
 	"context"
 
+	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
@@ -27,7 +27,7 @@ type metricStorage interface {
 }
 
 type kubeObjectPatcher interface {
-	ExecuteOperations([]objectpatch.Operation) error
+	ExecuteOperations([]sdkpkg.PatchCollectorOperation) error
 }
 
 type globalValuesGetter interface {

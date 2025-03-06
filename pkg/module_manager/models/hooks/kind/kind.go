@@ -1,10 +1,10 @@
 package kind
 
 import (
+	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
-	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
@@ -23,6 +23,6 @@ type HookResult struct {
 	Usage                   *executor.CmdUsage
 	Patches                 map[utils.ValuesPatchType]*utils.ValuesPatch
 	Metrics                 []metricoperation.MetricOperation
-	ObjectPatcherOperations []objectpatch.Operation
+	ObjectPatcherOperations []sdkpkg.PatchCollectorOperation
 	BindingActions          []gohook.BindingAction
 }
