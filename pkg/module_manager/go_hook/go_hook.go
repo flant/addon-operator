@@ -93,7 +93,7 @@ type Logger interface {
 type PatchCollector interface {
 	sdkpkg.PatchCollector
 
-	Filter(filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error), apiVersion string, kind string, namespace string, name string, opts ...sdkpkg.PatchCollectorFilterOption)
+	PatchWithMutatingFunc(fn func(*unstructured.Unstructured) (*unstructured.Unstructured, error), apiVersion string, kind string, namespace string, name string, opts ...sdkpkg.PatchCollectorOption)
 }
 
 type PatchableValuesCollector interface {
