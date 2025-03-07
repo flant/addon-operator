@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -57,7 +58,11 @@ func (as *AdmissionServer) start(ctx context.Context) {
 		cert := path.Join(as.certsDir, "tls.crt")
 		key := path.Join(as.certsDir, "tls.key")
 		if err := srv.ListenAndServeTLS(cert, key); err != nil {
-			log.Fatal("admission server listen and serve tls", log.Err(err))
+			if errors.Is(err, http.ErrServerClosed) {
+				log.Info("admission server stopped")
+			} else {
+				log.Fatal("admission server listen and serve tls", log.Err(err))
+			}
 		}
 	}()
 

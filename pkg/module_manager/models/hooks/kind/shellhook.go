@@ -27,14 +27,16 @@ import (
 var _ gohook.HookConfigLoader = (*ShellHook)(nil)
 
 type ShellHook struct {
+	moduleName string
 	sh_hook.Hook
 
 	ScheduleConfig *HookScheduleConfig
 }
 
 // NewShellHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewShellHook(name, path string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *ShellHook {
+func NewShellHook(name, path, moduleName string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *ShellHook {
 	return &ShellHook{
+		moduleName: moduleName,
 		Hook: sh_hook.Hook{
 			Name:                   name,
 			Path:                   path,
@@ -136,7 +138,8 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		envs).
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
-		WithLogger(sh.Logger.Named("executor"))
+		WithLogger(sh.Logger.Named("executor")).
+		WithChroot(utils.GetModuleChrootPath(sh.moduleName))
 
 	usage, err := cmd.RunAndLogLines(logLabels)
 	result.Usage = usage
@@ -185,7 +188,8 @@ func (sh *ShellHook) getConfig() ([]byte, error) {
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
-		WithCMDStdout(nil)
+		WithCMDStdout(nil).
+		WithChroot(utils.GetModuleChrootPath(sh.moduleName))
 
 	sh.Hook.Logger.Debug("Executing hook",
 		slog.String("args", strings.Join(args, " ")))

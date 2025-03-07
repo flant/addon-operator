@@ -33,6 +33,7 @@ var (
 
 	GlobalHooksDir = "global-hooks"
 	ModulesDir     = "modules"
+	ShellChrootDir = ""
 
 	UnnumberedModuleOrder = 1
 
@@ -165,6 +166,11 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		Envar("ADDON_OPERATOR_CRD_FILTER_PREFIXES").
 		Default(CRDsFilters).
 		StringVar(&CRDsFilters)
+
+	cmd.Flag("shell-chroot-dir", "Defines the path where shell scripts (shell hooks and enabled scripts) will be chrooted to.").
+		Envar("ADDON_OPERATOR_SHELL_CHROOT_DIR").
+		Default("").
+		StringVar(&ShellChrootDir)
 
 	shapp.DefineKubeClientFlags(cmd)
 	shapp.DefineJqFlags(cmd)
