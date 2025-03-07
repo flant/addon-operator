@@ -145,7 +145,6 @@ type HookConfig struct {
 type HookConfigSettings struct {
 	ExecutionMinInterval time.Duration
 	ExecutionBurst       int
-
 	// EnableSchedulesOnStartup
 	// set to true, if you need to run 'Schedule' hooks without waiting addon-operator readiness
 	EnableSchedulesOnStartup bool
