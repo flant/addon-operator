@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
@@ -336,7 +337,7 @@ func (gm *GlobalModule) SetAvailableAPIVersions(apiVersions []string) {
 	}
 
 	data, _ := json.Marshal(apiVersions)
-	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
+	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*sdkutils.ValuesPatchOperation{
 		{
 			Op:    "add",
 			Path:  "/global/discovery/apiVersions",
@@ -355,7 +356,7 @@ func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
 	}
 
 	data, _ := json.Marshal(enabledModules)
-	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
+	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*sdkutils.ValuesPatchOperation{
 		{
 			Op:    "add",
 			Path:  "/global/enabledModules",

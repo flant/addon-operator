@@ -161,7 +161,7 @@ func (m *Manager) AssembleEnvironmentForModule(moduleName, modulePath string, ta
 		}
 
 		if os.Getenv(testsEnv) != "true" {
-			if err := syscall.Mount(modulePath, chrootedModuleDir, "", syscall.MS_BIND|syscall.MS_RDONLY, ""); err != nil {
+			if err := MountFn(modulePath, chrootedModuleDir, "", 0, ""); err != nil {
 				return fmt.Errorf("mount %q module's dir: %w", modulePath, err)
 			}
 		}
@@ -212,7 +212,7 @@ func (m *Manager) AssembleEnvironmentForModule(moduleName, modulePath string, ta
 					return fmt.Errorf("make dir %q: %w", chrootedObjectPath, err)
 				}
 
-				if err := syscall.Mount(properties.Source, chrootedObjectPath, "", properties.Flags, ""); err != nil {
+				if err := MountFn(properties.Source, chrootedObjectPath, "", properties.Flags, ""); err != nil {
 					return fmt.Errorf("mount folder %q: %w", chrootedObjectPath, err)
 				}
 			}

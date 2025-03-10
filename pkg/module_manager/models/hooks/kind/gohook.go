@@ -6,6 +6,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/deckhouse/deckhouse/pkg/log"
+	sdkpatchablevalues "github.com/deckhouse/module-sdk/pkg/patchable-values"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
@@ -103,12 +104,12 @@ func (h *GoHook) GetHookConfigDescription() string {
 // Execute runs the hook and return the result of the execution
 func (h *GoHook) Execute(_ string, bContext []bindingcontext.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
 	// Values are patched in-place, so an error can occur.
-	patchableValues, err := gohook.NewPatchableValues(values)
+	patchableValues, err := sdkpatchablevalues.NewPatchableValues(values)
 	if err != nil {
 		return nil, err
 	}
 
-	patchableConfigValues, err := gohook.NewPatchableValues(configValues)
+	patchableConfigValues, err := sdkpatchablevalues.NewPatchableValues(configValues)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +124,12 @@ func (h *GoHook) Execute(_ string, bContext []bindingcontext.BindingContext, _ s
 		for snapBindingName, snaps := range bc.Snapshots {
 			for _, snapshot := range snaps {
 				goSnapshot := snapshot.FilterResult
-				formattedSnapshots[snapBindingName] = append(formattedSnapshots[snapBindingName], goSnapshot)
+
+				if goSnapshot == nil {
+					continue
+				}
+
+				formattedSnapshots[snapBindingName] = append(formattedSnapshots[snapBindingName], &gohook.Wrapped{Wrapped: goSnapshot})
 			}
 		}
 	}

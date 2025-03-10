@@ -8,6 +8,10 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
+	lazynode "github.com/deckhouse/module-sdk/pkg/utils/lazy-node"
+	"github.com/deckhouse/module-sdk/pkg/utils/patch"
 )
 
 type ValuesPatchType string
@@ -18,22 +22,22 @@ const (
 )
 
 type ValuesPatch struct {
-	Operations []*ValuesPatchOperation
+	Operations []*sdkutils.ValuesPatchOperation
 }
 
 func NewValuesPatch() *ValuesPatch {
 	return &ValuesPatch{
-		Operations: make([]*ValuesPatchOperation, 0),
+		Operations: make([]*sdkutils.ValuesPatchOperation, 0),
 	}
 }
 
-// ToJsonPatch returns a jsonpatch.Patch with all operations.
-func (p *ValuesPatch) ToJsonPatch() (Patch, error) {
+// ToJSONPatch returns a jsonpatch.Patch with all operations.
+func (p *ValuesPatch) ToJSONPatch() (patch.Patch, error) {
 	data, err := json.Marshal(p.Operations)
 	if err != nil {
 		return nil, err
 	}
-	patch, err := DecodePatch(data)
+	patch, err := sdkutils.DecodePatch(data)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +49,7 @@ func (p *ValuesPatch) ToJsonPatch() (Patch, error) {
 // - "remove" operation errors are not ignored.
 // - absent paths are not ignored.
 func (p *ValuesPatch) ApplyStrict(doc []byte) ([]byte, error) {
-	patch, err := p.ToJsonPatch()
+	patch, err := p.ToJSONPatch()
 	if err != nil {
 		return nil, err
 	}
@@ -62,11 +66,11 @@ func (p *ValuesPatch) ApplyIgnoreNonExistentPaths(doc []byte) ([]byte, error) {
 	}
 
 	for _, op := range p.Operations {
-		patch, err := op.ToJsonPatch()
+		patch, err := op.ToJSONPatch()
 		if err != nil {
 			return nil, err
 		}
-		pd, err = patch.applyContainer(pd)
+		pd, err = patch.ApplyContainer(pd)
 
 		// Ignore errors for remove operation.
 		if op.Op == "remove" && IsNonExistentPathError(err) {
@@ -84,30 +88,6 @@ func (p *ValuesPatch) MergeOperations(src *ValuesPatch) {
 		return
 	}
 	p.Operations = append(p.Operations, src.Operations...)
-}
-
-type ValuesPatchOperation struct {
-	Op    string          `json:"op,omitempty"`
-	Path  string          `json:"path,omitempty"`
-	Value json.RawMessage `json:"value,omitempty"`
-}
-
-func (op *ValuesPatchOperation) ToString() string {
-	data, err := json.Marshal(op.Value)
-	if err != nil {
-		// This should not happen, because ValuesPatchOperation is created with Unmarshal!
-		return fmt.Sprintf("{\"op\":\"%s\", \"path\":\"%s\", \"value-error\": \"%s\" }", op.Op, op.Path, err)
-	}
-	return string(data)
-}
-
-// ToJsonPatch returns a jsonpatch.Patch with one operation.
-func (op *ValuesPatchOperation) ToJsonPatch() (Patch, error) {
-	opBytes, err := json.Marshal([]*ValuesPatchOperation{op})
-	if err != nil {
-		return nil, err
-	}
-	return DecodePatch(opBytes)
 }
 
 func JsonPatchFromReader(r io.Reader) (Patch, error) {
@@ -182,7 +162,7 @@ func ValuesPatchFromBytes(data []byte) (*ValuesPatch, error) {
 		return nil, fmt.Errorf("json patch marshal: %s\n%s", err, string(data))
 	}
 
-	var operations []*ValuesPatchOperation
+	var operations []*sdkutils.ValuesPatchOperation
 	if err := json.Unmarshal(combined, &operations); err != nil {
 		return nil, fmt.Errorf("values patch operations: %s\n%s", err, string(data))
 	}
@@ -208,7 +188,7 @@ func AppendValuesPatch(valuesPatches []ValuesPatch, newValuesPatch ValuesPatch) 
 }
 
 func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatch) []ValuesPatch {
-	operations := []*ValuesPatchOperation{}
+	operations := []*sdkutils.ValuesPatchOperation{}
 
 	for _, patch := range valuesPatches {
 		operations = append(operations, patch.Operations...)
@@ -219,13 +199,13 @@ func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatc
 
 // CompactPatches modifies an array of existed patch operations according to the new array
 // of patch operations. The rule is: only last operation for the path should be stored.
-func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*ValuesPatchOperation) ValuesPatch {
-	patchesTree := make(map[string][]*ValuesPatchOperation)
+func CompactPatches(existedOperations []*sdkutils.ValuesPatchOperation, newOperations []*sdkutils.ValuesPatchOperation) ValuesPatch {
+	patchesTree := make(map[string][]*sdkutils.ValuesPatchOperation)
 
 	// Fill the map with paths from existed operations.
 	for _, op := range existedOperations {
 		if _, ok := patchesTree[op.Path]; !ok {
-			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
+			patchesTree[op.Path] = make([]*sdkutils.ValuesPatchOperation, 0)
 		}
 		patchesTree[op.Path] = append(patchesTree[op.Path], op)
 	}
@@ -260,11 +240,11 @@ func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*
 
 		// Prepare array for the path.
 		if _, ok := patchesTree[op.Path]; !ok {
-			patchesTree[op.Path] = make([]*ValuesPatchOperation, 0)
+			patchesTree[op.Path] = make([]*sdkutils.ValuesPatchOperation, 0)
 		}
 
 		// Only one last operation is stored for the same path.
-		patchesTree[op.Path] = []*ValuesPatchOperation{op}
+		patchesTree[op.Path] = []*sdkutils.ValuesPatchOperation{op}
 	}
 
 	// Sort paths for proper 'add' sequence
@@ -274,7 +254,7 @@ func CompactPatches(existedOperations []*ValuesPatchOperation, newOperations []*
 	}
 	sort.Strings(paths)
 
-	newOps := []*ValuesPatchOperation{}
+	newOps := []*sdkutils.ValuesPatchOperation{}
 	for _, path := range paths {
 		newOps = append(newOps, patchesTree[path]...)
 	}
@@ -363,7 +343,7 @@ func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRootKey string) e
 }
 
 func FilterValuesPatch(valuesPatch ValuesPatch, rootPath string) ValuesPatch {
-	resOps := []*ValuesPatchOperation{}
+	resOps := []*sdkutils.ValuesPatchOperation{}
 
 	for _, op := range valuesPatch.Operations {
 		pathParts := strings.Split(op.Path, "/")
@@ -380,7 +360,7 @@ func FilterValuesPatch(valuesPatch ValuesPatch, rootPath string) ValuesPatch {
 }
 
 func EnabledFromValuesPatch(valuesPatch ValuesPatch) ValuesPatch {
-	resOps := make([]*ValuesPatchOperation, 0)
+	resOps := make([]*sdkutils.ValuesPatchOperation, 0)
 
 	for _, op := range valuesPatch.Operations {
 		pathParts := strings.Split(op.Path, "/")
@@ -414,4 +394,24 @@ func IsNonExistentPathError(err error) bool {
 		return true
 	}
 	return false
+}
+
+func getContainer(doc []byte) (container, error) {
+	if len(doc) == 0 {
+		return nil, nil
+	}
+
+	var pd container
+	if doc[0] == '[' {
+		pd = &lazynode.PartialArray{}
+	} else {
+		pd = &lazynode.PartialDoc{}
+	}
+
+	err := json.Unmarshal(doc, pd)
+	if err != nil {
+		return nil, err
+	}
+
+	return pd, nil
 }

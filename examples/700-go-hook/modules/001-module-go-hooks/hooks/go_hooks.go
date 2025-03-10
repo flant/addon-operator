@@ -54,14 +54,20 @@ func ObjFilter(obj *unstructured.Unstructured) (gohook.FilterResult, error) {
 }
 
 func run(input *gohook.HookInput) error {
-	for _, o := range input.Snapshots["pods"] {
-		podSpec := o.(*podSpecFilteredObj)
+	for _, o := range input.Snapshots.Get("pods") {
+		podSpec := new(podSpecFilteredObj)
+
+		err := o.UnmarhalTo(podSpec)
+		if err != nil {
+			continue
+		}
+
 		input.Logger.Info("Got podSpec",
 			slog.String("spec", fmt.Sprintf("%+v", podSpec)))
 	}
 
-	input.Logger.Info("Hello from on_kube.pods2! I have snapshots",
-		slog.Int("count", len(input.Snapshots)))
+	// input.Logger.Info("Hello from on_kube.pods2! I have snapshots",
+	// 	slog.Int("count", len(input.Snapshots)))
 
 	input.MetricsCollector.Add("addon_go_hooks_total", 1.0, nil)
 
