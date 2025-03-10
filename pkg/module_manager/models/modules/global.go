@@ -548,7 +548,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 			}
 		}
 
-		globalHook := kind.NewShellHook(hookName, hookPath, "global", gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
+		globalHook := kind.NewShellHook(hookName, hookPath, "", "global", gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
 
 		hks = append(hks, globalHook)
 	}
