@@ -14,7 +14,7 @@ func Test_FilterResult(t *testing.T) {
 	}
 
 	t.Run("UnmarhalTo", func(t *testing.T) {
-		wrapp := &go_hook.Wrapped{
+		w := &go_hook.Wrapped{
 			Wrapped: &SomeStruct{
 				String: "INPUT STRING",
 			},
@@ -22,25 +22,25 @@ func Test_FilterResult(t *testing.T) {
 
 		ss := &SomeStruct{}
 
-		err := wrapp.UnmarhalTo(ss)
+		err := w.UnmarhalTo(ss)
 		assert.NoError(t, err)
 
 		assert.Equal(t, "INPUT STRING", ss.String)
 	})
 
 	t.Run("UnmarhalTo_NilWrapped", func(t *testing.T) {
-		wrapp := &go_hook.Wrapped{
+		w := &go_hook.Wrapped{
 			Wrapped: nil,
 		}
 
 		ss := &SomeStruct{}
 
-		err := wrapp.UnmarhalTo(ss)
+		err := w.UnmarhalTo(ss)
 		assert.Error(t, err)
 	})
 
 	t.Run("UnmarhalTo_NilTarget", func(t *testing.T) {
-		wrapp := &go_hook.Wrapped{
+		w := &go_hook.Wrapped{
 			Wrapped: &SomeStruct{
 				String: "INPUT STRING",
 			},
@@ -48,7 +48,7 @@ func Test_FilterResult(t *testing.T) {
 
 		var ss *SomeStruct
 
-		err := wrapp.UnmarhalTo(ss)
+		err := w.UnmarhalTo(ss)
 		assert.Error(t, err)
 	})
 
@@ -57,7 +57,7 @@ func Test_FilterResult(t *testing.T) {
 			Field int
 		}
 
-		wrapp := &go_hook.Wrapped{
+		w := &go_hook.Wrapped{
 			Wrapped: &SomeStruct{
 				String: "INPUT STRING",
 			},
@@ -65,25 +65,25 @@ func Test_FilterResult(t *testing.T) {
 
 		os := &OtherStruct{}
 
-		err := wrapp.UnmarhalTo(os)
+		err := w.UnmarhalTo(os)
 		assert.Error(t, err)
 	})
 
 	t.Run("AsString", func(t *testing.T) {
-		wrapp := &go_hook.Wrapped{
+		w := &go_hook.Wrapped{
 			Wrapped: "test string",
 		}
 
-		result := wrapp.String()
+		result := w.String()
 		assert.Equal(t, "test string", result)
 	})
 
 	t.Run("AsStringEmpty", func(t *testing.T) {
-		wrapp := &go_hook.Wrapped{
+		w := &go_hook.Wrapped{
 			Wrapped: "",
 		}
 
-		result := wrapp.String()
+		result := w.String()
 		assert.Equal(t, "", result)
 	})
 }
