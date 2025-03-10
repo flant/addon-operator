@@ -7,16 +7,14 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/tidwall/gjson"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook/config"
-	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	"github.com/tidwall/gjson"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type GoHook interface {
@@ -92,12 +90,9 @@ type Logger interface {
 }
 
 type PatchCollector interface {
-	Create(object interface{}, options ...objectpatch.CreateOption)
-	Delete(apiVersion string, kind string, namespace string, name string, options ...objectpatch.DeleteOption)
-	Filter(filterFunc func(*unstructured.Unstructured) (*unstructured.Unstructured, error), apiVersion string, kind string, namespace string, name string, options ...objectpatch.FilterOption)
-	JSONPatch(jsonPatch interface{}, apiVersion string, kind string, namespace string, name string, options ...objectpatch.PatchOption)
-	MergePatch(mergePatch interface{}, apiVersion string, kind string, namespace string, name string, options ...objectpatch.PatchOption)
-	Operations() []objectpatch.Operation
+	sdkpkg.PatchCollector
+
+	PatchWithMutatingFunc(fn func(*unstructured.Unstructured) (*unstructured.Unstructured, error), apiVersion string, kind string, namespace string, name string, opts ...sdkpkg.PatchCollectorOption)
 }
 
 type PatchableValuesCollector interface {
@@ -149,6 +144,7 @@ type HookConfig struct {
 type HookConfigSettings struct {
 	ExecutionMinInterval time.Duration
 	ExecutionBurst       int
+
 	// EnableSchedulesOnStartup
 	// set to true, if you need to run 'Schedule' hooks without waiting addon-operator readiness
 	EnableSchedulesOnStartup bool

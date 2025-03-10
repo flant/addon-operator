@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	// "github.com/dominikbraun/graph/draw"
 	"github.com/dominikbraun/graph"
-	"github.com/dominikbraun/graph/draw"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -162,6 +162,7 @@ nodeLocalDnsEnabled: true
 certManagerEnabled: true
 prometheusEnabled: true
 prometheusCrdEnabled: true
+operatorPrometheusEnabled: true
 istioEnabled: true
 admissionPolicyEngineEnabled: true
 kubeDnsEnabled: false
@@ -184,6 +185,10 @@ operatorTrivyEnabled: true
 		{
 			Name:  "prometheus-crd",
 			Order: 10,
+		},
+		{
+			Name:  "operator-prometheus",
+			Order: 15,
 		},
 		{
 			Name:  "prometheus",
@@ -235,18 +240,17 @@ operatorTrivyEnabled: true
 
 	_, _ = s.RecalculateGraph(logLabels)
 
-	file, _ := os.Create("./mygraph.gv")
-	_ = draw.DOT(s.dag, file)
-
 	// get all enabled modules by order case
-	enabledModules, err := s.getEnabledModuleNamesByOrder()
+	enabledModules, err := s.getModuleNamesByOrder(getEnabled, map[string]string{})
 	for _, v := range enabledModules {
 		slices.Sort(v)
 	}
 	assert.NoError(t, err)
 	expected := [][]string{
 		{"prometheus-crd"},
-		{"istio", "node-local-dns", "prometheus"},
+		{"operator-prometheus"},
+		{"prometheus"},
+		{"istio", "node-local-dns"},
 		{"cert-manager"},
 		{"admission-policy-engine"},
 		{"operator-trivy"},
@@ -345,7 +349,7 @@ func TestAddModuleVertex(t *testing.T) {
 	// new module vertex is in place
 	vertexIngress, err := s.dag.Vertex(basicModuleIngress.GetName())
 	assert.NoError(t, err)
-	assert.Equal(t, false, vertexIngress.GetState())
+	assert.Equal(t, false, vertexIngress.IsEnabled())
 
 	weightVertexIngress, err := s.dag.Vertex(vertexIngress.GetWeight().String())
 	assert.NoError(t, err)
@@ -366,7 +370,7 @@ func TestAddModuleVertex(t *testing.T) {
 
 	vertexAPE, err := s.dag.Vertex(basicModuleAPE.GetName())
 	assert.NoError(t, err)
-	assert.Equal(t, false, vertexAPE.GetState())
+	assert.Equal(t, false, vertexAPE.IsEnabled())
 
 	weightVertexAPE, err := s.dag.Vertex(vertexAPE.GetWeight().String())
 	assert.NoError(t, err)
@@ -751,80 +755,105 @@ monitoringApplicationsEnabled: true
 l2LoadBalancerEnabled: false
 `
 	logLabels := map[string]string{"source": "TestRecalculateGraph"}
+	enabledScriptInternalListOfEnabledModules := make([]string, 0)
 	basicModules := []*node_mock.MockModule{
 		{
 			Name:                "ingress-nginx",
 			Order:               402,
 			EnabledScriptResult: true,
 			Path:                "./testdata/402-ingress-nginx/",
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
 			Name:                "cert-manager",
-			Order:               30,
+			Order:               20,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
+			Path:                "./testdata/20-cert-manager",
 		},
 		{
 			Name:                "node-local-dns",
 			Order:               20,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
 			Name:                "admission-policy-engine",
 			Order:               15,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
 			Name:                "chrony",
 			Order:               45,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
 			Name:                "foo-bar",
 			Order:               133,
 			EnabledScriptResult: false,
 			Path:                "./testdata/133-foo-bar/",
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
 			Name:                "flant-integration",
 			Order:               450,
 			EnabledScriptResult: false,
 			Path:                "./testdata/450-flant-integration/",
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
 			Name:                "monitoring-applications",
 			Order:               340,
 			EnabledScriptResult: false,
 			Path:                "./testdata/340-monitoring-applications/",
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
 			Name:                "l2-load-balancer",
 			Order:               397,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
-			Name:                "echo",
+			Name:                "test-echo",
 			Order:               909,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
+			Path:                "./testdata/909-test-echo",
 		},
 		{
 			Name:                "prometheus",
 			Order:               340,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
 			Name:                "prometheus-crd",
 			Order:               10,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 		{
-			Name:                "openstack-cloud-provider",
-			Order:               35,
+			Name:                "operator-prometheus",
+			Order:               15,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
+		},
+		{
+			Name:                  "openstack-cloud-provider",
+			Order:                 30,
+			ListOfRequiredModules: []string{"test-echo"},
+			EnabledModules:        &enabledScriptInternalListOfEnabledModules,
+			EnabledScriptResult:   true,
+			Path:                  "./testdata/30-openstack-cloud-provider/",
 		},
 		{
 			Name:                "my-module",
 			Order:               350,
 			EnabledScriptResult: true,
+			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
 	}
 
@@ -874,9 +903,10 @@ l2LoadBalancerEnabled: false
 		"ingress-nginx/":                 false,
 		"l2-load-balancer/Static":        false,
 		"openstack-cloud-provider/":      false,
+		"operator-prometheus/":           false,
 		"prometheus-crd/":                false,
 		"prometheus/":                    false,
-		"echo/":                          false,
+		"test-echo/":                     false,
 		"my-module/TopologicalTwo":       false,
 	}
 
@@ -940,9 +970,10 @@ l2LoadBalancerEnabled: false
 		"ingress-nginx/":                              false,
 		"l2-load-balancer/DynamicallyEnabled":         true,
 		"openstack-cloud-provider/DynamicallyEnabled": true,
+		"operator-prometheus/":                        false,
 		"prometheus-crd/":                             false,
 		"prometheus/":                                 false,
-		"echo/":                                       false,
+		"test-echo/":                                  false,
 		"my-module/TopologicalTwo":                    false,
 	}
 
@@ -965,12 +996,13 @@ l2LoadBalancerEnabled: false
 	// add amd apply kube config extender
 	kce := kube_config.NewExtender(kcmMock{
 		modulesStatus: map[string]bool{
-			"cert-manager":   true,
-			"chrony":         false,
-			"foo-bar":        true,
-			"echo":           true,
-			"prometheus":     true,
-			"prometheus-crd": true,
+			"cert-manager":        true,
+			"chrony":              false,
+			"foo-bar":             true,
+			"test-echo":           true,
+			"prometheus":          true,
+			"prometheus-crd":      true,
+			"operator-prometheus": true,
 		},
 	})
 
@@ -998,28 +1030,31 @@ l2LoadBalancerEnabled: false
 		"ingress-nginx/":                              false,
 		"l2-load-balancer/DynamicallyEnabled":         true,
 		"openstack-cloud-provider/DynamicallyEnabled": true,
-		"echo/KubeConfig":                             true,
+		"operator-prometheus/KubeConfig":              true,
+		"test-echo/KubeConfig":                        true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
 		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = map[string]bool{
-		"echo":           true,
-		"prometheus":     true,
-		"prometheus-crd": true,
-		"foo-bar":        true,
-		"chrony":         false,
+		"test-echo":           true,
+		"prometheus":          true,
+		"prometheus-crd":      true,
+		"foo-bar":             true,
+		"operator-prometheus": true,
+		"chrony":              false,
 	}
 
 	expectedVerticesToUpdate = []string{
 		"cert-manager",
 		"chrony",
-		"echo",
 		"foo-bar",
 		"node-local-dns",
+		"operator-prometheus",
 		"prometheus",
 		"prometheus-crd",
+		"test-echo",
 	}
 
 	summary, err = s.printSummary()
@@ -1057,7 +1092,8 @@ l2LoadBalancerEnabled: false
 		"ingress-nginx/":                              false,
 		"l2-load-balancer/DynamicallyEnabled":         true,
 		"openstack-cloud-provider/DynamicallyEnabled": true,
-		"echo/KubeConfig":                             true,
+		"operator-prometheus/KubeConfig":              true,
+		"test-echo/KubeConfig":                        true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
 		"my-module/TopologicalTwo":                    false,
@@ -1081,13 +1117,20 @@ l2LoadBalancerEnabled: false
 	assert.Equal(t, expectedDiff, diff)
 	assert.Equal(t, expectedVerticesToUpdate, verticesToUpdate)
 
+	// file, _ := os.Create("/tmp/mygraph.gv")
+	// _ = draw.DOT(s.dag, file)
+
 	// some tests with dynamic extender
 	de.UpdateStatus("openstack-cloud-provider", "add", false)
 	de.UpdateStatus("ingress-nginx", "add", true)
 	de.UpdateStatus("node-local-dns", "add", true)
 
+	enabledScriptInternalListOfEnabledModules = make([]string, 0)
+
 	updated, _ = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
+
+	enabledScriptInternalListOfEnabledModules = make([]string, 0)
 
 	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, false, updated)
@@ -1106,7 +1149,8 @@ l2LoadBalancerEnabled: false
 		"ingress-nginx/DynamicallyEnabled":            true,
 		"l2-load-balancer/DynamicallyEnabled":         true,
 		"openstack-cloud-provider/DynamicallyEnabled": false,
-		"echo/KubeConfig":                             true,
+		"operator-prometheus/KubeConfig":              true,
+		"test-echo/KubeConfig":                        true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
 		"my-module/TopologicalTwo":                    false,
@@ -1129,6 +1173,8 @@ l2LoadBalancerEnabled: false
 	basicModules[0].EnabledScriptErr = errors.New("Exit code not 0")
 	scripte.AddBasicModule(basicModules[0])
 
+	enabledScriptInternalListOfEnabledModules = make([]string, 0)
+
 	updated, verticesToUpdate = s.RecalculateGraph(logLabels)
 	assert.Equal(t, true, updated)
 
@@ -1146,7 +1192,8 @@ l2LoadBalancerEnabled: false
 		"ingress-nginx/DynamicallyEnabled":            true,
 		"l2-load-balancer/DynamicallyEnabled":         true,
 		"openstack-cloud-provider/DynamicallyEnabled": false,
-		"echo/KubeConfig":                             true,
+		"operator-prometheus/KubeConfig":              true,
+		"test-echo/KubeConfig":                        true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
 		"my-module/TopologicalTwo":                    false,

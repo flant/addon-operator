@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -61,6 +62,8 @@ type HelmModuleDependencies struct {
 	HelmValuesValidator HelmValuesValidator
 }
 
+var ErrModuleIsNotHelm = errors.New("module is not a helm")
+
 // NewHelmModule build HelmModule from the Module templates and values + global values
 func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator, opts ...ModuleOption) (*HelmModule, error) {
 	moduleValues := bm.GetValues(false)
@@ -96,7 +99,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	if !isHelm {
 		hm.logger.Info("module has neither Chart.yaml nor templates/ dir, is't not a helm chart",
 			slog.String("name", bm.Name))
-		return nil, nil
+		return nil, ErrModuleIsNotHelm
 	}
 
 	return hm, nil
@@ -353,7 +356,7 @@ func (hm *HelmModule) PrepareValuesYamlFile() (string, error) {
 		return "", err
 	}
 
-	log.Debug("Prepared module helm values info",
+	hm.logger.Debug("Prepared module helm values info",
 		slog.String("moduleName", hm.name),
 		slog.String("values", hm.values.DebugString()))
 
