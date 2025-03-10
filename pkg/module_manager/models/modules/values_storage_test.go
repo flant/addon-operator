@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 )

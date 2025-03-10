@@ -3,8 +3,9 @@ package go_hook_test
 import (
 	"testing"
 
-	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 )
 
 func Test_FilterResult(t *testing.T) {
@@ -45,7 +46,7 @@ func Test_FilterResult(t *testing.T) {
 			},
 		}
 
-		var ss *SomeStruct = nil
+		var ss *SomeStruct
 
 		err := wrapp.UnmarhalTo(ss)
 		assert.Error(t, err)
