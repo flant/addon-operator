@@ -8,7 +8,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/sdk"
 )
@@ -54,21 +53,15 @@ func ObjFilter(obj *unstructured.Unstructured) (gohook.FilterResult, error) {
 	return &podSpec, nil
 }
 
-func run(input *sdkpkg.HookInput) error {
-	for _, o := range input.Snapshots.Get("pods") {
-		podSpec := new(*podSpecFilteredObj)
-		err := o.UnmarhalTo(podSpec)
-		if err != nil {
-			return fmt.Errorf("cannot unmarshal pod spec: %w", err)
-		}
-
+func run(input *gohook.HookInput) error {
+	for _, o := range input.Snapshots["pods"] {
+		podSpec := o.(*podSpecFilteredObj)
 		input.Logger.Info("Got podSpec",
 			slog.String("spec", fmt.Sprintf("%+v", podSpec)))
 	}
 
-	// TODO: need len? need key list?
-	// input.Logger.Info("Hello from on_kube.pods2! I have snapshots",
-	// 	slog.Int("count", len(input.Snapshots)))
+	input.Logger.Info("Hello from on_kube.pods2! I have snapshots",
+		slog.Int("count", len(input.Snapshots)))
 
 	input.MetricsCollector.Add("addon_go_hooks_total", 1.0, nil)
 
