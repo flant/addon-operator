@@ -193,11 +193,11 @@ func (sh *ShellHook) updateExecutorParams(command *string, envs, args *[]string)
 	if len(sh.pythonVenv) != 0 {
 		*envs = append(*envs, fmt.Sprintf("%s=%s", pythonHomeEnv, sh.pythonVenv))
 		*command = filepath.Join(sh.pythonVenv, PythonBinaryPath)
-		newArgs := make([]string, 0, len(*args)+1)
+		newArgs := make([]string, 1, len(*args)+1)
 		newArgs[0] = sh.Path
 		*args = append(newArgs, *args...)
 	} else {
-		sh.Hook.Logger.Warn("Module executs python hooks, but has no pythonv virtual environment ",
+		sh.Hook.Logger.Warn("Module executes python hooks, but has no pythonv virtual environment ",
 			slog.String("module", sh.moduleName),
 			slog.String("hookName", sh.Name),
 		)

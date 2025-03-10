@@ -289,16 +289,18 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 	bm.logger.Debug("Hook paths",
 		slog.Any("paths", hooksRelativePaths))
 
-	var checkPythonEnv sync.Once
+	var (
+		checkPythonEnv sync.Once
+		pythonVenvPath string
+	)
 
 	for _, hookPath := range hooksRelativePaths {
-		var pythonVenv string
 		if filepath.Ext(hookPath) == ".py" {
 			checkPythonEnv.Do(func() {
 				f, err := os.Stat(filepath.Join(bm.Path, kind.PythonVenvPath, kind.PythonBinaryPath))
 				if err == nil {
 					if !f.IsDir() && f.Mode()&0o111 != 0 {
-						pythonVenv = filepath.Join(bm.Path, kind.PythonVenvPath)
+						pythonVenvPath = filepath.Join(bm.Path, kind.PythonVenvPath)
 					}
 				}
 			})
@@ -318,7 +320,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 			bm.logger.Warn("get batch hook config", slog.String("hook_file_path", hookPath), log.Err(err))
 		}
 
-		shHook := kind.NewShellHook(hookName, hookPath, pythonVenv, bm.safeName(), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"))
+		shHook := kind.NewShellHook(hookName, hookPath, pythonVenvPath, bm.safeName(), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"))
 
 		hks = append(hks, shHook)
 	}
