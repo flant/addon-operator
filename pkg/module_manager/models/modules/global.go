@@ -543,13 +543,13 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 		}
 
 		if filepath.Ext(hookPath) == "" {
-			_, err = kind.GetBatchHookConfig(hookPath)
+			_, err = kind.GetBatchHookConfig(gm.GetName(), hookPath)
 			if err == nil {
 				continue
 			}
 		}
 
-		globalHook := kind.NewShellHook(hookName, hookPath, gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
+		globalHook := kind.NewShellHook(hookName, hookPath, "global", gm.keepTemporaryHookFiles, false, gm.logger.Named("shell-hook"))
 
 		hks = append(hks, globalHook)
 	}
@@ -576,7 +576,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 		hooksDir = hooksSubDir
 	}
 
-	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, gm.logger)
+	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(gm.GetName(), hooksDir, gm.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -594,14 +594,14 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 			return nil, err
 		}
 
-		sdkcfgs, err := kind.GetBatchHookConfig(hookPath)
+		sdkcfgs, err := kind.GetBatchHookConfig(gm.GetName(), hookPath)
 		if err != nil {
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
 
 		for idx, cfg := range sdkcfgs {
 			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}

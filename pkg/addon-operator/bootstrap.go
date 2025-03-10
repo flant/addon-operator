@@ -84,6 +84,7 @@ func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir st
 		ModulesDir:     modulesDir,
 		GlobalHooksDir: globalHooksDir,
 		TempDir:        tempDir,
+		ChrootDir:      app.ShellChrootDir,
 	}
 	deps := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    op.engine.ObjectPatcher,

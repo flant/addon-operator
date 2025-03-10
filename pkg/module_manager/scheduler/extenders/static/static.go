@@ -29,7 +29,7 @@ func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 		valuesFile := filepath.Join(dir, "values.yaml")
 		fileInfo, err := os.Stat(valuesFile)
 		if err != nil {
-			log.Error("Couldn't stat file",
+			log.Warn("Couldn't stat file",
 				slog.String("file", valuesFile))
 			continue
 		}
