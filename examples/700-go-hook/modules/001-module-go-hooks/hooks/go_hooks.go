@@ -54,7 +54,7 @@ func ObjFilter(obj *unstructured.Unstructured) (gohook.FilterResult, error) {
 }
 
 func run(input *gohook.HookInput) error {
-	for _, o := range input.Snapshots.Get("pods") {
+	for _, o := range input.NewSnapshots.Get("pods") {
 		podSpec := new(podSpecFilteredObj)
 
 		err := o.UnmarhalTo(podSpec)

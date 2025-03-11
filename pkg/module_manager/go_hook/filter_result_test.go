@@ -69,6 +69,27 @@ func Test_FilterResult(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("UnmarhalTo_CustomStructWithMap", func(t *testing.T) {
+		type OtherStruct struct {
+			Field map[string][]byte
+		}
+
+		w := &go_hook.Wrapped{
+			Wrapped: &OtherStruct{
+				Field: map[string][]byte{
+					"first":  []byte("first"),
+					"second": []byte("second"),
+				},
+			},
+		}
+
+		os := &OtherStruct{}
+
+		err := w.UnmarhalTo(os)
+		assert.NoError(t, err)
+		assert.Equal(t, os, w.Wrapped)
+	})
+
 	t.Run("AsString", func(t *testing.T) {
 		w := &go_hook.Wrapped{
 			Wrapped: "test string",
@@ -85,5 +106,23 @@ func Test_FilterResult(t *testing.T) {
 
 		result := w.String()
 		assert.Equal(t, "", result)
+	})
+
+	t.Run("BoolAsString", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: false,
+		}
+
+		result := w.String()
+		assert.Equal(t, "false", result)
+	})
+
+	t.Run("IntAsString", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: 333,
+		}
+
+		result := w.String()
+		assert.Equal(t, "333", result)
 	})
 }

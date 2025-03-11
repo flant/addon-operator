@@ -40,7 +40,8 @@ type PatchCollector interface {
 }
 
 type HookInput struct {
-	Snapshots sdkpkg.Snapshots
+	Snapshots    Snapshots
+	NewSnapshots sdkpkg.Snapshots
 
 	Values           sdkpkg.PatchableValuesCollector
 	ConfigValues     sdkpkg.PatchableValuesCollector

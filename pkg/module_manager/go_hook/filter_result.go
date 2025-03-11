@@ -58,16 +58,20 @@ func (f Wrapped) String() string {
 
 	res := buf.String()
 
+	res = strings.TrimSuffix(res, "\n")
+
 	if strings.HasPrefix(res, "\"") {
-		res = res[1 : len(res)-2]
+		res = res[1 : len(res)-1]
 	}
 
 	return res
 }
 
-// type Snapshots map[string][]Wrapped
-type Snapshots map[string][]sdkpkg.Snapshot
+// type NewSnapshots map[string][]Wrapped
+type NewSnapshots map[string][]sdkpkg.Snapshot
 
-func (s Snapshots) Get(name string) []sdkpkg.Snapshot {
+func (s NewSnapshots) Get(name string) []sdkpkg.Snapshot {
 	return s[name]
 }
+
+type Snapshots map[string][]FilterResult
