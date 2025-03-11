@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 
@@ -30,6 +29,7 @@ import (
 var _ gohook.HookConfigLoader = (*BatchHook)(nil)
 
 type BatchHook struct {
+	moduleName string
 	sh_hook.Hook
 	// hook ID in batch
 	ID     uint
@@ -37,8 +37,9 @@ type BatchHook struct {
 }
 
 // NewBatchHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewBatchHook(name, path string, id uint, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+func NewBatchHook(name, path, moduleName string, id uint, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
 	return &BatchHook{
+		moduleName: moduleName,
 		Hook: sh_hook.Hook{
 			Name:                   name,
 			Path:                   path,
@@ -143,7 +144,8 @@ func (h *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bind
 		envs).
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(h.LogProxyHookJSONKey).
-		WithLogger(h.Logger.Named("executor"))
+		WithLogger(h.Logger.Named("executor")).
+		WithChroot(utils.GetModuleChrootPath(h.moduleName))
 
 	usage, err := cmd.RunAndLogLines(logLabels)
 	result.Usage = usage
@@ -180,12 +182,20 @@ func (h *BatchHook) Execute(configVersion string, bContext []bindingcontext.Bind
 }
 
 func (h *BatchHook) getConfig() ([]sdkhook.HookConfig, error) {
-	return GetBatchHookConfig(h.Path)
+	return GetBatchHookConfig(h.moduleName, h.Path)
 }
 
-func GetBatchHookConfig(hookPath string) ([]sdkhook.HookConfig, error) {
+func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, error) {
 	args := []string{"hook", "config"}
-	o, err := exec.Command(hookPath, args...).Output()
+
+	cmd := executor.NewExecutor(
+		"",
+		hookPath,
+		args,
+		[]string{}).
+		WithChroot(utils.GetModuleChrootPath(moduleName))
+
+	o, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}

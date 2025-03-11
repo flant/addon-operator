@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
+	environmentmanager "github.com/flant/addon-operator/pkg/module_manager/environment_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -55,8 +55,6 @@ type BasicModule struct {
 
 	valuesStorage *ValuesStorage
 
-	state *moduleState
-
 	hooks *HooksStorage
 
 	// dependency
@@ -65,6 +63,9 @@ type BasicModule struct {
 	keepTemporaryHookFiles bool
 
 	logger *log.Logger
+
+	l     sync.RWMutex
+	state *moduleState
 }
 
 // TODO: add options WithLogger
@@ -185,25 +186,40 @@ func (bm *BasicModule) SetHooksControllersReady() {
 
 // ResetState drops the module state
 func (bm *BasicModule) ResetState() {
+	bm.l.Lock()
 	bm.state = &moduleState{
 		Phase:                Startup,
 		hookErrors:           make(map[string]error),
 		synchronizationState: NewSynchronizationState(),
 	}
+	bm.l.Unlock()
 }
 
-// RegisterHooks find and registers all module hooks from a filesystem or GoHook Registry
+// RegisterHooks searches and registers all module hooks from a filesystem or GoHook Registry
 func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, error) {
 	if bm.hooks.registered {
 		logger.Debug("Module hooks already registered")
 		return nil, nil
 	}
 
-	logger.Debug("Search and register hooks")
-
-	hks, err := bm.searchAndRegisterHooks(logger)
+	hks, err := bm.searchModuleHooks()
 	if err != nil {
-		return nil, fmt.Errorf("search and register hooks: %w", err)
+		return nil, fmt.Errorf("search module hooks failed: %w", err)
+	}
+
+	logger.Debug("Found hooks", slog.Int("count", len(hks)))
+	if logger.GetLevel() == log.LevelDebug {
+		for _, h := range hks {
+			logger.Debug("ModuleHook",
+				slog.String("name", h.GetName()),
+				slog.String("path", h.GetPath()))
+		}
+	}
+
+	logger.Debug("Register hooks")
+
+	if err := bm.registerHooks(hks, logger); err != nil {
+		return nil, fmt.Errorf("register hooks: %w", err)
 	}
 
 	bm.hooks.registered = true
@@ -222,6 +238,12 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 	batchHooks, err := bm.searchModuleBatchHooks()
 	if err != nil {
 		return nil, fmt.Errorf("search module batch hooks: %w", err)
+	}
+
+	if len(shellHooks)+len(batchHooks) > 0 {
+		if err := bm.AssembleEnvironmentForModule(environmentmanager.ShellHookEnvironment); err != nil {
+			return nil, fmt.Errorf("Assemble %q module's environment: %w", bm.Name, err)
+		}
 	}
 
 	mHooks := make([]*hooks.ModuleHook, 0, len(shellHooks)+len(goHooks))
@@ -273,7 +295,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 		}
 
 		if filepath.Ext(hookPath) == "" {
-			_, err := kind.GetBatchHookConfig(hookPath)
+			_, err := kind.GetBatchHookConfig(bm.safeName(), hookPath)
 			if err == nil {
 				continue
 			}
@@ -281,7 +303,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 			bm.logger.Warn("get batch hook config", slog.String("hook_file_path", hookPath), log.Err(err))
 		}
 
-		shHook := kind.NewShellHook(hookName, hookPath, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"))
+		shHook := kind.NewShellHook(hookName, hookPath, bm.safeName(), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"))
 
 		hks = append(hks, shHook)
 	}
@@ -295,7 +317,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 		return nil, nil
 	}
 
-	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(hooksDir, bm.logger)
+	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(bm.safeName(), hooksDir, bm.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -312,14 +334,14 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 			return nil, err
 		}
 
-		sdkcfgs, err := kind.GetBatchHookConfig(hookPath)
+		sdkcfgs, err := kind.GetBatchHookConfig(bm.safeName(), hookPath)
 		if err != nil {
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
 
 		for idx, cfg := range sdkcfgs {
 			nestedHookName := fmt.Sprintf("%s:%s:%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, uint(idx), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), uint(idx), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}
@@ -328,7 +350,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 	return hks, nil
 }
 
-func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]string, error) {
+func RecursiveGetBatchHookExecutablePaths(moduleName, dir string, logger *log.Logger) ([]string, error) {
 	paths := make([]string, 0)
 	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
@@ -344,7 +366,7 @@ func RecursiveGetBatchHookExecutablePaths(dir string, logger *log.Logger) ([]str
 			return nil
 		}
 
-		if err := isExecutableBatchHookFile(path, f); err != nil {
+		if err := isExecutableBatchHookFile(moduleName, path, f); err != nil {
 			if errors.Is(err, ErrFileNoExecutablePermissions) {
 				logger.Warn("file is skipped", slog.String("path", path), log.Err(err))
 
@@ -373,11 +395,11 @@ var (
 	ErrFileNoExecutablePermissions = errors.New("no executable permissions, chmod +x is required to run this hook")
 )
 
-func isExecutableBatchHookFile(path string, f os.FileInfo) error {
+func isExecutableBatchHookFile(moduleName, path string, f os.FileInfo) error {
 	switch filepath.Ext(f.Name()) {
 	// ignore any extension and hidden files
 	case "":
-		return IsFileBatchHook(path, f)
+		return IsFileBatchHook(moduleName, path, f)
 	// ignore all with extensions
 	default:
 		return ErrFileHasWrongExtension
@@ -386,14 +408,22 @@ func isExecutableBatchHookFile(path string, f os.FileInfo) error {
 
 var compiledHooksFound = regexp.MustCompile(`Found ([1-9]|[1-9]\d|[1-9]\d\d|[1-9]\d\d\d) items`)
 
-func IsFileBatchHook(path string, f os.FileInfo) error {
+func IsFileBatchHook(moduleName, path string, f os.FileInfo) error {
 	if f.Mode()&0o111 == 0 {
 		return ErrFileNoExecutablePermissions
 	}
 
 	// TODO: check binary another way
 	args := []string{"hook", "list"}
-	o, err := exec.Command(path, args...).Output()
+
+	cmd := executor.NewExecutor(
+		"",
+		path,
+		args,
+		[]string{}).
+		WithChroot(utils.GetModuleChrootPath(moduleName))
+
+	o, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("exec file '%s': %w", path, err)
 	}
@@ -410,21 +440,7 @@ func (bm *BasicModule) searchModuleGoHooks() []*kind.GoHook {
 	return sdk.Registry().GetModuleHooks(bm.Name)
 }
 
-func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, error) {
-	hks, err := bm.searchModuleHooks()
-	if err != nil {
-		return nil, fmt.Errorf("search module hooks failed: %w", err)
-	}
-
-	logger.Debug("Found hooks", slog.Int("count", len(hks)))
-	if logger.GetLevel() == log.LevelDebug {
-		for _, h := range hks {
-			logger.Debug("ModuleHook",
-				slog.String("name", h.GetName()),
-				slog.String("path", h.GetPath()))
-		}
-	}
-
+func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger) error {
 	for _, moduleHook := range hks {
 		hookLogEntry := logger.With("hook", moduleHook.GetName()).
 			With("hook.type", "module")
@@ -432,7 +448,7 @@ func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.Modu
 		// TODO: we could make multierr here and return all config errors at once
 		err := moduleHook.InitializeHookConfig()
 		if err != nil {
-			return nil, fmt.Errorf("module hook --config invalid: %w", err)
+			return fmt.Errorf("module hook --config invalid: %w", err)
 		}
 
 		bm.logger.Debug("module hook config print", slog.String("module_name", bm.Name), slog.String("hook_name", moduleHook.GetName()), slog.Any("config", moduleHook.GetHookConfig().V1))
@@ -459,35 +475,42 @@ func (bm *BasicModule) searchAndRegisterHooks(logger *log.Logger) ([]*hooks.Modu
 			slog.String("bindings", moduleHook.GetConfigDescription()))
 	}
 
-	return hks, nil
+	return nil
 }
 
 // GetPhase ...
 func (bm *BasicModule) GetPhase() ModuleRunPhase {
+	bm.l.RLock()
+	defer bm.l.RUnlock()
 	return bm.state.Phase
 }
 
 // SetPhase ...
 func (bm *BasicModule) SetPhase(phase ModuleRunPhase) {
+	bm.l.Lock()
 	bm.state.Phase = phase
+	bm.l.Unlock()
 }
 
 // SetError ...
 func (bm *BasicModule) SetError(err error) {
+	bm.l.Lock()
 	bm.state.lastModuleErr = err
+	bm.l.Unlock()
 }
 
 // SetStateEnabled ...
 func (bm *BasicModule) SetStateEnabled(e bool) {
+	bm.l.Lock()
 	bm.state.Enabled = e
+	bm.l.Unlock()
 }
 
 // SaveHookError ...
 func (bm *BasicModule) SaveHookError(hookName string, err error) {
-	bm.state.hookErrorsLock.Lock()
-	defer bm.state.hookErrorsLock.Unlock()
-
+	bm.l.Lock()
 	bm.state.hookErrors[hookName] = err
+	bm.l.Unlock()
 }
 
 // RunHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
@@ -647,13 +670,18 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 	envs = append(envs, fmt.Sprintf("VALUES_PATH=%s", valuesPath))
 	envs = append(envs, fmt.Sprintf("MODULE_ENABLED_RESULT=%s", enabledResultFilePath))
 
+	if err := bm.AssembleEnvironmentForModule(environmentmanager.EnabledScriptEnvironment); err != nil {
+		return false, fmt.Errorf("Assemble %q module's environment: %w", bm.Name, err)
+	}
+
 	cmd := executor.NewExecutor(
 		"",
 		enabledScriptPath,
 		[]string{},
 		envs).
 		WithLogger(bm.logger.Named("executor")).
-		WithCMDStdout(nil)
+		WithCMDStdout(nil).
+		WithChroot(utils.GetModuleChrootPath(bm.Name))
 
 	usage, err := cmd.RunAndLogLines(logLabels)
 	if usage != nil {
@@ -691,7 +719,9 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 	logEntry.Info("Enabled script run successful",
 		slog.Bool("result", moduleEnabled),
 		slog.String("status", result))
+	bm.l.Lock()
 	bm.state.enabledScriptResult = &moduleEnabled
+	bm.l.Unlock()
 	return moduleEnabled, nil
 }
 
@@ -1018,6 +1048,8 @@ func (bm *BasicModule) GetConfigValues(withPrefix bool) utils.Values {
 // Synchronization xxx
 // TODO: don't like this honestly, i think we can remake it
 func (bm *BasicModule) Synchronization() *SynchronizationState {
+	bm.l.RLock()
+	defer bm.l.RUnlock()
 	return bm.state.synchronizationState
 }
 
@@ -1051,8 +1083,8 @@ func (bm *BasicModule) GetValuesPatches() []utils.ValuesPatch {
 
 // GetHookErrorsSummary get hooks errors summary report
 func (bm *BasicModule) GetHookErrorsSummary() string {
-	bm.state.hookErrorsLock.RLock()
-	defer bm.state.hookErrorsLock.RUnlock()
+	bm.l.RLock()
+	defer bm.l.RUnlock()
 
 	hooksState := make([]string, 0, len(bm.state.hookErrors))
 	for name, err := range bm.state.hookErrors {
@@ -1070,13 +1102,15 @@ func (bm *BasicModule) GetHookErrorsSummary() string {
 
 // GetEnabledScriptResult returns a bool pointer to the enabled script results
 func (bm *BasicModule) GetEnabledScriptResult() *bool {
+	bm.l.RLock()
+	defer bm.l.RUnlock()
 	return bm.state.enabledScriptResult
 }
 
 // GetLastHookError get error of the last executed hook
 func (bm *BasicModule) GetLastHookError() error {
-	bm.state.hookErrorsLock.RLock()
-	defer bm.state.hookErrorsLock.RUnlock()
+	bm.l.RLock()
+	defer bm.l.RUnlock()
 
 	for name, err := range bm.state.hookErrors {
 		if err != nil {
@@ -1088,6 +1122,8 @@ func (bm *BasicModule) GetLastHookError() error {
 }
 
 func (bm *BasicModule) GetModuleError() error {
+	bm.l.RLock()
+	defer bm.l.RUnlock()
 	return bm.state.lastModuleErr
 }
 
@@ -1125,6 +1161,22 @@ func (bm *BasicModule) Validate() error {
 	err = bm.ValidateConfigValues()
 	if err != nil {
 		return fmt.Errorf("validate config values: %w", err)
+	}
+
+	return nil
+}
+
+func (bm *BasicModule) DisassembleEnvironmentForModule() error {
+	if bm.dc.EnvironmentManager != nil {
+		return bm.dc.EnvironmentManager.DisassembleEnvironmentForModule(bm.Name, bm.Path, environmentmanager.NoEnvironment)
+	}
+
+	return nil
+}
+
+func (bm *BasicModule) AssembleEnvironmentForModule(targetEnvironment environmentmanager.Environment) error {
+	if bm.dc.EnvironmentManager != nil {
+		return bm.dc.EnvironmentManager.AssembleEnvironmentForModule(bm.Name, bm.Path, targetEnvironment)
 	}
 
 	return nil
@@ -1170,7 +1222,6 @@ type moduleState struct {
 	Phase                ModuleRunPhase
 	lastModuleErr        error
 	hookErrors           map[string]error
-	hookErrorsLock       sync.RWMutex
 	synchronizationState *SynchronizationState
 	enabledScriptResult  *bool
 }
