@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,7 +52,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 		{
 			"add",
 			ValuesPatch{
-				[]*ValuesPatchOperation{
+				[]*sdkutils.ValuesPatchOperation{
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
@@ -73,7 +74,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 		{
 			"remove",
 			ValuesPatch{
-				[]*ValuesPatchOperation{
+				[]*sdkutils.ValuesPatchOperation{
 					{
 						Op:    "remove",
 						Path:  "/test_key_3",
@@ -94,7 +95,7 @@ func Test_ApplyValuesPatch(t *testing.T) {
 		{
 			"add+remove+add+remove+add",
 			ValuesPatch{
-				[]*ValuesPatchOperation{
+				[]*sdkutils.ValuesPatchOperation{
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
@@ -161,7 +162,7 @@ func Test_ApplyValuesPatch_Strict(t *testing.T) {
 		{
 			"remove",
 			ValuesPatch{
-				[]*ValuesPatchOperation{
+				[]*sdkutils.ValuesPatchOperation{
 					{
 						Op:    "remove",
 						Path:  "/test_key_3",
@@ -177,7 +178,7 @@ func Test_ApplyValuesPatch_Strict(t *testing.T) {
 		{
 			"add+remove+add+remove+add",
 			ValuesPatch{
-				[]*ValuesPatchOperation{
+				[]*sdkutils.ValuesPatchOperation{
 					{
 						Op:    "add",
 						Path:  "/test_key_3",
@@ -438,7 +439,7 @@ func Test_CompactPatches_Apply(t *testing.T) {
 			origPatchedDoc := []byte(tt.input)
 			var err error
 
-			operations := []*ValuesPatchOperation{}
+			operations := []*sdkutils.ValuesPatchOperation{}
 			for _, patch := range tt.patches {
 				vp, _ := ValuesPatchFromBytes([]byte(patch))
 				operations = append(operations, vp.Operations...)
@@ -506,7 +507,7 @@ func Test_jsonpatch_Remove_NonExistent_IsError(t *testing.T) {
 	withParentsPatch := []byte(`[{"op":"remove", "path":"/test_parent/test_sub/test_key"}]`)
 
 	// 1. Root key.
-	patch1, _ := DecodePatch(rootKeyPatch)
+	patch1, _ := sdkutils.DecodePatch(rootKeyPatch)
 	_, err := patch1.Apply(origDoc)
 	g.Expect(err).Should(HaveOccurred(), "jsonpatch Apply should return error")
 	// Assert the message from the 'json-patch' library.
@@ -515,7 +516,7 @@ func Test_jsonpatch_Remove_NonExistent_IsError(t *testing.T) {
 	g.Expect(IsNonExistentPathError(err)).Should(BeTrue())
 
 	// 2. Key with parents.
-	patch2, _ := DecodePatch(withParentsPatch)
+	patch2, _ := sdkutils.DecodePatch(withParentsPatch)
 	_, err = patch2.Apply(origDoc)
 	g.Expect(err).Should(HaveOccurred(), "jsonpatch Apply should return error")
 	// Assert the message from the 'json-patch' library.
@@ -551,7 +552,7 @@ func Test_jsonpatch_Remove_ObjectAndArray(t *testing.T) {
 		"test_array":["uno", "deux", "three"]
     }`)
 
-	patch1, _ := DecodePatch([]byte(`[
+	patch1, _ := sdkutils.DecodePatch([]byte(`[
 		{"op":"remove", "path":"/test_obj"},
 		{"op":"remove", "path":"/test_array"}
 	]`))
@@ -577,7 +578,7 @@ func Test_jsonpatch_Replace_NonExistent_IsError(t *testing.T) {
 
 	origDoc := []byte(`{"foo":"bar"}`)
 
-	patch1, _ := DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
+	patch1, _ := sdkutils.DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
 
 	expectNewDoc := []byte(`{"foo":"bar"}`)
 
@@ -591,7 +592,7 @@ func Test_jsonpatch_Replace_NonExistent_v4_9_0_behaviour_is_incorrect(t *testing
 
 	origDoc := []byte(`{"foo":"bar"}`)
 
-	patch1, _ := DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
+	patch1, _ := sdkutils.DecodePatch([]byte(`[{"op":"replace", "path":"/test_key", "value":"qwe"}]`))
 
 	expectNewDoc := []byte(`{"foo":"bar", "test_key":"qwe"}`)
 
@@ -605,7 +606,7 @@ func Test_jsonpatch_Replace_NonExistent_v4_9_0_behaviour_is_incorrect(t *testing
 func Test_jsonpatch_Add_WithNonExistentParent_is_error(t *testing.T) {
 	g := NewWithT(t)
 
-	patch1, _ := DecodePatch([]byte(`
+	patch1, _ := sdkutils.DecodePatch([]byte(`
 		[{"op":"add", "path":"/level1/level2/test_key", "value":"qwe"}]
 	`))
 
@@ -619,7 +620,7 @@ func Test_jsonpatch_Add_WithNonExistentParent_is_error(t *testing.T) {
 func Test_jsonpatch_Add_WithParents(t *testing.T) {
 	g := NewWithT(t)
 
-	patch1, _ := DecodePatch([]byte(`
+	patch1, _ := sdkutils.DecodePatch([]byte(`
 [
   {"op":"add", "path":"/level1", "value":{}},
   {"op":"add", "path":"/level1/level2", "value":{}},
@@ -642,7 +643,7 @@ func Test_jsonpatch_Add_Key_To_A_String_Value(t *testing.T) {
 
 	origDoc := []byte(`{"test_obj":""}`)
 
-	patch1, _ := DecodePatch([]byte(`
+	patch1, _ := sdkutils.DecodePatch([]byte(`
 [
 	{"op":"add", "path":"/test_obj/key3", "value":"foo"}
 ]
@@ -658,7 +659,7 @@ func Test_jsonpatch_Add_Number_To_A_String_Value(t *testing.T) {
 
 	origDoc := []byte(`{"test_key":""}`)
 
-	patch1, _ := DecodePatch([]byte(`
+	patch1, _ := sdkutils.DecodePatch([]byte(`
 [
 	{"op":"add", "path":"/test_key", "value":123}
 ]
@@ -678,7 +679,7 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 	// 1. Create array
 	origDoc := []byte(`{"root":{}}`)
 
-	patch1, _ := DecodePatch([]byte(`
+	patch1, _ := sdkutils.DecodePatch([]byte(`
 [{"op":"add", "path":"/root/array", "value":[]}]
 `))
 
@@ -690,7 +691,7 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 
 	// 2. Add last element.
 	origDoc = newDoc
-	patch1, _ = DecodePatch([]byte(`
+	patch1, _ = sdkutils.DecodePatch([]byte(`
 [{"op":"add", "path":"/root/array/-", "value":"testvalue1"}]
 `))
 
@@ -703,7 +704,7 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 	// 3. Add more elements.
 	origDoc = newDoc
 
-	patch1, _ = DecodePatch([]byte(`
+	patch1, _ = sdkutils.DecodePatch([]byte(`
 [ {"op":"add", "path":"/root/array/-", "value":"randomvalue"},
   {"op":"add", "path":"/root/array/-", "value":"foobar"},
   {"op":"add", "path":"/root/array/-", "value":"baz"}
@@ -718,7 +719,7 @@ func Test_jsonpatch_Add_Remove_for_array(t *testing.T) {
 
 	// 4. Remove elements in the middle.
 	origDoc = newDoc
-	patch1, _ = DecodePatch([]byte(`
+	patch1, _ = sdkutils.DecodePatch([]byte(`
 [ {"op":"remove", "path":"/root/array/1"},
   {"op":"remove", "path":"/root/array/2"}
 ]
