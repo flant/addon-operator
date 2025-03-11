@@ -95,6 +95,8 @@ github.com/deckhouse/module-sdk v0.1.1-0.20250306155143-efc505c729d0 h1:sZfJrKec
 github.com/deckhouse/module-sdk v0.1.1-0.20250306155143-efc505c729d0/go.mod h1:xZuqvKXZunp9VNAiF70fgYiN/HQkLDo8tvGymXNpu0o=
 github.com/deckhouse/module-sdk v0.1.1-0.20250307130634-9796dba9b13b h1:jfJJrdXq4I+OpXJGFo5ogDYnm04hXTKM45xmIYmIs1w=
 github.com/deckhouse/module-sdk v0.1.1-0.20250307130634-9796dba9b13b/go.mod h1:xZuqvKXZunp9VNAiF70fgYiN/HQkLDo8tvGymXNpu0o=
+github.com/deckhouse/module-sdk v0.1.1-0.20250311074906-5e718f6c084a h1:2XxOMfOYUew9aAHJZQSFqJBZFVR3iysWeiJ7j+P/7U8=
+github.com/deckhouse/module-sdk v0.1.1-0.20250311074906-5e718f6c084a/go.mod h1:fbs0X7myE8zrPKxs3eoIoFWf68E7r1tZ64uJfYJCsKc=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/distribution/distribution/v3 v3.0.0-beta.1 h1:X+ELTxPuZ1Xe5MsD3kp2wfGUhc8I+MPfRis8dZ818Ic=
@@ -152,6 +154,8 @@ github.com/flant/shell-operator v1.5.4-0.20250307130945-eae880048052 h1:RmfGtLpd
 github.com/flant/shell-operator v1.5.4-0.20250307130945-eae880048052/go.mod h1:mdCz98kXAqFdb8+f43mY6BvH8pDU/yCllBPxprGHg7Y=
 github.com/flant/shell-operator v1.5.4-0.20250307131920-2310d68d72de h1:IvIZ8x4cHTttFkgo3H2Z6tAo7Cjg/kZ3kM+oA3jHV1A=
 github.com/flant/shell-operator v1.5.4-0.20250307131920-2310d68d72de/go.mod h1:mdCz98kXAqFdb8+f43mY6BvH8pDU/yCllBPxprGHg7Y=
+github.com/flant/shell-operator v1.5.4-0.20250311112609-618a31aec625 h1:ns5IpVzfKGA7eUL7Jxi9x2+c2IkNpEU+X1EfbbD1kqU=
+github.com/flant/shell-operator v1.5.4-0.20250311112609-618a31aec625/go.mod h1:2tEG5pfeY3t95Q7dfcY09D2uSKdE4Ca9ag5sa4i8jvs=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=
 github.com/fogleman/gg v1.3.0/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/foxcpp/go-mockdns v1.0.0 h1:7jBqxd3WDWwi/6WhDvacvH1XsN3rOLXyHM1uhvIx6FI=

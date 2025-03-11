@@ -1,15 +1,17 @@
 module github.com/flant/addon-operator
 
-go 1.22.8
+go 1.23.1
+
+toolchain go1.24.1
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241205040953-7b376bae249c
-	github.com/deckhouse/module-sdk v0.1.1-0.20250307130634-9796dba9b13b
+	github.com/deckhouse/module-sdk v0.1.1-0.20250311074906-5e718f6c084a
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.2.2
-	github.com/flant/shell-operator v1.5.4-0.20250307131920-2310d68d72de
+	github.com/flant/shell-operator v1.5.4-0.20250311112609-618a31aec625
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
