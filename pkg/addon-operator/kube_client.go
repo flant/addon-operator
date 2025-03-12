@@ -9,8 +9,8 @@ import (
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	klient "github.com/flant/kube-client/client"
-	shpkg "github.com/flant/shell-operator/pkg"
 	shapp "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/metric"
 	utils "github.com/flant/shell-operator/pkg/utils/labels"
 )
 
@@ -19,7 +19,7 @@ import (
 var DefaultHelmMonitorKubeClientMetricLabels = map[string]string{"component": "helm_monitor"}
 
 // defaultHelmMonitorKubeClient initializes a Kubernetes client for helm monitor.
-func defaultHelmMonitorKubeClient(metricStorage shpkg.MetricStorage, metricLabels map[string]string, logger *log.Logger) *klient.Client {
+func defaultHelmMonitorKubeClient(metricStorage metric.Storage, metricLabels map[string]string, logger *log.Logger) *klient.Client {
 	client := klient.New(klient.WithLogger(logger))
 	client.WithContextName(shapp.KubeContext)
 	client.WithConfigPath(shapp.KubeConfig)
@@ -29,7 +29,7 @@ func defaultHelmMonitorKubeClient(metricStorage shpkg.MetricStorage, metricLabel
 	return client
 }
 
-func InitDefaultHelmResourcesManager(ctx context.Context, namespace string, metricStorage shpkg.MetricStorage, logger *log.Logger) (helm_resources_manager.HelmResourcesManager, error) {
+func InitDefaultHelmResourcesManager(ctx context.Context, namespace string, metricStorage metric.Storage, logger *log.Logger) (helm_resources_manager.HelmResourcesManager, error) {
 	kubeClient := defaultHelmMonitorKubeClient(metricStorage, DefaultHelmMonitorKubeClientMetricLabels, logger.Named("helm-monitor-kube-client"))
 	if err := kubeClient.Init(); err != nil {
 		return nil, fmt.Errorf("initialize Kubernetes client for Helm resources manager: %s\n", err)

@@ -35,7 +35,6 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
-	shpkg "github.com/flant/shell-operator/pkg"
 	shapp "github.com/flant/shell-operator/pkg/app"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 	"github.com/flant/shell-operator/pkg/debug"
@@ -43,6 +42,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
+	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -88,7 +88,7 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
-	MetricStorage shpkg.MetricStorage
+	MetricStorage metric.Storage
 
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector

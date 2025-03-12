@@ -27,7 +27,7 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/kube-client/fake"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	shmock "github.com/flant/shell-operator/pkg/mock"
+	metricstorage "github.com/flant/shell-operator/pkg/metric_storage"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
@@ -125,11 +125,6 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		TempDir:        t.TempDir(),
 	}
 
-	metricStorage := shmock.NewMetricStorageMock(t)
-	metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
-	hookMetricStorage := shmock.NewMetricStorageMock(t)
-	// hookMetricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
-
 	deps := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    nil,
 		KubeEventsManager:    op.engine.KubeEventsManager,
@@ -137,10 +132,8 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		ScheduleManager:      op.engine.ScheduleManager,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
-		MetricStorage:        metricStorage,
-		HookMetricStorage:    hookMetricStorage,
-		// MetricStorage:        metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
-		// HookMetricStorage:    metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
+		MetricStorage:        metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
+		HookMetricStorage:    metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
 	}
 	cfg := module_manager.ModuleManagerConfig{
 		DirectoryConfig: dirs,

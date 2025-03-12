@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/task"
-	shmock "github.com/flant/shell-operator/pkg/mock"
+	"github.com/flant/shell-operator/pkg/metric"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
@@ -23,7 +23,7 @@ func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
 			name:   "Normal",
 			result: true,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -44,7 +44,7 @@ func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
 			name:   "First task",
 			result: false,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -64,7 +64,7 @@ func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
 			name:   "No ModuleEnsureCRDs",
 			result: false,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -100,7 +100,7 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 			name:   "Normal",
 			result: true,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -120,7 +120,7 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 			name:   "ParallelModuleRun",
 			result: true,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -143,7 +143,7 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 			name:   "First task",
 			result: false,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -163,7 +163,7 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 			name:   "No module run",
 			result: false,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -283,7 +283,7 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			metricStorage := shmock.NewMetricStorageMock(t)
+			metricStorage := metric.NewStorageMock(t)
 			metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 			q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -374,7 +374,7 @@ func Test_ModulesWithPendingModuleRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			metricStorage := shmock.NewMetricStorageMock(t)
+			metricStorage := metric.NewStorageMock(t)
 			metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 			q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -525,7 +525,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			queues := make([]*queue.TaskQueue, 0, len(tt.initialTasks))
 			for _, tasks := range tt.initialTasks {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -654,7 +654,7 @@ func Test_RemoveCurrentConvergeTasksFromId(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			metricStorage := shmock.NewMetricStorageMock(t)
+			metricStorage := metric.NewStorageMock(t)
 			metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 			q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -703,7 +703,7 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 			name:   "Non converge ModuleRun tasks",
 			result: 0,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -723,7 +723,7 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 			name:   "Converge ModuleRun tasks",
 			result: 3,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
@@ -750,7 +750,7 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 			name:   "Converge ModuleRun and ModuleDelete tasks",
 			result: 3,
 			queue: func() *queue.TaskQueue {
-				metricStorage := shmock.NewMetricStorageMock(t)
+				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
 				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
