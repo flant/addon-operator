@@ -35,13 +35,13 @@ import (
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
+	shpkg "github.com/flant/shell-operator/pkg"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube_events_manager"
 	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	metricstorage "github.com/flant/shell-operator/pkg/metric_storage"
 	schedulemanager "github.com/flant/shell-operator/pkg/schedule_manager"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -92,8 +92,8 @@ type ModuleManagerDependencies struct {
 	ScheduleManager      schedulemanager.ScheduleManager
 	Helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
-	MetricStorage        *metricstorage.MetricStorage
-	HookMetricStorage    *metricstorage.MetricStorage
+	MetricStorage        shpkg.MetricStorage
+	HookMetricStorage    shpkg.MetricStorage
 	TaskQueues           *queue.TaskQueueSet
 }
 
