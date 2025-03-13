@@ -60,6 +60,7 @@ func (c *ModuleHookConfig) HasBinding(binding BindingType) bool {
 	if c.HookConfig.HasBinding(binding) {
 		return true
 	}
+
 	switch binding {
 	case BeforeHelm:
 		return c.BeforeHelm != nil
