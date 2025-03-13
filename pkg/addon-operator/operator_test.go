@@ -124,6 +124,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		GlobalHooksDir: globalHooksDir,
 		TempDir:        t.TempDir(),
 	}
+
 	deps := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    nil,
 		KubeEventsManager:    op.engine.KubeEventsManager,
@@ -132,7 +133,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
 		MetricStorage:        metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
-		HookMetricStorage:    nil,
+		HookMetricStorage:    metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
 	}
 	cfg := module_manager.ModuleManagerConfig{
 		DirectoryConfig: dirs,

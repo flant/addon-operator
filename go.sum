@@ -138,8 +138,12 @@ github.com/flant/kube-client v1.2.2 h1:27LBs+PKJEFnkQXjPU9eIps7a7iyI13AKcSYj897D
 github.com/flant/kube-client v1.2.2/go.mod h1:eMa3aJ6V1PRWSQ/RCROkObDpY4S74uM84SJS4G/LINg=
 github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee h1:evii83J+/6QGNvyf6tjQ/p27DPY9iftxIBb37ALJRTg=
 github.com/flant/libjq-go v1.6.3-0.20201126171326-c46a40ff22ee/go.mod h1:f+REaGl/+pZR97rbTcwHEka/MAipoQQ2Mc0iQUj4ak0=
-github.com/flant/shell-operator v1.5.4-0.20250311112609-618a31aec625 h1:ns5IpVzfKGA7eUL7Jxi9x2+c2IkNpEU+X1EfbbD1kqU=
-github.com/flant/shell-operator v1.5.4-0.20250311112609-618a31aec625/go.mod h1:2tEG5pfeY3t95Q7dfcY09D2uSKdE4Ca9ag5sa4i8jvs=
+github.com/flant/shell-operator v1.5.4-0.20250220104828-493af2d81018 h1:+kjN06vOS1bBgciw/oVAxBAFyETPkYpnJtbYFI4PuWw=
+github.com/flant/shell-operator v1.5.4-0.20250220104828-493af2d81018/go.mod h1:vfhZxDVSb/v+e8+roBtz+oe8mqahvizfIPCzhFq/7HE=
+github.com/flant/shell-operator v1.5.4-0.20250312125228-0033be8e6427 h1:4T9ISGtCmpGj4XTrYsEG5fIDPbACH9jLbjO6+/hmJ9Q=
+github.com/flant/shell-operator v1.5.4-0.20250312125228-0033be8e6427/go.mod h1:vfhZxDVSb/v+e8+roBtz+oe8mqahvizfIPCzhFq/7HE=
+github.com/flant/shell-operator v1.5.4-0.20250312152937-590c23c9ad15 h1:aU8hqRbS1UHVQw0mL/0p7VzZWZ1bfEk3QqOuR2IwUxM=
+github.com/flant/shell-operator v1.5.4-0.20250312152937-590c23c9ad15/go.mod h1:vfhZxDVSb/v+e8+roBtz+oe8mqahvizfIPCzhFq/7HE=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=
 github.com/fogleman/gg v1.3.0/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/foxcpp/go-mockdns v1.0.0 h1:7jBqxd3WDWwi/6WhDvacvH1XsN3rOLXyHM1uhvIx6FI=

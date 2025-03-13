@@ -41,7 +41,7 @@ import (
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube_events_manager"
 	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	metricstorage "github.com/flant/shell-operator/pkg/metric_storage"
+	"github.com/flant/shell-operator/pkg/metric"
 	schedulemanager "github.com/flant/shell-operator/pkg/schedule_manager"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -92,8 +92,8 @@ type ModuleManagerDependencies struct {
 	ScheduleManager      schedulemanager.ScheduleManager
 	Helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
-	MetricStorage        *metricstorage.MetricStorage
-	HookMetricStorage    *metricstorage.MetricStorage
+	MetricStorage        metric.Storage
+	HookMetricStorage    metric.Storage
 	TaskQueues           *queue.TaskQueueSet
 }
 

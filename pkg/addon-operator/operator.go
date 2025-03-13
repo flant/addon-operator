@@ -42,7 +42,7 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	metricstorage "github.com/flant/shell-operator/pkg/metric_storage"
+	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -88,7 +88,7 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
-	MetricStorage *metricstorage.MetricStorage
+	MetricStorage metric.Storage
 
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
