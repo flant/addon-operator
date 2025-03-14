@@ -894,30 +894,44 @@ func (mm *ModuleManager) HandleScheduleEvent(
 }
 
 func (mm *ModuleManager) CreateTasksByBinding(binding BindingType, createTasksFunc func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task) []sh_task.Task {
-	globalHooks := mm.GetGlobalHooksInOrder(binding)
+	var allTasks []sh_task.Task
 
-	tasks := make([]sh_task.Task, 0)
-	for _, hookName := range globalHooks {
+	// Process global hooks
+	allTasks = append(allTasks, mm.createTasksFromGlobalHooks(binding, createTasksFunc)...)
+
+	// Process module hooks for enabled modules
+	allTasks = append(allTasks, mm.createTasksFromModuleHooks(binding, createTasksFunc)...)
+
+	return allTasks
+}
+
+// createTasksFromGlobalHooks processes all global hooks for a given binding type
+func (mm *ModuleManager) createTasksFromGlobalHooks(binding BindingType, createTasksFunc func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task) []sh_task.Task {
+	var tasks []sh_task.Task
+
+	for _, hookName := range mm.GetGlobalHooksInOrder(binding) {
 		gh := mm.GetGlobalHook(hookName)
-		newTasks := createTasksFunc(gh, nil, nil)
-		if len(newTasks) > 0 {
+		if newTasks := createTasksFunc(gh, nil, nil); len(newTasks) > 0 {
 			tasks = append(tasks, newTasks...)
 		}
 	}
 
-	mods := mm.moduleScheduler.GetEnabledModuleNames()
+	return tasks
+}
 
-	for _, moduleName := range mods {
-		m := mm.GetModule(moduleName)
-		// skip module if its hooks don't have hook controllers set
-		if !m.HooksControllersReady() {
+// createTasksFromModuleHooks processes all module hooks for enabled modules and a given binding type
+func (mm *ModuleManager) createTasksFromModuleHooks(binding BindingType, createTasksFunc func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task) []sh_task.Task {
+	var tasks []sh_task.Task
+
+	for _, moduleName := range mm.moduleScheduler.GetEnabledModuleNames() {
+		module := mm.GetModule(moduleName)
+		// Skip module if its hooks don't have hook controllers set
+		if !module.HooksControllersReady() {
 			continue
 		}
 
-		moduleHooks := m.GetHooks(binding)
-		for _, mh := range moduleHooks {
-			newTasks := createTasksFunc(nil, m, mh)
-			if len(newTasks) > 0 {
+		for _, moduleHook := range module.GetHooks(binding) {
+			if newTasks := createTasksFunc(nil, module, moduleHook); len(newTasks) > 0 {
 				tasks = append(tasks, newTasks...)
 			}
 		}
