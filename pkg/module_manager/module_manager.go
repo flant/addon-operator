@@ -754,7 +754,7 @@ func (mm *ModuleManager) HandleKubeEvent(
 				return nil
 			}
 
-			task := gh.GetHookController().HandleCreateTaskFromKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
+			task := gh.GetHookController().HandleKubeEventWithFormTask(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
 				if createGlobalTaskFn == nil {
 					return nil
 				}
@@ -770,7 +770,7 @@ func (mm *ModuleManager) HandleKubeEvent(
 			return nil
 		}
 
-		task := mh.GetHookController().HandleCreateTaskFromKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
+		task := mh.GetHookController().HandleKubeEventWithFormTask(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
 			if createModuleTaskFn == nil {
 				return nil
 			}
@@ -862,7 +862,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 				return nil
 			}
 
-			newTasks := gh.GetHookController().HandleCreateTasksFromScheduleEvent(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
+			newTasks := gh.GetHookController().HandleScheduleEventWithFormTasks(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
 				if createGlobalTaskFn == nil {
 					return nil
 				}
@@ -878,7 +878,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 			return nil
 		}
 
-		newTasks := mh.GetHookController().HandleCreateTasksFromScheduleEvent(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
+		newTasks := mh.GetHookController().HandleScheduleEventWithFormTasks(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
 			if createGlobalTaskFn == nil {
 				return nil
 			}
