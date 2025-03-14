@@ -443,6 +443,7 @@ func shouldEnableSchedulesOnStartup(hk typedHook) bool {
 }
 
 func (op *AddonOperator) RegisterManagerEventsHandlers() {
+	// Register handler for schedule events
 	op.engine.ManagerEventsHandler.WithScheduleEventHandler(func(crontab string) []sh_task.Task {
 		logLabels := map[string]string{
 			"event.id": uuid.Must(uuid.NewV4()).String(),
@@ -452,69 +453,15 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 		logEntry.Debug("Create tasks for 'schedule' event",
 			slog.String("event", crontab))
 
-		var tasks []sh_task.Task
-		op.ModuleManager.HandleScheduleEvent(crontab,
-			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
-				if !op.allowHandleScheduleEvent(globalHook) {
-					return
-				}
-
-				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"hook":      globalHook.GetName(),
-					"hook.type": "module",
-					"queue":     info.QueueName,
-				})
-				if len(info.BindingContext) > 0 {
-					hookLabels["binding.name"] = info.BindingContext[0].Binding
-				}
-				delete(hookLabels, "task.id")
-				newTask := sh_task.NewTask(task.GlobalHookRun).
-					WithLogLabels(hookLabels).
-					WithQueueName(info.QueueName).
-					WithMetadata(task.HookMetadata{
-						EventDescription:         "Schedule",
-						HookName:                 globalHook.GetName(),
-						BindingType:              htypes.Schedule,
-						BindingContext:           info.BindingContext,
-						AllowFailure:             info.AllowFailure,
-						ReloadAllOnValuesChanges: true,
-					})
-
-				tasks = append(tasks, newTask)
-			},
-			func(module *modules.BasicModule, moduleHook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
-				if !op.allowHandleScheduleEvent(moduleHook) {
-					return
-				}
-
-				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"module":    module.GetName(),
-					"hook":      moduleHook.GetName(),
-					"hook.type": "module",
-					"queue":     info.QueueName,
-				})
-				if len(info.BindingContext) > 0 {
-					hookLabels["binding.name"] = info.BindingContext[0].Binding
-				}
-				delete(hookLabels, "task.id")
-				newTask := sh_task.NewTask(task.ModuleHookRun).
-					WithLogLabels(hookLabels).
-					WithQueueName(info.QueueName).
-					WithMetadata(task.HookMetadata{
-						EventDescription: "Schedule",
-						ModuleName:       module.GetName(),
-						HookName:         moduleHook.GetName(),
-						BindingType:      htypes.Schedule,
-						BindingContext:   info.BindingContext,
-						AllowFailure:     info.AllowFailure,
-					})
-
-				tasks = append(tasks, newTask)
-			})
-
-		return tasks
+		// Handle global hook schedule events
+		return op.ModuleManager.HandleScheduleEvent(
+			crontab,
+			op.createGlobalHookTaskFactory(logLabels, htypes.Schedule, "Schedule", true),
+			op.createModuleHookTaskFactory(logLabels, htypes.Schedule, "Schedule"),
+		)
 	})
 
+	// Register handler for kubernetes events
 	op.engine.ManagerEventsHandler.WithKubeEventHandler(func(kubeEvent types.KubeEvent) []sh_task.Task {
 		logLabels := map[string]string{
 			"event.id": uuid.Must(uuid.NewV4()).String(),
@@ -524,64 +471,105 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 		logEntry.Debug("Create tasks for 'kubernetes' event",
 			slog.String("event", kubeEvent.String()))
 
-		var tasks []sh_task.Task
-		op.ModuleManager.HandleKubeEvent(kubeEvent,
-			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
-				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"hook":      globalHook.GetName(),
-					"hook.type": "global",
-					"queue":     info.QueueName,
-				})
-				if len(info.BindingContext) > 0 {
-					hookLabels["binding.name"] = info.BindingContext[0].Binding
-					hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
-				}
-				delete(hookLabels, "task.id")
-				newTask := sh_task.NewTask(task.GlobalHookRun).
-					WithLogLabels(hookLabels).
-					WithQueueName(info.QueueName).
-					WithMetadata(task.HookMetadata{
-						EventDescription:         "Kubernetes",
-						HookName:                 globalHook.GetName(),
-						BindingType:              htypes.OnKubernetesEvent,
-						BindingContext:           info.BindingContext,
-						AllowFailure:             info.AllowFailure,
-						Binding:                  info.Binding,
-						ReloadAllOnValuesChanges: true,
-					})
+		// Handle kubernetes events for global and module hooks
+		tailTasks := op.ModuleManager.HandleKubeEvent(
+			kubeEvent,
+			op.createGlobalHookTaskFactory(logLabels, htypes.OnKubernetesEvent, "Kubernetes", true),
+			op.createModuleHookTaskFactory(logLabels, htypes.OnKubernetesEvent, "Kubernetes"),
+		)
 
-				tasks = append(tasks, newTask)
-			},
-			func(module *modules.BasicModule, moduleHook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
-				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"module":    module.GetName(),
-					"hook":      moduleHook.GetName(),
-					"hook.type": "module",
-					"queue":     info.QueueName,
-				})
-				if len(info.BindingContext) > 0 {
-					hookLabels["binding.name"] = info.BindingContext[0].Binding
-					hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
-				}
-				delete(hookLabels, "task.id")
-				newTask := sh_task.NewTask(task.ModuleHookRun).
-					WithLogLabels(hookLabels).
-					WithQueueName(info.QueueName).
-					WithMetadata(task.HookMetadata{
-						EventDescription: "Kubernetes",
-						ModuleName:       module.GetName(),
-						HookName:         moduleHook.GetName(),
-						Binding:          info.Binding,
-						BindingType:      htypes.OnKubernetesEvent,
-						BindingContext:   info.BindingContext,
-						AllowFailure:     info.AllowFailure,
-					})
+		return tailTasks
+	})
+}
 
-				tasks = append(tasks, newTask)
+// createGlobalHookTaskFactory returns a factory function for creating tasks for global hooks
+func (op *AddonOperator) createGlobalHookTaskFactory(
+	logLabels map[string]string,
+	bindingType htypes.BindingType,
+	eventDescription string,
+	reloadOnValuesChanges bool,
+) func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) sh_task.Task {
+	return func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) sh_task.Task {
+		// For schedule events, check if we should allow handling
+		if bindingType == htypes.Schedule && !op.allowHandleScheduleEvent(globalHook) {
+			return nil
+		}
+
+		hookLabels := utils.MergeLabels(logLabels, map[string]string{
+			"hook":      globalHook.GetName(),
+			"hook.type": "global",
+			"queue":     info.QueueName,
+		})
+
+		if len(info.BindingContext) > 0 {
+			hookLabels["binding.name"] = info.BindingContext[0].Binding
+			if bindingType == htypes.OnKubernetesEvent {
+				hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
+			}
+		}
+
+		delete(hookLabels, "task.id")
+
+		newTask := sh_task.NewTask(task.GlobalHookRun).
+			WithLogLabels(hookLabels).
+			WithQueueName(info.QueueName).
+			WithMetadata(task.HookMetadata{
+				EventDescription:         eventDescription,
+				HookName:                 globalHook.GetName(),
+				BindingType:              bindingType,
+				BindingContext:           info.BindingContext,
+				AllowFailure:             info.AllowFailure,
+				Binding:                  info.Binding,
+				ReloadAllOnValuesChanges: reloadOnValuesChanges,
 			})
 
-		return tasks
-	})
+		return newTask
+	}
+}
+
+// createModuleHookTaskFactory returns a factory function for creating tasks for module hooks
+func (op *AddonOperator) createModuleHookTaskFactory(
+	logLabels map[string]string,
+	bindingType htypes.BindingType,
+	eventDescription string,
+) func(module *modules.BasicModule, moduleHook *hooks.ModuleHook, info controller.BindingExecutionInfo) sh_task.Task {
+	return func(module *modules.BasicModule, moduleHook *hooks.ModuleHook, info controller.BindingExecutionInfo) sh_task.Task {
+		// For schedule events, check if we should allow handling
+		if bindingType == htypes.Schedule && !op.allowHandleScheduleEvent(moduleHook) {
+			return nil
+		}
+
+		hookLabels := utils.MergeLabels(logLabels, map[string]string{
+			"module":    module.GetName(),
+			"hook":      moduleHook.GetName(),
+			"hook.type": "module",
+			"queue":     info.QueueName,
+		})
+
+		if len(info.BindingContext) > 0 {
+			hookLabels["binding.name"] = info.BindingContext[0].Binding
+			if bindingType == htypes.OnKubernetesEvent {
+				hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
+			}
+		}
+
+		delete(hookLabels, "task.id")
+
+		newTask := sh_task.NewTask(task.ModuleHookRun).
+			WithLogLabels(hookLabels).
+			WithQueueName(info.QueueName).
+			WithMetadata(task.HookMetadata{
+				EventDescription: eventDescription,
+				ModuleName:       module.GetName(),
+				HookName:         moduleHook.GetName(),
+				Binding:          info.Binding,
+				BindingType:      bindingType,
+				BindingContext:   info.BindingContext,
+				AllowFailure:     info.AllowFailure,
+			})
+
+		return newTask
+	}
 }
 
 // BootstrapMainQueue adds tasks to initiate Startup sequence:
