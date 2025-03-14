@@ -452,8 +452,8 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 	}
 }
 
-func (mm *ModuleManager) GetGraphImage() (image.Image, error) {
-	return mm.moduleScheduler.GetGraphImage()
+func (mm *ModuleManager) GetGraphImage(ctx context.Context) (image.Image, error) {
+	return mm.moduleScheduler.GetGraphImage(ctx)
 }
 
 func (mm *ModuleManager) GetGraphDOTDescription() ([]byte, error) {

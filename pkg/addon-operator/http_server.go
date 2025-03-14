@@ -64,50 +64,69 @@ func (op *AddonOperator) registerReadyzRoute() {
 	})
 }
 
+// registerDefaultRoutes sets up the standard HTTP endpoints for the AddonOperator
 func (op *AddonOperator) registerDefaultRoutes() {
-	op.engine.APIServer.RegisterRoute(http.MethodGet, "/", func(writer http.ResponseWriter, _ *http.Request) {
-		_, _ = writer.Write([]byte(fmt.Sprintf(`<html>
-    <head><title>Addon-operator</title></head>
-    <body>
-    <h1>Addon-operator</h1>
-    <pre>go tool pprof http://ADDON_OPERATOR_IP:%s/debug/pprof/profile</pre>
-    <p>
-      <a href="/discovery">show all possible routes</a>
-      <a href="/metrics">prometheus metrics for built-in parameters</a>
-      <a href="/metrics/hooks">prometheus metrics for user hooks</a>
-      <a href="/healthz">health url</a>
-      <a href="/readyz">ready url</a>
-    </p>
-    </body>
-    </html>`, app.ListenPort)))
-	})
+	// Register root endpoint with HTML overview page
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/", op.handleRootPage)
 
-	op.engine.APIServer.RegisterRoute(http.MethodGet, "/healthz", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusOK)
-	})
+	// Register health check endpoint
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/healthz", op.handleHealthCheck)
 
-	op.engine.APIServer.RegisterRoute(http.MethodGet, "/status/converge", func(writer http.ResponseWriter, _ *http.Request) {
-		convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
+	// Register converge status endpoint
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/status/converge", op.handleConvergeStatus)
+}
 
-		statusLines := make([]string, 0)
-		switch op.ConvergeState.FirstRunPhase {
-		case converge.FirstNotStarted:
-			statusLines = append(statusLines, "STARTUP_CONVERGE_NOT_STARTED")
-		case converge.FirstStarted:
-			if convergeTasks > 0 {
-				statusLines = append(statusLines, fmt.Sprintf("STARTUP_CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
-			} else {
-				statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
-			}
-		case converge.FirstDone:
+// handleRootPage serves the main HTML page with links to all available endpoints
+func (op *AddonOperator) handleRootPage(writer http.ResponseWriter, _ *http.Request) {
+	_, _ = writer.Write([]byte(fmt.Sprintf(`<html>
+	<head><title>Addon-operator</title></head>
+	<body>
+	<h1>Addon-operator</h1>
+	<pre>go tool pprof http://ADDON_OPERATOR_IP:%s/debug/pprof/profile</pre>
+	<p>
+	  <a href="/discovery">show all possible routes</a>
+	  <a href="/metrics">prometheus metrics for built-in parameters</a>
+	  <a href="/metrics/hooks">prometheus metrics for user hooks</a>
+	  <a href="/healthz">health url</a>
+	  <a href="/readyz">ready url</a>
+	</p>
+	</body>
+	</html>`, app.ListenPort)))
+}
+
+// handleHealthCheck responds with 200 OK for health probes
+func (op *AddonOperator) handleHealthCheck(writer http.ResponseWriter, _ *http.Request) {
+	writer.WriteHeader(http.StatusOK)
+}
+
+// handleConvergeStatus reports the current convergence state
+func (op *AddonOperator) handleConvergeStatus(writer http.ResponseWriter, _ *http.Request) {
+	convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
+	statusLines := generateConvergeStatusLines(op.ConvergeState.FirstRunPhase, convergeTasks)
+	_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
+}
+
+// generateConvergeStatusLines creates status messages based on the current convergence state
+func generateConvergeStatusLines(phase converge.FirstRunPhaseType, convergeTasks int) []string {
+	statusLines := make([]string, 0)
+
+	switch phase {
+	case converge.FirstNotStarted:
+		statusLines = append(statusLines, "STARTUP_CONVERGE_NOT_STARTED")
+	case converge.FirstStarted:
+		if convergeTasks > 0 {
+			statusLines = append(statusLines, fmt.Sprintf("STARTUP_CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
+		} else {
 			statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
-			if convergeTasks > 0 {
-				statusLines = append(statusLines, fmt.Sprintf("CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
-			} else {
-				statusLines = append(statusLines, "CONVERGE_WAIT_TASK")
-			}
 		}
+	case converge.FirstDone:
+		statusLines = append(statusLines, "STARTUP_CONVERGE_DONE")
+		if convergeTasks > 0 {
+			statusLines = append(statusLines, fmt.Sprintf("CONVERGE_IN_PROGRESS: %d tasks", convergeTasks))
+		} else {
+			statusLines = append(statusLines, "CONVERGE_WAIT_TASK")
+		}
+	}
 
-		_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
-	})
+	return statusLines
 }

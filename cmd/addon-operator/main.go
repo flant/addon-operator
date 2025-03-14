@@ -90,19 +90,25 @@ func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
 	}
 }
 
+// run initializes and starts the addon operator, blocking until it receives an OS signal to shutdown.
 func run(ctx context.Context, operator *addon_operator.AddonOperator) error {
+	// Create a ConfigMap-based backend for storing configuration
 	bk := configmap.New(operator.KubeClient(), operator.DefaultNamespace, app.ConfigMapName, operator.Logger.Named("kube-config-manager"))
+	// Configure the operator to use this backend for configuration management
 	operator.SetupKubeConfigManager(bk)
 
+	// Setup the operator (initialize controllers, register hooks, etc.)
 	if err := operator.Setup(); err != nil {
 		operator.Logger.Fatal("setup failed", log.Err(err))
 	}
 
+	// Start the operator (begin watching for events and executing hooks)
 	if err := operator.Start(ctx); err != nil {
 		operator.Logger.Fatal("start failed", log.Err(err))
 	}
 
-	// Block action by waiting signals from OS.
+	// Block the main goroutine until the process receives a termination signal
+	// When a signal is received, stop the operator gracefully before exiting
 	utils_signal.WaitForProcessInterruption(func() {
 		operator.Stop()
 		os.Exit(0)

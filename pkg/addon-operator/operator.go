@@ -220,6 +220,16 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 	return nil
 }
 
+// Setup initializes the AddonOperator with required components and configurations.
+// It performs the following steps:
+// 1. Initializes the Helm client factory with specified options like namespace, history max, timeout, and logger.
+// 2. Sets up the Helm resources manager using a separate client-go instance.
+// 3. Validates the existence of the global hooks directory.
+// 4. Ensures the temporary directory exists.
+// 5. Verifies that KubeConfigManager is set before proceeding.
+// 6. Finally sets up the module manager with the appropriate directories.
+//
+// Returns an error if any initialization step fails.
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
 	helmClient, err := helm.InitHelmClientFactory(&helm.Options{
