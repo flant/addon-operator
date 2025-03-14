@@ -1508,10 +1508,9 @@ func formatErrorSummary(errors map[string]string) string {
 //
 // ModuleRun is restarted if hook or chart is failed.
 // After first HandleModuleRun success, no onStartup and kubernetes.Synchronization tasks will run.
-func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]string) queue.TaskResult {
+func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) {
 	defer trace.StartRegion(context.Background(), "ModuleRun").End()
 
-	var res queue.TaskResult
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	hm := task.HookMetadataAccessor(t)
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
@@ -1533,6 +1532,42 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 	var moduleRunErr error
 	valuesChanged := false
+
+	defer func(res *queue.TaskResult, valuesChanged *bool, err error) {
+		op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
+		if moduleRunErr != nil {
+			res.Status = queue.Fail
+			logEntry.Error("ModuleRun failed. Requeue task to retry after delay.",
+				slog.String("phase", string(baseModule.GetPhase())),
+				slog.Int("count", t.GetFailureCount()+1),
+				log.Err(moduleRunErr))
+			op.engine.MetricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
+			t.UpdateFailureMessage(moduleRunErr.Error())
+			t.WithQueuedAt(time.Now())
+		}
+
+		if res.Status != queue.Success {
+			return
+		}
+
+		if *valuesChanged {
+			logEntry.Info("ModuleRun success, values changed, restart module")
+			// One of afterHelm hooks changes values, run ModuleRun again: copy task, but disable startup hooks.
+			hm.DoModuleStartup = false
+			hm.EventDescription = "AfterHelm-Hooks-Change-Values"
+			newLabels := utils.MergeLabels(t.GetLogLabels())
+			delete(newLabels, "task.id")
+			newTask := sh_task.NewTask(task.ModuleRun).
+				WithLogLabels(newLabels).
+				WithQueueName(t.GetQueueName()).
+				WithMetadata(hm)
+
+			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
+			op.logTaskAdd(logEntry, "after", res.AfterTasks...)
+		} else {
+			logEntry.Info("ModuleRun success, module is ready")
+		}
+	}(&res, &valuesChanged, moduleRunErr)
 
 	// First module run on operator startup or when module is enabled.
 	if baseModule.GetPhase() == modules.Startup {
@@ -1557,6 +1592,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			} else {
 				op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 			}
+
+			res.Status = queue.Repeat
+
+			return res
 		}
 	}
 
@@ -1568,6 +1607,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			// Skip Synchronization process if there are no kubernetes hooks.
 			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.EnableScheduleBindings)
 		}
+
+		res.Status = queue.Repeat
+
+		return res
 	}
 
 	// Note: All hooks should be queued to fill snapshots before proceed to beforeHelm hooks.
@@ -1687,6 +1730,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				return res
 			}
 		}
+
+		res.Status = queue.Repeat
+
+		return res
 	}
 
 	// Repeat ModuleRun if there are running Synchronization tasks to wait.
@@ -1707,9 +1754,11 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			}
 			logEntry.Debug("Synchronization not completed, keep ModuleRun task in repeat mode")
 			t.WithQueuedAt(time.Now())
-			res.Status = queue.Repeat
-			return res
 		}
+
+		res.Status = queue.Repeat
+
+		return res
 	}
 
 	// Enable schedule events once at module start.
@@ -1718,6 +1767,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 		op.ModuleManager.EnableModuleScheduleBindings(hm.ModuleName)
 		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
+
+		res.Status = queue.Repeat
+
+		return res
 	}
 
 	// Module start is done, module is ready to run hooks and helm chart.
@@ -1727,36 +1780,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		valuesChanged, moduleRunErr = op.ModuleManager.RunModule(baseModule.Name, t.GetLogLabels())
 	}
 
-	op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
-	if moduleRunErr != nil {
-		res.Status = queue.Fail
-		logEntry.Error("ModuleRun failed. Requeue task to retry after delay.",
-			slog.String("phase", string(baseModule.GetPhase())),
-			slog.Int("count", t.GetFailureCount()+1),
-			log.Err(moduleRunErr))
-		op.engine.MetricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
-		t.UpdateFailureMessage(moduleRunErr.Error())
-		t.WithQueuedAt(time.Now())
-	} else {
-		res.Status = queue.Success
-		if valuesChanged {
-			logEntry.Info("ModuleRun success, values changed, restart module")
-			// One of afterHelm hooks changes values, run ModuleRun again: copy task, but disable startup hooks.
-			hm.DoModuleStartup = false
-			hm.EventDescription = "AfterHelm-Hooks-Change-Values"
-			newLabels := utils.MergeLabels(t.GetLogLabels())
-			delete(newLabels, "task.id")
-			newTask := sh_task.NewTask(task.ModuleRun).
-				WithLogLabels(newLabels).
-				WithQueueName(t.GetQueueName()).
-				WithMetadata(hm)
-
-			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
-			op.logTaskAdd(logEntry, "after", res.AfterTasks...)
-		} else {
-			logEntry.Info("ModuleRun success, module is ready")
-		}
-	}
+	res.Status = queue.Success
 
 	return res
 }
