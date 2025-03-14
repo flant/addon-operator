@@ -2349,54 +2349,104 @@ func (op *AddonOperator) CheckCRDsEnsured(t sh_task.Task) {
 	}
 }
 
-// CheckConvergeStatus detects if converge process is started and
-// updates ConvergeState. It updates metrics on converge finish.
+// CheckConvergeStatus monitors the convergence process and updates metrics.
+// It detects when convergence starts and completes, tracks timing metrics,
+// and keeps track of the first convergence for operator readiness.
 func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
-	convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
+	// Check all queues that might contain convergence tasks
+	convergeTasks := 0
+	for _, q := range op.getConvergeQueues() {
+		convergeTasks += ConvergeTasksInQueue(q)
+	}
 
 	op.l.Lock()
-	// Converge state is 'Started'. Update StartedAt and
-	// Activation if the converge process is just started.
+	defer op.l.Unlock()
+
+	// Track convergence state changes
+	op.handleConvergeStateChanges(convergeTasks, t)
+
+	// Track the first convergence operation for readiness
+	op.UpdateFirstConvergeStatus(convergeTasks)
+
+	// Log progress information when appropriate
+	op.logConvergeProgress(convergeTasks, t)
+}
+
+// handleConvergeStateChanges updates the convergence state tracking and metrics
+// based on whether convergence is starting or completing
+func (op *AddonOperator) handleConvergeStateChanges(convergeTasks int, t sh_task.Task) {
+	// Detect convergence start
 	if convergeTasks > 0 && op.ConvergeState.StartedAt == 0 {
+		// Convergence just started - record the start time and activation source
 		op.ConvergeState.StartedAt = time.Now().UnixNano()
 		op.ConvergeState.Activation = t.GetLogLabels()["event.type"]
 	}
 
-	// Converge state is 'Done'. Update convergence_* metrics,
-	// reset StartedAt and Activation if the converge process is just stopped.
+	// Detect convergence completion
 	if convergeTasks == 0 && op.ConvergeState.StartedAt != 0 {
+		// Convergence just completed - update metrics and reset tracking
 		convergeSeconds := time.Duration(time.Now().UnixNano() - op.ConvergeState.StartedAt).Seconds()
-		op.engine.MetricStorage.CounterAdd("{PREFIX}convergence_seconds", convergeSeconds, map[string]string{"activation": op.ConvergeState.Activation})
-		op.engine.MetricStorage.CounterAdd("{PREFIX}convergence_total", 1.0, map[string]string{"activation": op.ConvergeState.Activation})
+		op.recordConvergenceMetrics(convergeSeconds)
+
+		// Reset state for next convergence cycle
 		op.ConvergeState.StartedAt = 0
 		op.ConvergeState.Activation = ""
 	}
+}
 
-	// Update field for the first converge.
-	op.UpdateFirstConvergeStatus(convergeTasks)
-	op.l.Unlock()
+// recordConvergenceMetrics adds metrics about convergence duration and count
+func (op *AddonOperator) recordConvergenceMetrics(durationSeconds float64) {
+	metricLabels := map[string]string{"activation": op.ConvergeState.Activation}
 
-	// Report modules left to process.
-	if convergeTasks > 0 && (t.GetType() == task.ModuleRun || t.GetType() == task.ModuleDelete) {
-		moduleTasks := ConvergeModulesInQueue(op.engine.TaskQueues.GetMain())
-		log.Info("Converge modules in progress",
-			slog.Int("count", moduleTasks))
+	// Record the time taken for convergence
+	op.engine.MetricStorage.CounterAdd(
+		"{PREFIX}convergence_seconds",
+		durationSeconds,
+		metricLabels,
+	)
+
+	// Increment the total convergence operations counter
+	op.engine.MetricStorage.CounterAdd(
+		"{PREFIX}convergence_total",
+		1.0,
+		metricLabels,
+	)
+}
+
+// logConvergeProgress logs information about ongoing module convergence
+func (op *AddonOperator) logConvergeProgress(convergeTasks int, t sh_task.Task) {
+	// Only log progress for module tasks when convergence is in progress
+	isModuleTask := t.GetType() == task.ModuleRun || t.GetType() == task.ModuleDelete
+
+	if convergeTasks > 0 && isModuleTask {
+		// Count remaining module tasks and log progress
+		moduleTasks := 0
+		for _, q := range op.getConvergeQueues() {
+			moduleTasks += ConvergeModulesInQueue(q)
+		}
+
+		if moduleTasks > 0 {
+			log.Info("Converge modules in progress", slog.Int("count", moduleTasks))
+		}
 	}
 }
 
-// UpdateFirstConvergeStatus checks first converge status and prints log messages if first converge
-// is in progress.
+// UpdateFirstConvergeStatus tracks the progress of the first convergence operation
+// and logs when it completes.
 func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
-	switch op.ConvergeState.FirstRunPhase {
-	case converge.FirstDone:
+	// Early return if first run is already completed
+	if op.ConvergeState.FirstRunPhase == converge.FirstDone {
 		return
+	}
+
+	switch op.ConvergeState.FirstRunPhase {
 	case converge.FirstNotStarted:
-		// Switch to 'started' state if there are 'converge' tasks in the queue.
+		// Mark as started when convergence tasks are detected
 		if convergeTasks > 0 {
 			op.ConvergeState.SetFirstRunPhase(converge.FirstStarted)
 		}
 	case converge.FirstStarted:
-		// Switch to 'done' state after first converge is started and when no 'converge' tasks left in the queue.
+		// Mark as done when all convergence tasks are completed
 		if convergeTasks == 0 {
 			log.Info("First converge is finished. Operator is ready now.")
 			op.ConvergeState.SetFirstRunPhase(converge.FirstDone)
@@ -2404,109 +2454,118 @@ func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
 	}
 }
 
-// taskDescriptionForTaskFlowLog returns a human friendly description of the task.
+// taskDescriptionForTaskFlowLog generates a human-readable description of a task
+// for logging purposes.
 func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string, status string) string {
 	hm := task.HookMetadataAccessor(tsk)
+	taskType := string(tsk.GetType())
 
-	parts := make([]string, 0)
+	// Start building the description
+	description := formatTaskAction(taskType, action, status)
 
+	// Format task-specific details based on task type
+	details := formatTaskDetails(tsk, hm, phase)
+
+	// Add trigger information if available
+	triggerInfo := ""
+	if hm.EventDescription != "" {
+		triggerInfo = fmt.Sprintf(", trigger is %s", hm.EventDescription)
+	}
+
+	return description + details + triggerInfo
+}
+
+// formatTaskAction creates the first part of the task description
+func formatTaskAction(taskType, action, status string) string {
 	switch action {
 	case "start":
-		parts = append(parts, fmt.Sprintf("%s task", tsk.GetType()))
+		return fmt.Sprintf("%s task", taskType)
 	case "end":
-		parts = append(parts, fmt.Sprintf("%s task done, result is '%s'", tsk.GetType(), status))
+		return fmt.Sprintf("%s task done, result is '%s'", taskType, status)
 	default:
-		parts = append(parts, fmt.Sprintf("%s task %s", action, tsk.GetType()))
+		return fmt.Sprintf("%s task %s", action, taskType)
 	}
+}
 
-	parts = append(parts, "for")
-
+// formatTaskDetails creates the task-specific part of the description
+func formatTaskDetails(tsk sh_task.Task, hm task.HookMetadata, phase string) string {
 	switch tsk.GetType() {
 	case task.GlobalHookRun, task.ModuleHookRun:
-		// Examples:
-		// GlobalHookRun task for 'onKubernetes/cni_name' binding, trigger Kubernetes
-		// GlobalHookRun task done, result 'Repeat' for 'onKubernetes/cni_name' binding, trigger Kubernetes
-		// GlobalHookRun task for 'main' group binding, trigger Schedule
-		// GlobalHookRun task done, result 'Fail' for 'main' group binding, trigger Schedule
-		// GlobalHookRun task for 'main' group and 2 more bindings, trigger Schedule
-		// GlobalHookRun task done, result 'Fail' for 'main' group and 2 more bindings, trigger Schedule
-		// GlobalHookRun task for Synchronization of 'kubernetes/cni_name' binding, trigger KubernetesEvent
-		// GlobalHookRun task done, result 'Success' for Synchronization of 'kubernetes/cni_name' binding, trigger KubernetesEvent
-
-		if len(hm.BindingContext) > 0 {
-			if hm.BindingContext[0].IsSynchronization() {
-				parts = append(parts, "Synchronization of")
-			}
-
-			bindingType := hm.BindingContext[0].Metadata.BindingType
-
-			group := hm.BindingContext[0].Metadata.Group
-			if group == "" {
-				name := hm.BindingContext[0].Binding
-				if bindingType == htypes.OnKubernetesEvent || bindingType == htypes.Schedule {
-					name = fmt.Sprintf("'%s/%s'", bindingType, name)
-				} else {
-					name = string(bindingType)
-				}
-				parts = append(parts, name)
-			} else {
-				parts = append(parts, fmt.Sprintf("'%s' group", group))
-			}
-
-			if len(hm.BindingContext) > 1 {
-				parts = append(parts, "and %d more bindings")
-			} else {
-				parts = append(parts, "binding")
-			}
-		} else {
-			parts = append(parts, "no binding")
-		}
+		return formatHookTaskDetails(hm)
 
 	case task.ConvergeModules:
-		// Examples:
-		// ConvergeModules task for ReloadAllModules in phase 'WaitBeforeAll', trigger Operator-Startup
-		// ConvergeModules task for KubeConfigChanged, trigger Operator-Startup
-		// ConvergeModules task done, result is 'Keep' for converge phase 'WaitBeforeAll', trigger Operator-Startup
-		if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
-			parts = append(parts, string(taskEvent))
-			parts = append(parts, fmt.Sprintf("in phase '%s'", phase))
-		}
+		return formatConvergeTaskDetails(tsk, phase)
 
 	case task.ModuleRun:
-		parts = append(parts, fmt.Sprintf("module '%s', phase '%s'", hm.ModuleName, phase))
+		details := fmt.Sprintf(" for module '%s', phase '%s'", hm.ModuleName, phase)
 		if hm.DoModuleStartup {
-			parts = append(parts, "with doModuleStartup")
+			details += " with doModuleStartup"
 		}
+		return details
 
 	case task.ParallelModuleRun:
-		parts = append(parts, fmt.Sprintf("modules '%s'", hm.ModuleName))
+		return fmt.Sprintf(" for modules '%s'", hm.ModuleName)
 
-	case task.ModulePurge, task.ModuleDelete:
-		parts = append(parts, fmt.Sprintf("module '%s'", hm.ModuleName))
+	case task.ModulePurge, task.ModuleDelete, task.ModuleEnsureCRDs:
+		return fmt.Sprintf(" for module '%s'", hm.ModuleName)
 
-	case task.GlobalHookEnableKubernetesBindings, task.GlobalHookWaitKubernetesSynchronization, task.GlobalHookEnableScheduleBindings:
-		// Eaxmples:
-		// GlobalHookEnableKubernetesBindings for the hook, trigger Operator-Startup
-		// GlobalHookEnableKubernetesBindings done, result 'Success' for the hook, trigger Operator-Startup
-		parts = append(parts, "the hook")
+	case task.GlobalHookEnableKubernetesBindings,
+		task.GlobalHookWaitKubernetesSynchronization,
+		task.GlobalHookEnableScheduleBindings:
+		return " for the hook"
 
 	case task.DiscoverHelmReleases:
-		// Examples:
-		// DiscoverHelmReleases task, trigger Operator-Startup
-		// DiscoverHelmReleases task done, result is 'Success', trigger Operator-Startup
-		// Remove "for"
-		parts = parts[:len(parts)-1]
+		return ""
 
-	case task.ModuleEnsureCRDs:
-		parts = append(parts, fmt.Sprintf("module '%s'", hm.ModuleName))
+	default:
+		return ""
+	}
+}
+
+// formatHookTaskDetails formats details specific to hook tasks
+func formatHookTaskDetails(hm task.HookMetadata) string {
+	if len(hm.BindingContext) == 0 {
+		return " for no binding"
 	}
 
-	triggeredBy := hm.EventDescription
-	if triggeredBy != "" {
-		triggeredBy = ", trigger is " + triggeredBy
+	details := " for "
+
+	// Check if this is a synchronization task
+	if hm.BindingContext[0].IsSynchronization() {
+		details += "Synchronization of "
 	}
 
-	return fmt.Sprintf("%s%s", strings.Join(parts, " "), triggeredBy)
+	// Get binding information
+	bindingType := hm.BindingContext[0].Metadata.BindingType
+	bindingGroup := hm.BindingContext[0].Metadata.Group
+
+	if bindingGroup == "" {
+		name := hm.BindingContext[0].Binding
+		if bindingType == htypes.OnKubernetesEvent || bindingType == htypes.Schedule {
+			details += fmt.Sprintf("'%s/%s'", bindingType, name)
+		} else {
+			details += string(bindingType)
+		}
+	} else {
+		details += fmt.Sprintf("'%s' group", bindingGroup)
+	}
+
+	// Add information about additional bindings
+	if len(hm.BindingContext) > 1 {
+		details += " and " + fmt.Sprintf("%d more bindings", len(hm.BindingContext)-1)
+	} else {
+		details += " binding"
+	}
+
+	return details
+}
+
+// formatConvergeTaskDetails formats details specific to converge tasks
+func formatConvergeTaskDetails(tsk sh_task.Task, phase string) string {
+	if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
+		return fmt.Sprintf(" for %s in phase '%s'", string(taskEvent), phase)
+	}
+	return ""
 }
 
 // logTaskAdd prints info about queued tasks.
