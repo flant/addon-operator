@@ -115,6 +115,17 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	moduleRenderCmd.Arg("module_name", "").Required().StringVar(&moduleName)
 	moduleRenderCmd.Flag("debug", "enable debug mode").Default("false").BoolVar(&debug)
 
+	moduleDriftCmd := moduleCmd.Command("drift", "Print module resources drifted from the chart.").
+		Action(func(_ *kingpin.ParseContext) error {
+			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Drift()
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(dump))
+			return nil
+		})
+	moduleDriftCmd.Arg("module_name", "").Required().StringVar(&moduleName)
+
 	moduleConfigCmd := moduleCmd.Command("config", "Dump module config values by name.").
 		Action(func(_ *kingpin.ParseContext) error {
 			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Config(outputFormat, showGlobal)
@@ -239,5 +250,10 @@ func (mr *cliModuleSectionRequest) Config(format string, withGlobal bool) ([]byt
 
 func (mr *cliModuleSectionRequest) Snapshots(format string) ([]byte, error) {
 	url := fmt.Sprintf("http://unix/module/%s/snapshots.%s", mr.name, format)
+	return mr.client.Get(url)
+}
+
+func (mr *cliModuleSectionRequest) Drift() ([]byte, error) {
+	url := fmt.Sprintf("http://unix/module/%s/drift", mr.name)
 	return mr.client.Get(url)
 }

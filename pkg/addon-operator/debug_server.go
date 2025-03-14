@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image/png"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -210,6 +211,58 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		}
 
 		return snapshots, nil
+	})
+
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/drift", func(r *http.Request) (interface{}, error) {
+		modName := chi.URLParam(r, "name")
+		m := op.ModuleManager.GetModule(modName)
+		if m == nil {
+			return nil, fmt.Errorf("module not found")
+		}
+
+		deps := &modules.HelmModuleDependencies{
+			HelmClientFactory: op.Helm,
+		}
+
+		hm, err := modules.NewHelmModule(m, op.DefaultNamespace, op.ModuleManager.TempDir, deps, nil, modules.WithLogger(op.Logger.Named("helm-module")))
+		// if module is not helm, success empty result
+		if err != nil && errors.Is(err, modules.ErrModuleIsNotHelm) {
+			return nil, nil
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create helm module: %w", err)
+		}
+
+		releaseManifests, err := hm.Render(app.Namespace, false)
+
+		f, err := os.CreateTemp("", "*")
+		if err != nil {
+			return nil, fmt.Errorf("failed to write helm chart manifests: %w", err)
+		}
+
+		// file is deleted, yet the file descriptor isn't closed yet
+		err = os.Remove(f.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to remove the temp file: %w", err)
+		}
+
+		if _, err := f.Write([]byte(releaseManifests)); err != nil {
+			return nil, fmt.Errorf("failed to write to the temp file: %w", err)
+		}
+
+		// op.HelmResourcesManager.KubeClient()
+
+		result, err := os.ReadFile(fmt.Sprintf("/proc/self/fd/%d", f.Fd()))
+		if err != nil {
+			return nil, fmt.Errorf("failed to read from the temp file: %w", err)
+		}
+
+		if err := f.Close(); err != nil {
+			return nil, fmt.Errorf("failed to close the temp file: %w", err)
+		}
+
+		return string(result), nil
 	})
 }
 

@@ -8,7 +8,7 @@ require (
 	github.com/deckhouse/module-sdk v0.2.0
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
-	github.com/flant/kube-client v1.2.2
+	github.com/flant/kube-client v1.2.3-0.20250314125830-095a696010b7
 	github.com/flant/shell-operator v1.6.1
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-openapi/loads v0.19.5
@@ -29,7 +29,7 @@ require (
 	helm.sh/helm/v3 v3.14.2
 	k8s.io/api v0.29.8
 	k8s.io/apimachinery v0.29.8
-	k8s.io/cli-runtime v0.29.0
+	k8s.io/cli-runtime v0.29.8
 	k8s.io/client-go v0.29.8
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/controller-runtime v0.17.0
