@@ -746,45 +746,39 @@ func (mm *ModuleManager) HandleKubeEvent(
 	createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo) sh_task.Task,
 	createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo) sh_task.Task,
 ) []sh_task.Task {
-	tasks := make([]sh_task.Task, 0)
-
 	// Process hooks by binding type OnKubernetesEvent
-	mm.LoopByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
+	tasks := mm.CreateTasksByBinding(OnKubernetesEvent, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task {
 		// Handle global hooks
 		if gh != nil {
 			if !gh.GetHookController().CanHandleKubeEvent(kubeEvent) {
-				return
+				return nil
 			}
 
-			gh.GetHookController().HandleKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) {
+			task := gh.GetHookController().HandleCreateTaskFromKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
 				if createGlobalTaskFn == nil {
-					return
+					return nil
 				}
 
-				task := createGlobalTaskFn(gh, info)
-				if task != nil {
-					tasks = append(tasks, task)
-				}
+				return createGlobalTaskFn(gh, info)
 			})
 
-			return
+			return []sh_task.Task{task}
 		}
 
 		// Handle module hooks
 		if !mh.GetHookController().CanHandleKubeEvent(kubeEvent) {
-			return
+			return nil
 		}
 
-		mh.GetHookController().HandleKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) {
+		task := mh.GetHookController().HandleCreateTaskFromKubeEvent(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
 			if createModuleTaskFn == nil {
-				return
+				return nil
 			}
 
-			task := createModuleTaskFn(m, mh, info)
-			if task != nil {
-				tasks = append(tasks, task)
-			}
+			return createModuleTaskFn(m, mh, info)
 		})
+
+		return []sh_task.Task{task}
 	})
 
 	return tasks
@@ -861,56 +855,54 @@ func (mm *ModuleManager) HandleScheduleEvent(
 	createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo) sh_task.Task,
 	createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo) sh_task.Task,
 ) []sh_task.Task {
-	tasks := make([]sh_task.Task, 0)
-
 	// Process hooks by binding type Schedule
-	mm.LoopByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) {
+	tasks := mm.CreateTasksByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task {
 		// Handle global hooks
 		if gh != nil {
 			if !gh.GetHookController().CanHandleScheduleEvent(crontab) {
-				return
+				return nil
 			}
 
-			gh.GetHookController().HandleScheduleEvent(crontab, func(info controller.BindingExecutionInfo) {
+			newTasks := gh.GetHookController().HandleCreateTasksFromScheduleEvent(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
 				if createGlobalTaskFn == nil {
-					return
+					return nil
 				}
 
-				task := createGlobalTaskFn(gh, info)
-				if task != nil {
-					tasks = append(tasks, task)
-				}
+				return createGlobalTaskFn(gh, info)
 			})
 
-			return
+			return newTasks
 		}
 
 		// Handle module hooks
 		if !mh.GetHookController().CanHandleScheduleEvent(crontab) {
-			return
+			return nil
 		}
 
-		mh.GetHookController().HandleScheduleEvent(crontab, func(info controller.BindingExecutionInfo) {
-			if createModuleTaskFn == nil {
-				return
+		newTasks := mh.GetHookController().HandleCreateTasksFromScheduleEvent(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
+			if createGlobalTaskFn == nil {
+				return nil
 			}
 
-			task := createModuleTaskFn(m, mh, info)
-			if task != nil {
-				tasks = append(tasks, task)
-			}
+			return createGlobalTaskFn(gh, info)
 		})
+
+		return newTasks
 	})
 
 	return tasks
 }
 
-func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook)) {
+func (mm *ModuleManager) CreateTasksByBinding(binding BindingType, createTasksFunc func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task) []sh_task.Task {
 	globalHooks := mm.GetGlobalHooksInOrder(binding)
 
+	tasks := make([]sh_task.Task, 0)
 	for _, hookName := range globalHooks {
 		gh := mm.GetGlobalHook(hookName)
-		fn(gh, nil, nil)
+		newTasks := createTasksFunc(gh, nil, nil)
+		if len(newTasks) > 0 {
+			tasks = append(tasks, newTasks...)
+		}
 	}
 
 	mods := mm.moduleScheduler.GetEnabledModuleNames()
@@ -924,9 +916,14 @@ func (mm *ModuleManager) LoopByBinding(binding BindingType, fn func(gh *hooks.Gl
 
 		moduleHooks := m.GetHooks(binding)
 		for _, mh := range moduleHooks {
-			fn(nil, m, mh)
+			newTasks := createTasksFunc(nil, m, mh)
+			if len(newTasks) > 0 {
+				tasks = append(tasks, newTasks...)
+			}
 		}
 	}
+
+	return tasks
 }
 
 func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamic_extender.Extender) {
