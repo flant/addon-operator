@@ -102,10 +102,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 	moduleValuesCmd.Arg("module_name", "").Required().StringVar(&moduleName)
 	moduleValuesCmd.Flag("global", "Also show global values").Short('g').BoolVar(&showGlobal)
 
-	var debug bool
+	var (
+		debug bool
+		diff  bool
+	)
+
 	moduleRenderCmd := moduleCmd.Command("render", "Render module manifests.").
 		Action(func(_ *kingpin.ParseContext) error {
-			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Render(debug)
+			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Render(debug, diff)
 			if err != nil {
 				return err
 			}
@@ -114,6 +118,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 		})
 	moduleRenderCmd.Arg("module_name", "").Required().StringVar(&moduleName)
 	moduleRenderCmd.Flag("debug", "enable debug mode").Default("false").BoolVar(&debug)
+	moduleRenderCmd.Flag("diff", "enable diff mode (experimental, prints module resources drifted from the chart.)").Default("false").BoolVar(&diff)
 
 	moduleConfigCmd := moduleCmd.Command("config", "Dump module config values by name.").
 		Action(func(_ *kingpin.ParseContext) error {
@@ -222,8 +227,8 @@ func (mr *cliModuleSectionRequest) Values(format string, withGlobal bool) ([]byt
 	return mr.client.Get(url)
 }
 
-func (mr *cliModuleSectionRequest) Render(debug bool) ([]byte, error) {
-	url := fmt.Sprintf("http://unix/module/%s/render?debug=%t", mr.name, debug)
+func (mr *cliModuleSectionRequest) Render(debug, diff bool) ([]byte, error) {
+	url := fmt.Sprintf("http://unix/module/%s/render?debug=%t&diff=%t", mr.name, debug, diff)
 	return mr.client.Get(url)
 }
 
@@ -239,5 +244,10 @@ func (mr *cliModuleSectionRequest) Config(format string, withGlobal bool) ([]byt
 
 func (mr *cliModuleSectionRequest) Snapshots(format string) ([]byte, error) {
 	url := fmt.Sprintf("http://unix/module/%s/snapshots.%s", mr.name, format)
+	return mr.client.Get(url)
+}
+
+func (mr *cliModuleSectionRequest) Drift() ([]byte, error) {
+	url := fmt.Sprintf("http://unix/module/%s/drift", mr.name)
 	return mr.client.Get(url)
 }

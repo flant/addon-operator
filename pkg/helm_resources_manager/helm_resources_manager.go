@@ -31,6 +31,7 @@ type HelmResourcesManager interface {
 	GetMonitor(moduleName string) *ResourcesMonitor
 	GetAbsentResources(templates []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error)
 	Ch() chan ReleaseStatusEvent
+	KubeClient() *klient.Client
 }
 
 type helmResourcesManager struct {
@@ -231,4 +232,8 @@ func (hm *helmResourcesManager) GetAbsentResources(manifests []manifest.Manifest
 	rm := NewResourcesMonitor(hm.ctx, cfg)
 
 	return rm.AbsentResources()
+}
+
+func (hm *helmResourcesManager) KubeClient() *klient.Client {
+	return hm.kubeClient
 }
