@@ -124,16 +124,24 @@ func registerHookMetrics(metricStorage metric.Storage) {
 		})
 }
 
+// StartLiveTicksUpdater starts a goroutine that periodically updates
+// the live_ticks metric every 10 seconds.
+// This metric can be used to verify that addon-operator is alive and functioning.
 func StartLiveTicksUpdater(metricStorage metric.Storage) {
 	// Addon-operator live ticks.
 	go func() {
 		for {
 			metricStorage.CounterAdd("{PREFIX}live_ticks", 1.0, map[string]string{})
+
 			time.Sleep(10 * time.Second)
 		}
 	}()
 }
 
+// StartTasksQueueLengthUpdater starts a goroutine that periodically updates
+// the tasks_queue_length metric every 5 seconds.
+// This metric shows the number of pending tasks in each queue, which can be useful
+// for monitoring system load and potential backlog issues.
 func StartTasksQueueLengthUpdater(metricStorage metric.Storage, tqs *queue.TaskQueueSet) {
 	go func() {
 		for {
@@ -142,6 +150,7 @@ func StartTasksQueueLengthUpdater(metricStorage metric.Storage, tqs *queue.TaskQ
 				queueLen := float64(queue.Length())
 				metricStorage.GaugeSet("{PREFIX}tasks_queue_length", queueLen, map[string]string{"queue": queue.Name})
 			})
+
 			time.Sleep(5 * time.Second)
 		}
 	}()

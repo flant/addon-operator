@@ -47,7 +47,6 @@ func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
 	return gm.enabledByHookC
 }
 
-// TODO: add options WithLogger
 // NewGlobalModule build ephemeral global container for global hooks and values
 func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookExecutionDependencyContainer,
 	configBytes, valuesBytes []byte, keepTemporaryHookFiles bool, opts ...ModuleOption,

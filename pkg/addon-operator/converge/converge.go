@@ -13,7 +13,7 @@ type ConvergeState struct {
 	PhaseLock sync.RWMutex
 	Phase     ConvergePhase
 
-	FirstRunPhase firstConvergePhase
+	FirstRunPhase FirstRunPhaseType
 	FirstRunDoneC chan struct{}
 	StartedAt     int64
 	Activation    string
@@ -30,10 +30,10 @@ const (
 	WaitAfterAll            ConvergePhase = "WaitAfterAll"
 )
 
-type firstConvergePhase int
+type FirstRunPhaseType int
 
 const (
-	FirstNotStarted firstConvergePhase = iota
+	FirstNotStarted FirstRunPhaseType = iota
 	FirstStarted
 	FirstDone
 )
@@ -46,7 +46,7 @@ func NewConvergeState() *ConvergeState {
 	}
 }
 
-func (cs *ConvergeState) SetFirstRunPhase(ph firstConvergePhase) {
+func (cs *ConvergeState) SetFirstRunPhase(ph FirstRunPhaseType) {
 	cs.FirstRunPhase = ph
 	if ph == FirstDone {
 		close(cs.FirstRunDoneC)
