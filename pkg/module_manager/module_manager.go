@@ -855,7 +855,6 @@ func (mm *ModuleManager) HandleScheduleEvent(
 	createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo) sh_task.Task,
 	createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo) sh_task.Task,
 ) []sh_task.Task {
-	// Process hooks by binding type Schedule
 	tasks := mm.CreateTasksByBinding(Schedule, func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task {
 		// Handle global hooks
 		if gh != nil {
