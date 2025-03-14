@@ -884,7 +884,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 				return nil
 			}
 
-			return createGlobalTaskFn(gh, info)
+			return createModuleTaskFn(m, mh, info)
 		})
 
 		return newTasks
