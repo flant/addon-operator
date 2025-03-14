@@ -41,17 +41,12 @@ type ShellHook struct {
 	ScheduleConfig *HookScheduleConfig
 }
 
-// NewShellHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewShellHook(name, path, pythonVenv, moduleName string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *ShellHook {
-	logger.Debug("Creating a new shell hook",
-		slog.String("module", moduleName),
-		slog.String("hookName", name),
-		slog.String("pythonVenv", pythonVenv),
-	)
+type ShellHookOption func(*ShellHook)
 
-	return &ShellHook{
+// NewShellHook new hook, which runs via the OS interpreter like bash/python/etc
+func NewShellHook(name, path, moduleName string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger, options ...ShellHookOption) *ShellHook {
+	sh := &ShellHook{
 		moduleName: moduleName,
-		pythonVenv: pythonVenv,
 		Hook: sh_hook.Hook{
 			Name:                   name,
 			Path:                   path,
@@ -60,6 +55,25 @@ func NewShellHook(name, path, pythonVenv, moduleName string, keepTemporaryHookFi
 			Logger:                 logger,
 		},
 		ScheduleConfig: &HookScheduleConfig{},
+	}
+
+	for _, opt := range options {
+		opt(sh)
+	}
+
+	logger.Debug("Created a new shell hook",
+		slog.String("module", sh.moduleName),
+		slog.String("hookName", sh.Name),
+		slog.String("path", sh.Path),
+		slog.String("pythonVenv", sh.pythonVenv),
+	)
+
+	return sh
+}
+
+func WithPythonVenv(pythonVenvPath string) ShellHookOption {
+	return func(sh *ShellHook) {
+		sh.pythonVenv = pythonVenvPath
 	}
 }
 
