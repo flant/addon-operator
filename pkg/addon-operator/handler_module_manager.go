@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/gofrs/uuid/v5"
+
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	hrmtypes "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
@@ -14,7 +16,6 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/gofrs/uuid/v5"
 )
 
 func (op *AddonOperator) StartModuleManagerEventHandler() {

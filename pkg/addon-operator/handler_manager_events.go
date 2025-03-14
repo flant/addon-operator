@@ -3,6 +3,8 @@ package addon_operator
 import (
 	"log/slog"
 
+	"github.com/gofrs/uuid/v5"
+
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
@@ -11,7 +13,6 @@ import (
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/gofrs/uuid/v5"
 )
 
 func (op *AddonOperator) RegisterManagerEventsHandlers() {

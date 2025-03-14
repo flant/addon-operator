@@ -1508,7 +1508,7 @@ func formatErrorSummary(errors map[string]string) string {
 //
 // ModuleRun is restarted if hook or chart is failed.
 // After first HandleModuleRun success, no onStartup and kubernetes.Synchronization tasks will run.
-func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) { // nolint: nonamedreturns
+func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) { //nolint: nonamedreturns
 	defer trace.StartRegion(context.Background(), "ModuleRun").End()
 
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
@@ -1533,7 +1533,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 	var moduleRunErr error
 	valuesChanged := false
 
-	defer func(res *queue.TaskResult, valuesChanged *bool, moduleRunErr error) {
+	defer func(res *queue.TaskResult, valuesChanged *bool) {
 		op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
 		if moduleRunErr != nil {
 			res.Status = queue.Fail
@@ -1567,7 +1567,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		} else {
 			logEntry.Info("ModuleRun success, module is ready")
 		}
-	}(&res, &valuesChanged, moduleRunErr)
+	}(&res, &valuesChanged)
 
 	// First module run on operator startup or when module is enabled.
 	if baseModule.GetPhase() == modules.Startup {
