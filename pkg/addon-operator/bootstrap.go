@@ -16,16 +16,20 @@ import (
 )
 
 // Bootstrap inits all dependencies for a full-fledged AddonOperator instance.
+// It initializes the debug server and assembles all components needed for operation.
 func (op *AddonOperator) bootstrap() error {
+	// Log application startup message
 	log.Info(shapp.AppStartMessage)
 
+	// Log the path where modules will be searched
 	log.Info("Search modules",
 		slog.String("path", app.ModulesDir))
 
+	// Log the namespace in which the operator will work
 	log.Info("Addon-operator namespace",
 		slog.String("namespace", op.DefaultNamespace))
 
-	// Debug server.
+	// Initialize the debug server for troubleshooting and monitoring
 	// TODO: rewrite shapp global variables to the addon-operator ones
 	var err error
 	op.DebugServer, err = shell_operator.RunDefaultDebugServer(shapp.DebugUnixSocket, shapp.DebugHttpServerAddr, op.Logger.Named("debug-server"))
@@ -34,6 +38,7 @@ func (op *AddonOperator) bootstrap() error {
 		return fmt.Errorf("start Debug server: %w", err)
 	}
 
+	// Assemble all operator components including routes, admission server, metrics updaters, and module management
 	err = op.Assemble(op.DebugServer)
 	if err != nil {
 		log.Error("Fatal", log.Err(err))
@@ -43,25 +48,34 @@ func (op *AddonOperator) bootstrap() error {
 	return nil
 }
 
+// Assemble initializes and connects components of the AddonOperator.
+// It sets up debugging http endpoints, starts netrics services, and initializes the module manager.
 func (op *AddonOperator) Assemble(debugServer *debug.Server) error {
+	// Register default HTTP routes for the operator
 	op.registerDefaultRoutes()
+
+	// Start the admission server if enabled in application configuration
 	if app.AdmissionServerEnabled {
 		op.AdmissionServer.start(op.ctx)
 	}
+
+	// Start background updaters for metrics
 	StartLiveTicksUpdater(op.engine.MetricStorage)
 	StartTasksQueueLengthUpdater(op.engine.MetricStorage, op.engine.TaskQueues)
 
-	// Register routes in debug server.
+	// Register debug HTTP endpoints to inspect internal state
 	op.engine.RegisterDebugQueueRoutes(debugServer)
 	op.engine.RegisterDebugConfigRoutes(debugServer, op.runtimeConfig)
 	op.RegisterDebugGlobalRoutes(debugServer)
 	op.RegisterDebugModuleRoutes(debugServer)
 	op.RegisterDiscoveryRoute(debugServer)
 
+	// Initialize the module manager which handles modules lifecycle
 	if err := op.InitModuleManager(); err != nil {
 		return err
 	}
 
+	// Register graph visualization routes after module manager is initialized
 	op.RegisterDebugGraphRoutes(debugServer)
 
 	return nil
@@ -86,6 +100,7 @@ func (op *AddonOperator) SetupModuleManager(modulesDir string, globalHooksDir st
 		TempDir:        tempDir,
 		ChrootDir:      app.ShellChrootDir,
 	}
+
 	deps := module_manager.ModuleManagerDependencies{
 		KubeObjectPatcher:    op.engine.ObjectPatcher,
 		KubeEventsManager:    op.engine.KubeEventsManager,

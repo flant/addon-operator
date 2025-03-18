@@ -306,6 +306,8 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 
 		// ConvergeModules adds ModuleDelete and ModuleRun tasks.
 		{task.ModuleRun, "", "module-alpha", string(modules.Startup)},
+		{task.ModuleRun, "", "module-alpha", string(modules.OnStartupDone)},
+		{task.ModuleRun, "", "module-alpha", string(modules.QueueSynchronizationTasks)},
 		// {task.ModuleDelete, "", "module-beta", ""},
 
 		// Only one hook with kubernetes binding.
@@ -314,6 +316,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 
 		// Skip waiting tasks in parallel queues, proceed to schedule bindings.
 		{task.ModuleRun, "", "module-alpha", string(modules.EnableScheduleBindings)},
+		{task.ModuleRun, "", "module-alpha", string(modules.CanRunHelm)},
 
 		// ConvergeModules emerges afterAll tasks
 		{task.ConvergeModules, "", "", string(converge.WaitDeleteAndRunModules)},
