@@ -51,6 +51,7 @@ type (
 		ModuleEnabledStateChanged []string
 		ModuleValuesChanged       []string
 		GlobalSectionChanged      bool
+		ModuleSelfServiceChanged  map[string]bool
 	}
 )
 
