@@ -16,15 +16,16 @@ var (
 )
 
 type ModuleConfig struct {
-	ModuleName string
-	IsEnabled  *bool
+	ModuleName  string
+	IsEnabled   *bool
+	SelfService *bool
 	// module values, don't read it directly, use GetValues() for reading
 	values Values
 }
 
 // String returns description of ModuleConfig values.
 func (mc *ModuleConfig) String() string {
-	return fmt.Sprintf("Module(Name=%s IsEnabled=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.values.DebugString())
+	return fmt.Sprintf("Module(Name=%s IsEnabled=%v SelfService=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.SelfService, mc.values.DebugString())
 }
 
 // ModuleConfigKey transforms module kebab-case name to the config camelCase name
@@ -35,6 +36,11 @@ func (mc *ModuleConfig) ModuleConfigKey() string {
 // ModuleEnabledKey transforms module kebab-case name to the config camelCase name with 'Enabled' suffix
 func (mc *ModuleConfig) ModuleEnabledKey() string {
 	return ModuleNameToValuesKey(mc.ModuleName) + "Enabled"
+}
+
+// ModuleSelfServiceKey transforms module kebab-case name to the config camelCase name with 'SelfService' suffix
+func (mc *ModuleConfig) ModuleSelfServiceKey() string {
+	return ModuleNameToValuesKey(mc.ModuleName) + "SelfService"
 }
 
 // GetEnabled returns string description of enabled status.
@@ -52,14 +58,28 @@ func (mc *ModuleConfig) GetEnabled() string {
 	}
 }
 
+// GetSelfService returns string description of SelfService status.
+func (mc *ModuleConfig) GetSelfService() bool {
+	if mc == nil {
+		return false
+	}
+
+	if mc.SelfService != nil {
+		return *mc.SelfService
+	}
+
+	return false
+}
+
 func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 	if values == nil {
 		values = make(Values)
 	}
 	return &ModuleConfig{
-		ModuleName: moduleName,
-		IsEnabled:  nil,
-		values:     values,
+		ModuleName:  moduleName,
+		IsEnabled:   nil,
+		SelfService: nil,
+		values:      values,
 	}
 }
 
@@ -97,6 +117,7 @@ func (mc *ModuleConfig) GetValues() Values {
 func (mc *ModuleConfig) Reset() {
 	mc.values = Values{}
 	mc.IsEnabled = nil
+	mc.SelfService = nil
 }
 
 // LoadFromValues loads module config from a map.
@@ -125,6 +146,15 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 			mc.IsEnabled = &v
 		default:
 			return nil, fmt.Errorf("load '%s' enable config: enabled value should be bool. Got: %#v", mc.ModuleName, moduleEnabled)
+		}
+	}
+
+	if selfService, hasSelfService := values[mc.ModuleSelfServiceKey()]; hasSelfService {
+		switch v := selfService.(type) {
+		case bool:
+			mc.SelfService = &v
+		default:
+			return nil, fmt.Errorf("load '%s' SelfService config: SelfService value should be bool. Got: %#v", mc.ModuleName, selfService)
 		}
 	}
 
