@@ -9,6 +9,7 @@ const (
 	LogKeyWatchEvent  = "watchEvent"
 	LogKeyTaskID      = "task.id"
 	LogKeyQueue       = "queue"
+	LogKeyTaskFlow    = "task.flow"
 )
 
 const (

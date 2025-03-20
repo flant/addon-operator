@@ -96,8 +96,8 @@ func newGlobalHookRun(cfg *taskConfig, logger *log.Logger) *Task {
 	return service
 }
 
-func (s *Task) Handle(_ context.Context) queue.TaskResult {
-	defer trace.StartRegion(context.Background(), "GlobalHookRun").End()
+func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+	defer trace.StartRegion(ctx, "GlobalHookRun").End()
 
 	var res queue.TaskResult
 
@@ -112,7 +112,7 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 		// This could happen when the Context is
 		// canceled, or the expected wait time exceeds the Context's Deadline.
 		// The best we can do without proper context usage is to repeat the task.
-		res.Status = "Repeat"
+		res.Status = queue.Repeat
 		return res
 	}
 
@@ -272,16 +272,16 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 				logLabels := s.shellTask.GetLogLabels()
 				// Save event source info to add it as props to the task and use in logger later.
 				triggeredBy := []slog.Attr{
-					slog.String("event.triggered-by.hook", logLabels["hook"]),
-					slog.String("event.triggered-by.binding", logLabels["binding"]),
-					slog.String("event.triggered-by.binding.name", logLabels["binding.name"]),
-					slog.String("event.triggered-by.watchEvent", logLabels["watchEvent"]),
+					slog.String("event.triggered-by.hook", logLabels[pkg.LogKeyHook]),
+					slog.String("event.triggered-by.binding", logLabels[pkg.LogKeyBinding]),
+					slog.String("event.triggered-by.binding.name", logLabels[pkg.LogKeyBindingName]),
+					slog.String("event.triggered-by.watchEvent", logLabels[pkg.LogKeyWatchEvent]),
 				}
-				delete(logLabels, "hook")
-				delete(logLabels, "hook.type")
-				delete(logLabels, "binding")
-				delete(logLabels, "binding.name")
-				delete(logLabels, "watchEvent")
+				delete(logLabels, pkg.LogKeyHook)
+				delete(logLabels, pkg.LogKeyHookType)
+				delete(logLabels, pkg.LogKeyBinding)
+				delete(logLabels, pkg.LogKeyBindingName)
+				delete(logLabels, pkg.LogKeyWatchEvent)
 
 				// Reload all using "ConvergeModules" task.
 				newTask := converge.NewConvergeModulesTask(eventDescription, converge.GlobalValuesChanged, logLabels)
@@ -314,7 +314,7 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 
 // logTaskAdd prints info about queued tasks.
 func (s *Task) logTaskAdd(action string, tasks ...sh_task.Task) {
-	logger := s.logger.With("task.flow", "add")
+	logger := s.logger.With(pkg.LogKeyTaskFlow, "add")
 	for _, tsk := range tasks {
 		logger.Info(helpers.TaskDescriptionForTaskFlowLog(tsk, action, "", ""))
 	}

@@ -92,8 +92,8 @@ func newGlobalHookEnableKubernetesBindings(cfg *taskConfig, logger *log.Logger) 
 	return service
 }
 
-func (s *Task) Handle(_ context.Context) queue.TaskResult {
-	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
+func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+	defer trace.StartRegion(ctx, "DiscoverHelmReleases").End()
 
 	taskLogLabels := s.shellTask.GetLogLabels()
 	s.logger = utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
@@ -215,7 +215,7 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 
 // logTaskAdd prints info about queued tasks.
 func (s *Task) logTaskAdd(action string, tasks ...sh_task.Task) {
-	logger := s.logger.With("task.flow", "add")
+	logger := s.logger.With(pkg.LogKeyTaskFlow, "add")
 	for _, tsk := range tasks {
 		logger.Info(helpers.TaskDescriptionForTaskFlowLog(tsk, action, "", ""))
 	}

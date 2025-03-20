@@ -8,6 +8,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	hrmtypes "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
@@ -263,7 +264,7 @@ func (op *AddonOperator) handleHelmReleaseStatusEvent(event hrmtypes.ReleaseStat
 		op.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 		op.logTaskAdd(logEntry, fmt.Sprintf("detected %s, append", additionalDescription), newTask)
 	} else {
-		eventLogEntry.With("task.flow", "noop").Info("Detected event, ModuleRun task already queued",
+		eventLogEntry.With(pkg.LogKeyTaskFlow, "noop").Info("Detected event, ModuleRun task already queued",
 			slog.String("description", additionalDescription))
 	}
 }

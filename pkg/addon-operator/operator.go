@@ -1049,15 +1049,7 @@ func (op *AddonOperator) TaskHandler(ctx context.Context, t sh_task.Task) queue.
 		res = op.TaskService.Handle(ctx, t)
 
 	case task.GlobalHookWaitKubernetesSynchronization:
-		res.Status = queue.Success
-		if op.ModuleManager.GlobalSynchronizationNeeded() && !op.ModuleManager.GlobalSynchronizationState().IsCompleted() {
-			// dump state
-			op.ModuleManager.GlobalSynchronizationState().DebugDumpState(taskLogEntry)
-			t.WithQueuedAt(time.Now())
-			res.Status = queue.Repeat
-		} else {
-			taskLogEntry.Info("Synchronization done for all global hooks")
-		}
+		res = op.TaskService.Handle(ctx, t)
 
 	case task.DiscoverHelmReleases:
 		res = op.HandleDiscoverHelmReleases(t, taskLogLabels)
@@ -1848,7 +1840,7 @@ func (op *AddonOperator) HandleModuleHookRun(t sh_task.Task, labels map[string]s
 					op.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 					op.logTaskAdd(logEntry, "module values are changed, append", newTask)
 				} else {
-					logEntry.With("task.flow", "noop").Info("module values are changed, ModuleRun task already queued")
+					logEntry.With(pkg.LogKeyTaskFlow, "noop").Info("module values are changed, ModuleRun task already queued")
 				}
 			}
 		}
@@ -2282,7 +2274,7 @@ func formatConvergeTaskDetails(tsk sh_task.Task, phase string) string {
 
 // logTaskAdd prints info about queued tasks.
 func (op *AddonOperator) logTaskAdd(logEntry *log.Logger, action string, tasks ...sh_task.Task) {
-	logger := logEntry.With("task.flow", "add")
+	logger := logEntry.With(pkg.LogKeyTaskFlow, "add")
 	for _, tsk := range tasks {
 		logger.Info(taskDescriptionForTaskFlowLog(tsk, action, "", ""))
 	}
@@ -2304,7 +2296,7 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Logger, tsk sh_task.Task) {
 	}
 
 	logger := logEntry.
-		With("task.flow", "start")
+		With(pkg.LogKeyTaskFlow, "start")
 	logger = utils.EnrichLoggerWithLabels(logger, tsk.GetLogLabels())
 
 	if triggeredBy, ok := tsk.GetProp("triggered-by").([]slog.Attr); ok {
@@ -2319,7 +2311,7 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Logger, tsk sh_task.Task) {
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
 func (op *AddonOperator) logTaskEnd(logEntry *log.Logger, tsk sh_task.Task, result queue.TaskResult) {
 	logger := logEntry.
-		With("task.flow", "end")
+		With(pkg.LogKeyTaskFlow, "end")
 	logger = utils.EnrichLoggerWithLabels(logger, tsk.GetLogLabels())
 
 	level := log.LevelDebug

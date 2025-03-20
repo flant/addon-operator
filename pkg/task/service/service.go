@@ -13,6 +13,7 @@ import (
 	globalhookenablekubernetesbindings "github.com/flant/addon-operator/pkg/task/global-hook-enable-kubernetes-bindings"
 	globalhookenableschedulebindings "github.com/flant/addon-operator/pkg/task/global-hook-enable-schedule-bindings"
 	globalhookrun "github.com/flant/addon-operator/pkg/task/global-hook-run"
+	globalhookwaitkubernetessynchronization "github.com/flant/addon-operator/pkg/task/global-hook-wait-kubernetes-synchronization"
 	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
@@ -73,9 +74,10 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 
 func (s *TaskHandlerService) initFactory() {
 	s.taskFactory = map[sh_task.TaskType]func(t sh_task.Task) task.Task{
-		task.GlobalHookRun:                      globalhookrun.RegisterTaskHandler(s),
-		task.GlobalHookEnableScheduleBindings:   globalhookenableschedulebindings.RegisterTaskHandler(s),
-		task.GlobalHookEnableKubernetesBindings: globalhookenablekubernetesbindings.RegisterTaskHandler(s),
+		task.GlobalHookRun:                           globalhookrun.RegisterTaskHandler(s),
+		task.GlobalHookEnableScheduleBindings:        globalhookenableschedulebindings.RegisterTaskHandler(s),
+		task.GlobalHookEnableKubernetesBindings:      globalhookenablekubernetesbindings.RegisterTaskHandler(s),
+		task.GlobalHookWaitKubernetesSynchronization: globalhookwaitkubernetessynchronization.RegisterTaskHandler(s),
 	}
 }
 
