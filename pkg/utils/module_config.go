@@ -18,7 +18,7 @@ var (
 type ModuleConfig struct {
 	ModuleName  string
 	IsEnabled   *bool
-	SelfService *bool
+	SelfService bool
 	// module values, don't read it directly, use GetValues() for reading
 	values Values
 }
@@ -64,11 +64,7 @@ func (mc *ModuleConfig) GetSelfService() bool {
 		return false
 	}
 
-	if mc.SelfService != nil {
-		return *mc.SelfService
-	}
-
-	return false
+	return mc.SelfService
 }
 
 func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
@@ -76,10 +72,9 @@ func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 		values = make(Values)
 	}
 	return &ModuleConfig{
-		ModuleName:  moduleName,
-		IsEnabled:   nil,
-		SelfService: nil,
-		values:      values,
+		ModuleName: moduleName,
+		IsEnabled:  nil,
+		values:     values,
 	}
 }
 
@@ -117,7 +112,7 @@ func (mc *ModuleConfig) GetValues() Values {
 func (mc *ModuleConfig) Reset() {
 	mc.values = Values{}
 	mc.IsEnabled = nil
-	mc.SelfService = nil
+	mc.SelfService = false
 }
 
 // LoadFromValues loads module config from a map.
@@ -152,7 +147,7 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 	if selfService, hasSelfService := values[mc.ModuleSelfServiceKey()]; hasSelfService {
 		switch v := selfService.(type) {
 		case bool:
-			mc.SelfService = &v
+			mc.SelfService = v
 		default:
 			return nil, fmt.Errorf("load '%s' SelfService config: SelfService value should be bool. Got: %#v", mc.ModuleName, selfService)
 		}

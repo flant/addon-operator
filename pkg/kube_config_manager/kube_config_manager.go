@@ -244,6 +244,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		// some module values
 		modulesChanged := []string{}
 		modulesStateChanged := []string{}
+		moduleSelfServiceChanged := make(map[string]bool)
 
 		// module update
 		kcm.m.Lock()
@@ -256,6 +257,11 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
 				modulesStateChanged = append(modulesStateChanged, moduleName)
 			}
+
+			if kcm.currentConfig.Modules[moduleName].GetSelfService() {
+				moduleSelfServiceChanged[moduleName] = false
+			}
+
 			moduleCfg.Reset()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
@@ -263,6 +269,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				Type:                      config.KubeConfigChanged,
 				ModuleValuesChanged:       modulesChanged,
 				ModuleEnabledStateChanged: modulesStateChanged,
+				ModuleSelfServiceChanged:  moduleSelfServiceChanged,
 			}
 			return
 		}
@@ -275,8 +282,13 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				if currModuleCfg.Checksum != moduleCfg.Checksum {
 					modulesChanged = append(modulesChanged, moduleName)
 				}
+
 				if kcm.currentConfig.Modules[moduleName].GetEnabled() != moduleCfg.GetEnabled() {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
+				}
+
+				if kcm.currentConfig.Modules[moduleName].GetSelfService() != moduleCfg.GetSelfService() {
+					moduleSelfServiceChanged[moduleName] = moduleCfg.GetSelfService()
 				}
 				kcm.logger.Info("Module section changed. Enabled flag transition.",
 					slog.String("moduleName", moduleName),
@@ -287,18 +299,23 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
+
+				if moduleCfg.GetSelfService() {
+					moduleSelfServiceChanged[moduleName] = true
+				}
 				kcm.logger.Info("Module section added",
 					slog.String("moduleName", moduleName),
 					slog.String("enabledFlag", moduleCfg.GetEnabled()))
 			}
 		}
 
-		if len(modulesChanged)+len(modulesStateChanged) > 0 {
+		if len(modulesChanged)+len(modulesStateChanged)+len(moduleSelfServiceChanged) > 0 {
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigEvent{
 				Type:                      config.KubeConfigChanged,
 				ModuleValuesChanged:       modulesChanged,
 				ModuleEnabledStateChanged: modulesStateChanged,
+				ModuleSelfServiceChanged:  moduleSelfServiceChanged,
 			}
 		}
 	}
