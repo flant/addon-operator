@@ -1,6 +1,7 @@
 package converge
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -55,7 +56,13 @@ func (cs *ConvergeState) SetFirstRunPhase(ph FirstRunPhaseType) {
 
 const ConvergeEventProp = "converge.event"
 
+var _ fmt.Stringer = (*ConvergeEvent)(nil)
+
 type ConvergeEvent string
+
+func (e ConvergeEvent) String() string {
+	return string(e)
+}
 
 const (
 	// OperatorStartup is a first converge during startup.

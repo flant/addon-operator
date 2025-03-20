@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	environmentmanager "github.com/flant/addon-operator/pkg/module_manager/environment_manager"
@@ -459,11 +460,11 @@ func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger
 			kubeCfg.Monitor.Metadata.LogLabels["hook"] = moduleHook.GetName()
 			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "module"
 			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
-				"hook":    moduleHook.GetName(),
-				"binding": kubeCfg.BindingName,
-				"module":  bm.Name,
-				"queue":   kubeCfg.Queue,
-				"kind":    kubeCfg.Monitor.Kind,
+				"hook":               moduleHook.GetName(),
+				pkg.MetricKeyBinding: kubeCfg.BindingName,
+				"module":             bm.Name,
+				"queue":              kubeCfg.Queue,
+				"kind":               kubeCfg.Monitor.Kind,
 			}
 		}
 
@@ -540,11 +541,11 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 		bc.Metadata.BindingType = binding
 
 		metricLabels := map[string]string{
-			"module":     bm.Name,
-			"hook":       moduleHook.GetName(),
-			"binding":    string(binding),
-			"queue":      "main", // AfterHelm,BeforeHelm hooks always handle in main queue
-			"activation": logLabels["event.type"],
+			"module":                bm.Name,
+			"hook":                  moduleHook.GetName(),
+			pkg.MetricKeyBinding:    string(binding),
+			"queue":                 "main", // AfterHelm,BeforeHelm hooks always handle in main queue
+			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 
 		func() {
@@ -575,11 +576,11 @@ func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.Bindin
 	}
 
 	metricLabels := map[string]string{
-		"module":     bm.Name,
-		"hook":       hookName,
-		"binding":    string(binding),
-		"queue":      logLabels["queue"],
-		"activation": logLabels["event.type"],
+		"module":                bm.Name,
+		"hook":                  hookName,
+		pkg.MetricKeyBinding:    string(binding),
+		"queue":                 logLabels["queue"],
+		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 	}
 
 	err := bm.executeHook(moduleHook, binding, bindingContext, logLabels, metricLabels)
@@ -687,11 +688,11 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 	if usage != nil {
 		// usage metrics
 		metricLabels := map[string]string{
-			"module":     bm.Name,
-			"hook":       "enabled",
-			"binding":    "enabled",
-			"queue":      logLabels["queue"],
-			"activation": logLabels["event.type"],
+			"module":                bm.Name,
+			"hook":                  "enabled",
+			pkg.MetricKeyBinding:    "enabled",
+			"queue":                 logLabels["queue"],
+			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", usage.Sys.Seconds(), metricLabels, nil)
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", usage.User.Seconds(), metricLabels, nil)
@@ -825,9 +826,9 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 // instead on ModuleHook.Run
 func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.BindingType, bctx []bindingcontext.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		"hook":      h.GetName(),
-		"hook.type": "module",
-		"binding":   string(bindingType),
+		"hook":            h.GetName(),
+		"hook.type":       "module",
+		pkg.LogKeyBinding: string(bindingType),
 	})
 
 	logEntry := utils.EnrichLoggerWithLabels(bm.logger, logLabels)

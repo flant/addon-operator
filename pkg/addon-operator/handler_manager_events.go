@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
@@ -19,8 +20,8 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	// Register handler for schedule events
 	op.engine.ManagerEventsHandler.WithScheduleEventHandler(func(crontab string) []sh_task.Task {
 		logLabels := map[string]string{
-			"event.id": uuid.Must(uuid.NewV4()).String(),
-			"binding":  string(htypes.Schedule),
+			"event.id":        uuid.Must(uuid.NewV4()).String(),
+			pkg.LogKeyBinding: string(htypes.Schedule),
 		}
 		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 		logEntry.Debug("Create tasks for 'schedule' event",
@@ -37,8 +38,8 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	// Register handler for kubernetes events
 	op.engine.ManagerEventsHandler.WithKubeEventHandler(func(kubeEvent types.KubeEvent) []sh_task.Task {
 		logLabels := map[string]string{
-			"event.id": uuid.Must(uuid.NewV4()).String(),
-			"binding":  string(htypes.OnKubernetesEvent),
+			"event.id":        uuid.Must(uuid.NewV4()).String(),
+			pkg.LogKeyBinding: string(htypes.OnKubernetesEvent),
 		}
 		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 		logEntry.Debug("Create tasks for 'kubernetes' event",
@@ -69,9 +70,9 @@ func (op *AddonOperator) createGlobalHookTaskFactory(
 		}
 
 		hookLabels := utils.MergeLabels(logLabels, map[string]string{
-			"hook":      globalHook.GetName(),
-			"hook.type": "global",
-			"queue":     info.QueueName,
+			pkg.LogKeyHook: globalHook.GetName(),
+			"hook.type":    "global",
+			"queue":        info.QueueName,
 		})
 
 		if len(info.BindingContext) > 0 {
@@ -113,10 +114,10 @@ func (op *AddonOperator) createModuleHookTaskFactory(
 		}
 
 		hookLabels := utils.MergeLabels(logLabels, map[string]string{
-			"module":    module.GetName(),
-			"hook":      moduleHook.GetName(),
-			"hook.type": "module",
-			"queue":     info.QueueName,
+			"module":       module.GetName(),
+			pkg.LogKeyHook: moduleHook.GetName(),
+			"hook.type":    "module",
+			"queue":        info.QueueName,
 		})
 
 		if len(info.BindingContext) > 0 {

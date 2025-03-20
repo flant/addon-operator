@@ -131,7 +131,7 @@ func (h *LibClient) actionConfigInit() error {
 
 	formattedLogFunc := func(format string, v ...interface{}) {
 		ctx := logContext.SetCustomKeyContext(context.Background())
-		h.Logger.Log(ctx, slog.LevelDebug, fmt.Sprintf(format, v))
+		h.Logger.Log(ctx, slog.LevelDebug, fmt.Sprintf(format, v...))
 	}
 
 	err := ac.Init(getter, options.Namespace, helmDriver, formattedLogFunc)
