@@ -414,9 +414,9 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 // CreateAndStartQueue creates a named queue and starts it.
 // It returns false is queue is already created
 func (s *Task) CreateAndStartQueue(queueName string) bool {
-	if s.engine.TaskQueues.GetByName(queueName) != nil {
-		return false
-	}
+	// if s.engine.TaskQueues.GetByName(queueName) != nil {
+	// 	return false
+	// }
 	// s.engine.TaskQueues.NewNamedQueue(queueName, s.TaskHandler)
 	// s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)
 
