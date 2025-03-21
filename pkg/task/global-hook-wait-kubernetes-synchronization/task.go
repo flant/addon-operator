@@ -52,7 +52,7 @@ func newGlobalHookWaitKubernetesSynchronization(cfg *taskConfig, logger *log.Log
 	return service
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(_ context.Context) queue.TaskResult {
 	res := queue.TaskResult{
 		Status: queue.Success,
 	}

@@ -98,7 +98,7 @@ func newModuleRun(cfg *taskConfig, logger *log.Logger) *Task {
 	return service
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(_ context.Context) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "ModuleRun").End()
 
 	var res queue.TaskResult

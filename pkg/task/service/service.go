@@ -94,7 +94,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 }
 
 // logTaskStart prints info about task at start. Also prints event source info from task props.
-func (s *TaskHandlerService) logTaskStart(tsk sh_task.Task, logger *log.Logger) {
+func (s *TaskHandlerService) logTaskStart(tsk sh_task.Task, logger *log.Logger) { //nolint:unused
 	// Prevent excess messages for highly frequent tasks.
 	if tsk.GetType() == task.GlobalHookWaitKubernetesSynchronization {
 		return
@@ -121,7 +121,7 @@ func (s *TaskHandlerService) logTaskStart(tsk sh_task.Task, logger *log.Logger) 
 }
 
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
-func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result queue.TaskResult, logger *log.Logger) {
+func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result queue.TaskResult, logger *log.Logger) { //nolint:unused
 	logger = logger.With(pkg.LogKeyTaskFlow, "end")
 
 	level := log.LevelDebug
@@ -132,7 +132,7 @@ func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result queue.TaskResul
 	logger.Log(context.TODO(), level.Level(), helpers.TaskDescriptionForTaskFlowLog(tsk, "end", s.taskPhase(tsk), string(result.Status)))
 }
 
-func (s *TaskHandlerService) taskPhase(tsk sh_task.Task) string {
+func (s *TaskHandlerService) taskPhase(tsk sh_task.Task) string { //nolint:unused
 	switch tsk.GetType() {
 	case task.ConvergeModules:
 		// return string(s.ConvergeState.Phase)
