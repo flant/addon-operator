@@ -10,4 +10,6 @@ type HelmClient interface {
 	DeleteRelease(releaseName string) error
 	ListReleasesNames() ([]string, error)
 	IsReleaseExists(releaseName string) (bool, error)
+	WithLogLabels(map[string]string)
+	UsePostRenderer(bool)
 }

@@ -12,13 +12,32 @@ import (
 )
 
 type ClientFactory struct {
-	NewClientFn func(logger *log.Logger, logLabels ...map[string]string) client.HelmClient
+	NewClientFn func(logger *log.Logger) client.HelmClient
 	ClientType  ClientType
 }
 
-func (f *ClientFactory) NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
+type ClientOption func(client.HelmClient)
+
+func UsePostRenderer(use bool) ClientOption {
+	return func(c client.HelmClient) {
+		c.UsePostRenderer(use)
+	}
+}
+
+func WithLogLabels(logLabels map[string]string) ClientOption {
+	return func(c client.HelmClient) {
+		c.WithLogLabels(logLabels)
+	}
+}
+
+func (f *ClientFactory) NewClient(logger *log.Logger, options ...ClientOption) client.HelmClient {
 	if f.NewClientFn != nil {
-		return f.NewClientFn(logger, logLabels...)
+		c := f.NewClientFn(logger)
+		for _, option := range options {
+			option(c)
+		}
+
+		return c
 	}
 	return nil
 }

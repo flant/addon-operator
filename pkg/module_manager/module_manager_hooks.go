@@ -44,7 +44,7 @@ func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
 				continue
 			}
 
-			if strings.HasSuffix(key, "Enabled") {
+			if strings.HasSuffix(key, utils.EnabledSuffix) {
 				enabled := false
 
 				switch v := value.(type) {
@@ -57,7 +57,7 @@ func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
 				}
 
 				if enabled {
-					moduleName := utils.ModuleNameFromValuesKey(strings.TrimSuffix(key, "Enabled"))
+					moduleName := utils.ModuleNameFromValuesKey(strings.TrimSuffix(key, utils.EnabledSuffix))
 					enabledModules[moduleName] = struct{}{}
 				}
 			}
