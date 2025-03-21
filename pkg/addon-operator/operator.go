@@ -610,38 +610,6 @@ func (op *AddonOperator) CreatePurgeTasks(modulesToPurge []string, t sh_task.Tas
 	return newTasks
 }
 
-// ApplyKubeConfigValues
-func (op *AddonOperator) HandleApplyKubeConfigValues(t sh_task.Task, logLabels map[string]string) queue.TaskResult {
-	defer trace.StartRegion(context.Background(), "HandleApplyKubeConfigValues").End()
-
-	var (
-		handleErr error
-		res       queue.TaskResult
-		logEntry  = utils.EnrichLoggerWithLabels(op.Logger, logLabels)
-		hm        = task.HookMetadataAccessor(t)
-	)
-
-	op.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
-		handleErr = op.ModuleManager.ApplyNewKubeConfigValues(config, hm.GlobalValuesChanged)
-	})
-
-	if handleErr != nil {
-		res.Status = queue.Fail
-		logEntry.Error("HandleApplyKubeConfigValues failed, requeue task to retry after delay.",
-			slog.Int("count", t.GetFailureCount()+1),
-			log.Err(handleErr))
-		op.MetricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
-		t.UpdateFailureMessage(handleErr.Error())
-		t.WithQueuedAt(time.Now())
-		return res
-	}
-
-	res.Status = queue.Success
-
-	logEntry.Debug("HandleApplyKubeConfigValues success")
-	return res
-}
-
 // HandleConvergeModules is a multi-phase task.
 func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[string]string) queue.TaskResult {
 	defer trace.StartRegion(context.Background(), "ConvergeModules").End()
@@ -1081,19 +1049,16 @@ func (op *AddonOperator) TaskHandler(ctx context.Context, t sh_task.Task) queue.
 		res = op.HandleParallelModuleRun(t, taskLogLabels)
 
 	case task.ModuleDelete:
-		res.Status = op.HandleModuleDelete(t, taskLogLabels)
+		res = op.TaskService.Handle(ctx, t)
 
 	case task.ModuleHookRun:
-		res = op.HandleModuleHookRun(t, taskLogLabels)
+		res = op.TaskService.Handle(ctx, t)
 
 	case task.ModulePurge:
-		res.Status = op.HandleModulePurge(t, taskLogLabels)
+		res = op.TaskService.Handle(ctx, t)
 
 	case task.ModuleEnsureCRDs:
-		res = op.HandleModuleEnsureCRDs(t, taskLogLabels)
-		if res.Status == queue.Success {
-			op.CheckCRDsEnsured(t)
-		}
+		res = op.TaskService.Handle(ctx, t)
 	}
 
 	if res.Status == queue.Success {
@@ -1153,96 +1118,6 @@ func (op *AddonOperator) UpdateWaitInQueueMetric(t sh_task.Task) {
 
 	taskWaitTime := time.Since(t.GetQueuedAt()).Seconds()
 	op.MetricStorage.CounterAdd("{PREFIX}task_wait_in_queue_seconds_total", taskWaitTime, metricLabels)
-}
-
-// HandleDiscoverHelmReleases runs RefreshStateFromHelmReleases to detect modules state at start.
-func (op *AddonOperator) HandleDiscoverHelmReleases(t sh_task.Task, labels map[string]string) queue.TaskResult {
-	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
-
-	var res queue.TaskResult
-	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-	logEntry.Debug("Discover Helm releases state")
-
-	state, err := op.ModuleManager.RefreshStateFromHelmReleases(t.GetLogLabels())
-	if err != nil {
-		res.Status = queue.Fail
-		logEntry.Error("Discover helm releases failed, requeue task to retry after delay.",
-			slog.Int("count", t.GetFailureCount()+1),
-			log.Err(err))
-		t.UpdateFailureMessage(err.Error())
-		t.WithQueuedAt(time.Now())
-		return res
-	}
-
-	res.Status = queue.Success
-	tasks := op.CreatePurgeTasks(state.ModulesToPurge, t)
-	res.AfterTasks = tasks
-	op.logTaskAdd(logEntry, "after", res.AfterTasks...)
-	return res
-}
-
-// HandleModulePurge run helm purge for unknown module.
-func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]string) queue.TaskStatus {
-	defer trace.StartRegion(context.Background(), "ModulePurge").End()
-
-	var status queue.TaskStatus
-	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-	logEntry.Debug("Module purge start")
-
-	hm := task.HookMetadataAccessor(t)
-	err := op.Helm.NewClient(op.Logger.Named("helm-client"), t.GetLogLabels()).DeleteRelease(hm.ModuleName)
-	if err != nil {
-		// Purge is for unknown modules, just print warning.
-		logEntry.Warn("Module purge failed, no retry.", log.Err(err))
-	} else {
-		logEntry.Debug("Module purge success")
-	}
-
-	status = queue.Success
-
-	return status
-}
-
-// HandleModuleDelete deletes helm release for known module.
-func (op *AddonOperator) HandleModuleDelete(t sh_task.Task, labels map[string]string) queue.TaskStatus {
-	defer trace.StartRegion(context.Background(), "ModuleDelete").End()
-
-	var status queue.TaskStatus
-	hm := task.HookMetadataAccessor(t)
-	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
-	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
-	logEntry.Debug("Module delete", slog.String("name", hm.ModuleName))
-
-	// Register module hooks to run afterHelmDelete hooks on startup.
-	// It's a noop if registration is done before.
-	// TODO: add filter to register only afterHelmDelete hooks
-	err := op.ModuleManager.RegisterModuleHooks(baseModule, t.GetLogLabels())
-
-	// TODO disable events and drain queues here or earlier during ConvergeModules.RunBeforeAll phase?
-	if err == nil {
-		// Disable events
-		// op.ModuleManager.DisableModuleHooks(hm.ModuleName)
-		// Remove all hooks from parallel queues.
-		op.DrainModuleQueues(hm.ModuleName)
-		err = op.ModuleManager.DeleteModule(hm.ModuleName, t.GetLogLabels())
-	}
-
-	op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, err)
-
-	if err != nil {
-		op.MetricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
-		logEntry.Error("Module delete failed, requeue task to retry after delay.",
-			slog.Int("count", t.GetFailureCount()+1),
-			log.Err(err))
-		t.UpdateFailureMessage(err.Error())
-		t.WithQueuedAt(time.Now())
-		status = queue.Fail
-	} else {
-		logEntry.Debug("Module delete success", slog.String("name", hm.ModuleName))
-		status = queue.Success
-	}
-
-	return status
 }
 
 // HandleModuleEnsureCRDs ensure CRDs for module.

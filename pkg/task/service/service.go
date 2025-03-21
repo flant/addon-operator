@@ -7,6 +7,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
@@ -20,6 +21,10 @@ import (
 	globalhookrun "github.com/flant/addon-operator/pkg/task/global-hook-run"
 	globalhookwaitkubernetessynchronization "github.com/flant/addon-operator/pkg/task/global-hook-wait-kubernetes-synchronization"
 	"github.com/flant/addon-operator/pkg/task/helpers"
+	moduledelete "github.com/flant/addon-operator/pkg/task/module-delete"
+	moduleensurecrds "github.com/flant/addon-operator/pkg/task/module-ensure-crds"
+	modulehookrun "github.com/flant/addon-operator/pkg/task/module-hook-run"
+	modulepurge "github.com/flant/addon-operator/pkg/task/module-purge"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
@@ -34,6 +39,8 @@ type TaskHandlerServiceConfig struct {
 	ModuleManager        *module_manager.ModuleManager
 	MetricStorage        metric.Storage
 	KubeConfigManager    *kube_config_manager.KubeConfigManager
+	ConvergeState        *converge.ConvergeState
+	CRDExtraLabels       map[string]string
 }
 
 type TaskHandlerService struct {
@@ -49,6 +56,12 @@ type TaskHandlerService struct {
 	metricStorage     metric.Storage
 	kubeConfigManager *kube_config_manager.KubeConfigManager
 
+	convergeState *converge.ConvergeState
+
+	// crdExtraLabels contains labels for processing CRD files
+	// like heritage=addon-operator
+	crdExtraLabels map[string]string
+
 	taskFactory map[sh_task.TaskType]func(t sh_task.Task, logger *log.Logger) task.Task
 
 	logger *log.Logger
@@ -63,6 +76,8 @@ func NewTaskHandlerService(config *TaskHandlerServiceConfig, logger *log.Logger)
 		moduleManager:        config.ModuleManager,
 		metricStorage:        config.MetricStorage,
 		kubeConfigManager:    config.KubeConfigManager,
+		convergeState:        config.ConvergeState,
+		crdExtraLabels:       config.CRDExtraLabels,
 		logger:               logger,
 	}
 
@@ -152,40 +167,45 @@ func (s *TaskHandlerService) initFactory() {
 		task.GlobalHookWaitKubernetesSynchronization: globalhookwaitkubernetessynchronization.RegisterTaskHandler(s),
 		task.DiscoverHelmReleases:                    discoverhelmrelease.RegisterTaskHandler(s),
 		task.ApplyKubeConfigValues:                   applykubeconfigvalues.RegisterTaskHandler(s),
+		task.ModuleDelete:                            moduledelete.RegisterTaskHandler(s),
+		task.ModuleHookRun:                           modulehookrun.RegisterTaskHandler(s),
+		task.ModulePurge:                             modulepurge.RegisterTaskHandler(s),
+		task.ModuleEnsureCRDs:                        moduleensurecrds.RegisterTaskHandler(s),
 	}
 }
 
-// GetEngine returns the shell operator engine
 func (s *TaskHandlerService) GetEngine() *shell_operator.ShellOperator {
 	return s.engine
 }
 
-// GetHelm returns the helm client factory
 func (s *TaskHandlerService) GetHelm() *helm.ClientFactory {
 	return s.helm
 }
 
-// GetHelmResourcesManager returns the helm resources manager
 func (s *TaskHandlerService) GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager {
 	return s.helmResourcesManager
 }
 
-// GetModuleManager returns the module manager
 func (s *TaskHandlerService) GetModuleManager() *module_manager.ModuleManager {
 	return s.moduleManager
 }
 
-// GetMetricStorage returns the metric storage
 func (s *TaskHandlerService) GetMetricStorage() metric.Storage {
 	return s.metricStorage
 }
 
-// GetMetricStorage returns the metric storage
 func (s *TaskHandlerService) GetKubeConfigManager() *kube_config_manager.KubeConfigManager {
 	return s.kubeConfigManager
 }
 
-// GetTaskFactory returns the task factory
+func (s *TaskHandlerService) GetConvergeState() *converge.ConvergeState {
+	return s.convergeState
+}
+
+func (s *TaskHandlerService) GetCRDExtraLabels() map[string]string {
+	return s.crdExtraLabels
+}
+
 func (s *TaskHandlerService) GetTaskFactory() map[sh_task.TaskType]func(t sh_task.Task, logger *log.Logger) task.Task {
 	return s.taskFactory
 }

@@ -153,6 +153,8 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		ModuleManager:        op.ModuleManager,
 		MetricStorage:        op.engine.MetricStorage,
 		KubeConfigManager:    op.KubeConfigManager,
+		ConvergeState:        op.ConvergeState,
+		CRDExtraLabels:       map[string]string{},
 	}, log.NewNop())
 
 	return op, result
