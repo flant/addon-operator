@@ -1241,8 +1241,20 @@ const (
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
 )
 
+type SelfServicePhase string
+
+const (
+	// Module runs in a normal mode
+	SelfServiceDisabled SelfServicePhase = ""
+	// Next helm run will enforce self-service mode (removes heritage labels and stops resource informer)
+	SelfServiceEnabled SelfServicePhase = "Enabled"
+	// All consequent helm runs are inhibited
+	SelfServiceEnforce SelfServicePhase = "Enforced"
+)
+
 type moduleState struct {
 	Enabled              bool
+	SelfService          SelfServicePhase
 	Phase                ModuleRunPhase
 	lastModuleErr        error
 	hookErrors           map[string]error

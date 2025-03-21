@@ -484,6 +484,12 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 	}
 }
 
+func (mm *ModuleManager) SetModuleSelfServiceState(moduleName string, selfServiceState bool) {
+	mm.logger.Info("set module self-service state",
+		slog.String("module", moduleName),
+		slog.Bool("state", selfServiceState))
+}
+
 // RefreshEnabledState gets current diff of the graph and forms ModuleState
 // - mm.enabledModules
 func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*ModulesState, error) {
@@ -887,7 +893,7 @@ func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamic_extender.Extend
 func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, extender *dynamic_extender.Extender) error {
 	for _, op := range enabledPatch.Operations {
 		// Extract module name from json patch: '"path": "/moduleNameEnabled"'
-		modName := strings.TrimSuffix(op.Path, "Enabled")
+		modName := strings.TrimSuffix(op.Path, utils.EnabledSuffix)
 		modName = strings.TrimPrefix(modName, "/")
 		modName = utils.ModuleNameFromValuesKey(modName)
 		v, err := utils.ModuleEnabledValue(op.Value)

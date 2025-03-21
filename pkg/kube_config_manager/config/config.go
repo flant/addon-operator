@@ -47,11 +47,11 @@ func NewConfig() *KubeConfig {
 type (
 	KubeConfigType  string
 	KubeConfigEvent struct {
-		Type                      KubeConfigType
-		ModuleEnabledStateChanged []string
-		ModuleValuesChanged       []string
-		GlobalSectionChanged      bool
-		ModuleSelfServiceChanged  map[string]bool
+		Type                          KubeConfigType
+		ModuleEnabledStateChanged     []string
+		ModuleValuesChanged           []string
+		GlobalSectionChanged          bool
+		ModuleSelfServiceStateChanged map[string]bool
 	}
 )
 

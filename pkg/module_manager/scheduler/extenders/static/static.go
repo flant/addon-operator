@@ -59,8 +59,8 @@ func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 		}
 
 		for k, v := range m {
-			if strings.HasSuffix(k, "Enabled") {
-				m := strings.TrimSuffix(k, "Enabled")
+			if strings.HasSuffix(k, utils.EnabledSuffix) {
+				m := strings.TrimSuffix(k, utils.EnabledSuffix)
 				keb := strcase.ToKebab(m)
 				result[keb] = v.(bool)
 			}

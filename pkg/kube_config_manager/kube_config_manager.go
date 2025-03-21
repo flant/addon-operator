@@ -244,7 +244,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		// some module values
 		modulesChanged := []string{}
 		modulesStateChanged := []string{}
-		moduleSelfServiceChanged := make(map[string]bool)
+		moduleSelfServiceStateChanged := make(map[string]bool)
 
 		// module update
 		kcm.m.Lock()
@@ -259,17 +259,17 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			}
 
 			if kcm.currentConfig.Modules[moduleName].GetSelfService() {
-				moduleSelfServiceChanged[moduleName] = false
+				moduleSelfServiceStateChanged[moduleName] = false
 			}
 
 			moduleCfg.Reset()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                      config.KubeConfigChanged,
-				ModuleValuesChanged:       modulesChanged,
-				ModuleEnabledStateChanged: modulesStateChanged,
-				ModuleSelfServiceChanged:  moduleSelfServiceChanged,
+				Type:                          config.KubeConfigChanged,
+				ModuleValuesChanged:           modulesChanged,
+				ModuleEnabledStateChanged:     modulesStateChanged,
+				ModuleSelfServiceStateChanged: moduleSelfServiceStateChanged,
 			}
 			return
 		}
@@ -288,12 +288,13 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				}
 
 				if kcm.currentConfig.Modules[moduleName].GetSelfService() != moduleCfg.GetSelfService() {
-					moduleSelfServiceChanged[moduleName] = moduleCfg.GetSelfService()
+					moduleSelfServiceStateChanged[moduleName] = moduleCfg.GetSelfService()
 				}
 				kcm.logger.Info("Module section changed. Enabled flag transition.",
 					slog.String("moduleName", moduleName),
 					slog.String("current", kcm.currentConfig.Modules[moduleName].GetEnabled()),
-					slog.String("previous", moduleCfg.GetEnabled()))
+					slog.String("previous", moduleCfg.GetEnabled()),
+					slog.Bool("selfServiceFlag", moduleCfg.GetSelfService()))
 			} else {
 				modulesChanged = append(modulesChanged, moduleName)
 				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
@@ -301,21 +302,22 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				}
 
 				if moduleCfg.GetSelfService() {
-					moduleSelfServiceChanged[moduleName] = true
+					moduleSelfServiceStateChanged[moduleName] = true
 				}
 				kcm.logger.Info("Module section added",
 					slog.String("moduleName", moduleName),
-					slog.String("enabledFlag", moduleCfg.GetEnabled()))
+					slog.String("enabledFlag", moduleCfg.GetEnabled()),
+					slog.Bool("selfServiceFlag", moduleCfg.GetSelfService()))
 			}
 		}
 
-		if len(modulesChanged)+len(modulesStateChanged)+len(moduleSelfServiceChanged) > 0 {
+		if len(modulesChanged)+len(modulesStateChanged)+len(moduleSelfServiceStateChanged) > 0 {
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                      config.KubeConfigChanged,
-				ModuleValuesChanged:       modulesChanged,
-				ModuleEnabledStateChanged: modulesStateChanged,
-				ModuleSelfServiceChanged:  moduleSelfServiceChanged,
+				Type:                          config.KubeConfigChanged,
+				ModuleValuesChanged:           modulesChanged,
+				ModuleEnabledStateChanged:     modulesStateChanged,
+				ModuleSelfServiceStateChanged: moduleSelfServiceStateChanged,
 			}
 		}
 	}
@@ -352,6 +354,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	currentModuleNames := kcm.currentModuleNames()
 	modulesChanged := []string{}
 	modulesStateChanged := []string{}
+	moduleSelfServiceStateChanged := make(map[string]bool)
 
 	for moduleName, moduleCfg := range newConfig.Modules {
 		// Remove module name from current names to detect deleted sections.
@@ -367,21 +370,34 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 				if currModuleCfg.Checksum != moduleCfg.Checksum {
 					modulesChanged = append(modulesChanged, moduleName)
 				}
+
 				if kcm.currentConfig.Modules[moduleName].GetEnabled() != moduleCfg.GetEnabled() {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
+
+				if kcm.currentConfig.Modules[moduleName].GetSelfService() != moduleCfg.GetSelfService() {
+					moduleSelfServiceStateChanged[moduleName] = moduleCfg.GetSelfService()
+				}
+
 				kcm.logger.Info("Module section changed. Enabled flag transition",
 					slog.String("moduleName", moduleName),
 					slog.String("current", kcm.currentConfig.Modules[moduleName].GetEnabled()),
-					slog.String("previous", moduleCfg.GetEnabled()))
+					slog.String("previous", moduleCfg.GetEnabled()),
+					slog.Bool("selfServiceFlag", moduleCfg.GetSelfService()))
 			} else {
 				modulesChanged = append(modulesChanged, moduleName)
 				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
+
+				if moduleCfg.GetSelfService() {
+					moduleSelfServiceStateChanged[moduleName] = true
+				}
+
 				kcm.logger.Info("Module section added",
 					slog.String("moduleName", moduleName),
-					slog.String("enabledFlag", moduleCfg.GetEnabled()))
+					slog.String("enabledFlag", moduleCfg.GetEnabled()),
+					slog.Bool("selfServiceFlag", moduleCfg.GetSelfService()))
 			}
 		}
 	}
@@ -403,12 +419,13 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	kcm.m.Unlock()
 
 	// Fire event if ConfigMap has changes.
-	if globalChanged || len(modulesChanged) > 0 {
+	if globalChanged || len(modulesChanged)+len(moduleSelfServiceStateChanged) > 0 {
 		kcm.configEventCh <- config.KubeConfigEvent{
-			Type:                      config.KubeConfigChanged,
-			GlobalSectionChanged:      globalChanged,
-			ModuleValuesChanged:       modulesChanged,
-			ModuleEnabledStateChanged: modulesStateChanged,
+			Type:                          config.KubeConfigChanged,
+			GlobalSectionChanged:          globalChanged,
+			ModuleValuesChanged:           modulesChanged,
+			ModuleEnabledStateChanged:     modulesStateChanged,
+			ModuleSelfServiceStateChanged: moduleSelfServiceStateChanged,
 		}
 	}
 }
