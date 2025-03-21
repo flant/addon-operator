@@ -76,7 +76,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	usePostRenderer := true
-	if bm.GetSelfServiceState() == SelfServiceEnabled {
+	if bm.GetSelfServiceState() != SelfServiceDisabled {
 		usePostRenderer = false
 	}
 
