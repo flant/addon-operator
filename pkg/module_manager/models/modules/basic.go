@@ -188,10 +188,17 @@ func (bm *BasicModule) SetHooksControllersReady() {
 // ResetState drops the module state
 func (bm *BasicModule) ResetState() {
 	bm.l.Lock()
+	var selfServiceState SelfServiceState
+
+	if bm.state.selfService == SelfServiceEnforced {
+		selfServiceState = SelfServiceEnabled
+	}
+
 	bm.state = &moduleState{
 		Phase:                Startup,
 		hookErrors:           make(map[string]error),
 		synchronizationState: NewSynchronizationState(),
+		selfService:          selfServiceState,
 	}
 	bm.l.Unlock()
 }
@@ -535,6 +542,31 @@ func (bm *BasicModule) SaveHookError(hookName string, err error) {
 	bm.l.Lock()
 	bm.state.hookErrors[hookName] = err
 	bm.l.Unlock()
+}
+
+func (bm *BasicModule) SetSelfServiceState(stateEnabled bool) {
+	bm.l.Lock()
+	if (stateEnabled && bm.state.selfService == SelfServiceDisabled) || (!stateEnabled && bm.state.selfService != SelfServiceDisabled) {
+		bm.state.selfService = SelfServiceEnabled
+	}
+
+	bm.l.Unlock()
+}
+
+func (bm *BasicModule) SetSelfServiceStateEnforced() {
+	bm.l.Lock()
+	if bm.state.selfService == SelfServiceEnabled {
+		bm.state.selfService = SelfServiceEnforced
+	}
+
+	bm.l.Unlock()
+}
+
+func (bm *BasicModule) GetSelfServiceState() SelfServiceState {
+	bm.l.RLock()
+	defer bm.l.RUnlock()
+
+	return bm.state.selfService
 }
 
 // RunHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
@@ -1241,20 +1273,20 @@ const (
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
 )
 
-type SelfServicePhase string
+type SelfServiceState int
 
 const (
 	// Module runs in a normal mode
-	SelfServiceDisabled SelfServicePhase = ""
+	SelfServiceDisabled SelfServiceState = iota
 	// Next helm run will enforce self-service mode (removes heritage labels and stops resource informer)
-	SelfServiceEnabled SelfServicePhase = "Enabled"
+	SelfServiceEnabled
 	// All consequent helm runs are inhibited
-	SelfServiceEnforce SelfServicePhase = "Enforced"
+	SelfServiceEnforced
 )
 
 type moduleState struct {
 	Enabled              bool
-	SelfService          SelfServicePhase
+	selfService          SelfServiceState
 	Phase                ModuleRunPhase
 	lastModuleErr        error
 	hookErrors           map[string]error
