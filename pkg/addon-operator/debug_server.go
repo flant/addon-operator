@@ -274,7 +274,6 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 			return err
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to visit resource: %w", err)
 		}
