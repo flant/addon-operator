@@ -10,7 +10,6 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	crdinstaller "github.com/deckhouse/module-sdk/pkg/crd-installer"
 
-	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -107,7 +106,7 @@ func newModuleEnsureCRDs(cfg *taskConfig, logger *log.Logger) *Task {
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(context.Background(), "ModuleEnsureCRDs").End()
+	defer trace.StartRegion(ctx, "ModuleEnsureCRDs").End()
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 
@@ -214,12 +213,4 @@ func moduleEnsureCRDsTasksInQueueAfterId(q *queue.TaskQueue, afterId string) boo
 	})
 
 	return taskFound
-}
-
-// logTaskAdd prints info about queued tasks.
-func (s *Task) logTaskAdd(action string, tasks ...sh_task.Task) {
-	logger := s.logger.With(pkg.LogKeyTaskFlow, "add")
-	for _, tsk := range tasks {
-		logger.Info(helpers.TaskDescriptionForTaskFlowLog(tsk, action, "", ""))
-	}
 }

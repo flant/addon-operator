@@ -60,8 +60,8 @@ func newDiscoverHelmReleases(cfg *taskConfig, logger *log.Logger) *Task {
 	return service
 }
 
-func (s *Task) Handle(_ context.Context) queue.TaskResult {
-	defer trace.StartRegion(context.Background(), "DiscoverHelmReleases").End()
+func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+	defer trace.StartRegion(ctx, "DiscoverHelmReleases").End()
 
 	var res queue.TaskResult
 

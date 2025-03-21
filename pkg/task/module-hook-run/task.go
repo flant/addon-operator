@@ -84,7 +84,7 @@ func newModuleHookRun(cfg *taskConfig, logger *log.Logger) *Task {
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(context.Background(), "ModuleHookRun").End()
+	defer trace.StartRegion(ctx, "ModuleHookRun").End()
 
 	var res queue.TaskResult
 
