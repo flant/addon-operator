@@ -546,10 +546,16 @@ func (bm *BasicModule) SaveHookError(hookName string, err error) {
 
 func (bm *BasicModule) SetSelfServiceState(stateEnabled bool) {
 	bm.l.Lock()
-	if (stateEnabled && bm.state.selfService == SelfServiceDisabled) || (!stateEnabled && bm.state.selfService != SelfServiceDisabled) {
-		bm.state.selfService = SelfServiceEnabled
+	switch stateEnabled {
+	case true:
+		if bm.state.selfService == SelfServiceDisabled {
+			bm.state.selfService = SelfServiceEnabled
+		}
+	case false:
+		if bm.state.selfService != SelfServiceDisabled {
+			bm.state.selfService = SelfServiceDisabled
+		}
 	}
-
 	bm.l.Unlock()
 }
 
@@ -558,7 +564,6 @@ func (bm *BasicModule) SetSelfServiceStateEnforced() {
 	if bm.state.selfService == SelfServiceEnabled {
 		bm.state.selfService = SelfServiceEnforced
 	}
-
 	bm.l.Unlock()
 }
 

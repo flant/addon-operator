@@ -284,7 +284,10 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 			continue
 		}
 
-		mod.SetSelfServiceState(moduleConfig.GetSelfService())
+		if moduleConfig.GetSelfService() {
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleSelfServiceMetricGroup, moduleSelfServiceMetricName, 1, map[string]string{"moduleName": moduleName})
+			mod.SetSelfServiceState(moduleConfig.GetSelfService())
+		}
 
 		validateConfig := false
 		// Check if enabledModules are valid
