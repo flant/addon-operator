@@ -15,6 +15,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -154,8 +155,8 @@ func (hm *HelmModule) checkHelmValues() error {
 
 func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	metricLabels := map[string]string{
-		"module":     hm.name,
-		"activation": logLabels["event.type"],
+		"module":                hm.name,
+		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 	}
 	defer measure.Duration(func(d time.Duration) {
 		hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}module_helm_seconds", d.Seconds(), metricLabels, nil)
@@ -185,9 +186,9 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-render").End()
 
 		metricLabels := map[string]string{
-			"module":     hm.name,
-			"activation": logLabels["event.type"],
-			"operation":  "template",
+			"module":                hm.name,
+			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
+			"operation":             "template",
 		}
 		defer measure.Duration(func(d time.Duration) {
 			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
@@ -219,9 +220,9 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-check-upgrade").End()
 
 		metricLabels := map[string]string{
-			"module":     hm.name,
-			"activation": logLabels["event.type"],
-			"operation":  "check-upgrade",
+			"module":                hm.name,
+			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
+			"operation":             "check-upgrade",
 		}
 		defer measure.Duration(func(d time.Duration) {
 			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
@@ -246,9 +247,9 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-upgrade").End()
 
 		metricLabels := map[string]string{
-			"module":     hm.name,
-			"activation": logLabels["event.type"],
-			"operation":  "upgrade",
+			"module":                hm.name,
+			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
+			"operation":             "upgrade",
 		}
 		defer measure.Duration(func(d time.Duration) {
 			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
