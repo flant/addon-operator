@@ -413,7 +413,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 // CreateAndStartQueue creates a named queue and starts it.
 // It returns false is queue is already created
-func (s *Task) CreateAndStartQueue(queueName string) bool {
+func (s *Task) CreateAndStartQueue(queueName string) bool { //nolint:gosimple
 	if s.engine.TaskQueues.GetByName(queueName) != nil {
 		return false
 	}
