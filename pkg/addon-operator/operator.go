@@ -1192,7 +1192,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							convergeTask   sh_task.Task
 						)
 
-						if event.GlobalSectionChanged || len(event.ModuleValuesChanged) > 0 {
+						if event.GlobalSectionChanged || len(event.ModuleValuesChanged)+len(event.ModuleSelfServiceStateChanged) > 0 {
 							kubeConfigTask = converge.NewApplyKubeConfigValuesTask(
 								"Apply-Kube-Config-Values-Changes",
 								logLabels,
@@ -1261,9 +1261,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								}
 							}
 
-							for module := range event.ModuleSelfServiceStateChanged {
-								if !slices.Contains(modulesToRerun, module) {
-									modulesToRerun = append(modulesToRerun, module)
+							for moduleName := range event.ModuleSelfServiceStateChanged {
+								if !slices.Contains(modulesToRerun, moduleName) && op.ModuleManager.IsModuleEnabled(moduleName) {
+									modulesToRerun = append(modulesToRerun, moduleName)
 								}
 							}
 
@@ -1649,7 +1649,10 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	logEntry.Debug("Module purge start")
 
 	hm := task.HookMetadataAccessor(t)
-	err := op.Helm.NewClient(op.Logger.Named("helm-client"), t.GetLogLabels()).DeleteRelease(hm.ModuleName)
+	helmClientOptions := []helm.ClientOption{
+		helm.WithLogLabels(t.GetLogLabels()),
+	}
+	err := op.Helm.NewClient(op.Logger.Named("helm-client"), helmClientOptions...).DeleteRelease(hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
 		logEntry.Warn("Module purge failed, no retry.", log.Err(err))

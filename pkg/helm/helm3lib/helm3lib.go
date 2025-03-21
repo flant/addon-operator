@@ -70,6 +70,7 @@ type LibClient struct {
 	Logger            *log.Logger
 	Namespace         string
 	HelmIgnoreRelease string
+	usePostRenderer   bool
 }
 
 type Options struct {
@@ -85,17 +86,23 @@ var (
 	actionConfig *action.Configuration
 )
 
-func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
+func NewClient(logger *log.Logger) client.HelmClient {
 	logEntry := logger.With("operator.component", "helm3lib")
-	if len(logLabels) > 0 {
-		logEntry = utils.EnrichLoggerWithLabels(logEntry, logLabels[0])
-	}
 
 	return &LibClient{
 		Logger:            logEntry,
 		Namespace:         options.Namespace,
 		HelmIgnoreRelease: options.HelmIgnoreRelease,
+		usePostRenderer:   true,
 	}
+}
+
+func (h *LibClient) WithLogLabels(logLabels map[string]string) {
+	h.Logger = utils.EnrichLoggerWithLabels(h.Logger, logLabels)
+}
+
+func (h *LibClient) UsePostRenderer(use bool) {
+	h.usePostRenderer = use
 }
 
 // buildConfigFlagsFromEnv builds a ConfigFlags object from the environment and
@@ -191,7 +198,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	if namespace != "" {
 		upg.Namespace = namespace
 	}
-	if helmPostRenderer != nil {
+	if helmPostRenderer != nil && h.usePostRenderer {
 		upg.PostRenderer = helmPostRenderer
 	}
 
@@ -240,7 +247,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		if namespace != "" {
 			instClient.Namespace = namespace
 		}
-		if helmPostRenderer != nil {
+		if helmPostRenderer != nil && h.usePostRenderer {
 			instClient.PostRenderer = helmPostRenderer
 		}
 		instClient.SkipCRDs = true
@@ -443,14 +450,14 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
 
-	inst := newDryRunInstAction(namespace, releaseName)
+	inst := h.newDryRunInstAction(namespace, releaseName)
 
 	rs, err := inst.Run(chart, resultValues)
 	if err != nil {
 		// helm render can fail because the CRD were previously created
 		// handling this case we can reinitialize RESTClient and repeat one more time by backoff
 		_ = h.actionConfigInit()
-		inst = newDryRunInstAction(namespace, releaseName)
+		inst = h.newDryRunInstAction(namespace, releaseName)
 
 		rs, err = inst.Run(chart, resultValues)
 	}
@@ -471,14 +478,14 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	return rs.Manifest, nil
 }
 
-func newDryRunInstAction(namespace, releaseName string) *action.Install {
+func (h *LibClient) newDryRunInstAction(namespace, releaseName string) *action.Install {
 	inst := action.NewInstall(actionConfig)
 	inst.DryRun = true
 
 	if namespace != "" {
 		inst.Namespace = namespace
 	}
-	if helmPostRenderer != nil {
+	if helmPostRenderer != nil && h.usePostRenderer {
 		inst.PostRenderer = helmPostRenderer
 	}
 	inst.ReleaseName = releaseName
