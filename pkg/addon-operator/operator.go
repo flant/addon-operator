@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/trace"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -1178,7 +1179,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						eventLogEntry.Debug("ModuleManagerEventHandler-KubeConfigChanged",
 							slog.Bool("globalSectionChanged", event.GlobalSectionChanged),
 							slog.Any("moduleValuesChanged", event.ModuleValuesChanged),
-							slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged))
+							slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged),
+							slog.Any("moduleSelfServiceStateChanged", event.ModuleSelfServiceStateChanged))
 						if !op.ModuleManager.GetKubeConfigValid() {
 							eventLogEntry.Info("KubeConfig become valid")
 						}
@@ -1196,6 +1198,10 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								logLabels,
 								event.GlobalSectionChanged,
 							)
+						}
+
+						for module, selfServiceState := range event.ModuleSelfServiceStateChanged {
+							op.ModuleManager.SetModuleSelfServiceState(module, selfServiceState)
 						}
 
 						// if global hooks haven't been run yet, script enabled extender fails due to missing global values,
@@ -1248,12 +1254,19 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							op.ConvergeState.Phase = converge.StandBy
 							op.ConvergeState.PhaseLock.Unlock()
 						} else {
-							modulesToRerun := []string{}
+							modulesToRerun := make([]string, 0, len(event.ModuleValuesChanged)+len(event.ModuleSelfServiceStateChanged))
 							for _, moduleName := range event.ModuleValuesChanged {
 								if op.ModuleManager.IsModuleEnabled(moduleName) {
 									modulesToRerun = append(modulesToRerun, moduleName)
 								}
 							}
+
+							for module := range event.ModuleSelfServiceStateChanged {
+								if !slices.Contains(modulesToRerun, module) {
+									modulesToRerun = append(modulesToRerun, module)
+								}
+							}
+
 							// Append ModuleRun tasks if ModuleRun is not queued already.
 							if kubeConfigTask != nil && convergeTask == nil {
 								reloadTasks := op.CreateReloadModulesTasks(modulesToRerun, kubeConfigTask.GetLogLabels(), "KubeConfig-Changed-Modules")

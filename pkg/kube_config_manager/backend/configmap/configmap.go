@@ -195,8 +195,9 @@ func getModulesNamesFromConfigData(configData map[string]string) (map[string]boo
 			continue
 		}
 
-		// Treat Enabled flags as module section.
-		key = strings.TrimSuffix(key, "Enabled")
+		// Treat Enabled and SelfService flags as module section.
+		key = strings.TrimSuffix(key, utils.EnabledSuffix)
+		key = strings.TrimSuffix(key, utils.SelfServiceSuffix)
 
 		modName := utils.ModuleNameFromValuesKey(key)
 
@@ -254,7 +255,7 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 		configValues[mc.ModuleConfigKey()] = moduleValues
 	}
 
-	// if there is enabled key, treat it as boolean
+	// if there is enabled or selfService keys, treat them as boolean
 	enabledString, hasKey := configData[mc.ModuleEnabledKey()]
 	if hasKey {
 		var enabled bool
@@ -269,6 +270,22 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 		}
 
 		configValues[mc.ModuleEnabledKey()] = enabled
+	}
+
+	selfServiceString, hasKey := configData[mc.ModuleSelfServiceKey()]
+	if hasKey {
+		var enabled bool
+
+		switch selfServiceString {
+		case "true":
+			enabled = true
+		case "false":
+			enabled = false
+		default:
+			return nil, fmt.Errorf("module selfService key '%s' should have a boolean value, got '%v'", mc.ModuleSelfServiceKey(), selfServiceString)
+		}
+
+		configValues[mc.ModuleSelfServiceKey()] = enabled
 	}
 
 	if len(configValues) == 0 {

@@ -13,6 +13,9 @@ import (
 var (
 	ModuleEnabled  = true
 	ModuleDisabled = false
+
+	EnabledSuffix     = "Enabled"
+	SelfServiceSuffix = "SelfService"
 )
 
 type ModuleConfig struct {
@@ -35,12 +38,12 @@ func (mc *ModuleConfig) ModuleConfigKey() string {
 
 // ModuleEnabledKey transforms module kebab-case name to the config camelCase name with 'Enabled' suffix
 func (mc *ModuleConfig) ModuleEnabledKey() string {
-	return ModuleNameToValuesKey(mc.ModuleName) + "Enabled"
+	return ModuleNameToValuesKey(mc.ModuleName) + EnabledSuffix
 }
 
 // ModuleSelfServiceKey transforms module kebab-case name to the config camelCase name with 'SelfService' suffix
 func (mc *ModuleConfig) ModuleSelfServiceKey() string {
-	return ModuleNameToValuesKey(mc.ModuleName) + "SelfService"
+	return ModuleNameToValuesKey(mc.ModuleName) + SelfServiceSuffix
 }
 
 // GetEnabled returns string description of enabled status.

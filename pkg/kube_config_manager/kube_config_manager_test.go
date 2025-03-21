@@ -73,6 +73,11 @@ prometheus: |
   retentionDays: 20
   userPassword: qwerty
 grafanaEnabled: "false"
+kubeDns: |
+  config:
+    resolver: "192.168.0.1"
+kubeDnsEnabled: "true"
+kubeDnsSelfService: "true"
 `
 
 	kubeClient := klient.NewFake(nil)
@@ -82,11 +87,13 @@ grafanaEnabled: "false"
 	defer kcm.Stop()
 
 	tests := map[string]struct {
-		isEnabled *bool
-		values    utils.Values
+		isEnabled   *bool
+		selfService bool
+		values      utils.Values
 	}{
 		"global": {
 			nil,
+			false,
 			utils.Values{
 				utils.GlobalValuesKey: map[string]interface{}{
 					"project":         "tfprod",
@@ -103,6 +110,7 @@ grafanaEnabled: "false"
 		},
 		"nginx-ingress": {
 			&utils.ModuleEnabled,
+			false,
 			utils.Values{
 				utils.ModuleNameToValuesKey("nginx-ingress"): map[string]interface{}{
 					"config": map[string]interface{}{
@@ -117,6 +125,7 @@ grafanaEnabled: "false"
 		},
 		"prometheus": {
 			nil,
+			false,
 			utils.Values{
 				utils.ModuleNameToValuesKey("prometheus"): map[string]interface{}{
 					"adminPassword": "qwerty",
@@ -127,7 +136,19 @@ grafanaEnabled: "false"
 		},
 		"grafana": {
 			&utils.ModuleDisabled,
+			false,
 			utils.Values{},
+		},
+		"kube-dns": {
+			&utils.ModuleEnabled,
+			true,
+			utils.Values{
+				utils.ModuleNameToValuesKey("kubeDns"): map[string]interface{}{
+					"config": map[string]interface{}{
+						"resolver": "192.168.0.1",
+					},
+				},
+			},
 		},
 	}
 
@@ -144,6 +165,7 @@ grafanaEnabled: "false"
 					moduleConfig, hasConfig := config.Modules[name]
 					assert.True(t, hasConfig)
 					assert.Equal(t, expect.isEnabled, moduleConfig.IsEnabled)
+					assert.Equal(t, expect.selfService, moduleConfig.SelfService)
 					assert.Equal(t, expect.values, moduleConfig.GetValuesWithModuleName()) //nolint: staticcheck,nolintlint
 				})
 			}
@@ -414,6 +436,9 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 	validSectionPatch := `[{"op": "add", 
 "path": "/data/validModuleName",
 "value": "modParam1: val1\nmodParam2: val2"},
+{"op": "add", 
+"path": "/data/validModuleNameSelfService",
+"value": "true"},
 {"op": "remove", 
 "path": "/data/InvalidName-module"}]`
 
@@ -433,6 +458,9 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 		ModuleEnabledStateChanged: []string{},
 		ModuleValuesChanged:       []string{"valid-module-name"},
 		GlobalSectionChanged:      false,
+		ModuleSelfServiceStateChanged: map[string]bool{
+			"valid-module-name": true,
+		},
 	}), "Valid section patch should generate 'changed' event")
 
 	kcm.SafeReadConfig(func(config *config.KubeConfig) {
