@@ -17,7 +17,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
-	"github.com/flant/addon-operator/pkg/utils"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
@@ -32,11 +31,10 @@ type TaskConfig interface {
 	GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
-	GetLogger() *log.Logger
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task) task.Task {
-	return func(t sh_task.Task) task.Task {
+func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+	return func(t sh_task.Task, logger *log.Logger) task.Task {
 		cfg := &taskConfig{
 			ShellTask:         t,
 			IsOperatorStartup: helpers.IsOperatorStartupTask(t),
@@ -48,7 +46,7 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task) task.Task {
 			MetricStorage:        svc.GetMetricStorage(),
 		}
 
-		return newGlobalHookRun(cfg, svc.GetLogger().Named("global-hook-run"))
+		return newGlobalHookRun(cfg, logger.Named("global-hook-run"))
 	}
 }
 
@@ -100,9 +98,6 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	defer trace.StartRegion(ctx, "GlobalHookRun").End()
 
 	var res queue.TaskResult
-
-	taskLogLabels := s.shellTask.GetLogLabels()
-	s.logger = utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 	taskHook := s.moduleManager.GetGlobalHook(hm.HookName)

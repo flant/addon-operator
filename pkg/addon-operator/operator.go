@@ -857,16 +857,35 @@ func (op *AddonOperator) CreateAfterAllTasks(logLabels map[string]string, eventD
 	return tasks, nil
 }
 
+// CreateAndStartParallelQueues creates and starts named queues for executing parallel tasks in parallel
+func (op *AddonOperator) CreateAndStartParallelQueues() {
+	for i := range app.NumberOfParallelQueues {
+		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i)
+		if op.IsQueueExists(queueName) {
+			log.Warn("Parallel queue already exists", slog.String("queue", queueName))
+			continue
+		}
+
+		op.startQueue(queueName, op.ParallelTasksHandler)
+		log.Debug("Parallel queue started",
+			slog.String("queue", queueName))
+	}
+}
+
 // CreateAndStartQueue creates a named queue and starts it.
 // It returns false is queue is already created
-func (op *AddonOperator) CreateAndStartQueue(queueName string) bool {
-	if op.engine.TaskQueues.GetByName(queueName) != nil {
-		return false
-	}
-	op.engine.TaskQueues.NewNamedQueue(queueName, op.TaskHandler)
-	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
+func (op *AddonOperator) CreateAndStartQueue(queueName string) {
+	op.startQueue(queueName, op.TaskHandler)
+}
 
-	return true
+func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
+	op.engine.TaskQueues.NewNamedQueue(queueName, handler)
+	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
+}
+
+// IsQueueExists returns true is queue is already created
+func (op *AddonOperator) IsQueueExists(queueName string) bool {
+	return op.engine.TaskQueues.GetByName(queueName) != nil
 }
 
 // CreateAndStartQueuesForGlobalHooks creates queues for all registered global hooks.
@@ -876,14 +895,18 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 	for _, hookName := range op.ModuleManager.GetGlobalHooksNames() {
 		h := op.ModuleManager.GetGlobalHook(hookName)
 		for _, hookBinding := range h.GetHookConfig().Schedules {
-			if op.CreateAndStartQueue(hookBinding.Queue) {
+			if !op.IsQueueExists(hookBinding.Queue) {
+				op.CreateAndStartQueue(hookBinding.Queue)
+
 				log.Debug("Queue started for global 'schedule' hook",
 					slog.String("queue", hookBinding.Queue),
 					slog.String("hook", hookName))
 			}
 		}
 		for _, hookBinding := range h.GetHookConfig().OnKubernetesEvents {
-			if op.CreateAndStartQueue(hookBinding.Queue) {
+			if !op.IsQueueExists(hookBinding.Queue) {
+				op.CreateAndStartQueue(hookBinding.Queue)
+
 				log.Debug("Queue started for global 'kubernetes' hook",
 					slog.String("queue", hookBinding.Queue),
 					slog.String("hook", hookName))
@@ -904,7 +927,9 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	scheduleHooks := m.GetHooks(htypes.Schedule)
 	for _, hook := range scheduleHooks {
 		for _, hookBinding := range hook.GetHookConfig().Schedules {
-			if op.CreateAndStartQueue(hookBinding.Queue) {
+			if !op.IsQueueExists(hookBinding.Queue) {
+				op.CreateAndStartQueue(hookBinding.Queue)
+
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
 					slog.String("hook", hook.GetName()))
@@ -915,7 +940,9 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	kubeEventsHooks := m.GetHooks(htypes.OnKubernetesEvent)
 	for _, hook := range kubeEventsHooks {
 		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
-			if op.CreateAndStartQueue(hookBinding.Queue) {
+			if !op.IsQueueExists(hookBinding.Queue) {
+				op.CreateAndStartQueue(hookBinding.Queue)
+
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),
 					slog.String("hook", hook.GetName()))
@@ -938,19 +965,6 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	//		}
 	//	}
 	//}
-}
-
-// CreateAndStartParallelQueues creates and starts named queues for executing parallel tasks in parallel
-func (op *AddonOperator) CreateAndStartParallelQueues() {
-	for i := 0; i < app.NumberOfParallelQueues; i++ {
-		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i)
-		if op.engine.TaskQueues.GetByName(queueName) != nil {
-			log.Warn("Parallel queue already exists", slog.String("queue", queueName))
-			continue
-		}
-		op.engine.TaskQueues.NewNamedQueue(queueName, op.ParallelTasksHandler)
-		op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
-	}
 }
 
 func (op *AddonOperator) DrainModuleQueues(modName string) {
@@ -1052,10 +1066,10 @@ func (op *AddonOperator) TaskHandler(ctx context.Context, t sh_task.Task) queue.
 		res = op.TaskService.Handle(ctx, t)
 
 	case task.DiscoverHelmReleases:
-		res = op.HandleDiscoverHelmReleases(t, taskLogLabels)
+		res = op.TaskService.Handle(ctx, t)
 
 	case task.ApplyKubeConfigValues:
-		res = op.HandleApplyKubeConfigValues(t, taskLogLabels)
+		res = op.TaskService.Handle(ctx, t)
 
 	case task.ConvergeModules:
 		res = op.HandleConvergeModules(t, taskLogLabels)
@@ -2286,6 +2300,7 @@ func (op *AddonOperator) logTaskStart(logEntry *log.Logger, tsk sh_task.Task) {
 	if tsk.GetType() == task.GlobalHookWaitKubernetesSynchronization {
 		return
 	}
+
 	if tsk.GetType() == task.ModuleRun {
 		hm := task.HookMetadataAccessor(tsk)
 		baseModule := op.ModuleManager.GetModule(hm.ModuleName)

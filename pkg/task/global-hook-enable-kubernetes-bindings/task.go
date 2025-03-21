@@ -33,11 +33,10 @@ type TaskConfig interface {
 	GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
-	GetLogger() *log.Logger
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task) task.Task {
-	return func(t sh_task.Task) task.Task {
+func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+	return func(t sh_task.Task, logger *log.Logger) task.Task {
 		cfg := &taskConfig{
 			ShellTask: t,
 
@@ -48,7 +47,7 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task) task.Task {
 			MetricStorage:        svc.GetMetricStorage(),
 		}
 
-		return newGlobalHookEnableKubernetesBindings(cfg, svc.GetLogger().Named("global-hook-enable-kubernetes-bindings"))
+		return newGlobalHookEnableKubernetesBindings(cfg, logger.Named("global-hook-enable-kubernetes-bindings"))
 	}
 }
 
@@ -94,9 +93,6 @@ func newGlobalHookEnableKubernetesBindings(cfg *taskConfig, logger *log.Logger) 
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	defer trace.StartRegion(ctx, "DiscoverHelmReleases").End()
-
-	taskLogLabels := s.shellTask.GetLogLabels()
-	s.logger = utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
 
 	var res queue.TaskResult
 	s.logger.Debug("Global hook enable kubernetes bindings")

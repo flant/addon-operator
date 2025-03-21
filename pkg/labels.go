@@ -10,6 +10,7 @@ const (
 	LogKeyTaskID      = "task.id"
 	LogKeyQueue       = "queue"
 	LogKeyTaskFlow    = "task.flow"
+	LogKeyModule      = "module"
 )
 
 const (

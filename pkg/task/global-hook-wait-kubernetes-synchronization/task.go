@@ -8,25 +8,23 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
-	"github.com/flant/addon-operator/pkg/utils"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 type TaskConfig interface {
 	GetModuleManager() *module_manager.ModuleManager
-	GetLogger() *log.Logger
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task) task.Task {
-	return func(t sh_task.Task) task.Task {
+func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+	return func(t sh_task.Task, logger *log.Logger) task.Task {
 		cfg := &taskConfig{
 			ShellTask: t,
 
 			ModuleManager: svc.GetModuleManager(),
 		}
 
-		return newGlobalHookWaitKubernetesSynchronization(cfg, svc.GetLogger().Named("global-hook-wait-kubernetes-synchronization"))
+		return newGlobalHookWaitKubernetesSynchronization(cfg, logger.Named("global-hook-wait-kubernetes-synchronization"))
 	}
 }
 
@@ -58,9 +56,6 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	res := queue.TaskResult{
 		Status: queue.Success,
 	}
-
-	taskLogLabels := s.shellTask.GetLogLabels()
-	s.logger = utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
 
 	if s.moduleManager.GlobalSynchronizationNeeded() && !s.moduleManager.GlobalSynchronizationState().IsCompleted() {
 		// dump state

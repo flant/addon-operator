@@ -7,24 +7,22 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
-	"github.com/flant/addon-operator/pkg/utils"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 type TaskConfig interface {
 	GetModuleManager() *module_manager.ModuleManager
-	GetLogger() *log.Logger
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task) task.Task {
-	return func(t sh_task.Task) task.Task {
+func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+	return func(t sh_task.Task, logger *log.Logger) task.Task {
 		cfg := &taskConfig{
 			ShellTask:     t,
 			ModuleManager: svc.GetModuleManager(),
 		}
 
-		return newGlobalHookEnableScheduleBindings(cfg, svc.GetLogger().Named("global-hook-enable-schedule-bindings"))
+		return newGlobalHookEnableScheduleBindings(cfg, logger.Named("global-hook-enable-schedule-bindings"))
 	}
 }
 
@@ -54,9 +52,6 @@ func newGlobalHookEnableScheduleBindings(cfg *taskConfig, logger *log.Logger) *T
 
 func (s *Task) Handle(_ context.Context) queue.TaskResult {
 	result := queue.TaskResult{}
-
-	taskLogLabels := s.shellTask.GetLogLabels()
-	s.logger = utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 

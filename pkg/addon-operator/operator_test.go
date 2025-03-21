@@ -152,6 +152,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		HelmResourcesManager: op.HelmResourcesManager,
 		ModuleManager:        op.ModuleManager,
 		MetricStorage:        op.engine.MetricStorage,
+		KubeConfigManager:    op.KubeConfigManager,
 	}, log.NewNop())
 
 	return op, result

@@ -52,6 +52,7 @@ func (op *AddonOperator) bootstrap() error {
 		HelmResourcesManager: op.HelmResourcesManager,
 		ModuleManager:        op.ModuleManager,
 		MetricStorage:        op.MetricStorage,
+		KubeConfigManager:    op.KubeConfigManager,
 	}
 
 	op.TaskService = taskservice.NewTaskHandlerService(cfg, op.Logger)
