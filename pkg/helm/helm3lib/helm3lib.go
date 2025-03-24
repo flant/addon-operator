@@ -250,7 +250,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		instClient.Timeout = options.Timeout
 		instClient.ReleaseName = releaseName
 		instClient.UseReleaseName = true
-		fmt.Println("INSTALL WITH FORCE", releaseName, instClient.Force)
+
 		_, err = instClient.Run(chart, resultValues)
 		return err
 	}
@@ -310,7 +310,6 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		}
 	}
 
-	fmt.Println("UPGRADE WITH FORCE", releaseName, upg.Force)
 	_, err = upg.Run(releaseName, chart, resultValues)
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s\n", err)
