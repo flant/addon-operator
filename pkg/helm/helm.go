@@ -12,15 +12,16 @@ import (
 )
 
 type ClientFactory struct {
-	NewClientFn func(logger *log.Logger) client.HelmClient
+	NewClientFn func(logger *log.Logger, labels map[string]string) client.HelmClient
 	ClientType  ClientType
+	labels      map[string]string
 }
 
 type ClientOption func(client.HelmClient)
 
-func UsePostRenderer(use bool) ClientOption {
+func WithExtraLabels(labels map[string]string) ClientOption {
 	return func(c client.HelmClient) {
-		c.UsePostRenderer(use)
+		c.WithExtraLabels(labels)
 	}
 }
 
@@ -32,7 +33,7 @@ func WithLogLabels(logLabels map[string]string) ClientOption {
 
 func (f *ClientFactory) NewClient(logger *log.Logger, options ...ClientOption) client.HelmClient {
 	if f.NewClientFn != nil {
-		c := f.NewClientFn(logger)
+		c := f.NewClientFn(logger, f.labels)
 		for _, option := range options {
 			option(c)
 		}
@@ -50,13 +51,14 @@ type Options struct {
 	Logger            *log.Logger
 }
 
-func InitHelmClientFactory(helmopts *Options, extraLabels map[string]string) (*ClientFactory, error) {
+func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*ClientFactory, error) {
 	helmVersion, err := DetectHelmVersion()
 	if err != nil {
 		return nil, err
 	}
 
 	factory := new(ClientFactory)
+	factory.labels = labels
 
 	switch helmVersion {
 	case Helm3Lib:
@@ -68,7 +70,7 @@ func InitHelmClientFactory(helmopts *Options, extraLabels map[string]string) (*C
 			HistoryMax:        helmopts.HistoryMax,
 			Timeout:           helmopts.Timeout,
 			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
-		}, helmopts.Logger, extraLabels)
+		}, helmopts.Logger)
 
 	case Helm3:
 		log.Info("Helm 3 detected", slog.String("path", helm3.Helm3Path))

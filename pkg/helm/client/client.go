@@ -11,5 +11,5 @@ type HelmClient interface {
 	ListReleasesNames() ([]string, error)
 	IsReleaseExists(releaseName string) (bool, error)
 	WithLogLabels(map[string]string)
-	UsePostRenderer(bool)
+	WithExtraLabels(map[string]string)
 }
