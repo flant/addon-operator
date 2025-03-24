@@ -245,6 +245,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 			instClient.PostRenderer = helmPostRenderer
 		}
 		instClient.SkipCRDs = true
+		instClient.Force = true
 		instClient.Timeout = options.Timeout
 		instClient.ReleaseName = releaseName
 		instClient.UseReleaseName = true

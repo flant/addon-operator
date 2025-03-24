@@ -11,9 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
@@ -335,7 +336,9 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	if len(absent) > 0 {
 		logEntry.Debug("helm release has absent resources: should run upgrade",
 			slog.String("release", releaseName),
-			slog.Int("count", len(absent)))
+			slog.Int("count", len(absent)),
+			slog.Any("manifests", absent),
+		)
 		return true, nil
 	}
 
