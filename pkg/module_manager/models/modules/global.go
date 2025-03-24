@@ -335,6 +335,8 @@ func (gm *GlobalModule) SetAvailableAPIVersions(apiVersions []string) {
 		return
 	}
 
+	// keep apiVersions sorted to prevent helm rollout on each restart
+	sort.Strings(apiVersions)
 	data, _ := json.Marshal(apiVersions)
 	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
 		{
