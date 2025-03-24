@@ -45,6 +45,7 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger
 			ModuleManager:        svc.GetModuleManager(),
 			MetricStorage:        svc.GetMetricStorage(),
 			ConvergeState:        svc.GetConvergeState(),
+			CRDExtraLabels:       svc.GetCRDExtraLabels(),
 		}
 
 		return newModuleEnsureCRDs(cfg, logger.Named("module-ensure-crds"))
