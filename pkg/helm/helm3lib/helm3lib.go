@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
-	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -25,6 +23,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
+	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/post_renderer"
@@ -249,7 +250,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		instClient.Timeout = options.Timeout
 		instClient.ReleaseName = releaseName
 		instClient.UseReleaseName = true
-
+		fmt.Println("INSTALL WITH FORCE", releaseName, instClient.Force)
 		_, err = instClient.Run(chart, resultValues)
 		return err
 	}
@@ -309,6 +310,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		}
 	}
 
+	fmt.Println("UPGRADE WITH FORCE", releaseName, upg.Force)
 	_, err = upg.Run(releaseName, chart, resultValues)
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s\n", err)

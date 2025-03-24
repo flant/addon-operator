@@ -337,7 +337,6 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 		logEntry.Debug("helm release has absent resources: should run upgrade",
 			slog.String("release", releaseName),
 			slog.Int("count", len(absent)),
-			slog.Any("manifests", absent),
 		)
 		return true, nil
 	}
