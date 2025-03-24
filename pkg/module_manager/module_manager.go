@@ -501,9 +501,9 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 func (mm *ModuleManager) SetModuleSelfServiceState(moduleName string, selfServiceState bool) {
 	if bm := mm.GetModule(moduleName); bm != nil {
 		bm.SetSelfServiceState(selfServiceState)
-		mm.logger.Info("set module self-service phase",
+		mm.logger.Info("set module self-service state",
 			slog.String("module", moduleName),
-			slog.Bool("phase", selfServiceState))
+			slog.Bool("state", selfServiceState))
 		if selfServiceState {
 			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleSelfServiceMetricGroup, moduleSelfServiceMetricName, 1, map[string]string{"moduleName": moduleName})
 		} else {

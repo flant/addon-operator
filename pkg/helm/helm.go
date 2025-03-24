@@ -2,6 +2,7 @@ package helm
 
 import (
 	"log/slog"
+	"maps"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -33,7 +34,8 @@ func WithLogLabels(logLabels map[string]string) ClientOption {
 
 func (f *ClientFactory) NewClient(logger *log.Logger, options ...ClientOption) client.HelmClient {
 	if f.NewClientFn != nil {
-		c := f.NewClientFn(logger, f.labels)
+		labels := maps.Clone(f.labels)
+		c := f.NewClientFn(logger, labels)
 		for _, option := range options {
 			option(c)
 		}
