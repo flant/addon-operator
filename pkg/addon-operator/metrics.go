@@ -3,6 +3,7 @@ package addon_operator
 import (
 	"time"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/shell-operator/pkg/metric"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
@@ -36,19 +37,19 @@ func registerHookMetrics(metricStorage metric.Storage) {
 	metricStorage.RegisterHistogram(
 		"{PREFIX}module_run_seconds",
 		map[string]string{
-			"module":     "",
-			"activation": "",
+			"module":                "",
+			pkg.MetricKeyActivation: "",
 		},
 		buckets_1msTo10s,
 	)
 	metricStorage.RegisterCounter("{PREFIX}module_run_errors_total", map[string]string{"module": ""})
 
 	moduleHookLabels := map[string]string{
-		"module":     "",
-		"hook":       "",
-		"binding":    "",
-		"queue":      "",
-		"activation": "",
+		"module":                "",
+		"hook":                  "",
+		pkg.MetricKeyBinding:    "",
+		"queue":                 "",
+		pkg.MetricKeyActivation: "",
 	}
 	metricStorage.RegisterHistogram(
 		"{PREFIX}module_hook_run_seconds",
@@ -69,10 +70,10 @@ func registerHookMetrics(metricStorage metric.Storage) {
 
 	// global hook running
 	globalHookLabels := map[string]string{
-		"hook":       "",
-		"binding":    "",
-		"queue":      "",
-		"activation": "",
+		"hook":                  "",
+		pkg.MetricKeyBinding:    "",
+		"queue":                 "",
+		pkg.MetricKeyActivation: "",
 	}
 	metricStorage.RegisterHistogram(
 		"{PREFIX}global_hook_run_seconds",
@@ -92,23 +93,23 @@ func registerHookMetrics(metricStorage metric.Storage) {
 	metricStorage.RegisterCounter("{PREFIX}global_hook_success_total", globalHookLabels)
 
 	// converge duration
-	metricStorage.RegisterCounter("{PREFIX}convergence_seconds", map[string]string{"activation": ""})
-	metricStorage.RegisterCounter("{PREFIX}convergence_total", map[string]string{"activation": ""})
+	metricStorage.RegisterCounter("{PREFIX}convergence_seconds", map[string]string{pkg.MetricKeyActivation: ""})
+	metricStorage.RegisterCounter("{PREFIX}convergence_total", map[string]string{pkg.MetricKeyActivation: ""})
 
 	// helm operations
 	metricStorage.RegisterHistogram(
 		"{PREFIX}module_helm_seconds",
 		map[string]string{
-			"module":     "",
-			"activation": "",
+			"module":                "",
+			pkg.MetricKeyActivation: "",
 		},
 		buckets_1msTo10s)
 	metricStorage.RegisterHistogram(
 		"{PREFIX}helm_operation_seconds",
 		map[string]string{
-			"module":     "",
-			"activation": "",
-			"operation":  "",
+			"module":                "",
+			pkg.MetricKeyActivation: "",
+			"operation":             "",
 		},
 		buckets_1msTo10s)
 
@@ -117,23 +118,31 @@ func registerHookMetrics(metricStorage metric.Storage) {
 	metricStorage.RegisterCounter(
 		"{PREFIX}task_wait_in_queue_seconds_total",
 		map[string]string{
-			"module":  "",
-			"hook":    "",
-			"binding": "",
-			"queue":   "",
+			"module":             "",
+			"hook":               "",
+			pkg.MetricKeyBinding: "",
+			"queue":              "",
 		})
 }
 
+// StartLiveTicksUpdater starts a goroutine that periodically updates
+// the live_ticks metric every 10 seconds.
+// This metric can be used to verify that addon-operator is alive and functioning.
 func StartLiveTicksUpdater(metricStorage metric.Storage) {
 	// Addon-operator live ticks.
 	go func() {
 		for {
 			metricStorage.CounterAdd("{PREFIX}live_ticks", 1.0, map[string]string{})
+
 			time.Sleep(10 * time.Second)
 		}
 	}()
 }
 
+// StartTasksQueueLengthUpdater starts a goroutine that periodically updates
+// the tasks_queue_length metric every 5 seconds.
+// This metric shows the number of pending tasks in each queue, which can be useful
+// for monitoring system load and potential backlog issues.
 func StartTasksQueueLengthUpdater(metricStorage metric.Storage, tqs *queue.TaskQueueSet) {
 	go func() {
 		for {
@@ -142,6 +151,7 @@ func StartTasksQueueLengthUpdater(metricStorage metric.Storage, tqs *queue.TaskQ
 				queueLen := float64(queue.Length())
 				metricStorage.GaugeSet("{PREFIX}tasks_queue_length", queueLen, map[string]string{"queue": queue.Name})
 			})
+
 			time.Sleep(5 * time.Second)
 		}
 	}()

@@ -1,7 +1,10 @@
 package task
 
 import (
+	"context"
+
 	"github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 // Addon-operator specific task types
@@ -34,3 +37,27 @@ const (
 	GlobalHookWaitKubernetesSynchronization task.TaskType = "GlobalHookWaitKubernetesSynchronization"
 	GlobalHookEnableScheduleBindings        task.TaskType = "GlobalHookEnableScheduleBindings"
 )
+
+type Task interface {
+	Handle(ctx context.Context) queue.TaskResult
+}
+
+type TaskInternals struct {
+	metricLabels map[string]string
+}
+
+func (i *TaskInternals) GetMetricLabels() map[string]string {
+	return i.metricLabels
+}
+
+func (i *TaskInternals) AddMetricLabel(key, value string) {
+	if i.metricLabels == nil {
+		i.metricLabels = make(map[string]string)
+	}
+
+	i.metricLabels[key] = value
+}
+
+func (i *TaskInternals) DeleteMetricLabel(key string) {
+	delete(i.metricLabels, key)
+}
