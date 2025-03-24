@@ -196,6 +196,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	upg.Install = true
+	upg.Force = true
 	upg.SkipCRDs = true
 	upg.MaxHistory = int(options.HistoryMax)
 	upg.Timeout = options.Timeout
