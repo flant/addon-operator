@@ -8,11 +8,17 @@ import (
 )
 
 type PostRenderer struct {
-	ExtraLabels map[string]string
+	extraLabels map[string]string
+}
+
+func NewPostRenderer(extraLabels map[string]string) *PostRenderer {
+	return &PostRenderer{
+		extraLabels: extraLabels,
+	}
 }
 
 func (p *PostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, error) {
-	if len(p.ExtraLabels) == 0 {
+	if len(p.extraLabels) == 0 {
 		return renderedManifests, nil
 	}
 
@@ -23,7 +29,7 @@ func (p *PostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, erro
 
 	for _, node := range nodes {
 		labels := node.GetLabels()
-		for k, v := range p.ExtraLabels {
+		for k, v := range p.extraLabels {
 			labels[k] = v
 		}
 		node.SetLabels(labels)

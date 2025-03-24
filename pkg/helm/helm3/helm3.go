@@ -52,14 +52,14 @@ type Helm3Client struct {
 
 var _ client.HelmClient = &Helm3Client{}
 
-func NewClient(logger *log.Logger) client.HelmClient {
+func NewClient(logger *log.Logger, labels map[string]string) client.HelmClient {
 	logEntry := logger.With("operator.component", "helm")
 
 	return &Helm3Client{
 		Logger:            logEntry,
 		Namespace:         Options.Namespace,
 		HelmIgnoreRelease: Options.HelmIgnoreRelease,
-		usePostRenderer:   true,
+		usePostRenderer:   len(labels) > 0,
 	}
 }
 
@@ -67,11 +67,9 @@ func (h *Helm3Client) WithLogLabels(logLabels map[string]string) {
 	h.Logger = utils.EnrichLoggerWithLabels(h.Logger, logLabels)
 }
 
-func (h *Helm3Client) UsePostRenderer(use bool) {
-	h.usePostRenderer = use
+func (h *Helm3Client) WithExtraLabels(labels map[string]string) {
+	h.usePostRenderer = h.usePostRenderer || len(labels) > 0
 }
-
-// buildConfigFlagsFromEnv builds a ConfigFlags object from the environment and
 
 // cmd runs Helm binary with specified arguments.
 func (h *Helm3Client) cmd(args ...string) (string /*stdout*/, string /*stderr*/, error) {

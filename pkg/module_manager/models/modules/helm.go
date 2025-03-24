@@ -40,7 +40,7 @@ type HelmModule struct {
 
 	logger *log.Logger
 
-	usePostRenderer bool
+	additionalLabels map[string]string
 }
 
 type HelmValuesValidator interface {
@@ -75,9 +75,9 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 		utils.ModuleNameToValuesKey(bm.GetName()): moduleValues,
 	}
 
-	usePostRenderer := true
+	additionalLabels := make(map[string]string)
 	if bm.GetSelfServiceState() != SelfServiceDisabled {
-		usePostRenderer = false
+		additionalLabels["selfService"] = "true"
 	}
 
 	hm := &HelmModule{
@@ -88,7 +88,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 		tmpDir:           tmpDir,
 		dependencies:     deps,
 		validator:        validator,
-		usePostRenderer:  usePostRenderer,
+		additionalLabels: additionalLabels,
 	}
 
 	for _, opt := range opts {
@@ -187,7 +187,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	defer os.Remove(valuesPath)
 
 	helmClientOptions := []helm.ClientOption{
-		helm.UsePostRenderer(hm.usePostRenderer),
+		helm.WithExtraLabels(hm.additionalLabels),
 		helm.WithLogLabels(logLabels),
 	}
 
@@ -393,7 +393,7 @@ func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
 	defer os.Remove(valuesPath)
 
 	helmClientOptions := []helm.ClientOption{
-		helm.UsePostRenderer(hm.usePostRenderer),
+		helm.WithExtraLabels(hm.additionalLabels),
 	}
 
 	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
