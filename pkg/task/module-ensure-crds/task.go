@@ -100,6 +100,8 @@ func newModuleEnsureCRDs(cfg *taskConfig, logger *log.Logger) *Task {
 		convergeState:        cfg.ConvergeState,
 		crdExtraLabels:       cfg.CRDExtraLabels,
 
+		discoveredGVKs: make(map[string]struct{}),
+
 		logger: logger,
 	}
 
