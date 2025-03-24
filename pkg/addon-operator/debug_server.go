@@ -286,7 +286,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 			return nil, fmt.Errorf("running diff program: %w", err)
 		}
 
-		return "No drift found", nil
+		return "No diff found", nil
 	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {

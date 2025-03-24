@@ -246,8 +246,3 @@ func (mr *cliModuleSectionRequest) Snapshots(format string) ([]byte, error) {
 	url := fmt.Sprintf("http://unix/module/%s/snapshots.%s", mr.name, format)
 	return mr.client.Get(url)
 }
-
-func (mr *cliModuleSectionRequest) Drift() ([]byte, error) {
-	url := fmt.Sprintf("http://unix/module/%s/drift", mr.name)
-	return mr.client.Get(url)
-}
