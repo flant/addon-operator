@@ -25,9 +25,6 @@ func Test_DetectHelmVersion(t *testing.T) {
 	t.Run("explicit Helm3Lib", func(t *testing.T) {
 		g := NewWithT(t)
 
-		_ = os.Setenv("HELM3LIB", "yes")
-		defer os.Unsetenv("HELM3LIB")
-
 		ver, err := DetectHelmVersion()
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(ver).Should(BeEquivalentTo(Helm3Lib))
@@ -40,6 +37,8 @@ func Test_DetectHelmVersion(t *testing.T) {
 		defer os.Unsetenv("HELM_BIN_PATH")
 		_ = os.Setenv("HELM_POST_RENDERER_PATH", "testdata/helm-fake/helm3/helm")
 		defer os.Unsetenv("HELM_POST_RENDERER_PATH")
+		_ = os.Setenv("HELM3", "yes")
+		defer os.Unsetenv("HELM3")
 
 		ver, err := DetectHelmVersion()
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -52,6 +51,8 @@ func Test_DetectHelmVersion(t *testing.T) {
 		defer alterPATH(toAbsolutePath("testdata/helm-fake/helm3"))()
 		_ = os.Setenv("HELM_POST_RENDERER_PATH", "testdata/helm-fake/helm3/helm")
 		defer os.Unsetenv("HELM_POST_RENDERER_PATH")
+		_ = os.Setenv("HELM3", "yes")
+		defer os.Unsetenv("HELM3")
 
 		ver, err := DetectHelmVersion()
 		g.Expect(err).ShouldNot(HaveOccurred())
