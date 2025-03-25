@@ -84,5 +84,5 @@ func DetectHelmVersion() (ClientType, error) {
 	}
 
 	// TODO(future) Add helm4 detection here.
-	return Helm3, checkPostRenderer(helmPostRendererPath)
+	return Helm3Lib, nil
 }
