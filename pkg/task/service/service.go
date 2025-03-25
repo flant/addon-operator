@@ -3,16 +3,15 @@ package service
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
-	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
 	applykubeconfigvalues "github.com/flant/addon-operator/pkg/task/apply-kube-config-values"
 	discoverhelmrelease "github.com/flant/addon-operator/pkg/task/discover-helm-release"
@@ -20,7 +19,6 @@ import (
 	globalhookenableschedulebindings "github.com/flant/addon-operator/pkg/task/global-hook-enable-schedule-bindings"
 	globalhookrun "github.com/flant/addon-operator/pkg/task/global-hook-run"
 	globalhookwaitkubernetessynchronization "github.com/flant/addon-operator/pkg/task/global-hook-wait-kubernetes-synchronization"
-	"github.com/flant/addon-operator/pkg/task/helpers"
 	moduledelete "github.com/flant/addon-operator/pkg/task/module-delete"
 	moduleensurecrds "github.com/flant/addon-operator/pkg/task/module-ensure-crds"
 	modulehookrun "github.com/flant/addon-operator/pkg/task/module-hook-run"
@@ -45,6 +43,7 @@ type TaskHandlerServiceConfig struct {
 
 type TaskHandlerService struct {
 	engine *shell_operator.ShellOperator
+	ctx    context.Context
 
 	helm *helm.ClientFactory
 
@@ -56,6 +55,7 @@ type TaskHandlerService struct {
 	metricStorage     metric.Storage
 	kubeConfigManager *kube_config_manager.KubeConfigManager
 
+	convergeMu    sync.Mutex
 	convergeState *converge.ConvergeState
 
 	// crdExtraLabels contains labels for processing CRD files
@@ -71,6 +71,7 @@ type TaskHandlerService struct {
 func NewTaskHandlerService(config *TaskHandlerServiceConfig, logger *log.Logger) *TaskHandlerService {
 	svc := &TaskHandlerService{
 		engine:               config.Engine,
+		ctx:                  context.TODO(),
 		helm:                 config.Helm,
 		helmResourcesManager: config.HelmResourcesManager,
 		moduleManager:        config.ModuleManager,
@@ -90,73 +91,64 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 	taskLogLabels := t.GetLogLabels()
 	logger := utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
 
-	// uncomment after complete handler refactoring
-	// s.logTaskStart(t, logger)
+	s.logTaskStart(t, logger)
+	s.UpdateWaitInQueueMetric(t)
 
 	transformTask, ok := s.taskFactory[t.GetType()]
 	if !ok {
-		s.logger.Warn("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+		s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
 
 		return queue.TaskResult{}
 	}
 
 	res := transformTask(t, logger).Handle(ctx)
 
-	// uncomment after complete handler refactoring
-	// s.logTaskEnd(t, res, logger)
+	if res.Status == queue.Success {
+		origAfterHandle := res.AfterHandle
+
+		res.AfterHandle = func() {
+			s.CheckConvergeStatus(t)
+			if origAfterHandle != nil {
+				origAfterHandle()
+			}
+		}
+	}
+
+	s.logTaskEnd(t, res, logger)
 
 	return res
 }
 
-// logTaskStart prints info about task at start. Also prints event source info from task props.
-func (s *TaskHandlerService) logTaskStart(tsk sh_task.Task, logger *log.Logger) { //nolint:unused
-	// Prevent excess messages for highly frequent tasks.
-	if tsk.GetType() == task.GlobalHookWaitKubernetesSynchronization {
-		return
+func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task) queue.TaskResult {
+	taskLogLabels := t.GetLogLabels()
+	logger := utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
+
+	s.logTaskStart(t, logger)
+	s.UpdateWaitInQueueMetric(t)
+
+	transformTask, ok := s.taskFactory[t.GetType()]
+	if !ok {
+		s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+
+		return queue.TaskResult{}
 	}
 
-	if tsk.GetType() == task.ModuleRun {
-		hm := task.HookMetadataAccessor(tsk)
-		baseModule := s.moduleManager.GetModule(hm.ModuleName)
+	res := transformTask(t, logger).Handle(ctx)
 
-		if baseModule.GetPhase() == modules.WaitForSynchronization {
-			return
+	if res.Status == queue.Success {
+		origAfterHandle := res.AfterHandle
+
+		res.AfterHandle = func() {
+			s.CheckConvergeStatus(t)
+			if origAfterHandle != nil {
+				origAfterHandle()
+			}
 		}
 	}
 
-	logger = logger.With(pkg.LogKeyTaskFlow, "start")
+	s.logTaskEnd(t, res, logger)
 
-	if triggeredBy, ok := tsk.GetProp("triggered-by").([]slog.Attr); ok {
-		for _, attr := range triggeredBy {
-			logger = logger.With(attr)
-		}
-	}
-
-	logger.Info(helpers.TaskDescriptionForTaskFlowLog(tsk, "start", s.taskPhase(tsk), ""))
-}
-
-// logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
-func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result queue.TaskResult, logger *log.Logger) { //nolint:unused
-	logger = logger.With(pkg.LogKeyTaskFlow, "end")
-
-	level := log.LevelDebug
-	if tsk.GetType() == task.ConvergeModules {
-		level = log.LevelInfo
-	}
-
-	logger.Log(context.TODO(), level.Level(), helpers.TaskDescriptionForTaskFlowLog(tsk, "end", s.taskPhase(tsk), string(result.Status)))
-}
-
-func (s *TaskHandlerService) taskPhase(tsk sh_task.Task) string { //nolint:unused
-	switch tsk.GetType() {
-	case task.ConvergeModules:
-		// return string(s.ConvergeState.Phase)
-	case task.ModuleRun:
-		hm := task.HookMetadataAccessor(tsk)
-		mod := s.moduleManager.GetModule(hm.ModuleName)
-		return string(mod.GetPhase())
-	}
-	return ""
+	return res
 }
 
 func (s *TaskHandlerService) initFactory() {
