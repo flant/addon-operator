@@ -347,7 +347,7 @@ func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRootKey string) e
 				continue
 			}
 			// patches for *Enabled keys are accepted from global hooks
-			if strings.HasSuffix(rootKey, "Enabled") && permittedRootKey == GlobalValuesKey {
+			if strings.HasSuffix(rootKey, EnabledSuffix) && permittedRootKey == GlobalValuesKey {
 				continue
 			}
 			// all other patches are denied
@@ -386,7 +386,7 @@ func EnabledFromValuesPatch(valuesPatch ValuesPatch) ValuesPatch {
 		pathParts := strings.Split(op.Path, "/")
 		if len(pathParts) > 1 {
 			// patches for acceptableKey are allowed
-			if strings.HasSuffix(pathParts[1], "Enabled") {
+			if strings.HasSuffix(pathParts[1], EnabledSuffix) {
 				resOps = append(resOps, op)
 			}
 		}

@@ -10,7 +10,7 @@ import (
 
 func NewClientFactory(cl client.HelmClient) *helm.ClientFactory {
 	return &helm.ClientFactory{
-		NewClientFn: func(_ *log.Logger, _ ...map[string]string) client.HelmClient {
+		NewClientFn: func(_ *log.Logger, _ map[string]string) client.HelmClient {
 			return cl
 		},
 	}
@@ -56,4 +56,10 @@ func (c *Client) DeleteRelease(_ string) error {
 
 func (c *Client) Render(_ string, _ string, _ []string, _ []string, _ string, _ bool) (string, error) {
 	return "", nil
+}
+
+func (c *Client) WithLogLabels(_ map[string]string) {
+}
+
+func (c *Client) WithExtraLabels(_ map[string]string) {
 }

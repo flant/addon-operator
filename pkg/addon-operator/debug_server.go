@@ -6,11 +6,18 @@ import (
 	"fmt"
 	"image/png"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/cli-runtime/pkg/genericiooptions"
+	"k8s.io/cli-runtime/pkg/resource"
+	"k8s.io/kubectl/pkg/cmd/diff"
+	"k8s.io/kubectl/pkg/scheme"
+	"k8s.io/utils/exec"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
@@ -18,6 +25,8 @@ import (
 	"github.com/flant/shell-operator/pkg/debug"
 	"github.com/flant/shell-operator/pkg/hook/types"
 )
+
+const filedManagerName = "kubectl-client-side-apply"
 
 func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/list.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
@@ -140,10 +149,15 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/render", func(r *http.Request) (interface{}, error) {
 		modName := chi.URLParam(r, "name")
-		dbg, err := strconv.ParseBool(r.URL.Query().Get("debug"))
+		debugMode, err := strconv.ParseBool(r.URL.Query().Get("debug"))
 		if err != nil {
 			// if empty or unparsable - set false
-			dbg = false
+			debugMode = false
+		}
+		diffMode, err := strconv.ParseBool(r.URL.Query().Get("diff"))
+		if err != nil {
+			// if empty or unparsable - set false
+			diffMode = false
 		}
 
 		m := op.ModuleManager.GetModule(modName)
@@ -165,7 +179,114 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 			return nil, fmt.Errorf("failed to create helm module: %w", err)
 		}
 
-		return hm.Render(app.Namespace, dbg)
+		releaseManifests, err := hm.Render(app.Namespace, debugMode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render manifests: %w", err)
+		}
+
+		if !diffMode {
+			return releaseManifests, nil
+		}
+
+		f, err := os.CreateTemp("", "*")
+		if err != nil {
+			return nil, fmt.Errorf("failed to write helm chart manifests to a temporary directory: %w", err)
+		}
+
+		defer f.Close()
+
+		// file is deleted, yet the file descriptor isn't closed yet and can be accessed
+		err = os.Remove(f.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to remove the temp file: %w", err)
+		}
+
+		if _, err := f.Write([]byte(releaseManifests)); err != nil {
+			return nil, fmt.Errorf("failed to write to the temp file: %w", err)
+		}
+
+		res := op.HelmResourcesManager.
+			KubeClient().
+			NewBuilder().
+			Unstructured().
+			VisitorConcurrency(3).
+			DefaultNamespace().
+			FilenameParam(false, &resource.FilenameOptions{
+				Filenames: []string{fmt.Sprintf("/proc/self/fd/%d", f.Fd())},
+			}).
+			Flatten().
+			Do()
+
+		if err := res.Err(); err != nil {
+			return nil, err
+		}
+
+		differ, err := diff.NewDiffer("LIVE", "MERGED")
+		if err != nil {
+			return nil, err
+		}
+		defer differ.TearDown()
+
+		const maxRetries = 4
+		buffer := new(bytes.Buffer)
+		printer := diff.Printer{}
+		diffProgram := &diff.DiffProgram{
+			Exec: exec.New(),
+			IOStreams: genericiooptions.IOStreams{
+				In:     os.Stdin,
+				Out:    buffer,
+				ErrOut: os.Stderr,
+			},
+		}
+
+		err = res.Visit(func(info *resource.Info, err error) error {
+			if err != nil {
+				return err
+			}
+
+			local := info.Object.DeepCopyObject()
+			for i := 1; i <= maxRetries; i++ {
+				if err = info.Get(); err != nil {
+					if !apierrors.IsNotFound(err) {
+						return err
+					}
+					info.Object = nil
+				}
+
+				force := i == maxRetries
+
+				obj := diff.InfoObject{
+					LocalObj:        local,
+					Info:            info,
+					Encoder:         scheme.DefaultJSONEncoder(),
+					Force:           force,
+					ServerSideApply: true,
+					ForceConflicts:  true,
+					IOStreams:       diffProgram.IOStreams,
+					FieldManager:    filedManagerName,
+				}
+
+				err = differ.Diff(obj, printer, false)
+				if !(err != nil && apierrors.IsConflict(err)) {
+					break
+				}
+			}
+
+			return err
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to visit resource: %w", err)
+		}
+
+		if err := differ.Run(diffProgram); err != nil {
+			if buffer.Len() > 0 {
+				return buffer.String(), nil
+			}
+
+			return nil, fmt.Errorf("running diff program: %w", err)
+		}
+
+		return "No diff found", nil
 	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {
