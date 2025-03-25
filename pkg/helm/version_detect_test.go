@@ -25,6 +25,9 @@ func Test_DetectHelmVersion(t *testing.T) {
 	t.Run("explicit Helm3Lib", func(t *testing.T) {
 		g := NewWithT(t)
 
+		_ = os.Setenv("HELM3LIB", "yes")
+		defer os.Unsetenv("HELM3LIB")
+
 		ver, err := DetectHelmVersion()
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(ver).Should(BeEquivalentTo(Helm3Lib))
