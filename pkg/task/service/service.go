@@ -14,6 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	applykubeconfigvalues "github.com/flant/addon-operator/pkg/task/apply-kube-config-values"
+	convergemodules "github.com/flant/addon-operator/pkg/task/converge-modules"
 	discoverhelmrelease "github.com/flant/addon-operator/pkg/task/discover-helm-release"
 	globalhookenablekubernetesbindings "github.com/flant/addon-operator/pkg/task/global-hook-enable-kubernetes-bindings"
 	globalhookenableschedulebindings "github.com/flant/addon-operator/pkg/task/global-hook-enable-schedule-bindings"
@@ -23,6 +24,10 @@ import (
 	moduleensurecrds "github.com/flant/addon-operator/pkg/task/module-ensure-crds"
 	modulehookrun "github.com/flant/addon-operator/pkg/task/module-hook-run"
 	modulepurge "github.com/flant/addon-operator/pkg/task/module-purge"
+	modulerun "github.com/flant/addon-operator/pkg/task/module-run"
+	paralleltask "github.com/flant/addon-operator/pkg/task/parallel"
+	parallelmodulerun "github.com/flant/addon-operator/pkg/task/parallel-module-run"
+	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
@@ -32,11 +37,13 @@ import (
 
 type TaskHandlerServiceConfig struct {
 	Engine               *shell_operator.ShellOperator
+	ParallelTaskChannels *paralleltask.TaskChannels
 	Helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	ModuleManager        *module_manager.ModuleManager
 	MetricStorage        metric.Storage
 	KubeConfigManager    *kube_config_manager.KubeConfigManager
+	QueueService         *taskqueue.Service
 	ConvergeState        *converge.ConvergeState
 	CRDExtraLabels       map[string]string
 }
@@ -44,6 +51,9 @@ type TaskHandlerServiceConfig struct {
 type TaskHandlerService struct {
 	engine *shell_operator.ShellOperator
 	ctx    context.Context
+
+	// a map of channels to communicate with parallel queues and its lock
+	parallelTaskChannels *paralleltask.TaskChannels
 
 	helm *helm.ClientFactory
 
@@ -54,6 +64,8 @@ type TaskHandlerService struct {
 
 	metricStorage     metric.Storage
 	kubeConfigManager *kube_config_manager.KubeConfigManager
+
+	queueService *taskqueue.Service
 
 	convergeMu    sync.Mutex
 	convergeState *converge.ConvergeState
@@ -72,14 +84,17 @@ func NewTaskHandlerService(config *TaskHandlerServiceConfig, logger *log.Logger)
 	svc := &TaskHandlerService{
 		engine:               config.Engine,
 		ctx:                  context.TODO(),
+		parallelTaskChannels: config.ParallelTaskChannels,
 		helm:                 config.Helm,
 		helmResourcesManager: config.HelmResourcesManager,
 		moduleManager:        config.ModuleManager,
 		metricStorage:        config.MetricStorage,
 		kubeConfigManager:    config.KubeConfigManager,
-		convergeState:        config.ConvergeState,
-		crdExtraLabels:       config.CRDExtraLabels,
-		logger:               logger,
+		// TODO: we need to pass here a queue service with handler from task handler service
+		queueService:   config.QueueService,
+		convergeState:  config.ConvergeState,
+		crdExtraLabels: config.CRDExtraLabels,
+		logger:         logger,
 	}
 
 	svc.initFactory()
@@ -163,11 +178,18 @@ func (s *TaskHandlerService) initFactory() {
 		task.ModuleHookRun:                           modulehookrun.RegisterTaskHandler(s),
 		task.ModulePurge:                             modulepurge.RegisterTaskHandler(s),
 		task.ModuleEnsureCRDs:                        moduleensurecrds.RegisterTaskHandler(s),
+		task.ModuleRun:                               modulerun.RegisterTaskHandler(s),
+		task.ConvergeModules:                         convergemodules.RegisterTaskHandler(s),
+		task.ParallelModuleRun:                       parallelmodulerun.RegisterTaskHandler(s),
 	}
 }
 
 func (s *TaskHandlerService) GetEngine() *shell_operator.ShellOperator {
 	return s.engine
+}
+
+func (s *TaskHandlerService) GetParallelTaskChannels() *paralleltask.TaskChannels {
+	return s.parallelTaskChannels
 }
 
 func (s *TaskHandlerService) GetHelm() *helm.ClientFactory {
@@ -188,6 +210,10 @@ func (s *TaskHandlerService) GetMetricStorage() metric.Storage {
 
 func (s *TaskHandlerService) GetKubeConfigManager() *kube_config_manager.KubeConfigManager {
 	return s.kubeConfigManager
+}
+
+func (s *TaskHandlerService) GetQueueService() *taskqueue.Service {
+	return s.queueService
 }
 
 func (s *TaskHandlerService) GetConvergeState() *converge.ConvergeState {

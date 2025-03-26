@@ -31,6 +31,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/task"
+	paralleltask "github.com/flant/addon-operator/pkg/task/parallel"
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
@@ -64,7 +65,7 @@ type AddonOperator struct {
 	runtimeConfig *runtimeConfig.Config
 
 	// a map of channels to communicate with parallel queues and its lock
-	parallelTaskChannels parallelTaskChannels
+	parallelTaskChannels *paralleltask.TaskChannels
 
 	DebugServer *debug.Server
 
@@ -150,14 +151,12 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
 	ao := &AddonOperator{
-		ctx:              cctx,
-		cancel:           cancel,
-		DefaultNamespace: app.Namespace,
-		ConvergeState:    converge.NewConvergeState(),
-		parallelTaskChannels: parallelTaskChannels{
-			channels: make(map[string]chan parallelQueueEvent),
-		},
-		discoveredGVKs: make(map[string]struct{}),
+		ctx:                  cctx,
+		cancel:               cancel,
+		DefaultNamespace:     app.Namespace,
+		ConvergeState:        converge.NewConvergeState(),
+		parallelTaskChannels: paralleltask.NewTaskChannels(),
+		discoveredGVKs:       make(map[string]struct{}),
 	}
 
 	for _, opt := range opts {
@@ -994,17 +993,11 @@ func (op *AddonOperator) ParallelTasksHandler(_ context.Context, t sh_task.Task)
 
 	if parallelChannel, ok := op.parallelTaskChannels.Get(hm.ParallelRunMetadata.ChannelId); ok {
 		if res.Status == queue.Fail {
-			parallelChannel <- parallelQueueEvent{
-				moduleName: hm.ModuleName,
-				errMsg:     t.GetFailureMessage(),
-				succeeded:  false,
-			}
+			parallelChannel.SendFailure(hm.ModuleName, t.GetFailureMessage())
 		}
+
 		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.AfterTasks) == 0 {
-			parallelChannel <- parallelQueueEvent{
-				moduleName: hm.ModuleName,
-				succeeded:  true,
-			}
+			parallelChannel.SendSuccess(hm.ModuleName)
 		}
 	}
 	return res
@@ -1040,13 +1033,14 @@ func (op *AddonOperator) TaskHandler(ctx context.Context, t sh_task.Task) queue.
 		res = op.TaskService.Handle(ctx, t)
 
 	case task.ConvergeModules:
-		res = op.HandleConvergeModules(t, taskLogLabels)
+		res = op.TaskService.Handle(ctx, t)
 
 	case task.ModuleRun:
-		res = op.HandleModuleRun(t, taskLogLabels)
+		res = op.TaskService.Handle(ctx, t)
 
 	case task.ParallelModuleRun:
-		res = op.HandleParallelModuleRun(t, taskLogLabels)
+		res = op.TaskService.Handle(ctx, t)
+		// res = op.HandleParallelModuleRun(t, taskLogLabels)
 
 	case task.ModuleDelete:
 		res = op.TaskService.Handle(ctx, t)
@@ -1167,10 +1161,13 @@ func (op *AddonOperator) HandleParallelModuleRun(t sh_task.Task, labels map[stri
 	}
 
 	i := 0
-	parallelChannel := make(chan parallelQueueEvent)
+
+	parallelChannel := paralleltask.NewTaskChannel()
 	op.parallelTaskChannels.Set(t.GetId(), parallelChannel)
+
 	logEntry.Debug("ParallelModuleRun available parallel event channels",
-		slog.String("channels", fmt.Sprintf("%v", op.parallelTaskChannels.channels)))
+		slog.String("channels", fmt.Sprintf("%v", op.parallelTaskChannels.Channels())))
+
 	for moduleName, moduleMetadata := range hm.ParallelRunMetadata.GetModulesMetadata() {
 		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i%(app.NumberOfParallelQueues-1))
 		newLogLabels := utils.MergeLabels(labels)
@@ -1200,21 +1197,21 @@ L:
 		case parallelEvent := <-parallelChannel:
 			logEntry.Debug("ParallelModuleRun event received",
 				slog.String("event", fmt.Sprintf("%v", parallelEvent)))
-			if len(parallelEvent.errMsg) != 0 {
-				if tasksErrors[parallelEvent.moduleName] != parallelEvent.errMsg {
-					tasksErrors[parallelEvent.moduleName] = parallelEvent.errMsg
+			if len(parallelEvent.ErrorMessage()) != 0 {
+				if tasksErrors[parallelEvent.ModuleName()] != parallelEvent.ErrorMessage() {
+					tasksErrors[parallelEvent.ModuleName()] = parallelEvent.ErrorMessage()
 					t.UpdateFailureMessage(formatErrorSummary(tasksErrors))
 				}
 				t.IncrementFailureCount()
 				continue L
 			}
-			if parallelEvent.succeeded {
-				hm.ParallelRunMetadata.DeleteModuleMetadata(parallelEvent.moduleName)
+			if parallelEvent.Succeeded() {
+				hm.ParallelRunMetadata.DeleteModuleMetadata(parallelEvent.ModuleName())
 				// all ModuleRun tasks were executed successfully
 				if len(hm.ParallelRunMetadata.GetModulesMetadata()) == 0 {
 					break L
 				}
-				delete(tasksErrors, parallelEvent.moduleName)
+				delete(tasksErrors, parallelEvent.ModuleName())
 				t.UpdateFailureMessage(formatErrorSummary(tasksErrors))
 				newMeta := task.HookMetadata{
 					EventDescription:    hm.EventDescription,

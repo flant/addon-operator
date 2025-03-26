@@ -11,6 +11,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -19,6 +20,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
+	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
@@ -35,6 +37,7 @@ type TaskConfig interface {
 	GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
+	GetQueueService() *taskqueue.Service
 }
 
 func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
@@ -48,6 +51,7 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger
 			HelmResourcesManager: svc.GetHelmResourcesManager(),
 			ModuleManager:        svc.GetModuleManager(),
 			MetricStorage:        svc.GetMetricStorage(),
+			QueueService:         svc.GetQueueService(),
 		}
 
 		return newModuleRun(cfg, logger.Named("module-run"))
@@ -63,6 +67,7 @@ type taskConfig struct {
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	ModuleManager        *module_manager.ModuleManager
 	MetricStorage        metric.Storage
+	QueueService         *taskqueue.Service
 }
 
 type Task struct {
@@ -74,9 +79,10 @@ type Task struct {
 	helmResourcesManager helm_resources_manager.HelmResourcesManager
 	moduleManager        *module_manager.ModuleManager
 	metricStorage        metric.Storage
-	logger               *log.Logger
 
-	// internals task.TaskInternals
+	queueService *taskqueue.Service
+
+	logger *log.Logger
 }
 
 // newModuleRun creates a new task handler service
@@ -91,6 +97,7 @@ func newModuleRun(cfg *taskConfig, logger *log.Logger) *Task {
 		helmResourcesManager: cfg.HelmResourcesManager,
 		moduleManager:        cfg.ModuleManager,
 		metricStorage:        cfg.MetricStorage,
+		queueService:         cfg.QueueService,
 
 		logger: logger,
 	}
@@ -98,8 +105,8 @@ func newModuleRun(cfg *taskConfig, logger *log.Logger) *Task {
 	return service
 }
 
-func (s *Task) Handle(_ context.Context) queue.TaskResult {
-	defer trace.StartRegion(context.Background(), "ModuleRun").End()
+func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+	defer trace.StartRegion(ctx, "ModuleRun").End()
 
 	var res queue.TaskResult
 
@@ -115,13 +122,18 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 		return res
 	}
 
+	eventType := ""
+	if s.isOperatorStartup {
+		eventType = converge.OperatorStartup.String()
+	}
+
 	metricLabels := map[string]string{
-		"module":     hm.ModuleName,
-		"activation": taskLogLabels["event.type"],
+		pkg.MetricKeyModule:     hm.ModuleName,
+		pkg.MetricKeyActivation: eventType,
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		s.engine.MetricStorage.HistogramObserve("{PREFIX}module_run_seconds", d.Seconds(), metricLabels, nil)
+		s.metricStorage.HistogramObserve("{PREFIX}module_run_seconds", d.Seconds(), metricLabels, nil)
 	})()
 
 	var moduleRunErr error
@@ -131,11 +143,13 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 		s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
 		if moduleRunErr != nil {
 			res.Status = queue.Fail
+
 			s.logger.Error("ModuleRun failed. Requeue task to retry after delay.",
 				slog.String("phase", string(baseModule.GetPhase())),
 				slog.Int("count", s.shellTask.GetFailureCount()+1),
 				log.Err(moduleRunErr))
-			s.engine.MetricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
+
+			s.metricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
 			s.shellTask.UpdateFailureMessage(moduleRunErr.Error())
 			s.shellTask.WithQueuedAt(time.Now())
 		}
@@ -146,11 +160,14 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 
 		if *valuesChanged {
 			s.logger.Info("ModuleRun success, values changed, restart module")
+
 			// One of afterHelm hooks changes values, run ModuleRun again: copy task, but disable startup hooks.
 			hm.DoModuleStartup = false
 			hm.EventDescription = "AfterHelm-Hooks-Change-Values"
 			newLabels := utils.MergeLabels(s.shellTask.GetLogLabels())
-			delete(newLabels, "task.id")
+
+			delete(newLabels, pkg.LogKeyTaskID)
+
 			newTask := sh_task.NewTask(task.ModuleRun).
 				WithLogLabels(newLabels).
 				WithQueueName(s.shellTask.GetQueueName()).
@@ -225,6 +242,7 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 				// override main queue with parallel queue
 				queueName = s.shellTask.GetQueueName()
 			}
+
 			taskLogLabels := utils.MergeLabels(s.shellTask.GetLogLabels(), map[string]string{
 				"binding":   string(htypes.OnKubernetesEvent) + "Synchronization",
 				"module":    hm.ModuleName,
@@ -232,9 +250,11 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 				"hook.type": "module",
 				"queue":     queueName,
 			})
+
 			if len(info.BindingContext) > 0 {
 				taskLogLabels["binding.name"] = info.BindingContext[0].Binding
 			}
+
 			delete(taskLogLabels, "task.id")
 
 			kubernetesBindingID := uuid.Must(uuid.NewV4()).String()
@@ -242,6 +262,7 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 			if hm.ParallelRunMetadata != nil && len(hm.ParallelRunMetadata.ChannelId) != 0 {
 				parallelRunMetadata.ChannelId = hm.ParallelRunMetadata.ChannelId
 			}
+
 			taskMeta := task.HookMetadata{
 				EventDescription:         hm.EventDescription,
 				ModuleName:               hm.ModuleName,
@@ -255,6 +276,7 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 				ExecuteOnSynchronization: info.KubernetesBinding.ExecuteHookOnSynchronization,
 				ParallelRunMetadata:      parallelRunMetadata,
 			}
+
 			newTask := sh_task.NewTask(task.ModuleHookRun).
 				WithLogLabels(taskLogLabels).
 				WithQueueName(queueName).
@@ -290,6 +312,7 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 					baseModule.Synchronization().QueuedForBinding(thm)
 				}
 			}
+
 			s.logTaskAdd("append", parallelSyncTasksToWait...)
 
 			// Queue regular parallel tasks.
@@ -302,15 +325,14 @@ func (s *Task) Handle(_ context.Context) queue.TaskResult {
 					q.AddLast(tsk)
 				}
 			}
+
 			s.logTaskAdd("append", parallelSyncTasks...)
 
 			if len(parallelSyncTasksToWait) == 0 {
 				// Skip waiting tasks in parallel queues, proceed to schedule bindings.
-
 				s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.EnableScheduleBindings)
 			} else {
 				// There are tasks to wait.
-
 				s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.WaitForSynchronization)
 				s.logger.With("module.state", "wait-for-synchronization").
 					Debug("ModuleRun wait for Synchronization")
@@ -391,7 +413,9 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	scheduleHooks := m.GetHooks(htypes.Schedule)
 	for _, hook := range scheduleHooks {
 		for _, hookBinding := range hook.GetHookConfig().Schedules {
-			if s.CreateAndStartQueue(hookBinding.Queue) {
+			if !s.queueService.IsQueueExists(hookBinding.Queue) {
+				s.queueService.CreateAndStartQueue(hookBinding.Queue)
+
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
 					slog.String("hook", hook.GetName()))
@@ -402,26 +426,15 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	kubeEventsHooks := m.GetHooks(htypes.OnKubernetesEvent)
 	for _, hook := range kubeEventsHooks {
 		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
-			if s.CreateAndStartQueue(hookBinding.Queue) {
+			if !s.queueService.IsQueueExists(hookBinding.Queue) {
+				s.queueService.CreateAndStartQueue(hookBinding.Queue)
+
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),
 					slog.String("hook", hook.GetName()))
 			}
 		}
 	}
-}
-
-// CreateAndStartQueue creates a named queue and starts it.
-// It returns false is queue is already created
-func (s *Task) CreateAndStartQueue(_ string) bool {
-	// TODO: uncomment when TaskHandler will be complete in service
-	// if s.engine.TaskQueues.GetByName(queueName) != nil {
-	// 	return false
-	// }
-	// s.engine.TaskQueues.NewNamedQueue(queueName, s.TaskHandler)
-	// s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)
-
-	return true
 }
 
 // logTaskAdd prints info about queued tasks.
