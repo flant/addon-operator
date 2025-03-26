@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
@@ -14,7 +15,7 @@ import (
 )
 
 // logTaskStart prints info about task at start. Also prints event source info from task props.
-func (s *TaskHandlerService) logTaskStart(tsk sh_task.Task, logger *log.Logger) { //nolint:unused
+func (s *TaskHandlerService) logTaskStart(tsk sh_task.Task, logger *log.Logger) {
 	// Prevent excess messages for highly frequent tasks.
 	if tsk.GetType() == task.GlobalHookWaitKubernetesSynchronization {
 		return
@@ -41,7 +42,7 @@ func (s *TaskHandlerService) logTaskStart(tsk sh_task.Task, logger *log.Logger) 
 }
 
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
-func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result queue.TaskResult, logger *log.Logger) { //nolint:unused
+func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result queue.TaskResult, logger *log.Logger) {
 	logger = logger.With(pkg.LogKeyTaskFlow, "end")
 
 	level := log.LevelDebug
@@ -52,7 +53,7 @@ func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result queue.TaskResul
 	logger.Log(context.TODO(), level.Level(), helpers.TaskDescriptionForTaskFlowLog(tsk, "end", s.taskPhase(tsk), string(result.Status)))
 }
 
-func (s *TaskHandlerService) taskPhase(tsk sh_task.Task) string { //nolint:unused
+func (s *TaskHandlerService) taskPhase(tsk sh_task.Task) string {
 	switch tsk.GetType() {
 	case task.ConvergeModules:
 		// return string(s.ConvergeState.Phase)

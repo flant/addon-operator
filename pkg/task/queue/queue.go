@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/flant/addon-operator/pkg/task"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"

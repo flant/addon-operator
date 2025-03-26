@@ -56,7 +56,7 @@ func (pq *TaskChannels) Channels() []string {
 	pq.l.Lock()
 	defer pq.l.Unlock()
 
-	var ids []string
+	ids := make([]string, 0, len(pq.channels))
 
 	for id := range pq.channels {
 		ids = append(ids, id)

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"

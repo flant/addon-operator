@@ -109,36 +109,6 @@ type AddonOperator struct {
 	TaskService *taskservice.TaskHandlerService
 }
 
-type parallelQueueEvent struct {
-	moduleName string
-	errMsg     string
-	succeeded  bool
-}
-
-type parallelTaskChannels struct {
-	l        sync.Mutex
-	channels map[string]chan parallelQueueEvent
-}
-
-func (pq *parallelTaskChannels) Set(id string, c chan parallelQueueEvent) {
-	pq.l.Lock()
-	pq.channels[id] = c
-	pq.l.Unlock()
-}
-
-func (pq *parallelTaskChannels) Get(id string) (chan parallelQueueEvent, bool) {
-	pq.l.Lock()
-	defer pq.l.Unlock()
-	c, ok := pq.channels[id]
-	return c, ok
-}
-
-func (pq *parallelTaskChannels) Delete(id string) {
-	pq.l.Lock()
-	delete(pq.channels, id)
-	pq.l.Unlock()
-}
-
 type Option func(operator *AddonOperator)
 
 func WithLogger(logger *log.Logger) Option {

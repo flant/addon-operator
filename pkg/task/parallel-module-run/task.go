@@ -257,14 +257,6 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	}
 }
 
-// logTaskAdd prints info about queued tasks.
-func (s *Task) logTaskAdd(action string, tasks ...sh_task.Task) {
-	logger := s.logger.With(pkg.LogKeyTaskFlow, "add")
-	for _, tsk := range tasks {
-		logger.Info(helpers.TaskDescriptionForTaskFlowLog(tsk, action, "", ""))
-	}
-}
-
 // fomartErrorSumamry constructs a string of errors from the map
 func formatErrorSummary(errors map[string]string) string {
 	errSummary := "\n\tErrors:\n"
