@@ -44,6 +44,7 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger
 			IsOperatorStartup: helpers.IsOperatorStartupTask(t),
 
 			Engine:               svc.GetEngine(),
+			ParallelTaskChannels: svc.GetParallelTaskChannels(),
 			Helm:                 svc.GetHelm(),
 			HelmResourcesManager: svc.GetHelmResourcesManager(),
 			ModuleManager:        svc.GetModuleManager(),
