@@ -43,7 +43,6 @@ type TaskHandlerServiceConfig struct {
 	ModuleManager        *module_manager.ModuleManager
 	MetricStorage        metric.Storage
 	KubeConfigManager    *kube_config_manager.KubeConfigManager
-	QueueService         *taskqueue.Service
 	ConvergeState        *converge.ConvergeState
 	CRDExtraLabels       map[string]string
 }
@@ -90,12 +89,15 @@ func NewTaskHandlerService(config *TaskHandlerServiceConfig, logger *log.Logger)
 		moduleManager:        config.ModuleManager,
 		metricStorage:        config.MetricStorage,
 		kubeConfigManager:    config.KubeConfigManager,
-		// TODO: we need to pass here a queue service with handler from task handler service
-		queueService:   config.QueueService,
-		convergeState:  config.ConvergeState,
-		crdExtraLabels: config.CRDExtraLabels,
-		logger:         logger,
+		convergeState:        config.ConvergeState,
+		crdExtraLabels:       config.CRDExtraLabels,
+		logger:               logger,
 	}
+
+	svc.queueService = taskqueue.NewService(context.TODO(), &taskqueue.ServiceConfig{
+		Engine: config.Engine,
+		Handle: svc.Handle,
+	}, logger.Named("task-queue-service"))
 
 	svc.initFactory()
 

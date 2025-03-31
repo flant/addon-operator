@@ -25,7 +25,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
-	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
 	"github.com/flant/kube-client/fake"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -155,12 +154,8 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		ModuleManager:        op.ModuleManager,
 		MetricStorage:        op.engine.MetricStorage,
 		KubeConfigManager:    op.KubeConfigManager,
-		QueueService: taskqueue.NewService(op.ctx, &taskqueue.ServiceConfig{
-			Engine: op.engine,
-			Handle: op.TaskHandler,
-		}, log.NewNop()),
-		ConvergeState:  op.ConvergeState,
-		CRDExtraLabels: map[string]string{},
+		ConvergeState:        op.ConvergeState,
+		CRDExtraLabels:       map[string]string{},
 	}, log.NewNop())
 
 	return op, result
