@@ -108,6 +108,7 @@ func newConvergeModules(cfg *taskConfig, logger *log.Logger) *Task {
 	return service
 }
 
+// Handle is a multi-phase task.
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	defer trace.StartRegion(ctx, "ConvergeModules").End()
 

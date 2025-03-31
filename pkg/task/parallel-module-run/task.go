@@ -106,6 +106,9 @@ func newParallelModuleRun(cfg *taskConfig, logger *log.Logger) *Task {
 	return service
 }
 
+// Handle runs multiple ModuleRun tasks in parallel and aggregates their results.
+// It creates tasks for each module in separate parallel queues, then monitors their completion
+// through a communication channel.
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	defer trace.StartRegion(ctx, "ParallelModuleRun").End()
 

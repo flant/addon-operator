@@ -137,6 +137,17 @@ func (s *Task) drainModuleQueues(modName string) {
 			drainNonMainQueue(s.engine.TaskQueues.GetByName(hookBinding.Queue))
 		}
 	}
+
+	// TODO: duplication here?
+	// for _, hookName := range op.ModuleManager.GetModuleHookNames(modName) {
+	//	h := op.ModuleManager.GetModuleHook(hookName)
+	//	for _, hookBinding := range h.Get.Schedules {
+	//		DrainNonMainQueue(op.engine.TaskQueues.GetByName(hookBinding.Queue))
+	//	}
+	//	for _, hookBinding := range h.Config.OnKubernetesEvents {
+	//		DrainNonMainQueue(op.engine.TaskQueues.GetByName(hookBinding.Queue))
+	//	}
+	//}
 }
 
 func drainNonMainQueue(q *queue.TaskQueue) {

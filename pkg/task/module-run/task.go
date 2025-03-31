@@ -105,6 +105,20 @@ func newModuleRun(cfg *taskConfig, logger *log.Logger) *Task {
 	return service
 }
 
+// Handle starts a module by executing module hooks and installing a Helm chart.
+//
+// Execution sequence:
+// - Run onStartup hooks.
+// - Queue kubernetes hooks as Synchronization tasks.
+// - Wait until Synchronization tasks are done to fill all snapshots.
+// - Enable kubernetes events.
+// - Enable schedule events.
+// - Run beforeHelm hooks
+// - Run Helm to install or upgrade a module's chart.
+// - Run afterHelm hooks.
+//
+// ModuleRun is restarted if hook or chart is failed.
+// After first Handle success, no onStartup and kubernetes.Synchronization tasks will run.
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	defer trace.StartRegion(ctx, "ModuleRun").End()
 

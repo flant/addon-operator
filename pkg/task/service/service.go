@@ -104,6 +104,7 @@ func NewTaskHandlerService(config *TaskHandlerServiceConfig, logger *log.Logger)
 	return svc
 }
 
+// TaskHandler handles tasks in queue.
 func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.TaskResult {
 	taskLogLabels := t.GetLogLabels()
 	logger := utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
@@ -136,6 +137,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 	return res
 }
 
+// ParallelHandle handles limited types of tasks in parallel queues.
 func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task) queue.TaskResult {
 	taskLogLabels := t.GetLogLabels()
 	logger := utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
