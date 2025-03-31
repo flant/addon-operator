@@ -143,27 +143,38 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 	s.logTaskStart(t, logger)
 	s.UpdateWaitInQueueMetric(t)
 
-	transformTask, ok := s.taskFactory[t.GetType()]
-	if !ok {
-		s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+	var transformTask func(t sh_task.Task, logger *log.Logger) task.Task
 
-		return queue.TaskResult{}
+	switch t.GetType() {
+	case task.ModuleRun, task.ModuleHookRun:
+		var ok bool
+
+		transformTask, ok = s.taskFactory[t.GetType()]
+		if !ok {
+			s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+
+			return queue.TaskResult{}
+		}
 	}
 
 	res := transformTask(t, logger).Handle(ctx)
 
-	if res.Status == queue.Success {
-		origAfterHandle := res.AfterHandle
+	s.logTaskEnd(t, res, logger)
 
-		res.AfterHandle = func() {
-			s.CheckConvergeStatus(t)
-			if origAfterHandle != nil {
-				origAfterHandle()
-			}
-		}
+	hm := task.HookMetadataAccessor(t)
+	if hm.ParallelRunMetadata == nil || len(hm.ParallelRunMetadata.ChannelId) == 0 {
+		s.logger.Warn("Parallel task had no communication channel set")
 	}
 
-	s.logTaskEnd(t, res, logger)
+	if parallelChannel, ok := s.parallelTaskChannels.Get(hm.ParallelRunMetadata.ChannelId); ok {
+		if res.Status == queue.Fail {
+			parallelChannel.SendFailure(hm.ModuleName, t.GetFailureMessage())
+		}
+
+		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.AfterTasks) == 0 {
+			parallelChannel.SendSuccess(hm.ModuleName)
+		}
+	}
 
 	return res
 }

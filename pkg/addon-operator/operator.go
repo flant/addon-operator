@@ -803,7 +803,7 @@ func (op *AddonOperator) CreateAndStartParallelQueues() {
 			continue
 		}
 
-		op.startQueue(queueName, op.ParallelTasksHandler)
+		op.startQueue(queueName, op.TaskService.ParallelHandle)
 		log.Debug("Parallel queue started",
 			slog.String("queue", queueName))
 	}
