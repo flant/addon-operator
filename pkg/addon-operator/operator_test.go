@@ -270,7 +270,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		})
 
 		// Handle it.
-		return op.TaskHandler(ctx, tsk)
+		return op.TaskService.Handle(ctx, tsk)
 	})
 
 	op.engine.TaskQueues.StartMain(op.ctx)
@@ -423,7 +423,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		historyMu.Unlock()
 
 		// Handle it.
-		return op.TaskHandler(ctx, tsk)
+		return op.TaskService.Handle(ctx, tsk)
 	})
 
 	// Start 'main' queue and wait for first converge.
@@ -524,7 +524,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		historyMu.Unlock()
 
 		// Handle it.
-		return op.TaskHandler(ctx, tsk)
+		return op.TaskService.Handle(ctx, tsk)
 	})
 
 	op.engine.TaskQueues.StartMain(op.ctx)
