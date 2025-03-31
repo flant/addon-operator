@@ -142,7 +142,6 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 	args := []string{
 		"upgrade", releaseName, chart,
 		"--install",
-		"--force",
 		"--skip-crds",
 		"--history-max", fmt.Sprintf("%d", Options.HistoryMax),
 		"--timeout", Options.Timeout.String(),
