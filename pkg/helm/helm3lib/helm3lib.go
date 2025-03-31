@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
-	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -25,6 +23,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
+	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/post_renderer"
@@ -131,7 +132,7 @@ func (h *LibClient) actionConfigInit() error {
 
 	formattedLogFunc := func(format string, v ...interface{}) {
 		ctx := logContext.SetCustomKeyContext(context.Background())
-		h.Logger.Log(ctx, slog.LevelDebug, fmt.Sprintf(format, v))
+		h.Logger.Log(ctx, slog.LevelDebug, fmt.Sprintf(format, v...))
 	}
 
 	err := ac.Init(getter, options.Namespace, helmDriver, formattedLogFunc)
@@ -196,7 +197,6 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	upg.Install = true
-	upg.Force = true
 	upg.SkipCRDs = true
 	upg.MaxHistory = int(options.HistoryMax)
 	upg.Timeout = options.Timeout
@@ -245,7 +245,6 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 			instClient.PostRenderer = helmPostRenderer
 		}
 		instClient.SkipCRDs = true
-		instClient.Force = true
 		instClient.Timeout = options.Timeout
 		instClient.ReleaseName = releaseName
 		instClient.UseReleaseName = true

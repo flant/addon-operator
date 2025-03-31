@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	k8syaml "sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -142,7 +143,6 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 	args := []string{
 		"upgrade", releaseName, chart,
 		"--install",
-		"--force",
 		"--skip-crds",
 		"--history-max", fmt.Sprintf("%d", Options.HistoryMax),
 		"--timeout", Options.Timeout.String(),
