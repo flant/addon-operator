@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -277,7 +278,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 		return nil, nil
 	}
 
-	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir)
+	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir, hooksExcludedDir...)
 	if err != nil {
 		return nil, err
 	}
@@ -289,10 +290,29 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 	bm.logger.Debug("Hook paths",
 		slog.Any("paths", hooksRelativePaths))
 
+	var (
+		checkPythonEnv           sync.Once
+		discoveredPythonVenvPath string
+	)
+
 	for _, hookPath := range hooksRelativePaths {
+		options := make([]kind.ShellHookOption, 0, 1)
+
+		if filepath.Ext(hookPath) == ".py" {
+			checkPythonEnv.Do(func() {
+				f, err := os.Stat(filepath.Join(bm.Path, kind.PythonVenvPath, kind.PythonBinaryPath))
+				if err == nil {
+					if !f.IsDir() && f.Mode()&0o111 != 0 {
+						discoveredPythonVenvPath = filepath.Join(bm.Path, kind.PythonVenvPath)
+					}
+				}
+			})
+			options = append(options, kind.WithPythonVenv(discoveredPythonVenvPath))
+		}
+
 		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("could not get hook name: %w", err)
 		}
 
 		if filepath.Ext(hookPath) == "" {
@@ -304,7 +324,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 			bm.logger.Warn("get batch hook config", slog.String("hook_file_path", hookPath), log.Err(err))
 		}
 
-		shHook := kind.NewShellHook(hookName, hookPath, bm.safeName(), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"))
+		shHook := kind.NewShellHook(hookName, hookPath, bm.safeName(), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"), options...)
 
 		hks = append(hks, shHook)
 	}
@@ -318,7 +338,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 		return nil, nil
 	}
 
-	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(bm.safeName(), hooksDir, bm.logger)
+	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(bm.safeName(), hooksDir, bm.logger, hooksExcludedDir...)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +352,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("could not get hook name: %w", err)
 		}
 
 		sdkcfgs, err := kind.GetBatchHookConfig(bm.safeName(), hookPath)
@@ -351,8 +371,9 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 	return hks, nil
 }
 
-func RecursiveGetBatchHookExecutablePaths(moduleName, dir string, logger *log.Logger) ([]string, error) {
+func RecursiveGetBatchHookExecutablePaths(moduleName, dir string, logger *log.Logger, excludedDirs ...string) ([]string, error) {
 	paths := make([]string, 0)
+	excludedDirs = append(excludedDirs, "lib")
 	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -360,7 +381,7 @@ func RecursiveGetBatchHookExecutablePaths(moduleName, dir string, logger *log.Lo
 
 		if f.IsDir() {
 			// Skip hidden and lib directories inside initial directory
-			if strings.HasPrefix(f.Name(), ".") || f.Name() == "lib" {
+			if strings.HasPrefix(f.Name(), ".") || slices.Contains(excludedDirs, f.Name()) {
 				return filepath.SkipDir
 			}
 
@@ -394,6 +415,9 @@ var (
 	ErrFileHasWrongExtension       = errors.New("file has wrong extension")
 	ErrFileIsNotBatchHook          = errors.New("file is not batch hook")
 	ErrFileNoExecutablePermissions = errors.New("no executable permissions, chmod +x is required to run this hook")
+
+	// the lisf of subdirectories to exclude when searching for a module's hooks
+	hooksExcludedDir = []string{"venv"}
 )
 
 func isExecutableBatchHookFile(moduleName, path string, f os.FileInfo) error {

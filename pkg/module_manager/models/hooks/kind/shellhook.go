@@ -24,18 +24,28 @@ import (
 	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
+const (
+	PythonVenvPath   = "hooks/venv"
+	PythonBinaryPath = "bin/python3"
+
+	pythonHomeEnv = "PYTHONHOME"
+)
+
 var _ gohook.HookConfigLoader = (*ShellHook)(nil)
 
 type ShellHook struct {
 	moduleName string
+	pythonVenv string
 	sh_hook.Hook
 
 	ScheduleConfig *HookScheduleConfig
 }
 
+type ShellHookOption func(*ShellHook)
+
 // NewShellHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewShellHook(name, path, moduleName string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *ShellHook {
-	return &ShellHook{
+func NewShellHook(name, path, moduleName string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger, options ...ShellHookOption) *ShellHook {
+	sh := &ShellHook{
 		moduleName: moduleName,
 		Hook: sh_hook.Hook{
 			Name:                   name,
@@ -45,6 +55,25 @@ func NewShellHook(name, path, moduleName string, keepTemporaryHookFiles bool, lo
 			Logger:                 logger,
 		},
 		ScheduleConfig: &HookScheduleConfig{},
+	}
+
+	for _, opt := range options {
+		opt(sh)
+	}
+
+	logger.Debug("Created a new shell hook",
+		slog.String("module", sh.moduleName),
+		slog.String("hookName", sh.Name),
+		slog.String("path", sh.Path),
+		slog.String("pythonVenv", sh.pythonVenv),
+	)
+
+	return sh
+}
+
+func WithPythonVenv(pythonVenvPath string) ShellHookOption {
+	return func(sh *ShellHook) {
+		sh.pythonVenv = pythonVenvPath
 	}
 }
 
@@ -125,16 +154,21 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	metricsPath := tmpFiles["METRICS_PATH"]
 	kubernetesPatchPath := tmpFiles["KUBERNETES_PATCH_PATH"]
 
-	envs := make([]string, 0)
-	envs = append(envs, os.Environ()...)
+	envs := os.Environ()
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
+	}
+	command := sh.GetPath()
+	args := make([]string, 0)
+
+	if filepath.Ext(command) == ".py" {
+		sh.updateExecutorParamsForPython(&command, &envs, &args)
 	}
 
 	cmd := executor.NewExecutor(
 		"",
-		sh.GetPath(),
-		[]string{},
+		command,
+		args,
 		envs).
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
@@ -175,14 +209,41 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 	return result, nil
 }
 
+// updateExecutorParamsForPython modifies command, env and args executor arguments to run a python script by
+// the python version supplied with the module. If the module has no python, the script is run by the global python
+// version and a warning is thrown.
+func (sh *ShellHook) updateExecutorParamsForPython(command *string, envs, args *[]string) {
+	sh.Hook.Logger.Debug("Updating hook's exec parameters",
+		slog.String("module", sh.moduleName),
+		slog.String("hookName", sh.Name),
+	)
+
+	if len(sh.pythonVenv) != 0 {
+		*envs = append(*envs, fmt.Sprintf("%s=%s", pythonHomeEnv, sh.pythonVenv))
+		*command = filepath.Join(sh.pythonVenv, PythonBinaryPath)
+		newArgs := make([]string, 1, len(*args)+1)
+		newArgs[0] = sh.Path
+		*args = append(newArgs, *args...)
+	} else {
+		sh.Hook.Logger.Warn("Module executes python hooks, but has no python virtual environment",
+			slog.String("module", sh.moduleName),
+			slog.String("hookName", sh.Name),
+		)
+	}
+}
+
 func (sh *ShellHook) getConfig() ([]byte, error) {
-	envs := make([]string, 0)
-	envs = append(envs, os.Environ()...)
+	envs := os.Environ()
+	command := sh.Path
 	args := []string{"--config"}
+
+	if filepath.Ext(command) == ".py" {
+		sh.updateExecutorParamsForPython(&command, &envs, &args)
+	}
 
 	cmd := executor.NewExecutor(
 		"",
-		sh.Path,
+		command,
 		args,
 		envs).
 		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
