@@ -196,7 +196,9 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	if upg.Labels == nil {
 		upg.Labels = make(map[string]string)
 	}
-	maps.Copy(upg.Labels, labels)
+	if labels != nil {
+		maps.Copy(upg.Labels, labels)
+	}
 
 	chart, err := loader.Load(chartName)
 	if err != nil {
