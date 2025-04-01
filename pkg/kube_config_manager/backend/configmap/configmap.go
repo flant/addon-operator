@@ -195,9 +195,9 @@ func getModulesNamesFromConfigData(configData map[string]string) (map[string]boo
 			continue
 		}
 
-		// Treat Enabled and SelfService flags as module section.
+		// Treat Enabled and ManagementState flags as module section.
 		key = strings.TrimSuffix(key, utils.EnabledSuffix)
-		key = strings.TrimSuffix(key, utils.SelfServiceSuffix)
+		key = strings.TrimSuffix(key, utils.ManagementStateSuffix)
 
 		modName := utils.ModuleNameFromValuesKey(key)
 
@@ -255,7 +255,7 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 		configValues[mc.ModuleConfigKey()] = moduleValues
 	}
 
-	// if there is enabled or selfService keys, treat them as boolean
+	// if there is enabled key, treat it as boolean
 	enabledString, hasKey := configData[mc.ModuleEnabledKey()]
 	if hasKey {
 		var enabled bool
@@ -272,20 +272,20 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 		configValues[mc.ModuleEnabledKey()] = enabled
 	}
 
-	selfServiceString, hasKey := configData[mc.ModuleSelfServiceKey()]
+	managementStateString, hasKey := configData[mc.ModuleManagementStateKey()]
 	if hasKey {
-		var enabled bool
+		var state utils.ManagementState
 
-		switch selfServiceString {
-		case "true":
-			enabled = true
-		case "false":
-			enabled = false
+		switch managementStateString {
+		case "Unmanaged", "unmanaged":
+			state = utils.Unmanaged
+		case "":
+			state = utils.Managed
 		default:
-			return nil, fmt.Errorf("module selfService key '%s' should have a boolean value, got '%v'", mc.ModuleSelfServiceKey(), selfServiceString)
+			return nil, fmt.Errorf("module managementState key '%s' can only take 'Unmanaged', 'unmanaged' or '' values, got '%v'", mc.ModuleManagementStateKey(), managementStateString)
 		}
 
-		configValues[mc.ModuleSelfServiceKey()] = enabled
+		configValues[mc.ModuleManagementStateKey()] = state
 	}
 
 	if len(configValues) == 0 {

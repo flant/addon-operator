@@ -14,21 +14,32 @@ var (
 	ModuleEnabled  = true
 	ModuleDisabled = false
 
-	EnabledSuffix     = "Enabled"
-	SelfServiceSuffix = "SelfService"
+	EnabledSuffix         = "Enabled"
+	ManagementStateSuffix = "ManagementState"
+)
+
+type ManagementState string
+
+func (m ManagementState) String() string {
+	return string(m)
+}
+
+const (
+	Managed   ManagementState = "Managed"
+	Unmanaged ManagementState = "Unmanaged"
 )
 
 type ModuleConfig struct {
-	ModuleName  string
-	IsEnabled   *bool
-	SelfService bool
+	ModuleName      string
+	IsEnabled       *bool
+	ManagementState ManagementState
 	// module values, don't read it directly, use GetValues() for reading
 	values Values
 }
 
 // String returns description of ModuleConfig values.
 func (mc *ModuleConfig) String() string {
-	return fmt.Sprintf("Module(Name=%s IsEnabled=%v SelfService=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.SelfService, mc.values.DebugString())
+	return fmt.Sprintf("Module(Name=%s IsEnabled=%v ManagementState=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.ManagementState, mc.values.DebugString())
 }
 
 // ModuleConfigKey transforms module kebab-case name to the config camelCase name
@@ -41,9 +52,9 @@ func (mc *ModuleConfig) ModuleEnabledKey() string {
 	return ModuleNameToValuesKey(mc.ModuleName) + EnabledSuffix
 }
 
-// ModuleSelfServiceKey transforms module kebab-case name to the config camelCase name with 'SelfService' suffix
-func (mc *ModuleConfig) ModuleSelfServiceKey() string {
-	return ModuleNameToValuesKey(mc.ModuleName) + SelfServiceSuffix
+// ModuleManagementStateKey transforms module kebab-case name to the config camelCase name with 'ManagementState' suffix
+func (mc *ModuleConfig) ModuleManagementStateKey() string {
+	return ModuleNameToValuesKey(mc.ModuleName) + ManagementStateSuffix
 }
 
 // GetEnabled returns string description of enabled status.
@@ -61,13 +72,12 @@ func (mc *ModuleConfig) GetEnabled() string {
 	}
 }
 
-// GetSelfService returns string description of SelfService status.
-func (mc *ModuleConfig) GetSelfService() bool {
+func (mc *ModuleConfig) GetManagementState() ManagementState {
 	if mc == nil {
-		return false
+		return Managed
 	}
 
-	return mc.SelfService
+	return mc.ManagementState
 }
 
 func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
@@ -75,9 +85,10 @@ func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 		values = make(Values)
 	}
 	return &ModuleConfig{
-		ModuleName: moduleName,
-		IsEnabled:  nil,
-		values:     values,
+		ModuleName:      moduleName,
+		IsEnabled:       nil,
+		values:          values,
+		ManagementState: Managed,
 	}
 }
 
@@ -115,7 +126,7 @@ func (mc *ModuleConfig) GetValues() Values {
 func (mc *ModuleConfig) Reset() {
 	mc.values = Values{}
 	mc.IsEnabled = nil
-	mc.SelfService = false
+	mc.ManagementState = Unmanaged
 }
 
 // LoadFromValues loads module config from a map.
@@ -147,12 +158,12 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 		}
 	}
 
-	if selfService, hasSelfService := values[mc.ModuleSelfServiceKey()]; hasSelfService {
-		switch v := selfService.(type) {
-		case bool:
-			mc.SelfService = v
+	if managementState, hasManagementState := values[mc.ModuleManagementStateKey()]; hasManagementState {
+		switch v := managementState.(type) {
+		case ManagementState:
+			mc.ManagementState = v
 		default:
-			return nil, fmt.Errorf("load '%s' SelfService config: SelfService value should be bool. Got: %#v", mc.ModuleName, selfService)
+			return nil, fmt.Errorf("load '%s' ManagementState config: ManagementState value should be string. Got: %#v", mc.ModuleName, managementState)
 		}
 	}
 

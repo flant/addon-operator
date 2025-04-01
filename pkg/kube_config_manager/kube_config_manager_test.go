@@ -77,7 +77,7 @@ kubeDns: |
   config:
     resolver: "192.168.0.1"
 kubeDnsEnabled: "true"
-kubeDnsSelfService: "true"
+kubeDnsManagementState: "Unmanaged"
 `
 
 	kubeClient := klient.NewFake(nil)
@@ -87,13 +87,13 @@ kubeDnsSelfService: "true"
 	defer kcm.Stop()
 
 	tests := map[string]struct {
-		isEnabled   *bool
-		selfService bool
-		values      utils.Values
+		isEnabled       *bool
+		managementState utils.ManagementState
+		values          utils.Values
 	}{
 		"global": {
 			nil,
-			false,
+			utils.Managed,
 			utils.Values{
 				utils.GlobalValuesKey: map[string]interface{}{
 					"project":         "tfprod",
@@ -110,7 +110,7 @@ kubeDnsSelfService: "true"
 		},
 		"nginx-ingress": {
 			&utils.ModuleEnabled,
-			false,
+			utils.Managed,
 			utils.Values{
 				utils.ModuleNameToValuesKey("nginx-ingress"): map[string]interface{}{
 					"config": map[string]interface{}{
@@ -125,7 +125,7 @@ kubeDnsSelfService: "true"
 		},
 		"prometheus": {
 			nil,
-			false,
+			utils.Managed,
 			utils.Values{
 				utils.ModuleNameToValuesKey("prometheus"): map[string]interface{}{
 					"adminPassword": "qwerty",
@@ -136,12 +136,12 @@ kubeDnsSelfService: "true"
 		},
 		"grafana": {
 			&utils.ModuleDisabled,
-			false,
+			utils.Managed,
 			utils.Values{},
 		},
 		"kube-dns": {
 			&utils.ModuleEnabled,
-			true,
+			utils.Unmanaged,
 			utils.Values{
 				utils.ModuleNameToValuesKey("kubeDns"): map[string]interface{}{
 					"config": map[string]interface{}{
@@ -165,7 +165,7 @@ kubeDnsSelfService: "true"
 					moduleConfig, hasConfig := config.Modules[name]
 					assert.True(t, hasConfig)
 					assert.Equal(t, expect.isEnabled, moduleConfig.IsEnabled)
-					assert.Equal(t, expect.selfService, moduleConfig.SelfService)
+					assert.Equal(t, expect.managementState, moduleConfig.ManagementState)
 					assert.Equal(t, expect.values, moduleConfig.GetValuesWithModuleName()) //nolint: staticcheck,nolintlint
 				})
 			}
@@ -437,8 +437,8 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 "path": "/data/validModuleName",
 "value": "modParam1: val1\nmodParam2: val2"},
 {"op": "add", 
-"path": "/data/validModuleNameSelfService",
-"value": "true"},
+"path": "/data/validModuleNameManagementState",
+"value": "Unmanaged"},
 {"op": "remove", 
 "path": "/data/InvalidName-module"}]`
 
@@ -458,8 +458,8 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 		ModuleEnabledStateChanged: []string{},
 		ModuleValuesChanged:       []string{"valid-module-name"},
 		GlobalSectionChanged:      false,
-		ModuleSelfServiceStateChanged: map[string]bool{
-			"valid-module-name": true,
+		ModuleManagementStateChanged: map[string]utils.ManagementState{
+			"valid-module-name": "Unmanaged",
 		},
 	}), "Valid section patch should generate 'changed' event")
 

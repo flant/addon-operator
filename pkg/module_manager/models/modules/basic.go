@@ -188,17 +188,17 @@ func (bm *BasicModule) SetHooksControllersReady() {
 // ResetState drops the module state
 func (bm *BasicModule) ResetState() {
 	bm.l.Lock()
-	var selfServiceState SelfServiceState
+	var managementState ManagementState
 
-	if bm.state.selfService == SelfServiceEnforced {
-		selfServiceState = SelfServiceEnabled
+	if bm.state.managementState == UnmanagedEnforced {
+		managementState = UnmanagedEnabled
 	}
 
 	bm.state = &moduleState{
 		Phase:                Startup,
 		hookErrors:           make(map[string]error),
 		synchronizationState: NewSynchronizationState(),
-		selfService:          selfServiceState,
+		managementState:      managementState,
 	}
 	bm.l.Unlock()
 }
@@ -544,34 +544,34 @@ func (bm *BasicModule) SaveHookError(hookName string, err error) {
 	bm.l.Unlock()
 }
 
-func (bm *BasicModule) SetSelfServiceState(stateEnabled bool) {
+func (bm *BasicModule) SetManagementState(state utils.ManagementState) {
 	bm.l.Lock()
-	switch stateEnabled {
-	case true:
-		if bm.state.selfService == SelfServiceDisabled {
-			bm.state.selfService = SelfServiceEnabled
+	switch state {
+	case utils.Unmanaged:
+		if bm.state.managementState == Managed {
+			bm.state.managementState = UnmanagedEnabled
 		}
-	case false:
-		if bm.state.selfService != SelfServiceDisabled {
-			bm.state.selfService = SelfServiceDisabled
+	case utils.Managed:
+		if bm.state.managementState != Managed {
+			bm.state.managementState = Managed
 		}
 	}
 	bm.l.Unlock()
 }
 
-func (bm *BasicModule) SetSelfServiceStateEnforced() {
+func (bm *BasicModule) SetUnmanagedEnforced() {
 	bm.l.Lock()
-	if bm.state.selfService == SelfServiceEnabled {
-		bm.state.selfService = SelfServiceEnforced
+	if bm.state.managementState == UnmanagedEnabled {
+		bm.state.managementState = UnmanagedEnforced
 	}
 	bm.l.Unlock()
 }
 
-func (bm *BasicModule) GetSelfServiceState() SelfServiceState {
+func (bm *BasicModule) GetManagementState() ManagementState {
 	bm.l.RLock()
 	defer bm.l.RUnlock()
 
-	return bm.state.selfService
+	return bm.state.managementState
 }
 
 // RunHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
@@ -1278,20 +1278,20 @@ const (
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
 )
 
-type SelfServiceState int
+type ManagementState int
 
 const (
 	// Module runs in a normal mode
-	SelfServiceDisabled SelfServiceState = iota
-	// Next helm run will enforce self-service mode (removes heritage labels and stops resource informer)
-	SelfServiceEnabled
+	Managed ManagementState = iota
+	// Next helm run will enforce Unmanaged mode (removes heritage labels and stops resource informer)
+	UnmanagedEnabled
 	// All consequent helm runs are inhibited
-	SelfServiceEnforced
+	UnmanagedEnforced
 )
 
 type moduleState struct {
 	Enabled              bool
-	selfService          SelfServiceState
+	managementState      ManagementState
 	Phase                ModuleRunPhase
 	lastModuleErr        error
 	hookErrors           map[string]error

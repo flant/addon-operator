@@ -51,8 +51,8 @@ const (
 	moduleInfoMetricGroup = "mm_module_info"
 	moduleInfoMetricName  = "{PREFIX}mm_module_info"
 
-	moduleSelfServiceMetricGroup = "mm_module_self_service"
-	moduleSelfServiceMetricName  = "{PREFIX}mm_module_self_service"
+	moduleManagementStateMetricGroup = "mm_module_management_state"
+	moduleManagementStateMetricName  = "{PREFIX}mm_module_management_state"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -284,9 +284,9 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 			continue
 		}
 
-		if moduleConfig.GetSelfService() {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleSelfServiceMetricGroup, moduleSelfServiceMetricName, 1, map[string]string{"moduleName": moduleName})
-			mod.SetSelfServiceState(moduleConfig.GetSelfService())
+		if moduleConfig.GetManagementState() == utils.Unmanaged {
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleManagementStateMetricGroup, moduleManagementStateMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.Unmanaged.String()})
+			mod.SetManagementState(moduleConfig.GetManagementState())
 		}
 
 		validateConfig := false
@@ -498,16 +498,16 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 	}
 }
 
-func (mm *ModuleManager) SetModuleSelfServiceState(moduleName string, selfServiceState bool) {
+func (mm *ModuleManager) SetModuleManagementState(moduleName string, state utils.ManagementState) {
 	if bm := mm.GetModule(moduleName); bm != nil {
-		bm.SetSelfServiceState(selfServiceState)
-		mm.logger.Info("set module self-service state",
+		bm.SetManagementState(state)
+		mm.logger.Info("set module management state",
 			slog.String("module", moduleName),
-			slog.Bool("state", selfServiceState))
-		if selfServiceState {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleSelfServiceMetricGroup, moduleSelfServiceMetricName, 1, map[string]string{"moduleName": moduleName})
+			slog.String("state", state.String()))
+		if state == utils.Unmanaged {
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleManagementStateMetricGroup, moduleManagementStateMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.Unmanaged.String()})
 		} else {
-			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleSelfServiceMetricGroup, moduleSelfServiceMetricName)
+			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleManagementStateMetricGroup, moduleManagementStateMetricName)
 		}
 	}
 }
@@ -742,13 +742,13 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	}
 
 	if err == nil {
-		moduleSelfServiceState := bm.GetSelfServiceState()
-		if moduleSelfServiceState != modules.SelfServiceEnforced {
+		moduleManagementState := bm.GetManagementState()
+		if moduleManagementState != modules.UnmanagedEnforced {
 			err = helmModule.RunHelmInstall(logLabels)
 		}
 
-		if moduleSelfServiceState == modules.SelfServiceEnabled {
-			bm.SetSelfServiceStateEnforced()
+		if moduleManagementState == modules.UnmanagedEnabled {
+			bm.SetUnmanagedEnforced()
 			mm.dependencies.HelmResourcesManager.StopMonitor(moduleName)
 		}
 	}
