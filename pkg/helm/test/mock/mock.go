@@ -44,7 +44,11 @@ func (c *Client) GetReleaseValues(_ string) (utils.Values, error) {
 	return make(utils.Values), nil
 }
 
-func (c *Client) UpgradeRelease(_, _ string, _ []string, _ []string, _ string) error {
+func (c *Client) GetReleaseChecksum(_ string) (string, error) {
+	return "sha256:a56d", nil
+}
+
+func (c *Client) UpgradeRelease(_, _ string, _ []string, _ []string, _ map[string]string, _ string) error {
 	c.UpgradeReleaseExecuted = true
 	return nil
 }
