@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -89,13 +88,8 @@ type AddonOperator struct {
 	// like heritage=addon-operator
 	CRDExtraLabels map[string]string
 
-	discoveredGVKsLock sync.Mutex
-	// discoveredGVKs is a map of GVKs from applied modules' CRDs
-	discoveredGVKs map[string]struct{}
-
 	Logger *log.Logger
 
-	l sync.Mutex
 	// converge state
 	ConvergeState *converge.ConvergeState
 
@@ -119,7 +113,6 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 		DefaultNamespace:     app.Namespace,
 		ConvergeState:        converge.NewConvergeState(),
 		parallelTaskChannels: paralleltask.NewTaskChannels(),
-		discoveredGVKs:       make(map[string]struct{}),
 	}
 
 	for _, opt := range opts {
