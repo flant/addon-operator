@@ -193,6 +193,9 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	upg.MaxHistory = int(options.HistoryMax)
 	upg.Timeout = options.Timeout
 	// copy labels to avoid modifying the original map
+	if upg.Labels == nil {
+		upg.Labels = make(map[string]string)
+	}
 	maps.Copy(upg.Labels, labels)
 
 	chart, err := loader.Load(chartName)
