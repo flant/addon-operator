@@ -292,8 +292,8 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				}
 				kcm.logger.Info("Module section changed. Enabled flag transition.",
 					slog.String("moduleName", moduleName),
-					slog.String("current", kcm.currentConfig.Modules[moduleName].GetEnabled()),
-					slog.String("previous", moduleCfg.GetEnabled()),
+					slog.String("previous", kcm.currentConfig.Modules[moduleName].GetEnabled()),
+					slog.String("current", moduleCfg.GetEnabled()),
 					slog.String("ManagementStateFlag", moduleCfg.GetManagementState().String()))
 			} else {
 				modulesChanged = append(modulesChanged, moduleName)
@@ -381,8 +381,8 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 
 				kcm.logger.Info("Module section changed. Enabled flag transition",
 					slog.String("moduleName", moduleName),
-					slog.String("current", kcm.currentConfig.Modules[moduleName].GetEnabled()),
-					slog.String("previous", moduleCfg.GetEnabled()),
+					slog.String("previous", kcm.currentConfig.Modules[moduleName].GetEnabled()),
+					slog.String("current", moduleCfg.GetEnabled()),
 					slog.String("ManagementStateFlag", moduleCfg.GetManagementState().String()))
 			} else {
 				modulesChanged = append(modulesChanged, moduleName)
