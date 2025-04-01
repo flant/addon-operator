@@ -369,6 +369,17 @@ func (h *LibClient) GetReleaseChecksum(releaseName string) (string, error) {
 		return checksum, nil
 	}
 
+	// fallback to old behavior
+	releaseValues, err := h.GetReleaseValues(releaseName)
+	if err != nil {
+		return "", fmt.Errorf("helm get failed: %s", err)
+	}
+	if recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]; hasKey {
+		if recordedChecksumStr, ok := recordedChecksum.(string); ok {
+			return recordedChecksumStr, nil
+		}
+	}
+
 	return "", fmt.Errorf("moduleChecksum label not found in release %s", releaseName)
 }
 
