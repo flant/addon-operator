@@ -118,7 +118,8 @@ func (op *AddonOperator) handleKubeConfigChanged(
 	eventLogEntry.Debug("ModuleManagerEventHandler-KubeConfigChanged",
 		slog.Bool("globalSectionChanged", event.GlobalSectionChanged),
 		slog.Any("moduleValuesChanged", event.ModuleValuesChanged),
-		slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged))
+		slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged),
+		slog.Any("moduleManagementStateChanged", event.ModuleManagementStateChanged))
 
 	if !op.ModuleManager.GetKubeConfigValid() {
 		eventLogEntry.Info("KubeConfig become valid")
@@ -129,12 +130,16 @@ func (op *AddonOperator) handleKubeConfigChanged(
 	var kubeConfigTask sh_task.Task
 
 	// Create task to apply KubeConfig values changes if needed
-	if event.GlobalSectionChanged || len(event.ModuleValuesChanged) > 0 {
+	if event.GlobalSectionChanged || len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged) > 0 {{
 		kubeConfigTask = converge.NewApplyKubeConfigValuesTask(
 			"Apply-Kube-Config-Values-Changes",
 			logLabels,
 			event.GlobalSectionChanged,
 		)
+	}
+
+	for module, state := range event.ModuleManagementStateChanged {
+		op.ModuleManager.SetModuleManagementState(module, state)
 	}
 
 	// Handle the case when global hooks haven't been run yet
@@ -215,9 +220,15 @@ func (op *AddonOperator) handleModuleValuesChange(
 		return
 	}
 
-	modulesToRerun := []string{}
+	modulesToRerun := make([]string, 0, len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged))
 	for _, moduleName := range event.ModuleValuesChanged {
 		if op.ModuleManager.IsModuleEnabled(moduleName) {
+			modulesToRerun = append(modulesToRerun, moduleName)
+		}
+	}
+
+	for moduleName := range event.ModuleManagementStateChanged {
+		if !slices.Contains(modulesToRerun, moduleName) && op.ModuleManager.IsModuleEnabled(moduleName) {
 			modulesToRerun = append(modulesToRerun, moduleName)
 		}
 	}

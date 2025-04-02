@@ -56,7 +56,11 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	s.logger.Debug("Module purge start")
 
 	hm := task.HookMetadataAccessor(s.shellTask)
-	err := s.helm.NewClient(s.logger.Named("helm-client"), s.shellTask.GetLogLabels()).DeleteRelease(hm.ModuleName)
+	helmClientOptions := []helm.ClientOption{
+		helm.WithLogLabels(s.shellTask.GetLogLabels()),
+	}
+
+	err := s.helm.NewClient(s.logger.Named("helm-client"), helmClientOptions...).DeleteRelease(hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
 		s.logger.Warn("Module purge failed, no retry.", log.Err(err))
