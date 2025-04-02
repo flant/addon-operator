@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"os"
 	"sort"
 	"strconv"
@@ -192,13 +191,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	upg.SkipCRDs = true
 	upg.MaxHistory = int(options.HistoryMax)
 	upg.Timeout = options.Timeout
-	// copy labels to avoid modifying the original map
-	if upg.Labels == nil {
-		upg.Labels = make(map[string]string)
-	}
-	if labels != nil {
-		maps.Copy(upg.Labels, labels)
-	}
+	upg.Labels = labels
 
 	chart, err := loader.Load(chartName)
 	if err != nil {
@@ -248,6 +241,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		instClient.Timeout = options.Timeout
 		instClient.ReleaseName = releaseName
 		instClient.UseReleaseName = true
+		instClient.Labels = labels
 
 		_, err = instClient.Run(chart, resultValues)
 		return err
