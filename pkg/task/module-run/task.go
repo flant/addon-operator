@@ -23,74 +23,59 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/metric"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
-type TaskConfig interface {
-	GetEngine() *shell_operator.ShellOperator
+// TaskDependencies defines the interface for accessing necessary components
+type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
 	GetQueueService() *taskqueue.Service
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler creates a factory function for ModuleRun tasks
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask:         t,
-			IsOperatorStartup: helpers.IsOperatorStartupTask(t),
-
-			Engine:        svc.GetEngine(),
-			ModuleManager: svc.GetModuleManager(),
-			MetricStorage: svc.GetMetricStorage(),
-			QueueService:  svc.GetQueueService(),
-		}
-
-		return newModuleRun(cfg, logger.Named("module-run"))
+		return NewTask(
+			t,
+			helpers.IsOperatorStartupTask(t),
+			svc.GetModuleManager(),
+			svc.GetMetricStorage(),
+			svc.GetQueueService(),
+			logger.Named("module-run"),
+		)
 	}
 }
 
-type taskConfig struct {
-	ShellTask         sh_task.Task
-	IsOperatorStartup bool
-
-	Engine        *shell_operator.ShellOperator
-	ModuleManager *module_manager.ModuleManager
-	MetricStorage metric.Storage
-	QueueService  *taskqueue.Service
-}
-
+// Task handles module execution
 type Task struct {
 	shellTask         sh_task.Task
 	isOperatorStartup bool
-
-	engine        *shell_operator.ShellOperator
-	moduleManager *module_manager.ModuleManager
-	metricStorage metric.Storage
-
-	queueService *taskqueue.Service
-
-	logger *log.Logger
+	moduleManager     *module_manager.ModuleManager
+	metricStorage     metric.Storage
+	queueService      *taskqueue.Service
+	logger            *log.Logger
 }
 
-// newModuleRun creates a new task handler service
-func newModuleRun(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		isOperatorStartup: cfg.IsOperatorStartup,
-
-		engine:        cfg.Engine,
-		moduleManager: cfg.ModuleManager,
-		metricStorage: cfg.MetricStorage,
-		queueService:  cfg.QueueService,
-
-		logger: logger,
+// NewTask creates a new task handler for running modules
+func NewTask(
+	shellTask sh_task.Task,
+	isOperatorStartup bool,
+	moduleManager *module_manager.ModuleManager,
+	metricStorage metric.Storage,
+	queueService *taskqueue.Service,
+	logger *log.Logger,
+) *Task {
+	return &Task{
+		shellTask:         shellTask,
+		isOperatorStartup: isOperatorStartup,
+		moduleManager:     moduleManager,
+		metricStorage:     metricStorage,
+		queueService:      queueService,
+		logger:            logger,
 	}
-
-	return service
 }
 
 // Handle starts a module by executing module hooks and installing a Helm chart.
@@ -304,27 +289,24 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		} else {
 			// Queue parallel tasks that should be waited.
 			for _, tsk := range parallelSyncTasksToWait {
-				q := s.engine.TaskQueues.GetByName(tsk.GetQueueName())
-				if q == nil {
+				if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
 					s.logger.Error("queue is not found while EnableKubernetesBindings task",
 						slog.String("queue", tsk.GetQueueName()))
-				} else {
-					thm := task.HookMetadataAccessor(tsk)
-					q.AddLast(tsk)
-					baseModule.Synchronization().QueuedForBinding(thm)
+
+					continue
 				}
+
+				thm := task.HookMetadataAccessor(tsk)
+				baseModule.Synchronization().QueuedForBinding(thm)
 			}
 
 			s.logTaskAdd("append", parallelSyncTasksToWait...)
 
 			// Queue regular parallel tasks.
 			for _, tsk := range parallelSyncTasks {
-				q := s.engine.TaskQueues.GetByName(tsk.GetQueueName())
-				if q == nil {
+				if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
 					s.logger.Error("queue is not found while EnableKubernetesBindings task",
 						slog.String("queue", tsk.GetQueueName()))
-				} else {
-					q.AddLast(tsk)
 				}
 			}
 

@@ -146,7 +146,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should init ModuleManager")
 	_ = op.ModuleManager.RecalculateGraph(map[string]string{})
 
-	op.TaskService = taskservice.NewTaskHandlerService(&taskservice.TaskHandlerServiceConfig{
+	op.TaskService = taskservice.NewTaskHandlerService(op.ctx, &taskservice.TaskHandlerServiceConfig{
 		Engine:               op.engine,
 		ParallelTaskChannels: op.parallelTaskChannels,
 		Helm:                 op.Helm,

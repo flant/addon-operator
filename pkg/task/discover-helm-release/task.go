@@ -17,48 +17,32 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-type TaskConfig interface {
+// TaskDependencies provides access to the ModuleManager.
+type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler creates a handler function that constructs Task instances.
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask: t,
-
-			ModuleManager: svc.GetModuleManager(),
-		}
-
-		return newDiscoverHelmReleases(cfg, logger.Named("discover-helm-releases"))
+		return NewTask(t, svc.GetModuleManager(), logger.Named("discover-helm-releases"))
 	}
 }
 
-type taskConfig struct {
-	ShellTask sh_task.Task
-
-	ModuleManager *module_manager.ModuleManager
-}
-
+// Task handles discovery of Helm releases and creation of purge tasks.
 type Task struct {
-	shellTask sh_task.Task
-
+	shellTask     sh_task.Task
 	moduleManager *module_manager.ModuleManager
 	logger        *log.Logger
-
-	// internals task.TaskInternals
 }
 
-// newDiscoverHelmReleases creates a new task handler service
-func newDiscoverHelmReleases(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		moduleManager: cfg.ModuleManager,
-
-		logger: logger,
+// NewTask creates a new Task instance.
+func NewTask(shellTask sh_task.Task, moduleManager *module_manager.ModuleManager, logger *log.Logger) *Task {
+	return &Task{
+		shellTask:     shellTask,
+		moduleManager: moduleManager,
+		logger:        logger,
 	}
-
-	return service
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {

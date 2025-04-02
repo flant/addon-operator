@@ -17,56 +17,50 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-type TaskConfig interface {
+// TaskDependencies defines the interface for accessing necessary components
+type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
 	GetKubeConfigManager() *kube_config_manager.KubeConfigManager
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler creates a factory function for ApplyKubeConfigValues tasks
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask:         t,
-			ModuleManager:     svc.GetModuleManager(),
-			MetricStorage:     svc.GetMetricStorage(),
-			KubeConfigManager: svc.GetKubeConfigManager(),
-		}
-
-		return newApplyKubeConfigValues(cfg, logger.Named("apply-kube-config-values"))
+		return NewTask(
+			t,
+			svc.GetModuleManager(),
+			svc.GetMetricStorage(),
+			svc.GetKubeConfigManager(),
+			logger.Named("apply-kube-config-values"),
+		)
 	}
 }
 
-type taskConfig struct {
-	ShellTask sh_task.Task
-
-	ModuleManager     *module_manager.ModuleManager
-	MetricStorage     metric.Storage
-	KubeConfigManager *kube_config_manager.KubeConfigManager
-}
-
+// Task handles applying Kubernetes configuration values
 type Task struct {
-	shellTask sh_task.Task
-
+	shellTask         sh_task.Task
 	moduleManager     *module_manager.ModuleManager
 	metricStorage     metric.Storage
 	kubeConfigManager *kube_config_manager.KubeConfigManager
-
-	logger *log.Logger
+	logger            *log.Logger
 }
 
-// newApplyKubeConfigValues creates a new task handler service
-func newApplyKubeConfigValues(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		moduleManager:     cfg.ModuleManager,
-		metricStorage:     cfg.MetricStorage,
-		kubeConfigManager: cfg.KubeConfigManager,
-
-		logger: logger,
+// NewTask creates a new task handler for applying Kubernetes config values
+func NewTask(
+	shellTask sh_task.Task,
+	moduleManager *module_manager.ModuleManager,
+	metricStorage metric.Storage,
+	kubeConfigManager *kube_config_manager.KubeConfigManager,
+	logger *log.Logger,
+) *Task {
+	return &Task{
+		shellTask:         shellTask,
+		moduleManager:     moduleManager,
+		metricStorage:     metricStorage,
+		kubeConfigManager: kubeConfigManager,
+		logger:            logger,
 	}
-
-	return service
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {

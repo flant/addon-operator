@@ -17,81 +17,54 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
+	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/metric"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
-type TaskConfig interface {
-	GetEngine() *shell_operator.ShellOperator
+// TaskDependencies defines the services required for global hook task execution
+type TaskDependencies interface {
 	GetHelm() *helm.ClientFactory
 	GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
+	GetQueueService() *taskqueue.Service
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler returns a function that creates a task handler for global hook execution
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask:         t,
-			IsOperatorStartup: helpers.IsOperatorStartupTask(t),
-
-			Engine:               svc.GetEngine(),
-			Helm:                 svc.GetHelm(),
-			HelmResourcesManager: svc.GetHelmResourcesManager(),
-			ModuleManager:        svc.GetModuleManager(),
-			MetricStorage:        svc.GetMetricStorage(),
-		}
-
-		return newGlobalHookRun(cfg, logger.Named("global-hook-run"))
+		return NewTask(t, helpers.IsOperatorStartupTask(t), svc, logger.Named("global-hook-run"))
 	}
 }
 
-type taskConfig struct {
-	ShellTask         sh_task.Task
-	IsOperatorStartup bool
-
-	Engine               *shell_operator.ShellOperator
-	Helm                 *helm.ClientFactory
-	HelmResourcesManager helm_resources_manager.HelmResourcesManager
-	ModuleManager        *module_manager.ModuleManager
-	MetricStorage        metric.Storage
-}
-
+// Task handles the execution of global hook tasks
 type Task struct {
-	shellTask sh_task.Task
-
-	isOperatorStartup bool
-	engine            *shell_operator.ShellOperator
-	helm              *helm.ClientFactory
-	// helmResourcesManager monitors absent resources created for modules.
+	shellTask            sh_task.Task
+	isOperatorStartup    bool
+	helm                 *helm.ClientFactory
 	helmResourcesManager helm_resources_manager.HelmResourcesManager
 	moduleManager        *module_manager.ModuleManager
 	metricStorage        metric.Storage
-
-	logger *log.Logger
+	queueService         *taskqueue.Service
+	logger               *log.Logger
 }
 
-// newGlobalHookRun creates a new task handler service
-func newGlobalHookRun(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		isOperatorStartup: cfg.IsOperatorStartup,
-
-		engine:               cfg.Engine,
-		helm:                 cfg.Helm,
-		helmResourcesManager: cfg.HelmResourcesManager,
-		moduleManager:        cfg.ModuleManager,
-		metricStorage:        cfg.MetricStorage,
-
-		logger: logger,
+// NewTask creates a new Task for handling global hook execution
+func NewTask(shellTask sh_task.Task, isOperatorStartup bool, svc TaskDependencies, logger *log.Logger) *Task {
+	return &Task{
+		shellTask:            shellTask,
+		isOperatorStartup:    isOperatorStartup,
+		helm:                 svc.GetHelm(),
+		helmResourcesManager: svc.GetHelmResourcesManager(),
+		moduleManager:        svc.GetModuleManager(),
+		metricStorage:        svc.GetMetricStorage(),
+		queueService:         svc.GetQueueService(),
+		logger:               logger,
 	}
-
-	return service
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
@@ -146,8 +119,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	if shouldRunHook && taskHook.GetHookConfig().Version == "v1" {
 		// Combine binding contexts in the queue.
-		combineResult := s.engine.CombineBindingContextForHook(s.engine.TaskQueues.GetByName(s.shellTask.GetQueueName()), s.shellTask, func(tsk sh_task.Task) bool {
+		combineResult := s.queueService.CombineBindingContextForHook(s.shellTask.GetQueueName(), s.shellTask, func(tsk sh_task.Task) bool {
 			thm := task.HookMetadataAccessor(tsk)
+
 			// Stop combine process when Synchronization tasks have different
 			// values in WaitForSynchronization or ExecuteOnSynchronization fields.
 			if hm.KubernetesBindingId != "" && thm.KubernetesBindingId != "" {
@@ -159,6 +133,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 					return true
 				}
 			}
+
 			// Task 'tsk' will be combined, so remove it from the GlobalSynchronizationState.
 			if thm.IsSynchronization() {
 				s.logger.Debug("Synchronization task is combined, mark it as Done",
@@ -305,7 +280,10 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				newTask := converge.NewConvergeModulesTask(eventDescription, converge.GlobalValuesChanged, logLabels)
 				newTask.SetProp("triggered-by", triggeredBy)
 
-				s.engine.TaskQueues.GetMain().AddLast(newTask)
+				err := s.queueService.AddLastTaskToMain(newTask)
+				if err != nil {
+					s.logger.Error("failed to add ReloadAll task to the main queue", log.Err(err))
+				}
 
 				s.logTaskAdd("global values are changed, append", newTask)
 			}

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -9,7 +8,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
-	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -20,10 +18,7 @@ import (
 // and keeps track of the first convergence for operator readiness.
 func (s *TaskHandlerService) CheckConvergeStatus(t sh_task.Task) {
 	// Check all queues that might contain convergence tasks
-	convergeTasks := 0
-	for _, q := range s.getConvergeQueues() {
-		convergeTasks += ConvergeTasksInQueue(q)
-	}
+	convergeTasks := s.queueService.GetNumberOfConvergeTasks()
 
 	s.convergeMu.Lock()
 	defer s.convergeMu.Unlock()
@@ -36,16 +31,6 @@ func (s *TaskHandlerService) CheckConvergeStatus(t sh_task.Task) {
 
 	// Log progress information when appropriate
 	s.logConvergeProgress(convergeTasks, t)
-}
-
-// getConvergeQueues returns list of all queues where modules converge tasks may be running
-func (s *TaskHandlerService) getConvergeQueues() []*queue.TaskQueue {
-	convergeQueues := make([]*queue.TaskQueue, 0, app.NumberOfParallelQueues+1)
-	for i := 0; i < app.NumberOfParallelQueues; i++ {
-		convergeQueues = append(convergeQueues, s.engine.TaskQueues.GetByName(fmt.Sprintf(app.ParallelQueueNamePattern, i)))
-	}
-	convergeQueues = append(convergeQueues, s.engine.TaskQueues.GetMain())
-	return convergeQueues
 }
 
 // handleConvergeStateChanges updates the convergence state tracking and metrics
@@ -96,10 +81,7 @@ func (s *TaskHandlerService) logConvergeProgress(convergeTasks int, t sh_task.Ta
 
 	if convergeTasks > 0 && isModuleTask {
 		// Count remaining module tasks and log progress
-		moduleTasks := 0
-		for _, q := range s.getConvergeQueues() {
-			moduleTasks += ConvergeModulesInQueue(q)
-		}
+		moduleTasks := s.queueService.GetNumberOfConvergeTasks()
 
 		if moduleTasks > 0 {
 			log.Info("Converge modules in progress", slog.Int("count", moduleTasks))

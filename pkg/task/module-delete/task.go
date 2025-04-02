@@ -10,64 +10,57 @@ import (
 
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
+	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/metric"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-type TaskConfig interface {
-	GetEngine() *shell_operator.ShellOperator
+// TaskDependencies defines the interface for accessing necessary components
+type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
+	GetQueueService() *taskqueue.Service
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler creates a factory function for ModuleDelete tasks
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask: t,
-
-			Engine:        svc.GetEngine(),
-			ModuleManager: svc.GetModuleManager(),
-			MetricStorage: svc.GetMetricStorage(),
-		}
-
-		return newModuleDelete(cfg, logger.Named("module-delete"))
+		return NewTask(
+			t,
+			svc.GetModuleManager(),
+			svc.GetMetricStorage(),
+			svc.GetQueueService(),
+			logger.Named("module-delete"),
+		)
 	}
 }
 
-type taskConfig struct {
-	ShellTask sh_task.Task
-
-	Engine        *shell_operator.ShellOperator
-	ModuleManager *module_manager.ModuleManager
-	MetricStorage metric.Storage
-}
-
+// Task handles module deletion
 type Task struct {
-	shellTask sh_task.Task
-
-	engine        *shell_operator.ShellOperator
+	shellTask     sh_task.Task
 	moduleManager *module_manager.ModuleManager
 	metricStorage metric.Storage
-
-	logger *log.Logger
+	queueService  *taskqueue.Service
+	logger        *log.Logger
 }
 
-// newModuleDelete creates a new task handler service
-func newModuleDelete(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		engine:        cfg.Engine,
-		moduleManager: cfg.ModuleManager,
-		metricStorage: cfg.MetricStorage,
-
-		logger: logger,
+// NewTask creates a new task handler for module deletion
+func NewTask(
+	shellTask sh_task.Task,
+	moduleManager *module_manager.ModuleManager,
+	metricStorage metric.Storage,
+	queueService *taskqueue.Service,
+	logger *log.Logger,
+) *Task {
+	return &Task{
+		shellTask:     shellTask,
+		moduleManager: moduleManager,
+		metricStorage: metricStorage,
+		queueService:  queueService,
+		logger:        logger,
 	}
-
-	return service
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
@@ -127,14 +120,14 @@ func (s *Task) drainModuleQueues(modName string) {
 	scheduleHooks := m.GetHooks(htypes.Schedule)
 	for _, hook := range scheduleHooks {
 		for _, hookBinding := range hook.GetHookConfig().Schedules {
-			drainNonMainQueue(s.engine.TaskQueues.GetByName(hookBinding.Queue))
+			s.queueService.DrainNonMainQueue(hookBinding.Queue)
 		}
 	}
 
 	kubeEventsHooks := m.GetHooks(htypes.OnKubernetesEvent)
 	for _, hook := range kubeEventsHooks {
 		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
-			drainNonMainQueue(s.engine.TaskQueues.GetByName(hookBinding.Queue))
+			s.queueService.DrainNonMainQueue(hookBinding.Queue)
 		}
 	}
 
@@ -148,15 +141,4 @@ func (s *Task) drainModuleQueues(modName string) {
 	//		DrainNonMainQueue(op.engine.TaskQueues.GetByName(hookBinding.Queue))
 	//	}
 	//}
-}
-
-func drainNonMainQueue(q *queue.TaskQueue) {
-	if q == nil || q.Name == "main" {
-		return
-	}
-
-	// Remove all tasks.
-	q.Filter(func(_ sh_task.Task) bool {
-		return false
-	})
 }

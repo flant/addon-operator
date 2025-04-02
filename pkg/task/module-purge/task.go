@@ -12,46 +12,40 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-type TaskConfig interface {
+// TaskDependencies defines the interface for accessing necessary components
+type TaskDependencies interface {
 	GetHelm() *helm.ClientFactory
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler creates a factory function for ModulePurge tasks
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask: t,
-			Helm:      svc.GetHelm(),
-		}
-
-		return newModulePurge(cfg, logger.Named("module-purge"))
+		return NewTask(
+			t,
+			svc.GetHelm(),
+			logger.Named("module-purge"),
+		)
 	}
 }
 
-type taskConfig struct {
-	ShellTask sh_task.Task
-
-	Helm *helm.ClientFactory
-}
-
+// Task handles purging modules
 type Task struct {
 	shellTask sh_task.Task
-
-	helm *helm.ClientFactory
-
-	logger *log.Logger
+	helm      *helm.ClientFactory
+	logger    *log.Logger
 }
 
-// newModulePurge creates a new task handler service
-func newModulePurge(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		helm: cfg.Helm,
-
-		logger: logger,
+// NewTask creates a new task handler for module purging
+func NewTask(
+	shellTask sh_task.Task,
+	helm *helm.ClientFactory,
+	logger *log.Logger,
+) *Task {
+	return &Task{
+		shellTask: shellTask,
+		helm:      helm,
+		logger:    logger,
 	}
-
-	return service
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {

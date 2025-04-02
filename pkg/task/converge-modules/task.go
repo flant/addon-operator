@@ -25,64 +25,57 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-type TaskConfig interface {
+// TaskDependencies defines the external dependencies required by the ConvergeModules task.
+type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
 	GetConvergeState() *converge.ConvergeState
 	GetQueueService() *taskqueue.Service
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
-	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask: t,
-
-			ModuleManager: svc.GetModuleManager(),
-			MetricStorage: svc.GetMetricStorage(),
-			ConvergeState: svc.GetConvergeState(),
-			QueueService:  svc.GetQueueService(),
-		}
-
-		return newConvergeModules(cfg, logger.Named("converge-modules"))
+// RegisterTaskHandler creates a factory function that instantiates ConvergeModules tasks.
+func RegisterTaskHandler(deps TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
+	return func(shellTask sh_task.Task, logger *log.Logger) task.Task {
+		return NewTask(
+			shellTask,
+			deps.GetModuleManager(),
+			deps.GetMetricStorage(),
+			deps.GetConvergeState(),
+			deps.GetQueueService(),
+			logger.Named("converge-modules"),
+		)
 	}
 }
 
-type taskConfig struct {
-	ShellTask sh_task.Task
-
-	ModuleManager *module_manager.ModuleManager
-	MetricStorage metric.Storage
-	ConvergeState *converge.ConvergeState
-	QueueService  *taskqueue.Service
-}
-
+// Task handles module convergence operations.
 type Task struct {
 	shellTask sh_task.Task
 
 	moduleManager *module_manager.ModuleManager
 	metricStorage metric.Storage
-
 	convergeState *converge.ConvergeState
-
-	queueService *taskqueue.Service
+	queueService  *taskqueue.Service
 
 	logger *log.Logger
 }
 
-// newConvergeModules creates a new task handler service
-func newConvergeModules(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		moduleManager: cfg.ModuleManager,
-		metricStorage: cfg.MetricStorage,
-		convergeState: cfg.ConvergeState,
-		queueService:  cfg.QueueService,
-
-		logger: logger,
+// NewTask creates a new module convergence task handler.
+func NewTask(
+	shellTask sh_task.Task,
+	moduleManager *module_manager.ModuleManager,
+	metricStorage metric.Storage,
+	convergeState *converge.ConvergeState,
+	queueService *taskqueue.Service,
+	logger *log.Logger,
+) *Task {
+	return &Task{
+		shellTask:     shellTask,
+		moduleManager: moduleManager,
+		metricStorage: metricStorage,
+		convergeState: convergeState,
+		queueService:  queueService,
+		logger:        logger,
 	}
-
-	return service
 }
 
 // Handle is a multi-phase task.

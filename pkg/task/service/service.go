@@ -29,6 +29,7 @@ import (
 	parallelmodulerun "github.com/flant/addon-operator/pkg/task/parallel-module-run"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
+	klient "github.com/flant/kube-client/client"
 	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
@@ -48,8 +49,9 @@ type TaskHandlerServiceConfig struct {
 }
 
 type TaskHandlerService struct {
-	engine *shell_operator.ShellOperator
-	ctx    context.Context
+	ctx context.Context
+
+	kubeClient *klient.Client
 
 	// a map of channels to communicate with parallel queues and its lock
 	parallelTaskChannels *paralleltask.TaskChannels
@@ -79,10 +81,10 @@ type TaskHandlerService struct {
 }
 
 // NewTaskHandlerService creates a new task handler service
-func NewTaskHandlerService(config *TaskHandlerServiceConfig, logger *log.Logger) *TaskHandlerService {
+func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig, logger *log.Logger) *TaskHandlerService {
 	svc := &TaskHandlerService{
-		engine:               config.Engine,
-		ctx:                  context.TODO(),
+		ctx:                  ctx,
+		kubeClient:           config.Engine.KubeClient,
 		parallelTaskChannels: config.ParallelTaskChannels,
 		helm:                 config.Helm,
 		helmResourcesManager: config.HelmResourcesManager,
@@ -94,7 +96,7 @@ func NewTaskHandlerService(config *TaskHandlerServiceConfig, logger *log.Logger)
 		logger:               logger,
 	}
 
-	svc.queueService = taskqueue.NewService(context.TODO(), &taskqueue.ServiceConfig{
+	svc.queueService = taskqueue.NewService(ctx, &taskqueue.ServiceConfig{
 		Engine: config.Engine,
 		Handle: svc.Handle,
 	}, logger.Named("task-queue-service"))
@@ -199,8 +201,8 @@ func (s *TaskHandlerService) initFactory() {
 	}
 }
 
-func (s *TaskHandlerService) GetEngine() *shell_operator.ShellOperator {
-	return s.engine
+func (s *TaskHandlerService) GetKubeClient() *klient.Client {
+	return s.kubeClient
 }
 
 func (s *TaskHandlerService) GetParallelTaskChannels() *paralleltask.TaskChannels {

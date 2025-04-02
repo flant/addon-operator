@@ -12,44 +12,40 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-type TaskConfig interface {
+// TaskDependencies defines the interface for accessing necessary components
+type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler creates a factory function for global hook wait kubernetes synchronization tasks
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask: t,
-
-			ModuleManager: svc.GetModuleManager(),
-		}
-
-		return newGlobalHookWaitKubernetesSynchronization(cfg, logger.Named("global-hook-wait-kubernetes-synchronization"))
+		return NewTask(
+			t,
+			svc.GetModuleManager(),
+			logger.Named("global-hook-wait-kubernetes-synchronization"),
+		)
 	}
 }
 
-type taskConfig struct {
-	ShellTask     sh_task.Task
-	ModuleManager *module_manager.ModuleManager
-}
-
+// Task handles waiting for kubernetes synchronization for global hooks
 type Task struct {
 	shellTask     sh_task.Task
 	moduleManager *module_manager.ModuleManager
 	logger        *log.Logger
 }
 
-// newGlobalHookWaitKubernetesSynchronization creates a new task handler service
-func newGlobalHookWaitKubernetesSynchronization(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		moduleManager: cfg.ModuleManager,
-
-		logger: logger,
+// NewTask creates a new task handler for global hook wait kubernetes synchronization
+func NewTask(
+	shellTask sh_task.Task,
+	moduleManager *module_manager.ModuleManager,
+	logger *log.Logger,
+) *Task {
+	return &Task{
+		shellTask:     shellTask,
+		moduleManager: moduleManager,
+		logger:        logger,
 	}
-
-	return service
 }
 
 func (s *Task) Handle(_ context.Context) queue.TaskResult {

@@ -58,7 +58,7 @@ func (op *AddonOperator) bootstrap() error {
 		CRDExtraLabels:       op.CRDExtraLabels,
 	}
 
-	op.TaskService = taskservice.NewTaskHandlerService(cfg, op.Logger)
+	op.TaskService = taskservice.NewTaskHandlerService(op.ctx, cfg, op.Logger)
 
 	return nil
 }

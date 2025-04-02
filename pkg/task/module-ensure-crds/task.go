@@ -14,74 +14,74 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
+	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
+	klient "github.com/flant/kube-client/client"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-type TaskConfig interface {
-	GetEngine() *shell_operator.ShellOperator
+// TaskDependencies defines the interface for accessing necessary components
+type TaskDependencies interface {
+	GetKubeClient() *klient.Client
 	GetModuleManager() *module_manager.ModuleManager
 	GetConvergeState() *converge.ConvergeState
 	GetCRDExtraLabels() map[string]string
+	GetQueueService() *taskqueue.Service
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler creates a factory function for ModuleEnsureCRDs tasks
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask: t,
-
-			Engine:         svc.GetEngine(),
-			ModuleManager:  svc.GetModuleManager(),
-			ConvergeState:  svc.GetConvergeState(),
-			CRDExtraLabels: svc.GetCRDExtraLabels(),
-		}
-
-		return newModuleEnsureCRDs(cfg, logger.Named("module-ensure-crds"))
+		return NewTask(
+			t,
+			svc.GetKubeClient(),
+			svc.GetModuleManager(),
+			svc.GetConvergeState(),
+			svc.GetQueueService(),
+			svc.GetCRDExtraLabels(),
+			logger.Named("module-ensure-crds"),
+		)
 	}
 }
 
-type taskConfig struct {
-	ShellTask sh_task.Task
-
-	Engine         *shell_operator.ShellOperator
-	ModuleManager  *module_manager.ModuleManager
-	ConvergeState  *converge.ConvergeState
-	CRDExtraLabels map[string]string
-}
-
+// Task handles ensuring CRDs for modules
 type Task struct {
 	shellTask sh_task.Task
 
-	engine        *shell_operator.ShellOperator
-	moduleManager *module_manager.ModuleManager
+	kubeClient     *klient.Client
+	moduleManager  *module_manager.ModuleManager
+	convergeState  *converge.ConvergeState
+	queueService   *taskqueue.Service
+	crdExtraLabels map[string]string
 
 	discoveredGVKsLock sync.Mutex
-	// discoveredGVKs is a map of GVKs from applied modules' CRDs
-	discoveredGVKs map[string]struct{}
-
-	convergeState  *converge.ConvergeState
-	crdExtraLabels map[string]string
+	discoveredGVKs     map[string]struct{} // GVKs from applied modules' CRDs
 
 	logger *log.Logger
 }
 
-// newModuleEnsureCRDs creates a new task handler service
-func newModuleEnsureCRDs(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		engine:         cfg.Engine,
-		moduleManager:  cfg.ModuleManager,
-		convergeState:  cfg.ConvergeState,
-		crdExtraLabels: cfg.CRDExtraLabels,
+// NewTask creates a new task handler for ensuring module CRDs
+func NewTask(
+	shellTask sh_task.Task,
+	kubeClient *klient.Client,
+	moduleManager *module_manager.ModuleManager,
+	convergeState *converge.ConvergeState,
+	queueService *taskqueue.Service,
+	crdExtraLabels map[string]string,
+	logger *log.Logger,
+) *Task {
+	return &Task{
+		shellTask:      shellTask,
+		kubeClient:     kubeClient,
+		moduleManager:  moduleManager,
+		convergeState:  convergeState,
+		queueService:   queueService,
+		crdExtraLabels: crdExtraLabels,
 
 		discoveredGVKs: make(map[string]struct{}),
 
 		logger: logger,
 	}
-
-	return service
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
@@ -129,7 +129,7 @@ func (s *Task) EnsureCRDs(module *modules.BasicModule) ([]string, error) {
 		return nil, nil
 	}
 
-	cp := crdinstaller.NewCRDsInstaller(s.engine.KubeClient.Dynamic(), module.GetCRDFilesPaths(), crdinstaller.WithExtraLabels(s.crdExtraLabels))
+	cp := crdinstaller.NewCRDsInstaller(s.kubeClient.Dynamic(), module.GetCRDFilesPaths(), crdinstaller.WithExtraLabels(s.crdExtraLabels))
 	if cp == nil {
 		return nil, nil
 	}
@@ -145,7 +145,7 @@ func (s *Task) EnsureCRDs(module *modules.BasicModule) ([]string, error) {
 // and if there aren't, sets ConvergeState.CRDsEnsured to true and applies global values patch with
 // the discovered GVKs
 func (s *Task) CheckCRDsEnsured(t sh_task.Task) {
-	if !s.convergeState.CRDsEnsured && !moduleEnsureCRDsTasksInQueueAfterId(s.engine.TaskQueues.GetMain(), t.GetId()) {
+	if !s.convergeState.CRDsEnsured && !s.queueService.ModuleEnsureCRDsTasksInMainQueueAfterId(t.GetId()) {
 		log.Debug("CheckCRDsEnsured: set to true")
 
 		s.convergeState.CRDsEnsured = true

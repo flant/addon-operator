@@ -18,68 +18,54 @@ import (
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-type TaskConfig interface {
-	GetEngine() *shell_operator.ShellOperator
+// TaskDependencies defines the interface for accessing necessary components
+type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
 	GetQueueService() *taskqueue.Service
 	GetParallelTaskChannels() *paralleltask.TaskChannels
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler creates a factory function for ParallelModuleRun tasks
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask: t,
-
-			Engine:               svc.GetEngine(),
-			ParallelTaskChannels: svc.GetParallelTaskChannels(),
-			ModuleManager:        svc.GetModuleManager(),
-			QueueService:         svc.GetQueueService(),
-		}
-
-		return newParallelModuleRun(cfg, logger.Named("parallel-module-run"))
+		return NewTask(
+			t,
+			svc.GetModuleManager(),
+			svc.GetQueueService(),
+			svc.GetParallelTaskChannels(),
+			logger.Named("parallel-module-run"),
+		)
 	}
 }
 
-type taskConfig struct {
-	ShellTask sh_task.Task
-
-	Engine               *shell_operator.ShellOperator
-	ParallelTaskChannels *paralleltask.TaskChannels
-	ModuleManager        *module_manager.ModuleManager
-	QueueService         *taskqueue.Service
-}
-
+// Task handles running multiple module tasks in parallel
 type Task struct {
-	shellTask sh_task.Task
-
-	engine               *shell_operator.ShellOperator
-	parallelTaskChannels *paralleltask.TaskChannels
+	shellTask            sh_task.Task
 	moduleManager        *module_manager.ModuleManager
-
-	queueService *taskqueue.Service
-
-	logger *log.Logger
+	queueService         *taskqueue.Service
+	parallelTaskChannels *paralleltask.TaskChannels
+	logger               *log.Logger
 }
 
-// newParallelModuleRun creates a new task handler service
-func newParallelModuleRun(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		engine:               cfg.Engine,
-		parallelTaskChannels: cfg.ParallelTaskChannels,
-		moduleManager:        cfg.ModuleManager,
-		queueService:         cfg.QueueService,
-
-		logger: logger,
+// NewTask creates a new task handler for parallel module execution
+func NewTask(
+	shellTask sh_task.Task,
+	moduleManager *module_manager.ModuleManager,
+	queueService *taskqueue.Service,
+	parallelTaskChannels *paralleltask.TaskChannels,
+	logger *log.Logger,
+) *Task {
+	return &Task{
+		shellTask:            shellTask,
+		moduleManager:        moduleManager,
+		queueService:         queueService,
+		parallelTaskChannels: parallelTaskChannels,
+		logger:               logger,
 	}
-
-	return service
 }
 
 // Handle runs multiple ModuleRun tasks in parallel and aggregates their results.
@@ -126,7 +112,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 					ChannelId: s.shellTask.GetId(),
 				},
 			})
-		s.engine.TaskQueues.GetByName(queueName).AddLast(newTask)
+
+		s.queueService.AddLastTaskToQueue(queueName, newTask)
+
 		i++
 	}
 

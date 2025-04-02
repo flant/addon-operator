@@ -11,43 +11,35 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-type TaskConfig interface {
+type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
-	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask:     t,
-			ModuleManager: svc.GetModuleManager(),
-		}
-
-		return newGlobalHookEnableScheduleBindings(cfg, logger.Named("global-hook-enable-schedule-bindings"))
-	}
-}
-
-type taskConfig struct {
-	ShellTask     sh_task.Task
-	ModuleManager *module_manager.ModuleManager
-}
-
+// Task represents a handler for enabling schedule bindings on global hooks
 type Task struct {
 	shellTask     sh_task.Task
 	moduleManager *module_manager.ModuleManager
 	logger        *log.Logger
 }
 
-// newGlobalHookEnableScheduleBindings creates a new task handler service
-func newGlobalHookEnableScheduleBindings(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		moduleManager: cfg.ModuleManager,
-
-		logger: logger,
+// RegisterTaskHandler returns a function that creates a Task handler
+func RegisterTaskHandler(config TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
+	return func(t sh_task.Task, logger *log.Logger) task.Task {
+		return NewTask(
+			t,
+			config.GetModuleManager(),
+			logger.Named("global-hook-enable-schedule-bindings"),
+		)
 	}
+}
 
-	return service
+// NewTask creates a new Task instance.
+func NewTask(shellTask sh_task.Task, moduleManager *module_manager.ModuleManager, logger *log.Logger) *Task {
+	return &Task{
+		shellTask:     shellTask,
+		moduleManager: moduleManager,
+		logger:        logger,
+	}
 }
 
 func (s *Task) Handle(_ context.Context) queue.TaskResult {

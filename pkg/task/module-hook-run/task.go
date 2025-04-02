@@ -14,75 +14,69 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
+	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/metric"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
-type TaskConfig interface {
-	GetEngine() *shell_operator.ShellOperator
+// TaskDependencies defines the interface for accessing necessary components
+type TaskDependencies interface {
 	GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
+	GetQueueService() *taskqueue.Service
 }
 
-func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
+// RegisterTaskHandler creates a factory function for ModuleHookRun tasks
+func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
-		cfg := &taskConfig{
-			ShellTask:         t,
-			IsOperatorStartup: helpers.IsOperatorStartupTask(t),
-
-			Engine:               svc.GetEngine(),
-			HelmResourcesManager: svc.GetHelmResourcesManager(),
-			ModuleManager:        svc.GetModuleManager(),
-			MetricStorage:        svc.GetMetricStorage(),
-		}
-
-		return newModuleHookRun(cfg, logger.Named("module-hook-run"))
+		return NewTask(
+			t,
+			helpers.IsOperatorStartupTask(t),
+			svc.GetHelmResourcesManager(),
+			svc.GetModuleManager(),
+			svc.GetMetricStorage(),
+			svc.GetQueueService(),
+			logger.Named("module-hook-run"),
+		)
 	}
 }
 
-type taskConfig struct {
-	ShellTask         sh_task.Task
-	IsOperatorStartup bool
-
-	Engine               *shell_operator.ShellOperator
-	HelmResourcesManager helm_resources_manager.HelmResourcesManager
-	ModuleManager        *module_manager.ModuleManager
-	MetricStorage        metric.Storage
-}
-
+// Task handles running module hooks
 type Task struct {
 	shellTask         sh_task.Task
 	isOperatorStartup bool
 
-	engine               *shell_operator.ShellOperator
 	helmResourcesManager helm_resources_manager.HelmResourcesManager
 	moduleManager        *module_manager.ModuleManager
 	metricStorage        metric.Storage
+	queueService         *taskqueue.Service
 
 	logger *log.Logger
 }
 
-// newModuleHookRun creates a new task handler service
-func newModuleHookRun(cfg *taskConfig, logger *log.Logger) *Task {
-	service := &Task{
-		shellTask: cfg.ShellTask,
-
-		isOperatorStartup: cfg.IsOperatorStartup,
-
-		engine:               cfg.Engine,
-		helmResourcesManager: cfg.HelmResourcesManager,
-		moduleManager:        cfg.ModuleManager,
-		metricStorage:        cfg.MetricStorage,
-
-		logger: logger,
+// NewTask creates a new task handler for module hook runs
+func NewTask(
+	shellTask sh_task.Task,
+	isOperatorStartup bool,
+	helmResourcesManager helm_resources_manager.HelmResourcesManager,
+	moduleManager *module_manager.ModuleManager,
+	metricStorage metric.Storage,
+	queueService *taskqueue.Service,
+	logger *log.Logger,
+) *Task {
+	return &Task{
+		shellTask:            shellTask,
+		isOperatorStartup:    isOperatorStartup,
+		helmResourcesManager: helmResourcesManager,
+		moduleManager:        moduleManager,
+		metricStorage:        metricStorage,
+		queueService:         queueService,
+		logger:               logger,
 	}
-
-	return service
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
@@ -145,8 +139,8 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	// Combine tasks in the queue and compact binding contexts for v1 hooks.
 	if shouldRunHook && taskHook.GetHookConfig().Version == "v1" {
-		combineResult := s.engine.CombineBindingContextForHook(
-			s.engine.TaskQueues.GetByName(s.shellTask.GetQueueName()),
+		combineResult := s.queueService.CombineBindingContextForHook(
+			s.shellTask.GetQueueName(),
 			s.shellTask,
 			func(tsk sh_task.Task) bool {
 				thm := task.HookMetadataAccessor(tsk)
@@ -270,7 +264,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				delete(logLabels, pkg.LogKeyWatchEvent)
 
 				// Do not add ModuleRun task if it is already queued.
-				hasTask := queueHasPendingModuleRunTask(s.engine.TaskQueues.GetMain(), hm.ModuleName)
+				hasTask := s.queueService.MainQueueHasPendingModuleRunTask(hm.ModuleName)
 				if !hasTask {
 					newTask := sh_task.NewTask(task.ModuleRun).
 						WithLogLabels(logLabels).
@@ -282,7 +276,8 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 					newTask.SetProp("triggered-by", triggeredBy)
 
-					s.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
+					s.queueService.AddLastTaskToMain(newTask.WithQueuedAt(time.Now()))
+
 					s.logTaskAdd("module values are changed, append", newTask)
 				} else {
 					s.logger.With(pkg.LogKeyTaskFlow, "noop").Info("module values are changed, ModuleRun task already queued")
@@ -306,53 +301,6 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	return res
-}
-
-// queueHasPendingModuleRunTask returns true if queue has pending tasks
-// with the type "ModuleRun" related to the module "moduleName".
-func queueHasPendingModuleRunTask(q *queue.TaskQueue, moduleName string) bool {
-	if q == nil {
-		return false
-	}
-
-	modules := modulesWithPendingModuleRun(q)
-	_, has := modules[moduleName]
-
-	return has
-}
-
-// modulesWithPendingModuleRun returns names of all modules in pending
-// ModuleRun tasks. First task in queue considered not pending and is ignored.
-func modulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
-	if q == nil {
-		return nil
-	}
-
-	modules := make(map[string]struct{})
-
-	skipFirstTask := true
-
-	q.Iterate(func(t sh_task.Task) {
-		// Skip the first task in the queue as it can be executed already, i.e. "not pending".
-		if skipFirstTask {
-			skipFirstTask = false
-			return
-		}
-
-		switch t.GetType() {
-		case task.ModuleRun:
-			hm := task.HookMetadataAccessor(t)
-			modules[hm.ModuleName] = struct{}{}
-
-		case task.ParallelModuleRun:
-			hm := task.HookMetadataAccessor(t)
-			for _, moduleName := range hm.ParallelRunMetadata.ListModules() {
-				modules[moduleName] = struct{}{}
-			}
-		}
-	})
-
-	return modules
 }
 
 // logTaskAdd prints info about queued tasks.
