@@ -11,6 +11,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -47,7 +48,6 @@ func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
 	return gm.enabledByHookC
 }
 
-// TODO: add options WithLogger
 // NewGlobalModule build ephemeral global container for global hooks and values
 func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookExecutionDependencyContainer,
 	configBytes, valuesBytes []byte, keepTemporaryHookFiles bool, opts ...ModuleOption,
@@ -181,10 +181,10 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 	hookResult, err := h.Execute(h.GetConfigVersion(), bc, "global", prefixedConfigValues, prefixedValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
-			"hook":       h.GetName(),
-			"binding":    string(bindingType),
-			"queue":      logLabels["queue"],
-			"activation": logLabels["event.type"],
+			"hook":                  h.GetName(),
+			pkg.MetricKeyBinding:    string(bindingType),
+			"queue":                 logLabels["queue"],
+			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 		// usage metrics
 		gm.dc.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
@@ -451,11 +451,11 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 			kubeCfg.Monitor.Metadata.LogLabels["hook"] = globalHook.GetName()
 			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "global"
 			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
-				"hook":    globalHook.GetName(),
-				"binding": kubeCfg.BindingName,
-				"module":  "", // empty "module" label for label set consistency with module hooks
-				"queue":   kubeCfg.Queue,
-				"kind":    kubeCfg.Monitor.Kind,
+				"hook":               globalHook.GetName(),
+				pkg.MetricKeyBinding: kubeCfg.BindingName,
+				"module":             "", // empty "module" label for label set consistency with module hooks
+				"queue":              kubeCfg.Queue,
+				"kind":               kubeCfg.Monitor.Kind,
 			}
 		}
 

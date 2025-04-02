@@ -131,7 +131,7 @@ func (s *Scheduler) getGraphDOTDescription() ([]byte, error) {
 }
 
 // GetGraphImage draws current graph's image
-func (s *Scheduler) GetGraphImage() (image.Image, error) {
+func (s *Scheduler) GetGraphImage(ctx context.Context) (image.Image, error) {
 	if s.graphImage != nil {
 		return s.graphImage, nil
 	}
@@ -146,12 +146,16 @@ func (s *Scheduler) GetGraphImage() (image.Image, error) {
 		return nil, fmt.Errorf("couldn't parse graph file: %w", err)
 	}
 
-	g := graphviz.New()
+	g, err := graphviz.New(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	graphvizImage, err := g.RenderImage(graphvizGraph)
+	graphvizImage, err := g.RenderImage(ctx, graphvizGraph)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't render graph image: %w", err)
 	}
+
 	s.graphImage = graphvizImage
 
 	return graphvizImage, nil
