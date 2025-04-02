@@ -39,6 +39,8 @@ type HelmModule struct {
 	validator    HelmValuesValidator
 
 	logger *log.Logger
+
+	additionalLabels map[string]string
 }
 
 type HelmValuesValidator interface {
@@ -73,6 +75,11 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 		utils.ModuleNameToValuesKey(bm.GetName()): moduleValues,
 	}
 
+	additionalLabels := make(map[string]string)
+	if bm.GetManagementState() != Managed {
+		additionalLabels["managementState"] = utils.Unmanaged.String()
+	}
+
 	hm := &HelmModule{
 		name:             bm.Name,
 		defaultNamespace: namespace,
@@ -81,6 +88,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 		tmpDir:           tmpDir,
 		dependencies:     deps,
 		validator:        validator,
+		additionalLabels: additionalLabels,
 	}
 
 	for _, opt := range opts {
@@ -157,6 +165,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 		"module":     hm.name,
 		"activation": logLabels["event.type"],
 	}
+
 	defer measure.Duration(func(d time.Duration) {
 		hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}module_helm_seconds", d.Seconds(), metricLabels, nil)
 	})()
@@ -177,7 +186,12 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 	defer os.Remove(valuesPath)
 
-	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), logLabels)
+	helmClientOptions := []helm.ClientOption{
+		helm.WithExtraLabels(hm.additionalLabels),
+		helm.WithLogLabels(logLabels),
+	}
+
+	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
@@ -378,5 +392,9 @@ func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
 	}
 	defer os.Remove(valuesPath)
 
-	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client")).Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
+	helmClientOptions := []helm.ClientOption{
+		helm.WithExtraLabels(hm.additionalLabels),
+	}
+
+	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
 }

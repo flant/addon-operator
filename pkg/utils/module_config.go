@@ -13,18 +13,33 @@ import (
 var (
 	ModuleEnabled  = true
 	ModuleDisabled = false
+
+	EnabledSuffix         = "Enabled"
+	ManagementStateSuffix = "ManagementState"
+)
+
+type ManagementState string
+
+func (m ManagementState) String() string {
+	return string(m)
+}
+
+const (
+	Managed   ManagementState = "Managed"
+	Unmanaged ManagementState = "Unmanaged"
 )
 
 type ModuleConfig struct {
-	ModuleName string
-	IsEnabled  *bool
+	ModuleName      string
+	IsEnabled       *bool
+	ManagementState ManagementState
 	// module values, don't read it directly, use GetValues() for reading
 	values Values
 }
 
 // String returns description of ModuleConfig values.
 func (mc *ModuleConfig) String() string {
-	return fmt.Sprintf("Module(Name=%s IsEnabled=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.values.DebugString())
+	return fmt.Sprintf("Module(Name=%s IsEnabled=%v ManagementState=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.ManagementState, mc.values.DebugString())
 }
 
 // ModuleConfigKey transforms module kebab-case name to the config camelCase name
@@ -34,7 +49,12 @@ func (mc *ModuleConfig) ModuleConfigKey() string {
 
 // ModuleEnabledKey transforms module kebab-case name to the config camelCase name with 'Enabled' suffix
 func (mc *ModuleConfig) ModuleEnabledKey() string {
-	return ModuleNameToValuesKey(mc.ModuleName) + "Enabled"
+	return ModuleNameToValuesKey(mc.ModuleName) + EnabledSuffix
+}
+
+// ModuleManagementStateKey transforms module kebab-case name to the config camelCase name with 'ManagementState' suffix
+func (mc *ModuleConfig) ModuleManagementStateKey() string {
+	return ModuleNameToValuesKey(mc.ModuleName) + ManagementStateSuffix
 }
 
 // GetEnabled returns string description of enabled status.
@@ -52,14 +72,23 @@ func (mc *ModuleConfig) GetEnabled() string {
 	}
 }
 
+func (mc *ModuleConfig) GetManagementState() ManagementState {
+	if mc == nil {
+		return Managed
+	}
+
+	return mc.ManagementState
+}
+
 func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 	if values == nil {
 		values = make(Values)
 	}
 	return &ModuleConfig{
-		ModuleName: moduleName,
-		IsEnabled:  nil,
-		values:     values,
+		ModuleName:      moduleName,
+		IsEnabled:       nil,
+		values:          values,
+		ManagementState: Managed,
 	}
 }
 
@@ -97,6 +126,7 @@ func (mc *ModuleConfig) GetValues() Values {
 func (mc *ModuleConfig) Reset() {
 	mc.values = Values{}
 	mc.IsEnabled = nil
+	mc.ManagementState = Unmanaged
 }
 
 // LoadFromValues loads module config from a map.
@@ -125,6 +155,15 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 			mc.IsEnabled = &v
 		default:
 			return nil, fmt.Errorf("load '%s' enable config: enabled value should be bool. Got: %#v", mc.ModuleName, moduleEnabled)
+		}
+	}
+
+	if managementState, hasManagementState := values[mc.ModuleManagementStateKey()]; hasManagementState {
+		switch v := managementState.(type) {
+		case ManagementState:
+			mc.ManagementState = v
+		default:
+			return nil, fmt.Errorf("load '%s' ManagementState config: ManagementState value should be string. Got: %#v", mc.ModuleName, managementState)
 		}
 	}
 

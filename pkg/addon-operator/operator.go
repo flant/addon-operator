@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/trace"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -1178,7 +1179,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						eventLogEntry.Debug("ModuleManagerEventHandler-KubeConfigChanged",
 							slog.Bool("globalSectionChanged", event.GlobalSectionChanged),
 							slog.Any("moduleValuesChanged", event.ModuleValuesChanged),
-							slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged))
+							slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged),
+							slog.Any("moduleManagementStateChanged", event.ModuleManagementStateChanged))
 						if !op.ModuleManager.GetKubeConfigValid() {
 							eventLogEntry.Info("KubeConfig become valid")
 						}
@@ -1190,12 +1192,16 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							convergeTask   sh_task.Task
 						)
 
-						if event.GlobalSectionChanged || len(event.ModuleValuesChanged) > 0 {
+						if event.GlobalSectionChanged || len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged) > 0 {
 							kubeConfigTask = converge.NewApplyKubeConfigValuesTask(
 								"Apply-Kube-Config-Values-Changes",
 								logLabels,
 								event.GlobalSectionChanged,
 							)
+						}
+
+						for module, state := range event.ModuleManagementStateChanged {
+							op.ModuleManager.SetModuleManagementState(module, state)
 						}
 
 						// if global hooks haven't been run yet, script enabled extender fails due to missing global values,
@@ -1248,12 +1254,19 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							op.ConvergeState.Phase = converge.StandBy
 							op.ConvergeState.PhaseLock.Unlock()
 						} else {
-							modulesToRerun := []string{}
+							modulesToRerun := make([]string, 0, len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged))
 							for _, moduleName := range event.ModuleValuesChanged {
 								if op.ModuleManager.IsModuleEnabled(moduleName) {
 									modulesToRerun = append(modulesToRerun, moduleName)
 								}
 							}
+
+							for moduleName := range event.ModuleManagementStateChanged {
+								if !slices.Contains(modulesToRerun, moduleName) && op.ModuleManager.IsModuleEnabled(moduleName) {
+									modulesToRerun = append(modulesToRerun, moduleName)
+								}
+							}
+
 							// Append ModuleRun tasks if ModuleRun is not queued already.
 							if kubeConfigTask != nil && convergeTask == nil {
 								reloadTasks := op.CreateReloadModulesTasks(modulesToRerun, kubeConfigTask.GetLogLabels(), "KubeConfig-Changed-Modules")
@@ -1636,7 +1649,10 @@ func (op *AddonOperator) HandleModulePurge(t sh_task.Task, labels map[string]str
 	logEntry.Debug("Module purge start")
 
 	hm := task.HookMetadataAccessor(t)
-	err := op.Helm.NewClient(op.Logger.Named("helm-client"), t.GetLogLabels()).DeleteRelease(hm.ModuleName)
+	helmClientOptions := []helm.ClientOption{
+		helm.WithLogLabels(t.GetLogLabels()),
+	}
+	err := op.Helm.NewClient(op.Logger.Named("helm-client"), helmClientOptions...).DeleteRelease(hm.ModuleName)
 	if err != nil {
 		// Purge is for unknown modules, just print warning.
 		logEntry.Warn("Module purge failed, no retry.", log.Err(err))

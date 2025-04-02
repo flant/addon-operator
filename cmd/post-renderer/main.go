@@ -17,20 +17,18 @@ func main() {
 	}
 	buf := bytes.NewBuffer(inputBytes)
 
-	renderer := post_renderer.PostRenderer{
-		ExtraLabels: map[string]string{
-			"heritage": "addon-operator",
-		},
-	}
+	renderer := post_renderer.NewPostRenderer(map[string]string{
+		"heritage": "addon-operator",
+	})
 
 	outputBytes, err := renderer.Run(buf)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't render input from stdin: %s", err)
+		fmt.Fprintf(os.Stderr, "could not render input from stdin: %s", err)
 		os.Exit(1)
 	}
 
 	if _, err := os.Stdout.Write(outputBytes.Bytes()); err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't write rendered output to stdout: %s", err)
+		fmt.Fprintf(os.Stderr, "could not write rendered output to stdout: %s", err)
 		os.Exit(1)
 	}
 }

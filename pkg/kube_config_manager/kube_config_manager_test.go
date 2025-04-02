@@ -73,6 +73,11 @@ prometheus: |
   retentionDays: 20
   userPassword: qwerty
 grafanaEnabled: "false"
+kubeDns: |
+  config:
+    resolver: "192.168.0.1"
+kubeDnsEnabled: "true"
+kubeDnsManagementState: "Unmanaged"
 `
 
 	kubeClient := klient.NewFake(nil)
@@ -82,11 +87,13 @@ grafanaEnabled: "false"
 	defer kcm.Stop()
 
 	tests := map[string]struct {
-		isEnabled *bool
-		values    utils.Values
+		isEnabled       *bool
+		managementState utils.ManagementState
+		values          utils.Values
 	}{
 		"global": {
 			nil,
+			utils.Managed,
 			utils.Values{
 				utils.GlobalValuesKey: map[string]interface{}{
 					"project":         "tfprod",
@@ -103,6 +110,7 @@ grafanaEnabled: "false"
 		},
 		"nginx-ingress": {
 			&utils.ModuleEnabled,
+			utils.Managed,
 			utils.Values{
 				utils.ModuleNameToValuesKey("nginx-ingress"): map[string]interface{}{
 					"config": map[string]interface{}{
@@ -117,6 +125,7 @@ grafanaEnabled: "false"
 		},
 		"prometheus": {
 			nil,
+			utils.Managed,
 			utils.Values{
 				utils.ModuleNameToValuesKey("prometheus"): map[string]interface{}{
 					"adminPassword": "qwerty",
@@ -127,7 +136,19 @@ grafanaEnabled: "false"
 		},
 		"grafana": {
 			&utils.ModuleDisabled,
+			utils.Managed,
 			utils.Values{},
+		},
+		"kube-dns": {
+			&utils.ModuleEnabled,
+			utils.Unmanaged,
+			utils.Values{
+				utils.ModuleNameToValuesKey("kubeDns"): map[string]interface{}{
+					"config": map[string]interface{}{
+						"resolver": "192.168.0.1",
+					},
+				},
+			},
 		},
 	}
 
@@ -144,6 +165,7 @@ grafanaEnabled: "false"
 					moduleConfig, hasConfig := config.Modules[name]
 					assert.True(t, hasConfig)
 					assert.Equal(t, expect.isEnabled, moduleConfig.IsEnabled)
+					assert.Equal(t, expect.managementState, moduleConfig.ManagementState)
 					assert.Equal(t, expect.values, moduleConfig.GetValuesWithModuleName()) //nolint: staticcheck,nolintlint
 				})
 			}
@@ -414,6 +436,9 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 	validSectionPatch := `[{"op": "add", 
 "path": "/data/validModuleName",
 "value": "modParam1: val1\nmodParam2: val2"},
+{"op": "add", 
+"path": "/data/validModuleNameManagementState",
+"value": "Unmanaged"},
 {"op": "remove", 
 "path": "/data/InvalidName-module"}]`
 
@@ -433,6 +458,9 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 		ModuleEnabledStateChanged: []string{},
 		ModuleValuesChanged:       []string{"valid-module-name"},
 		GlobalSectionChanged:      false,
+		ModuleManagementStateChanged: map[string]utils.ManagementState{
+			"valid-module-name": "Unmanaged",
+		},
 	}), "Valid section patch should generate 'changed' event")
 
 	kcm.SafeReadConfig(func(config *config.KubeConfig) {

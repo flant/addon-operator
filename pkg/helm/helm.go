@@ -2,6 +2,7 @@ package helm
 
 import (
 	"log/slog"
+	"maps"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -12,13 +13,34 @@ import (
 )
 
 type ClientFactory struct {
-	NewClientFn func(logger *log.Logger, logLabels ...map[string]string) client.HelmClient
+	NewClientFn func(logger *log.Logger, labels map[string]string) client.HelmClient
 	ClientType  ClientType
+	labels      map[string]string
 }
 
-func (f *ClientFactory) NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
+type ClientOption func(client.HelmClient)
+
+func WithExtraLabels(labels map[string]string) ClientOption {
+	return func(c client.HelmClient) {
+		c.WithExtraLabels(labels)
+	}
+}
+
+func WithLogLabels(logLabels map[string]string) ClientOption {
+	return func(c client.HelmClient) {
+		c.WithLogLabels(logLabels)
+	}
+}
+
+func (f *ClientFactory) NewClient(logger *log.Logger, options ...ClientOption) client.HelmClient {
 	if f.NewClientFn != nil {
-		return f.NewClientFn(logger, logLabels...)
+		labels := maps.Clone(f.labels)
+		c := f.NewClientFn(logger, labels)
+		for _, option := range options {
+			option(c)
+		}
+
+		return c
 	}
 	return nil
 }
@@ -31,13 +53,14 @@ type Options struct {
 	Logger            *log.Logger
 }
 
-func InitHelmClientFactory(helmopts *Options, extraLabels map[string]string) (*ClientFactory, error) {
+func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*ClientFactory, error) {
 	helmVersion, err := DetectHelmVersion()
 	if err != nil {
 		return nil, err
 	}
 
 	factory := new(ClientFactory)
+	factory.labels = labels
 
 	switch helmVersion {
 	case Helm3Lib:
@@ -49,7 +72,7 @@ func InitHelmClientFactory(helmopts *Options, extraLabels map[string]string) (*C
 			HistoryMax:        helmopts.HistoryMax,
 			Timeout:           helmopts.Timeout,
 			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
-		}, helmopts.Logger, extraLabels)
+		}, helmopts.Logger)
 
 	case Helm3:
 		log.Info("Helm 3 detected", slog.String("path", helm3.Helm3Path))
