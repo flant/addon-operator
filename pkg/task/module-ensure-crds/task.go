@@ -11,13 +11,9 @@ import (
 	crdinstaller "github.com/deckhouse/module-sdk/pkg/crd-installer"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
-	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
-	"github.com/flant/addon-operator/pkg/task/helpers"
-	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -25,10 +21,7 @@ import (
 
 type TaskConfig interface {
 	GetEngine() *shell_operator.ShellOperator
-	GetHelm() *helm.ClientFactory
-	GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager
 	GetModuleManager() *module_manager.ModuleManager
-	GetMetricStorage() metric.Storage
 	GetConvergeState() *converge.ConvergeState
 	GetCRDExtraLabels() map[string]string
 }
@@ -36,16 +29,12 @@ type TaskConfig interface {
 func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
 		cfg := &taskConfig{
-			ShellTask:         t,
-			IsOperatorStartup: helpers.IsOperatorStartupTask(t),
+			ShellTask: t,
 
-			Engine:               svc.GetEngine(),
-			Helm:                 svc.GetHelm(),
-			HelmResourcesManager: svc.GetHelmResourcesManager(),
-			ModuleManager:        svc.GetModuleManager(),
-			MetricStorage:        svc.GetMetricStorage(),
-			ConvergeState:        svc.GetConvergeState(),
-			CRDExtraLabels:       svc.GetCRDExtraLabels(),
+			Engine:         svc.GetEngine(),
+			ModuleManager:  svc.GetModuleManager(),
+			ConvergeState:  svc.GetConvergeState(),
+			CRDExtraLabels: svc.GetCRDExtraLabels(),
 		}
 
 		return newModuleEnsureCRDs(cfg, logger.Named("module-ensure-crds"))
@@ -53,27 +42,19 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger
 }
 
 type taskConfig struct {
-	ShellTask         sh_task.Task
-	IsOperatorStartup bool
+	ShellTask sh_task.Task
 
-	Engine               *shell_operator.ShellOperator
-	Helm                 *helm.ClientFactory
-	HelmResourcesManager helm_resources_manager.HelmResourcesManager
-	ModuleManager        *module_manager.ModuleManager
-	MetricStorage        metric.Storage
-	ConvergeState        *converge.ConvergeState
-	CRDExtraLabels       map[string]string
+	Engine         *shell_operator.ShellOperator
+	ModuleManager  *module_manager.ModuleManager
+	ConvergeState  *converge.ConvergeState
+	CRDExtraLabels map[string]string
 }
 
 type Task struct {
-	shellTask         sh_task.Task
-	isOperatorStartup bool
-	engine            *shell_operator.ShellOperator
-	helm              *helm.ClientFactory
-	// helmResourcesManager monitors absent resources created for modules.
-	helmResourcesManager helm_resources_manager.HelmResourcesManager
-	moduleManager        *module_manager.ModuleManager
-	metricStorage        metric.Storage
+	shellTask sh_task.Task
+
+	engine        *shell_operator.ShellOperator
+	moduleManager *module_manager.ModuleManager
 
 	discoveredGVKsLock sync.Mutex
 	// discoveredGVKs is a map of GVKs from applied modules' CRDs
@@ -90,15 +71,10 @@ func newModuleEnsureCRDs(cfg *taskConfig, logger *log.Logger) *Task {
 	service := &Task{
 		shellTask: cfg.ShellTask,
 
-		isOperatorStartup: cfg.IsOperatorStartup,
-
-		engine:               cfg.Engine,
-		helm:                 cfg.Helm,
-		helmResourcesManager: cfg.HelmResourcesManager,
-		moduleManager:        cfg.ModuleManager,
-		metricStorage:        cfg.MetricStorage,
-		convergeState:        cfg.ConvergeState,
-		crdExtraLabels:       cfg.CRDExtraLabels,
+		engine:         cfg.Engine,
+		moduleManager:  cfg.ModuleManager,
+		convergeState:  cfg.ConvergeState,
+		crdExtraLabels: cfg.CRDExtraLabels,
 
 		discoveredGVKs: make(map[string]struct{}),
 

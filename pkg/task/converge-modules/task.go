@@ -12,8 +12,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
-	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
@@ -23,15 +21,11 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/metric"
-	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 type TaskConfig interface {
-	GetEngine() *shell_operator.ShellOperator
-	GetHelm() *helm.ClientFactory
-	GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
 	GetConvergeState() *converge.ConvergeState
@@ -41,16 +35,12 @@ type TaskConfig interface {
 func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
 		cfg := &taskConfig{
-			ShellTask:         t,
-			IsOperatorStartup: helpers.IsOperatorStartupTask(t),
+			ShellTask: t,
 
-			Engine:               svc.GetEngine(),
-			Helm:                 svc.GetHelm(),
-			HelmResourcesManager: svc.GetHelmResourcesManager(),
-			ModuleManager:        svc.GetModuleManager(),
-			MetricStorage:        svc.GetMetricStorage(),
-			ConvergeState:        svc.GetConvergeState(),
-			QueueService:         svc.GetQueueService(),
+			ModuleManager: svc.GetModuleManager(),
+			MetricStorage: svc.GetMetricStorage(),
+			ConvergeState: svc.GetConvergeState(),
+			QueueService:  svc.GetQueueService(),
 		}
 
 		return newConvergeModules(cfg, logger.Named("converge-modules"))
@@ -58,27 +48,19 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger
 }
 
 type taskConfig struct {
-	ShellTask         sh_task.Task
-	IsOperatorStartup bool
+	ShellTask sh_task.Task
 
-	Engine               *shell_operator.ShellOperator
-	Helm                 *helm.ClientFactory
-	HelmResourcesManager helm_resources_manager.HelmResourcesManager
-	ModuleManager        *module_manager.ModuleManager
-	MetricStorage        metric.Storage
-	ConvergeState        *converge.ConvergeState
-	QueueService         *taskqueue.Service
+	ModuleManager *module_manager.ModuleManager
+	MetricStorage metric.Storage
+	ConvergeState *converge.ConvergeState
+	QueueService  *taskqueue.Service
 }
 
 type Task struct {
-	shellTask         sh_task.Task
-	isOperatorStartup bool
-	engine            *shell_operator.ShellOperator
-	helm              *helm.ClientFactory
-	// helmResourcesManager monitors absent resources created for modules.
-	helmResourcesManager helm_resources_manager.HelmResourcesManager
-	moduleManager        *module_manager.ModuleManager
-	metricStorage        metric.Storage
+	shellTask sh_task.Task
+
+	moduleManager *module_manager.ModuleManager
+	metricStorage metric.Storage
 
 	convergeState *converge.ConvergeState
 
@@ -92,15 +74,10 @@ func newConvergeModules(cfg *taskConfig, logger *log.Logger) *Task {
 	service := &Task{
 		shellTask: cfg.ShellTask,
 
-		isOperatorStartup: cfg.IsOperatorStartup,
-
-		engine:               cfg.Engine,
-		helm:                 cfg.Helm,
-		helmResourcesManager: cfg.HelmResourcesManager,
-		moduleManager:        cfg.ModuleManager,
-		metricStorage:        cfg.MetricStorage,
-		convergeState:        cfg.ConvergeState,
-		queueService:         cfg.QueueService,
+		moduleManager: cfg.ModuleManager,
+		metricStorage: cfg.MetricStorage,
+		convergeState: cfg.ConvergeState,
+		queueService:  cfg.QueueService,
 
 		logger: logger,
 	}

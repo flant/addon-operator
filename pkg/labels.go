@@ -1,16 +1,16 @@
 package pkg
 
 const (
-	LogKeyEventType   = "event.type"
 	LogKeyBinding     = "binding"
 	LogKeyBindingName = "binding.name"
+	LogKeyEventType   = "event.type"
 	LogKeyHook        = "hook"
 	LogKeyHookType    = "hook.type"
-	LogKeyWatchEvent  = "watchEvent"
-	LogKeyTaskID      = "task.id"
-	LogKeyQueue       = "queue"
-	LogKeyTaskFlow    = "task.flow"
 	LogKeyModule      = "module"
+	LogKeyQueue       = "queue"
+	LogKeyTaskID      = "task.id"
+	LogKeyTaskFlow    = "task.flow"
+	LogKeyWatchEvent  = "watchEvent"
 )
 
 const (

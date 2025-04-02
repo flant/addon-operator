@@ -40,7 +40,8 @@ type taskConfig struct {
 }
 
 type Task struct {
-	shellTask     sh_task.Task
+	shellTask sh_task.Task
+
 	moduleManager *module_manager.ModuleManager
 	logger        *log.Logger
 

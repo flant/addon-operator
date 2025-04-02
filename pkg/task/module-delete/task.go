@@ -46,13 +46,13 @@ type taskConfig struct {
 }
 
 type Task struct {
-	shellTask     sh_task.Task
+	shellTask sh_task.Task
+
 	engine        *shell_operator.ShellOperator
 	moduleManager *module_manager.ModuleManager
 	metricStorage metric.Storage
-	logger        *log.Logger
 
-	// internals task.TaskInternals
+	logger *log.Logger
 }
 
 // newModuleDelete creates a new task handler service

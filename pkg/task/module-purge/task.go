@@ -29,13 +29,16 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger
 
 type taskConfig struct {
 	ShellTask sh_task.Task
-	Helm      *helm.ClientFactory
+
+	Helm *helm.ClientFactory
 }
 
 type Task struct {
 	shellTask sh_task.Task
-	helm      *helm.ClientFactory
-	logger    *log.Logger
+
+	helm *helm.ClientFactory
+
+	logger *log.Logger
 }
 
 // newModulePurge creates a new task handler service

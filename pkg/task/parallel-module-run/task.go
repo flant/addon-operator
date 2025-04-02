@@ -12,16 +12,12 @@ import (
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
-	"github.com/flant/addon-operator/pkg/helm"
-	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
-	"github.com/flant/addon-operator/pkg/task/helpers"
 	paralleltask "github.com/flant/addon-operator/pkg/task/parallel"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -29,10 +25,7 @@ import (
 
 type TaskConfig interface {
 	GetEngine() *shell_operator.ShellOperator
-	GetHelm() *helm.ClientFactory
-	GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager
 	GetModuleManager() *module_manager.ModuleManager
-	GetMetricStorage() metric.Storage
 	GetQueueService() *taskqueue.Service
 	GetParallelTaskChannels() *paralleltask.TaskChannels
 }
@@ -40,15 +33,11 @@ type TaskConfig interface {
 func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger) task.Task {
 	return func(t sh_task.Task, logger *log.Logger) task.Task {
 		cfg := &taskConfig{
-			ShellTask:         t,
-			IsOperatorStartup: helpers.IsOperatorStartupTask(t),
+			ShellTask: t,
 
 			Engine:               svc.GetEngine(),
 			ParallelTaskChannels: svc.GetParallelTaskChannels(),
-			Helm:                 svc.GetHelm(),
-			HelmResourcesManager: svc.GetHelmResourcesManager(),
 			ModuleManager:        svc.GetModuleManager(),
-			MetricStorage:        svc.GetMetricStorage(),
 			QueueService:         svc.GetQueueService(),
 		}
 
@@ -57,28 +46,20 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger
 }
 
 type taskConfig struct {
-	ShellTask         sh_task.Task
-	IsOperatorStartup bool
+	ShellTask sh_task.Task
 
 	Engine               *shell_operator.ShellOperator
 	ParallelTaskChannels *paralleltask.TaskChannels
-	Helm                 *helm.ClientFactory
-	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	ModuleManager        *module_manager.ModuleManager
-	MetricStorage        metric.Storage
 	QueueService         *taskqueue.Service
 }
 
 type Task struct {
-	shellTask            sh_task.Task
-	isOperatorStartup    bool
+	shellTask sh_task.Task
+
 	engine               *shell_operator.ShellOperator
 	parallelTaskChannels *paralleltask.TaskChannels
-	helm                 *helm.ClientFactory
-	// helmResourcesManager monitors absent resources created for modules.
-	helmResourcesManager helm_resources_manager.HelmResourcesManager
 	moduleManager        *module_manager.ModuleManager
-	metricStorage        metric.Storage
 
 	queueService *taskqueue.Service
 
@@ -90,14 +71,9 @@ func newParallelModuleRun(cfg *taskConfig, logger *log.Logger) *Task {
 	service := &Task{
 		shellTask: cfg.ShellTask,
 
-		isOperatorStartup: cfg.IsOperatorStartup,
-
 		engine:               cfg.Engine,
 		parallelTaskChannels: cfg.ParallelTaskChannels,
-		helm:                 cfg.Helm,
-		helmResourcesManager: cfg.HelmResourcesManager,
 		moduleManager:        cfg.ModuleManager,
-		metricStorage:        cfg.MetricStorage,
 		queueService:         cfg.QueueService,
 
 		logger: logger,

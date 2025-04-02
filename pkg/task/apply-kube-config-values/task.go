@@ -37,18 +37,21 @@ func RegisterTaskHandler(svc TaskConfig) func(t sh_task.Task, logger *log.Logger
 }
 
 type taskConfig struct {
-	ShellTask         sh_task.Task
+	ShellTask sh_task.Task
+
 	ModuleManager     *module_manager.ModuleManager
 	MetricStorage     metric.Storage
 	KubeConfigManager *kube_config_manager.KubeConfigManager
 }
 
 type Task struct {
-	shellTask         sh_task.Task
+	shellTask sh_task.Task
+
 	moduleManager     *module_manager.ModuleManager
 	metricStorage     metric.Storage
 	kubeConfigManager *kube_config_manager.KubeConfigManager
-	logger            *log.Logger
+
+	logger *log.Logger
 }
 
 // newApplyKubeConfigValues creates a new task handler service

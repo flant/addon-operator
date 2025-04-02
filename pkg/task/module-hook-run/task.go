@@ -56,13 +56,15 @@ type taskConfig struct {
 }
 
 type Task struct {
-	shellTask            sh_task.Task
-	isOperatorStartup    bool
+	shellTask         sh_task.Task
+	isOperatorStartup bool
+
 	engine               *shell_operator.ShellOperator
 	helmResourcesManager helm_resources_manager.HelmResourcesManager
 	moduleManager        *module_manager.ModuleManager
 	metricStorage        metric.Storage
-	logger               *log.Logger
+
+	logger *log.Logger
 }
 
 // newModuleHookRun creates a new task handler service

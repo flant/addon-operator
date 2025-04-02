@@ -62,7 +62,8 @@ type taskConfig struct {
 }
 
 type Task struct {
-	shellTask         sh_task.Task
+	shellTask sh_task.Task
+
 	isOperatorStartup bool
 	engine            *shell_operator.ShellOperator
 	helm              *helm.ClientFactory
@@ -70,9 +71,8 @@ type Task struct {
 	helmResourcesManager helm_resources_manager.HelmResourcesManager
 	moduleManager        *module_manager.ModuleManager
 	metricStorage        metric.Storage
-	logger               *log.Logger
 
-	// internals task.TaskInternals
+	logger *log.Logger
 }
 
 // newGlobalHookRun creates a new task handler service
@@ -124,7 +124,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		s.engine.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_seconds", d.Seconds(), metricLabels, nil)
+		s.metricStorage.HistogramObserve("{PREFIX}global_hook_run_seconds", d.Seconds(), metricLabels, nil)
 	})()
 
 	isSynchronization := hm.IsSynchronization()
@@ -154,6 +154,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				if hm.WaitForSynchronization != thm.WaitForSynchronization {
 					return true
 				}
+
 				if hm.ExecuteOnSynchronization != thm.ExecuteOnSynchronization {
 					return true
 				}
@@ -162,10 +163,12 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			if thm.IsSynchronization() {
 				s.logger.Debug("Synchronization task is combined, mark it as Done",
 					slog.String("name", thm.HookName),
-					slog.String("binding", thm.Binding),
+					slog.String(pkg.LogKeyBinding, thm.Binding),
 					slog.String("id", thm.KubernetesBindingId))
+
 				s.moduleManager.GlobalSynchronizationState().DoneForBinding(thm.KubernetesBindingId)
 			}
+
 			return false // Combine tsk.
 		})
 
@@ -176,10 +179,13 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				s.logger.Debug("Task monitorID. Combined monitorIDs.",
 					slog.Any("monitorIDs", hm.MonitorIDs),
 					slog.Any("combinedMonitorIDs", combineResult.MonitorIDs))
+
 				hm.MonitorIDs = combineResult.MonitorIDs
 			}
+
 			s.logger.Debug("Got monitorIDs",
 				slog.Any("monitorIDs", hm.MonitorIDs))
+
 			s.shellTask.UpdateMetadata(hm)
 		}
 	}
@@ -193,38 +199,48 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		errors := 0.0
 		success := 0.0
 		allowed := 0.0
+
 		// Save a checksum of *Enabled values.
 		// Run Global hook.
 		beforeChecksum, afterChecksum, err := s.moduleManager.RunGlobalHook(hm.HookName, hm.BindingType, hm.BindingContext, s.shellTask.GetLogLabels())
 		if err != nil {
 			if hm.AllowFailure {
 				allowed = 1.0
+
 				s.logger.Info("Global hook failed, but allowed to fail.", log.Err(err))
+
 				res.Status = queue.Success
 			} else {
 				errors = 1.0
+
 				s.logger.Error("Global hook failed, requeue task to retry after delay.",
 					slog.Int("count", s.shellTask.GetFailureCount()+1),
 					log.Err(err))
+
 				s.shellTask.UpdateFailureMessage(err.Error())
 				s.shellTask.WithQueuedAt(time.Now())
+
 				res.Status = queue.Fail
 			}
 		} else {
 			// Calculate new checksum of *Enabled values.
 			success = 1.0
+
 			s.logger.Debug("GlobalHookRun success",
 				slog.String("beforeChecksum", beforeChecksum),
 				slog.String("afterChecksum", afterChecksum),
 				slog.String("savedChecksum", hm.ValuesChecksum))
+
 			res.Status = queue.Success
 
 			reloadAll := false
 			eventDescription := ""
+
 			switch hm.BindingType {
 			case htypes.Schedule:
 				if beforeChecksum != afterChecksum {
 					s.logger.Info("Global hook changed values, will run ReloadAll.")
+
 					reloadAll = true
 					eventDescription = "Schedule-Change-GlobalValues"
 				}
@@ -232,6 +248,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				if beforeChecksum != afterChecksum {
 					if hm.ReloadAllOnValuesChanges {
 						s.logger.Info("Global hook changed values, will run ReloadAll.")
+
 						reloadAll = true
 						eventDescription = "Kubernetes-Change-GlobalValues"
 					} else {
@@ -246,6 +263,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				// values are changed when afterAll hooks are executed
 				if hm.LastAfterAllHook && afterChecksum != hm.ValuesChecksum {
 					s.logger.Info("Global values changed by AfterAll hooks, will run ReloadAll.")
+
 					reloadAll = true
 					eventDescription = "AfterAll-Hooks-Change-GlobalValues"
 				}
@@ -256,15 +274,19 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				if s.helm.ClientType == helm.Helm3Lib {
 					if err := helm3lib.ReinitActionConfig(s.logger.Named("helm3-client")); err != nil {
 						s.logger.Error("Couldn't reinitialize helm3lib action configuration", log.Err(err))
+
 						s.shellTask.UpdateFailureMessage(err.Error())
 						s.shellTask.WithQueuedAt(time.Now())
+
 						res.Status = queue.Fail
+
 						return res
 					}
 				}
 				// Stop and remove all resource monitors to prevent excessive ModuleRun tasks
 				s.helmResourcesManager.StopMonitors()
 				logLabels := s.shellTask.GetLogLabels()
+
 				// Save event source info to add it as props to the task and use in logger later.
 				triggeredBy := []slog.Attr{
 					slog.String("event.triggered-by.hook", logLabels[pkg.LogKeyHook]),
@@ -272,6 +294,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 					slog.String("event.triggered-by.binding.name", logLabels[pkg.LogKeyBindingName]),
 					slog.String("event.triggered-by.watchEvent", logLabels[pkg.LogKeyWatchEvent]),
 				}
+
 				delete(logLabels, pkg.LogKeyHook)
 				delete(logLabels, pkg.LogKeyHookType)
 				delete(logLabels, pkg.LogKeyBinding)
@@ -281,7 +304,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				// Reload all using "ConvergeModules" task.
 				newTask := converge.NewConvergeModulesTask(eventDescription, converge.GlobalValuesChanged, logLabels)
 				newTask.SetProp("triggered-by", triggeredBy)
+
 				s.engine.TaskQueues.GetMain().AddLast(newTask)
+
 				s.logTaskAdd("global values are changed, append", newTask)
 			}
 			// TODO rethink helm monitors pause-resume. It is not working well with parallel hooks without locks. But locks will destroy parallelization.
@@ -290,13 +315,14 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			//}
 		}
 
-		s.engine.MetricStorage.CounterAdd("{PREFIX}global_hook_allowed_errors_total", allowed, metricLabels)
-		s.engine.MetricStorage.CounterAdd("{PREFIX}global_hook_errors_total", errors, metricLabels)
-		s.engine.MetricStorage.CounterAdd("{PREFIX}global_hook_success_total", success, metricLabels)
+		s.metricStorage.CounterAdd("{PREFIX}global_hook_allowed_errors_total", allowed, metricLabels)
+		s.metricStorage.CounterAdd("{PREFIX}global_hook_errors_total", errors, metricLabels)
+		s.metricStorage.CounterAdd("{PREFIX}global_hook_success_total", success, metricLabels)
 	}
 
 	if isSynchronization && res.Status == queue.Success {
 		s.moduleManager.GlobalSynchronizationState().DoneForBinding(hm.KubernetesBindingId)
+
 		// Unlock Kubernetes events for all monitors when Synchronization task is done.
 		s.logger.Debug("Synchronization done, unlock Kubernetes events")
 		for _, monitorID := range hm.MonitorIDs {
