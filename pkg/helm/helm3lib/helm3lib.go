@@ -31,38 +31,17 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-var helmPostRenderer *post_renderer.PostRenderer
-
-func initPostRenderer(extraLabels map[string]string) {
-	if len(extraLabels) > 0 {
-		helmPostRenderer = &post_renderer.PostRenderer{
-			ExtraLabels: extraLabels,
-		}
-	}
-}
-
-func Init(opts *Options, logger *log.Logger, extraLabels map[string]string) error {
-	hc := &LibClient{
-		Namespace:         opts.Namespace,
-		HelmIgnoreRelease: opts.HelmIgnoreRelease,
-		Logger:            logger.With("operator.component", "helm3lib"),
-	}
-
+func Init(opts *Options, logger *log.Logger) error {
 	options = opts
-	initPostRenderer(extraLabels)
 
-	return hc.initAndVersion()
+	return initAndVersion(logger)
 }
 
 // ReinitActionConfig reinitializes helm3 action configuration to update its list of capabilities
 func ReinitActionConfig(logger *log.Logger) error {
-	hc := &LibClient{
-		Logger: logger.With("operator.component", "helm3lib"),
-	}
+	logger.Debug("Reinitialize Helm 3 lib action configuration")
 
-	log.Debug("Reinitialize Helm 3 lib action configuration")
-
-	return hc.actionConfigInit()
+	return actionConfigInit(logger.With("operator.component", "helm3lib"))
 }
 
 // LibClient use helm3 package as Go library.
@@ -70,6 +49,7 @@ type LibClient struct {
 	Logger            *log.Logger
 	Namespace         string
 	HelmIgnoreRelease string
+	labels            map[string]string
 }
 
 type Options struct {
@@ -85,16 +65,24 @@ var (
 	actionConfig *action.Configuration
 )
 
-func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
+func NewClient(logger *log.Logger, labels map[string]string) client.HelmClient {
 	logEntry := logger.With("operator.component", "helm3lib")
-	if len(logLabels) > 0 {
-		logEntry = utils.EnrichLoggerWithLabels(logEntry, logLabels[0])
-	}
 
 	return &LibClient{
 		Logger:            logEntry,
 		Namespace:         options.Namespace,
 		HelmIgnoreRelease: options.HelmIgnoreRelease,
+		labels:            labels,
+	}
+}
+
+func (h *LibClient) WithLogLabels(logLabels map[string]string) {
+	h.Logger = utils.EnrichLoggerWithLabels(h.Logger, logLabels)
+}
+
+func (h *LibClient) WithExtraLabels(labels map[string]string) {
+	for k, v := range labels {
+		h.labels[k] = v
 	}
 }
 
@@ -121,7 +109,7 @@ func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioption
 	return flags
 }
 
-func (h *LibClient) actionConfigInit() error {
+func actionConfigInit(logger *log.Logger) error {
 	ac := new(action.Configuration)
 
 	getter := buildConfigFlagsFromEnv(&options.Namespace, cli.New())
@@ -131,7 +119,7 @@ func (h *LibClient) actionConfigInit() error {
 
 	formattedLogFunc := func(format string, v ...interface{}) {
 		ctx := logContext.SetCustomKeyContext(context.Background())
-		h.Logger.Log(ctx, slog.LevelDebug, fmt.Sprintf(format, v...))
+		logger.Log(ctx, slog.LevelDebug, fmt.Sprintf(format, v...))
 	}
 
 	err := ac.Init(getter, options.Namespace, helmDriver, formattedLogFunc)
@@ -145,12 +133,12 @@ func (h *LibClient) actionConfigInit() error {
 }
 
 // initAndVersion runs helm version command.
-func (h *LibClient) initAndVersion() error {
-	if err := h.actionConfigInit(); err != nil {
+func initAndVersion(logger *log.Logger) error {
+	if err := actionConfigInit(logger); err != nil {
 		return err
 	}
 
-	log.Info("Helm 3 version", slog.String("version", chartutil.DefaultCapabilities.HelmVersion.Version))
+	logger.Info("Helm 3 version", slog.String("version", chartutil.DefaultCapabilities.HelmVersion.Version))
 	return nil
 }
 
@@ -177,7 +165,7 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	if err != nil {
 		// helm validation can fail because FeatureGate was enabled for example
 		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
-		if err := h.actionConfigInit(); err != nil {
+		if err := actionConfigInit(h.Logger); err != nil {
 			return err
 		}
 		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
@@ -186,13 +174,17 @@ func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesP
 	return nil
 }
 
+func (h *LibClient) hasLabelsToApply() bool {
+	return len(h.labels) > 0
+}
+
 func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
 	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
 	}
-	if helmPostRenderer != nil {
-		upg.PostRenderer = helmPostRenderer
+	if h.hasLabelsToApply() {
+		upg.PostRenderer = post_renderer.NewPostRenderer(h.labels)
 	}
 
 	upg.Install = true
@@ -240,9 +232,10 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		if namespace != "" {
 			instClient.Namespace = namespace
 		}
-		if helmPostRenderer != nil {
-			instClient.PostRenderer = helmPostRenderer
+		if h.hasLabelsToApply() {
+			instClient.PostRenderer = post_renderer.NewPostRenderer(h.labels)
 		}
+
 		instClient.SkipCRDs = true
 		instClient.Timeout = options.Timeout
 		instClient.ReleaseName = releaseName
@@ -443,14 +436,14 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
 
-	inst := newDryRunInstAction(namespace, releaseName)
+	inst := h.newDryRunInstAction(namespace, releaseName)
 
 	rs, err := inst.Run(chart, resultValues)
 	if err != nil {
 		// helm render can fail because the CRD were previously created
 		// handling this case we can reinitialize RESTClient and repeat one more time by backoff
-		_ = h.actionConfigInit()
-		inst = newDryRunInstAction(namespace, releaseName)
+		_ = actionConfigInit(h.Logger)
+		inst = h.newDryRunInstAction(namespace, releaseName)
 
 		rs, err = inst.Run(chart, resultValues)
 	}
@@ -471,15 +464,16 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	return rs.Manifest, nil
 }
 
-func newDryRunInstAction(namespace, releaseName string) *action.Install {
+func (h *LibClient) newDryRunInstAction(namespace, releaseName string) *action.Install {
 	inst := action.NewInstall(actionConfig)
 	inst.DryRun = true
 
 	if namespace != "" {
 		inst.Namespace = namespace
 	}
-	if helmPostRenderer != nil {
-		inst.PostRenderer = helmPostRenderer
+
+	if h.hasLabelsToApply() {
+		inst.PostRenderer = post_renderer.NewPostRenderer(h.labels)
 	}
 	inst.ReleaseName = releaseName
 	inst.UseReleaseName = true

@@ -52,3 +52,7 @@ func (h *MockHelmResourcesManager) GetAbsentResources(_ []manifest.Manifest, _ s
 func (h *MockHelmResourcesManager) Ch() chan ReleaseStatusEvent {
 	return nil
 }
+
+func (h *MockHelmResourcesManager) KubeClient() *klient.Client {
+	return nil
+}

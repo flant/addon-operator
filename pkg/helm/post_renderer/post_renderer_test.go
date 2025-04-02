@@ -56,11 +56,9 @@ metadata:
     heritage: addon-operator
 `
 		buf := bytes.NewBufferString(inputManifests)
-		renderer := PostRenderer{
-			ExtraLabels: map[string]string{
-				"heritage": "addon-operator",
-			},
-		}
+		renderer := NewPostRenderer(map[string]string{
+			"heritage": "addon-operator",
+		})
 		out, err := renderer.Run(buf)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(out.String()).Should(Equal(expectedManifests))

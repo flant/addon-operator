@@ -189,10 +189,17 @@ func (bm *BasicModule) SetHooksControllersReady() {
 // ResetState drops the module state
 func (bm *BasicModule) ResetState() {
 	bm.l.Lock()
+	var managementState ManagementState
+
+	if bm.state.managementState == UnmanagedEnforced {
+		managementState = UnmanagedEnabled
+	}
+
 	bm.state = &moduleState{
 		Phase:                Startup,
 		hookErrors:           make(map[string]error),
 		synchronizationState: NewSynchronizationState(),
+		managementState:      managementState,
 	}
 	bm.l.Unlock()
 }
@@ -536,6 +543,36 @@ func (bm *BasicModule) SaveHookError(hookName string, err error) {
 	bm.l.Lock()
 	bm.state.hookErrors[hookName] = err
 	bm.l.Unlock()
+}
+
+func (bm *BasicModule) SetManagementState(state utils.ManagementState) {
+	bm.l.Lock()
+	switch state {
+	case utils.Unmanaged:
+		if bm.state.managementState == Managed {
+			bm.state.managementState = UnmanagedEnabled
+		}
+	case utils.Managed:
+		if bm.state.managementState != Managed {
+			bm.state.managementState = Managed
+		}
+	}
+	bm.l.Unlock()
+}
+
+func (bm *BasicModule) SetUnmanagedEnforced() {
+	bm.l.Lock()
+	if bm.state.managementState == UnmanagedEnabled {
+		bm.state.managementState = UnmanagedEnforced
+	}
+	bm.l.Unlock()
+}
+
+func (bm *BasicModule) GetManagementState() ManagementState {
+	bm.l.RLock()
+	defer bm.l.RUnlock()
+
+	return bm.state.managementState
 }
 
 // RunHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
@@ -1242,8 +1279,20 @@ const (
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
 )
 
+type ManagementState int
+
+const (
+	// Module runs in a normal mode
+	Managed ManagementState = iota
+	// Next helm run will enforce Unmanaged mode (removes heritage labels and stops resource informer)
+	UnmanagedEnabled
+	// All consequent helm runs are inhibited
+	UnmanagedEnforced
+)
+
 type moduleState struct {
 	Enabled              bool
+	managementState      ManagementState
 	Phase                ModuleRunPhase
 	lastModuleErr        error
 	hookErrors           map[string]error

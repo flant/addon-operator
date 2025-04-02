@@ -67,7 +67,7 @@ func initHelmClient(t *testing.T) *LibClient {
 		Namespace:  "test-ns",
 		HistoryMax: 10,
 		Timeout:    0,
-	}, log.NewNop(), map[string]string{})
+	}, log.NewNop())
 
 	actionConfig = actionConfigFixture(t)
 

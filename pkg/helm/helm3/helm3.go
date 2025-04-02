@@ -47,21 +47,28 @@ type Helm3Client struct {
 	Logger            *log.Logger
 	Namespace         string
 	HelmIgnoreRelease string
+	usePostRenderer   bool
 }
 
 var _ client.HelmClient = &Helm3Client{}
 
-func NewClient(logger *log.Logger, logLabels ...map[string]string) client.HelmClient {
+func NewClient(logger *log.Logger, labels map[string]string) client.HelmClient {
 	logEntry := logger.With("operator.component", "helm")
-	if len(logLabels) > 0 {
-		logEntry = utils.EnrichLoggerWithLabels(logEntry, logLabels[0])
-	}
 
 	return &Helm3Client{
 		Logger:            logEntry,
 		Namespace:         Options.Namespace,
 		HelmIgnoreRelease: Options.HelmIgnoreRelease,
+		usePostRenderer:   len(labels) > 0,
 	}
+}
+
+func (h *Helm3Client) WithLogLabels(logLabels map[string]string) {
+	h.Logger = utils.EnrichLoggerWithLabels(h.Logger, logLabels)
+}
+
+func (h *Helm3Client) WithExtraLabels(labels map[string]string) {
+	h.usePostRenderer = h.usePostRenderer || len(labels) > 0
 }
 
 // cmd runs Helm binary with specified arguments.
@@ -145,7 +152,10 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 		"--skip-crds",
 		"--history-max", fmt.Sprintf("%d", Options.HistoryMax),
 		"--timeout", Options.Timeout.String(),
-		"--post-renderer", "./post-renderer",
+	}
+
+	if h.usePostRenderer {
+		args = append(args, "--post-renderer", "./post-renderer")
 	}
 
 	if namespace != "" {
@@ -267,7 +277,10 @@ func (h *Helm3Client) ListReleasesNames() ([]string, error) {
 func (h *Helm3Client) Render(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string, debug bool) (string, error) {
 	args := []string{
 		"template", releaseName, chart,
-		"--post-renderer", "./post-renderer",
+	}
+
+	if h.usePostRenderer {
+		args = append(args, "--post-renderer", "./post-renderer")
 	}
 
 	if debug {

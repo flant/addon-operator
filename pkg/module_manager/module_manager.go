@@ -50,6 +50,9 @@ import (
 const (
 	moduleInfoMetricGroup = "mm_module_info"
 	moduleInfoMetricName  = "{PREFIX}mm_module_info"
+
+	moduleManagementStateMetricGroup = "mm_module_management_state"
+	moduleManagementStateMetricName  = "{PREFIX}mm_module_management_state"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -281,6 +284,11 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 			continue
 		}
 
+		if moduleConfig.GetManagementState() == utils.Unmanaged {
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleManagementStateMetricGroup, moduleManagementStateMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.Unmanaged.String()})
+			mod.SetManagementState(moduleConfig.GetManagementState())
+		}
+
 		validateConfig := false
 		// Check if enabledModules are valid
 		// if module is enabled, we have to check config is valid
@@ -420,10 +428,16 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	if mm.dependencies.Helm == nil {
 		return &ModulesState{}, nil
 	}
-	releasedModules, err := mm.dependencies.Helm.NewClient(mm.logger.Named("helm-client"), logLabels).ListReleasesNames()
+
+	helmClientOptions := []helm.ClientOption{
+		helm.WithLogLabels(logLabels),
+	}
+
+	releasedModules, err := mm.dependencies.Helm.NewClient(mm.logger.Named("helm-client"), helmClientOptions...).ListReleasesNames()
 	if err != nil {
 		return nil, err
 	}
+
 	mm.logger.Debug("Following releases found",
 		slog.Any("modules", releasedModules))
 
@@ -481,6 +495,20 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 			enabled = "true"
 		}
 		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{"moduleName": module, "enabled": enabled})
+	}
+}
+
+func (mm *ModuleManager) SetModuleManagementState(moduleName string, state utils.ManagementState) {
+	if bm := mm.GetModule(moduleName); bm != nil {
+		bm.SetManagementState(state)
+		mm.logger.Info("set module management state",
+			slog.String("module", moduleName),
+			slog.String("state", state.String()))
+		if state == utils.Unmanaged {
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleManagementStateMetricGroup, moduleManagementStateMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.Unmanaged.String()})
+		} else {
+			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleManagementStateMetricGroup, moduleManagementStateMetricName)
+		}
 	}
 }
 
@@ -633,7 +661,11 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 
 		helmModule, _ := modules.NewHelmModule(ml, mm.defaultNamespace, mm.TempDir, &hmdeps, schemaStorage, modules.WithLogger(mm.logger.Named("helm-module")))
 		if helmModule != nil {
-			releaseExists, err := mm.dependencies.Helm.NewClient(mm.logger, deleteLogLabels).IsReleaseExists(ml.GetName())
+			helmClientOptions := []helm.ClientOption{
+				helm.WithLogLabels(logLabels),
+			}
+
+			releaseExists, err := mm.dependencies.Helm.NewClient(mm.logger, helmClientOptions...).IsReleaseExists(ml.GetName())
 			if !releaseExists {
 				if err != nil {
 					logEntry.Warn("Cannot find helm release for module",
@@ -644,8 +676,11 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 						slog.String("module", ml.GetName()))
 				}
 			} else {
+				helmClientOptions := []helm.ClientOption{
+					helm.WithLogLabels(deleteLogLabels),
+				}
 				// Chart and release are existed, so run helm delete command
-				err := mm.dependencies.Helm.NewClient(mm.logger, deleteLogLabels).DeleteRelease(ml.GetName())
+				err := mm.dependencies.Helm.NewClient(mm.logger, helmClientOptions...).DeleteRelease(ml.GetName())
 				if err != nil {
 					return fmt.Errorf("create helm client: %w", err)
 				}
@@ -707,7 +742,15 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	}
 
 	if err == nil {
-		err = helmModule.RunHelmInstall(logLabels)
+		moduleManagementState := bm.GetManagementState()
+		if moduleManagementState != modules.UnmanagedEnforced {
+			err = helmModule.RunHelmInstall(logLabels)
+		}
+
+		if moduleManagementState == modules.UnmanagedEnabled {
+			bm.SetUnmanagedEnforced()
+			mm.dependencies.HelmResourcesManager.StopMonitor(moduleName)
+		}
 	}
 
 	treg.End()
@@ -951,7 +994,7 @@ func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamic_extender.Extend
 func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, extender *dynamic_extender.Extender) error {
 	for _, op := range enabledPatch.Operations {
 		// Extract module name from json patch: '"path": "/moduleNameEnabled"'
-		modName := strings.TrimSuffix(op.Path, "Enabled")
+		modName := strings.TrimSuffix(op.Path, utils.EnabledSuffix)
 		modName = strings.TrimPrefix(modName, "/")
 		modName = utils.ModuleNameFromValuesKey(modName)
 		v, err := utils.ModuleEnabledValue(op.Value)
