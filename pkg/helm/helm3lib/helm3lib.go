@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
-	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -25,6 +24,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
+	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/post_renderer"
@@ -160,15 +162,15 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (string /*revision*/, 
 	return strconv.FormatInt(int64(lastRelease.Version), 10), lastRelease.Info.Status.String(), nil
 }
 
-func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
-	err := h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
+func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
+	err := h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, labels, namespace)
 	if err != nil {
 		// helm validation can fail because FeatureGate was enabled for example
 		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
 		if err := actionConfigInit(h.Logger); err != nil {
 			return err
 		}
-		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, namespace)
+		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, labels, namespace)
 	}
 	h.Logger.Debug("helm release upgraded", slog.String("version", releaseName))
 	return nil
@@ -178,7 +180,7 @@ func (h *LibClient) hasLabelsToApply() bool {
 	return len(h.labels) > 0
 }
 
-func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, namespace string) error {
+func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
 	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
@@ -191,6 +193,8 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	upg.SkipCRDs = true
 	upg.MaxHistory = int(options.HistoryMax)
 	upg.Timeout = options.Timeout
+	// copy labels to avoid modifying the original map
+	maps.Copy(upg.Labels, labels)
 
 	chart, err := loader.Load(chartName)
 	if err != nil {
@@ -354,6 +358,19 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
 	gv := action.NewGetValues(actionConfig)
 	return gv.Run(releaseName)
+}
+
+func (h *LibClient) GetReleaseChecksum(releaseName string) (string, error) {
+	gv := action.NewGet(actionConfig)
+	rel, err := gv.Run(releaseName)
+	if err != nil {
+		return "", fmt.Errorf("helm get failed: %s", err)
+	}
+	if checksum, ok := rel.Labels["moduleChecksum"]; ok {
+		return checksum, nil
+	}
+
+	return "", fmt.Errorf("moduleChecksum label not found in release %s", releaseName)
 }
 
 func (h *LibClient) DeleteRelease(releaseName string) error {

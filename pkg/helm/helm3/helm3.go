@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	k8syaml "sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -145,7 +146,7 @@ func (h *Helm3Client) LastReleaseStatus(releaseName string) (string /*revision*/
 	return revision, status, nil
 }
 
-func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string) error {
+func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPaths []string, setValues []string, _ map[string]string, namespace string) error {
 	args := []string{
 		"upgrade", releaseName, chart,
 		"--install",
@@ -208,6 +209,20 @@ func (h *Helm3Client) GetReleaseValues(releaseName string) (utils.Values, error)
 	}
 
 	return values, nil
+}
+
+func (h *Helm3Client) GetReleaseChecksum(releaseName string) (string, error) {
+	args := []string{
+		"get", "manifest", releaseName,
+		"--namespace", h.Namespace,
+	}
+	stdout, stderr, err := h.cmd(args...)
+	if err != nil {
+		return "", fmt.Errorf("cannot get manifest of helm release %s: %s\n%s %s", releaseName, err, stdout, stderr)
+	}
+
+	checksum := utils.CalculateStringsChecksum(stdout)
+	return checksum, nil
 }
 
 func (h *Helm3Client) DeleteRelease(releaseName string) error {
