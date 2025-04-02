@@ -11,11 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/flant/addon-operator/pkg/app"
-	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
-	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/shell-operator/pkg/debug"
-	"github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/go-chi/chi/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
@@ -23,6 +18,12 @@ import (
 	"k8s.io/kubectl/pkg/cmd/diff"
 	"k8s.io/kubectl/pkg/scheme"
 	"k8s.io/utils/exec"
+
+	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
+	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/shell-operator/pkg/debug"
+	"github.com/flant/shell-operator/pkg/hook/types"
 )
 
 const filedManagerName = "kubectl-client-side-apply"

@@ -132,37 +132,35 @@ func (op *AddonOperator) handleKubeConfigChanged(
 
 	// Create task to apply KubeConfig values changes if needed
 	if event.GlobalSectionChanged || len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged) > 0 {
-		{
-			kubeConfigTask = converge.NewApplyKubeConfigValuesTask(
-				"Apply-Kube-Config-Values-Changes",
-				logLabels,
-				event.GlobalSectionChanged,
-			)
-		}
+		kubeConfigTask = converge.NewApplyKubeConfigValuesTask(
+			"Apply-Kube-Config-Values-Changes",
+			logLabels,
+			event.GlobalSectionChanged,
+		)
+	}
 
-		for module, state := range event.ModuleManagementStateChanged {
-			op.ModuleManager.SetModuleManagementState(module, state)
-		}
+	for module, state := range event.ModuleManagementStateChanged {
+		op.ModuleManager.SetModuleManagementState(module, state)
+	}
 
-		// Handle the case when global hooks haven't been run yet
-		if op.globalHooksNotExecutedYet() {
-			if kubeConfigTask != nil {
-				op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
-				// Cancel delay in case the head task is stuck in the error loop
-				op.engine.TaskQueues.GetMain().CancelTaskDelay()
-				op.logTaskAdd(eventLogEntry, "KubeConfigExtender is updated, put first", kubeConfigTask)
-			}
-			eventLogEntry.Info("Kube config modification detected, ignore until starting first converge")
-			return
+	// Handle the case when global hooks haven't been run yet
+	if op.globalHooksNotExecutedYet() {
+		if kubeConfigTask != nil {
+			op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
+			// Cancel delay in case the head task is stuck in the error loop
+			op.engine.TaskQueues.GetMain().CancelTaskDelay()
+			op.logTaskAdd(eventLogEntry, "KubeConfigExtender is updated, put first", kubeConfigTask)
 		}
+		eventLogEntry.Info("Kube config modification detected, ignore until starting first converge")
+		return
+	}
 
-		graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
+	graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
 
-		if event.GlobalSectionChanged || graphStateChanged {
-			op.handleGlobalOrGraphStateChange(kubeConfigTask, logLabels, logEntry, eventLogEntry)
-		} else {
-			op.handleModuleValuesChange(event, kubeConfigTask, logEntry)
-		}
+	if event.GlobalSectionChanged || graphStateChanged {
+		op.handleGlobalOrGraphStateChange(kubeConfigTask, logLabels, logEntry, eventLogEntry)
+	} else {
+		op.handleModuleValuesChange(event, kubeConfigTask, logEntry)
 	}
 }
 
