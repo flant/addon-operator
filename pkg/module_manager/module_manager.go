@@ -90,9 +90,9 @@ type KubeConfigManager interface {
 // ModuleManagerDependencies pass dependencies for ModuleManager
 type ModuleManagerDependencies struct {
 	KubeObjectPatcher    *objectpatch.ObjectPatcher
-	KubeEventsManager    *kubeeventsmanager.KubeEventsManager
+	KubeEventsManager    kubeeventsmanager.KubeEventsManager
 	KubeConfigManager    KubeConfigManager
-	ScheduleManager      *schedulemanager.ScheduleManager
+	ScheduleManager      schedulemanager.ScheduleManager
 	Helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	MetricStorage        metric.Storage
