@@ -384,7 +384,9 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ConvergeModules:
+			op.ConvergeState.PhaseLock.Lock()
 			phase = string(op.ConvergeState.Phase)
+			op.ConvergeState.PhaseLock.Unlock()
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			if triggerPause {

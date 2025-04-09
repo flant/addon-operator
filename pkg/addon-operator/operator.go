@@ -1351,6 +1351,7 @@ func (op *AddonOperator) ParallelTasksHandler(t sh_task.Task) queue.TaskResult {
 	hm := task.HookMetadataAccessor(t)
 	if hm.ParallelRunMetadata == nil || len(hm.ParallelRunMetadata.ChannelId) == 0 {
 		taskLogEntry.Warn("Parallel task had no communication channel set")
+		return res
 	}
 
 	if parallelChannel, ok := op.parallelTaskChannels.Get(hm.ParallelRunMetadata.ChannelId); ok {
