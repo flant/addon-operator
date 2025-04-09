@@ -1,7 +1,6 @@
 package converge
 
 import (
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -11,8 +10,7 @@ import (
 )
 
 type ConvergeState struct {
-	PhaseLock sync.RWMutex
-	Phase     atomic.Value
+	Phase atomic.Value
 
 	FirstRunPhase atomic.Value
 	FirstRunDoneC chan struct{}
