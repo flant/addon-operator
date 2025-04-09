@@ -10,20 +10,20 @@ import (
 )
 
 type ConvergeState struct {
-	Phase Phase
+	Phase phase
 
-	FirstRunPhase atomic.Value
+	FirstRunPhase firstRunPhase
 	FirstRunDoneC chan struct{}
 	StartedAt     int64
 	Activation    string
 	CRDsEnsured   bool
 }
 
-type Phase struct {
+type phase struct {
 	value atomic.Value
 }
 
-func (p *Phase) Load() ConvergePhase {
+func (p *phase) Load() ConvergePhase {
 	if phase, ok := p.value.Load().(ConvergePhase); ok {
 		return phase
 	}
@@ -31,7 +31,23 @@ func (p *Phase) Load() ConvergePhase {
 	return ""
 }
 
-func (p *Phase) Store(v ConvergePhase) {
+func (p *phase) Store(v ConvergePhase) {
+	p.value.Store(v)
+}
+
+type firstRunPhase struct {
+	value atomic.Value
+}
+
+func (p *firstRunPhase) Load() firstConvergePhase {
+	if phase, ok := p.value.Load().(firstConvergePhase); ok {
+		return phase
+	}
+
+	return FirstNotStarted
+}
+
+func (p *firstRunPhase) Store(v firstConvergePhase) {
 	p.value.Store(v)
 }
 
