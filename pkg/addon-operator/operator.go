@@ -883,7 +883,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 
 	if handleErr != nil {
 		res.Status = queue.Fail
-		phase := "unknown"
+		phase := ""
 		if value, ok := op.ConvergeState.Phase.Load().(string); ok {
 			phase = value
 		}
@@ -1149,7 +1149,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							converge.ReloadAllModules,
 							logLabels,
 						)
-						phase := "unknown"
+						phase := ""
 						if value, ok := op.ConvergeState.Phase.Load().(string); ok {
 							phase = value
 						}
@@ -1235,7 +1235,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							)
 							// if main queue isn't empty and there was another convergeModules task:
 							if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) {
-								phase := "unknown"
+								phase := ""
 								if value, ok := op.ConvergeState.Phase.Load().(string); ok {
 									phase = value
 								}
@@ -2923,7 +2923,7 @@ func (op *AddonOperator) logTaskEnd(logEntry *log.Logger, tsk sh_task.Task, resu
 func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 	switch tsk.GetType() {
 	case task.ConvergeModules:
-		phase := "unknown"
+		phase := ""
 		if value, ok := op.ConvergeState.Phase.Load().(string); ok {
 			phase = value
 		}
