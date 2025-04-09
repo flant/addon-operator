@@ -793,6 +793,8 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 
 	var handleErr error
 
+	op.ConvergeState.PhaseLock.Lock()
+	defer op.ConvergeState.PhaseLock.Unlock()
 	if op.ConvergeState.Phase.Load() == converge.StandBy {
 		logEntry.Debug("ConvergeModules: start")
 
@@ -1144,6 +1146,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
 
 					if graphStateChanged {
+						op.ConvergeState.PhaseLock.Lock()
 						convergeTask := converge.NewConvergeModulesTask(
 							"ReloadAll-After-GlobalHookDynamicUpdate",
 							converge.ReloadAllModules,
@@ -1167,6 +1170,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						}
 						// ConvergeModules may be in progress, Reset converge state.
 						op.ConvergeState.Phase.Store(converge.StandBy)
+						op.ConvergeState.PhaseLock.Unlock()
 					}
 
 				// kube_config_extender
@@ -1228,6 +1232,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 
 						if event.GlobalSectionChanged || graphStateChanged {
 							// prepare convergeModules task
+							op.ConvergeState.PhaseLock.Lock()
 							convergeTask = converge.NewConvergeModulesTask(
 								"ReloadAll-After-KubeConfigChange",
 								converge.ReloadAllModules,
@@ -1262,6 +1267,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							}
 							// ConvergeModules may be in progress, Reset converge state.
 							op.ConvergeState.Phase.Store(converge.StandBy)
+							op.ConvergeState.PhaseLock.Unlock()
 						} else {
 							modulesToRerun := make([]string, 0, len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged))
 							for _, moduleName := range event.ModuleValuesChanged {
