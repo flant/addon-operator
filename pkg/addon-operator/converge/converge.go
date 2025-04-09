@@ -24,8 +24,8 @@ type Phase struct {
 }
 
 func (p *Phase) Load() ConvergePhase {
-	if phase, ok := p.value.Load().(string); ok {
-		return ConvergePhase(phase)
+	if phase, ok := p.value.Load().(ConvergePhase); ok {
+		return phase
 	}
 
 	return ""
