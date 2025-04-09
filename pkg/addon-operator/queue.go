@@ -48,6 +48,13 @@ func ModulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
 
 		case task.ParallelModuleRun:
 			hm := task.HookMetadataAccessor(t)
+			if hm.ParallelRunMetadata == nil {
+				log.Error("Couldn't get parallelRun metadata for the parallel task",
+					slog.String("type", string(t.GetType())),
+					slog.String("module", hm.ModuleName),
+					slog.String("description", hm.EventDescription))
+				return
+			}
 			for _, moduleName := range hm.ParallelRunMetadata.ListModules() {
 				modules[moduleName] = struct{}{}
 			}
