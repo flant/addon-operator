@@ -1,7 +1,7 @@
 package converge
 
 import (
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -10,10 +10,9 @@ import (
 )
 
 type ConvergeState struct {
-	PhaseLock sync.RWMutex
-	Phase     ConvergePhase
+	Phase atomic.Value
 
-	FirstRunPhase firstConvergePhase
+	FirstRunPhase atomic.Value
 	FirstRunDoneC chan struct{}
 	StartedAt     int64
 	Activation    string
@@ -39,15 +38,16 @@ const (
 )
 
 func NewConvergeState() *ConvergeState {
-	return &ConvergeState{
-		Phase:         StandBy,
-		FirstRunPhase: FirstNotStarted,
+	cs := &ConvergeState{
 		FirstRunDoneC: make(chan struct{}),
 	}
+	cs.Phase.Store(StandBy)
+	cs.FirstRunPhase.Store(FirstNotStarted)
+	return cs
 }
 
 func (cs *ConvergeState) SetFirstRunPhase(ph firstConvergePhase) {
-	cs.FirstRunPhase = ph
+	cs.FirstRunPhase.Store(ph)
 	if ph == FirstDone {
 		close(cs.FirstRunDoneC)
 	}
