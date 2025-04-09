@@ -872,17 +872,12 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 		logEntry.Info("ConvergeModules task done")
 		res.Status = queue.Success
 		return res
-
 	}
 
 	if handleErr != nil {
 		res.Status = queue.Fail
-		phase := ""
-		if value, ok := op.ConvergeState.Phase.Load().(string); ok {
-			phase = value
-		}
 		logEntry.Error("ConvergeModules failed, requeue task to retry after delay.",
-			slog.String("phase", phase),
+			slog.String("phase", string(op.ConvergeState.Phase.Load())),
 			slog.Int("count", t.GetFailureCount()+1),
 			log.Err(handleErr))
 		op.engine.MetricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
@@ -1143,15 +1138,11 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							converge.ReloadAllModules,
 							logLabels,
 						)
-						phase := ""
-						if value, ok := op.ConvergeState.Phase.Load().(string); ok {
-							phase = value
-						}
 						// if converge has already begun - restart it immediately
 						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) &&
 							op.ConvergeState.Phase.Load() != converge.StandBy {
 							logEntry.Info("ConvergeModules: global hook dynamic modification detected, restart current converge process",
-								slog.String("phase", phase))
+								slog.String("phase", string(op.ConvergeState.Phase.Load())))
 							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
 							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
 						} else {
@@ -1229,12 +1220,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							)
 							// if main queue isn't empty and there was another convergeModules task:
 							if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) {
-								phase := ""
-								if value, ok := op.ConvergeState.Phase.Load().(string); ok {
-									phase = value
-								}
 								logEntry.Info("ConvergeModules: kube config modification detected,  restart current converge process",
-									slog.String("phase", phase))
+									slog.String("phase", string(op.ConvergeState.Phase.Load())))
 								// put ApplyKubeConfig->NewConvergeModulesTask sequence in the beginning of the main queue
 								if kubeConfigTask != nil {
 									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
@@ -2917,11 +2904,7 @@ func (op *AddonOperator) logTaskEnd(logEntry *log.Logger, tsk sh_task.Task, resu
 func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 	switch tsk.GetType() {
 	case task.ConvergeModules:
-		phase := ""
-		if value, ok := op.ConvergeState.Phase.Load().(string); ok {
-			phase = value
-		}
-		return phase
+		return string(op.ConvergeState.Phase.Load())
 	case task.ModuleRun:
 		hm := task.HookMetadataAccessor(tsk)
 		mod := op.ModuleManager.GetModule(hm.ModuleName)
