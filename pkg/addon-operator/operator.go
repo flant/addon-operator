@@ -116,7 +116,7 @@ type parallelQueueEvent struct {
 }
 
 type parallelTaskChannels struct {
-	l        sync.Mutex
+	l        sync.RWMutex
 	channels map[string]chan parallelQueueEvent
 }
 
@@ -127,8 +127,8 @@ func (pq *parallelTaskChannels) Set(id string, c chan parallelQueueEvent) {
 }
 
 func (pq *parallelTaskChannels) Get(id string) (chan parallelQueueEvent, bool) {
-	pq.l.Lock()
-	defer pq.l.Unlock()
+	pq.l.RLock()
+	defer pq.l.RUnlock()
 	c, ok := pq.channels[id]
 	return c, ok
 }
@@ -346,11 +346,12 @@ func (op *AddonOperator) KubeClient() *client.Client {
 }
 
 func (op *AddonOperator) IsStartupConvergeDone() bool {
-	return op.ConvergeState.FirstRunPhase == converge.FirstDone
+	return op.ConvergeState.GetFirstRunPhase() == converge.FirstDone
 }
 
 func (op *AddonOperator) globalHooksNotExecutedYet() bool {
-	return op.ConvergeState.FirstRunPhase == converge.FirstNotStarted || (op.ConvergeState.FirstRunPhase == converge.FirstStarted && op.ConvergeState.Phase == converge.StandBy)
+	return op.ConvergeState.GetFirstRunPhase() == converge.FirstNotStarted ||
+		(op.ConvergeState.GetFirstRunPhase() == converge.FirstStarted && op.ConvergeState.GetPhase() == converge.StandBy)
 }
 
 // InitModuleManager initialize KubeConfigManager and ModuleManager,
@@ -791,9 +792,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 
 	var handleErr error
 
-	op.ConvergeState.PhaseLock.Lock()
-	defer op.ConvergeState.PhaseLock.Unlock()
-	if op.ConvergeState.Phase == converge.StandBy {
+	if op.ConvergeState.GetPhase() == converge.StandBy {
 		logEntry.Debug("ConvergeModules: start")
 
 		// Deduplicate tasks: remove ConvergeModules tasks right after the current task.
@@ -801,10 +800,10 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 		op.ConvergeState.Phase = converge.RunBeforeAll
 	}
 
-	if op.ConvergeState.Phase == converge.RunBeforeAll {
+	if op.ConvergeState.GetPhase() == converge.RunBeforeAll {
 		// Put BeforeAll tasks before current task.
 		tasks := op.CreateBeforeAllTasks(t.GetLogLabels(), hm.EventDescription)
-		op.ConvergeState.Phase = converge.WaitBeforeAll
+		op.ConvergeState.SetPhase(converge.WaitBeforeAll)
 		if len(tasks) > 0 {
 			res.HeadTasks = tasks
 			res.Status = queue.Keep
@@ -813,7 +812,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 		}
 	}
 
-	if op.ConvergeState.Phase == converge.WaitBeforeAll {
+	if op.ConvergeState.GetPhase() == converge.WaitBeforeAll {
 		logEntry.Info("ConvergeModules: beforeAll hooks done, run modules")
 		var state *module_manager.ModulesState
 
@@ -848,7 +847,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 			}
 			tasks := op.CreateConvergeModulesTasks(state, t.GetLogLabels(), string(taskEvent))
 
-			op.ConvergeState.Phase = converge.WaitDeleteAndRunModules
+			op.ConvergeState.SetPhase(converge.WaitDeleteAndRunModules)
 			if len(tasks) > 0 {
 				res.HeadTasks = tasks
 				res.Status = queue.Keep
@@ -858,12 +857,12 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 		}
 	}
 
-	if op.ConvergeState.Phase == converge.WaitDeleteAndRunModules {
+	if op.ConvergeState.GetPhase() == converge.WaitDeleteAndRunModules {
 		logEntry.Info("ConvergeModules: ModuleRun tasks done, execute AfterAll global hooks")
 		// Put AfterAll tasks before current task.
 		tasks, handleErr := op.CreateAfterAllTasks(t.GetLogLabels(), hm.EventDescription)
 		if handleErr == nil {
-			op.ConvergeState.Phase = converge.WaitAfterAll
+			op.ConvergeState.SetPhase(converge.WaitAfterAll)
 			if len(tasks) > 0 {
 				res.HeadTasks = tasks
 				res.Status = queue.Keep
@@ -874,8 +873,8 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 	}
 
 	// It is the last phase of ConvergeModules task, reset operator's Converge phase.
-	if op.ConvergeState.Phase == converge.WaitAfterAll {
-		op.ConvergeState.Phase = converge.StandBy
+	if op.ConvergeState.GetPhase() == converge.WaitAfterAll {
+		op.ConvergeState.SetPhase(converge.StandBy)
 		logEntry.Info("ConvergeModules task done")
 		res.Status = queue.Success
 		return res
@@ -884,7 +883,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 	if handleErr != nil {
 		res.Status = queue.Fail
 		logEntry.Error("ConvergeModules failed, requeue task to retry after delay.",
-			slog.String("phase", string(op.ConvergeState.Phase)),
+			slog.String("phase", string(op.ConvergeState.GetPhase())),
 			slog.Int("count", t.GetFailureCount()+1),
 			log.Err(handleErr))
 		op.engine.MetricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
@@ -1140,7 +1139,6 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
 
 					if graphStateChanged {
-						op.ConvergeState.PhaseLock.Lock()
 						convergeTask := converge.NewConvergeModulesTask(
 							"ReloadAll-After-GlobalHookDynamicUpdate",
 							converge.ReloadAllModules,
@@ -1149,7 +1147,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						// if converge has already begun - restart it immediately
 						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) && op.ConvergeState.Phase != converge.StandBy {
 							logEntry.Info("ConvergeModules: global hook dynamic modification detected, restart current converge process",
-								slog.String("phase", string(op.ConvergeState.Phase)))
+								slog.String("phase", string(op.ConvergeState.GetPhase())))
 							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
 							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
 						} else {
@@ -1158,8 +1156,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							op.engine.TaskQueues.GetMain().AddLast(convergeTask)
 						}
 						// ConvergeModules may be in progress, Reset converge state.
-						op.ConvergeState.Phase = converge.StandBy
-						op.ConvergeState.PhaseLock.Unlock()
+						op.ConvergeState.SetPhase(converge.StandBy)
 					}
 
 				// kube_config_extender
@@ -1221,7 +1218,6 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 
 						if event.GlobalSectionChanged || graphStateChanged {
 							// prepare convergeModules task
-							op.ConvergeState.PhaseLock.Lock()
 							convergeTask = converge.NewConvergeModulesTask(
 								"ReloadAll-After-KubeConfigChange",
 								converge.ReloadAllModules,
@@ -1230,7 +1226,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							// if main queue isn't empty and there was another convergeModules task:
 							if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) {
 								logEntry.Info("ConvergeModules: kube config modification detected,  restart current converge process",
-									slog.String("phase", string(op.ConvergeState.Phase)))
+									slog.String("phase", string(op.ConvergeState.GetPhase())))
 								// put ApplyKubeConfig->NewConvergeModulesTask sequence in the beginning of the main queue
 								if kubeConfigTask != nil {
 									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
@@ -1251,8 +1247,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								op.engine.TaskQueues.GetMain().AddLast(convergeTask)
 							}
 							// ConvergeModules may be in progress, Reset converge state.
-							op.ConvergeState.Phase = converge.StandBy
-							op.ConvergeState.PhaseLock.Unlock()
+							op.ConvergeState.SetPhase(converge.StandBy)
 						} else {
 							modulesToRerun := make([]string, 0, len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged))
 							for _, moduleName := range event.ModuleValuesChanged {
@@ -2738,7 +2733,7 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 // UpdateFirstConvergeStatus checks first converge status and prints log messages if first converge
 // is in progress.
 func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
-	switch op.ConvergeState.FirstRunPhase {
+	switch op.ConvergeState.GetFirstRunPhase() {
 	case converge.FirstDone:
 		return
 	case converge.FirstNotStarted:
@@ -2913,7 +2908,7 @@ func (op *AddonOperator) logTaskEnd(logEntry *log.Logger, tsk sh_task.Task, resu
 func (op *AddonOperator) taskPhase(tsk sh_task.Task) string {
 	switch tsk.GetType() {
 	case task.ConvergeModules:
-		return string(op.ConvergeState.Phase)
+		return string(op.ConvergeState.GetPhase())
 	case task.ModuleRun:
 		hm := task.HookMetadataAccessor(tsk)
 		mod := op.ModuleManager.GetModule(hm.ModuleName)
