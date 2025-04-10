@@ -13,7 +13,7 @@ type ConvergeState struct {
 	PhaseLock sync.RWMutex
 	Phase     ConvergePhase
 
-	FirstRunPhase firstConvergePhase
+	FirstRunPhase FirstConvergePhase
 	FirstRunDoneC chan struct{}
 	StartedAt     int64
 	Activation    string
@@ -30,10 +30,10 @@ const (
 	WaitAfterAll            ConvergePhase = "WaitAfterAll"
 )
 
-type firstConvergePhase int
+type FirstConvergePhase int
 
 const (
-	FirstNotStarted firstConvergePhase = iota
+	FirstNotStarted FirstConvergePhase = iota
 	FirstStarted
 	FirstDone
 )
@@ -46,11 +46,31 @@ func NewConvergeState() *ConvergeState {
 	}
 }
 
-func (cs *ConvergeState) SetFirstRunPhase(ph firstConvergePhase) {
+func (cs *ConvergeState) SetFirstRunPhase(ph FirstConvergePhase) {
+	cs.PhaseLock.Lock()
+	defer cs.PhaseLock.Unlock()
 	cs.FirstRunPhase = ph
 	if ph == FirstDone {
 		close(cs.FirstRunDoneC)
 	}
+}
+
+func (cs *ConvergeState) GetFirstRunPhase() FirstConvergePhase {
+	cs.PhaseLock.RLock()
+	defer cs.PhaseLock.RUnlock()
+	return cs.FirstRunPhase
+}
+
+func (cs *ConvergeState) SetPhase(ph ConvergePhase) {
+	cs.PhaseLock.Lock()
+	defer cs.PhaseLock.Unlock()
+	cs.Phase = ph
+}
+
+func (cs *ConvergeState) GetPhase() ConvergePhase {
+	cs.PhaseLock.RLock()
+	defer cs.PhaseLock.RUnlock()
+	return cs.Phase
 }
 
 const ConvergeEventProp = "converge.event"
