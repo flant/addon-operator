@@ -47,10 +47,30 @@ func NewConvergeState() *ConvergeState {
 }
 
 func (cs *ConvergeState) SetFirstRunPhase(ph firstConvergePhase) {
+	cs.PhaseLock.Lock()
+	defer cs.PhaseLock.Unlock()
 	cs.FirstRunPhase = ph
 	if ph == FirstDone {
 		close(cs.FirstRunDoneC)
 	}
+}
+
+func (cs *ConvergeState) GetFirstRunPhase() firstConvergePhase {
+	cs.PhaseLock.RLock()
+	defer cs.PhaseLock.RUnlock()
+	return cs.FirstRunPhase
+}
+
+func (cs *ConvergeState) SetPhase(ph ConvergePhase) {
+	cs.PhaseLock.Lock()
+	defer cs.PhaseLock.Unlock()
+	cs.Phase = ph
+}
+
+func (cs *ConvergeState) GetPhase() ConvergePhase {
+	cs.PhaseLock.RLock()
+	defer cs.PhaseLock.RUnlock()
+	return cs.Phase
 }
 
 const ConvergeEventProp = "converge.event"

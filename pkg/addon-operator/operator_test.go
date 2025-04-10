@@ -9,12 +9,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8types "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	mockhelm "github.com/flant/addon-operator/pkg/helm/test/mock"
@@ -244,7 +245,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		phase := ""
 		switch tsk.GetType() {
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
@@ -384,7 +385,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			if triggerPause {
@@ -489,9 +490,9 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ApplyKubeConfigValues:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
