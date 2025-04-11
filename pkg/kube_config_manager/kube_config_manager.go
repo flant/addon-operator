@@ -259,7 +259,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			}
 
 			if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() == utils.NoResourceReconciliation {
-				moduleMaintenanceStateChanged[moduleName] = utils.Default
+				moduleMaintenanceStateChanged[moduleName] = utils.Managed
 			}
 
 			moduleCfg.Reset()

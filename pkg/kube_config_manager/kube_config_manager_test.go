@@ -93,7 +93,7 @@ kubeDnsMaintenanceState: "NoResourceReconciliation"
 	}{
 		"global": {
 			nil,
-			utils.Default,
+			utils.Managed,
 			utils.Values{
 				utils.GlobalValuesKey: map[string]interface{}{
 					"project":         "tfprod",
@@ -110,7 +110,7 @@ kubeDnsMaintenanceState: "NoResourceReconciliation"
 		},
 		"nginx-ingress": {
 			&utils.ModuleEnabled,
-			utils.Default,
+			utils.Managed,
 			utils.Values{
 				utils.ModuleNameToValuesKey("nginx-ingress"): map[string]interface{}{
 					"config": map[string]interface{}{
@@ -125,7 +125,7 @@ kubeDnsMaintenanceState: "NoResourceReconciliation"
 		},
 		"prometheus": {
 			nil,
-			utils.Default,
+			utils.Managed,
 			utils.Values{
 				utils.ModuleNameToValuesKey("prometheus"): map[string]interface{}{
 					"adminPassword": "qwerty",
@@ -136,7 +136,7 @@ kubeDnsMaintenanceState: "NoResourceReconciliation"
 		},
 		"grafana": {
 			&utils.ModuleDisabled,
-			utils.Default,
+			utils.Managed,
 			utils.Values{},
 		},
 		"kube-dns": {

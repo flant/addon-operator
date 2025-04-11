@@ -552,7 +552,7 @@ func (bm *BasicModule) SetMaintenanceState(state utils.MaintenanceState) {
 		if bm.state.maintenanceState == Managed {
 			bm.state.maintenanceState = UnmanagedEnabled
 		}
-	case utils.Default:
+	case utils.Managed:
 		if bm.state.maintenanceState != Managed {
 			bm.state.maintenanceState = Managed
 		}

@@ -280,7 +280,7 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 		case "NoResourceReconciliation", "noresourcereconciliation":
 			state = utils.NoResourceReconciliation
 		case "":
-			state = utils.Default
+			state = utils.Managed
 		default:
 			return nil, fmt.Errorf("module maintenanceState key '%s' can only take 'NoResourceReconciliation', 'noresourcereconciliation' or '' values, got '%v'", mc.ModuleMaintenanceStateKey(), maintenanceStateString)
 		}

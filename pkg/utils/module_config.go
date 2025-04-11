@@ -25,7 +25,7 @@ func (m MaintenanceState) String() string {
 }
 
 const (
-	Default                  MaintenanceState = "Default"
+	Managed                  MaintenanceState = "Managed"
 	NoResourceReconciliation MaintenanceState = "NoResourceReconciliation"
 )
 
@@ -74,7 +74,7 @@ func (mc *ModuleConfig) GetEnabled() string {
 
 func (mc *ModuleConfig) GetMaintenanceState() MaintenanceState {
 	if mc == nil {
-		return Default
+		return Managed
 	}
 
 	return mc.MaintenanceState
@@ -88,7 +88,7 @@ func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 		ModuleName:       moduleName,
 		IsEnabled:        nil,
 		values:           values,
-		MaintenanceState: Default,
+		MaintenanceState: Managed,
 	}
 }
 
