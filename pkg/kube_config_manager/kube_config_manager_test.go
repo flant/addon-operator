@@ -77,7 +77,7 @@ kubeDns: |
   config:
     resolver: "192.168.0.1"
 kubeDnsEnabled: "true"
-kubeDnsMaintenanceState: "Unmanaged"
+kubeDnsMaintenanceState: "NoResourceReconciliation"
 `
 
 	kubeClient := klient.NewFake(nil)
@@ -93,7 +93,7 @@ kubeDnsMaintenanceState: "Unmanaged"
 	}{
 		"global": {
 			nil,
-			utils.Managed,
+			utils.Default,
 			utils.Values{
 				utils.GlobalValuesKey: map[string]interface{}{
 					"project":         "tfprod",
@@ -110,7 +110,7 @@ kubeDnsMaintenanceState: "Unmanaged"
 		},
 		"nginx-ingress": {
 			&utils.ModuleEnabled,
-			utils.Managed,
+			utils.Default,
 			utils.Values{
 				utils.ModuleNameToValuesKey("nginx-ingress"): map[string]interface{}{
 					"config": map[string]interface{}{
@@ -125,7 +125,7 @@ kubeDnsMaintenanceState: "Unmanaged"
 		},
 		"prometheus": {
 			nil,
-			utils.Managed,
+			utils.Default,
 			utils.Values{
 				utils.ModuleNameToValuesKey("prometheus"): map[string]interface{}{
 					"adminPassword": "qwerty",
@@ -136,12 +136,12 @@ kubeDnsMaintenanceState: "Unmanaged"
 		},
 		"grafana": {
 			&utils.ModuleDisabled,
-			utils.Managed,
+			utils.Default,
 			utils.Values{},
 		},
 		"kube-dns": {
 			&utils.ModuleEnabled,
-			utils.Unmanaged,
+			utils.NoResourceReconciliation,
 			utils.Values{
 				utils.ModuleNameToValuesKey("kubeDns"): map[string]interface{}{
 					"config": map[string]interface{}{
@@ -438,7 +438,7 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 "value": "modParam1: val1\nmodParam2: val2"},
 {"op": "add", 
 "path": "/data/validModuleNameMaintenanceState",
-"value": "Unmanaged"},
+"value": "NoResourceReconciliation"},
 {"op": "remove", 
 "path": "/data/InvalidName-module"}]`
 
@@ -459,7 +459,7 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 		ModuleValuesChanged:       []string{"valid-module-name"},
 		GlobalSectionChanged:      false,
 		ModuleMaintenanceStateChanged: map[string]utils.MaintenanceState{
-			"valid-module-name": "Unmanaged",
+			"valid-module-name": "NoResourceReconciliation",
 		},
 	}), "Valid section patch should generate 'changed' event")
 

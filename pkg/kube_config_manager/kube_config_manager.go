@@ -258,8 +258,8 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				modulesStateChanged = append(modulesStateChanged, moduleName)
 			}
 
-			if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() == utils.Unmanaged {
-				moduleMaintenanceChanged[moduleName] = utils.Managed
+			if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() == utils.NoResourceReconciliation {
+				moduleMaintenanceChanged[moduleName] = utils.Default
 			}
 
 			moduleCfg.Reset()
@@ -301,8 +301,8 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
 
-				if moduleCfg.GetMaintenanceState() == utils.Unmanaged {
-					moduleMaintenanceChanged[moduleName] = utils.Unmanaged
+				if moduleCfg.GetMaintenanceState() == utils.NoResourceReconciliation {
+					moduleMaintenanceChanged[moduleName] = utils.NoResourceReconciliation
 				}
 				kcm.logger.Info("Module section added",
 					slog.String("moduleName", moduleName),
@@ -390,8 +390,8 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
 
-				if moduleCfg.GetMaintenanceState() == utils.Unmanaged {
-					moduleMaintenanceStateChanged[moduleName] = utils.Unmanaged
+				if moduleCfg.GetMaintenanceState() == utils.NoResourceReconciliation {
+					moduleMaintenanceStateChanged[moduleName] = utils.NoResourceReconciliation
 				}
 
 				kcm.logger.Info("Module section added",

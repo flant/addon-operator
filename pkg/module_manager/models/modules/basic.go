@@ -14,10 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -547,11 +548,11 @@ func (bm *BasicModule) SaveHookError(hookName string, err error) {
 func (bm *BasicModule) SetMaintenanceState(state utils.MaintenanceState) {
 	bm.l.Lock()
 	switch state {
-	case utils.Unmanaged:
+	case utils.NoResourceReconciliation:
 		if bm.state.maintenanceState == Managed {
 			bm.state.maintenanceState = UnmanagedEnabled
 		}
-	case utils.Managed:
+	case utils.Default:
 		if bm.state.maintenanceState != Managed {
 			bm.state.maintenanceState = Managed
 		}
@@ -1283,7 +1284,7 @@ type MaintenanceState int
 const (
 	// Module runs in a normal mode
 	Managed MaintenanceState = iota
-	// Next helm run will enforce Unmanaged mode (removes heritage labels and stops resource informer)
+	// Next helm run will enforce NoResourceReconciliation mode (removes heritage labels and stops resource informer)
 	UnmanagedEnabled
 	// All consequent helm runs are inhibited
 	UnmanagedEnforced

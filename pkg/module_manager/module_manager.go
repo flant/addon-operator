@@ -284,8 +284,8 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 			continue
 		}
 
-		if moduleConfig.GetMaintenanceState() == utils.Unmanaged {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceStateMetricGroup, moduleMaintenanceStateMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.Unmanaged.String()})
+		if moduleConfig.GetMaintenanceState() == utils.NoResourceReconciliation {
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceStateMetricGroup, moduleMaintenanceStateMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
 			mod.SetMaintenanceState(moduleConfig.GetMaintenanceState())
 		}
 
@@ -504,8 +504,8 @@ func (mm *ModuleManager) SetModuleMaintenanceState(moduleName string, state util
 		mm.logger.Info("set module management state",
 			slog.String("module", moduleName),
 			slog.String("state", state.String()))
-		if state == utils.Unmanaged {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceStateMetricGroup, moduleMaintenanceStateMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.Unmanaged.String()})
+		if state == utils.NoResourceReconciliation {
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceStateMetricGroup, moduleMaintenanceStateMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
 		} else {
 			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleMaintenanceStateMetricGroup, moduleMaintenanceStateMetricName)
 		}

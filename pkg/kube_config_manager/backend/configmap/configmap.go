@@ -277,12 +277,12 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 		var state utils.MaintenanceState
 
 		switch maintenanceStateString {
-		case "Unmanaged", "unmanaged":
-			state = utils.Unmanaged
+		case "NoResourceReconciliation", "noresourcereconciliation":
+			state = utils.NoResourceReconciliation
 		case "":
-			state = utils.Managed
+			state = utils.Default
 		default:
-			return nil, fmt.Errorf("module maintenanceState key '%s' can only take 'Unmanaged', 'unmanaged' or '' values, got '%v'", mc.ModuleMaintenanceStateKey(), maintenanceStateString)
+			return nil, fmt.Errorf("module maintenanceState key '%s' can only take 'NoResourceReconciliation', 'unmanaged' or '' values, got '%v'", mc.ModuleMaintenanceStateKey(), maintenanceStateString)
 		}
 
 		configValues[mc.ModuleMaintenanceStateKey()] = state

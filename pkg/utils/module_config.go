@@ -25,8 +25,8 @@ func (m MaintenanceState) String() string {
 }
 
 const (
-	Managed   MaintenanceState = "Managed"
-	Unmanaged MaintenanceState = "Unmanaged"
+	Default                  MaintenanceState = "Default"
+	NoResourceReconciliation MaintenanceState = "NoResourceReconciliation"
 )
 
 type ModuleConfig struct {
@@ -74,7 +74,7 @@ func (mc *ModuleConfig) GetEnabled() string {
 
 func (mc *ModuleConfig) GetMaintenanceState() MaintenanceState {
 	if mc == nil {
-		return Managed
+		return Default
 	}
 
 	return mc.MaintenanceState
@@ -88,7 +88,7 @@ func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 		ModuleName:       moduleName,
 		IsEnabled:        nil,
 		values:           values,
-		MaintenanceState: Managed,
+		MaintenanceState: Default,
 	}
 }
 
@@ -126,7 +126,7 @@ func (mc *ModuleConfig) GetValues() Values {
 func (mc *ModuleConfig) Reset() {
 	mc.values = Values{}
 	mc.IsEnabled = nil
-	mc.MaintenanceState = Unmanaged
+	mc.MaintenanceState = NoResourceReconciliation
 }
 
 // LoadFromValues loads module config from a map.
