@@ -244,7 +244,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		// some module values
 		modulesChanged := []string{}
 		modulesStateChanged := []string{}
-		moduleMaintenanceChanged := make(map[string]utils.MaintenanceState)
+		moduleMaintenanceStateChanged := make(map[string]utils.MaintenanceState)
 
 		// module update
 		kcm.m.Lock()
@@ -259,7 +259,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			}
 
 			if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() == utils.NoResourceReconciliation {
-				moduleMaintenanceChanged[moduleName] = utils.Default
+				moduleMaintenanceStateChanged[moduleName] = utils.Default
 			}
 
 			moduleCfg.Reset()
@@ -269,7 +269,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				Type:                          config.KubeConfigChanged,
 				ModuleValuesChanged:           modulesChanged,
 				ModuleEnabledStateChanged:     modulesStateChanged,
-				ModuleMaintenanceStateChanged: moduleMaintenanceChanged,
+				ModuleMaintenanceStateChanged: moduleMaintenanceStateChanged,
 			}
 			return
 		}
@@ -288,7 +288,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				}
 
 				if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() != moduleCfg.GetMaintenanceState() {
-					moduleMaintenanceChanged[moduleName] = moduleCfg.GetMaintenanceState()
+					moduleMaintenanceStateChanged[moduleName] = moduleCfg.GetMaintenanceState()
 				}
 				kcm.logger.Info("Module section changed. Enabled flag transition.",
 					slog.String("moduleName", moduleName),
@@ -302,7 +302,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				}
 
 				if moduleCfg.GetMaintenanceState() == utils.NoResourceReconciliation {
-					moduleMaintenanceChanged[moduleName] = utils.NoResourceReconciliation
+					moduleMaintenanceStateChanged[moduleName] = utils.NoResourceReconciliation
 				}
 				kcm.logger.Info("Module section added",
 					slog.String("moduleName", moduleName),
@@ -311,13 +311,13 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			}
 		}
 
-		if len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
+		if len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceStateChanged) > 0 {
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigEvent{
 				Type:                          config.KubeConfigChanged,
 				ModuleValuesChanged:           modulesChanged,
 				ModuleEnabledStateChanged:     modulesStateChanged,
-				ModuleMaintenanceStateChanged: moduleMaintenanceChanged,
+				ModuleMaintenanceStateChanged: moduleMaintenanceStateChanged,
 			}
 		}
 	}
