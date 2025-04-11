@@ -77,7 +77,7 @@ kubeDns: |
   config:
     resolver: "192.168.0.1"
 kubeDnsEnabled: "true"
-kubeDnsManagementState: "Unmanaged"
+kubeDnsMaintenanceState: "Unmanaged"
 `
 
 	kubeClient := klient.NewFake(nil)
@@ -87,9 +87,9 @@ kubeDnsManagementState: "Unmanaged"
 	defer kcm.Stop()
 
 	tests := map[string]struct {
-		isEnabled       *bool
-		managementState utils.ManagementState
-		values          utils.Values
+		isEnabled        *bool
+		maintenanceState utils.MaintenanceState
+		values           utils.Values
 	}{
 		"global": {
 			nil,
@@ -165,7 +165,7 @@ kubeDnsManagementState: "Unmanaged"
 					moduleConfig, hasConfig := config.Modules[name]
 					assert.True(t, hasConfig)
 					assert.Equal(t, expect.isEnabled, moduleConfig.IsEnabled)
-					assert.Equal(t, expect.managementState, moduleConfig.ManagementState)
+					assert.Equal(t, expect.maintenanceState, moduleConfig.MaintenanceState)
 					assert.Equal(t, expect.values, moduleConfig.GetValuesWithModuleName()) //nolint: staticcheck,nolintlint
 				})
 			}
@@ -437,7 +437,7 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 "path": "/data/validModuleName",
 "value": "modParam1: val1\nmodParam2: val2"},
 {"op": "add", 
-"path": "/data/validModuleNameManagementState",
+"path": "/data/validModuleNameMaintenanceState",
 "value": "Unmanaged"},
 {"op": "remove", 
 "path": "/data/InvalidName-module"}]`
@@ -458,7 +458,7 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 		ModuleEnabledStateChanged: []string{},
 		ModuleValuesChanged:       []string{"valid-module-name"},
 		GlobalSectionChanged:      false,
-		ModuleManagementStateChanged: map[string]utils.ManagementState{
+		ModuleMaintenanceStateChanged: map[string]utils.MaintenanceState{
 			"valid-module-name": "Unmanaged",
 		},
 	}), "Valid section patch should generate 'changed' event")

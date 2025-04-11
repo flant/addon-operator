@@ -195,9 +195,9 @@ func getModulesNamesFromConfigData(configData map[string]string) (map[string]boo
 			continue
 		}
 
-		// Treat Enabled and ManagementState flags as module section.
+		// Treat Enabled and MaintenanceState flags as module section.
 		key = strings.TrimSuffix(key, utils.EnabledSuffix)
-		key = strings.TrimSuffix(key, utils.ManagementStateSuffix)
+		key = strings.TrimSuffix(key, utils.MaintenanceStateSuffix)
 
 		modName := utils.ModuleNameFromValuesKey(key)
 
@@ -272,20 +272,20 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 		configValues[mc.ModuleEnabledKey()] = enabled
 	}
 
-	managementStateString, hasKey := configData[mc.ModuleManagementStateKey()]
+	maintenanceStateString, hasKey := configData[mc.ModuleMaintenanceStateKey()]
 	if hasKey {
-		var state utils.ManagementState
+		var state utils.MaintenanceState
 
-		switch managementStateString {
+		switch maintenanceStateString {
 		case "Unmanaged", "unmanaged":
 			state = utils.Unmanaged
 		case "":
 			state = utils.Managed
 		default:
-			return nil, fmt.Errorf("module managementState key '%s' can only take 'Unmanaged', 'unmanaged' or '' values, got '%v'", mc.ModuleManagementStateKey(), managementStateString)
+			return nil, fmt.Errorf("module maintenanceState key '%s' can only take 'Unmanaged', 'unmanaged' or '' values, got '%v'", mc.ModuleMaintenanceStateKey(), maintenanceStateString)
 		}
 
-		configValues[mc.ModuleManagementStateKey()] = state
+		configValues[mc.ModuleMaintenanceStateKey()] = state
 	}
 
 	if len(configValues) == 0 {

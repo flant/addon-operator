@@ -76,8 +76,8 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	additionalLabels := make(map[string]string)
-	if bm.GetManagementState() != Managed {
-		additionalLabels["managementState"] = utils.Unmanaged.String()
+	if bm.GetMaintenanceState() != Managed {
+		additionalLabels["maintenanceState"] = utils.Unmanaged.String()
 	}
 
 	hm := &HelmModule{

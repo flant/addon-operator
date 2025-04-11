@@ -244,7 +244,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		// some module values
 		modulesChanged := []string{}
 		modulesStateChanged := []string{}
-		moduleManagementStateChanged := make(map[string]utils.ManagementState)
+		moduleMaintenanceChanged := make(map[string]utils.MaintenanceState)
 
 		// module update
 		kcm.m.Lock()
@@ -258,18 +258,18 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				modulesStateChanged = append(modulesStateChanged, moduleName)
 			}
 
-			if kcm.currentConfig.Modules[moduleName].GetManagementState() == utils.Unmanaged {
-				moduleManagementStateChanged[moduleName] = utils.Managed
+			if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() == utils.Unmanaged {
+				moduleMaintenanceChanged[moduleName] = utils.Managed
 			}
 
 			moduleCfg.Reset()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                         config.KubeConfigChanged,
-				ModuleValuesChanged:          modulesChanged,
-				ModuleEnabledStateChanged:    modulesStateChanged,
-				ModuleManagementStateChanged: moduleManagementStateChanged,
+				Type:                          config.KubeConfigChanged,
+				ModuleValuesChanged:           modulesChanged,
+				ModuleEnabledStateChanged:     modulesStateChanged,
+				ModuleMaintenanceStateChanged: moduleMaintenanceChanged,
 			}
 			return
 		}
@@ -287,37 +287,37 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
 
-				if kcm.currentConfig.Modules[moduleName].GetManagementState() != moduleCfg.GetManagementState() {
-					moduleManagementStateChanged[moduleName] = moduleCfg.GetManagementState()
+				if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() != moduleCfg.GetMaintenanceState() {
+					moduleMaintenanceChanged[moduleName] = moduleCfg.GetMaintenanceState()
 				}
 				kcm.logger.Info("Module section changed. Enabled flag transition.",
 					slog.String("moduleName", moduleName),
 					slog.String("previous", kcm.currentConfig.Modules[moduleName].GetEnabled()),
 					slog.String("current", moduleCfg.GetEnabled()),
-					slog.String("ManagementStateFlag", moduleCfg.GetManagementState().String()))
+					slog.String("MaintenanceStateFlag", moduleCfg.GetMaintenanceState().String()))
 			} else {
 				modulesChanged = append(modulesChanged, moduleName)
 				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
 
-				if moduleCfg.GetManagementState() == utils.Unmanaged {
-					moduleManagementStateChanged[moduleName] = utils.Unmanaged
+				if moduleCfg.GetMaintenanceState() == utils.Unmanaged {
+					moduleMaintenanceChanged[moduleName] = utils.Unmanaged
 				}
 				kcm.logger.Info("Module section added",
 					slog.String("moduleName", moduleName),
 					slog.String("enabledFlag", moduleCfg.GetEnabled()),
-					slog.String("ManagementStateFlag", moduleCfg.GetManagementState().String()))
+					slog.String("MaintenanceStateFlag", moduleCfg.GetMaintenanceState().String()))
 			}
 		}
 
-		if len(modulesChanged)+len(modulesStateChanged)+len(moduleManagementStateChanged) > 0 {
+		if len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                         config.KubeConfigChanged,
-				ModuleValuesChanged:          modulesChanged,
-				ModuleEnabledStateChanged:    modulesStateChanged,
-				ModuleManagementStateChanged: moduleManagementStateChanged,
+				Type:                          config.KubeConfigChanged,
+				ModuleValuesChanged:           modulesChanged,
+				ModuleEnabledStateChanged:     modulesStateChanged,
+				ModuleMaintenanceStateChanged: moduleMaintenanceChanged,
 			}
 		}
 	}
@@ -354,7 +354,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	currentModuleNames := kcm.currentModuleNames()
 	modulesChanged := []string{}
 	modulesStateChanged := []string{}
-	moduleManagementStateChanged := make(map[string]utils.ManagementState)
+	moduleMaintenanceStateChanged := make(map[string]utils.MaintenanceState)
 
 	for moduleName, moduleCfg := range newConfig.Modules {
 		// Remove module name from current names to detect deleted sections.
@@ -375,29 +375,29 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
 
-				if kcm.currentConfig.Modules[moduleName].GetManagementState() != moduleCfg.GetManagementState() {
-					moduleManagementStateChanged[moduleName] = moduleCfg.GetManagementState()
+				if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() != moduleCfg.GetMaintenanceState() {
+					moduleMaintenanceStateChanged[moduleName] = moduleCfg.GetMaintenanceState()
 				}
 
 				kcm.logger.Info("Module section changed. Enabled flag transition",
 					slog.String("moduleName", moduleName),
 					slog.String("previous", kcm.currentConfig.Modules[moduleName].GetEnabled()),
 					slog.String("current", moduleCfg.GetEnabled()),
-					slog.String("ManagementStateFlag", moduleCfg.GetManagementState().String()))
+					slog.String("MaintenanceStateFlag", moduleCfg.GetMaintenanceState().String()))
 			} else {
 				modulesChanged = append(modulesChanged, moduleName)
 				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
 					modulesStateChanged = append(modulesStateChanged, moduleName)
 				}
 
-				if moduleCfg.GetManagementState() == utils.Unmanaged {
-					moduleManagementStateChanged[moduleName] = utils.Unmanaged
+				if moduleCfg.GetMaintenanceState() == utils.Unmanaged {
+					moduleMaintenanceStateChanged[moduleName] = utils.Unmanaged
 				}
 
 				kcm.logger.Info("Module section added",
 					slog.String("moduleName", moduleName),
 					slog.String("enabledFlag", moduleCfg.GetEnabled()),
-					slog.String("ManagementStateFlag", moduleCfg.GetManagementState().String()))
+					slog.String("MaintenanceStateFlag", moduleCfg.GetMaintenanceState().String()))
 			}
 		}
 	}
@@ -419,13 +419,13 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	kcm.m.Unlock()
 
 	// Fire event if ConfigMap has changes.
-	if globalChanged || len(modulesChanged)+len(moduleManagementStateChanged) > 0 {
+	if globalChanged || len(modulesChanged)+len(moduleMaintenanceStateChanged) > 0 {
 		kcm.configEventCh <- config.KubeConfigEvent{
-			Type:                         config.KubeConfigChanged,
-			GlobalSectionChanged:         globalChanged,
-			ModuleValuesChanged:          modulesChanged,
-			ModuleEnabledStateChanged:    modulesStateChanged,
-			ModuleManagementStateChanged: moduleManagementStateChanged,
+			Type:                          config.KubeConfigChanged,
+			GlobalSectionChanged:          globalChanged,
+			ModuleValuesChanged:           modulesChanged,
+			ModuleEnabledStateChanged:     modulesStateChanged,
+			ModuleMaintenanceStateChanged: moduleMaintenanceStateChanged,
 		}
 	}
 }
