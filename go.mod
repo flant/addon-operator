@@ -26,12 +26,12 @@ require (
 	github.com/tidwall/gjson v1.14.4
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v3 v3.0.1
-	helm.sh/helm/v3 v3.14.2
+	helm.sh/helm/v3 v3.15.4
 	k8s.io/api v0.30.11
 	k8s.io/apimachinery v0.30.11
 	k8s.io/cli-runtime v0.30.11
 	k8s.io/client-go v0.30.11
-	k8s.io/kubectl v0.29.8
+	k8s.io/kubectl v0.30.3
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/controller-runtime v0.17.0
 	sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230601165947-6ce0bf390ce3
