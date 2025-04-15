@@ -1180,7 +1180,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							slog.Bool("globalSectionChanged", event.GlobalSectionChanged),
 							slog.Any("moduleValuesChanged", event.ModuleValuesChanged),
 							slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged),
-							slog.Any("moduleManagementStateChanged", event.ModuleManagementStateChanged))
+							slog.Any("moduleMaintenanceChanged", event.ModuleMaintenanceChanged))
 						if !op.ModuleManager.GetKubeConfigValid() {
 							eventLogEntry.Info("KubeConfig become valid")
 						}
@@ -1192,7 +1192,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							convergeTask   sh_task.Task
 						)
 
-						if event.GlobalSectionChanged || len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged) > 0 {
+						if event.GlobalSectionChanged || len(event.ModuleValuesChanged)+len(event.ModuleMaintenanceChanged) > 0 {
 							kubeConfigTask = converge.NewApplyKubeConfigValuesTask(
 								"Apply-Kube-Config-Values-Changes",
 								logLabels,
@@ -1200,8 +1200,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							)
 						}
 
-						for module, state := range event.ModuleManagementStateChanged {
-							op.ModuleManager.SetModuleManagementState(module, state)
+						for module, state := range event.ModuleMaintenanceChanged {
+							op.ModuleManager.SetModuleMaintenanceState(module, state)
 						}
 
 						// if global hooks haven't been run yet, script enabled extender fails due to missing global values,
@@ -1254,14 +1254,14 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							op.ConvergeState.Phase = converge.StandBy
 							op.ConvergeState.PhaseLock.Unlock()
 						} else {
-							modulesToRerun := make([]string, 0, len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged))
+							modulesToRerun := make([]string, 0, len(event.ModuleValuesChanged)+len(event.ModuleMaintenanceChanged))
 							for _, moduleName := range event.ModuleValuesChanged {
 								if op.ModuleManager.IsModuleEnabled(moduleName) {
 									modulesToRerun = append(modulesToRerun, moduleName)
 								}
 							}
 
-							for moduleName := range event.ModuleManagementStateChanged {
+							for moduleName := range event.ModuleMaintenanceChanged {
 								if !slices.Contains(modulesToRerun, moduleName) && op.ModuleManager.IsModuleEnabled(moduleName) {
 									modulesToRerun = append(modulesToRerun, moduleName)
 								}
