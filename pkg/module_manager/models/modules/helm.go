@@ -77,7 +77,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 
 	additionalLabels := make(map[string]string)
 	if bm.GetMaintenanceState() != Managed {
-		additionalLabels["maintenance"] = utils.NoResourceReconciliation.String()
+		additionalLabels["maintenance.deckhouse.io/no-resource-reconcillation"] = ""
 	}
 
 	hm := &HelmModule{
