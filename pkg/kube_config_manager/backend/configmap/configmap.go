@@ -274,7 +274,7 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 
 	maintenanceStateString, hasKey := configData[mc.ModuleMaintenanceStateKey()]
 	if hasKey {
-		var state utils.MaintenanceState
+		var state utils.Maintenance
 
 		switch maintenanceStateString {
 		case "NoResourceReconciliation", "noresourcereconciliation":

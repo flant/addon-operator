@@ -15,31 +15,31 @@ var (
 	ModuleDisabled = false
 
 	EnabledSuffix          = "Enabled"
-	MaintenanceStateSuffix = "MaintenanceState"
+	MaintenanceStateSuffix = "Maintenance"
 )
 
-type MaintenanceState string
+type Maintenance string
 
-func (m MaintenanceState) String() string {
+func (m Maintenance) String() string {
 	return string(m)
 }
 
 const (
-	Managed                  MaintenanceState = "Managed"
-	NoResourceReconciliation MaintenanceState = "NoResourceReconciliation"
+	Managed                  Maintenance = "Managed"
+	NoResourceReconciliation Maintenance = "NoResourceReconciliation"
 )
 
 type ModuleConfig struct {
-	ModuleName       string
-	IsEnabled        *bool
-	MaintenanceState MaintenanceState
+	ModuleName  string
+	IsEnabled   *bool
+	Maintenance Maintenance
 	// module values, don't read it directly, use GetValues() for reading
 	values Values
 }
 
 // String returns description of ModuleConfig values.
 func (mc *ModuleConfig) String() string {
-	return fmt.Sprintf("Module(Name=%s IsEnabled=%v MaintenanceState=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.MaintenanceState, mc.values.DebugString())
+	return fmt.Sprintf("Module(Name=%s IsEnabled=%v MaintenanceState=%v Values:\n%s)", mc.ModuleName, mc.IsEnabled, mc.Maintenance, mc.values.DebugString())
 }
 
 // ModuleConfigKey transforms module kebab-case name to the config camelCase name
@@ -72,12 +72,12 @@ func (mc *ModuleConfig) GetEnabled() string {
 	}
 }
 
-func (mc *ModuleConfig) GetMaintenanceState() MaintenanceState {
+func (mc *ModuleConfig) GetMaintenanceState() Maintenance {
 	if mc == nil {
 		return Managed
 	}
 
-	return mc.MaintenanceState
+	return mc.Maintenance
 }
 
 func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
@@ -85,10 +85,10 @@ func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 		values = make(Values)
 	}
 	return &ModuleConfig{
-		ModuleName:       moduleName,
-		IsEnabled:        nil,
-		values:           values,
-		MaintenanceState: Managed,
+		ModuleName:  moduleName,
+		IsEnabled:   nil,
+		values:      values,
+		Maintenance: Managed,
 	}
 }
 
@@ -126,7 +126,7 @@ func (mc *ModuleConfig) GetValues() Values {
 func (mc *ModuleConfig) Reset() {
 	mc.values = Values{}
 	mc.IsEnabled = nil
-	mc.MaintenanceState = NoResourceReconciliation
+	mc.Maintenance = NoResourceReconciliation
 }
 
 // LoadFromValues loads module config from a map.
@@ -160,8 +160,8 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 
 	if maintenanceState, hasMaintenanceState := values[mc.ModuleMaintenanceStateKey()]; hasMaintenanceState {
 		switch v := maintenanceState.(type) {
-		case MaintenanceState:
-			mc.MaintenanceState = v
+		case Maintenance:
+			mc.Maintenance = v
 		default:
 			return nil, fmt.Errorf("load '%s' MaintenanceState config: MaintenanceState value should be string. Got: %#v", mc.ModuleName, maintenanceState)
 		}

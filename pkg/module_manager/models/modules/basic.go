@@ -544,7 +544,7 @@ func (bm *BasicModule) SaveHookError(hookName string, err error) {
 	bm.l.Unlock()
 }
 
-func (bm *BasicModule) SetMaintenanceState(state utils.MaintenanceState) {
+func (bm *BasicModule) SetMaintenanceState(state utils.Maintenance) {
 	bm.l.Lock()
 	switch state {
 	case utils.NoResourceReconciliation:
