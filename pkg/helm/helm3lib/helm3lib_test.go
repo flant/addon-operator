@@ -38,7 +38,7 @@ func TestHelm3LibUpgradeDelete(t *testing.T) {
 
 	cl := initHelmClient(t)
 
-	err := cl.UpgradeRelease("test-release", "testdata/chart", nil, nil, cl.Namespace)
+	err := cl.UpgradeRelease("test-release", "testdata/chart", nil, nil, nil, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	releases, err := cl.ListReleasesNames()
