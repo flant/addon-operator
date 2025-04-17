@@ -173,7 +173,6 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 		StringVar(&ShellChrootDir)
 
 	shapp.DefineKubeClientFlags(cmd)
-	shapp.DefineJqFlags(cmd)
 	shapp.DefineLoggingFlags(cmd)
 
 	shapp.DebugUnixSocket = DefaultDebugUnixSocket

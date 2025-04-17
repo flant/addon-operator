@@ -244,7 +244,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		phase := ""
 		switch tsk.GetType() {
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
@@ -384,7 +384,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			if triggerPause {
@@ -489,9 +489,9 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ApplyKubeConfigValues:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
