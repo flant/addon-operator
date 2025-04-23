@@ -90,7 +90,7 @@ func (op *AddonOperator) registerDefaultRoutes() {
 		convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
 
 		statusLines := make([]string, 0)
-		switch op.ConvergeState.FirstRunPhase {
+		switch op.ConvergeState.GetFirstRunPhase() {
 		case converge.FirstNotStarted:
 			statusLines = append(statusLines, "STARTUP_CONVERGE_NOT_STARTED")
 		case converge.FirstStarted:
