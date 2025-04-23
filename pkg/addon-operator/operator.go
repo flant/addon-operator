@@ -292,7 +292,7 @@ func ensureTempDirectory(inDir string) (string, error) {
 
 // Start runs all managers, event and queue handlers.
 // TODO: implement context in various dependencies (ModuleManager, KubeConfigManaer, etc)
-func (op *AddonOperator) Start(_ context.Context) error {
+func (op *AddonOperator) Start(ctx context.Context) error {
 	if err := op.bootstrap(); err != nil {
 		return fmt.Errorf("bootstrap: %w", err)
 	}
@@ -304,7 +304,7 @@ func (op *AddonOperator) Start(_ context.Context) error {
 	// Bootstrap main queue with tasks to run Startup process.
 	op.BootstrapMainQueue(op.engine.TaskQueues)
 	// Start main task queue handler
-	op.engine.TaskQueues.StartMain()
+	op.engine.TaskQueues.StartMain(ctx)
 	// Precreate queues for parallel tasks
 	op.CreateAndStartParallelQueues()
 
@@ -993,7 +993,7 @@ func (op *AddonOperator) CreateAndStartQueue(queueName string) bool {
 		return false
 	}
 	op.engine.TaskQueues.NewNamedQueue(queueName, op.TaskHandler)
-	op.engine.TaskQueues.GetByName(queueName).Start()
+	op.engine.TaskQueues.GetByName(queueName).Start(context.TODO())
 
 	return true
 }
@@ -1078,7 +1078,7 @@ func (op *AddonOperator) CreateAndStartParallelQueues() {
 			continue
 		}
 		op.engine.TaskQueues.NewNamedQueue(queueName, op.ParallelTasksHandler)
-		op.engine.TaskQueues.GetByName(queueName).Start()
+		op.engine.TaskQueues.GetByName(queueName).Start(context.TODO())
 	}
 }
 
@@ -1325,7 +1325,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 }
 
 // ParallelTasksHandler handles limited types of tasks in parallel queues.
-func (op *AddonOperator) ParallelTasksHandler(t sh_task.Task) queue.TaskResult {
+func (op *AddonOperator) ParallelTasksHandler(_ context.Context, t sh_task.Task) queue.TaskResult {
 	taskLogLabels := t.GetLogLabels()
 	taskLogEntry := utils.EnrichLoggerWithLabels(op.Logger, taskLogLabels)
 	var res queue.TaskResult
@@ -1367,7 +1367,7 @@ func (op *AddonOperator) ParallelTasksHandler(t sh_task.Task) queue.TaskResult {
 }
 
 // TaskHandler handles tasks in queue.
-func (op *AddonOperator) TaskHandler(t sh_task.Task) queue.TaskResult {
+func (op *AddonOperator) TaskHandler(_ context.Context, t sh_task.Task) queue.TaskResult {
 	taskLogLabels := t.GetLogLabels()
 	taskLogEntry := utils.EnrichLoggerWithLabels(op.Logger, taskLogLabels)
 	var res queue.TaskResult
