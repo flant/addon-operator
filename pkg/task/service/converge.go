@@ -93,11 +93,11 @@ func (s *TaskHandlerService) logConvergeProgress(convergeTasks int, t sh_task.Ta
 // and logs when it completes.
 func (s *TaskHandlerService) UpdateFirstConvergeStatus(convergeTasks int) {
 	// Early return if first run is already completed
-	if s.convergeState.FirstRunPhase == converge.FirstDone {
+	if s.convergeState.GetFirstRunPhase() == converge.FirstDone {
 		return
 	}
 
-	switch s.convergeState.FirstRunPhase {
+	switch s.convergeState.GetFirstRunPhase() {
 	case converge.FirstNotStarted:
 		// Mark as started when convergence tasks are detected
 		if convergeTasks > 0 {
