@@ -10,14 +10,14 @@ import (
 )
 
 type ConvergeState struct {
-	PhaseLock sync.RWMutex
-	Phase     ConvergePhase
-
 	FirstRunPhase FirstConvergePhase
 	FirstRunDoneC chan struct{}
 	StartedAt     int64
 	Activation    string
 	CRDsEnsured   bool
+
+	phaseMu sync.RWMutex
+	phase   ConvergePhase
 }
 
 type ConvergePhase string
@@ -40,15 +40,15 @@ const (
 
 func NewConvergeState() *ConvergeState {
 	return &ConvergeState{
-		Phase:         StandBy,
+		phase:         StandBy,
 		FirstRunPhase: FirstNotStarted,
 		FirstRunDoneC: make(chan struct{}),
 	}
 }
 
 func (cs *ConvergeState) SetFirstRunPhase(ph FirstConvergePhase) {
-	cs.PhaseLock.Lock()
-	defer cs.PhaseLock.Unlock()
+	cs.phaseMu.Lock()
+	defer cs.phaseMu.Unlock()
 	cs.FirstRunPhase = ph
 	if ph == FirstDone {
 		close(cs.FirstRunDoneC)
@@ -56,21 +56,21 @@ func (cs *ConvergeState) SetFirstRunPhase(ph FirstConvergePhase) {
 }
 
 func (cs *ConvergeState) GetFirstRunPhase() FirstConvergePhase {
-	cs.PhaseLock.RLock()
-	defer cs.PhaseLock.RUnlock()
+	cs.phaseMu.RLock()
+	defer cs.phaseMu.RUnlock()
 	return cs.FirstRunPhase
 }
 
 func (cs *ConvergeState) SetPhase(ph ConvergePhase) {
-	cs.PhaseLock.Lock()
-	defer cs.PhaseLock.Unlock()
-	cs.Phase = ph
+	cs.phaseMu.Lock()
+	defer cs.phaseMu.Unlock()
+	cs.phase = ph
 }
 
 func (cs *ConvergeState) GetPhase() ConvergePhase {
-	cs.PhaseLock.RLock()
-	defer cs.PhaseLock.RUnlock()
-	return cs.Phase
+	cs.phaseMu.RLock()
+	defer cs.phaseMu.RUnlock()
+	return cs.phase
 }
 
 const ConvergeEventProp = "converge.event"

@@ -797,7 +797,7 @@ func (op *AddonOperator) HandleConvergeModules(t sh_task.Task, logLabels map[str
 
 		// Deduplicate tasks: remove ConvergeModules tasks right after the current task.
 		RemoveAdjacentConvergeModules(op.engine.TaskQueues.GetByName(t.GetQueueName()), t.GetId(), logLabels, op.Logger)
-		op.ConvergeState.Phase = converge.RunBeforeAll
+		op.ConvergeState.SetPhase(converge.RunBeforeAll)
 	}
 
 	if op.ConvergeState.GetPhase() == converge.RunBeforeAll {
@@ -1145,7 +1145,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							logLabels,
 						)
 						// if converge has already begun - restart it immediately
-						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) && op.ConvergeState.Phase != converge.StandBy {
+						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) && op.ConvergeState.GetPhase() != converge.StandBy {
 							logEntry.Info("ConvergeModules: global hook dynamic modification detected, restart current converge process",
 								slog.String("phase", string(op.ConvergeState.GetPhase())))
 							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
