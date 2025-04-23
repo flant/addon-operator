@@ -238,13 +238,13 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 	}
 
 	taskHandleHistory := make([]taskInfo, 0)
-	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
 		switch tsk.GetType() {
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
@@ -257,10 +257,10 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		})
 
 		// Handle it.
-		return op.TaskHandler(tsk)
+		return op.TaskHandler(ctx, tsk)
 	})
 
-	op.engine.TaskQueues.StartMain()
+	op.engine.TaskQueues.StartMain(context.TODO())
 
 	// Wait until converge is done.
 	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
@@ -377,14 +377,14 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 
 	historyMu := new(sync.Mutex)
 	taskHandleHistory := make([]taskInfo, 0)
-	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			if triggerPause {
@@ -407,11 +407,11 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		historyMu.Unlock()
 
 		// Handle it.
-		return op.TaskHandler(tsk)
+		return op.TaskHandler(ctx, tsk)
 	})
 
 	// Start 'main' queue and wait for first converge.
-	op.engine.TaskQueues.StartMain()
+	op.engine.TaskQueues.StartMain(context.TODO())
 
 	// Emulate changing ConfigMap during converge.
 	go func() {
@@ -482,16 +482,16 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 
 	historyMu := new(sync.Mutex)
 	taskHandleHistory := make([]taskInfo, 0)
-	op.engine.TaskQueues.GetMain().WithHandler(func(tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ApplyKubeConfigValues:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
@@ -508,10 +508,10 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		historyMu.Unlock()
 
 		// Handle it.
-		return op.TaskHandler(tsk)
+		return op.TaskHandler(ctx, tsk)
 	})
 
-	op.engine.TaskQueues.StartMain()
+	op.engine.TaskQueues.StartMain(context.TODO())
 
 	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
 
