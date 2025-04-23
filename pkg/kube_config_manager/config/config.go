@@ -51,7 +51,7 @@ type (
 		ModuleEnabledStateChanged    []string
 		ModuleValuesChanged          []string
 		GlobalSectionChanged         bool
-		ModuleManagementStateChanged map[string]utils.ManagementState
+		ModuleManagementStateChanged map[string]utils.Maintenance
 	}
 )
 

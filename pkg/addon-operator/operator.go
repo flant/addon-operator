@@ -8,7 +8,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/trace"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +31,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
-	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
@@ -42,7 +40,6 @@ import (
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
@@ -221,6 +218,16 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 	return nil
 }
 
+// Setup initializes the AddonOperator with required components and configurations.
+// It performs the following steps:
+// 1. Initializes the Helm client factory with specified options like namespace, history max, timeout, and logger.
+// 2. Sets up the Helm resources manager using a separate client-go instance.
+// 3. Validates the existence of the global hooks directory.
+// 4. Ensures the temporary directory exists.
+// 5. Verifies that KubeConfigManager is set before proceeding.
+// 6. Finally sets up the module manager with the appropriate directories.
+//
+// Returns an error if any initialization step fails.
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
 	helmClient, err := helm.InitHelmClientFactory(&helm.Options{
@@ -432,148 +439,6 @@ func shouldEnableSchedulesOnStartup(hk typedHook) bool {
 	}
 
 	return false
-}
-
-func (op *AddonOperator) RegisterManagerEventsHandlers() {
-	op.engine.ManagerEventsHandler.WithScheduleEventHandler(func(crontab string) []sh_task.Task {
-		logLabels := map[string]string{
-			"event.id": uuid.Must(uuid.NewV4()).String(),
-			"binding":  string(htypes.Schedule),
-		}
-		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
-		logEntry.Debug("Create tasks for 'schedule' event",
-			slog.String("event", crontab))
-
-		var tasks []sh_task.Task
-		op.ModuleManager.HandleScheduleEvent(crontab,
-			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
-				if !op.allowHandleScheduleEvent(globalHook) {
-					return
-				}
-
-				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"hook":      globalHook.GetName(),
-					"hook.type": "module",
-					"queue":     info.QueueName,
-				})
-				if len(info.BindingContext) > 0 {
-					hookLabels["binding.name"] = info.BindingContext[0].Binding
-				}
-				delete(hookLabels, "task.id")
-				newTask := sh_task.NewTask(task.GlobalHookRun).
-					WithLogLabels(hookLabels).
-					WithQueueName(info.QueueName).
-					WithMetadata(task.HookMetadata{
-						EventDescription:         "Schedule",
-						HookName:                 globalHook.GetName(),
-						BindingType:              htypes.Schedule,
-						BindingContext:           info.BindingContext,
-						AllowFailure:             info.AllowFailure,
-						ReloadAllOnValuesChanges: true,
-					})
-
-				tasks = append(tasks, newTask)
-			},
-			func(module *modules.BasicModule, moduleHook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
-				if !op.allowHandleScheduleEvent(moduleHook) {
-					return
-				}
-
-				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"module":    module.GetName(),
-					"hook":      moduleHook.GetName(),
-					"hook.type": "module",
-					"queue":     info.QueueName,
-				})
-				if len(info.BindingContext) > 0 {
-					hookLabels["binding.name"] = info.BindingContext[0].Binding
-				}
-				delete(hookLabels, "task.id")
-				newTask := sh_task.NewTask(task.ModuleHookRun).
-					WithLogLabels(hookLabels).
-					WithQueueName(info.QueueName).
-					WithMetadata(task.HookMetadata{
-						EventDescription: "Schedule",
-						ModuleName:       module.GetName(),
-						HookName:         moduleHook.GetName(),
-						BindingType:      htypes.Schedule,
-						BindingContext:   info.BindingContext,
-						AllowFailure:     info.AllowFailure,
-					})
-
-				tasks = append(tasks, newTask)
-			})
-
-		return tasks
-	})
-
-	op.engine.ManagerEventsHandler.WithKubeEventHandler(func(kubeEvent types.KubeEvent) []sh_task.Task {
-		logLabels := map[string]string{
-			"event.id": uuid.Must(uuid.NewV4()).String(),
-			"binding":  string(htypes.OnKubernetesEvent),
-		}
-		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
-		logEntry.Debug("Create tasks for 'kubernetes' event",
-			slog.String("event", kubeEvent.String()))
-
-		var tasks []sh_task.Task
-		op.ModuleManager.HandleKubeEvent(kubeEvent,
-			func(globalHook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
-				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"hook":      globalHook.GetName(),
-					"hook.type": "global",
-					"queue":     info.QueueName,
-				})
-				if len(info.BindingContext) > 0 {
-					hookLabels["binding.name"] = info.BindingContext[0].Binding
-					hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
-				}
-				delete(hookLabels, "task.id")
-				newTask := sh_task.NewTask(task.GlobalHookRun).
-					WithLogLabels(hookLabels).
-					WithQueueName(info.QueueName).
-					WithMetadata(task.HookMetadata{
-						EventDescription:         "Kubernetes",
-						HookName:                 globalHook.GetName(),
-						BindingType:              htypes.OnKubernetesEvent,
-						BindingContext:           info.BindingContext,
-						AllowFailure:             info.AllowFailure,
-						Binding:                  info.Binding,
-						ReloadAllOnValuesChanges: true,
-					})
-
-				tasks = append(tasks, newTask)
-			},
-			func(module *modules.BasicModule, moduleHook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
-				hookLabels := utils.MergeLabels(logLabels, map[string]string{
-					"module":    module.GetName(),
-					"hook":      moduleHook.GetName(),
-					"hook.type": "module",
-					"queue":     info.QueueName,
-				})
-				if len(info.BindingContext) > 0 {
-					hookLabels["binding.name"] = info.BindingContext[0].Binding
-					hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
-				}
-				delete(hookLabels, "task.id")
-				newTask := sh_task.NewTask(task.ModuleHookRun).
-					WithLogLabels(hookLabels).
-					WithQueueName(info.QueueName).
-					WithMetadata(task.HookMetadata{
-						EventDescription: "Kubernetes",
-						ModuleName:       module.GetName(),
-						HookName:         moduleHook.GetName(),
-						Binding:          info.Binding,
-						BindingType:      htypes.OnKubernetesEvent,
-						BindingContext:   info.BindingContext,
-						AllowFailure:     info.AllowFailure,
-					})
-
-				tasks = append(tasks, newTask)
-			})
-
-		return tasks
-	})
 }
 
 // BootstrapMainQueue adds tasks to initiate Startup sequence:
@@ -1115,215 +980,6 @@ func (op *AddonOperator) DrainModuleQueues(modName string) {
 	//}
 }
 
-func (op *AddonOperator) StartModuleManagerEventHandler() {
-	go func() {
-		logEntry := op.Logger.With("operator.component", "handleManagerEvents")
-		for {
-			select {
-			case schedulerEvent := <-op.ModuleManager.SchedulerEventCh():
-				switch event := schedulerEvent.EncapsulatedEvent.(type) {
-				// dynamically_enabled_extender
-				case dynamic_extender.DynamicExtenderEvent:
-					logLabels := map[string]string{
-						"event.id":     uuid.Must(uuid.NewV4()).String(),
-						"type":         "ModuleScheduler event",
-						"event_source": "DymicallyEnabledExtenderChanged",
-					}
-					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
-					// if global hooks haven't been run yet, script enabled extender fails due to missing global values
-					if op.globalHooksNotExecutedYet() {
-						eventLogEntry.Info("Global hook dynamic modification detected, ignore until starting first converge")
-						break
-					}
-
-					graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
-
-					if graphStateChanged {
-						convergeTask := converge.NewConvergeModulesTask(
-							"ReloadAll-After-GlobalHookDynamicUpdate",
-							converge.ReloadAllModules,
-							logLabels,
-						)
-						// if converge has already begun - restart it immediately
-						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) && op.ConvergeState.GetPhase() != converge.StandBy {
-							logEntry.Info("ConvergeModules: global hook dynamic modification detected, restart current converge process",
-								slog.String("phase", string(op.ConvergeState.GetPhase())))
-							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
-							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
-						} else {
-							// if convege hasn't started - make way for global hooks and etc
-							logEntry.Info("ConvergeModules:  global hook dynamic modification detected, rerun all modules required")
-							op.engine.TaskQueues.GetMain().AddLast(convergeTask)
-						}
-						// ConvergeModules may be in progress, Reset converge state.
-						op.ConvergeState.SetPhase(converge.StandBy)
-					}
-
-				// kube_config_extender
-				case config.KubeConfigEvent:
-					logLabels := map[string]string{
-						"event.id":     uuid.Must(uuid.NewV4()).String(),
-						"type":         "ModuleScheduler event",
-						"event_source": "KubeConfigExtenderChanged",
-					}
-					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
-					switch event.Type {
-					case config.KubeConfigInvalid:
-						op.ModuleManager.SetKubeConfigValid(false)
-						eventLogEntry.Info("KubeConfig become invalid")
-
-					case config.KubeConfigChanged:
-						eventLogEntry.Debug("ModuleManagerEventHandler-KubeConfigChanged",
-							slog.Bool("globalSectionChanged", event.GlobalSectionChanged),
-							slog.Any("moduleValuesChanged", event.ModuleValuesChanged),
-							slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged),
-							slog.Any("moduleManagementStateChanged", event.ModuleManagementStateChanged))
-						if !op.ModuleManager.GetKubeConfigValid() {
-							eventLogEntry.Info("KubeConfig become valid")
-						}
-						// Config is valid now, add task to update ModuleManager state.
-						op.ModuleManager.SetKubeConfigValid(true)
-
-						var (
-							kubeConfigTask sh_task.Task
-							convergeTask   sh_task.Task
-						)
-
-						if event.GlobalSectionChanged || len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged) > 0 {
-							kubeConfigTask = converge.NewApplyKubeConfigValuesTask(
-								"Apply-Kube-Config-Values-Changes",
-								logLabels,
-								event.GlobalSectionChanged,
-							)
-						}
-
-						for module, state := range event.ModuleManagementStateChanged {
-							op.ModuleManager.SetModuleManagementState(module, state)
-						}
-
-						// if global hooks haven't been run yet, script enabled extender fails due to missing global values,
-						// but it's ok to apply new kube config
-						if op.globalHooksNotExecutedYet() {
-							if kubeConfigTask != nil {
-								op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
-								// Cancel delay in case the head task is stuck in the error loop.
-								op.engine.TaskQueues.GetMain().CancelTaskDelay()
-								op.logTaskAdd(eventLogEntry, "KubeConfigExtender is updated, put first", kubeConfigTask)
-							}
-							eventLogEntry.Info("Kube config modification detected, ignore until starting first converge")
-							break
-						}
-
-						graphStateChanged := op.ModuleManager.RecalculateGraph(logLabels)
-
-						if event.GlobalSectionChanged || graphStateChanged {
-							// prepare convergeModules task
-							convergeTask = converge.NewConvergeModulesTask(
-								"ReloadAll-After-KubeConfigChange",
-								converge.ReloadAllModules,
-								logLabels,
-							)
-							// if main queue isn't empty and there was another convergeModules task:
-							if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) {
-								logEntry.Info("ConvergeModules: kube config modification detected,  restart current converge process",
-									slog.String("phase", string(op.ConvergeState.GetPhase())))
-								// put ApplyKubeConfig->NewConvergeModulesTask sequence in the beginning of the main queue
-								if kubeConfigTask != nil {
-									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
-									op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), convergeTask)
-									op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put after AppplyNewKubeConfig", convergeTask)
-									// otherwise, put just NewConvergeModulesTask
-								} else {
-									op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
-									op.logTaskAdd(eventLogEntry, "KubeConfig is changed, put first", convergeTask)
-								}
-								// if main queue is empty - put NewConvergeModulesTask in the end of the queue
-							} else {
-								// not forget to cram in ApplyKubeConfig task
-								if kubeConfigTask != nil {
-									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
-								}
-								logEntry.Info("ConvergeModules: kube config modification detected, rerun all modules required")
-								op.engine.TaskQueues.GetMain().AddLast(convergeTask)
-							}
-							// ConvergeModules may be in progress, Reset converge state.
-							op.ConvergeState.SetPhase(converge.StandBy)
-						} else {
-							modulesToRerun := make([]string, 0, len(event.ModuleValuesChanged)+len(event.ModuleManagementStateChanged))
-							for _, moduleName := range event.ModuleValuesChanged {
-								if op.ModuleManager.IsModuleEnabled(moduleName) {
-									modulesToRerun = append(modulesToRerun, moduleName)
-								}
-							}
-
-							for moduleName := range event.ModuleManagementStateChanged {
-								if !slices.Contains(modulesToRerun, moduleName) && op.ModuleManager.IsModuleEnabled(moduleName) {
-									modulesToRerun = append(modulesToRerun, moduleName)
-								}
-							}
-
-							// Append ModuleRun tasks if ModuleRun is not queued already.
-							if kubeConfigTask != nil && convergeTask == nil {
-								reloadTasks := op.CreateReloadModulesTasks(modulesToRerun, kubeConfigTask.GetLogLabels(), "KubeConfig-Changed-Modules")
-								op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
-								if len(reloadTasks) > 0 {
-									for i := len(reloadTasks) - 1; i >= 0; i-- {
-										op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), reloadTasks[i])
-									}
-									logEntry.Info("ConvergeModules: kube config modification detected, append tasks to rerun modules",
-										slog.Int("count", len(reloadTasks)),
-										slog.Any("modules", modulesToRerun))
-									op.logTaskAdd(logEntry, "tail", reloadTasks...)
-								}
-							}
-						}
-					}
-				// TODO: some other extenders' events
-				default:
-				}
-
-			case HelmReleaseStatusEvent := <-op.HelmResourcesManager.Ch():
-				logLabels := map[string]string{
-					"event.id": uuid.Must(uuid.NewV4()).String(),
-					"module":   HelmReleaseStatusEvent.ModuleName,
-				}
-				eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
-
-				// Do not add ModuleRun task if it is already queued.
-				hasTask := QueueHasPendingModuleRunTask(op.engine.TaskQueues.GetMain(), HelmReleaseStatusEvent.ModuleName)
-				eventDescription := "AbsentHelmResourcesDetected"
-				additionalDescription := fmt.Sprintf("%d absent module resources", len(HelmReleaseStatusEvent.Absent))
-				// helm reslease in unexpected state event
-				if HelmReleaseStatusEvent.UnexpectedStatus {
-					op.engine.MetricStorage.CounterAdd("{PREFIX}modules_helm_release_redeployed_total", 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName})
-					eventDescription = "HelmReleaseUnexpectedStatus"
-					additionalDescription = "unexpected helm release status"
-				} else {
-					// some resources are missing and metrics are provided
-					for _, manifest := range HelmReleaseStatusEvent.Absent {
-						op.engine.MetricStorage.CounterAdd("{PREFIX}modules_absent_resources_total", 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName, "resource": fmt.Sprintf("%s/%s/%s", manifest.Namespace(""), manifest.Kind(), manifest.Name())})
-					}
-				}
-
-				if !hasTask {
-					newTask := sh_task.NewTask(task.ModuleRun).
-						WithLogLabels(logLabels).
-						WithQueueName("main").
-						WithMetadata(task.HookMetadata{
-							EventDescription: eventDescription,
-							ModuleName:       HelmReleaseStatusEvent.ModuleName,
-						})
-					op.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
-					op.logTaskAdd(logEntry, fmt.Sprintf("detected %s, append", additionalDescription), newTask)
-				} else {
-					eventLogEntry.With("task.flow", "noop").Info("Detected event, ModuleRun task already queued",
-						slog.String("description", additionalDescription))
-				}
-			}
-		}
-	}()
-}
-
 // ParallelTasksHandler handles limited types of tasks in parallel queues.
 func (op *AddonOperator) ParallelTasksHandler(_ context.Context, t sh_task.Task) queue.TaskResult {
 	taskLogLabels := t.GetLogLabels()
@@ -1854,10 +1510,9 @@ func formatErrorSummary(errors map[string]string) string {
 //
 // ModuleRun is restarted if hook or chart is failed.
 // After first HandleModuleRun success, no onStartup and kubernetes.Synchronization tasks will run.
-func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]string) queue.TaskResult {
+func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]string) (res queue.TaskResult) { //nolint: nonamedreturns
 	defer trace.StartRegion(context.Background(), "ModuleRun").End()
 
-	var res queue.TaskResult
 	logEntry := utils.EnrichLoggerWithLabels(op.Logger, labels)
 	hm := task.HookMetadataAccessor(t)
 	baseModule := op.ModuleManager.GetModule(hm.ModuleName)
@@ -1879,6 +1534,42 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 	var moduleRunErr error
 	valuesChanged := false
+
+	defer func(res *queue.TaskResult, valuesChanged *bool) {
+		op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
+		if moduleRunErr != nil {
+			res.Status = queue.Fail
+			logEntry.Error("ModuleRun failed. Requeue task to retry after delay.",
+				slog.String("phase", string(baseModule.GetPhase())),
+				slog.Int("count", t.GetFailureCount()+1),
+				log.Err(moduleRunErr))
+			op.engine.MetricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
+			t.UpdateFailureMessage(moduleRunErr.Error())
+			t.WithQueuedAt(time.Now())
+		}
+
+		if res.Status != queue.Success {
+			return
+		}
+
+		if *valuesChanged {
+			logEntry.Info("ModuleRun success, values changed, restart module")
+			// One of afterHelm hooks changes values, run ModuleRun again: copy task, but disable startup hooks.
+			hm.DoModuleStartup = false
+			hm.EventDescription = "AfterHelm-Hooks-Change-Values"
+			newLabels := utils.MergeLabels(t.GetLogLabels())
+			delete(newLabels, "task.id")
+			newTask := sh_task.NewTask(task.ModuleRun).
+				WithLogLabels(newLabels).
+				WithQueueName(t.GetQueueName()).
+				WithMetadata(hm)
+
+			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
+			op.logTaskAdd(logEntry, "after", res.AfterTasks...)
+		} else {
+			logEntry.Info("ModuleRun success, module is ready")
+		}
+	}(&res, &valuesChanged)
 
 	// First module run on operator startup or when module is enabled.
 	if baseModule.GetPhase() == modules.Startup {
@@ -1903,6 +1594,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			} else {
 				op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 			}
+
+			res.Status = queue.Repeat
+
+			return res
 		}
 	}
 
@@ -1914,6 +1609,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			// Skip Synchronization process if there are no kubernetes hooks.
 			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.EnableScheduleBindings)
 		}
+
+		res.Status = queue.Repeat
+
+		return res
 	}
 
 	// Note: All hooks should be queued to fill snapshots before proceed to beforeHelm hooks.
@@ -2033,6 +1732,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 				return res
 			}
 		}
+
+		res.Status = queue.Repeat
+
+		return res
 	}
 
 	// Repeat ModuleRun if there are running Synchronization tasks to wait.
@@ -2053,9 +1756,11 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			}
 			logEntry.Debug("Synchronization not completed, keep ModuleRun task in repeat mode")
 			t.WithQueuedAt(time.Now())
-			res.Status = queue.Repeat
-			return res
 		}
+
+		res.Status = queue.Repeat
+
+		return res
 	}
 
 	// Enable schedule events once at module start.
@@ -2064,6 +1769,10 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 
 		op.ModuleManager.EnableModuleScheduleBindings(hm.ModuleName)
 		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
+
+		res.Status = queue.Repeat
+
+		return res
 	}
 
 	// Module start is done, module is ready to run hooks and helm chart.
@@ -2073,36 +1782,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		valuesChanged, moduleRunErr = op.ModuleManager.RunModule(baseModule.Name, t.GetLogLabels())
 	}
 
-	op.ModuleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
-	if moduleRunErr != nil {
-		res.Status = queue.Fail
-		logEntry.Error("ModuleRun failed. Requeue task to retry after delay.",
-			slog.String("phase", string(baseModule.GetPhase())),
-			slog.Int("count", t.GetFailureCount()+1),
-			log.Err(moduleRunErr))
-		op.engine.MetricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
-		t.UpdateFailureMessage(moduleRunErr.Error())
-		t.WithQueuedAt(time.Now())
-	} else {
-		res.Status = queue.Success
-		if valuesChanged {
-			logEntry.Info("ModuleRun success, values changed, restart module")
-			// One of afterHelm hooks changes values, run ModuleRun again: copy task, but disable startup hooks.
-			hm.DoModuleStartup = false
-			hm.EventDescription = "AfterHelm-Hooks-Change-Values"
-			newLabels := utils.MergeLabels(t.GetLogLabels())
-			delete(newLabels, "task.id")
-			newTask := sh_task.NewTask(task.ModuleRun).
-				WithLogLabels(newLabels).
-				WithQueueName(t.GetQueueName()).
-				WithMetadata(hm)
-
-			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
-			op.logTaskAdd(logEntry, "after", res.AfterTasks...)
-		} else {
-			logEntry.Info("ModuleRun success, module is ready")
-		}
-	}
+	res.Status = queue.Success
 
 	return res
 }
@@ -2695,54 +2375,101 @@ func (op *AddonOperator) CheckCRDsEnsured(t sh_task.Task) {
 	}
 }
 
-// CheckConvergeStatus detects if converge process is started and
-// updates ConvergeState. It updates metrics on converge finish.
+// CheckConvergeStatus monitors the convergence process and updates metrics.
+// It detects when convergence starts and completes, tracks timing metrics,
+// and keeps track of the first convergence for operator readiness.
 func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
-	convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
+	// Check all queues that might contain convergence tasks
+	convergeTasks := 0
+	for _, q := range op.getConvergeQueues() {
+		convergeTasks += ConvergeTasksInQueue(q)
+	}
 
 	op.l.Lock()
-	// Converge state is 'Started'. Update StartedAt and
-	// Activation if the converge process is just started.
+	defer op.l.Unlock()
+
+	// Track convergence state changes
+	op.handleConvergeStateChanges(convergeTasks, t)
+
+	// Track the first convergence operation for readiness
+	op.UpdateFirstConvergeStatus(convergeTasks)
+
+	// Log progress information when appropriate
+	op.logConvergeProgress(convergeTasks, t)
+}
+
+// handleConvergeStateChanges updates the convergence state tracking and metrics
+// based on whether convergence is starting or completing
+func (op *AddonOperator) handleConvergeStateChanges(convergeTasks int, t sh_task.Task) {
+	// Detect convergence start
 	if convergeTasks > 0 && op.ConvergeState.StartedAt == 0 {
+		// Convergence just started - record the start time and activation source
 		op.ConvergeState.StartedAt = time.Now().UnixNano()
 		op.ConvergeState.Activation = t.GetLogLabels()["event.type"]
 	}
 
-	// Converge state is 'Done'. Update convergence_* metrics,
-	// reset StartedAt and Activation if the converge process is just stopped.
+	// Detect convergence completion
 	if convergeTasks == 0 && op.ConvergeState.StartedAt != 0 {
+		// Convergence just completed - update metrics and reset tracking
 		convergeSeconds := time.Duration(time.Now().UnixNano() - op.ConvergeState.StartedAt).Seconds()
-		op.engine.MetricStorage.CounterAdd("{PREFIX}convergence_seconds", convergeSeconds, map[string]string{"activation": op.ConvergeState.Activation})
-		op.engine.MetricStorage.CounterAdd("{PREFIX}convergence_total", 1.0, map[string]string{"activation": op.ConvergeState.Activation})
+		op.recordConvergenceMetrics(convergeSeconds)
+
+		// Reset state for next convergence cycle
 		op.ConvergeState.StartedAt = 0
 		op.ConvergeState.Activation = ""
 	}
+}
 
-	// Update field for the first converge.
-	op.UpdateFirstConvergeStatus(convergeTasks)
-	op.l.Unlock()
+// recordConvergenceMetrics adds metrics about convergence duration and count
+func (op *AddonOperator) recordConvergenceMetrics(durationSeconds float64) {
+	metricLabels := map[string]string{"activation": op.ConvergeState.Activation}
 
-	// Report modules left to process.
-	if convergeTasks > 0 && (t.GetType() == task.ModuleRun || t.GetType() == task.ModuleDelete) {
-		moduleTasks := ConvergeModulesInQueue(op.engine.TaskQueues.GetMain())
-		log.Info("Converge modules in progress",
-			slog.Int("count", moduleTasks))
+	// Record the time taken for convergence
+	op.engine.MetricStorage.CounterAdd(
+		"{PREFIX}convergence_seconds",
+		durationSeconds,
+		metricLabels,
+	)
+
+	// Increment the total convergence operations counter
+	op.engine.MetricStorage.CounterAdd(
+		"{PREFIX}convergence_total",
+		1.0,
+		metricLabels,
+	)
+}
+
+// logConvergeProgress logs information about ongoing module convergence
+func (op *AddonOperator) logConvergeProgress(convergeTasks int, t sh_task.Task) {
+	// Only log progress for module tasks when convergence is in progress
+	isModuleTask := t.GetType() == task.ModuleRun || t.GetType() == task.ModuleDelete
+
+	if convergeTasks > 0 && isModuleTask {
+		// Count remaining module tasks and log progress
+		moduleTasks := 0
+		for _, q := range op.getConvergeQueues() {
+			moduleTasks += ConvergeModulesInQueue(q)
+		}
+
+		if moduleTasks > 0 {
+			log.Info("Converge modules in progress", slog.Int("count", moduleTasks))
+		}
 	}
 }
 
-// UpdateFirstConvergeStatus checks first converge status and prints log messages if first converge
-// is in progress.
+// UpdateFirstConvergeStatus tracks the progress of the first convergence operation
+// and logs when it completes.
 func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
 	switch op.ConvergeState.GetFirstRunPhase() {
 	case converge.FirstDone:
 		return
 	case converge.FirstNotStarted:
-		// Switch to 'started' state if there are 'converge' tasks in the queue.
+		// Mark as started when convergence tasks are detected
 		if convergeTasks > 0 {
 			op.ConvergeState.SetFirstRunPhase(converge.FirstStarted)
 		}
 	case converge.FirstStarted:
-		// Switch to 'done' state after first converge is started and when no 'converge' tasks left in the queue.
+		// Mark as done when all convergence tasks are completed
 		if convergeTasks == 0 {
 			log.Info("First converge is finished. Operator is ready now.")
 			op.ConvergeState.SetFirstRunPhase(converge.FirstDone)
@@ -2750,109 +2477,118 @@ func (op *AddonOperator) UpdateFirstConvergeStatus(convergeTasks int) {
 	}
 }
 
-// taskDescriptionForTaskFlowLog returns a human friendly description of the task.
+// taskDescriptionForTaskFlowLog generates a human-readable description of a task
+// for logging purposes.
 func taskDescriptionForTaskFlowLog(tsk sh_task.Task, action string, phase string, status string) string {
 	hm := task.HookMetadataAccessor(tsk)
+	taskType := string(tsk.GetType())
 
-	parts := make([]string, 0)
+	// Start building the description
+	description := formatTaskAction(taskType, action, status)
 
+	// Format task-specific details based on task type
+	details := formatTaskDetails(tsk, hm, phase)
+
+	// Add trigger information if available
+	triggerInfo := ""
+	if hm.EventDescription != "" {
+		triggerInfo = fmt.Sprintf(", trigger is %s", hm.EventDescription)
+	}
+
+	return description + details + triggerInfo
+}
+
+// formatTaskAction creates the first part of the task description
+func formatTaskAction(taskType, action, status string) string {
 	switch action {
 	case "start":
-		parts = append(parts, fmt.Sprintf("%s task", tsk.GetType()))
+		return fmt.Sprintf("%s task", taskType)
 	case "end":
-		parts = append(parts, fmt.Sprintf("%s task done, result is '%s'", tsk.GetType(), status))
+		return fmt.Sprintf("%s task done, result is '%s'", taskType, status)
 	default:
-		parts = append(parts, fmt.Sprintf("%s task %s", action, tsk.GetType()))
+		return fmt.Sprintf("%s task %s", action, taskType)
 	}
+}
 
-	parts = append(parts, "for")
-
+// formatTaskDetails creates the task-specific part of the description
+func formatTaskDetails(tsk sh_task.Task, hm task.HookMetadata, phase string) string {
 	switch tsk.GetType() {
 	case task.GlobalHookRun, task.ModuleHookRun:
-		// Examples:
-		// GlobalHookRun task for 'onKubernetes/cni_name' binding, trigger Kubernetes
-		// GlobalHookRun task done, result 'Repeat' for 'onKubernetes/cni_name' binding, trigger Kubernetes
-		// GlobalHookRun task for 'main' group binding, trigger Schedule
-		// GlobalHookRun task done, result 'Fail' for 'main' group binding, trigger Schedule
-		// GlobalHookRun task for 'main' group and 2 more bindings, trigger Schedule
-		// GlobalHookRun task done, result 'Fail' for 'main' group and 2 more bindings, trigger Schedule
-		// GlobalHookRun task for Synchronization of 'kubernetes/cni_name' binding, trigger KubernetesEvent
-		// GlobalHookRun task done, result 'Success' for Synchronization of 'kubernetes/cni_name' binding, trigger KubernetesEvent
-
-		if len(hm.BindingContext) > 0 {
-			if hm.BindingContext[0].IsSynchronization() {
-				parts = append(parts, "Synchronization of")
-			}
-
-			bindingType := hm.BindingContext[0].Metadata.BindingType
-
-			group := hm.BindingContext[0].Metadata.Group
-			if group == "" {
-				name := hm.BindingContext[0].Binding
-				if bindingType == htypes.OnKubernetesEvent || bindingType == htypes.Schedule {
-					name = fmt.Sprintf("'%s/%s'", bindingType, name)
-				} else {
-					name = string(bindingType)
-				}
-				parts = append(parts, name)
-			} else {
-				parts = append(parts, fmt.Sprintf("'%s' group", group))
-			}
-
-			if len(hm.BindingContext) > 1 {
-				parts = append(parts, "and %d more bindings")
-			} else {
-				parts = append(parts, "binding")
-			}
-		} else {
-			parts = append(parts, "no binding")
-		}
+		return formatHookTaskDetails(hm)
 
 	case task.ConvergeModules:
-		// Examples:
-		// ConvergeModules task for ReloadAllModules in phase 'WaitBeforeAll', trigger Operator-Startup
-		// ConvergeModules task for KubeConfigChanged, trigger Operator-Startup
-		// ConvergeModules task done, result is 'Keep' for converge phase 'WaitBeforeAll', trigger Operator-Startup
-		if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
-			parts = append(parts, string(taskEvent))
-			parts = append(parts, fmt.Sprintf("in phase '%s'", phase))
-		}
+		return formatConvergeTaskDetails(tsk, phase)
 
 	case task.ModuleRun:
-		parts = append(parts, fmt.Sprintf("module '%s', phase '%s'", hm.ModuleName, phase))
+		details := fmt.Sprintf(" for module '%s', phase '%s'", hm.ModuleName, phase)
 		if hm.DoModuleStartup {
-			parts = append(parts, "with doModuleStartup")
+			details += " with doModuleStartup"
 		}
+		return details
 
 	case task.ParallelModuleRun:
-		parts = append(parts, fmt.Sprintf("modules '%s'", hm.ModuleName))
+		return fmt.Sprintf(" for modules '%s'", hm.ModuleName)
 
-	case task.ModulePurge, task.ModuleDelete:
-		parts = append(parts, fmt.Sprintf("module '%s'", hm.ModuleName))
+	case task.ModulePurge, task.ModuleDelete, task.ModuleEnsureCRDs:
+		return fmt.Sprintf(" for module '%s'", hm.ModuleName)
 
-	case task.GlobalHookEnableKubernetesBindings, task.GlobalHookWaitKubernetesSynchronization, task.GlobalHookEnableScheduleBindings:
-		// Eaxmples:
-		// GlobalHookEnableKubernetesBindings for the hook, trigger Operator-Startup
-		// GlobalHookEnableKubernetesBindings done, result 'Success' for the hook, trigger Operator-Startup
-		parts = append(parts, "the hook")
+	case task.GlobalHookEnableKubernetesBindings,
+		task.GlobalHookWaitKubernetesSynchronization,
+		task.GlobalHookEnableScheduleBindings:
+		return " for the hook"
 
 	case task.DiscoverHelmReleases:
-		// Examples:
-		// DiscoverHelmReleases task, trigger Operator-Startup
-		// DiscoverHelmReleases task done, result is 'Success', trigger Operator-Startup
-		// Remove "for"
-		parts = parts[:len(parts)-1]
+		return ""
 
-	case task.ModuleEnsureCRDs:
-		parts = append(parts, fmt.Sprintf("module '%s'", hm.ModuleName))
+	default:
+		return ""
+	}
+}
+
+// formatHookTaskDetails formats details specific to hook tasks
+func formatHookTaskDetails(hm task.HookMetadata) string {
+	if len(hm.BindingContext) == 0 {
+		return " for no binding"
 	}
 
-	triggeredBy := hm.EventDescription
-	if triggeredBy != "" {
-		triggeredBy = ", trigger is " + triggeredBy
+	details := " for "
+
+	// Check if this is a synchronization task
+	if hm.BindingContext[0].IsSynchronization() {
+		details += "Synchronization of "
 	}
 
-	return fmt.Sprintf("%s%s", strings.Join(parts, " "), triggeredBy)
+	// Get binding information
+	bindingType := hm.BindingContext[0].Metadata.BindingType
+	bindingGroup := hm.BindingContext[0].Metadata.Group
+
+	if bindingGroup == "" {
+		name := hm.BindingContext[0].Binding
+		if bindingType == htypes.OnKubernetesEvent || bindingType == htypes.Schedule {
+			details += fmt.Sprintf("'%s/%s'", bindingType, name)
+		} else {
+			details += string(bindingType)
+		}
+	} else {
+		details += fmt.Sprintf("'%s' group", bindingGroup)
+	}
+
+	// Add information about additional bindings
+	if len(hm.BindingContext) > 1 {
+		details += " and " + fmt.Sprintf("%d more bindings", len(hm.BindingContext)-1)
+	} else {
+		details += " binding"
+	}
+
+	return details
+}
+
+// formatConvergeTaskDetails formats details specific to converge tasks
+func formatConvergeTaskDetails(tsk sh_task.Task, phase string) string {
+	if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
+		return fmt.Sprintf(" for %s in phase '%s'", string(taskEvent), phase)
+	}
+	return ""
 }
 
 // logTaskAdd prints info about queued tasks.
