@@ -368,7 +368,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	triggerPause := true
 
 	taskHandleHistory := TaskHandleHistory{
-		taskHandleHistory: make([]taskInfo, 0),
+		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
 	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
@@ -389,7 +389,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
 
-		taskHandleHistory.Add(&taskInfo{
+		taskHandleHistory.Add(&TaskInfo{
 			id:               tsk.GetId(),
 			taskType:         tsk.GetType(),
 			bindingType:      hm.BindingType,
@@ -449,7 +449,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	g.Expect(hasReloadAllInStandby).To(BeTrue(), "Should have ReloadAllModules right after ApplyKubeConfigValues")
 }
 
-type taskInfo struct {
+type TaskInfo struct {
 	id               string
 	taskType         sh_task.TaskType
 	bindingType      BindingType
@@ -461,16 +461,16 @@ type taskInfo struct {
 
 type TaskHandleHistory struct {
 	historyMu         sync.Mutex
-	taskHandleHistory []taskInfo
+	taskHandleHistory []TaskInfo
 }
 
-func (h *TaskHandleHistory) Add(tsk *taskInfo) {
+func (h *TaskHandleHistory) Add(tsk *TaskInfo) {
 	h.historyMu.Lock()
 	defer h.historyMu.Unlock()
 	h.taskHandleHistory = append(h.taskHandleHistory, *tsk)
 }
 
-func (h *TaskHandleHistory) Get() []taskInfo {
+func (h *TaskHandleHistory) Get() []TaskInfo {
 	h.historyMu.Lock()
 	defer h.historyMu.Unlock()
 	return h.taskHandleHistory
@@ -533,7 +533,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 	op.StartModuleManagerEventHandler()
 
 	taskHandleHistory := TaskHandleHistory{
-		taskHandleHistory: make([]taskInfo, 0),
+		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
 	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
@@ -550,7 +550,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
-		taskHandleHistory.Add(&taskInfo{
+		taskHandleHistory.Add(&TaskInfo{
 			taskType:         tsk.GetType(),
 			bindingType:      hm.BindingType,
 			moduleName:       hm.ModuleName,
