@@ -458,7 +458,7 @@ func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 		ModuleEnabledStateChanged: []string{},
 		ModuleValuesChanged:       []string{"valid-module-name"},
 		GlobalSectionChanged:      false,
-		ModuleManagementStateChanged: map[string]utils.Maintenance{
+		ModuleMaintenanceChanged: map[string]utils.Maintenance{
 			"valid-module-name": "NoResourceReconciliation",
 		},
 	}), "Valid section patch should generate 'changed' event")

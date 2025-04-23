@@ -479,7 +479,7 @@ func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger
 		// TODO: we could make multierr here and return all config errors at once
 		err := moduleHook.InitializeHookConfig()
 		if err != nil {
-			return fmt.Errorf("module hook --config invalid: %w", err)
+			return fmt.Errorf("`%s` module hook `%s` --config invalid: %w", bm.Name, moduleHook.GetName(), err)
 		}
 
 		bm.logger.Debug("module hook config print", slog.String("module_name", bm.Name), slog.String("hook_name", moduleHook.GetName()), slog.Any("config", moduleHook.GetHookConfig().V1))

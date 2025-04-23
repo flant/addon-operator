@@ -266,10 +266,10 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                         config.KubeConfigChanged,
-				ModuleValuesChanged:          modulesChanged,
-				ModuleEnabledStateChanged:    modulesStateChanged,
-				ModuleManagementStateChanged: moduleMaintenanceChanged,
+				Type:                      config.KubeConfigChanged,
+				ModuleValuesChanged:       modulesChanged,
+				ModuleEnabledStateChanged: modulesStateChanged,
+				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
 			}
 			return
 		}
@@ -314,10 +314,10 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		if len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
 			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                         config.KubeConfigChanged,
-				ModuleValuesChanged:          modulesChanged,
-				ModuleEnabledStateChanged:    modulesStateChanged,
-				ModuleManagementStateChanged: moduleMaintenanceChanged,
+				Type:                      config.KubeConfigChanged,
+				ModuleValuesChanged:       modulesChanged,
+				ModuleEnabledStateChanged: modulesStateChanged,
+				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
 			}
 		}
 	}
@@ -421,11 +421,11 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	// Fire event if ConfigMap has changes.
 	if globalChanged || len(modulesChanged)+len(moduleMaintenanceChanged) > 0 {
 		kcm.configEventCh <- config.KubeConfigEvent{
-			Type:                         config.KubeConfigChanged,
-			GlobalSectionChanged:         globalChanged,
-			ModuleValuesChanged:          modulesChanged,
-			ModuleEnabledStateChanged:    modulesStateChanged,
-			ModuleManagementStateChanged: moduleMaintenanceChanged,
+			Type:                      config.KubeConfigChanged,
+			GlobalSectionChanged:      globalChanged,
+			ModuleValuesChanged:       modulesChanged,
+			ModuleEnabledStateChanged: modulesStateChanged,
+			ModuleMaintenanceChanged:  moduleMaintenanceChanged,
 		}
 	}
 }
