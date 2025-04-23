@@ -189,17 +189,17 @@ func (bm *BasicModule) SetHooksControllersReady() {
 // ResetState drops the module state
 func (bm *BasicModule) ResetState() {
 	bm.l.Lock()
-	var managementState ManagementState
+	var maintenanceState MaintenanceState
 
-	if bm.state.managementState == UnmanagedEnforced {
-		managementState = UnmanagedEnabled
+	if bm.state.maintenanceState == UnmanagedEnforced {
+		maintenanceState = UnmanagedEnabled
 	}
 
 	bm.state = &moduleState{
 		Phase:                Startup,
 		hookErrors:           make(map[string]error),
 		synchronizationState: NewSynchronizationState(),
-		managementState:      managementState,
+		maintenanceState:     maintenanceState,
 	}
 	bm.l.Unlock()
 }
@@ -480,7 +480,7 @@ func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger
 		// TODO: we could make multierr here and return all config errors at once
 		err := moduleHook.InitializeHookConfig()
 		if err != nil {
-			return fmt.Errorf("module hook --config invalid: %w", err)
+			return fmt.Errorf("`%s` module hook `%s` --config invalid: %w", bm.Name, moduleHook.GetName(), err)
 		}
 
 		bm.logger.Debug("module hook config print", slog.String("module_name", bm.Name), slog.String("hook_name", moduleHook.GetName()), slog.Any("config", moduleHook.GetHookConfig().V1))
@@ -545,16 +545,16 @@ func (bm *BasicModule) SaveHookError(hookName string, err error) {
 	bm.l.Unlock()
 }
 
-func (bm *BasicModule) SetManagementState(state utils.ManagementState) {
+func (bm *BasicModule) SetMaintenanceState(state utils.Maintenance) {
 	bm.l.Lock()
 	switch state {
-	case utils.Unmanaged:
-		if bm.state.managementState == Managed {
-			bm.state.managementState = UnmanagedEnabled
+	case utils.NoResourceReconciliation:
+		if bm.state.maintenanceState == Managed {
+			bm.state.maintenanceState = UnmanagedEnabled
 		}
 	case utils.Managed:
-		if bm.state.managementState != Managed {
-			bm.state.managementState = Managed
+		if bm.state.maintenanceState != Managed {
+			bm.state.maintenanceState = Managed
 		}
 	}
 	bm.l.Unlock()
@@ -562,17 +562,17 @@ func (bm *BasicModule) SetManagementState(state utils.ManagementState) {
 
 func (bm *BasicModule) SetUnmanagedEnforced() {
 	bm.l.Lock()
-	if bm.state.managementState == UnmanagedEnabled {
-		bm.state.managementState = UnmanagedEnforced
+	if bm.state.maintenanceState == UnmanagedEnabled {
+		bm.state.maintenanceState = UnmanagedEnforced
 	}
 	bm.l.Unlock()
 }
 
-func (bm *BasicModule) GetManagementState() ManagementState {
+func (bm *BasicModule) GetMaintenanceState() MaintenanceState {
 	bm.l.RLock()
 	defer bm.l.RUnlock()
 
-	return bm.state.managementState
+	return bm.state.maintenanceState
 }
 
 // RunHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
@@ -1279,12 +1279,12 @@ const (
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
 )
 
-type ManagementState int
+type MaintenanceState int
 
 const (
 	// Module runs in a normal mode
-	Managed ManagementState = iota
-	// Next helm run will enforce Unmanaged mode (removes heritage labels and stops resource informer)
+	Managed MaintenanceState = iota
+	// Next helm run will enforce NoResourceReconciliation mode (removes heritage labels and stops resource informer)
 	UnmanagedEnabled
 	// All consequent helm runs are inhibited
 	UnmanagedEnforced
@@ -1292,7 +1292,7 @@ const (
 
 type moduleState struct {
 	Enabled              bool
-	managementState      ManagementState
+	maintenanceState     MaintenanceState
 	Phase                ModuleRunPhase
 	lastModuleErr        error
 	hookErrors           map[string]error

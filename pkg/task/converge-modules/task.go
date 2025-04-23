@@ -98,22 +98,19 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	var handleErr error
 
-	s.convergeState.PhaseLock.Lock()
-	defer s.convergeState.PhaseLock.Unlock()
-
-	if s.convergeState.Phase == converge.StandBy {
+	if s.convergeState.GetPhase() == converge.StandBy {
 		s.logger.Debug("ConvergeModules: start")
 
 		// Deduplicate tasks: remove ConvergeModules tasks right after the current task.
 		s.queueService.RemoveAdjacentConvergeModules(s.shellTask.GetQueueName(), s.shellTask.GetId())
 
-		s.convergeState.Phase = converge.RunBeforeAll
+		s.convergeState.SetPhase(converge.RunBeforeAll)
 	}
 
-	if s.convergeState.Phase == converge.RunBeforeAll {
+	if s.convergeState.GetPhase() == converge.RunBeforeAll {
 		// Put BeforeAll tasks before current task.
 		tasks := s.CreateBeforeAllTasks(s.shellTask.GetLogLabels(), hm.EventDescription)
-		s.convergeState.Phase = converge.WaitBeforeAll
+		s.convergeState.SetPhase(converge.WaitBeforeAll)
 
 		if len(tasks) > 0 {
 			res.HeadTasks = tasks
@@ -125,7 +122,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		}
 	}
 
-	if s.convergeState.Phase == converge.WaitBeforeAll {
+	if s.convergeState.GetPhase() == converge.WaitBeforeAll {
 		s.logger.Info("ConvergeModules: beforeAll hooks done, run modules")
 
 		var state *module_manager.ModulesState
@@ -161,7 +158,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			}
 			tasks := s.CreateConvergeModulesTasks(state, s.shellTask.GetLogLabels(), string(taskEvent))
 
-			s.convergeState.Phase = converge.WaitDeleteAndRunModules
+			s.convergeState.SetPhase(converge.WaitDeleteAndRunModules)
 			if len(tasks) > 0 {
 				res.HeadTasks = tasks
 				res.Status = queue.Keep
@@ -171,12 +168,12 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		}
 	}
 
-	if s.convergeState.Phase == converge.WaitDeleteAndRunModules {
+	if s.convergeState.GetPhase() == converge.WaitDeleteAndRunModules {
 		s.logger.Info("ConvergeModules: ModuleRun tasks done, execute AfterAll global hooks")
 		// Put AfterAll tasks before current task.
 		tasks, handleErr := s.CreateAfterAllTasks(s.shellTask.GetLogLabels(), hm.EventDescription)
 		if handleErr == nil {
-			s.convergeState.Phase = converge.WaitAfterAll
+			s.convergeState.SetPhase(converge.WaitAfterAll)
 			if len(tasks) > 0 {
 				res.HeadTasks = tasks
 				res.Status = queue.Keep
@@ -187,8 +184,8 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	// It is the last phase of ConvergeModules task, reset operator's Converge phase.
-	if s.convergeState.Phase == converge.WaitAfterAll {
-		s.convergeState.Phase = converge.StandBy
+	if s.convergeState.GetPhase() == converge.WaitAfterAll {
+		s.convergeState.SetPhase(converge.StandBy)
 
 		s.logger.Info("ConvergeModules task done")
 
@@ -200,7 +197,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	if handleErr != nil {
 		res.Status = queue.Fail
 		s.logger.Error("ConvergeModules failed, requeue task to retry after delay.",
-			slog.String("phase", string(s.convergeState.Phase)),
+			slog.String("phase", string(s.convergeState.GetPhase())),
 			slog.Int("count", s.shellTask.GetFailureCount()+1),
 			log.Err(handleErr))
 		s.metricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
@@ -440,7 +437,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 }
 
 func (s *Task) IsStartupConvergeDone() bool {
-	return s.convergeState.FirstRunPhase == converge.FirstDone
+	return s.convergeState.GetFirstRunPhase() == converge.FirstDone
 }
 
 // logTaskAdd prints info about queued tasks.

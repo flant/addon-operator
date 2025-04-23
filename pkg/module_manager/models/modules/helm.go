@@ -77,8 +77,8 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	additionalLabels := make(map[string]string)
-	if bm.GetManagementState() != Managed {
-		additionalLabels["managementState"] = utils.Unmanaged.String()
+	if bm.GetMaintenanceState() != Managed {
+		additionalLabels["maintenance.deckhouse.io/no-resource-reconcillation"] = ""
 	}
 
 	hm := &HelmModule{
@@ -273,7 +273,10 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 			helmReleaseName,
 			hm.path,
 			[]string{valuesPath},
-			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
+			[]string{},
+			map[string]string{
+				"moduleChecksum": checksum,
+			},
 			hm.defaultNamespace,
 		)
 	}()
@@ -312,7 +315,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	}
 
 	// Get values for a non-failed release.
-	releaseValues, err := helmClient.GetReleaseValues(releaseName)
+	recordedChecksum, err := helmClient.GetReleaseChecksum(releaseName)
 	if err != nil {
 		logEntry.Debug("helm release get values error, no upgrade",
 			slog.String("release", releaseName),
@@ -320,24 +323,14 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 		return false, err
 	}
 
-	// Run helm upgrade if there is no stored checksum
-	recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]
-	if !hasKey {
-		logEntry.Debug("helm release has no saved checksum of values: should run upgrade",
-			slog.String("release", releaseName))
-		return true, nil
-	}
-
 	// Calculate a checksum of current values and compare to a stored checksum.
 	// Run helm upgrade if checksum is changed.
-	if recordedChecksumStr, ok := recordedChecksum.(string); ok {
-		if recordedChecksumStr != checksum {
-			logEntry.Debug("helm release checksum is changed: should run upgrade",
-				slog.String("release", releaseName),
-				slog.String("checksum", recordedChecksumStr),
-				slog.String("newChecksum", checksum))
-			return true, nil
-		}
+	if recordedChecksum != checksum {
+		logEntry.Debug("helm release checksum is changed: should run upgrade",
+			slog.String("release", releaseName),
+			slog.String("checksum", recordedChecksum),
+			slog.String("newChecksum", checksum))
+		return true, nil
 	}
 
 	// Check if there are absent resources

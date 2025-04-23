@@ -257,7 +257,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		phase := ""
 		switch tsk.GetType() {
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
@@ -376,23 +376,14 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	op.ModuleManager.Start()
 	op.StartModuleManagerEventHandler()
 
-	// Define task handler to gather task execution history.
-	type taskInfo struct {
-		id               string
-		taskType         sh_task.TaskType
-		bindingType      BindingType
-		moduleName       string
-		hookName         string
-		spawnerTaskPhase string
-		convergeEvent    converge.ConvergeEvent
-	}
-
 	canChangeConfigMap := make(chan struct{})
 	canHandleTasks := make(chan struct{})
 	triggerPause := true
 
-	historyMu := new(sync.Mutex)
-	taskHandleHistory := make([]taskInfo, 0)
+	taskHandleHistory := TaskHandleHistory{
+		taskHandleHistory: make([]TaskInfo, 0),
+	}
+
 	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
@@ -400,7 +391,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			if triggerPause {
@@ -410,8 +401,8 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 			}
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
-		historyMu.Lock()
-		taskHandleHistory = append(taskHandleHistory, taskInfo{
+
+		taskHandleHistory.Add(&TaskInfo{
 			id:               tsk.GetId(),
 			taskType:         tsk.GetType(),
 			bindingType:      hm.BindingType,
@@ -420,7 +411,6 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 			spawnerTaskPhase: phase,
 			convergeEvent:    convergeEvent,
 		})
-		historyMu.Unlock()
 
 		// Handle it.
 		return op.TaskService.Handle(ctx, tsk)
@@ -453,7 +443,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
 
 	hasReloadAllInStandby := false
-	for i, tsk := range taskHandleHistory {
+	for i, tsk := range taskHandleHistory.Get() {
 		// if i < ignoreTasksCount {
 		//	continue
 		//}
@@ -461,8 +451,8 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 			continue
 		}
 
-		g.Expect(len(taskHandleHistory) > i+1).Should(BeTrue(), "history should not end on ApplyKubeConfigValues")
-		next := taskHandleHistory[i+1]
+		g.Expect(taskHandleHistory.Len() > i+1).Should(BeTrue(), "history should not end on ApplyKubeConfigValues")
+		next := taskHandleHistory.Get()[i+1]
 		g.Expect(next.convergeEvent).Should(Equal(converge.ReloadAllModules))
 		g.Expect(next.spawnerTaskPhase).Should(Equal(string(converge.StandBy)))
 		hasReloadAllInStandby = true
@@ -470,6 +460,74 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	}
 
 	g.Expect(hasReloadAllInStandby).To(BeTrue(), "Should have ReloadAllModules right after ApplyKubeConfigValues")
+}
+
+type TaskInfo struct {
+	id               string
+	taskType         sh_task.TaskType
+	bindingType      BindingType
+	moduleName       string
+	hookName         string
+	spawnerTaskPhase string
+	convergeEvent    converge.ConvergeEvent
+}
+
+type TaskHandleHistory struct {
+	historyMu         sync.Mutex
+	taskHandleHistory []TaskInfo
+}
+
+func (h *TaskHandleHistory) Add(tsk *TaskInfo) {
+	h.historyMu.Lock()
+	defer h.historyMu.Unlock()
+	h.taskHandleHistory = append(h.taskHandleHistory, *tsk)
+}
+
+func (h *TaskHandleHistory) Get() []TaskInfo {
+	h.historyMu.Lock()
+	defer h.historyMu.Unlock()
+	return h.taskHandleHistory
+}
+
+func (h *TaskHandleHistory) Len() int {
+	h.historyMu.Lock()
+	defer h.historyMu.Unlock()
+	return len(h.taskHandleHistory)
+}
+
+func (h *TaskHandleHistory) HasReloadAllModules(ignoreTasksCount int) bool {
+	h.historyMu.Lock()
+	defer h.historyMu.Unlock()
+
+	for i, tsk := range h.taskHandleHistory {
+		if i < ignoreTasksCount {
+			continue
+		}
+		if tsk.taskType != task.ConvergeModules {
+			continue
+		}
+		if tsk.convergeEvent == converge.ReloadAllModules {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (h *TaskHandleHistory) HasApplyKubeConfigValues(ignoreTasksCount int) bool {
+	h.historyMu.Lock()
+	defer h.historyMu.Unlock()
+
+	for i, tsk := range h.taskHandleHistory {
+		if i < ignoreTasksCount {
+			continue
+		}
+		if tsk.taskType == task.ApplyKubeConfigValues {
+			return true
+		}
+	}
+
+	return false
 }
 
 // This test case checks tasks sequence in the 'main' queue after changing
@@ -487,17 +545,10 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 	op.ModuleManager.Start()
 	op.StartModuleManagerEventHandler()
 
-	type taskInfo struct {
-		taskType         sh_task.TaskType
-		bindingType      BindingType
-		moduleName       string
-		hookName         string
-		spawnerTaskPhase string
-		convergeEvent    converge.ConvergeEvent
+	taskHandleHistory := TaskHandleHistory{
+		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	historyMu := new(sync.Mutex)
-	taskHandleHistory := make([]taskInfo, 0)
 	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
@@ -505,15 +556,14 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		var convergeEvent converge.ConvergeEvent
 		switch tsk.GetType() {
 		case task.ApplyKubeConfigValues:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 		case task.ConvergeModules:
-			phase = string(op.ConvergeState.Phase)
+			phase = string(op.ConvergeState.GetPhase())
 			convergeEvent = tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
-		historyMu.Lock()
-		taskHandleHistory = append(taskHandleHistory, taskInfo{
+		taskHandleHistory.Add(&TaskInfo{
 			taskType:         tsk.GetType(),
 			bindingType:      hm.BindingType,
 			moduleName:       hm.ModuleName,
@@ -521,7 +571,6 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 			spawnerTaskPhase: phase,
 			convergeEvent:    convergeEvent,
 		})
-		historyMu.Unlock()
 
 		// Handle it.
 		return op.TaskService.Handle(ctx, tsk)
@@ -532,10 +581,10 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 	g.Eventually(convergeDone(op), "30s", "200ms").Should(BeTrue())
 
 	log.Info("Converge done, got tasks in history",
-		slog.Int("count", len(taskHandleHistory)))
+		slog.Int("count", taskHandleHistory.Len()))
 
 	// Save current history length to ignore first converge tasks later.
-	ignoreTasksCount := len(taskHandleHistory)
+	ignoreTasksCount := taskHandleHistory.Len()
 
 	// Trigger global changes via KubeConfigManager.
 	globalValuesChangePatch := `[{"op": "add", 
@@ -554,40 +603,16 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 	g.Expect(cmPatched.Data["global"]).Should(Equal("param: newValue"))
 
 	log.Info("ConfigMap patched, got tasks in history",
-		slog.Int("count", len(taskHandleHistory)))
+		slog.Int("count", taskHandleHistory.Len()))
 
 	// Expect ConvergeModules appears in queue.
 	g.Eventually(func() bool {
-		historyMu.Lock()
-		defer historyMu.Unlock()
-		for i, tsk := range taskHandleHistory {
-			if i < ignoreTasksCount {
-				continue
-			}
-			if tsk.taskType == task.ApplyKubeConfigValues {
-				return true
-			}
-			continue
-		}
-		return false
+		return taskHandleHistory.HasApplyKubeConfigValues(ignoreTasksCount)
 	}, "30s", "200ms").Should(BeTrue(), "Should queue ConvergeModules task after changing global section in ConfigMap")
 
 	// Expect ConvergeModules/ReloadAllModules appears in queue.
 	g.Eventually(func() bool {
-		historyMu.Lock()
-		defer historyMu.Unlock()
-		for i, tsk := range taskHandleHistory {
-			if i < ignoreTasksCount {
-				continue
-			}
-			if tsk.taskType != task.ConvergeModules {
-				continue
-			}
-			if tsk.convergeEvent == converge.ReloadAllModules {
-				return true
-			}
-		}
-		return false
+		return taskHandleHistory.HasReloadAllModules(ignoreTasksCount)
 	}, "30s", "200ms").Should(BeTrue(), "Should queue ReloadAllModules task after changing global section in ConfigMap")
 }
 

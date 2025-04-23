@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -94,6 +95,36 @@ type AddonOperator struct {
 	ConvergeState *converge.ConvergeState
 
 	TaskService *taskservice.TaskHandlerService
+}
+
+type parallelQueueEvent struct {
+	moduleName string
+	errMsg     string
+	succeeded  bool
+}
+
+type parallelTaskChannels struct {
+	l        sync.RWMutex
+	channels map[string]chan parallelQueueEvent
+}
+
+func (pq *parallelTaskChannels) Set(id string, c chan parallelQueueEvent) {
+	pq.l.Lock()
+	pq.channels[id] = c
+	pq.l.Unlock()
+}
+
+func (pq *parallelTaskChannels) Get(id string) (chan parallelQueueEvent, bool) {
+	pq.l.RLock()
+	defer pq.l.RUnlock()
+	c, ok := pq.channels[id]
+	return c, ok
+}
+
+func (pq *parallelTaskChannels) Delete(id string) {
+	pq.l.Lock()
+	delete(pq.channels, id)
+	pq.l.Unlock()
 }
 
 type Option func(operator *AddonOperator)
@@ -310,11 +341,12 @@ func (op *AddonOperator) KubeClient() *client.Client {
 }
 
 func (op *AddonOperator) IsStartupConvergeDone() bool {
-	return op.ConvergeState.FirstRunPhase == converge.FirstDone
+	return op.ConvergeState.GetFirstRunPhase() == converge.FirstDone
 }
 
 func (op *AddonOperator) globalHooksNotExecutedYet() bool {
-	return op.ConvergeState.FirstRunPhase == converge.FirstNotStarted || (op.ConvergeState.FirstRunPhase == converge.FirstStarted && op.ConvergeState.Phase == converge.StandBy)
+	return op.ConvergeState.GetFirstRunPhase() == converge.FirstNotStarted ||
+		(op.ConvergeState.GetFirstRunPhase() == converge.FirstStarted && op.ConvergeState.GetPhase() == converge.StandBy)
 }
 
 // InitModuleManager initialize KubeConfigManager and ModuleManager,

@@ -125,12 +125,12 @@ func (op *AddonOperator) handleHealthCheck(writer http.ResponseWriter, _ *http.R
 // handleConvergeStatus reports the current convergence state
 func (op *AddonOperator) handleConvergeStatus(writer http.ResponseWriter, _ *http.Request) {
 	convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
-	statusLines := generateConvergeStatusLines(op.ConvergeState.FirstRunPhase, convergeTasks)
+	statusLines := generateConvergeStatusLines(op.ConvergeState.GetFirstRunPhase(), convergeTasks)
 	_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
 }
 
 // generateConvergeStatusLines creates status messages based on the current convergence state
-func generateConvergeStatusLines(phase converge.FirstRunPhaseType, convergeTasks int) []string {
+func generateConvergeStatusLines(phase converge.FirstConvergePhase, convergeTasks int) []string {
 	statusLines := make([]string, 0)
 
 	switch phase {

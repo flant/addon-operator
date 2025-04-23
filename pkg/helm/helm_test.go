@@ -51,7 +51,7 @@ func TestHelmFactory(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(isExists).Should(BeFalse(), "should not found release in the empty cluster")
 
-		err = helmCl.UpgradeRelease("test-release", "helm3lib/testdata/chart", nil, nil, namespace)
+		err = helmCl.UpgradeRelease("test-release", "helm3lib/testdata/chart", nil, nil, nil, namespace)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		releasesAfterUpgrade, err := helmCl.ListReleasesNames()

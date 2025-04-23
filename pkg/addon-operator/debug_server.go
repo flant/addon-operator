@@ -185,8 +185,7 @@ func (op *AddonOperator) handleModuleRender(r *http.Request) (interface{}, error
 		HelmClientFactory: op.Helm,
 	}
 
-	logger := op.Logger.Named("helm-module")
-	hm, err := modules.NewHelmModule(m, op.DefaultNamespace, op.ModuleManager.TempDir, deps, nil, modules.WithLogger(logger))
+	hm, err := modules.NewHelmModule(m, op.DefaultNamespace, op.ModuleManager.TempDir, deps, nil, modules.WithLogger(op.Logger.Named("helm-module")))
 	// if module is not helm, success empty result
 	if err != nil && errors.Is(err, modules.ErrModuleIsNotHelm) {
 		return nil, nil
