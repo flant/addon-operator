@@ -2386,13 +2386,14 @@ func (op *AddonOperator) CheckConvergeStatus(t sh_task.Task) {
 	}
 
 	op.l.Lock()
-	defer op.l.Unlock()
 
 	// Track convergence state changes
 	op.handleConvergeStateChanges(convergeTasks, t)
 
 	// Track the first convergence operation for readiness
 	op.UpdateFirstConvergeStatus(convergeTasks)
+
+	op.l.Unlock()
 
 	// Log progress information when appropriate
 	op.logConvergeProgress(convergeTasks, t)
