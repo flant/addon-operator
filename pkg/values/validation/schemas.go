@@ -131,6 +131,13 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 		return fmt.Errorf("validated data object have to be utils.Values or map[string]interface{}, got %v instead", reflect.TypeOf(v))
 	}
 
+	// Validate values against x-deckhouse-validation rules.
+	if values, ok := dataObj.(map[string]interface{}); ok {
+		if err := cel.Validate(s, values); err != nil {
+			return err
+		}
+	}
+
 	result := validator.Validate(dataObj)
 	if result.IsValid() {
 		return nil
@@ -143,13 +150,6 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 	// NOTE: no validation errors, but config is not valid!
 	if allErrs == nil || allErrs.Len() == 0 {
 		allErrs = multierror.Append(allErrs, fmt.Errorf("configuration is not valid"))
-	}
-
-	// Validate values against x-deckhouse-validation rules.
-	if values, ok := dataObj.(map[string]interface{}); ok {
-		if err := cel.Validate(s, values); err != nil {
-			return fmt.Errorf("validate values: %w", err)
-		}
 	}
 
 	return allErrs.ErrorOrNil()
