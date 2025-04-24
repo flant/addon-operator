@@ -1276,7 +1276,7 @@ const (
 	CanRunHelm ModuleRunPhase = "RunHelm"
 
 	// Ready - all phases are done.
-	// It must be a final phase, which indicate us about ModuleRun task complete without errors.
+	// It must be a final phase, which indicate that ModuleRun task completed without errors.
 	Ready ModuleRunPhase = "RunHelmDone"
 
 	// HooksDisabled - module has its hooks disabled (before update or deletion).
