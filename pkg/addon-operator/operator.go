@@ -2068,16 +2068,16 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		logEntry.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 
 		op.ModuleManager.EnableModuleScheduleBindings(hm.ModuleName)
-		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.RunHelm)
+		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
 	}
 
 	// If module already done RunHelm phase and we receive another ModuleRun task - RunHelm addition time
-	if baseModule.GetPhase() == modules.RunHelmDone {
-		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.RunHelm)
+	if baseModule.GetPhase() == modules.Ready {
+		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
 	}
 
 	// Module start is done, module is ready to run hooks and helm chart.
-	if baseModule.GetPhase() == modules.RunHelm {
+	if baseModule.GetPhase() == modules.CanRunHelm {
 		logEntry.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 		// run beforeHelm, helm, afterHelm
 		valuesChanged, moduleRunErr = op.ModuleManager.RunModule(baseModule.Name, t.GetLogLabels())
@@ -2114,7 +2114,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			logEntry.Info("ModuleRun success, module is ready")
 			// if values not changed we do not need to make another task
 			// so we think that module made all the things what it can
-			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.RunHelmDone)
+			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.Ready)
 		}
 	}
 
