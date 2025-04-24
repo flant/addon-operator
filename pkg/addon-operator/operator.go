@@ -2071,7 +2071,8 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
 	}
 
-	// If module already done RunHelm phase and we receive another ModuleRun task - RunHelm addition time
+	// If the module is already in Ready state and we receive another ModuleRun task,
+	// reset it to CanRunHelm state to allow the module's Helm chart to be reapplied
 	if baseModule.GetPhase() == modules.Ready {
 		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
 	}
