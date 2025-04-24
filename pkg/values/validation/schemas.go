@@ -3,7 +3,6 @@ package validation
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/flant/addon-operator/pkg/values/validation/cel"
 	"log/slog"
 	"reflect"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation/cel"
 	"github.com/flant/addon-operator/pkg/values/validation/schema"
 )
 
