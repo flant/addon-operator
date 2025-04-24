@@ -3,6 +3,7 @@ package validation
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/flant/addon-operator/pkg/values/validation/cel"
 	"log/slog"
 	"reflect"
 	"strings"
@@ -142,6 +143,13 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 	// NOTE: no validation errors, but config is not valid!
 	if allErrs == nil || allErrs.Len() == 0 {
 		allErrs = multierror.Append(allErrs, fmt.Errorf("configuration is not valid"))
+	}
+
+	// Validate values against x-deckhouse-validation rules.
+	if values, ok := dataObj.(map[string]interface{}); ok {
+		if err := cel.Validate(s, values); err != nil {
+			return fmt.Errorf("validate values: %w", err)
+		}
 	}
 
 	return allErrs.ErrorOrNil()
