@@ -2089,6 +2089,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		t.UpdateFailureMessage(moduleRunErr.Error())
 		t.WithQueuedAt(time.Now())
 	} else {
+		// this is task success, but not module CanHelmDone
 		res.Status = queue.Success
 		if valuesChanged {
 			logEntry.Info("ModuleRun success, values changed, restart module")
@@ -2106,6 +2107,8 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 		} else {
 			logEntry.Info("ModuleRun success, module is ready")
+			// if values not changed we do not need to make another task
+			// so we think that module made all the things what it can
 			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelmDone)
 		}
 	}
