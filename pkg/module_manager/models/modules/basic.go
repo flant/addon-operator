@@ -1274,6 +1274,9 @@ const (
 	EnableScheduleBindings ModuleRunPhase = "EnableScheduleBindings"
 	// CanRunHelm - module is ready to run its Helm chart.
 	CanRunHelm ModuleRunPhase = "CanRunHelm"
+	// CanRunHelmDone - canRunHelm is done.
+	CanRunHelmDone ModuleRunPhase = "CanRunHelmDone"
+
 	// HooksDisabled - module has its hooks disabled (before update or deletion).
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
 )

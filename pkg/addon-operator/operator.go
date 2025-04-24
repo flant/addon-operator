@@ -2106,6 +2106,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 		} else {
 			logEntry.Info("ModuleRun success, module is ready")
+			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelmDone)
 		}
 	}
 
