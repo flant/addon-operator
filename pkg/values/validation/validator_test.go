@@ -196,3 +196,34 @@ properties:
 	mErr := valuesStorage.GetSchemaStorage().ValidateConfigValues("moduleName", moduleValues)
 	g.Expect(mErr).ShouldNot(HaveOccurred())
 }
+
+func Test_ValidateConfigValues_CEL(t *testing.T) {
+	g := NewWithT(t)
+
+	// Prepare module values that violate the CEL rule
+	values, err := utils.NewValuesFromBytes([]byte(`
+moduleName:
+  replicas: 1
+`))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Schema with a CEL validation: replicas must be > 0
+	schema := `
+type: object
+properties:
+  replicas:
+    type: integer
+x-deckhouse-validations:
+  - expression: "self.ignoredField == 'Ignored'"
+    message: "ignore not existing field"
+  - expression: "self.replicas < 1"
+    message: "replicas must be greater than 1"
+`
+
+	vs, err := modules.NewValuesStorage("moduleName", nil, []byte(schema), nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = vs.GetSchemaStorage().ValidateConfigValues("moduleName", values)
+	g.Expect(err).Should(HaveOccurred(), "expected CEL validation error")
+	g.Expect(err.Error()).Should(ContainSubstring("replicas must be greater than 1"))
+}

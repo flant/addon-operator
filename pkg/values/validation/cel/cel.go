@@ -3,6 +3,7 @@ package cel
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-openapi/spec"
 	"github.com/google/cel-go/cel"
@@ -71,6 +72,9 @@ func Validate(schema *spec.Schema, values map[string]interface{}) error {
 
 		out, _, err := prg.Eval(map[string]interface{}{"self": obj})
 		if err != nil {
+			if strings.Contains(err.Error(), "no such key:") {
+				continue
+			}
 			return fmt.Errorf("evaluate the '%s' rule: %w", r.Expression, err)
 		}
 
