@@ -1273,8 +1273,8 @@ const (
 	WaitForSynchronization ModuleRunPhase = "WaitForSynchronization"
 	// EnableScheduleBindings - enable schedule bindings after synchronization is complete.
 	EnableScheduleBindings ModuleRunPhase = "EnableScheduleBindings"
-	// RunHelm - module is ready to run its Helm chart.
-	CanRunHelm ModuleRunPhase = "RunHelm"
+	// CanRunHelm - module is ready to run its Helm chart.
+	CanRunHelm ModuleRunPhase = "CanRunHelm"
 	// HooksDisabled - module has its hooks disabled (before update or deletion).
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
 
