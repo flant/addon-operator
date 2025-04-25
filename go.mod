@@ -4,12 +4,12 @@ go 1.23.8
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20241205040953-7b376bae249c
-	github.com/deckhouse/module-sdk v0.2.1
+	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250424095005-9ab587d01d7a
+	github.com/deckhouse/module-sdk v0.2.2
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.3.0
-	github.com/flant/shell-operator v1.7.0
+	github.com/flant/shell-operator v1.7.1
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
@@ -33,7 +33,7 @@ require (
 	k8s.io/client-go v0.30.11
 	k8s.io/kubectl v0.30.3
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
-	sigs.k8s.io/controller-runtime v0.17.0
+	sigs.k8s.io/controller-runtime v0.18.7
 	sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230601165947-6ce0bf390ce3
 	sigs.k8s.io/yaml v1.4.0
 )
@@ -148,7 +148,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rubenv/sql-migrate v1.5.2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
