@@ -164,6 +164,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			s.logTaskAdd("after", res.AfterTasks...)
 		} else {
 			s.logger.Info("ModuleRun success, module is ready")
+			// if values not changed we do not need to make another task
+			// so we think that module made all the things what it can
+			s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.Ready)
 		}
 	}(&res, &valuesChanged)
 
@@ -373,6 +376,12 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		return res
 	}
 
+	// If the module is already in Ready state and we receive another ModuleRun task,
+	// reset it to CanRunHelm state to allow the module's Helm chart to be reapplied
+	if baseModule.GetPhase() == modules.Ready {
+		s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
+	}
+
 	// Module start is done, module is ready to run hooks and helm chart.
 	if baseModule.GetPhase() == modules.CanRunHelm {
 		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
@@ -380,6 +389,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		valuesChanged, moduleRunErr = s.moduleManager.RunModule(baseModule.Name, s.shellTask.GetLogLabels())
 	}
 
+	// this is task success, but not guarantee that module in Ready phase
 	res.Status = queue.Success
 
 	return res
