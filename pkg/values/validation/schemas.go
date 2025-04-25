@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation/cel"
 	"github.com/flant/addon-operator/pkg/values/validation/schema"
 )
 
@@ -128,6 +129,13 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 
 	default:
 		return fmt.Errorf("validated data object have to be utils.Values or map[string]interface{}, got %v instead", reflect.TypeOf(v))
+	}
+
+	// Validate values against x-deckhouse-validation rules.
+	if values, ok := dataObj.(map[string]interface{}); ok {
+		if err := cel.Validate(s, values); err != nil {
+			return err
+		}
 	}
 
 	result := validator.Validate(dataObj)
