@@ -479,7 +479,7 @@ func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger
 		// TODO: we could make multierr here and return all config errors at once
 		err := moduleHook.InitializeHookConfig()
 		if err != nil {
-			return fmt.Errorf("module hook --config invalid: %w", err)
+			return fmt.Errorf("`%s` module hook `%s` --config invalid: %w", bm.Name, moduleHook.GetName(), err)
 		}
 
 		bm.logger.Debug("module hook config print", slog.String("module_name", bm.Name), slog.String("hook_name", moduleHook.GetName()), slog.Any("config", moduleHook.GetHookConfig().V1))
@@ -1264,16 +1264,23 @@ type ModuleRunPhase string
 const (
 	// Startup - module is just enabled.
 	Startup ModuleRunPhase = "Startup"
-	// OnStartupDone - onStartup hooks are done.
+	// OnStartupDone - onStartup hooks have completed execution.
 	OnStartupDone ModuleRunPhase = "OnStartupDone"
-	// QueueSynchronizationTasks - should queue Synchronization tasks.
+	// QueueSynchronizationTasks - synchronization tasks should be queued.
 	QueueSynchronizationTasks ModuleRunPhase = "QueueSynchronizationTasks"
-	// WaitForSynchronization - some Synchronization tasks are in queues, should wait for them to finish.
+	// WaitForSynchronization - synchronization tasks are in queues, waiting for them to complete.
 	WaitForSynchronization ModuleRunPhase = "WaitForSynchronization"
-	// EnableScheduleBindings - enable schedule binding after Synchronization.
+	// EnableScheduleBindings - enable schedule bindings after synchronization is complete.
 	EnableScheduleBindings ModuleRunPhase = "EnableScheduleBindings"
-	// CanRunHelm - module is ready to run its Helm chart.
-	CanRunHelm ModuleRunPhase = "CanRunHelm"
+	// RunHelm - module is ready to run its Helm chart.
+	CanRunHelm ModuleRunPhase = "RunHelm"
+
+	// Ready - all phases are complete.
+	// This is the final phase, which indicates that the ModuleRun task completed without errors.
+	// Note: This only confirms the module's own execution succeeded, not the status of any resources it created.
+	// Custom readiness checks can be implemented separately if needed.
+	Ready ModuleRunPhase = "Ready"
+
 	// HooksDisabled - module has its hooks disabled (before update or deletion).
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
 )

@@ -2071,6 +2071,12 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
 	}
 
+	// If the module is already in Ready state and we receive another ModuleRun task,
+	// reset it to CanRunHelm state to allow the module's Helm chart to be reapplied
+	if baseModule.GetPhase() == modules.Ready {
+		op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
+	}
+
 	// Module start is done, module is ready to run hooks and helm chart.
 	if baseModule.GetPhase() == modules.CanRunHelm {
 		logEntry.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
@@ -2089,6 +2095,7 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 		t.UpdateFailureMessage(moduleRunErr.Error())
 		t.WithQueuedAt(time.Now())
 	} else {
+		// this is task success, but not module CanHelmDone
 		res.Status = queue.Success
 		if valuesChanged {
 			logEntry.Info("ModuleRun success, values changed, restart module")
@@ -2106,6 +2113,9 @@ func (op *AddonOperator) HandleModuleRun(t sh_task.Task, labels map[string]strin
 			op.logTaskAdd(logEntry, "after", res.AfterTasks...)
 		} else {
 			logEntry.Info("ModuleRun success, module is ready")
+			// if values not changed we do not need to make another task
+			// so we think that module made all the things what it can
+			op.ModuleManager.SetModulePhaseAndNotify(baseModule, modules.Ready)
 		}
 	}
 
