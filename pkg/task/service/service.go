@@ -161,7 +161,11 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 		}
 	}
 
-	res := transformTask(t, logger).Handle(ctx)
+	var res queue.TaskResult
+
+	if transformTask != nil {
+		res = transformTask(t, logger).Handle(ctx)
+	}
 
 	s.logTaskEnd(t, res, logger)
 
