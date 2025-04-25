@@ -75,7 +75,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	hm := task.HookMetadataAccessor(s.shellTask)
 	taskHook := s.moduleManager.GetGlobalHook(hm.HookName)
 
-	err := taskHook.RateLimitWait(context.Background())
+	err := taskHook.RateLimitWait(ctx)
 	if err != nil {
 		// This could happen when the Context is
 		// canceled, or the expected wait time exceeds the Context's Deadline.
