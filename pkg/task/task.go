@@ -1,7 +1,10 @@
 package task
 
 import (
+	"context"
+
 	"github.com/flant/shell-operator/pkg/task"
+	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 // Addon-operator specific task types
@@ -34,3 +37,7 @@ const (
 	GlobalHookWaitKubernetesSynchronization task.TaskType = "GlobalHookWaitKubernetesSynchronization"
 	GlobalHookEnableScheduleBindings        task.TaskType = "GlobalHookEnableScheduleBindings"
 )
+
+type Task interface {
+	Handle(ctx context.Context) queue.TaskResult
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	taskservice "github.com/flant/addon-operator/pkg/task/service"
 	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
@@ -44,6 +45,20 @@ func (op *AddonOperator) bootstrap() error {
 		log.Error("Fatal", log.Err(err))
 		return fmt.Errorf("assemble Debug server: %w", err)
 	}
+
+	cfg := &taskservice.TaskHandlerServiceConfig{
+		Engine:               op.engine,
+		ParallelTaskChannels: op.parallelTaskChannels,
+		Helm:                 op.Helm,
+		HelmResourcesManager: op.HelmResourcesManager,
+		ModuleManager:        op.ModuleManager,
+		MetricStorage:        op.MetricStorage,
+		KubeConfigManager:    op.KubeConfigManager,
+		ConvergeState:        op.ConvergeState,
+		CRDExtraLabels:       op.CRDExtraLabels,
+	}
+
+	op.TaskService = taskservice.NewTaskHandlerService(op.ctx, cfg, op.Logger)
 
 	return nil
 }

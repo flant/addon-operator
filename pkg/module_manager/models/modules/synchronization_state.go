@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
+	"github.com/flant/addon-operator/pkg"
 )
 
 type TaskMetadata interface {
@@ -64,7 +66,7 @@ func (s *SynchronizationState) IsCompleted() bool {
 			done = false
 			log.Debug("Synchronization isn't done",
 				slog.String("hook", state.HookName),
-				slog.String("binding", state.BindingName))
+				slog.String(pkg.LogKeyBinding, state.BindingName))
 			break
 		}
 	}
@@ -98,7 +100,7 @@ func (s *SynchronizationState) DoneForBinding(id string) {
 	}
 	log.Debug("Synchronization done",
 		slog.String("hook", state.HookName),
-		slog.String("binding", state.BindingName))
+		slog.String(pkg.LogKeyBinding, state.BindingName))
 	state.Done = true
 }
 
