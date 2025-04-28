@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
-	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -25,6 +23,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
+	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/post_renderer"
@@ -372,6 +373,7 @@ func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, err
 	return "", nil // TODO: remove NoSuchLabel error
 }
 
+// Deprecated: use GetReleaseLabels instead
 func (h *LibClient) GetReleaseChecksum(releaseName string) (string, error) {
 	gv := action.NewGet(actionConfig)
 	rel, err := gv.Run(releaseName)
