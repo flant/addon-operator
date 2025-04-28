@@ -161,7 +161,7 @@ func (hm *HelmModule) checkHelmValues() error {
 	return hm.validator.ValidateModuleHelmValues(utils.ModuleNameToValuesKey(hm.name), hm.values)
 }
 
-func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
+func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state MaintenanceState) error {
 	metricLabels := map[string]string{
 		"module":                hm.name,
 		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
@@ -193,6 +193,19 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
+
+	if state == Unmanaged {
+		// TODO: think about label name
+		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, "isUnmanaged")
+		if err != nil {
+			return fmt.Errorf("get release label failed: %w", err)
+		}
+
+		if isUnmanaged == "true" {
+			logEntry.Info("helm release is Unmanaged, skip helm upgrade", slog.String("release", helmReleaseName))
+			return nil
+		}
+	}
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
@@ -228,6 +241,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 	logEntry.Debug("chart has resources", slog.Int("count", len(manifests)))
 
+	// TODO: if Unmanaged, we should always run helm upgrade, skip this check
 	// Skip upgrades if nothing is changed
 	var runUpgradeRelease bool
 	func() {
@@ -269,14 +283,20 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
 		})()
 
+		releaseLabels := map[string]string{
+			"moduleChecksum": checksum,
+		}
+
+		if state == Unmanaged {
+			releaseLabels["isUnamanged"] = "true"
+		}
+
 		err = helmClient.UpgradeRelease(
 			helmReleaseName,
 			hm.path,
 			[]string{valuesPath},
 			[]string{},
-			map[string]string{
-				"moduleChecksum": checksum,
-			},
+			releaseLabels,
 			hm.defaultNamespace,
 		)
 	}()

@@ -11,8 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -743,6 +744,10 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 
 	if err == nil {
 		moduleMaintenanceState := bm.GetMaintenanceState()
+		err = helmModule.RunHelmInstall(logLabels, moduleMaintenanceState)
+		// TODO: if isUnamanged label is set in this run
+		// run mm.dependencies.HelmResourcesManager.StopMonitor(moduleName)
+
 		if moduleMaintenanceState != modules.UnmanagedEnforced {
 			err = helmModule.RunHelmInstall(logLabels)
 		}

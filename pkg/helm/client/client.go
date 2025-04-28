@@ -10,6 +10,7 @@ type HelmClient interface {
 	Render(releaseName string, chart string, valuesPaths []string, setValues []string, namespace string, debug bool) (string, error)
 	GetReleaseValues(releaseName string) (utils.Values, error)
 	GetReleaseChecksum(releaseName string) (string, error)
+	GetReleaseLabels(releaseName, labelName string) (string, error)
 	DeleteRelease(releaseName string) error
 	ListReleasesNames() ([]string, error)
 	IsReleaseExists(releaseName string) (bool, error)
