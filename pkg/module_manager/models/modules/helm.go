@@ -299,7 +299,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 		}
 
 		if state == Unmanaged {
-			releaseLabels["isUnamanged"] = "true"
+			releaseLabels[LabelMaintenanceNoResourceReconcillation] = "true"
 		}
 
 		err = helmClient.UpgradeRelease(
