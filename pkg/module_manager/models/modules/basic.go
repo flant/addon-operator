@@ -14,11 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
-
-	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"

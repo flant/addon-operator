@@ -11,9 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
