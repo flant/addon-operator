@@ -745,16 +745,15 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	if err == nil {
 		moduleMaintenanceState := bm.GetMaintenanceState()
 		err = helmModule.RunHelmInstall(logLabels, moduleMaintenanceState)
-		// TODO: if isUnamanged label is set in this run
-		// run mm.dependencies.HelmResourcesManager.StopMonitor(moduleName)
+		if err != nil && errors.Is(err, modules.ErrReleaseIsUnmanaged) {
+			bm.SetUnmanaged()
+			mm.dependencies.HelmResourcesManager.StopMonitor(moduleName)
 
-		if moduleMaintenanceState != modules.UnmanagedEnforced {
-			err = helmModule.RunHelmInstall(logLabels)
+			err = nil
 		}
 
-		if moduleMaintenanceState == modules.UnmanagedEnabled {
-			bm.SetUnmanagedEnforced()
-			mm.dependencies.HelmResourcesManager.StopMonitor(moduleName)
+		if moduleMaintenanceState != modules.Unmanaged {
+			err = helmModule.RunHelmInstall(logLabels, moduleMaintenanceState)
 		}
 	}
 

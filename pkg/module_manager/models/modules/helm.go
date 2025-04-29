@@ -18,9 +18,14 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
+	helm3lib "github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/manifest"
 	"github.com/flant/shell-operator/pkg/utils/measure"
+)
+
+const (
+	LabelMaintenanceNoResourceReconcillation = "maintenance.deckhouse.io/no-resource-reconcillation"
 )
 
 // HelmModule representation of the module, which has Helm Chart and could be installed with the helm lib
@@ -78,7 +83,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 
 	additionalLabels := make(map[string]string)
 	if bm.GetMaintenanceState() != Managed {
-		additionalLabels["maintenance.deckhouse.io/no-resource-reconcillation"] = ""
+		additionalLabels[LabelMaintenanceNoResourceReconcillation] = ""
 	}
 
 	hm := &HelmModule{
@@ -161,6 +166,8 @@ func (hm *HelmModule) checkHelmValues() error {
 	return hm.validator.ValidateModuleHelmValues(utils.ModuleNameToValuesKey(hm.name), hm.values)
 }
 
+var ErrReleaseIsUnmanaged = errors.New("release is unmanaged")
+
 func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state MaintenanceState) error {
 	metricLabels := map[string]string{
 		"module":                hm.name,
@@ -195,14 +202,14 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 
 	if state == Unmanaged {
-		// TODO: think about label name
-		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, "isUnmanaged")
-		if err != nil {
+		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconcillation)
+		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) {
 			return fmt.Errorf("get release label failed: %w", err)
 		}
 
 		if isUnmanaged == "true" {
 			logEntry.Info("helm release is Unmanaged, skip helm upgrade", slog.String("release", helmReleaseName))
+
 			return nil
 		}
 	}
@@ -217,6 +224,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 			"operation":             "template",
 		}
+
 		defer measure.Duration(func(d time.Duration) {
 			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
 		})()
@@ -233,15 +241,16 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 	if err != nil {
 		return err
 	}
+
 	checksum := utils.CalculateStringsChecksum(renderedManifests)
 
 	manifests, err := manifest.ListFromYamlDocs(renderedManifests)
 	if err != nil {
 		return err
 	}
+
 	logEntry.Debug("chart has resources", slog.Int("count", len(manifests)))
 
-	// TODO: if Unmanaged, we should always run helm upgrade, skip this check
 	// Skip upgrades if nothing is changed
 	var runUpgradeRelease bool
 	func() {
@@ -267,6 +276,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 		if !hm.dependencies.HelmResourceManager.HasMonitor(hm.name) {
 			hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, hm.defaultNamespace, helmClient.LastReleaseStatus)
 		}
+
 		return nil
 	}
 
@@ -279,6 +289,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 			"operation":             "upgrade",
 		}
+
 		defer measure.Duration(func(d time.Duration) {
 			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
 		})()

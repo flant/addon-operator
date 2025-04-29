@@ -359,6 +359,8 @@ func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
 	return gv.Run(releaseName)
 }
 
+var ErrLabelIsNotFound = errors.New("label is not found")
+
 func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
 	gv := action.NewGet(actionConfig)
 	rel, err := gv.Run(releaseName)
@@ -370,7 +372,7 @@ func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, err
 		return value, nil
 	}
 
-	return "", nil // TODO: remove NoSuchLabel error
+	return "", ErrLabelIsNotFound
 }
 
 // Deprecated: use GetReleaseLabels instead

@@ -2,6 +2,7 @@ package helm3
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -191,12 +192,42 @@ func (h *Helm3Client) UpgradeRelease(releaseName string, chart string, valuesPat
 	return nil
 }
 
+var ErrLabelIsNotFound = errors.New("label is not found")
+
+func (h *Helm3Client) GetReleaseLabels(releaseName, labelName string) (string, error) {
+	args := []string{
+		"get", "manifest", releaseName,
+		"--namespace", h.Namespace,
+		"--output", "yaml",
+	}
+
+	stdout, stderr, err := h.cmd(args...)
+	if err != nil {
+		return "", fmt.Errorf("cannot get manifest of helm release %s: %s\n%s %s", releaseName, err, stdout, stderr)
+	}
+
+	lines := strings.Split(stdout, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, labelName) {
+			split := strings.Split(line, ":")
+			if len(split) < 2 {
+				return "", fmt.Errorf("cannot parse label %s from helm release %s: %s", labelName, releaseName, line)
+			}
+
+			return strings.TrimSpace(split[1]), nil
+		}
+	}
+
+	return "", ErrLabelIsNotFound
+}
+
 func (h *Helm3Client) GetReleaseValues(releaseName string) (utils.Values, error) {
 	args := []string{
 		"get", "values", releaseName,
 		"--namespace", h.Namespace,
 		"--output", "yaml",
 	}
+
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get values of helm release %s: %s\n%s %s", releaseName, err, stdout, stderr)
@@ -215,6 +246,7 @@ func (h *Helm3Client) GetReleaseChecksum(releaseName string) (string, error) {
 		"get", "manifest", releaseName,
 		"--namespace", h.Namespace,
 	}
+
 	stdout, stderr, err := h.cmd(args...)
 	if err != nil {
 		return "", fmt.Errorf("cannot get manifest of helm release %s: %s\n%s %s", releaseName, err, stdout, stderr)
