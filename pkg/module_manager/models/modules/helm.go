@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	LabelMaintenanceNoResourceReconcillation = "maintenance.deckhouse.io/no-resource-reconcillation"
+	LabelMaintenanceNoResourceReconciliation = "maintenance.deckhouse.io/no-resource-reconciliation"
 )
 
 // HelmModule representation of the module, which has Helm Chart and could be installed with the helm lib
@@ -83,7 +83,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 
 	additionalLabels := make(map[string]string)
 	if bm.GetMaintenanceState() != Managed {
-		additionalLabels[LabelMaintenanceNoResourceReconcillation] = ""
+		additionalLabels[LabelMaintenanceNoResourceReconciliation] = ""
 	}
 
 	hm := &HelmModule{
@@ -202,7 +202,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 
 	if state == Unmanaged {
-		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconcillation)
+		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
 		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) {
 			return fmt.Errorf("get release label failed: %w", err)
 		}
@@ -299,7 +299,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 		}
 
 		if state == Unmanaged {
-			releaseLabels[LabelMaintenanceNoResourceReconcillation] = "true"
+			releaseLabels[LabelMaintenanceNoResourceReconciliation] = "true"
 		}
 
 		err = helmClient.UpgradeRelease(
