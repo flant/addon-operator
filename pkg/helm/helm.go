@@ -1,14 +1,12 @@
 package helm
 
 import (
-	"log/slog"
 	"maps"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
-	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 )
 
@@ -74,22 +72,11 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
 		}, helmopts.Logger)
 
-	case Helm3:
-		log.Info("Helm 3 detected", slog.String("path", helm3.Helm3Path))
-		// Use helm3 client.
-		factory.ClientType = Helm3
-		factory.NewClientFn = helm3.NewClient
-		err = helm3.Init(&helm3.Helm3Options{
-			Namespace:         helmopts.Namespace,
-			HistoryMax:        helmopts.HistoryMax,
-			Timeout:           helmopts.Timeout,
-			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
-			Logger:            helmopts.Logger,
-		})
 	}
 
 	if err != nil {
 		return nil, err
 	}
+
 	return factory, nil
 }

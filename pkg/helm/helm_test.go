@@ -7,7 +7,6 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 
-	"github.com/flant/addon-operator/pkg/helm/helm3"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 )
 
@@ -74,11 +73,6 @@ func TestHelmFactory(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(isExistsAfterDelete).Should(BeFalse(), "should not found the release in the cluster")
 	}
-
-	t.Run("init with helm3 binary client", func(t *testing.T) {
-		// For integration tests set appropriate helm binary path
-		testCLient(t, "helm3lib", new(helm3.Helm3Client), map[string]string{"HELM_BIN_PATH": "testdata/helm-fake/helm3/helm", "HELM_POST_RENDERER_PATH": "testdata/helm-fake/helm3/helm", "HELM3": "yes"})
-	})
 
 	t.Run("init with helm3lib client", func(t *testing.T) {
 		testCLient(t, "helm3", new(helm3lib.LibClient), map[string]string{})
