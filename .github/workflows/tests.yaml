@@ -47,6 +47,6 @@ jobs:
           export GOOS=linux
 
           go test \
-
+            --race \
             -tags use_libjq \
             ./cmd/... ./pkg/...
