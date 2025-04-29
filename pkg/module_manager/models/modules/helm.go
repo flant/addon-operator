@@ -298,7 +298,8 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 		})()
 
 		releaseLabels := map[string]string{
-			"moduleChecksum": checksum,
+			"moduleChecksum":                         checksum,
+			LabelMaintenanceNoResourceReconciliation: "false",
 		}
 
 		if state == Unmanaged {
