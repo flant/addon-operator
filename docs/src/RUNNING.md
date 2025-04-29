@@ -83,13 +83,7 @@ Default is `heritage=addon-operator`.
 
 ### Helm settings
 
-Addon-operator expects that "helm" binary is available in $PATH. It detects Helm version at start by executing "helm --help" command. If this is not appropriate by some reasons, you can use these settings:
-
-**HELM_BIN_PATH** — a path to a Helm binary.
-
-**HELM_POST_RENDERER_PATH** — a path to a Helm post-renderer binary.
-
-**HELM3** — set to "yes" to disable auto-detection and explicitly enable compatibility with helm3.
+Addon-operator works with helm by using internal lib
 
 **HELM_IGNORE_RELEASE** — a name of the release that should not be treated as the module's release. Prevent self-destruction when addon-operator release is stored in the same namespace as releases for modules.
 
