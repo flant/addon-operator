@@ -210,7 +210,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 		if isUnmanaged == "true" {
 			logEntry.Info("helm release is Unmanaged, skip helm upgrade", slog.String("release", helmReleaseName))
 
-			return nil
+			return ErrReleaseIsUnmanaged
 		}
 	}
 
