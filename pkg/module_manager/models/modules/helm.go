@@ -168,6 +168,9 @@ func (hm *HelmModule) checkHelmValues() error {
 
 var ErrReleaseIsUnmanaged = errors.New("release is unmanaged")
 
+// RunHelmInstall installs or upgrades a Helm release for the module.
+// The `state` parameter determines the maintenance state of the release:
+// - If `state` is `Unmanaged`, a release label check is triggered, and the Helm upgrade is skipped.
 func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state MaintenanceState) error {
 	metricLabels := map[string]string{
 		"module":                hm.name,
