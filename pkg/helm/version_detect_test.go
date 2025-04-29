@@ -2,7 +2,6 @@ package helm
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -42,17 +41,4 @@ func Test_DetectHelmVersion_Helm2(t *testing.T) {
 		g.Expect(err).Should(HaveOccurred())
 		g.Expect(err.Error()).Should(ContainSubstring(helm2DeprecationMsg))
 	})
-}
-
-func alterPATH(newPath string) func() {
-	origPath := os.Getenv("PATH")
-	_ = os.Setenv("PATH", newPath+string(os.PathListSeparator)+origPath)
-	return func() {
-		_ = os.Setenv("PATH", origPath)
-	}
-}
-
-func toAbsolutePath(path string) string {
-	abs, _ := filepath.Abs(path)
-	return abs
 }

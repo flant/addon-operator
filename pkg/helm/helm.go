@@ -52,7 +52,7 @@ type Options struct {
 }
 
 func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*ClientFactory, error) {
-	helmVersion, err := DetectHelmVersion()
+	_, err := DetectHelmVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -60,19 +60,17 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 	factory := new(ClientFactory)
 	factory.labels = labels
 
-	switch helmVersion {
-	case Helm3Lib:
-		log.Info("Helm3Lib detected. Use builtin Helm.")
-		factory.ClientType = Helm3Lib
-		factory.NewClientFn = helm3lib.NewClient
-		err = helm3lib.Init(&helm3lib.Options{
-			Namespace:         helmopts.Namespace,
-			HistoryMax:        helmopts.HistoryMax,
-			Timeout:           helmopts.Timeout,
-			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
-		}, helmopts.Logger)
-	}
+	log.Info("Helm3Lib detected. Use builtin Helm.")
 
+	factory.ClientType = Helm3Lib
+	factory.NewClientFn = helm3lib.NewClient
+
+	err = helm3lib.Init(&helm3lib.Options{
+		Namespace:         helmopts.Namespace,
+		HistoryMax:        helmopts.HistoryMax,
+		Timeout:           helmopts.Timeout,
+		HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
+	}, helmopts.Logger)
 	if err != nil {
 		return nil, err
 	}
