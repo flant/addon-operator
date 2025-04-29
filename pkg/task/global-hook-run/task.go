@@ -258,6 +258,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 						return res
 					}
 				}
+
 				// Stop and remove all resource monitors to prevent excessive ModuleRun tasks
 				s.helmResourcesManager.StopMonitors()
 				logLabels := s.shellTask.GetLogLabels()
