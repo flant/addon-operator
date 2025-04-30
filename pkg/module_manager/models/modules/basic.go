@@ -190,8 +190,8 @@ func (bm *BasicModule) ResetState() {
 	bm.l.Lock()
 	var maintenanceState MaintenanceState
 
-	if bm.state.maintenanceState == UnmanagedEnforced {
-		maintenanceState = UnmanagedEnabled
+	if bm.state.maintenanceState == Unmanaged {
+		maintenanceState = Unmanaged
 	}
 
 	bm.state = &moduleState{
@@ -549,7 +549,7 @@ func (bm *BasicModule) SetMaintenanceState(state utils.Maintenance) {
 	switch state {
 	case utils.NoResourceReconciliation:
 		if bm.state.maintenanceState == Managed {
-			bm.state.maintenanceState = UnmanagedEnabled
+			bm.state.maintenanceState = Unmanaged
 		}
 	case utils.Managed:
 		if bm.state.maintenanceState != Managed {
@@ -559,10 +559,10 @@ func (bm *BasicModule) SetMaintenanceState(state utils.Maintenance) {
 	bm.l.Unlock()
 }
 
-func (bm *BasicModule) SetUnmanagedEnforced() {
+func (bm *BasicModule) SetUnmanaged() {
 	bm.l.Lock()
-	if bm.state.maintenanceState == UnmanagedEnabled {
-		bm.state.maintenanceState = UnmanagedEnforced
+	if bm.state.maintenanceState == Managed {
+		bm.state.maintenanceState = Unmanaged
 	}
 	bm.l.Unlock()
 }
@@ -1290,10 +1290,8 @@ type MaintenanceState int
 const (
 	// Module runs in a normal mode
 	Managed MaintenanceState = iota
-	// Next helm run will enforce NoResourceReconciliation mode (removes heritage labels and stops resource informer)
-	UnmanagedEnabled
-	// All consequent helm runs are inhibited
-	UnmanagedEnforced
+	// All consequent helm runs are inhibited (heritage labels are removed and resource informer is stopped)
+	Unmanaged = 1
 )
 
 type moduleState struct {
