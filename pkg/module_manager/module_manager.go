@@ -742,14 +742,12 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	}
 
 	if err == nil {
-		moduleMaintenanceState := bm.GetMaintenanceState()
-		if moduleMaintenanceState != modules.UnmanagedEnforced {
-			err = helmModule.RunHelmInstall(logLabels)
-		}
-
-		if moduleMaintenanceState == modules.UnmanagedEnabled {
-			bm.SetUnmanagedEnforced()
+		err = helmModule.RunHelmInstall(logLabels, bm.GetMaintenanceState())
+		if err != nil && errors.Is(err, modules.ErrReleaseIsUnmanaged) {
+			bm.SetUnmanaged()
 			mm.dependencies.HelmResourcesManager.StopMonitor(moduleName)
+
+			err = nil
 		}
 	}
 
