@@ -22,6 +22,10 @@ import (
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
+const (
+	LabelMaintenanceNoResourceReconciliation = "_maintenance.deckhouse.io/no-resource-reconciliation"
+)
+
 // HelmModule representation of the module, which has Helm Chart and could be installed with the helm lib
 type HelmModule struct {
 	// Name of the module
@@ -77,7 +81,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 
 	additionalLabels := make(map[string]string)
 	if bm.GetMaintenanceState() != Managed {
-		additionalLabels["maintenance.deckhouse.io/no-resource-reconcillation"] = ""
+		additionalLabels[LabelMaintenanceNoResourceReconciliation] = ""
 	}
 
 	hm := &HelmModule{
@@ -160,7 +164,12 @@ func (hm *HelmModule) checkHelmValues() error {
 	return hm.validator.ValidateModuleHelmValues(utils.ModuleNameToValuesKey(hm.name), hm.values)
 }
 
-func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
+var ErrReleaseIsUnmanaged = errors.New("release is unmanaged")
+
+// RunHelmInstall installs or upgrades a Helm release for the module.
+// The `state` parameter determines the maintenance state of the release:
+// - If `state` is `Unmanaged`, a release label check is triggered, and the Helm upgrade is skipped.
+func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state MaintenanceState) error {
 	metricLabels := map[string]string{
 		"module":     hm.name,
 		"activation": logLabels["event.type"],
@@ -192,6 +201,21 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	}
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
+
+	if state == Unmanaged {
+		releaseValues, err := helmClient.GetReleaseValues(helmReleaseName)
+		if err != nil {
+			return fmt.Errorf("get release label failed: %w", err)
+		}
+
+		isUnmanaged := releaseValues[LabelMaintenanceNoResourceReconciliation]
+
+		if isUnmanaged == "true" {
+			logEntry.Info("helm release is Unmanaged, skip helm upgrade", slog.String("release", helmReleaseName))
+
+			return ErrReleaseIsUnmanaged
+		}
+	}
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
@@ -268,11 +292,20 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
 		})()
 
+		releaseValues := map[string]string{
+			"_addonOperatorModuleChecksum":           checksum,
+			LabelMaintenanceNoResourceReconciliation: "false",
+		}
+
+		if state == Unmanaged {
+			releaseValues[LabelMaintenanceNoResourceReconciliation] = "true"
+		}
+
 		err = helmClient.UpgradeRelease(
 			helmReleaseName,
 			hm.path,
 			[]string{valuesPath},
-			[]string{fmt.Sprintf("_addonOperatorModuleChecksum=%s", checksum)},
+			valuesFromMap(releaseValues),
 			hm.defaultNamespace,
 		)
 	}()
@@ -285,6 +318,14 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string) error {
 	hm.dependencies.HelmResourceManager.StartMonitor(hm.name, manifests, hm.defaultNamespace, helmClient.LastReleaseStatus)
 
 	return nil
+}
+
+func valuesFromMap(input map[string]string) []string {
+	values := make([]string, 0, len(input))
+	for k, v := range input {
+		values = append(values, fmt.Sprintf("%s=%s", k, v))
+	}
+	return values
 }
 
 // If all these conditions aren't met, helm upgrade can be skipped.
