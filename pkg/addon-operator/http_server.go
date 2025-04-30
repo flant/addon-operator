@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -123,10 +124,48 @@ func (op *AddonOperator) handleHealthCheck(writer http.ResponseWriter, _ *http.R
 }
 
 // handleConvergeStatus reports the current convergence state
-func (op *AddonOperator) handleConvergeStatus(writer http.ResponseWriter, _ *http.Request) {
+func (op *AddonOperator) handleConvergeStatus(writer http.ResponseWriter, request *http.Request) {
 	convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
+
+	if request.URL.Query().Get("output") == "json" {
+		writer.Header().Set("Content-Type", "application/json")
+		response := generateConvergeJSON(op.ConvergeState.GetFirstRunPhase(), convergeTasks)
+		_ = json.NewEncoder(writer).Encode(response)
+		return
+	}
+
 	statusLines := generateConvergeStatusLines(op.ConvergeState.GetFirstRunPhase(), convergeTasks)
 	_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
+}
+
+func generateConvergeJSON(phase converge.FirstConvergePhase, convergeTasks int) map[string]interface{} {
+	response := map[string]interface{}{
+		"STARTUP_CONVERGE_NOT_STARTED": false,
+		"STARTUP_CONVERGE_IN_PROGRESS": 0,
+		"STARTUP_CONVERGE_DONE":        false,
+		"CONVERGE_IN_PROGRESS":         0,
+		"CONVERGE_WAIT_TASK":           false,
+	}
+
+	switch phase {
+	case converge.FirstNotStarted:
+		response["STARTUP_CONVERGE_NOT_STARTED"] = true
+	case converge.FirstStarted:
+		if convergeTasks > 0 {
+			response["STARTUP_CONVERGE_IN_PROGRESS"] = convergeTasks
+		} else {
+			response["STARTUP_CONVERGE_DONE"] = true
+		}
+	case converge.FirstDone:
+		response["STARTUP_CONVERGE_DONE"] = true
+		if convergeTasks > 0 {
+			response["CONVERGE_IN_PROGRESS"] = convergeTasks
+		} else {
+			response["CONVERGE_WAIT_TASK"] = true
+		}
+	}
+
+	return response
 }
 
 // generateConvergeStatusLines creates status messages based on the current convergence state
