@@ -92,10 +92,8 @@ func NewTask(
 //
 // ModuleRun is restarted if hook or chart is failed.
 // After first Handle success, no onStartup and kubernetes.Synchronization tasks will run.
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:nonamedreturns
 	defer trace.StartRegion(ctx, "ModuleRun").End()
-
-	var res queue.TaskResult
 
 	taskLogLabels := s.shellTask.GetLogLabels()
 	s.logger = utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
