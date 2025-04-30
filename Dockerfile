@@ -20,7 +20,7 @@ ADD . /app
 # Clone shell-operator to get frameworks
 RUN git clone https://github.com/flant/shell-operator shell-operator-clone && \
     cd shell-operator-clone && \
-    git checkout v1.4.10
+    git checkout v1.7.2
 
 RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
     GOOS=linux \
