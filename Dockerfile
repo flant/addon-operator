@@ -20,21 +20,16 @@ ADD . /app
 # Clone shell-operator to get frameworks
 RUN git clone https://github.com/flant/shell-operator shell-operator-clone && \
     cd shell-operator-clone && \
-    git checkout v1.4.10
+    git checkout v1.7.2
 
 RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
-    CGO_ENABLED=1 \
-    CGO_CFLAGS="-I/libjq/include" \
-    CGO_LDFLAGS="-L/libjq/lib" \
     GOOS=linux \
     go build -ldflags="-linkmode external -extldflags '-static' -s -w -X 'github.com/flant/shell-operator/pkg/app.Version=$shellOpVer' -X 'github.com/flant/addon-operator/pkg/app.Version=$appVersion'" \
-             -tags use_libjq \
              -o addon-operator \
              ./cmd/addon-operator
 
 # Build helm post-renderer binary (required if helm3 binary is in use)
-RUN CGO_ENABLED=1 \
-    GOOS=linux \
+RUN GOOS=linux \
     go build -o post-renderer ./cmd/post-renderer
 
 # Final image
