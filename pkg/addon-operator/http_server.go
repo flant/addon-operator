@@ -138,30 +138,32 @@ func (op *AddonOperator) handleConvergeStatus(writer http.ResponseWriter, reques
 	_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
 }
 
-func generateConvergeJSON(phase converge.FirstConvergePhase, convergeTasks int) map[string]interface{} {
-	response := map[string]interface{}{
-		"STARTUP_CONVERGE_NOT_STARTED": false,
-		"STARTUP_CONVERGE_IN_PROGRESS": 0,
-		"STARTUP_CONVERGE_DONE":        false,
-		"CONVERGE_IN_PROGRESS":         0,
-		"CONVERGE_WAIT_TASK":           false,
-	}
+type status struct {
+	ConvergeInProgress        int  `json:"CONVERGE_IN_PROGRESS"`
+	ConvergeWaitTask          bool `json:"CONVERGE_WAIT_TASK"`
+	StartupConvergeDone       bool `json:"STARTUP_CONVERGE_DONE"`
+	StartupConvergeInProgress int  `json:"STARTUP_CONVERGE_IN_PROGRESS"`
+	StartupConvergeNotStarted bool `json:"STARTUP_CONVERGE_NOT_STARTED"`
+}
+
+func generateConvergeJSON(phase converge.FirstConvergePhase, convergeTasks int) status {
+	response := status{}
 
 	switch phase {
 	case converge.FirstNotStarted:
-		response["STARTUP_CONVERGE_NOT_STARTED"] = true
+		response.StartupConvergeNotStarted = true
 	case converge.FirstStarted:
 		if convergeTasks > 0 {
-			response["STARTUP_CONVERGE_IN_PROGRESS"] = convergeTasks
+			response.StartupConvergeInProgress = convergeTasks
 		} else {
-			response["STARTUP_CONVERGE_DONE"] = true
+			response.StartupConvergeDone = true
 		}
 	case converge.FirstDone:
-		response["STARTUP_CONVERGE_DONE"] = true
+		response.StartupConvergeDone = true
 		if convergeTasks > 0 {
-			response["CONVERGE_IN_PROGRESS"] = convergeTasks
+			response.ConvergeInProgress = convergeTasks
 		} else {
-			response["CONVERGE_WAIT_TASK"] = true
+			response.ConvergeWaitTask = true
 		}
 	}
 

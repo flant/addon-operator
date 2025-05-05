@@ -358,6 +358,23 @@ func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
 	return gv.Run(releaseName)
 }
 
+var ErrLabelIsNotFound = errors.New("label is not found")
+
+func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
+	gv := action.NewGet(actionConfig)
+	rel, err := gv.Run(releaseName)
+	if err != nil {
+		return "", fmt.Errorf("helm get failed: %s", err)
+	}
+
+	if value, ok := rel.Labels[labelName]; ok {
+		return value, nil
+	}
+
+	return "", ErrLabelIsNotFound
+}
+
+// Deprecated: use GetReleaseLabels instead
 func (h *LibClient) GetReleaseChecksum(releaseName string) (string, error) {
 	gv := action.NewGet(actionConfig)
 	rel, err := gv.Run(releaseName)
