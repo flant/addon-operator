@@ -1,9 +1,9 @@
 package metrics
 
 import (
+	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	pointer "k8s.io/utils/ptr"
 
-	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 

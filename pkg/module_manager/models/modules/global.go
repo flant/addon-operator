@@ -10,9 +10,9 @@ import (
 	"strconv"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-
 	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	"github.com/flant/addon-operator/pkg"
+
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"

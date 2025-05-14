@@ -18,6 +18,9 @@ import (
 	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/flant/shell-operator/pkg/hook/config"
+	"github.com/flant/shell-operator/pkg/kube_events_manager/types"
 )
 
 type GoHook interface {
