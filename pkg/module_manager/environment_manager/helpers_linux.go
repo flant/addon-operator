@@ -1,5 +1,3 @@
-//go:build linux
-
 package environment_manager
 
 import "syscall"
