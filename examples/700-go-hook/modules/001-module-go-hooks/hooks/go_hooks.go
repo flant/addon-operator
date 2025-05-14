@@ -57,7 +57,7 @@ func run(input *gohook.HookInput) error {
 	for _, o := range input.NewSnapshots.Get("pods") {
 		podSpec := new(podSpecFilteredObj)
 
-		err := o.UnmarhalTo(podSpec)
+		err := o.UnmarshalTo(podSpec)
 		if err != nil {
 			continue
 		}

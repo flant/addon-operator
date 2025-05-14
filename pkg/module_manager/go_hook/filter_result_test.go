@@ -13,7 +13,7 @@ func Test_FilterResult(t *testing.T) {
 		String string
 	}
 
-	t.Run("UnmarhalTo", func(t *testing.T) {
+	t.Run("UnmarshalTo", func(t *testing.T) {
 		w := &go_hook.Wrapped{
 			Wrapped: &SomeStruct{
 				String: "INPUT STRING",
@@ -22,24 +22,24 @@ func Test_FilterResult(t *testing.T) {
 
 		ss := &SomeStruct{}
 
-		err := w.UnmarhalTo(ss)
+		err := w.UnmarshalTo(ss)
 		assert.NoError(t, err)
 
 		assert.Equal(t, "INPUT STRING", ss.String)
 	})
 
-	t.Run("UnmarhalTo_NilWrapped", func(t *testing.T) {
+	t.Run("UnmarshalTo_NilWrapped", func(t *testing.T) {
 		w := &go_hook.Wrapped{
 			Wrapped: nil,
 		}
 
 		ss := &SomeStruct{}
 
-		err := w.UnmarhalTo(ss)
+		err := w.UnmarshalTo(ss)
 		assert.Error(t, err)
 	})
 
-	t.Run("UnmarhalTo_NilTarget", func(t *testing.T) {
+	t.Run("UnmarshalTo_NilTarget", func(t *testing.T) {
 		w := &go_hook.Wrapped{
 			Wrapped: &SomeStruct{
 				String: "INPUT STRING",
@@ -48,11 +48,11 @@ func Test_FilterResult(t *testing.T) {
 
 		var ss *SomeStruct
 
-		err := w.UnmarhalTo(ss)
+		err := w.UnmarshalTo(ss)
 		assert.Error(t, err)
 	})
 
-	t.Run("UnmarhalTo_DifferentTypes", func(t *testing.T) {
+	t.Run("UnmarshalTo_DifferentTypes", func(t *testing.T) {
 		type OtherStruct struct {
 			Field int
 		}
@@ -65,11 +65,11 @@ func Test_FilterResult(t *testing.T) {
 
 		os := &OtherStruct{}
 
-		err := w.UnmarhalTo(os)
+		err := w.UnmarshalTo(os)
 		assert.Error(t, err)
 	})
 
-	t.Run("UnmarhalTo_CustomStructWithMap", func(t *testing.T) {
+	t.Run("UnmarshalTo_CustomStructWithMap", func(t *testing.T) {
 		type OtherStruct struct {
 			Field map[string][]byte
 		}
@@ -85,7 +85,7 @@ func Test_FilterResult(t *testing.T) {
 
 		os := &OtherStruct{}
 
-		err := w.UnmarhalTo(os)
+		err := w.UnmarshalTo(os)
 		assert.NoError(t, err)
 		assert.Equal(t, os, w.Wrapped)
 	})

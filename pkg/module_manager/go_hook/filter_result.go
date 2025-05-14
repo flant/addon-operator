@@ -25,7 +25,7 @@ var (
 	ErrUnmarshalToTypesNotMatch = errors.New("unmarshal error: input and output types not match")
 )
 
-func (f Wrapped) UnmarhalTo(v any) error {
+func (f *Wrapped) UnmarshalTo(v any) error {
 	if f.Wrapped == nil {
 		return ErrEmptyWrapped
 	}
@@ -52,7 +52,7 @@ func (f Wrapped) UnmarhalTo(v any) error {
 	return nil
 }
 
-func (f Wrapped) String() string {
+func (f *Wrapped) String() string {
 	buf := bytes.NewBuffer([]byte{})
 	_ = json.NewEncoder(buf).Encode(f.Wrapped)
 
