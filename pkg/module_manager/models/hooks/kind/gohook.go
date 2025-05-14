@@ -125,7 +125,12 @@ func (h *GoHook) Execute(_ string, bContext []bindingcontext.BindingContext, _ s
 		for snapBindingName, snaps := range bc.Snapshots {
 			for _, snapshot := range snaps {
 				goSnapshot := snapshot.FilterResult
-				formattedSnapshots[snapBindingName] = append(formattedSnapshots[snapBindingName], goSnapshot)
+
+				if goSnapshot == nil {
+					continue
+				}
+
+				formattedSnapshots[snapBindingName] = append(formattedSnapshots[snapBindingName], &gohook.Wrapped{Wrapped: goSnapshot})
 			}
 		}
 	}
