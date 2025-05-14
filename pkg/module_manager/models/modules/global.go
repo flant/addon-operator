@@ -11,6 +11,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
@@ -338,7 +339,7 @@ func (gm *GlobalModule) SetAvailableAPIVersions(apiVersions []string) {
 	// keep apiVersions sorted to prevent helm rollout on each restart
 	sort.Strings(apiVersions)
 	data, _ := json.Marshal(apiVersions)
-	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
+	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*sdkutils.ValuesPatchOperation{
 		{
 			Op:    "add",
 			Path:  "/global/discovery/apiVersions",
@@ -359,7 +360,7 @@ func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
 	// keep apiVersions sorted to prevent helm rollout on each restart
 	sort.Strings(enabledModules)
 	data, _ := json.Marshal(enabledModules)
-	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
+	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*sdkutils.ValuesPatchOperation{
 		{
 			Op:    "add",
 			Path:  "/global/enabledModules",
