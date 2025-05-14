@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
@@ -200,14 +201,29 @@ func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, erro
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	cfgs := make([]sdkhook.HookConfig, 0)
+	cfgs := &sdkhook.BatchHookConfig{}
+	// if config is not array, then it is a hook config v1
+	if strings.HasPrefix(strings.TrimSpace(string(o)), "[") {
+		hooks := make([]sdkhook.HookConfig, 0)
+
+		buf := bytes.NewReader(o)
+		err = json.NewDecoder(buf).Decode(&hooks)
+		if err != nil {
+			return nil, fmt.Errorf("decode: %w", err)
+		}
+
+		cfgs.Hooks = hooks
+
+		return cfgs.Hooks, nil
+	}
+
 	buf := bytes.NewReader(o)
 	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
 	}
 
-	return cfgs, nil
+	return cfgs.Hooks, nil
 }
 
 // GetConfig returns config via executing the hook with `--config` param
