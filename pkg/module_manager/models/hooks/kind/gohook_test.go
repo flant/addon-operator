@@ -3,6 +3,7 @@ package kind
 import (
 	"testing"
 
+	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	. "github.com/onsi/gomega"
 
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
@@ -14,7 +15,7 @@ func Test_Config_GoHook(t *testing.T) {
 
 	gh := NewGoHook(&gohook.HookConfig{
 		OnAfterAll: &gohook.OrderedConfig{Order: 5},
-	}, func(input *gohook.HookInput) error {
+	}, func(input *sdkpkg.HookInput) error {
 		input.Values.Set("test", "test")
 		input.MetricsCollector.Set("test", 1.0, nil)
 
