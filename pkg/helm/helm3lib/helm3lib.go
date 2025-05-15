@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
-	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -25,6 +23,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
+	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/post_renderer"
@@ -525,4 +526,17 @@ func (h *LibClient) newDryRunInstAction(namespace, releaseName string) *action.I
 	inst.DisableOpenAPIValidation = true
 
 	return inst
+}
+
+// ListReleases returns list of releases
+func (h *LibClient) ListReleases() ([]*release.Release, error) {
+	l := action.NewList(actionConfig)
+	// list all releases regardless of their state
+	l.StateMask = action.ListAll
+	list, err := l.Run()
+	if err != nil {
+		return nil, fmt.Errorf("helm list failed: %s", err)
+	}
+
+	return list, nil
 }
