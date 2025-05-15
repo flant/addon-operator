@@ -7,13 +7,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime/trace"
 	"strings"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -26,6 +26,7 @@ import (
 
 const (
 	LabelMaintenanceNoResourceReconciliation = "maintenance.deckhouse.io/no-resource-reconciliation"
+	helmModuleServiceName                    = "helm-module"
 )
 
 // HelmModule representation of the module, which has Helm Chart and could be installed with the helm lib
@@ -171,7 +172,10 @@ var ErrReleaseIsUnmanaged = errors.New("release is unmanaged")
 // RunHelmInstall installs or upgrades a Helm release for the module.
 // The `state` parameter determines the maintenance state of the release:
 // - If `state` is `Unmanaged`, a release label check is triggered, and the Helm upgrade is skipped.
-func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state MaintenanceState) error {
+func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]string, state MaintenanceState) error {
+	ctx, span := otel.Tracer(helmModuleServiceName).Start(ctx, "RunHelmInstall")
+	defer span.End()
+
 	metricLabels := map[string]string{
 		"module":                hm.name,
 		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
@@ -217,11 +221,11 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 		}
 	}
 
+	span.AddEvent("ModuleRun-HelmPhase-helm-render")
+
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
 	func() {
-		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-render").End()
-
 		metricLabels := map[string]string{
 			"module":                hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
@@ -254,11 +258,10 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 
 	logEntry.Debug("chart has resources", slog.Int("count", len(manifests)))
 
+	span.AddEvent("ModuleRun-HelmPhase-helm-check-upgrade")
 	// Skip upgrades if nothing is changed
 	var runUpgradeRelease bool
 	func() {
-		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-check-upgrade").End()
-
 		metricLabels := map[string]string{
 			"module":                hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
@@ -283,10 +286,9 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 		return nil
 	}
 
+	span.AddEvent("ModuleRun-HelmPhase-helm-upgrade")
 	// Run helm upgrade. Trace and measure its time.
 	func() {
-		defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm-upgrade").End()
-
 		metricLabels := map[string]string{
 			"module":                hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],

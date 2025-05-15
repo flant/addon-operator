@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"runtime/trace"
 	"strings"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
@@ -23,6 +23,10 @@ import (
 	"github.com/flant/shell-operator/pkg/metric"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+)
+
+const (
+	taskName = "converge-modules"
 )
 
 // TaskDependencies defines the external dependencies required by the ConvergeModules task.
@@ -80,7 +84,8 @@ func NewTask(
 
 // Handle is a multi-phase task.
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(ctx, "ConvergeModules").End()
+	_, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
 
 	var res queue.TaskResult
 
