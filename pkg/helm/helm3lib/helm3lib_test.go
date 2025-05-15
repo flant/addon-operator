@@ -35,7 +35,6 @@ func TestHelm3LibEmptyCluster(t *testing.T) {
 
 	releaseList, err := cl.ListReleases()
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(releaseList).To(BeComparableTo([]*release.Release(nil)), "should get empty list of releases")
 	g.Expect(releaseList).To(BeEmpty(), "should get empty list of releases")
 }
 
@@ -48,7 +47,6 @@ func TestHelm3LibUpgradeDelete(t *testing.T) {
 	releases, err := cl.ListReleases()
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releases).To(BeEmpty(), "should get empty list of releases")
-	g.Expect(releases).To(BeComparableTo([]*release.Release(nil)), "should get empty list of releases")
 
 	err = cl.UpgradeRelease("test-release", "testdata/chart", nil, nil, map[string]string{"key": "value"}, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -84,7 +82,6 @@ func TestHelm3LibUpgradeDelete(t *testing.T) {
 	releaseList, err = cl.ListReleases()
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releaseList).To(BeEmpty(), "should get empty list of releases after delete")
-	g.Expect(releaseList).To(BeComparableTo([]*release.Release(nil)), "should get empty list of releases after delete")
 }
 
 func TestReleaseExistsReturnsTrueForExistingRelease(t *testing.T) {
@@ -94,7 +91,6 @@ func TestReleaseExistsReturnsTrueForExistingRelease(t *testing.T) {
 	releases, err := cl.ListReleases()
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releases).To(BeEmpty(), "should get empty list of releases")
-	g.Expect(releases).To(BeComparableTo([]*release.Release(nil)), "should get empty list of releases")
 
 	err = cl.UpgradeRelease("existing-release", "testdata/chart", nil, nil, nil, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -124,7 +120,6 @@ func TestReleaseExistsReturnsFalseForNonExistingRelease(t *testing.T) {
 	releases, err := cl.ListReleases()
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releases).To(BeEmpty(), "should get empty list of releases")
-	g.Expect(releases).To(BeComparableTo([]*release.Release(nil)), "should get empty list of releases")
 }
 
 func TestDeleteReleaseRemovesExistingRelease(t *testing.T) {
@@ -134,7 +129,6 @@ func TestDeleteReleaseRemovesExistingRelease(t *testing.T) {
 	releases, err := cl.ListReleases()
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releases).To(BeEmpty(), "should get empty list of releases")
-	g.Expect(releases).To(BeComparableTo([]*release.Release(nil)), "should get empty list of releases")
 	g.Expect(releases).To(HaveLen(0), "should get empty list of releases")
 
 	err = cl.UpgradeRelease("release-to-delete", "testdata/chart", nil, nil, nil, cl.Namespace)
@@ -154,8 +148,6 @@ func TestDeleteReleaseRemovesExistingRelease(t *testing.T) {
 
 	releases, err = cl.ListReleases()
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(releases).To(BeEmpty(), "should get empty list of releases after deletion")
-	g.Expect(releases).To(BeComparableTo([]*release.Release(nil)), "should get empty list of releases after deletion")
 	g.Expect(releases).To(BeEmpty(), "should get empty list of releases after deletion")
 
 	isExists, err := cl.IsReleaseExists("release-to-delete")
@@ -185,11 +177,13 @@ func TestLastReleaseStatusReturnsErrorForNonExistingRelease(t *testing.T) {
 }
 
 func initHelmClient(t *testing.T) *LibClient {
-	_ = Init(&Options{
+	g := NewWithT(t)
+	err := Init(&Options{
 		Namespace:  "test-ns",
 		HistoryMax: 10,
 		Timeout:    0,
 	}, log.NewNop())
+	g.Expect(err).NotTo(HaveOccurred())
 
 	actionConfig = actionConfigFixture(t)
 
