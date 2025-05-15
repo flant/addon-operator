@@ -808,9 +808,10 @@ func (bm *BasicModule) readModuleEnabledResult(filePath string) (bool, error) {
 
 	value := strings.TrimSpace(string(data))
 
-	if value == "true" {
+	switch value {
+	case "true":
 		return true, nil
-	} else if value == "false" {
+	case "false":
 		return false, nil
 	}
 

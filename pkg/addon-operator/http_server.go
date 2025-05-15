@@ -102,7 +102,7 @@ func (op *AddonOperator) registerDefaultRoutes() {
 
 // handleRootPage serves the main HTML page with links to all available endpoints
 func (op *AddonOperator) handleRootPage(writer http.ResponseWriter, _ *http.Request) {
-	_, _ = writer.Write([]byte(fmt.Sprintf(`<html>
+	_, _ = fmt.Fprintf(writer, `<html>
 	<head><title>Addon-operator</title></head>
 	<body>
 	<h1>Addon-operator</h1>
@@ -115,7 +115,7 @@ func (op *AddonOperator) handleRootPage(writer http.ResponseWriter, _ *http.Requ
 	  <a href="/readyz">ready url</a>
 	</p>
 	</body>
-	</html>`, app.ListenPort)))
+	</html>`, app.ListenPort)
 }
 
 // handleHealthCheck responds with 200 OK for health probes
