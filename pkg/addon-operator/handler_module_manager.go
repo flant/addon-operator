@@ -164,7 +164,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							}
 
 							// Append ModuleRun tasks if ModuleRun is not queued already.
-							if kubeConfigTask != nil && convergeTask == nil {
+							if kubeConfigTask != nil {
 								reloadTasks := op.CreateReloadModulesTasks(modulesToRerun, kubeConfigTask.GetLogLabels(), "KubeConfig-Changed-Modules")
 								op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
 								if len(reloadTasks) > 0 {
