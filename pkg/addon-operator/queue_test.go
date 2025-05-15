@@ -531,7 +531,6 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 
 				// Fill queue from the test case.
 				queues = append(queues, q)
-				//nolint:govet
 				for i := range tasks {
 					tmpTsk := &tasks[i]
 					// Set metadata to prevent "possible bug" errors.
@@ -659,7 +658,6 @@ func Test_RemoveCurrentConvergeTasksFromId(t *testing.T) {
 			q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
 
 			// Fill queue from the test case.
-			//nolint:govet
 			for i := range tt.initialTasks {
 				tmpTsk := &tt.initialTasks[i]
 				// Set metadata to prevent "possible bug" errors.
