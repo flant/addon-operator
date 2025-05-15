@@ -89,7 +89,7 @@ func (h *BatchHook) GetKind() HookKind {
 
 // GetHookConfigDescription get part of hook config for logging/debugging
 func (h *BatchHook) GetHookConfigDescription() string {
-	return h.GetConfigDescription()
+	return h.Hook.GetConfigDescription()
 }
 
 // Execute runs the hook via the OS interpreter and returns the result of the execution
@@ -381,7 +381,7 @@ func (h *BatchHook) prepareConfigValuesJsonFile(moduleSafeName string, configVal
 		return "", err
 	}
 
-	h.Logger.Debug("Prepared module hook config values",
+	h.Hook.Logger.Debug("Prepared module hook config values",
 		slog.String("module", moduleSafeName),
 		slog.String("values", configValues.DebugString()))
 
@@ -400,7 +400,7 @@ func (h *BatchHook) prepareValuesJsonFile(moduleSafeName string, values utils.Va
 		return "", err
 	}
 
-	h.Logger.Debug("Prepared module hook values",
+	h.Hook.Logger.Debug("Prepared module hook values",
 		slog.String("module", moduleSafeName),
 		slog.String("values", values.DebugString()))
 

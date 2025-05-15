@@ -1,4 +1,7 @@
 version: "2"
+run:  
+  timeout: 15m  
+
 linters:
   default: none
   enable:
@@ -52,6 +55,10 @@ linters:
         - stacktrace
         - time
       args-on-sep-lines: false
+    staticcheck:
+      checks:
+        - all
+        - '-QF1008' # not need to fix; we understand how to call nested structs
   exclusions:
     generated: lax
     presets:

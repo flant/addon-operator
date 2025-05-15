@@ -115,7 +115,7 @@ func (sh *ShellHook) GetKind() HookKind {
 
 // GetHookConfigDescription get part of hook config for logging/debugging
 func (sh *ShellHook) GetHookConfigDescription() string {
-	return sh.GetConfigDescription()
+	return sh.Hook.GetConfigDescription()
 }
 
 // Execute runs the hook via the OS interpreter and returns the result of the execution
@@ -213,7 +213,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 // the python version supplied with the module. If the module has no python, the script is run by the global python
 // version and a warning is thrown.
 func (sh *ShellHook) updateExecutorParamsForPython(command *string, envs, args *[]string) {
-	sh.Logger.Debug("Updating hook's exec parameters",
+	sh.Hook.Logger.Debug("Updating hook's exec parameters",
 		slog.String("module", sh.moduleName),
 		slog.String("hookName", sh.Name),
 	)
@@ -225,7 +225,7 @@ func (sh *ShellHook) updateExecutorParamsForPython(command *string, envs, args *
 		newArgs[0] = sh.Path
 		*args = append(newArgs, *args...)
 	} else {
-		sh.Logger.Warn("Module executes python hooks, but has no python virtual environment",
+		sh.Hook.Logger.Warn("Module executes python hooks, but has no python virtual environment",
 			slog.String("module", sh.moduleName),
 			slog.String("hookName", sh.Name),
 		)
@@ -252,19 +252,19 @@ func (sh *ShellHook) getConfig() ([]byte, error) {
 		WithCMDStdout(nil).
 		WithChroot(utils.GetModuleChrootPath(sh.moduleName))
 
-	sh.Logger.Debug("Executing hook",
+	sh.Hook.Logger.Debug("Executing hook",
 		slog.String("args", strings.Join(args, " ")))
 
 	output, err := cmd.Output()
 	if err != nil {
-		sh.Logger.Debug("Hook config failed",
+		sh.Hook.Logger.Debug("Hook config failed",
 			slog.String("hook", sh.Name),
 			log.Err(err),
 			slog.String("output", string(output)))
 		return nil, err
 	}
 
-	sh.Logger.Debug("Hook config output",
+	sh.Hook.Logger.Debug("Hook config output",
 		slog.String("hook", sh.Name),
 		slog.String("output", string(output)))
 
@@ -564,7 +564,7 @@ func (sh *ShellHook) prepareConfigValuesJsonFile(moduleSafeName string, configVa
 		return "", err
 	}
 
-	sh.Logger.Debug("Prepared module hook config values",
+	sh.Hook.Logger.Debug("Prepared module hook config values",
 		slog.String("module", moduleSafeName),
 		slog.String("values", configValues.DebugString()))
 
@@ -583,7 +583,7 @@ func (sh *ShellHook) prepareValuesJsonFile(moduleSafeName string, values utils.V
 		return "", err
 	}
 
-	sh.Logger.Debug("Prepared module hook values",
+	sh.Hook.Logger.Debug("Prepared module hook values",
 		slog.String("module", moduleSafeName),
 		slog.String("values", values.DebugString()))
 
