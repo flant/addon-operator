@@ -43,7 +43,7 @@ func (h *GlobalHook) InitializeHookConfig() error {
 	}
 
 	// Make HookController and GetConfigDescription work.
-	h.executableHook.BackportHookConfig(&h.config.HookConfig)
+	h.BackportHookConfig(&h.config.HookConfig)
 
 	return nil
 }
@@ -62,7 +62,7 @@ func (h *GlobalHook) GetConfigDescription() string {
 	if h.config.AfterAll != nil {
 		msgs = append(msgs, fmt.Sprintf("afterAll:%d", int64(h.config.AfterAll.Order)))
 	}
-	msgs = append(msgs, h.executableHook.GetHookConfigDescription())
+	msgs = append(msgs, h.GetHookConfigDescription())
 	return strings.Join(msgs, ", ")
 }
 

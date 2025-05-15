@@ -68,7 +68,7 @@ func (mh *ModuleHook) InitializeHookConfig() error {
 	}
 
 	// Make HookController and GetConfigDescription work.
-	mh.executableHook.BackportHookConfig(&mh.config.HookConfig)
+	mh.BackportHookConfig(&mh.config.HookConfig)
 
 	return nil
 }
@@ -143,7 +143,7 @@ func (mh *ModuleHook) GetConfigDescription() string {
 	if mh.config.AfterDeleteHelm != nil {
 		bd = append(bd, fmt.Sprintf("afterDeleteHelm:%d", int64(mh.config.AfterDeleteHelm.Order)))
 	}
-	bd = append(bd, mh.executableHook.GetHookConfigDescription())
+	bd = append(bd, mh.GetHookConfigDescription())
 
 	return strings.Join(bd, ", ")
 }
