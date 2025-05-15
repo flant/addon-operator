@@ -128,7 +128,6 @@ func TestDeleteReleaseRemovesExistingRelease(t *testing.T) {
 	releases, err := cl.ListReleases()
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releases).To(BeEmpty(), "should get empty list of releases")
-	g.Expect(releases).To(HaveLen(0), "should get empty list of releases")
 
 	err = cl.UpgradeRelease("release-to-delete", "testdata/chart", nil, nil, nil, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
