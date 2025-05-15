@@ -288,10 +288,9 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 
 			q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
 
-			//nolint:govet
-			for _, tsk := range tt.in {
-				tmpTsk := tsk
-				q.AddLast(&tmpTsk)
+			for i := range tt.in {
+				tsk := &tt.in[i]
+				q.AddLast(tsk)
 			}
 			require.Equal(t, len(tt.in), q.Length(), "Should add all tasks to the queue.")
 
@@ -533,13 +532,13 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 				// Fill queue from the test case.
 				queues = append(queues, q)
 				//nolint:govet
-				for _, tsk := range tasks {
-					tmpTsk := tsk
+				for i := range tasks {
+					tmpTsk := &tasks[i]
 					// Set metadata to prevent "possible bug" errors.
 					if tmpTsk.Metadata == nil {
 						tmpTsk.Metadata = task.HookMetadata{}
 					}
-					q.AddLast(&tmpTsk)
+					q.AddLast(tmpTsk)
 				}
 				require.Equal(t, len(tasks), q.Length(), "Should add all tasks to the queue.")
 			}
@@ -661,13 +660,13 @@ func Test_RemoveCurrentConvergeTasksFromId(t *testing.T) {
 
 			// Fill queue from the test case.
 			//nolint:govet
-			for _, tsk := range tt.initialTasks {
-				tmpTsk := tsk
+			for i := range tt.initialTasks {
+				tmpTsk := &tt.initialTasks[i]
 				// Set metadata to prevent "possible bug" errors.
 				if tmpTsk.Metadata == nil {
 					tmpTsk.Metadata = task.HookMetadata{}
 				}
-				q.AddLast(&tmpTsk)
+				q.AddLast(tmpTsk)
 			}
 			require.Equal(t, len(tt.initialTasks), q.Length(), "Should add all tasks to the queue.")
 
