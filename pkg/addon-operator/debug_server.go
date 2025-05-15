@@ -80,7 +80,7 @@ func (op *AddonOperator) RegisterDebugGraphRoutes(dbgSrv *debug.Server) {
 		image, err := op.ModuleManager.GetGraphImage(req.Context())
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(fmt.Sprintf("couldn't get graph's image: %s", err)))
+			_, _ = fmt.Fprintf(w, "couldn't get graph's image: %s", err)
 			return
 		}
 
@@ -267,7 +267,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 				}
 
 				err = differ.Diff(obj, printer, false)
-				if !(err != nil && apierrors.IsConflict(err)) {
+				if err == nil || !apierrors.IsConflict(err) {
 					break
 				}
 			}
