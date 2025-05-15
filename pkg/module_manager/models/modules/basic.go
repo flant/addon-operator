@@ -18,6 +18,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
@@ -577,7 +578,7 @@ func (bm *BasicModule) GetMaintenanceState() MaintenanceState {
 
 // RunHooksByBinding gets all hooks for binding, for each hook it creates a BindingContext,
 // sets KubernetesSnapshots and runs the hook.
-func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLabels map[string]string) error {
+func (bm *BasicModule) RunHooksByBinding(ctx context.Context, binding sh_op_types.BindingType, logLabels map[string]string) error {
 	var err error
 	moduleHooks := bm.GetHooks(binding)
 
@@ -613,7 +614,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 			defer measure.Duration(func(d time.Duration) {
 				bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels, nil)
 			})()
-			err = bm.executeHook(moduleHook, binding, []bindingcontext.BindingContext{bc}, logLabels, metricLabels)
+			err = bm.executeHook(ctx, moduleHook, binding, []bindingcontext.BindingContext{bc}, logLabels, metricLabels)
 		}()
 		if err != nil {
 			return err
@@ -624,7 +625,7 @@ func (bm *BasicModule) RunHooksByBinding(binding sh_op_types.BindingType, logLab
 }
 
 // RunHookByName runs some specified hook by its name
-func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.BindingType, bindingContext []bindingcontext.BindingContext, logLabels map[string]string) (string, string, error) {
+func (bm *BasicModule) RunHookByName(ctx context.Context, hookName string, binding sh_op_types.BindingType, bindingContext []bindingcontext.BindingContext, logLabels map[string]string) (string, string, error) {
 	values := bm.valuesStorage.GetValues(false)
 	valuesChecksum := values.Checksum()
 
@@ -644,7 +645,7 @@ func (bm *BasicModule) RunHookByName(hookName string, binding sh_op_types.Bindin
 		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 	}
 
-	err := bm.executeHook(moduleHook, binding, bindingContext, logLabels, metricLabels)
+	err := bm.executeHook(ctx, moduleHook, binding, bindingContext, logLabels, metricLabels)
 	if err != nil {
 		return "", "", err
 	}
@@ -886,7 +887,10 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 }
 
 // instead on ModuleHook.Run
-func (bm *BasicModule) executeHook(h *hooks.ModuleHook, bindingType sh_op_types.BindingType, bctx []bindingcontext.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
+func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bindingType sh_op_types.BindingType, bctx []bindingcontext.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
+	ctx, span := otel.Tracer("bm-"+bm.Name).Start(ctx, "executeHook")
+	defer span.End()
+
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"hook":            h.GetName(),
 		"hook.type":       "module",

@@ -3,12 +3,12 @@ package moduleensurecrds
 import (
 	"context"
 	"log/slog"
-	"runtime/trace"
 	"sync"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	crdinstaller "github.com/deckhouse/module-sdk/pkg/crd-installer"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/module_manager"
@@ -18,6 +18,10 @@ import (
 	klient "github.com/flant/kube-client/client"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+)
+
+const (
+	taskName = "module-ensure-crds"
 )
 
 // TaskDependencies defines the interface for accessing necessary components
@@ -85,7 +89,8 @@ func NewTask(
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(ctx, "ModuleEnsureCRDs").End()
+	_, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 

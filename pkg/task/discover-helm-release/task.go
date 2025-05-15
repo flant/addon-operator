@@ -3,10 +3,10 @@ package discoverhelmrelease
 import (
 	"context"
 	"log/slog"
-	"runtime/trace"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager"
@@ -15,6 +15,10 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+)
+
+const (
+	taskName = "discover-helm-releases"
 )
 
 // TaskDependencies provides access to the ModuleManager.
@@ -46,7 +50,8 @@ func NewTask(shellTask sh_task.Task, moduleManager *module_manager.ModuleManager
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(ctx, "DiscoverHelmReleases").End()
+	_, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
 
 	var res queue.TaskResult
 

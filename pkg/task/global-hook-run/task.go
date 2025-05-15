@@ -3,10 +3,10 @@ package globalhookrun
 import (
 	"context"
 	"log/slog"
-	"runtime/trace"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
@@ -23,6 +23,10 @@ import (
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
+)
+
+const (
+	taskName = "global-hook-run"
 )
 
 // TaskDependencies defines the services required for global hook task execution
@@ -68,7 +72,8 @@ func NewTask(shellTask sh_task.Task, isOperatorStartup bool, svc TaskDependencie
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(ctx, "GlobalHookRun").End()
+	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
 
 	var res queue.TaskResult
 
@@ -177,7 +182,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 		// Save a checksum of *Enabled values.
 		// Run Global hook.
-		beforeChecksum, afterChecksum, err := s.moduleManager.RunGlobalHook(hm.HookName, hm.BindingType, hm.BindingContext, s.shellTask.GetLogLabels())
+		beforeChecksum, afterChecksum, err := s.moduleManager.RunGlobalHook(ctx, hm.HookName, hm.BindingType, hm.BindingContext, s.shellTask.GetLogLabels())
 		if err != nil {
 			if hm.AllowFailure {
 				allowed = 1.0

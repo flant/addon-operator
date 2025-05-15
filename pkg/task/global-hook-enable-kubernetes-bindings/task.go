@@ -4,11 +4,11 @@ import (
 	"context"
 	"log/slog"
 	"path"
-	"runtime/trace"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
@@ -23,6 +23,10 @@ import (
 	"github.com/flant/shell-operator/pkg/metric"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+)
+
+const (
+	taskName = "global-hook-enable-kubernetes-bindings"
 )
 
 // TaskDependencies provides access to services needed by task handlers.
@@ -72,7 +76,8 @@ func NewTask(
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(ctx, "DiscoverHelmReleases").End()
+	_, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
 
 	var res queue.TaskResult
 	s.logger.Debug("Global hook enable kubernetes bindings")
