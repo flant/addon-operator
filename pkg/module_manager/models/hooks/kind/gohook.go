@@ -126,7 +126,7 @@ func (h *GoHook) Execute(_ string, bContext []bindingcontext.BindingContext, _ s
 			for _, snapshot := range snaps {
 				goSnapshot := snapshot.FilterResult
 
-				// TODO: fix all hooks which use nil comparsion
+				// TODO: fix all hooks which use nil comparison
 				// if goSnapshot == nil {
 				// 	continue
 				// }
