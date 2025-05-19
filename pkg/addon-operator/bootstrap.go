@@ -31,7 +31,7 @@ func (op *AddonOperator) bootstrap() error {
 		slog.String("namespace", op.DefaultNamespace))
 
 	// Initialize the debug server for troubleshooting and monitoring
-	// TODO: rewrite shapp global variables to the addon-operator ones
+	// TODO: rewrite shapp global variables to the addon-operator one
 	var err error
 	op.DebugServer, err = shell_operator.RunDefaultDebugServer(shapp.DebugUnixSocket, shapp.DebugHttpServerAddr, op.Logger.Named("debug-server"))
 	if err != nil {
