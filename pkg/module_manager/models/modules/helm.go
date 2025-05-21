@@ -88,7 +88,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	hm := &HelmModule{
-		name:             bm.Name,
+		name:             bm.GetName(),
 		defaultNamespace: namespace,
 		path:             bm.Path,
 		values:           chartValues,
@@ -113,7 +113,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 
 	if !isHelm {
 		hm.logger.Info("module has neither Chart.yaml nor templates/ dir, is't not a helm chart",
-			slog.String("name", bm.Name))
+			slog.String("name", bm.GetName()))
 		return nil, ErrModuleIsNotHelm
 	}
 

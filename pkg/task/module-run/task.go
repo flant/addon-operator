@@ -402,7 +402,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 		// run beforeHelm, helm, afterHelm
-		valuesChanged, moduleRunErr = s.moduleManager.RunModule(ctx, baseModule.Name, s.shellTask.GetLogLabels())
+		valuesChanged, moduleRunErr = s.moduleManager.RunModule(ctx, baseModule.GetName(), s.shellTask.GetLogLabels())
 	}
 
 	// this is task success, but not guarantee that module in Ready phase

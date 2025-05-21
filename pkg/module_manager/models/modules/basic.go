@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/kennygrant/sanitize"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
@@ -252,7 +253,7 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 
 	if len(shellHooks)+len(batchHooks) > 0 {
 		if err := bm.AssembleEnvironmentForModule(environmentmanager.ShellHookEnvironment); err != nil {
-			return nil, fmt.Errorf("Assemble %q module's environment: %w", bm.Name, err)
+			return nil, fmt.Errorf("Assemble %q module's environment: %w", bm.GetName(), err)
 		}
 	}
 
@@ -470,7 +471,7 @@ func IsFileBatchHook(moduleName, path string, f os.FileInfo) error {
 
 func (bm *BasicModule) searchModuleGoHooks() []*kind.GoHook {
 	// find module hooks in go hooks registry
-	return sdk.Registry().GetModuleHooks(bm.Name)
+	return sdk.Registry().GetModuleHooks(bm.GetName())
 }
 
 func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger) error {
@@ -481,20 +482,20 @@ func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger
 		// TODO: we could make multierr here and return all config errors at once
 		err := moduleHook.InitializeHookConfig()
 		if err != nil {
-			return fmt.Errorf("`%s` module hook `%s` --config invalid: %w", bm.Name, moduleHook.GetName(), err)
+			return fmt.Errorf("`%s` module hook `%s` --config invalid: %w", bm.GetName(), moduleHook.GetName(), err)
 		}
 
-		bm.logger.Debug("module hook config print", slog.String("module_name", bm.Name), slog.String("hook_name", moduleHook.GetName()), slog.Any("config", moduleHook.GetHookConfig().V1))
+		bm.logger.Debug("module hook config print", slog.String("module_name", bm.GetName()), slog.String("hook_name", moduleHook.GetName()), slog.Any("config", moduleHook.GetHookConfig().V1))
 
 		// Add hook info as log labels
 		for _, kubeCfg := range moduleHook.GetHookConfig().OnKubernetesEvents {
-			kubeCfg.Monitor.Metadata.LogLabels["module"] = bm.Name
+			kubeCfg.Monitor.Metadata.LogLabels["module"] = bm.GetName()
 			kubeCfg.Monitor.Metadata.LogLabels["hook"] = moduleHook.GetName()
 			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "module"
 			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
 				"hook":               moduleHook.GetName(),
 				pkg.MetricKeyBinding: kubeCfg.BindingName,
-				"module":             bm.Name,
+				"module":             bm.GetName(),
 				"queue":              kubeCfg.Queue,
 				"kind":               kubeCfg.Monitor.Kind,
 			}
@@ -603,7 +604,7 @@ func (bm *BasicModule) RunHooksByBinding(ctx context.Context, binding sh_op_type
 		bc.Metadata.BindingType = binding
 
 		metricLabels := map[string]string{
-			"module":                bm.Name,
+			"module":                bm.GetName(),
 			"hook":                  moduleHook.GetName(),
 			pkg.MetricKeyBinding:    string(binding),
 			"queue":                 "main", // AfterHelm,BeforeHelm hooks always handle in main queue
@@ -638,7 +639,7 @@ func (bm *BasicModule) RunHookByName(ctx context.Context, hookName string, bindi
 	}
 
 	metricLabels := map[string]string{
-		"module":                bm.Name,
+		"module":                bm.GetName(),
 		"hook":                  hookName,
 		pkg.MetricKeyBinding:    string(binding),
 		"queue":                 logLabels["queue"],
@@ -659,7 +660,7 @@ func (bm *BasicModule) RunHookByName(ctx context.Context, hookName string, bindi
 func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules []string, logLabels map[string]string) (bool, error) {
 	// Copy labels and set 'module' label.
 	logLabels = utils.MergeLabels(logLabels)
-	logLabels["module"] = bm.Name
+	logLabels["module"] = bm.GetName()
 
 	logEntry := utils.EnrichLoggerWithLabels(bm.logger, logLabels)
 	enabledScriptPath := filepath.Join(bm.Path, "enabled")
@@ -676,7 +677,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		}
 		err := os.Remove(configValuesPath)
 		if err != nil {
-			bm.logger.With("module", bm.Name).
+			bm.logger.With("module", bm.GetName()).
 				Error("Remove tmp file",
 					slog.String("path", enabledScriptPath),
 					log.Err(err))
@@ -696,7 +697,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		}
 		err := os.Remove(valuesPath)
 		if err != nil {
-			bm.logger.With("module", bm.Name).
+			bm.logger.With("module", bm.GetName()).
 				Error("Remove tmp file",
 					slog.String("path", configValuesPath),
 					log.Err(err))
@@ -716,7 +717,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		}
 		err := os.Remove(enabledResultFilePath)
 		if err != nil {
-			bm.logger.With("module", bm.Name).
+			bm.logger.With("module", bm.GetName()).
 				Error("Remove tmp file",
 					slog.String("path", configValuesPath),
 					log.Err(err))
@@ -734,7 +735,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 	envs = append(envs, fmt.Sprintf("MODULE_ENABLED_RESULT=%s", enabledResultFilePath))
 
 	if err := bm.AssembleEnvironmentForModule(environmentmanager.EnabledScriptEnvironment); err != nil {
-		return false, fmt.Errorf("Assemble %q module's environment: %w", bm.Name, err)
+		return false, fmt.Errorf("Assemble %q module's environment: %w", bm.GetName(), err)
 	}
 
 	cmd := executor.NewExecutor(
@@ -744,13 +745,13 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		envs).
 		WithLogger(bm.logger.Named("executor")).
 		WithCMDStdout(nil).
-		WithChroot(utils.GetModuleChrootPath(bm.Name))
+		WithChroot(utils.GetModuleChrootPath(bm.GetName()))
 
 	usage, err := cmd.RunAndLogLines(logLabels)
 	if usage != nil {
 		// usage metrics
 		metricLabels := map[string]string{
-			"module":                bm.Name,
+			"module":                bm.GetName(),
 			"hook":                  "enabled",
 			pkg.MetricKeyBinding:    "enabled",
 			"queue":                 logLabels["queue"],
@@ -794,7 +795,7 @@ func (bm *BasicModule) prepareValuesJsonFileForEnabledScript(tmpdir string, prec
 }
 
 func (bm *BasicModule) prepareModuleEnabledResultFile(tmpdir string) (string, error) {
-	path := filepath.Join(tmpdir, fmt.Sprintf("%s.module-enabled-result", bm.Name))
+	path := filepath.Join(tmpdir, fmt.Sprintf("%s.module-enabled-result", bm.GetName()))
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
@@ -833,7 +834,7 @@ func (bm *BasicModule) prepareValuesJsonFileWith(tmpdir string, values utils.Val
 	}
 
 	bm.logger.Debug("Prepared module hook values",
-		slog.String("module", bm.Name),
+		slog.String("module", bm.GetName()),
 		slog.String("values", values.DebugString()))
 
 	return path, nil
@@ -858,7 +859,7 @@ func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) 
 }
 
 func (bm *BasicModule) safeName() string {
-	return sanitize.BaseName(bm.Name)
+	return sanitize.BaseName(bm.GetName())
 }
 
 // CONFIG_VALUES_PATH
@@ -880,7 +881,7 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 	}
 
 	bm.logger.Debug("Prepared module hook config values",
-		slog.String("module", bm.Name),
+		slog.String("module", bm.GetName()),
 		slog.String("values", v.DebugString()))
 
 	return path, nil
@@ -888,8 +889,13 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 
 // instead on ModuleHook.Run
 func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bindingType sh_op_types.BindingType, bctx []bindingcontext.BindingContext, logLabels map[string]string, metricLabels map[string]string) error {
-	ctx, span := otel.Tracer("bm-"+bm.Name).Start(ctx, "executeHook")
+	ctx, span := otel.Tracer("bm-"+bm.GetName()).Start(ctx, "executeHook")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("module_name", bm.GetName()),
+		attribute.String("hook_name", h.GetName()),
+	)
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"hook":            h.GetName(),
@@ -905,7 +911,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 	if bindingType == sh_op_types.OnKubernetesEvent || bindingType == sh_op_types.Schedule {
 		logStartLevel = log.LevelDebug
 	}
-	logEntry.Log(ctx, logStartLevel.Level(), "Module hook start", slog.String(bm.Name, h.GetName()))
+	logEntry.Log(ctx, logStartLevel.Level(), "Module hook start", slog.String(bm.GetName(), h.GetName()))
 
 	for _, info := range h.GetHookController().SnapshotsInfo() {
 		logEntry.Debug("snapshot info",
@@ -956,7 +962,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 	// Apply metric operations
 	err = bm.dc.HookMetricsStorage.SendBatch(hookResult.Metrics, map[string]string{
 		"hook":   h.GetName(),
-		"module": bm.Name,
+		"module": bm.GetName(),
 	})
 	if err != nil {
 		return err
@@ -990,7 +996,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 				)
 			}
 
-			err := bm.dc.KubeConfigManager.SaveConfigValues(bm.Name, configValuesPatchResult.Values)
+			err := bm.dc.KubeConfigManager.SaveConfigValues(bm.GetName(), configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debug("Module hook kube module config values stay unchanged",
 					slog.String("module", h.GetName()),
@@ -1002,7 +1008,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 
 			logEntry.Debug("Module hook: kube module config values updated",
 				slog.String("hook", h.GetName()),
-				slog.String("module", bm.Name),
+				slog.String("module", bm.GetName()),
 				slog.String("values", bm.valuesStorage.GetConfigValues(false).DebugString()))
 		}
 	}
@@ -1036,13 +1042,13 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 
 			logEntry.Debug("Module hook: dynamic module values updated",
 				slog.String("hook", h.GetName()),
-				slog.String("module", bm.Name),
+				slog.String("module", bm.GetName()),
 				slog.String("values", bm.valuesStorage.GetValues(false).DebugString()))
 		}
 	}
 
 	logEntry.Debug("Module hook success",
-		slog.String("module", bm.Name),
+		slog.String("module", bm.GetName()),
 		slog.String("hook", h.GetName()))
 
 	return nil
@@ -1061,20 +1067,20 @@ type moduleValuesMergeResult struct {
 //
 //	my-super-module -> mySuperModule
 func (bm *BasicModule) moduleNameForValues() string {
-	return utils.ModuleNameToValuesKey(bm.Name)
+	return utils.ModuleNameToValuesKey(bm.GetName())
 }
 
 func (bm *BasicModule) handleModuleValuesPatch(currentValues utils.Values, valuesPatch utils.ValuesPatch) (*moduleValuesMergeResult, error) {
 	moduleValuesKey := bm.moduleNameForValues()
 
 	if err := utils.ValidateHookValuesPatch(valuesPatch, moduleValuesKey); err != nil {
-		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
+		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.GetName(), err)
 	}
 
 	// Apply new patches in Strict mode. Hook should not return 'remove' with nonexistent path.
 	newValues, valuesChanged, err := utils.ApplyValuesPatch(currentValues, valuesPatch, utils.Strict)
 	if err != nil {
-		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.Name, err)
+		return nil, fmt.Errorf("merge module '%s' values failed: %s", bm.GetName(), err)
 	}
 
 	switch v := newValues[moduleValuesKey].(type) {
@@ -1235,7 +1241,7 @@ func (bm *BasicModule) Validate() error {
 
 func (bm *BasicModule) DisassembleEnvironmentForModule() error {
 	if bm.dc.EnvironmentManager != nil {
-		return bm.dc.EnvironmentManager.DisassembleEnvironmentForModule(bm.Name, bm.Path, environmentmanager.NoEnvironment)
+		return bm.dc.EnvironmentManager.DisassembleEnvironmentForModule(bm.GetName(), bm.Path, environmentmanager.NoEnvironment)
 	}
 
 	return nil
@@ -1243,7 +1249,7 @@ func (bm *BasicModule) DisassembleEnvironmentForModule() error {
 
 func (bm *BasicModule) AssembleEnvironmentForModule(targetEnvironment environmentmanager.Environment) error {
 	if bm.dc.EnvironmentManager != nil {
-		return bm.dc.EnvironmentManager.AssembleEnvironmentForModule(bm.Name, bm.Path, targetEnvironment)
+		return bm.dc.EnvironmentManager.AssembleEnvironmentForModule(bm.GetName(), bm.Path, targetEnvironment)
 	}
 
 	return nil

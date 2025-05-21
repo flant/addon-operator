@@ -137,7 +137,7 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 }
 
 func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels map[string]string) error {
-	logEntry := utils.EnrichLoggerWithLabels(mm.logger, logLabels).With(slog.String("module", ml.Name))
+	logEntry := utils.EnrichLoggerWithLabels(mm.logger, logLabels).With(slog.String("module", ml.GetName()))
 
 	hks, err := ml.RegisterHooks(logEntry)
 	if err != nil {
@@ -156,7 +156,7 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 			"{PREFIX}binding_count",
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
-				"module": ml.Name,
+				"module": ml.GetName(),
 				"hook":   hk.GetName(),
 			})
 	}
@@ -173,7 +173,7 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 // It is a handler of task MODULE_RUN
 func (mm *ModuleManager) RunModuleHooks(ctx context.Context, m *modules.BasicModule, bt sh_op_types.BindingType, logLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		"module": m.Name,
+		"module": m.GetName(),
 		"queue":  "main",
 	})
 
