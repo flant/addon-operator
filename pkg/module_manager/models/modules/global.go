@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -168,6 +169,9 @@ func (gm *GlobalModule) GetName() string {
 }
 
 func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bindingType sh_op_types.BindingType, bc []bindingcontext.BindingContext, logLabels map[string]string) error {
+	ctx, span := otel.Tracer("gm-"+gm.GetName()).Start(ctx, "executeHook")
+	defer span.End()
+
 	// Convert bindingContext for version
 	// versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
 	logEntry := utils.EnrichLoggerWithLabels(gm.logger, logLabels)
@@ -179,7 +183,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 	prefixedConfigValues := gm.valuesStorage.GetConfigValues(true)
 	prefixedValues := gm.valuesStorage.GetValues(true)
 
-	hookResult, err := h.Execute(h.GetConfigVersion(), bc, "global", prefixedConfigValues, prefixedValues, logLabels)
+	hookResult, err := h.Execute(ctx, h.GetConfigVersion(), bc, "global", prefixedConfigValues, prefixedValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
 			"hook":                  h.GetName(),

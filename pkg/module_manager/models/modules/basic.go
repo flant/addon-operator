@@ -905,7 +905,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 	if bindingType == sh_op_types.OnKubernetesEvent || bindingType == sh_op_types.Schedule {
 		logStartLevel = log.LevelDebug
 	}
-	logEntry.Log(context.Background(), logStartLevel.Level(), "Module hook start", slog.String(bm.Name, h.GetName()))
+	logEntry.Log(ctx, logStartLevel.Level(), "Module hook start", slog.String(bm.Name, h.GetName()))
 
 	for _, info := range h.GetHookController().SnapshotsInfo() {
 		logEntry.Debug("snapshot info",
@@ -929,7 +929,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 		bm.moduleNameForValues(): values,
 	}
 
-	hookResult, err := h.Execute(h.GetConfigVersion(), bctx, bm.safeName(), hookConfigValues, hookValues, logLabels)
+	hookResult, err := h.Execute(ctx, h.GetConfigVersion(), bctx, bm.safeName(), hookConfigValues, hookValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)

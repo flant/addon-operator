@@ -1,6 +1,7 @@
 package kind
 
 import (
+	"context"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -23,7 +24,7 @@ func Test_Config_GoHook(t *testing.T) {
 
 	bc := make([]BindingContext, 0)
 
-	res, err := gh.Execute("", bc, "", nil, nil, nil)
+	res, err := gh.Execute(context.Background(), "", bc, "", nil, nil, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(res.Patches).ShouldNot(BeEmpty())
 	g.Expect(res.Metrics).ShouldNot(BeEmpty())

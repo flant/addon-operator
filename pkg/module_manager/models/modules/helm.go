@@ -173,7 +173,7 @@ var ErrReleaseIsUnmanaged = errors.New("release is unmanaged")
 // The `state` parameter determines the maintenance state of the release:
 // - If `state` is `Unmanaged`, a release label check is triggered, and the Helm upgrade is skipped.
 func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]string, state MaintenanceState) error {
-	ctx, span := otel.Tracer(helmModuleServiceName).Start(ctx, "RunHelmInstall")
+	_, span := otel.Tracer(helmModuleServiceName).Start(ctx, "RunHelmInstall")
 	defer span.End()
 
 	metricLabels := map[string]string{
