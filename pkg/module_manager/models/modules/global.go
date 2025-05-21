@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -128,7 +130,7 @@ func (gm *GlobalModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.GlobalH
 }
 
 // RunHookByName runs some specified hook by its name
-func (gm *GlobalModule) RunHookByName(hookName string, binding sh_op_types.BindingType, bindingContext []bindingcontext.BindingContext, logLabels map[string]string) (string, string, error) {
+func (gm *GlobalModule) RunHookByName(ctx context.Context, hookName string, binding sh_op_types.BindingType, bindingContext []bindingcontext.BindingContext, logLabels map[string]string) (string, string, error) {
 	globalHook := gm.byName[hookName]
 
 	beforeValues := gm.valuesStorage.GetValues(false)
@@ -150,7 +152,7 @@ func (gm *GlobalModule) RunHookByName(hookName string, binding sh_op_types.Bindi
 		bindingContext = newBindingContext
 	}
 
-	err := gm.executeHook(globalHook, binding, bindingContext, logLabels)
+	err := gm.executeHook(ctx, globalHook, binding, bindingContext, logLabels)
 	if err != nil {
 		return "", "", err
 	}
@@ -166,7 +168,10 @@ func (gm *GlobalModule) GetName() string {
 	return utils.GlobalValuesKey
 }
 
-func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types.BindingType, bc []bindingcontext.BindingContext, logLabels map[string]string) error {
+func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bindingType sh_op_types.BindingType, bc []bindingcontext.BindingContext, logLabels map[string]string) error {
+	ctx, span := otel.Tracer("gm-"+gm.GetName()).Start(ctx, "executeHook")
+	defer span.End()
+
 	// Convert bindingContext for version
 	// versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
 	logEntry := utils.EnrichLoggerWithLabels(gm.logger, logLabels)
@@ -178,7 +183,7 @@ func (gm *GlobalModule) executeHook(h *hooks.GlobalHook, bindingType sh_op_types
 	prefixedConfigValues := gm.valuesStorage.GetConfigValues(true)
 	prefixedValues := gm.valuesStorage.GetValues(true)
 
-	hookResult, err := h.Execute(h.GetConfigVersion(), bc, "global", prefixedConfigValues, prefixedValues, logLabels)
+	hookResult, err := h.Execute(ctx, h.GetConfigVersion(), bc, "global", prefixedConfigValues, prefixedValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
 			"hook":                  h.GetName(),

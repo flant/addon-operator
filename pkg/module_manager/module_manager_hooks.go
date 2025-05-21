@@ -1,6 +1,7 @@
 package module_manager
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -136,7 +137,7 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 }
 
 func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels map[string]string) error {
-	logEntry := utils.EnrichLoggerWithLabels(mm.logger, logLabels).With(slog.String("module", ml.Name))
+	logEntry := utils.EnrichLoggerWithLabels(mm.logger, logLabels).With(slog.String("module", ml.GetName()))
 
 	hks, err := ml.RegisterHooks(logEntry)
 	if err != nil {
@@ -155,7 +156,7 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 			"{PREFIX}binding_count",
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
-				"module": ml.Name,
+				"module": ml.GetName(),
 				"hook":   hk.GetName(),
 			})
 	}
@@ -170,9 +171,9 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 // It is a handler of task MODULE_RUN
 // Run is a phase of module lifecycle that runs onStartup and beforeHelm hooks, helm upgrade --install command and afterHelm hook.
 // It is a handler of task MODULE_RUN
-func (mm *ModuleManager) RunModuleHooks(m *modules.BasicModule, bt sh_op_types.BindingType, logLabels map[string]string) error {
+func (mm *ModuleManager) RunModuleHooks(ctx context.Context, m *modules.BasicModule, bt sh_op_types.BindingType, logLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		"module": m.Name,
+		"module": m.GetName(),
 		"queue":  "main",
 	})
 
@@ -181,5 +182,5 @@ func (mm *ModuleManager) RunModuleHooks(m *modules.BasicModule, bt sh_op_types.B
 	// Hooks can delete release resources, so stop resources monitor before run hooks.
 	// m.moduleManager.HelmResourcesManager.PauseMonitor(m.Name)
 
-	return m.RunHooksByBinding(bt, logLabels)
+	return m.RunHooksByBinding(ctx, bt, logLabels)
 }

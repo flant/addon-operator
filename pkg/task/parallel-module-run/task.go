@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"runtime/trace"
 	"strings"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
@@ -20,6 +20,10 @@ import (
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+)
+
+const (
+	taskName = "parallel-module-run"
 )
 
 // TaskDependencies defines the interface for accessing necessary components
@@ -72,7 +76,8 @@ func NewTask(
 // It creates tasks for each module in separate parallel queues, then monitors their completion
 // through a communication channel.
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(ctx, "ParallelModuleRun").End()
+	_, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
 
 	var res queue.TaskResult
 
