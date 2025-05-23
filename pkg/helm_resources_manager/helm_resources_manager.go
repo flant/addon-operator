@@ -74,7 +74,10 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 		return nil, err
 	}
 
-	go cache.Start(cctx)
+	go func() {
+		_ = cache.Start(cctx)
+	}()
+
 	log.Debug("Helm resource manager: cache's been started")
 	if synced := cache.WaitForCacheSync(cctx); !synced {
 		return nil, fmt.Errorf("Couldn't sync helm resource informer cache")

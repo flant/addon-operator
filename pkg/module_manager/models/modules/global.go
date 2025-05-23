@@ -490,10 +490,7 @@ func (gm *GlobalModule) searchGlobalHooks() ([]*hooks.GlobalHook, error) {
 		return nil, err
 	}
 
-	goHooks, err := gm.searchGlobalGoHooks()
-	if err != nil {
-		return nil, err
-	}
+	goHooks := gm.searchGlobalGoHooks()
 
 	batchHooks, err := gm.searchGlobalBatchHooks(gm.hooksDir)
 	if err != nil {
@@ -627,7 +624,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 	return hks, nil
 }
 
-func (gm *GlobalModule) searchGlobalGoHooks() ([]*kind.GoHook, error) {
+func (gm *GlobalModule) searchGlobalGoHooks() []*kind.GoHook {
 	// find global hooks in go hooks registry
 	goHooks := sdk.Registry().GetGlobalHooks()
 
@@ -635,10 +632,11 @@ func (gm *GlobalModule) searchGlobalGoHooks() ([]*kind.GoHook, error) {
 	if len(goHooks) > 0 {
 		count = strconv.Itoa(len(goHooks))
 	}
+
 	gm.logger.Info("Found global Go hooks",
 		slog.String("count", count))
 
-	return goHooks, nil
+	return goHooks
 }
 
 func (gm *GlobalModule) GetSchemaStorage() *validation.SchemaStorage {

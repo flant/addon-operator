@@ -1,6 +1,7 @@
 package node_mock
 
 import (
+	"context"
 	"slices"
 )
 
@@ -26,7 +27,7 @@ func (m MockModule) GetOrder() uint32 {
 	return m.Order
 }
 
-func (m MockModule) RunEnabledScript(_ string, _ []string, _ map[string]string) (bool, error) {
+func (m MockModule) RunEnabledScript(_ context.Context, _ string, _ []string, _ map[string]string) (bool, error) {
 	if m.EnabledScriptErr != nil {
 		return false, m.EnabledScriptErr
 	}

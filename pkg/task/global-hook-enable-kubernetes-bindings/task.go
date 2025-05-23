@@ -93,7 +93,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	newLogLabels := utils.MergeLabels(s.shellTask.GetLogLabels())
 	delete(newLogLabels, pkg.LogKeyTaskID)
 
-	err := s.moduleManager.HandleGlobalEnableKubernetesBindings(hm.HookName, func(hook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
+	err := s.moduleManager.HandleGlobalEnableKubernetesBindings(ctx, hm.HookName, func(hook *hooks.GlobalHook, info controller.BindingExecutionInfo) {
 		taskLogLabels := utils.MergeLabels(s.shellTask.GetLogLabels(), map[string]string{
 			pkg.LogKeyBinding:  htypes.OnKubernetesEvent.String() + "Synchronization",
 			pkg.LogKeyHook:     hook.GetName(),

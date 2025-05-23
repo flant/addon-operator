@@ -236,7 +236,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 		parallelSyncTasksToWait := make([]sh_task.Task, 0)
 
 		// Start monitors for each kubernetes binding in each module hook.
-		err := s.moduleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
+		err := s.moduleManager.HandleModuleEnableKubernetesBindings(ctx, hm.ModuleName, func(hook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
 			queueName := info.QueueName
 			if queueName == "main" && strings.HasPrefix(s.shellTask.GetQueueName(), app.ParallelQueuePrefix) {
 				// override main queue with parallel queue
