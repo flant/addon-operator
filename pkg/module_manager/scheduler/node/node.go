@@ -1,11 +1,12 @@
 package node
 
 import (
+	"context"
 	"strconv"
 )
 
 type ModuleInterface interface {
-	RunEnabledScript(string, []string, map[string]string) (bool, error)
+	RunEnabledScript(context.Context, string, []string, map[string]string) (bool, error)
 	GetName() string
 	GetOrder() uint32
 	GetPath() string

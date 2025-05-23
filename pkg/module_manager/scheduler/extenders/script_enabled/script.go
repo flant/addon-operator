@@ -1,6 +1,7 @@
 package script_enabled
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -100,7 +101,7 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 			refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
 				"extender": "ScriptEnabled",
 			})
-			isEnabled, err = moduleDescriptor.module.RunEnabledScript(e.tmpDir, e.GetEnabledModules(), refreshLogLabels)
+			isEnabled, err = moduleDescriptor.module.RunEnabledScript(context.Background(), e.tmpDir, e.GetEnabledModules(), refreshLogLabels)
 			if err != nil {
 				err = fmt.Errorf("failed to execute '%s' module's enabled script: %v", moduleDescriptor.module.GetName(), err)
 			}

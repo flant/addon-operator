@@ -657,7 +657,7 @@ func (bm *BasicModule) RunHookByName(ctx context.Context, hookName string, bindi
 }
 
 // RunEnabledScript execute enabled script
-func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules []string, logLabels map[string]string) (bool, error) {
+func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, precedingEnabledModules []string, logLabels map[string]string) (bool, error) {
 	// Copy labels and set 'module' label.
 	logLabels = utils.MergeLabels(logLabels)
 	logLabels["module"] = bm.GetName()
@@ -747,7 +747,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		WithCMDStdout(nil).
 		WithChroot(utils.GetModuleChrootPath(bm.GetName()))
 
-	usage, err := cmd.RunAndLogLines(context.TODO(), logLabels)
+	usage, err := cmd.RunAndLogLines(ctx, logLabels)
 	if usage != nil {
 		// usage metrics
 		metricLabels := map[string]string{
