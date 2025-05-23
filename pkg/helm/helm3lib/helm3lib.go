@@ -279,7 +279,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 					slog.Int("version", latestRelease.Version),
 					slog.String("release", nsReleaseName),
 					slog.String("status", string(latestRelease.Info.Status)),
-					slog.String("driver", driver.SecretsDriverName))
+					slog.String("driver", driver.ConfigMapsDriverName))
 				err := kubeClient.CoreV1().Secrets(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
 				if err != nil && !apierrors.IsNotFound(err) {
 					return fmt.Errorf("couldn't delete secret %s of release %s: %w", objectName, nsReleaseName, err)
@@ -293,9 +293,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 					slog.String("release", nsReleaseName),
 					slog.String("status", string(latestRelease.Info.Status)),
 					slog.String("driver", driver.ConfigMapsDriverName))
-				if err := h.rollbackLatestRelease(releases); err != nil {
-					return fmt.Errorf("failed to rollback pending release: %w", err)
-				}
+				h.rollbackLatestRelease(releases)
 			}
 		}
 	}
@@ -312,7 +310,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	return nil
 }
 
-func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
+func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 	latestRelease := releases[0]
 	nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
 
@@ -326,7 +324,7 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
 			h.Logger.Warn("Failed to uninstall pending release",
 				slog.String("release", nsReleaseName),
 				log.Err(err))
-			return err
+			return
 		}
 	} else {
 		previousVersion := latestRelease.Version - 1
@@ -344,12 +342,11 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
 			h.Logger.Warn("Failed to rollback pending release",
 				slog.String("release", nsReleaseName),
 				log.Err(err))
-			return err
+			return
 		}
 	}
 
 	h.Logger.Info("Rollback successful", slog.String("release", nsReleaseName))
-	return nil
 }
 
 func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
