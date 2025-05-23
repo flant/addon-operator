@@ -244,8 +244,6 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		// module update
 		moduleName := obj.Key
 		moduleCfg := obj.Config.Modules[obj.Key]
-		kcm.m.Lock()
-		defer kcm.m.Unlock()
 		if obj.Op == config.EventDelete {
 			kcm.logger.Info("Module section deleted", slog.String("moduleName", moduleName))
 			modulesChanged = append(modulesChanged, moduleName)
