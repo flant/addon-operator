@@ -299,6 +299,7 @@ func (b Backend) mergeValues(ctx context.Context, moduleName string, values util
 	return b.updateConfigMap(ctx, func(obj *v1.ConfigMap) error {
 		data, err := yaml.Marshal(values)
 		if err != nil {
+			b.logger.Error("YAML marshal error in mergeValues", slog.String("moduleName", moduleName), log.Err(err))
 			return err
 		}
 
@@ -312,13 +313,14 @@ func (b Backend) updateConfigMap(ctx context.Context, transformFn func(*v1.Confi
 
 	obj, err := b.getConfigMap(ctx)
 	if err != nil {
-		return nil
+		return err // return the actual error instead of nil
 	}
 
 	isUpdate := true
 	if obj == nil {
 		obj = &v1.ConfigMap{}
 		obj.Name = b.name
+		obj.Namespace = b.namespace // set namespace for new ConfigMap
 		isUpdate = false
 	}
 
