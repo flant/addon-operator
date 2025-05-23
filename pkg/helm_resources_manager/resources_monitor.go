@@ -284,11 +284,10 @@ func (r *ResourcesMonitor) checkGVKManifests(ctx context.Context, wg *sync.WaitG
 // list all objects in ns and return names of all existent objects
 func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvk namespacedGVK) (map[string]struct{}, error) {
 	objList := &v1.PartialObjectMetadataList{}
-	// Set correct GVK for PartialObjectMetadataList
 	objList.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   nsgvk.GVK.Group,
 		Version: nsgvk.GVK.Version,
-		Kind:    nsgvk.GVK.Kind + "List", // This is a convention, but may not always be correct for CRDs
+		Kind:    nsgvk.GVK.Kind + "List",
 	})
 	log.Debug("List objects from cache",
 		slog.String("nsgvk", fmt.Sprintf("%v", nsgvk)))
