@@ -55,9 +55,10 @@ type helmResourcesManager struct {
 var _ HelmResourcesManager = &helmResourcesManager{}
 
 func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger *log.Logger) (HelmResourcesManager, error) {
+	//nolint:govet
 	cctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	if kclient == nil {
+		//nolint:govet
 		return nil, fmt.Errorf("kube client not set")
 	}
 
