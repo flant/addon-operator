@@ -747,7 +747,7 @@ func (bm *BasicModule) RunEnabledScript(tmpDir string, precedingEnabledModules [
 		WithCMDStdout(nil).
 		WithChroot(utils.GetModuleChrootPath(bm.GetName()))
 
-	usage, err := cmd.RunAndLogLines(logLabels)
+	usage, err := cmd.RunAndLogLines(context.TODO(), logLabels)
 	if usage != nil {
 		// usage metrics
 		metricLabels := map[string]string{

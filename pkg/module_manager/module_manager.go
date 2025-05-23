@@ -792,6 +792,7 @@ func (mm *ModuleManager) RunModuleHook(ctx context.Context, moduleName, hookName
 }
 
 func (mm *ModuleManager) HandleKubeEvent(
+	ctx context.Context,
 	kubeEvent KubeEvent,
 	createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo) sh_task.Task,
 	createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo) sh_task.Task,
@@ -804,7 +805,7 @@ func (mm *ModuleManager) HandleKubeEvent(
 				return nil
 			}
 
-			task := gh.GetHookController().HandleKubeEventWithFormTask(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
+			task := gh.GetHookController().HandleKubeEventWithFormTask(ctx, kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
 				if createGlobalTaskFn == nil {
 					return nil
 				}
@@ -820,7 +821,7 @@ func (mm *ModuleManager) HandleKubeEvent(
 			return nil
 		}
 
-		task := mh.GetHookController().HandleKubeEventWithFormTask(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
+		task := mh.GetHookController().HandleKubeEventWithFormTask(ctx, kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
 			if createModuleTaskFn == nil {
 				return nil
 			}
@@ -834,10 +835,10 @@ func (mm *ModuleManager) HandleKubeEvent(
 	return tasks
 }
 
-func (mm *ModuleManager) HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo)) error {
+func (mm *ModuleManager) HandleGlobalEnableKubernetesBindings(ctx context.Context, hookName string, createTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo)) error {
 	gh := mm.GetGlobalHook(hookName)
 
-	err := gh.GetHookController().HandleEnableKubernetesBindings(func(info controller.BindingExecutionInfo) {
+	err := gh.GetHookController().HandleEnableKubernetesBindings(ctx, func(info controller.BindingExecutionInfo) {
 		if createTaskFn != nil {
 			createTaskFn(gh, info)
 		}
@@ -849,13 +850,13 @@ func (mm *ModuleManager) HandleGlobalEnableKubernetesBindings(hookName string, c
 	return nil
 }
 
-func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(moduleName string, createTaskFn func(*hooks.ModuleHook, controller.BindingExecutionInfo)) error {
+func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(ctx context.Context, moduleName string, createTaskFn func(*hooks.ModuleHook, controller.BindingExecutionInfo)) error {
 	ml := mm.GetModule(moduleName)
 
 	kubeHooks := ml.GetHooks(OnKubernetesEvent)
 
 	for _, mh := range kubeHooks {
-		err := mh.GetHookController().HandleEnableKubernetesBindings(func(info controller.BindingExecutionInfo) {
+		err := mh.GetHookController().HandleEnableKubernetesBindings(ctx, func(info controller.BindingExecutionInfo) {
 			if createTaskFn != nil {
 				createTaskFn(mh, info)
 			}
@@ -901,6 +902,7 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 }
 
 func (mm *ModuleManager) HandleScheduleEvent(
+	ctx context.Context,
 	crontab string,
 	createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo) sh_task.Task,
 	createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo) sh_task.Task,
@@ -912,7 +914,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 				return nil
 			}
 
-			newTasks := gh.GetHookController().HandleScheduleEventWithFormTasks(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
+			newTasks := gh.GetHookController().HandleScheduleEventWithFormTasks(ctx, crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
 				if createGlobalTaskFn == nil {
 					return nil
 				}
@@ -928,7 +930,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 			return nil
 		}
 
-		newTasks := mh.GetHookController().HandleScheduleEventWithFormTasks(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
+		newTasks := mh.GetHookController().HandleScheduleEventWithFormTasks(ctx, crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
 			if createGlobalTaskFn == nil {
 				return nil
 			}

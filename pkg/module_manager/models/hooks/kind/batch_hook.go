@@ -94,7 +94,7 @@ func (h *BatchHook) GetHookConfigDescription() string {
 }
 
 // Execute runs the hook via the OS interpreter and returns the result of the execution
-func (h *BatchHook) Execute(_ context.Context, configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
+func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
 	result := &HookResult{
 		Patches: make(map[utils.ValuesPatchType]*utils.ValuesPatch),
 	}
@@ -148,7 +148,7 @@ func (h *BatchHook) Execute(_ context.Context, configVersion string, bContext []
 		WithLogger(h.Logger.Named("executor")).
 		WithChroot(utils.GetModuleChrootPath(h.moduleName))
 
-	usage, err := cmd.RunAndLogLines(logLabels)
+	usage, err := cmd.RunAndLogLines(ctx, logLabels)
 	result.Usage = usage
 	if err != nil {
 		return result, err
