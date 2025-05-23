@@ -92,6 +92,7 @@ func (r *ResourcesMonitor) Start() {
 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		randSecondsDelay := time.Second * time.Duration(rnd.Int31n(60))
 		timer := time.NewTicker(monitorDelayBase + randSecondsDelay)
+		defer timer.Stop() // Ensure timer is always stopped
 
 		for {
 			select {
@@ -103,6 +104,7 @@ func (r *ResourcesMonitor) Start() {
 				status, err := r.GetHelmReleaseStatus(r.moduleName)
 				if err != nil {
 					r.logger.Error("cannot get helm release status", log.Err(err))
+					continue // Do not proceed if status cannot be obtained
 				}
 
 				if status != "deployed" {
@@ -112,12 +114,14 @@ func (r *ResourcesMonitor) Start() {
 					if r.absentCb != nil {
 						r.absentCb(r.moduleName, true, []manifest.Manifest{}, r.defaultNamespace)
 					}
+					continue // Do not check resources if status is not deployed
 				}
 
 				// Check resources
 				absent, err := r.AbsentResources()
 				if err != nil {
 					r.logger.Error("cannot list helm resources", log.Err(err))
+					continue // Do not proceed if resources cannot be listed
 				}
 
 				if len(absent) > 0 {
@@ -130,7 +134,6 @@ func (r *ResourcesMonitor) Start() {
 				}
 
 			case <-r.ctx.Done():
-				timer.Stop()
 				return
 			}
 		}
@@ -281,10 +284,11 @@ func (r *ResourcesMonitor) checkGVKManifests(ctx context.Context, wg *sync.WaitG
 // list all objects in ns and return names of all existent objects
 func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvk namespacedGVK) (map[string]struct{}, error) {
 	objList := &v1.PartialObjectMetadataList{}
+	// Set correct GVK for PartialObjectMetadataList
 	objList.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   nsgvk.GVK.Group,
 		Version: nsgvk.GVK.Version,
-		Kind:    nsgvk.GVK.Kind + "List",
+		Kind:    nsgvk.GVK.Kind + "List", // This is a convention, but may not always be correct for CRDs
 	})
 	log.Debug("List objects from cache",
 		slog.String("nsgvk", fmt.Sprintf("%v", nsgvk)))
