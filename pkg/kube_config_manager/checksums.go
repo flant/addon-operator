@@ -15,16 +15,25 @@ func (c *Checksums) Add(name string, checksum string) {
 	if !c.HasChecksum(name) {
 		c.RemoveAll(name)
 	}
+	if c.sums[name] == nil {
+		c.sums[name] = make(map[string]struct{})
+	}
 	c.sums[name][checksum] = struct{}{}
 }
 
 func (c *Checksums) Remove(name string, checksum string) {
+	if c.sums[name] == nil {
+		return
+	}
 	delete(c.sums[name], checksum)
 }
 
 // Set saves only one checksum for the name.
 func (c *Checksums) Set(name string, checksum string) {
 	c.RemoveAll(name)
+	if c.sums[name] == nil {
+		c.sums[name] = make(map[string]struct{})
+	}
 	c.sums[name][checksum] = struct{}{}
 }
 
