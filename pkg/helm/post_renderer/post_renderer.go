@@ -32,7 +32,8 @@ func (p *PostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, erro
 		for k, v := range p.extraLabels {
 			labels[k] = v
 		}
-		node.SetLabels(labels)
+
+		_ = node.SetLabels(labels)
 	}
 
 	str, err := kio.StringAll(nodes)

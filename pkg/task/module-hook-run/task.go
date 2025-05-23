@@ -281,7 +281,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 					newTask.SetProp("triggered-by", triggeredBy)
 
-					s.queueService.AddLastTaskToMain(newTask.WithQueuedAt(time.Now()))
+					_ = s.queueService.AddLastTaskToMain(newTask.WithQueuedAt(time.Now()))
 
 					s.logTaskAdd("module values are changed, append", newTask)
 				} else {

@@ -118,7 +118,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				},
 			})
 
-		s.queueService.AddLastTaskToQueue(queueName, newTask)
+		_ = s.queueService.AddLastTaskToQueue(queueName, newTask)
 
 		i++
 	}
