@@ -341,6 +341,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
 		}
+		return
 	}
 
 	newConfig := obj.Config
@@ -409,6 +410,10 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 			if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
 				modulesStateChanged = append(modulesStateChanged, moduleName)
 			}
+
+			if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() == utils.NoResourceReconciliation {
+				moduleMaintenanceChanged[moduleName] = utils.Managed
+			}
 		}
 		kcm.logger.Info("Module sections deleted",
 			slog.String("modules", fmt.Sprintf("%+v", currentModuleNames)))
@@ -419,7 +424,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	kcm.m.Unlock()
 
 	// Fire event if ConfigMap has changes.
-	if globalChanged || len(modulesChanged)+len(moduleMaintenanceChanged) > 0 {
+	if globalChanged || len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type:                      config.KubeConfigChanged,
 			GlobalSectionChanged:      globalChanged,
