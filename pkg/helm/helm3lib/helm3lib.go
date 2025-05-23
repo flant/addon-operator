@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"sort"
 	"strconv"
@@ -81,9 +82,10 @@ func (h *LibClient) WithLogLabels(logLabels map[string]string) {
 }
 
 func (h *LibClient) WithExtraLabels(labels map[string]string) {
-	for k, v := range labels {
-		h.labels[k] = v
+	if h.labels == nil {
+		h.labels = make(map[string]string)
 	}
+	maps.Copy(h.labels, labels)
 }
 
 // buildConfigFlagsFromEnv builds a ConfigFlags object from the environment and
@@ -210,13 +212,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	if len(setValues) > 0 {
-		m := make(map[string]interface{})
-		for _, sv := range setValues {
-			arr := strings.Split(sv, "=")
-			if len(arr) == 2 {
-				m[arr[0]] = arr[1]
-			}
-		}
+		m := parseSetValues(setValues)
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
@@ -283,7 +279,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 					slog.Int("version", latestRelease.Version),
 					slog.String("release", nsReleaseName),
 					slog.String("status", string(latestRelease.Info.Status)),
-					slog.String("driver", driver.ConfigMapsDriverName))
+					slog.String("driver", driver.SecretsDriverName))
 				err := kubeClient.CoreV1().Secrets(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
 				if err != nil && !apierrors.IsNotFound(err) {
 					return fmt.Errorf("couldn't delete secret %s of release %s: %w", objectName, nsReleaseName, err)
@@ -297,7 +293,9 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 					slog.String("release", nsReleaseName),
 					slog.String("status", string(latestRelease.Info.Status)),
 					slog.String("driver", driver.ConfigMapsDriverName))
-				h.rollbackLatestRelease(releases)
+				if err := h.rollbackLatestRelease(releases); err != nil {
+					return fmt.Errorf("failed to rollback pending release: %w", err)
+				}
 			}
 		}
 	}
@@ -314,7 +312,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	return nil
 }
 
-func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
+func (h *LibClient) rollbackLatestRelease(releases []*release.Release) error {
 	latestRelease := releases[0]
 	nsReleaseName := fmt.Sprintf("%s/%s", latestRelease.Namespace, latestRelease.Name)
 
@@ -328,7 +326,7 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 			h.Logger.Warn("Failed to uninstall pending release",
 				slog.String("release", nsReleaseName),
 				log.Err(err))
-			return
+			return err
 		}
 	} else {
 		previousVersion := latestRelease.Version - 1
@@ -346,11 +344,12 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 			h.Logger.Warn("Failed to rollback pending release",
 				slog.String("release", nsReleaseName),
 				log.Err(err))
-			return
+			return err
 		}
 	}
 
 	h.Logger.Info("Rollback successful", slog.String("release", nsReleaseName))
+	return nil
 }
 
 func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
@@ -447,6 +446,18 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	return releases, nil
 }
 
+// parseSetValues parses setValues slice into a map, supporting '=' in values
+func parseSetValues(setValues []string) map[string]any {
+	m := make(map[string]any)
+	for _, sv := range setValues {
+		arr := strings.SplitN(sv, "=", 2)
+		if len(arr) == 2 {
+			m[arr[0]] = arr[1]
+		}
+	}
+	return m
+}
+
 func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
 	chart, err := loader.Load(chartName)
 	if err != nil {
@@ -465,13 +476,7 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	}
 
 	if len(setValues) > 0 {
-		m := make(map[string]interface{})
-		for _, sv := range setValues {
-			arr := strings.Split(sv, "=")
-			if len(arr) == 2 {
-				m[arr[0]] = arr[1]
-			}
-		}
+		m := parseSetValues(setValues)
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
