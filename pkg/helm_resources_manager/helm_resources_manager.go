@@ -82,7 +82,7 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 	if synced := cache.WaitForCacheSync(cctx); !synced {
 		return nil, fmt.Errorf("Couldn't sync helm resource informer cache")
 	}
-	logger.Debug("Helm resourcer manager: cache has been synced")
+	logger.Debug("Helm resource manager: cache has been synced")
 
 	return &helmResourcesManager{
 		eventCh:    make(chan ReleaseStatusEvent),
