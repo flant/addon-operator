@@ -199,17 +199,22 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 // handleConfigEvent determine changes in kube config. It sends KubeConfigChanged event if something
 // changed or KubeConfigInvalid event if Config is incorrect.
 func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
+	var eventToSend *config.KubeConfigEvent
+
 	// Lock to protect access to currentConfig and knownChecksums
 	kcm.m.Lock()
-	defer kcm.m.Unlock()
 	if obj.Err != nil {
 		// Do not update caches to detect changes on next update.
-		kcm.configEventCh <- config.KubeConfigEvent{
+		eventToSend = &config.KubeConfigEvent{
 			Type: config.KubeConfigInvalid,
 		}
 		kcm.logger.Error("Config invalid",
 			slog.String("name", obj.Key),
 			log.Err(obj.Err))
+		kcm.m.Unlock()
+		if eventToSend != nil {
+			kcm.configEventCh <- *eventToSend
+		}
 		return
 	}
 
@@ -217,22 +222,20 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 	case "":
 		// Config backend was reset
 		kcm.currentConfig = config.NewConfig()
-		kcm.configEventCh <- config.KubeConfigEvent{
+		eventToSend = &config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
 		}
-
 	case utils.GlobalValuesKey:
 		// global values
 		globalChanged := kcm.isGlobalChanged(obj.Config)
 		// Update state after successful parsing.
 		kcm.currentConfig.Global = obj.Config.Global
 		if globalChanged {
-			kcm.configEventCh <- config.KubeConfigEvent{
+			eventToSend = &config.KubeConfigEvent{
 				Type:                 config.KubeConfigChanged,
 				GlobalSectionChanged: globalChanged,
 			}
 		}
-
 	default:
 		// some module values
 		modulesChanged := []string{}
@@ -256,11 +259,15 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			moduleCfg.Reset()
 			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
-			kcm.configEventCh <- config.KubeConfigEvent{
+			eventToSend = &config.KubeConfigEvent{
 				Type:                      config.KubeConfigChanged,
 				ModuleValuesChanged:       modulesChanged,
 				ModuleEnabledStateChanged: modulesStateChanged,
 				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
+			}
+			kcm.m.Unlock()
+			if eventToSend != nil {
+				kcm.configEventCh <- *eventToSend
 			}
 			return
 		}
@@ -302,13 +309,17 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 
 		if len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
 			kcm.currentConfig.Modules[obj.Key] = moduleCfg
-			kcm.configEventCh <- config.KubeConfigEvent{
+			eventToSend = &config.KubeConfigEvent{
 				Type:                      config.KubeConfigChanged,
 				ModuleValuesChanged:       modulesChanged,
 				ModuleEnabledStateChanged: modulesStateChanged,
 				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
 			}
 		}
+	}
+	kcm.m.Unlock()
+	if eventToSend != nil {
+		kcm.configEventCh <- *eventToSend
 	}
 }
 
