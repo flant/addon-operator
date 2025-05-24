@@ -92,6 +92,7 @@ func (r *ResourcesMonitor) Start() {
 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		randSecondsDelay := time.Second * time.Duration(rnd.Int31n(60))
 		timer := time.NewTicker(monitorDelayBase + randSecondsDelay)
+		// timer.Stop() will be called explicitly before goroutine exit
 
 		for {
 			select {
@@ -130,7 +131,7 @@ func (r *ResourcesMonitor) Start() {
 				}
 
 			case <-r.ctx.Done():
-				timer.Stop()
+				timer.Stop() // Stop the timer explicitly before exiting goroutine
 				return
 			}
 		}

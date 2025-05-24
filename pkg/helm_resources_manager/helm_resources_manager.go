@@ -78,11 +78,11 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 		_ = cache.Start(cctx)
 	}()
 
-	log.Debug("Helm resource manager: cache's been started")
+	logger.Debug("Helm resource manager: cache's been started")
 	if synced := cache.WaitForCacheSync(cctx); !synced {
 		return nil, fmt.Errorf("Couldn't sync helm resource informer cache")
 	}
-	log.Debug("Helm resourcer manager: cache has been synced")
+	logger.Debug("Helm resource manager: cache has been synced")
 
 	return &helmResourcesManager{
 		eventCh:    make(chan ReleaseStatusEvent),
@@ -96,6 +96,8 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 }
 
 func (hm *helmResourcesManager) WithDefaultNamespace(namespace string) {
+	hm.l.Lock()
+	defer hm.l.Unlock()
 	hm.Namespace = namespace
 }
 
@@ -110,7 +112,7 @@ func (hm *helmResourcesManager) Ch() chan ReleaseStatusEvent {
 }
 
 func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, lastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
-	log.Debug("Start helm resources monitor for module",
+	hm.logger.Debug("Start helm resources monitor for module",
 		slog.String("module", moduleName))
 	hm.StopMonitor(moduleName)
 
@@ -135,10 +137,10 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 }
 
 func (hm *helmResourcesManager) absentResourcesCallback(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string) {
-	log.Debug("Detect absent resources for module",
+	hm.logger.Debug("Detect absent resources for module",
 		slog.String("module", moduleName))
 	for _, m := range absent {
-		log.Debug("absent module",
+		hm.logger.Debug("absent module",
 			slog.String("namespace", m.Namespace(defaultNs)),
 			slog.String("kind", m.Kind()),
 			slog.String("module", m.Name()))
