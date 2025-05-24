@@ -454,7 +454,7 @@ func parseSetValues(setValues []string) map[string]any {
 				// skip entries with empty key
 				continue
 			}
-			m[key] = arr[1]
+			m[key] = strings.TrimSpace(arr[1])
 		}
 	}
 	return m
