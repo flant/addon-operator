@@ -449,7 +449,12 @@ func parseSetValues(setValues []string) map[string]any {
 	for _, sv := range setValues {
 		arr := strings.SplitN(sv, "=", 2)
 		if len(arr) == 2 {
-			m[arr[0]] = arr[1]
+			key := strings.TrimSpace(arr[0])
+			if key == "" {
+				// skip entries with empty key
+				continue
+			}
+			m[key] = arr[1]
 		}
 	}
 	return m
