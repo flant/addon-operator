@@ -324,10 +324,12 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		return
 	}
 
+	// Lock to read known checksums and update config.
+	kcm.m.Lock()
+	defer kcm.m.Unlock()
+
 	if obj.Key == "" {
 		// Config backend was reset
-		kcm.m.Lock()
-		defer kcm.m.Unlock()
 		kcm.currentConfig = config.NewConfig()
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
@@ -336,10 +338,6 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	}
 
 	newConfig := obj.Config
-
-	// Lock to read known checksums and update config.
-	kcm.m.Lock()
-	defer kcm.m.Unlock()
 
 	globalChanged := kcm.isGlobalChanged(newConfig)
 
