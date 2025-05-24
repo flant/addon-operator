@@ -46,7 +46,7 @@ type helmResourcesManager struct {
 
 	eventCh chan ReleaseStatusEvent
 
-	logger *log.Logger // Use the logger interface from deckhouse/pkg/log
+	logger *log.Logger
 
 	l        sync.RWMutex
 	monitors map[string]*ResourcesMonitor
