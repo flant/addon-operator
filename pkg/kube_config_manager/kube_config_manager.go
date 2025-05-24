@@ -199,6 +199,9 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 // handleConfigEvent determine changes in kube config. It sends KubeConfigChanged event if something
 // changed or KubeConfigInvalid event if Config is incorrect.
 func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
+	// Lock to protect access to currentConfig and knownChecksums
+	kcm.m.Lock()
+	defer kcm.m.Unlock()
 	if obj.Err != nil {
 		// Do not update caches to detect changes on next update.
 		kcm.configEventCh <- config.KubeConfigEvent{
@@ -213,21 +216,16 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 	switch obj.Key {
 	case "":
 		// Config backend was reset
-		kcm.m.Lock()
 		kcm.currentConfig = config.NewConfig()
-		kcm.m.Unlock()
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
 		}
 
 	case utils.GlobalValuesKey:
 		// global values
-
-		kcm.m.Lock()
 		globalChanged := kcm.isGlobalChanged(obj.Config)
 		// Update state after successful parsing.
 		kcm.currentConfig.Global = obj.Config.Global
-		kcm.m.Unlock()
 		if globalChanged {
 			kcm.configEventCh <- config.KubeConfigEvent{
 				Type:                 config.KubeConfigChanged,
