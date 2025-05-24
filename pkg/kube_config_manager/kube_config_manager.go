@@ -122,13 +122,14 @@ func (kcm *KubeConfigManager) KubeConfigEventCh() chan config.KubeConfigEvent {
 
 // UpdateModuleConfig updates a single module config
 func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
-	kcm.m.Lock()
-	defer kcm.m.Unlock()
+	// Load config outside the lock to reduce contention
 	newModuleConfig, err := kcm.backend.LoadConfig(kcm.ctx, moduleName)
 	if err != nil {
 		return err
 	}
 
+	kcm.m.Lock()
+	defer kcm.m.Unlock()
 	if moduleConfig, found := newModuleConfig.Modules[moduleName]; found {
 		if kcm.knownChecksums != nil {
 			kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
