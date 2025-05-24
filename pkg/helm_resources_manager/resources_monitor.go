@@ -104,7 +104,6 @@ func (r *ResourcesMonitor) Start() {
 				status, err := r.GetHelmReleaseStatus(r.moduleName)
 				if err != nil {
 					r.logger.Error("cannot get helm release status", log.Err(err))
-					continue // Do not proceed if status cannot be obtained
 				}
 
 				if status != "deployed" {
@@ -114,14 +113,12 @@ func (r *ResourcesMonitor) Start() {
 					if r.absentCb != nil {
 						r.absentCb(r.moduleName, true, []manifest.Manifest{}, r.defaultNamespace)
 					}
-					continue // Do not check resources if status is not deployed
 				}
 
 				// Check resources
 				absent, err := r.AbsentResources()
 				if err != nil {
 					r.logger.Error("cannot list helm resources", log.Err(err))
-					continue // Do not proceed if resources cannot be listed
 				}
 
 				if len(absent) > 0 {
