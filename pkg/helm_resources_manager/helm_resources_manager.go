@@ -97,8 +97,8 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 
 func (hm *helmResourcesManager) WithDefaultNamespace(namespace string) {
 	hm.l.Lock()
+	defer hm.l.Unlock()
 	hm.Namespace = namespace
-	hm.l.Unlock()
 }
 
 func (hm *helmResourcesManager) Stop() {
