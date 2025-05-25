@@ -339,14 +339,15 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 
 	// Lock to read known checksums and update config.
 	kcm.m.Lock()
-	defer kcm.m.Unlock()
 
 	if obj.Key == "" {
 		// Config backend was reset
 		kcm.currentConfig = config.NewConfig()
-		kcm.configEventCh <- config.KubeConfigEvent{
+		eventToSend := config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
 		}
+		kcm.m.Unlock()
+		kcm.configEventCh <- eventToSend
 		return
 	}
 
@@ -426,9 +427,10 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	// Update state after successful parsing.
 	kcm.currentConfig = newConfig
 
-	// Fire event if ConfigMap has changes.
+	// Prepare event data while holding the lock
+	var eventToSend *config.KubeConfigEvent
 	if globalChanged || len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
-		kcm.configEventCh <- config.KubeConfigEvent{
+		eventToSend = &config.KubeConfigEvent{
 			Type:                      config.KubeConfigChanged,
 			GlobalSectionChanged:      globalChanged,
 			ModuleValuesChanged:       modulesChanged,
@@ -436,6 +438,10 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 			ModuleMaintenanceChanged:  moduleMaintenanceChanged,
 		}
 	}
+
+	// Unlock before sending event to prevent deadlock
+	kcm.m.Unlock()
+	kcm.sendEventIfNeeded(eventToSend)
 }
 
 func (kcm *KubeConfigManager) Start() {
