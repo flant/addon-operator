@@ -235,7 +235,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		return
 	}
 
-	// Обработка изменений в глобальной секции
+	// Processing changes in the global section
 	if obj.Key == utils.GlobalValuesKey {
 		kcm.withLock(func() {
 			eventToSend = kcm.handleGlobalConfig(obj.Config)
@@ -248,10 +248,10 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		return
 	}
 
-	// Обработка изменений в модуле
+	// Processing changes in the module
 	moduleName := obj.Key
 
-	// Событие удаления модуля
+	// Module deletion event
 	if obj.Op == config.EventDelete {
 		kcm.withLock(func() {
 			eventToSend = kcm.handleModuleDelete(moduleName)
@@ -264,7 +264,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			}
 		})
 	} else {
-		// Событие обновления модуля
+		// Module update event
 		moduleCfg := obj.Config.Modules[obj.Key]
 		kcm.withLock(func() {
 			eventToSend = kcm.handleModuleUpdate(moduleName, moduleCfg)
@@ -275,12 +275,12 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		})
 	}
 
-	// Отправка события после разблокировки
+	// Sending event after unlocking
 	kcm.sendEventIfNeeded(eventToSend)
 }
 
-// handleBatchConfigEvent обрабатывает пакетные изменения конфигурации
-// Оптимизирован для уменьшения времени блокировки мьютекса
+// handleBatchConfigEvent processes batch configuration changes
+// Optimized to reduce mutex locking time
 func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	if obj.Err != nil {
 		eventToSend := kcm.handleConfigError("batch", obj.Err)
@@ -289,14 +289,14 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	}
 
 	if obj.Key == "" {
-		// Обработка сброса конфигурации бэкенда
+		// Processing backend configuration reset
 		kcm.withLock(func() {
 			// Config backend was reset
 			eventToSend := kcm.handleResetConfig()
 			if eventToSend != nil {
 				// Update currentConfig with a new config instance
 				kcm.currentConfig = config.NewConfig()
-				// Отправляем событие сразу, чтобы не нужно было освобождать блокировку
+				// Send event immediately to avoid needing to release the lock
 				kcm.sendEventIfNeeded(eventToSend)
 			}
 		})
@@ -305,7 +305,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 
 	newConfig := obj.Config
 
-	// Предварительное создание структур данных для результатов
+	// Preliminary creation of data structures for results
 	var (
 		globalChanged            bool
 		modulesChanged           []string
@@ -314,11 +314,11 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		eventToSend              *config.KubeConfigEvent
 	)
 
-	// Подготовка данных для обработки удаленных модулей
-	// Это позволяет уменьшить время блокировки мьютекса
+	// Preparing data for processing deleted modules
+	// This allows reducing mutex locking time
 	var currentModuleNames map[string]struct{}
 
-	// Первая блокировка - только чтение для создания списка текущих модулей
+	// First lock - read-only to create a list of current modules
 	kcm.withRLock(func() {
 		currentModuleNames = make(map[string]struct{}, len(kcm.currentConfig.Modules))
 		for name := range kcm.currentConfig.Modules {
@@ -326,12 +326,12 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		}
 	})
 
-	// Теперь обработаем обновления модулей вне блокировки для определения изменений
+	// Now process module updates outside of the lock to determine changes
 	modulesChanged = []string{}
 	modulesStateChanged = []string{}
 	moduleMaintenanceChanged = make(map[string]utils.Maintenance)
 
-	// Блокировка для проверки и обновления состояния
+	// Locking to check and update state
 	kcm.withLock(func() {
 		globalChanged = kcm.isGlobalChanged(newConfig)
 
@@ -378,7 +378,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		}
 	})
 
-	// Отправка события вне блокировки для предотвращения возможного дедлока
+	// Sending event outside of the lock to prevent possible deadlock
 	kcm.sendEventIfNeeded(eventToSend)
 }
 
@@ -416,8 +416,8 @@ func (kcm *KubeConfigManager) Stop() {
 }
 
 // SafeReadConfig locks currentConfig to safely read from it in external services.
-// Этот метод обеспечивает потокобезопасный доступ к конфигурации для внешних сервисов,
-// используя блокировку чтения.
+// This method provides thread-safe access to the configuration for external services,
+// using a read lock.
 func (kcm *KubeConfigManager) SafeReadConfig(handler func(config *config.KubeConfig)) {
 	if handler == nil {
 		return
@@ -427,8 +427,8 @@ func (kcm *KubeConfigManager) SafeReadConfig(handler func(config *config.KubeCon
 	})
 }
 
-// withRLock выполняет функцию fn под блокировкой чтения мьютекса.
-// Используйте для безопасного чтения защищенного состояния.
+// withRLock executes function fn under a read lock of the mutex.
+// Use for safe reading of protected state.
 func (kcm *KubeConfigManager) withRLock(fn func()) {
 	if fn == nil {
 		return
@@ -438,8 +438,8 @@ func (kcm *KubeConfigManager) withRLock(fn func()) {
 	fn()
 }
 
-// withLock выполняет функцию fn под эксклюзивной блокировкой мьютекса.
-// Используйте для безопасного изменения защищенного состояния.
+// withLock executes function fn under an exclusive lock of the mutex.
+// Use for safe modification of protected state.
 func (kcm *KubeConfigManager) withLock(fn func()) {
 	if fn == nil {
 		return
