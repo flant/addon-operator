@@ -209,11 +209,11 @@ func (kcm *KubeConfigManager) sendEventIfNeeded(eventToSend *config.KubeConfigEv
 	}
 }
 
-// handleConfigEvent определяет изменения в конфигурации Kubernetes. Отправляет событие KubeConfigChanged
-// если что-то изменилось, или KubeConfigInvalid, если конфигурация некорректна.
-// Метод оптимизирован для минимизации времени блокировки мьютекса.
+// handleConfigEvent identifies changes in the Kubernetes configuration. Sends a KubeConfigChanged event
+// if something changed, or KubeConfigInvalid if the configuration is invalid.
+// This method is optimized to minimize mutex blocking time.
 func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
-	// Обработка ошибок конфигурации без длительной блокировки
+	// Handle configuration errors without long blocking
 	if obj.Err != nil {
 		eventToSend := kcm.handleConfigError(obj.Key, obj.Err)
 		kcm.sendEventIfNeeded(eventToSend)
@@ -222,7 +222,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 
 	var eventToSend *config.KubeConfigEvent
 
-	// Обработка событий сброса конфигурации
+	// Handle reset configuration events
 	if obj.Key == "" {
 		kcm.withLock(func() {
 			eventToSend = kcm.handleResetConfig()
@@ -434,8 +434,8 @@ func (kcm *KubeConfigManager) withRLock(fn func()) {
 		return
 	}
 	kcm.mu.RLock()
+	defer kcm.mu.RUnlock()
 	fn()
-	kcm.mu.RUnlock()
 }
 
 // withLock выполняет функцию fn под эксклюзивной блокировкой мьютекса.
@@ -445,6 +445,6 @@ func (kcm *KubeConfigManager) withLock(fn func()) {
 		return
 	}
 	kcm.mu.Lock()
+	defer kcm.mu.Unlock()
 	fn()
-	kcm.mu.Unlock()
 }

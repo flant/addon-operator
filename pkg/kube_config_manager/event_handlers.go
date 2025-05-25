@@ -133,7 +133,7 @@ func (kcm *KubeConfigManager) handleModuleUpdate(moduleName string, moduleCfg *c
 }
 
 // processBatchDeletedModules processes modules that were deleted during a batch update
-// NOTE: This method must be called with kcm.m locked as it accesses shared state.
+// NOTE: This method must be called with kcm.mu locked as it accesses shared state.
 func (kcm *KubeConfigManager) processBatchDeletedModules(
 	currentModuleNames map[string]struct{},
 ) ([]string, []string, map[string]utils.Maintenance) {

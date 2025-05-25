@@ -178,9 +178,9 @@ func TestParseSetValues(t *testing.T) {
 	g := NewWithT(t)
 
 	tests := []struct {
-		name      string
-		input     []string
-		expected  map[string]any
+		name     string
+		input    []string
+		expected map[string]any
 	}{
 		{
 			name:     "empty input returns empty map",
@@ -240,8 +240,7 @@ func TestParseSetValues(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // capture range variable
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			result := parseSetValues(tt.input)
 			g.Expect(result).To(Equal(tt.expected))
 		})
