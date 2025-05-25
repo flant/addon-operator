@@ -33,7 +33,9 @@ func (p *PostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, erro
 		if labels == nil {
 			labels = make(map[string]string)
 		}
-		maps.Copy(labels, p.extraLabels)
+		if p.extraLabels != nil {
+			maps.Copy(labels, p.extraLabels)
+		}
 
 		_ = node.SetLabels(labels)
 	}
