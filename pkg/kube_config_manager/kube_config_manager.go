@@ -121,7 +121,7 @@ func (kcm *KubeConfigManager) KubeConfigEventCh() chan config.KubeConfigEvent {
 }
 
 // UpdateModuleConfig updates a single module config
-// Метод загружает конфигурацию вне блокировки, чтобы уменьшить время блокировки мьютекса
+// This method loads the configuration outside the lock to reduce mutex contention.
 func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
 	// Load config outside the lock to reduce contention
 	newModuleConfig, err := kcm.backend.LoadConfig(kcm.ctx, moduleName)
@@ -129,7 +129,7 @@ func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
 		return err
 	}
 
-	// Используем вспомогательный метод для блокировки доступа к общему состоянию
+	// Use a helper method to lock access to the shared state
 	kcm.withLock(func() {
 		if moduleConfig, found := newModuleConfig.Modules[moduleName]; found {
 			kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
