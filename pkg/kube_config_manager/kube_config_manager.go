@@ -33,7 +33,7 @@ type KubeConfigManager struct {
 	configEventCh chan config.KubeConfigEvent
 	backend       backend.ConfigHandler
 
-	m             sync.Mutex
+	m             sync.RWMutex
 	currentConfig *config.KubeConfig
 }
 
@@ -74,8 +74,8 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 }
 
 func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) *bool {
-	kcm.m.Lock()
-	defer kcm.m.Unlock()
+	kcm.m.RLock()
+	defer kcm.m.RUnlock()
 	moduleConfig, found := kcm.currentConfig.Modules[moduleName]
 	if !found {
 		return nil
@@ -483,9 +483,18 @@ func (kcm *KubeConfigManager) SafeReadConfig(handler func(config *config.KubeCon
 	if handler == nil {
 		return
 	}
-	kcm.withLock(func() {
+	kcm.withRLock(func() {
 		handler(kcm.currentConfig)
 	})
+}
+
+func (kcm *KubeConfigManager) withRLock(fn func()) {
+	if fn == nil {
+		return
+	}
+	kcm.m.RLock()
+	fn()
+	kcm.m.RUnlock()
 }
 
 func (kcm *KubeConfigManager) withLock(fn func()) {
