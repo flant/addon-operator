@@ -200,7 +200,9 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 	return false
 }
 
-// sendEventIfNeeded sends the event on the channel if it's not nil
+// sendEventIfNeeded sends the event on the channel if it's not nil.
+// WARNING: This method should NEVER be called while holding kcm.mu lock
+// to prevent potential deadlocks.
 func (kcm *KubeConfigManager) sendEventIfNeeded(eventToSend *config.KubeConfigEvent) {
 	if eventToSend != nil {
 		kcm.configEventCh <- *eventToSend
@@ -229,6 +231,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				kcm.currentConfig = config.NewConfig()
 			}
 		})
+		// Send event after releasing the lock to prevent potential deadlocks
 		kcm.sendEventIfNeeded(eventToSend)
 		return
 	}
@@ -288,16 +291,17 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 
 	if obj.Key == "" {
 		// Processing backend configuration reset
+		var eventToSend *config.KubeConfigEvent
 		kcm.withLock(func() {
 			// Config backend was reset
-			eventToSend := kcm.handleResetConfig()
+			eventToSend = kcm.handleResetConfig()
 			if eventToSend != nil {
 				// Update currentConfig with a new config instance
 				kcm.currentConfig = config.NewConfig()
-				// Send event immediately to avoid needing to release the lock
-				kcm.sendEventIfNeeded(eventToSend)
 			}
 		})
+		// Send event after releasing the lock to prevent potential deadlocks
+		kcm.sendEventIfNeeded(eventToSend)
 		return
 	}
 
