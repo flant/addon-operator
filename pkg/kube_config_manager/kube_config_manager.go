@@ -224,19 +224,38 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 	case "":
 		// Config backend was reset
 		eventToSend = kcm.handleResetConfig()
+		if eventToSend != nil {
+			// Update currentConfig with a new config instance
+			kcm.currentConfig = config.NewConfig()
+		}
 	case utils.GlobalValuesKey:
 		// global values
 		eventToSend = kcm.handleGlobalConfig(obj.Config)
+		if eventToSend != nil {
+			// Update state after successful parsing
+			kcm.currentConfig.Global = obj.Config.Global
+		}
 	default:
 		// some module values
 		moduleName := obj.Key
 
 		if obj.Op == config.EventDelete {
 			eventToSend = kcm.handleModuleDelete(moduleName)
+			if eventToSend != nil {
+				// Apply module deletion changes
+				moduleCfg := kcm.currentConfig.Modules[moduleName]
+				moduleCfg.Reset()
+				moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
+				kcm.currentConfig.Modules[moduleName] = moduleCfg
+			}
 		} else {
 			// module update
 			moduleCfg := obj.Config.Modules[obj.Key]
 			eventToSend = kcm.handleModuleUpdate(moduleName, moduleCfg)
+			if eventToSend != nil {
+				// Now we need to apply the update here since handleModuleUpdate doesn't modify currentConfig anymore
+				kcm.currentConfig.Modules[moduleName] = moduleCfg
+			}
 		}
 	}
 
@@ -257,6 +276,10 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	if obj.Key == "" {
 		// Config backend was reset
 		eventToSend := kcm.handleResetConfig()
+		if eventToSend != nil {
+			// Update currentConfig with a new config instance
+			kcm.currentConfig = config.NewConfig()
+		}
 		kcm.m.Unlock()
 		kcm.sendEventIfNeeded(eventToSend)
 		return
@@ -280,7 +303,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		// Remove module name from current names to detect deleted sections.
 		delete(currentModuleNames, moduleName)
 
-		// Process individual module
+		// Process individual module and update modules in newConfig
 		if event := kcm.handleModuleUpdate(moduleName, moduleCfg); event != nil {
 			modulesChanged = append(modulesChanged, event.ModuleValuesChanged...)
 			modulesStateChanged = append(modulesStateChanged, event.ModuleEnabledStateChanged...)

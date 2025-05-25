@@ -23,7 +23,7 @@ func (kcm *KubeConfigManager) handleConfigError(key string, err error) *config.K
 
 // handleResetConfig handles config backend reset
 func (kcm *KubeConfigManager) handleResetConfig() *config.KubeConfigEvent {
-	kcm.currentConfig = config.NewConfig()
+	// Let the caller update currentConfig with a new config
 	return &config.KubeConfigEvent{
 		Type: config.KubeConfigChanged,
 	}
@@ -32,8 +32,7 @@ func (kcm *KubeConfigManager) handleResetConfig() *config.KubeConfigEvent {
 // handleGlobalConfig handles changes in global config section
 func (kcm *KubeConfigManager) handleGlobalConfig(objConfig *config.KubeConfig) *config.KubeConfigEvent {
 	globalChanged := kcm.isGlobalChanged(objConfig)
-	// Update state after successful parsing.
-	kcm.currentConfig.Global = objConfig.Global
+	// Let the caller update the state
 	if globalChanged {
 		return &config.KubeConfigEvent{
 			Type:                 config.KubeConfigChanged,
@@ -58,12 +57,13 @@ func (kcm *KubeConfigManager) handleModuleDelete(moduleName string) *config.Kube
 		if curr.GetMaintenanceState() == utils.NoResourceReconciliation {
 			moduleMaintenanceChanged[moduleName] = utils.Managed
 		}
-	}
 
-	moduleCfg := kcm.currentConfig.Modules[moduleName]
-	moduleCfg.Reset()
-	moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
-	kcm.currentConfig.Modules[moduleName] = moduleCfg
+		// Prepare the module config but let the caller update currentConfig
+		moduleCfg := curr
+		moduleCfg.Reset()
+		moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
+		// The caller will update kcm.currentConfig.Modules[moduleName] = moduleCfg
+	}
 
 	return &config.KubeConfigEvent{
 		Type:                      config.KubeConfigChanged,
@@ -117,7 +117,7 @@ func (kcm *KubeConfigManager) handleModuleUpdate(moduleName string, moduleCfg *c
 	}
 
 	if len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
-		kcm.currentConfig.Modules[moduleName] = moduleCfg
+		// Let the caller update currentConfig
 		return &config.KubeConfigEvent{
 			Type:                      config.KubeConfigChanged,
 			ModuleValuesChanged:       modulesChanged,
