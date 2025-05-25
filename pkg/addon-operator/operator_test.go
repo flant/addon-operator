@@ -242,14 +242,6 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 
 	res.helmClient.ReleaseNames = []string{moduleToPurge, moduleToDelete}
 
-	type taskInfo struct {
-		taskType         sh_task.TaskType
-		bindingType      BindingType
-		moduleName       string
-		hookName         string
-		spawnerTaskPhase string
-	}
-
 	// Use thread-safe TaskHandleHistory
 	taskHandleHistory := TaskHandleHistory{
 		taskHandleHistory: make([]TaskInfo, 0),
