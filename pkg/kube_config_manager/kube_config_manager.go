@@ -213,9 +213,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			slog.String("name", obj.Key),
 			log.Err(obj.Err))
 		kcm.m.Unlock()
-		if eventToSend != nil {
-			kcm.configEventCh <- *eventToSend
-		}
+		kcm.configEventCh <- *eventToSend
 		return
 	}
 
@@ -267,9 +265,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
 			}
 			kcm.m.Unlock()
-			if eventToSend != nil {
-				kcm.configEventCh <- *eventToSend
-			}
+			kcm.configEventCh <- *eventToSend
 			return
 		}
 		// Module section is changed if a new checksum doesn't equal to saved one and isn't in known checksums, or the module new state doesn't equal to the previous one.
