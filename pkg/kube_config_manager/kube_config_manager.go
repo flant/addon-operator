@@ -165,7 +165,7 @@ func (kcm *KubeConfigManager) loadConfig() error {
 }
 
 // isGlobalChanged returns true when changes in "global" section require firing event.
-// IMPORTANT: This method MUST be called with kcm.m locked as it accesses shared state.
+// IMPORTANT: This method MUST be called with kcm.mu locked as it accesses shared state.
 // Failure to do so will result in race conditions.
 func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool {
 	if newConfig.Global == nil {
