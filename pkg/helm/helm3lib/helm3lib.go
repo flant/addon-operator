@@ -443,7 +443,24 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	return releases, nil
 }
 
-// parseSetValues parses setValues slice into a map, supporting '=' in values
+// parseSetValues parses setValues slice into a map, supporting '=' in values.
+// Each entry should be in the format "key=value".
+//
+// Behavior:
+//   - Supports '=' characters within values (only the first '=' is used as delimiter)
+//   - Trims whitespace from both keys and values
+//   - Skips entries that don't contain '=' (malformed entries)
+//   - Skips entries with empty keys (after trimming whitespace)
+//   - For duplicate keys, the last occurrence in the slice takes precedence
+//   - Returns an empty map if setValues is nil or empty
+//
+// Examples:
+//   - "key=value" -> {"key": "value"}
+//   - "key=value=with=equals" -> {"key": "value=with=equals"}
+//   - " key = value " -> {"key": "value"}
+//   - "=value" -> skipped (empty key)
+//   - "key" -> skipped (no '=' delimiter)
+//   - ["key=value1", "key=value2"] -> {"key": "value2"} (last wins)
 func parseSetValues(setValues []string) map[string]any {
 	m := make(map[string]any)
 	for _, sv := range setValues {
