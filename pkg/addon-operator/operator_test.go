@@ -250,7 +250,11 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		spawnerTaskPhase string
 	}
 
-	taskHandleHistory := make([]taskInfo, 0)
+	// Use thread-safe TaskHandleHistory
+	taskHandleHistory := TaskHandleHistory{
+		taskHandleHistory: make([]TaskInfo, 0),
+		historyMu:         sync.Mutex{},
+	}
 	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
@@ -261,7 +265,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
-		taskHandleHistory = append(taskHandleHistory, taskInfo{
+		taskHandleHistory.Add(&TaskInfo{
 			taskType:         tsk.GetType(),
 			bindingType:      hm.BindingType,
 			moduleName:       hm.ModuleName,
@@ -338,7 +342,8 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		{task.ConvergeModules, "", "", string(converge.WaitAfterAll)},
 	}
 
-	for i, historyInfo := range taskHandleHistory {
+	historyItems := taskHandleHistory.Get()
+	for i, historyInfo := range historyItems {
 		if i >= len(historyExpects) {
 			break
 		}
@@ -380,8 +385,10 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 	canHandleTasks := make(chan struct{})
 	triggerPause := true
 
+	// Use thread-safe TaskHandleHistory
 	taskHandleHistory := TaskHandleHistory{
 		taskHandleHistory: make([]TaskInfo, 0),
+		historyMu:         sync.Mutex{},
 	}
 
 	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
@@ -563,6 +570,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 
 	taskHandleHistory := TaskHandleHistory{
 		taskHandleHistory: make([]TaskInfo, 0),
+		historyMu:         sync.Mutex{},
 	}
 
 	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
