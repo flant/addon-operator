@@ -3,6 +3,7 @@ package kube_config_manager
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"strconv"
 	"sync"
@@ -309,15 +310,12 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 			modulesStateChanged = append(modulesStateChanged, event.ModuleEnabledStateChanged...)
 
 			// Merge maintenance changes
-			for modName, state := range event.ModuleMaintenanceChanged {
-				moduleMaintenanceChanged[modName] = state
-			}
+			maps.Copy(moduleMaintenanceChanged, event.ModuleMaintenanceChanged)
 		}
 	}
 
 	// Process deleted modules
-	deletedModulesChanged, deletedModulesStateChanged, deletedModuleMaintenanceChanged :=
-		kcm.processBatchDeletedModules(currentModuleNames)
+	deletedModulesChanged, deletedModulesStateChanged, deletedModuleMaintenanceChanged := kcm.processBatchDeletedModules(currentModuleNames)
 
 	if deletedModulesChanged != nil {
 		modulesChanged = append(modulesChanged, deletedModulesChanged...)
@@ -326,9 +324,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		modulesStateChanged = append(modulesStateChanged, deletedModulesStateChanged...)
 	}
 	if deletedModuleMaintenanceChanged != nil {
-		for modName, state := range deletedModuleMaintenanceChanged {
-			moduleMaintenanceChanged[modName] = state
-		}
+		maps.Copy(moduleMaintenanceChanged, deletedModuleMaintenanceChanged)
 	}
 
 	// Update state after successful parsing.
