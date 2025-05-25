@@ -330,10 +330,11 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	if obj.Err != nil {
 		// Do not update caches to detect changes on next update.
-		kcm.configEventCh <- config.KubeConfigEvent{
+		eventToSend := &config.KubeConfigEvent{
 			Type: config.KubeConfigInvalid,
 		}
 		kcm.logger.Error("Batch Config invalid", log.Err(obj.Err))
+		kcm.sendEventIfNeeded(eventToSend)
 		return
 	}
 
@@ -343,11 +344,11 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	if obj.Key == "" {
 		// Config backend was reset
 		kcm.currentConfig = config.NewConfig()
-		eventToSend := config.KubeConfigEvent{
+		eventToSend := &config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
 		}
 		kcm.m.Unlock()
-		kcm.configEventCh <- eventToSend
+		kcm.sendEventIfNeeded(eventToSend)
 		return
 	}
 
