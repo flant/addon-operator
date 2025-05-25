@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"reflect"
 	"strconv"
 	"sync"
 
@@ -46,7 +45,7 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 	if runtimeConfig != nil {
 		runtimeConfig.Register(
 			"log.configmap.events",
-			fmt.Sprintf("Set to true to log all operations with Configuration manager/%s", reflect.TypeOf(bk)),
+			fmt.Sprintf("Set to true to log all operations with Configuration manager/%T", bk),
 			"false",
 			func(_ string, newValue string) error {
 				val, err := strconv.ParseBool(newValue)
