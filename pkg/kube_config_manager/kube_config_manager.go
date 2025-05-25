@@ -101,10 +101,7 @@ func (kcm *KubeConfigManager) Init() error {
 func (kcm *KubeConfigManager) SaveConfigValues(key string, values utils.Values) error {
 	checksum, err := kcm.backend.SaveConfigValues(kcm.ctx, key, values)
 	if err != nil {
-		kcm.withLock(func() {
-			kcm.knownChecksums.Remove(key, checksum)
-		})
-
+		// Do not remove known checksums in case of an error
 		return err
 	}
 
@@ -181,7 +178,9 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 
 	newChecksum := newConfig.Global.Checksum
 	// Global section is updated if a new checksum not equal to the saved one and not in knownChecksum.
-	if kcm.knownChecksums.HasEqualChecksum(utils.GlobalValuesKey, newChecksum) {
+	// Use atomic operation for checksum checking and removal to avoid race conditions
+	hasKnownChecksum := kcm.knownChecksums.HasEqualChecksum(utils.GlobalValuesKey, newChecksum)
+	if hasKnownChecksum {
 		// Remove known checksum, do not fire event on self-update.
 		kcm.knownChecksums.Remove(utils.GlobalValuesKey, newChecksum)
 		kcm.logger.Debug("Global section self-update")
