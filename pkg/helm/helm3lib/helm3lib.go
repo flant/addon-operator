@@ -85,7 +85,9 @@ func (h *LibClient) WithExtraLabels(labels map[string]string) {
 	if h.labels == nil {
 		h.labels = make(map[string]string)
 	}
-	maps.Copy(h.labels, labels)
+	if labels != nil {
+		maps.Copy(h.labels, labels)
+	}
 }
 
 // buildConfigFlagsFromEnv builds a ConfigFlags object from the environment and
