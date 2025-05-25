@@ -33,7 +33,7 @@ type KubeConfigManager struct {
 	configEventCh chan config.KubeConfigEvent
 	backend       backend.ConfigHandler
 
-	m             sync.RWMutex
+	mu            sync.RWMutex
 	currentConfig *config.KubeConfig
 }
 
@@ -74,8 +74,8 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 }
 
 func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) *bool {
-	kcm.m.RLock()
-	defer kcm.m.RUnlock()
+	kcm.mu.RLock()
+	defer kcm.mu.RUnlock()
 	moduleConfig, found := kcm.currentConfig.Modules[moduleName]
 	if !found {
 		return nil
@@ -149,8 +149,8 @@ func (kcm *KubeConfigManager) loadConfig() error {
 	}
 
 	// Protect access to shared state with mutex
-	kcm.m.Lock()
-	defer kcm.m.Unlock()
+	kcm.mu.Lock()
+	defer kcm.mu.Unlock()
 
 	if newConfig.Global != nil {
 		kcm.knownChecksums.Set(utils.GlobalValuesKey, newConfig.Global.Checksum)
@@ -433,9 +433,9 @@ func (kcm *KubeConfigManager) withRLock(fn func()) {
 	if fn == nil {
 		return
 	}
-	kcm.m.RLock()
+	kcm.mu.RLock()
 	fn()
-	kcm.m.RUnlock()
+	kcm.mu.RUnlock()
 }
 
 // withLock выполняет функцию fn под эксклюзивной блокировкой мьютекса.
@@ -444,7 +444,7 @@ func (kcm *KubeConfigManager) withLock(fn func()) {
 	if fn == nil {
 		return
 	}
-	kcm.m.Lock()
+	kcm.mu.Lock()
 	fn()
-	kcm.m.Unlock()
+	kcm.mu.Unlock()
 }
