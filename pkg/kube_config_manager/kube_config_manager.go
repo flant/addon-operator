@@ -121,6 +121,7 @@ func (kcm *KubeConfigManager) KubeConfigEventCh() chan config.KubeConfigEvent {
 }
 
 // UpdateModuleConfig updates a single module config
+// Метод загружает конфигурацию вне блокировки, чтобы уменьшить время блокировки мьютекса
 func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
 	// Load config outside the lock to reduce contention
 	newModuleConfig, err := kcm.backend.LoadConfig(kcm.ctx, moduleName)
@@ -128,12 +129,13 @@ func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
 		return err
 	}
 
-	kcm.m.Lock()
-	defer kcm.m.Unlock()
-	if moduleConfig, found := newModuleConfig.Modules[moduleName]; found {
-		kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
-		kcm.currentConfig.Modules[moduleName] = moduleConfig
-	}
+	// Используем вспомогательный метод для блокировки доступа к общему состоянию
+	kcm.withLock(func() {
+		if moduleConfig, found := newModuleConfig.Modules[moduleName]; found {
+			kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
+			kcm.currentConfig.Modules[moduleName] = moduleConfig
+		}
+	})
 
 	return nil
 }
@@ -163,7 +165,8 @@ func (kcm *KubeConfigManager) loadConfig() error {
 }
 
 // isGlobalChanged returns true when changes in "global" section require firing event.
-// NOTE: This method must be called with kcm.m locked as it accesses shared state.
+// IMPORTANT: This method MUST be called with kcm.m locked as it accesses shared state.
+// Failure to do so will result in race conditions.
 func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool {
 	if newConfig.Global == nil {
 		// Fire event when global section is deleted: ConfigMap has no global section but global config is cached.
@@ -206,41 +209,51 @@ func (kcm *KubeConfigManager) sendEventIfNeeded(eventToSend *config.KubeConfigEv
 	}
 }
 
-// handleConfigEvent determine changes in kube config. It sends KubeConfigChanged event if something
-// changed or KubeConfigInvalid event if Config is incorrect.
+// handleConfigEvent определяет изменения в конфигурации Kubernetes. Отправляет событие KubeConfigChanged
+// если что-то изменилось, или KubeConfigInvalid, если конфигурация некорректна.
+// Метод оптимизирован для минимизации времени блокировки мьютекса.
 func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
-	var eventToSend *config.KubeConfigEvent
-
-	// Lock to protect access to currentConfig and knownChecksums
-	kcm.m.Lock()
-
+	// Обработка ошибок конфигурации без длительной блокировки
 	if obj.Err != nil {
-		eventToSend = kcm.handleConfigError(obj.Key, obj.Err)
-		kcm.m.Unlock()
+		eventToSend := kcm.handleConfigError(obj.Key, obj.Err)
 		kcm.sendEventIfNeeded(eventToSend)
 		return
 	}
 
-	switch obj.Key {
-	case "":
-		// Config backend was reset
-		eventToSend = kcm.handleResetConfig()
-		if eventToSend != nil {
-			// Update currentConfig with a new config instance
-			kcm.currentConfig = config.NewConfig()
-		}
-	case utils.GlobalValuesKey:
-		// global values
-		eventToSend = kcm.handleGlobalConfig(obj.Config)
-		if eventToSend != nil {
-			// Update state after successful parsing
-			kcm.currentConfig.Global = obj.Config.Global
-		}
-	default:
-		// some module values
-		moduleName := obj.Key
+	var eventToSend *config.KubeConfigEvent
 
-		if obj.Op == config.EventDelete {
+	// Обработка событий сброса конфигурации
+	if obj.Key == "" {
+		kcm.withLock(func() {
+			eventToSend = kcm.handleResetConfig()
+			if eventToSend != nil {
+				// Update currentConfig with a new config instance
+				kcm.currentConfig = config.NewConfig()
+			}
+		})
+		kcm.sendEventIfNeeded(eventToSend)
+		return
+	}
+
+	// Обработка изменений в глобальной секции
+	if obj.Key == utils.GlobalValuesKey {
+		kcm.withLock(func() {
+			eventToSend = kcm.handleGlobalConfig(obj.Config)
+			if eventToSend != nil {
+				// Update state after successful parsing
+				kcm.currentConfig.Global = obj.Config.Global
+			}
+		})
+		kcm.sendEventIfNeeded(eventToSend)
+		return
+	}
+
+	// Обработка изменений в модуле
+	moduleName := obj.Key
+
+	// Событие удаления модуля
+	if obj.Op == config.EventDelete {
+		kcm.withLock(func() {
 			eventToSend = kcm.handleModuleDelete(moduleName)
 			if eventToSend != nil {
 				// Apply module deletion changes
@@ -249,21 +262,25 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
 				kcm.currentConfig.Modules[moduleName] = moduleCfg
 			}
-		} else {
-			// module update
-			moduleCfg := obj.Config.Modules[obj.Key]
+		})
+	} else {
+		// Событие обновления модуля
+		moduleCfg := obj.Config.Modules[obj.Key]
+		kcm.withLock(func() {
 			eventToSend = kcm.handleModuleUpdate(moduleName, moduleCfg)
 			if eventToSend != nil {
 				// Now we need to apply the update here since handleModuleUpdate doesn't modify currentConfig anymore
 				kcm.currentConfig.Modules[moduleName] = moduleCfg
 			}
-		}
+		})
 	}
 
-	kcm.m.Unlock()
+	// Отправка события после разблокировки
 	kcm.sendEventIfNeeded(eventToSend)
 }
 
+// handleBatchConfigEvent обрабатывает пакетные изменения конфигурации
+// Оптимизирован для уменьшения времени блокировки мьютекса
 func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	if obj.Err != nil {
 		eventToSend := kcm.handleConfigError("batch", obj.Err)
@@ -271,79 +288,97 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		return
 	}
 
-	// Lock to read known checksums and update config.
-	kcm.m.Lock()
-
 	if obj.Key == "" {
-		// Config backend was reset
-		eventToSend := kcm.handleResetConfig()
-		if eventToSend != nil {
-			// Update currentConfig with a new config instance
-			kcm.currentConfig = config.NewConfig()
-		}
-		kcm.m.Unlock()
-		kcm.sendEventIfNeeded(eventToSend)
+		// Обработка сброса конфигурации бэкенда
+		kcm.withLock(func() {
+			// Config backend was reset
+			eventToSend := kcm.handleResetConfig()
+			if eventToSend != nil {
+				// Update currentConfig with a new config instance
+				kcm.currentConfig = config.NewConfig()
+				// Отправляем событие сразу, чтобы не нужно было освобождать блокировку
+				kcm.sendEventIfNeeded(eventToSend)
+			}
+		})
 		return
 	}
 
 	newConfig := obj.Config
 
-	globalChanged := kcm.isGlobalChanged(newConfig)
+	// Предварительное создание структур данных для результатов
+	var (
+		globalChanged            bool
+		modulesChanged           []string
+		modulesStateChanged      []string
+		moduleMaintenanceChanged map[string]utils.Maintenance
+		eventToSend              *config.KubeConfigEvent
+	)
 
-	// Parse values in module sections, create new ModuleConfigs and checksums map.
-	currentModuleNames := make(map[string]struct{})
-	for name := range kcm.currentConfig.Modules {
-		currentModuleNames[name] = struct{}{}
-	}
-	modulesChanged := []string{}
-	modulesStateChanged := []string{}
-	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
+	// Подготовка данных для обработки удаленных модулей
+	// Это позволяет уменьшить время блокировки мьютекса
+	var currentModuleNames map[string]struct{}
 
-	// Process module updates
-	for moduleName, moduleCfg := range newConfig.Modules {
-		// Remove module name from current names to detect deleted sections.
-		delete(currentModuleNames, moduleName)
-
-		// Process individual module and update modules in newConfig
-		if event := kcm.handleModuleUpdate(moduleName, moduleCfg); event != nil {
-			modulesChanged = append(modulesChanged, event.ModuleValuesChanged...)
-			modulesStateChanged = append(modulesStateChanged, event.ModuleEnabledStateChanged...)
-
-			// Merge maintenance changes
-			maps.Copy(moduleMaintenanceChanged, event.ModuleMaintenanceChanged)
+	// Первая блокировка - только чтение для создания списка текущих модулей
+	kcm.withRLock(func() {
+		currentModuleNames = make(map[string]struct{}, len(kcm.currentConfig.Modules))
+		for name := range kcm.currentConfig.Modules {
+			currentModuleNames[name] = struct{}{}
 		}
-	}
+	})
 
-	// Process deleted modules
-	deletedModulesChanged, deletedModulesStateChanged, deletedModuleMaintenanceChanged := kcm.processBatchDeletedModules(currentModuleNames)
+	// Теперь обработаем обновления модулей вне блокировки для определения изменений
+	modulesChanged = []string{}
+	modulesStateChanged = []string{}
+	moduleMaintenanceChanged = make(map[string]utils.Maintenance)
 
-	if deletedModulesChanged != nil {
-		modulesChanged = append(modulesChanged, deletedModulesChanged...)
-	}
-	if deletedModulesStateChanged != nil {
-		modulesStateChanged = append(modulesStateChanged, deletedModulesStateChanged...)
-	}
-	if deletedModuleMaintenanceChanged != nil {
-		maps.Copy(moduleMaintenanceChanged, deletedModuleMaintenanceChanged)
-	}
+	// Блокировка для проверки и обновления состояния
+	kcm.withLock(func() {
+		globalChanged = kcm.isGlobalChanged(newConfig)
 
-	// Update state after successful parsing.
-	kcm.currentConfig = newConfig
+		// Process module updates
+		for moduleName, moduleCfg := range newConfig.Modules {
+			// Remove module name from current names to detect deleted sections.
+			delete(currentModuleNames, moduleName)
 
-	// Prepare event data while holding the lock
-	var eventToSend *config.KubeConfigEvent
-	if globalChanged || len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
-		eventToSend = &config.KubeConfigEvent{
-			Type:                      config.KubeConfigChanged,
-			GlobalSectionChanged:      globalChanged,
-			ModuleValuesChanged:       modulesChanged,
-			ModuleEnabledStateChanged: modulesStateChanged,
-			ModuleMaintenanceChanged:  moduleMaintenanceChanged,
+			// Process individual module and update modules in newConfig
+			if event := kcm.handleModuleUpdate(moduleName, moduleCfg); event != nil {
+				modulesChanged = append(modulesChanged, event.ModuleValuesChanged...)
+				modulesStateChanged = append(modulesStateChanged, event.ModuleEnabledStateChanged...)
+
+				// Merge maintenance changes
+				maps.Copy(moduleMaintenanceChanged, event.ModuleMaintenanceChanged)
+			}
 		}
-	}
 
-	// Unlock before sending event to prevent deadlock
-	kcm.m.Unlock()
+		// Process deleted modules
+		deletedModulesChanged, deletedModulesStateChanged, deletedModuleMaintenanceChanged := kcm.processBatchDeletedModules(currentModuleNames)
+
+		if deletedModulesChanged != nil {
+			modulesChanged = append(modulesChanged, deletedModulesChanged...)
+		}
+		if deletedModulesStateChanged != nil {
+			modulesStateChanged = append(modulesStateChanged, deletedModulesStateChanged...)
+		}
+		if deletedModuleMaintenanceChanged != nil {
+			maps.Copy(moduleMaintenanceChanged, deletedModuleMaintenanceChanged)
+		}
+
+		// Update state after successful parsing.
+		kcm.currentConfig = newConfig
+
+		// Prepare event data while holding the lock
+		if globalChanged || len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
+			eventToSend = &config.KubeConfigEvent{
+				Type:                      config.KubeConfigChanged,
+				GlobalSectionChanged:      globalChanged,
+				ModuleValuesChanged:       modulesChanged,
+				ModuleEnabledStateChanged: modulesStateChanged,
+				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
+			}
+		}
+	})
+
+	// Отправка события вне блокировки для предотвращения возможного дедлока
 	kcm.sendEventIfNeeded(eventToSend)
 }
 
@@ -381,6 +416,8 @@ func (kcm *KubeConfigManager) Stop() {
 }
 
 // SafeReadConfig locks currentConfig to safely read from it in external services.
+// Этот метод обеспечивает потокобезопасный доступ к конфигурации для внешних сервисов,
+// используя блокировку чтения.
 func (kcm *KubeConfigManager) SafeReadConfig(handler func(config *config.KubeConfig)) {
 	if handler == nil {
 		return
@@ -390,6 +427,8 @@ func (kcm *KubeConfigManager) SafeReadConfig(handler func(config *config.KubeCon
 	})
 }
 
+// withRLock выполняет функцию fn под блокировкой чтения мьютекса.
+// Используйте для безопасного чтения защищенного состояния.
 func (kcm *KubeConfigManager) withRLock(fn func()) {
 	if fn == nil {
 		return
@@ -399,6 +438,8 @@ func (kcm *KubeConfigManager) withRLock(fn func()) {
 	kcm.m.RUnlock()
 }
 
+// withLock выполняет функцию fn под эксклюзивной блокировкой мьютекса.
+// Используйте для безопасного изменения защищенного состояния.
 func (kcm *KubeConfigManager) withLock(fn func()) {
 	if fn == nil {
 		return

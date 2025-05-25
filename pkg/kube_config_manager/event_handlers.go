@@ -30,6 +30,7 @@ func (kcm *KubeConfigManager) handleResetConfig() *config.KubeConfigEvent {
 }
 
 // handleGlobalConfig handles changes in global config section
+// NOTE: This method must be called with kcm.m locked as it accesses shared state.
 func (kcm *KubeConfigManager) handleGlobalConfig(objConfig *config.KubeConfig) *config.KubeConfigEvent {
 	globalChanged := kcm.isGlobalChanged(objConfig)
 	// Let the caller update the state
@@ -43,6 +44,7 @@ func (kcm *KubeConfigManager) handleGlobalConfig(objConfig *config.KubeConfig) *
 }
 
 // handleModuleDelete handles module deletion events
+// NOTE: This method must be called with kcm.m locked as it accesses shared state.
 func (kcm *KubeConfigManager) handleModuleDelete(moduleName string) *config.KubeConfigEvent {
 	kcm.logger.Info("Module section deleted", slog.String("moduleName", moduleName))
 
@@ -74,14 +76,15 @@ func (kcm *KubeConfigManager) handleModuleDelete(moduleName string) *config.Kube
 }
 
 // handleModuleUpdate handles module update events
+// NOTE: This method must be called with kcm.m locked as it accesses shared state.
 func (kcm *KubeConfigManager) handleModuleUpdate(moduleName string, moduleCfg *config.ModuleKubeConfig) *config.KubeConfigEvent {
 	modulesChanged := []string{}
 	modulesStateChanged := []string{}
 	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
 
-	// Module section is changed if a new checksum doesn't equal to saved one and isn't in known checksums,
-	// or the module new state doesn't equal to the previous one.
-	if kcm.knownChecksums.HasEqualChecksum(moduleName, moduleCfg.Checksum) {
+	// Use atomic operation for checksum checking and removal to avoid race conditions
+	hasKnownChecksum := kcm.knownChecksums.HasEqualChecksum(moduleName, moduleCfg.Checksum)
+	if hasKnownChecksum {
 		// Remove known checksum, do not fire event on self-update.
 		kcm.knownChecksums.Remove(moduleName, moduleCfg.Checksum)
 	} else {
@@ -130,6 +133,7 @@ func (kcm *KubeConfigManager) handleModuleUpdate(moduleName string, moduleCfg *c
 }
 
 // processBatchDeletedModules processes modules that were deleted during a batch update
+// NOTE: This method must be called with kcm.m locked as it accesses shared state.
 func (kcm *KubeConfigManager) processBatchDeletedModules(
 	currentModuleNames map[string]struct{},
 ) ([]string, []string, map[string]utils.Maintenance) {
