@@ -44,7 +44,7 @@ func (kcm *KubeConfigManager) handleGlobalConfig(objConfig *config.KubeConfig) *
 }
 
 // handleModuleDelete handles module deletion events
-// NOTE: This method must be called with kcm.m locked as it accesses shared state.
+// NOTE: This method must be called with kcm.mu locked as it accesses shared state.
 func (kcm *KubeConfigManager) handleModuleDelete(moduleName string) *config.KubeConfigEvent {
 	kcm.logger.Info("Module section deleted", slog.String("moduleName", moduleName))
 
@@ -76,7 +76,7 @@ func (kcm *KubeConfigManager) handleModuleDelete(moduleName string) *config.Kube
 }
 
 // handleModuleUpdate handles module update events
-// NOTE: This method must be called with kcm.m locked as it accesses shared state.
+// NOTE: This method must be called with kcm.mu locked as it accesses shared state.
 func (kcm *KubeConfigManager) handleModuleUpdate(moduleName string, moduleCfg *config.ModuleKubeConfig) *config.KubeConfigEvent {
 	modulesChanged := []string{}
 	modulesStateChanged := []string{}
