@@ -30,7 +30,7 @@ func (kcm *KubeConfigManager) handleResetConfig() *config.KubeConfigEvent {
 }
 
 // handleGlobalConfig handles changes in global config section
-// NOTE: This method must be called with kcm.m locked as it accesses shared state.
+// NOTE: This method must be called with kcm.mu locked as it accesses shared state.
 func (kcm *KubeConfigManager) handleGlobalConfig(objConfig *config.KubeConfig) *config.KubeConfigEvent {
 	globalChanged := kcm.isGlobalChanged(objConfig)
 	// Let the caller update the state
