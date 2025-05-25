@@ -87,7 +87,7 @@ func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) *bool {
 func (kcm *KubeConfigManager) Init() error {
 	kcm.logger.Debug("Init: KubeConfigManager")
 
-	// Load config and calculate checksums at start. No locking required.
+	// Load config and calculate checksums at start.
 	err := kcm.loadConfig()
 	if err != nil {
 		return err
@@ -131,10 +131,7 @@ func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
 	kcm.m.Lock()
 	defer kcm.m.Unlock()
 	if moduleConfig, found := newModuleConfig.Modules[moduleName]; found {
-		if kcm.knownChecksums != nil {
-			kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
-		}
-
+		kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
 		kcm.currentConfig.Modules[moduleName] = moduleConfig
 	}
 
@@ -149,6 +146,10 @@ func (kcm *KubeConfigManager) loadConfig() error {
 		return err
 	}
 
+	// Protect access to shared state with mutex
+	kcm.m.Lock()
+	defer kcm.m.Unlock()
+
 	if newConfig.Global != nil {
 		kcm.knownChecksums.Set(utils.GlobalValuesKey, newConfig.Global.Checksum)
 	}
@@ -162,6 +163,7 @@ func (kcm *KubeConfigManager) loadConfig() error {
 }
 
 // isGlobalChanged returns true when changes in "global" section require firing event.
+// NOTE: This method must be called with kcm.m locked as it accesses shared state.
 func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool {
 	if newConfig.Global == nil {
 		// Fire event when global section is deleted: ConfigMap has no global section but global config is cached.
@@ -197,6 +199,13 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 	return false
 }
 
+// sendEventIfNeeded sends the event on the channel if it's not nil
+func (kcm *KubeConfigManager) sendEventIfNeeded(eventToSend *config.KubeConfigEvent) {
+	if eventToSend != nil {
+		kcm.configEventCh <- *eventToSend
+	}
+}
+
 // handleConfigEvent determine changes in kube config. It sends KubeConfigChanged event if something
 // changed or KubeConfigInvalid event if Config is incorrect.
 func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
@@ -213,7 +222,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 			slog.String("name", obj.Key),
 			log.Err(obj.Err))
 		kcm.m.Unlock()
-		kcm.configEventCh <- *eventToSend
+		kcm.sendEventIfNeeded(eventToSend)
 		return
 	}
 
@@ -265,7 +274,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
 			}
 			kcm.m.Unlock()
-			kcm.configEventCh <- *eventToSend
+			kcm.sendEventIfNeeded(eventToSend)
 			return
 		}
 		// Module section is changed if a new checksum doesn't equal to saved one and isn't in known checksums, or the module new state doesn't equal to the previous one.
@@ -315,9 +324,7 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		}
 	}
 	kcm.m.Unlock()
-	if eventToSend != nil {
-		kcm.configEventCh <- *eventToSend
-	}
+	kcm.sendEventIfNeeded(eventToSend)
 }
 
 func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
@@ -361,7 +368,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		delete(currentModuleNames, moduleName)
 
 		// Module section is changed if new checksum not equal to saved one and not in known checksums.
-		// Module section is changed if a new checksum doesn't equal to saved one and isn't in known checksums, or the module new state doesn't equal to the previous one.
+		// Module section is changed if a new checksum doesn't equal to the saved one and isn't in known checksums, or the module new state doesn't equal to the previous one.
 		if kcm.knownChecksums.HasEqualChecksum(moduleName, moduleCfg.Checksum) {
 			// Remove known checksum, do not fire event on self-update.
 			kcm.knownChecksums.Remove(moduleName, moduleCfg.Checksum)
