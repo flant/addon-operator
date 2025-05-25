@@ -76,7 +76,7 @@ func (c *Checksums) Copy(name string, src *Checksums) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	// Получаем данные из исходного объекта с блокировкой на чтение
+	// Get data from source object with a read lock
 	src.mutex.RLock()
 	srcData, has := src.sums[name]
 	src.mutex.RUnlock()
