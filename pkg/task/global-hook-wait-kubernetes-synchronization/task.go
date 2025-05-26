@@ -5,11 +5,16 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+)
+
+const (
+	taskName = "global-hook-wait-kubernetes-synchronization"
 )
 
 // TaskDependencies defines the interface for accessing necessary components
@@ -48,7 +53,10 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(_ context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+	_, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
+
 	res := queue.TaskResult{
 		Status: queue.Success,
 	}

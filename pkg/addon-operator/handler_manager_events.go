@@ -1,6 +1,7 @@
 package addon_operator
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/gofrs/uuid/v5"
@@ -18,7 +19,7 @@ import (
 
 func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	// Register handler for schedule events
-	op.engine.ManagerEventsHandler.WithScheduleEventHandler(func(crontab string) []sh_task.Task {
+	op.engine.ManagerEventsHandler.WithScheduleEventHandler(func(ctx context.Context, crontab string) []sh_task.Task {
 		logLabels := map[string]string{
 			"event.id":        uuid.Must(uuid.NewV4()).String(),
 			pkg.LogKeyBinding: string(htypes.Schedule),
@@ -29,6 +30,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 		// Handle global hook schedule events
 		return op.ModuleManager.HandleScheduleEvent(
+			ctx,
 			crontab,
 			op.createGlobalHookTaskFactory(logLabels, htypes.Schedule, "Schedule", true),
 			op.createModuleHookTaskFactory(logLabels, htypes.Schedule, "Schedule"),
@@ -36,7 +38,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	})
 
 	// Register handler for kubernetes events
-	op.engine.ManagerEventsHandler.WithKubeEventHandler(func(kubeEvent types.KubeEvent) []sh_task.Task {
+	op.engine.ManagerEventsHandler.WithKubeEventHandler(func(ctx context.Context, kubeEvent types.KubeEvent) []sh_task.Task {
 		logLabels := map[string]string{
 			"event.id":        uuid.Must(uuid.NewV4()).String(),
 			pkg.LogKeyBinding: string(htypes.OnKubernetesEvent),
@@ -47,6 +49,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 
 		// Handle kubernetes events for global and module hooks
 		tailTasks := op.ModuleManager.HandleKubeEvent(
+			ctx,
 			kubeEvent,
 			op.createGlobalHookTaskFactory(logLabels, htypes.OnKubernetesEvent, "Kubernetes", true),
 			op.createModuleHookTaskFactory(logLabels, htypes.OnKubernetesEvent, "Kubernetes"),

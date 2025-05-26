@@ -3,10 +3,10 @@ package modulehookrun
 import (
 	"context"
 	"log/slog"
-	"runtime/trace"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
@@ -20,6 +20,10 @@ import (
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
+)
+
+const (
+	taskName = "module-hook-run"
 )
 
 // TaskDependencies defines the interface for accessing necessary components
@@ -80,7 +84,8 @@ func NewTask(
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(ctx, "ModuleHookRun").End()
+	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
 
 	var res queue.TaskResult
 
@@ -192,7 +197,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		success := 0.0
 		allowed := 0.0
 
-		beforeChecksum, afterChecksum, err := s.moduleManager.RunModuleHook(hm.ModuleName, hm.HookName, hm.BindingType, hm.BindingContext, s.shellTask.GetLogLabels())
+		beforeChecksum, afterChecksum, err := s.moduleManager.RunModuleHook(ctx, hm.ModuleName, hm.HookName, hm.BindingType, hm.BindingContext, s.shellTask.GetLogLabels())
 		if err != nil {
 			if hm.AllowFailure {
 				allowed = 1.0
@@ -276,7 +281,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 					newTask.SetProp("triggered-by", triggeredBy)
 
-					s.queueService.AddLastTaskToMain(newTask.WithQueuedAt(time.Now()))
+					_ = s.queueService.AddLastTaskToMain(newTask.WithQueuedAt(time.Now()))
 
 					s.logTaskAdd("module values are changed, append", newTask)
 				} else {

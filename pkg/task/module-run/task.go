@@ -9,6 +9,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
@@ -26,6 +27,10 @@ import (
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
+)
+
+const (
+	taskName = "ModuleRun"
 )
 
 // TaskDependencies defines the interface for accessing necessary components
@@ -93,7 +98,8 @@ func NewTask(
 // ModuleRun is restarted if hook or chart is failed.
 // After first Handle success, no onStartup and kubernetes.Synchronization tasks will run.
 func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:nonamedreturns
-	defer trace.StartRegion(ctx, "ModuleRun").End()
+	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
 
 	taskLogLabels := s.shellTask.GetLogLabels()
 	s.logger = utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
@@ -170,6 +176,8 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 	// First module run on operator startup or when module is enabled.
 	if baseModule.GetPhase() == modules.Startup {
+		span.AddEvent("module startup")
+
 		// Register module hooks on every enable.
 		moduleRunErr = s.moduleManager.RegisterModuleHooks(baseModule, taskLogLabels)
 		if moduleRunErr == nil {
@@ -183,7 +191,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 				s.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
 
 				// Run onStartup hooks.
-				moduleRunErr = s.moduleManager.RunModuleHooks(baseModule, htypes.OnStartup, s.shellTask.GetLogLabels())
+				moduleRunErr = s.moduleManager.RunModuleHooks(ctx, baseModule, htypes.OnStartup, s.shellTask.GetLogLabels())
 				if moduleRunErr == nil {
 					s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 				}
@@ -199,6 +207,8 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	}
 
 	if baseModule.GetPhase() == modules.OnStartupDone {
+		span.AddEvent("module on startup done")
+
 		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 		if baseModule.HasKubernetesHooks() {
 			s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.QueueSynchronizationTasks)
@@ -214,6 +224,8 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 	// Note: All hooks should be queued to fill snapshots before proceed to beforeHelm hooks.
 	if baseModule.GetPhase() == modules.QueueSynchronizationTasks {
+		span.AddEvent("module queue synchronization tasks")
+
 		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 
 		// ModuleHookRun.Synchronization tasks for bindings with the "main" queue.
@@ -224,7 +236,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 		parallelSyncTasksToWait := make([]sh_task.Task, 0)
 
 		// Start monitors for each kubernetes binding in each module hook.
-		err := s.moduleManager.HandleModuleEnableKubernetesBindings(hm.ModuleName, func(hook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
+		err := s.moduleManager.HandleModuleEnableKubernetesBindings(ctx, hm.ModuleName, func(hook *hooks.ModuleHook, info controller.BindingExecutionInfo) {
 			queueName := info.QueueName
 			if queueName == "main" && strings.HasPrefix(s.shellTask.GetQueueName(), app.ParallelQueuePrefix) {
 				// override main queue with parallel queue
@@ -339,6 +351,8 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 	// Repeat ModuleRun if there are running Synchronization tasks to wait.
 	if baseModule.GetPhase() == modules.WaitForSynchronization {
+		span.AddEvent("module wait for synchronization")
+
 		if baseModule.Synchronization().IsCompleted() {
 			// Proceed with the next phase.
 			s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.EnableScheduleBindings)
@@ -364,6 +378,8 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 	// Enable schedule events once at module start.
 	if baseModule.GetPhase() == modules.EnableScheduleBindings {
+		span.AddEvent("module enable schedule bindings")
+
 		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 
 		s.moduleManager.EnableModuleScheduleBindings(hm.ModuleName)
@@ -382,9 +398,11 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 	// Module start is done, module is ready to run hooks and helm chart.
 	if baseModule.GetPhase() == modules.CanRunHelm {
+		span.AddEvent("module can run helm")
+
 		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
 		// run beforeHelm, helm, afterHelm
-		valuesChanged, moduleRunErr = s.moduleManager.RunModule(baseModule.Name, s.shellTask.GetLogLabels())
+		valuesChanged, moduleRunErr = s.moduleManager.RunModule(ctx, baseModule.GetName(), s.shellTask.GetLogLabels())
 	}
 
 	// this is task success, but not guarantee that module in Ready phase
