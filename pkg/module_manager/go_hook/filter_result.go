@@ -17,7 +17,7 @@ type FilterFunc func(*unstructured.Unstructured) (FilterResult, error)
 type FilterResult any
 
 type Wrapped struct {
-	Wrapped interface{}
+	Wrapped any
 }
 
 var (

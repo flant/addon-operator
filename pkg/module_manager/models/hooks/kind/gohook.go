@@ -126,10 +126,9 @@ func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.
 			for _, snapshot := range snaps {
 				goSnapshot := snapshot.FilterResult
 
-				// TODO: fix all hooks which use nil comparison
-				// if goSnapshot == nil {
-				// 	continue
-				// }
+				if goSnapshot == nil {
+					continue
+				}
 
 				formattedSnapshots[snapBindingName] = append(formattedSnapshots[snapBindingName], goSnapshot)
 				newformattedSnapshots[snapBindingName] = append(newformattedSnapshots[snapBindingName], &gohook.Wrapped{Wrapped: goSnapshot})
