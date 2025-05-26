@@ -66,8 +66,8 @@ func run(input *gohook.HookInput) error {
 			slog.String("spec", fmt.Sprintf("%+v", podSpec)))
 	}
 
-	// input.Logger.Info("Hello from on_kube.pods2! I have snapshots",
-	// 	slog.Int("count", len(input.Snapshots)))
+	input.Logger.Info("Hello from on_kube.pods2! I have snapshots",
+		slog.Int("count", len(input.Snapshots)))
 
 	input.MetricsCollector.Add("addon_go_hooks_total", 1.0, nil)
 
