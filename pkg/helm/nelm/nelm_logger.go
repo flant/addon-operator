@@ -1,116 +1,110 @@
 package nelm
 
-import "context"
+import (
+	"context"
+	"fmt"
 
-var _ Logger = (*NelmLogger)(nil)
+	"github.com/werf/nelm/pkg/log"
+)
 
-// FIXME(addon-operator): reference implementation here: https://github.com/werf/nelm/blob/72b22bcd3959e4083a41765ae0b7362c22a2d23d/internal/log/logboek_logger.go
-// Must be thread-safe.
+var _ log.Logger = (*NelmLogger)(nil)
 
 func NewNelmLogger() *NelmLogger {
 	return &NelmLogger{}
 }
 
+// FIXME(addon-operator): implement all methods. Must be thread-safe. Reference implementation here:
+// https://github.com/werf/nelm/blob/72b22bcd3959e4083a41765ae0b7362c22a2d23d/internal/log/logboek_logger.go
 type NelmLogger struct{}
 
 func (n *NelmLogger) Trace(ctx context.Context, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) TraceStruct(ctx context.Context, obj interface{}, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) TracePush(ctx context.Context, group, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) TracePop(ctx context.Context, group string) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) Debug(ctx context.Context, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) DebugPush(ctx context.Context, group, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) DebugPop(ctx context.Context, group string) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) Info(ctx context.Context, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) InfoPush(ctx context.Context, group, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) InfoPop(ctx context.Context, group string) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) Warn(ctx context.Context, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) WarnPush(ctx context.Context, group, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) WarnPop(ctx context.Context, group string) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) Error(ctx context.Context, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) ErrorPush(ctx context.Context, group, format string, a ...interface{}) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
 func (n *NelmLogger) ErrorPop(ctx context.Context, group string) {
-	// FIXME(addon-operator): implement this
 	panic("not implemented yet")
 }
 
-func (n *NelmLogger) InfoBlock(ctx context.Context, opts BlockOptions, format string, a ...interface{}) error {
-	// FIXME(addon-operator): implement this. No need to do all the stuff we do in logboek. Would be
-	// fine to just print `----------` in the beginning and the end of the block, no indentation.
+// FIXME(addon-operator): example implementation
+func (n *NelmLogger) InfoBlock(ctx context.Context, opts log.BlockOptions, fn func()) {
+	if opts.BlockTitle != "" {
+		fmt.Printf("----------\n%s\n", opts.BlockTitle)
+	}
+
+	fmt.Printf("----------\n")
+	fn()
+	fmt.Printf("----------\n")
+}
+
+func (n *NelmLogger) InfoBlockErr(ctx context.Context, opts log.BlockOptions, fn func() error) error {
 	panic("not implemented yet")
 }
 
-func (n *NelmLogger) SetLevel(ctx context.Context, lvl Level) {
-	// FIXME(addon-operator): implement this
+func (n *NelmLogger) SetLevel(ctx context.Context, lvl log.Level) {
 	panic("not implemented yet")
 }
 
-func (n *NelmLogger) Level(ctx context.Context) Level {
-	// FIXME(addon-operator): implement this
+func (n *NelmLogger) Level(ctx context.Context) log.Level {
 	panic("not implemented yet")
 }
 
-func (n *NelmLogger) AcceptLevel(ctx context.Context, lvl Level) bool {
-	// FIXME(addon-operator): implement this
+func (n *NelmLogger) AcceptLevel(ctx context.Context, lvl log.Level) bool {
 	panic("not implemented yet")
 }
 
