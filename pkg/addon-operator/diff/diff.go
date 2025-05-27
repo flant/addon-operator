@@ -1,3 +1,4 @@
+//nolint
 package diff
 
 import (
@@ -232,7 +233,6 @@ func (p *Printer) Print(obj runtime.Object, w io.Writer) error {
 	}
 	_, err = w.Write(data)
 	return err
-
 }
 
 // DiffVersion gets the proper version of objects, and aggregate them into a directory.
