@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func TestRemoveGenerationField(t *testing.T) {
+func TestRemoveServerManagedFields(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    runtime.Object
@@ -19,21 +19,28 @@ func TestRemoveGenerationField(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "object with generation field",
+			name: "object with server-managed fields",
 			input: &unstructured.Unstructured{
 				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "ConfigMap",
 					"metadata": map[string]any{
-						"name":       "test-cm",
-						"namespace":  "default",
-						"generation": int64(5),
+						"name":              "test-cm",
+						"namespace":         "default",
+						"generation":        int64(5),
+						"resourceVersion":   "12345",
+						"uid":               "abc-123-def",
+						"creationTimestamp": "2023-01-01T00:00:00Z",
+						"managedFields":     []any{},
 						"labels": map[string]any{
 							"app": "test",
 						},
 					},
 					"data": map[string]any{
 						"key": "value",
+					},
+					"status": map[string]any{
+						"phase": "Active",
 					},
 				},
 			},
@@ -55,7 +62,7 @@ func TestRemoveGenerationField(t *testing.T) {
 			},
 		},
 		{
-			name: "object without generation field",
+			name: "object without server-managed fields",
 			input: &unstructured.Unstructured{
 				Object: map[string]any{
 					"apiVersion": "v1",
@@ -116,7 +123,7 @@ func TestRemoveGenerationField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := removeGenerationField(tt.input)
+			result := removeServerManagedFields(tt.input)
 
 			// Check if the result is as expected
 			if tt.expected == nil {
@@ -137,13 +144,21 @@ func TestRemoveGenerationField(t *testing.T) {
 				t.Fatalf("result should be *unstructured.Unstructured")
 			}
 
-			// Check that generation field is removed
+			// Check that server-managed fields are removed
 			if metadata, found := resultUnstructured.Object["metadata"]; found {
 				if metadataMap, ok := metadata.(map[string]any); ok {
-					if _, hasGeneration := metadataMap["generation"]; hasGeneration {
-						t.Errorf("generation field should be removed but was found")
+					serverManagedFields := []string{"generation", "resourceVersion", "uid", "creationTimestamp", "managedFields"}
+					for _, field := range serverManagedFields {
+						if _, hasField := metadataMap[field]; hasField {
+							t.Errorf("server-managed field '%s' should be removed but was found", field)
+						}
 					}
 				}
+			}
+
+			// Check that status field is removed
+			if _, hasStatus := resultUnstructured.Object["status"]; hasStatus {
+				t.Errorf("status field should be removed but was found")
 			}
 
 			// Check that other fields are preserved
@@ -173,8 +188,8 @@ func TestRemoveGenerationField(t *testing.T) {
 				if ok {
 					if inputMetadata, found := inputUnstructured.Object["metadata"]; found {
 						if inputMetadataMap, ok := inputMetadata.(map[string]any); ok {
-							// Original object should still have generation if it was there initially
-							if tt.name == "object with generation field" {
+							// Original object should still have server-managed fields if they were there initially
+							if tt.name == "object with server-managed fields" {
 								if _, hasGeneration := inputMetadataMap["generation"]; !hasGeneration {
 									t.Errorf("original object should not be modified - generation field should still exist")
 								}

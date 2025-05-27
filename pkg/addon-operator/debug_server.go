@@ -28,11 +28,11 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/types"
 )
 
-const filedManagerName = "kubectl-client-side-apply"
+const fieldManagerName = "kubectl-client-side-apply"
 
-// removeGenerationField removes the metadata.generation field from a Kubernetes object
-// to exclude it from diff comparisons
-func removeGenerationField(obj runtime.Object) runtime.Object {
+// removeServerManagedFields removes server-managed fields from a Kubernetes object
+// to exclude them from diff comparisons
+func removeServerManagedFields(obj runtime.Object) runtime.Object {
 	if obj == nil {
 		return nil
 	}
@@ -43,9 +43,18 @@ func removeGenerationField(obj runtime.Object) runtime.Object {
 	}
 	if metadata, found := unstructuredObj["metadata"]; found {
 		if metadataMap, ok := metadata.(map[string]any); ok {
+			// Remove server-managed fields that can cause diff noise
 			delete(metadataMap, "generation")
+			delete(metadataMap, "resourceVersion")
+			delete(metadataMap, "uid")
+			delete(metadataMap, "creationTimestamp")
+			delete(metadataMap, "managedFields")
 		}
 	}
+
+	// Remove status field as it's managed by controllers and shouldn't be part of diff
+	delete(unstructuredObj, "status")
+
 	result := &unstructured.Unstructured{}
 	result.SetUnstructuredContent(unstructuredObj)
 	return result
@@ -278,10 +287,10 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 				force := i == maxRetries
 
-				filteredLocal := removeGenerationField(local)
+				filteredLocal := removeServerManagedFields(local)
 				var filteredInfo *resource.Info
 				if info.Object != nil {
-					filteredLive := removeGenerationField(info.Object)
+					filteredLive := removeServerManagedFields(info.Object)
 					filteredInfo = &resource.Info{
 						Namespace:       info.Namespace,
 						Name:            info.Name,
@@ -303,7 +312,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 					ServerSideApply: false,
 					ForceConflicts:  true,
 					IOStreams:       diffProgram.IOStreams,
-					FieldManager:    filedManagerName,
+					FieldManager:    fieldManagerName,
 				}
 
 				err = differ.Diff(obj, printer, false)
