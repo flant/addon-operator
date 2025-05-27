@@ -45,15 +45,9 @@ func removeServerManagedFields(obj runtime.Object) runtime.Object {
 		if metadataMap, ok := metadata.(map[string]any); ok {
 			// Remove server-managed fields that can cause diff noise
 			delete(metadataMap, "generation")
-			delete(metadataMap, "resourceVersion")
-			delete(metadataMap, "uid")
-			delete(metadataMap, "creationTimestamp")
 			delete(metadataMap, "managedFields")
 		}
 	}
-
-	// Remove status field as it's managed by controllers and shouldn't be part of diff
-	delete(unstructuredObj, "status")
 
 	result := &unstructured.Unstructured{}
 	result.SetUnstructuredContent(unstructuredObj)

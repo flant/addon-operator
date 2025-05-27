@@ -5,7 +5,24 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+// mockObject is a mock object that can't be converted to unstructured
+type mockObject struct {
+	// This field contains a function which can't be serialized
+	InvalidField func()
+}
+
+func (m *mockObject) GetObjectKind() schema.ObjectKind {
+	return nil
+}
+
+func (m *mockObject) DeepCopyObject() runtime.Object {
+	return &mockObject{
+		InvalidField: m.InvalidField,
+	}
+}
 
 func TestRemoveServerManagedFields(t *testing.T) {
 	tests := []struct {
@@ -49,14 +66,20 @@ func TestRemoveServerManagedFields(t *testing.T) {
 					"apiVersion": "v1",
 					"kind":       "ConfigMap",
 					"metadata": map[string]any{
-						"name":      "test-cm",
-						"namespace": "default",
+						"name":              "test-cm",
+						"namespace":         "default",
+						"resourceVersion":   "12345",
+						"uid":               "abc-123-def",
+						"creationTimestamp": "2023-01-01T00:00:00Z",
 						"labels": map[string]any{
 							"app": "test",
 						},
 					},
 					"data": map[string]any{
 						"key": "value",
+					},
+					"status": map[string]any{
+						"phase": "Active",
 					},
 				},
 			},
@@ -119,6 +142,15 @@ func TestRemoveServerManagedFields(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "object that fails conversion to unstructured",
+			input: &mockObject{
+				InvalidField: func() {},
+			},
+			expected: &mockObject{
+				InvalidField: func() {},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -133,32 +165,55 @@ func TestRemoveServerManagedFields(t *testing.T) {
 				return
 			}
 
+			// Handle case where conversion to unstructured failed
+			if tt.name == "object that fails conversion to unstructured" {
+				// The function should return the original copy when conversion fails
+				if result == tt.input {
+					t.Errorf("function should return a copy, not the original object")
+				}
+				// Both should be mockObject type
+				if _, ok := result.(*mockObject); !ok {
+					t.Errorf("expected result to be *mockObject, got %T", result)
+				}
+				return
+			}
+
 			// Convert both to unstructured for comparison
-			expectedUnstructured, ok := tt.expected.(*unstructured.Unstructured)
-			if !ok {
-				t.Fatalf("expected result should be *unstructured.Unstructured")
+			expectedUnstructured, expectedIsUnstructured := tt.expected.(*unstructured.Unstructured)
+			resultUnstructured, resultIsUnstructured := result.(*unstructured.Unstructured)
+
+			if !expectedIsUnstructured || !resultIsUnstructured {
+				t.Fatalf("expected and result should both be *unstructured.Unstructured for this test case")
 			}
 
-			resultUnstructured, ok := result.(*unstructured.Unstructured)
-			if !ok {
-				t.Fatalf("result should be *unstructured.Unstructured")
-			}
-
-			// Check that server-managed fields are removed
+			// Check that only specified server-managed fields are removed
 			if metadata, found := resultUnstructured.Object["metadata"]; found {
 				if metadataMap, ok := metadata.(map[string]any); ok {
-					serverManagedFields := []string{"generation", "resourceVersion", "uid", "creationTimestamp", "managedFields"}
-					for _, field := range serverManagedFields {
+					// These fields should be removed
+					removedFields := []string{"generation", "managedFields"}
+					for _, field := range removedFields {
 						if _, hasField := metadataMap[field]; hasField {
 							t.Errorf("server-managed field '%s' should be removed but was found", field)
+						}
+					}
+
+					// These fields should be preserved
+					preservedFields := []string{"resourceVersion", "uid", "creationTimestamp"}
+					for _, field := range preservedFields {
+						if tt.name == "object with server-managed fields" {
+							if _, hasField := metadataMap[field]; !hasField {
+								t.Errorf("field '%s' should be preserved but was not found", field)
+							}
 						}
 					}
 				}
 			}
 
-			// Check that status field is removed
-			if _, hasStatus := resultUnstructured.Object["status"]; hasStatus {
-				t.Errorf("status field should be removed but was found")
+			// Check that status field is preserved (not removed by this function)
+			if tt.name == "object with server-managed fields" {
+				if _, hasStatus := resultUnstructured.Object["status"]; !hasStatus {
+					t.Errorf("status field should be preserved but was not found")
+				}
 			}
 
 			// Check that other fields are preserved
@@ -192,6 +247,9 @@ func TestRemoveServerManagedFields(t *testing.T) {
 							if tt.name == "object with server-managed fields" {
 								if _, hasGeneration := inputMetadataMap["generation"]; !hasGeneration {
 									t.Errorf("original object should not be modified - generation field should still exist")
+								}
+								if _, hasManagedFields := inputMetadataMap["managedFields"]; !hasManagedFields {
+									t.Errorf("original object should not be modified - managedFields should still exist")
 								}
 							}
 						}
