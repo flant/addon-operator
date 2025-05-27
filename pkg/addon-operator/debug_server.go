@@ -13,14 +13,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 	"k8s.io/cli-runtime/pkg/resource"
-	"k8s.io/kubectl/pkg/cmd/diff"
 	"k8s.io/kubectl/pkg/scheme"
 	"k8s.io/utils/exec"
 
+	"github.com/flant/addon-operator/pkg/addon-operator/diff"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -29,30 +27,6 @@ import (
 )
 
 const fieldManagerName = "kubectl-client-side-apply"
-
-// removeServerManagedFields removes server-managed fields from a Kubernetes object
-// to exclude them from diff comparisons
-func removeServerManagedFields(obj runtime.Object) runtime.Object {
-	if obj == nil {
-		return nil
-	}
-	objCopy := obj.DeepCopyObject()
-	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(objCopy)
-	if err != nil {
-		return objCopy
-	}
-	if metadata, found := unstructuredObj["metadata"]; found {
-		if metadataMap, ok := metadata.(map[string]any); ok {
-			// Remove server-managed fields that can cause diff noise
-			delete(metadataMap, "generation")
-			delete(metadataMap, "managedFields")
-		}
-	}
-
-	result := &unstructured.Unstructured{}
-	result.SetUnstructuredContent(unstructuredObj)
-	return result
-}
 
 func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/list.{format:(json|yaml)}", func(_ *http.Request) (any, error) {
@@ -281,29 +255,12 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 				force := i == maxRetries
 
-				filteredLocal := removeServerManagedFields(local)
-				var filteredInfo *resource.Info
-				if info.Object != nil {
-					filteredLive := removeServerManagedFields(info.Object)
-					filteredInfo = &resource.Info{
-						Namespace:       info.Namespace,
-						Name:            info.Name,
-						Source:          info.Source,
-						Object:          filteredLive,
-						ResourceVersion: info.ResourceVersion,
-						Mapping:         info.Mapping,
-						Client:          info.Client,
-					}
-				} else {
-					filteredInfo = info
-				}
-
 				obj := diff.InfoObject{
-					LocalObj:        filteredLocal,
-					Info:            filteredInfo,
+					LocalObj:        local,
+					Info:            info,
 					Encoder:         scheme.DefaultJSONEncoder(),
 					Force:           force,
-					ServerSideApply: false,
+					ServerSideApply: true,
 					ForceConflicts:  true,
 					IOStreams:       diffProgram.IOStreams,
 					FieldManager:    fieldManagerName,
