@@ -18,13 +18,14 @@ require (
 	github.com/go-openapi/validate v0.19.12
 	github.com/goccy/go-graphviz v0.2.9
 	github.com/gofrs/uuid/v5 v5.3.2
+	github.com/gookit/color v1.5.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/gomega v1.37.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.17.0
-	github.com/werf/nelm v1.2.0
+	github.com/werf/nelm v1.4.2-0.20250527153113-7fe26b436d2d
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.15.4
@@ -115,7 +116,6 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gookit/color v1.5.4 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
@@ -182,8 +182,8 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wI2L/jsondiff v0.5.0 // indirect
-	github.com/werf/3p-helm v0.0.0-20250423070931-cbf97ffb83ad // indirect
-	github.com/werf/common-go v0.0.0-20250417171011-97dbede6f27c // indirect
+	github.com/werf/3p-helm v0.0.0-20250523104754-b2fc45bbcb87 // indirect
+	github.com/werf/common-go v0.0.0-20250520111308-b0eda28dde0d // indirect
 	github.com/werf/kubedog v0.13.1-0.20250411133038-3d8084fab0ec // indirect
 	github.com/werf/lockgate v0.1.1 // indirect
 	github.com/werf/logboek v0.6.1 // indirect

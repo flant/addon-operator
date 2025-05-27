@@ -2,24 +2,26 @@ package nelm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
-	"regexp"
+	"sort"
 	"strconv"
 	"time"
 
+	"github.com/gookit/color"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
 
 	"github.com/werf/nelm/pkg/action"
+	"github.com/werf/nelm/pkg/log"
 )
-
-// FIXME(nelm): get rid of all globals in Nelm to be able to run them sequentially or in parallel
 
 var (
 	_             client.HelmClient = &NelmClient{}
@@ -27,6 +29,9 @@ var (
 )
 
 func Init(opts *CommonOptions, logger *NelmLogger) error {
+	log.Default = logger
+	color.Disable()
+
 	getter := buildConfigFlagsFromEnv(&commonOptions.Namespace, cli.New())
 
 	// FIXME(addon-operator): add all other options from getter in the same manner
@@ -37,10 +42,6 @@ func Init(opts *CommonOptions, logger *NelmLogger) error {
 	if opts.HelmDriver == "" {
 		opts.HelmDriver = os.Getenv("HELM_DRIVER")
 	}
-
-	// FIXME(nelm): this function does A LOT. And with what addon-operator expects from us
-	// in regards to logging, all of this is kind of a mess now
-	action.SetupLogging(context.TODO(), "info", "", "off")
 
 	commonOptions = opts
 
@@ -57,9 +58,8 @@ func Init(opts *CommonOptions, logger *NelmLogger) error {
 }
 
 type CommonOptions struct {
-	Namespace  string
-	HistoryMax int32
-	// FIXME(nelm): add global timeout to Nelm actions
+	Namespace   string
+	HistoryMax  int32
 	Timeout     time.Duration
 	HelmDriver  string
 	KubeContext string
@@ -95,8 +95,8 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 		ReleaseStorageDriver: commonOptions.HelmDriver,
 	})
 	if err != nil {
-		// FIXME(nelm): return a specific error from ReleaseGet if release not found
-		if regexp.MustCompile(`.+release ".+" (namespace ".+") not found`).Match([]byte(err.Error())) {
+		var releaseNotFoundErr *action.ReleaseNotFoundError
+		if errors.As(err, &releaseNotFoundErr) {
 			return "0", "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
 		}
 
@@ -112,15 +112,15 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, values
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
 
-	// FIXME(nelm): deploy without installing CRDs
-	// FIXME(nelm): allow passing labels to Release.Labels
 	if err := action.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
-		// FIXME(nelm): allow passing remote chart path
-		ChartDirPath:         chartName,
+		Chart:                chartName,
 		ExtraLabels:          c.labels,
 		KubeContext:          commonOptions.KubeContext,
+		NoInstallCRDs:        true,
 		ReleaseHistoryLimit:  int(commonOptions.HistoryMax),
+		ReleaseLabels:        labels,
 		ReleaseStorageDriver: commonOptions.HelmDriver,
+		Timeout:              commonOptions.Timeout,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
 	}); err != nil {
@@ -153,12 +153,11 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 		return checksum, nil
 	}
 
-	// FIXME(nelm): expose Values in ReleaseGetResult and uncomment this
-	// if recordedChecksum, hasKey := releaseGetResult.Values["_addonOperatorModuleChecksum"]; hasKey {
-	// 	if recordedChecksumStr, ok := recordedChecksum.(string); ok {
-	// 		return recordedChecksumStr, nil
-	// 	}
-	// }
+	if recordedChecksum, hasKey := releaseGetResult.Values["_addonOperatorModuleChecksum"]; hasKey {
+		if recordedChecksumStr, ok := recordedChecksum.(string); ok {
+			return recordedChecksumStr, nil
+		}
+	}
 
 	return "", fmt.Errorf("moduleChecksum label not found in nelm release %q", releaseName)
 }
@@ -170,6 +169,7 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 		KubeContext:          commonOptions.KubeContext,
 		ReleaseHistoryLimit:  int(commonOptions.HistoryMax),
 		ReleaseStorageDriver: commonOptions.HelmDriver,
+		Timeout:              commonOptions.Timeout,
 	}); err != nil {
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
@@ -193,27 +193,43 @@ func (c *NelmClient) IsReleaseExists(releaseName string) (bool, error) {
 }
 
 func (c *NelmClient) ListReleasesNames() ([]string, error) {
-	// FIXME(nelm): implement ReleaseList as a Nelm action
-	panic("not implemented yet")
+	releaseListResult, err := action.ReleaseList(context.TODO(), action.ReleaseListOptions{
+		KubeContext:          commonOptions.KubeContext,
+		OutputNoPrint:        true,
+		ReleaseStorageDriver: commonOptions.HelmDriver,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list nelm releases: %w", err)
+	}
+
+	var releaseNames []string
+	for _, release := range releaseListResult.Releases {
+		// FIXME(addon-operator): not sure how this can happen, it is impossible to deploy a release with no name with Nelm, and, I believe, with Helm too
+		if release.Name == "" {
+			continue
+		}
+
+		releaseNames = append(releaseNames, release.Name)
+	}
+
+	sort.Strings(releaseNames)
+
+	return releaseNames, nil
 }
 
 func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
-	// FIXME(nelm): debug arg is not used now. Nelm doesn't return bad manifests on error, instead it has very verbose trace log level which prints them. Do we really need to dump bad manifests on error?
-
 	c.logger.Debug(context.TODO(), "Render nelm templates for chart ...",
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
 
-	// FIXME(nelm): need to return ChartRenderResultV1, like we did in action.ChartRender
-	err := action.ChartRender(context.TODO(), action.ChartRenderOptions{
-		// FIXME(nelm): allow passing remote chart path
-		ChartDirPath:         chartName,
+	chartRenderResult, err := action.ChartRender(context.TODO(), action.ChartRenderOptions{
+		Chart:                chartName,
 		ExtraLabels:          c.labels,
 		KubeContext:          commonOptions.KubeContext,
-		Remote:               true,
 		ReleaseName:          releaseName,
 		ReleaseNamespace:     commonOptions.Namespace,
 		ReleaseStorageDriver: commonOptions.HelmDriver,
+		Remote:               true,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
 	})
@@ -223,8 +239,21 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 
 	c.logger.Info(context.TODO(), "Render nelm templates for chart was successful", slog.String("chart", chartName))
 
-	// FIXME(nelm): we should return manifests from ChartRenderResultV1
-	panic("not implemented yet")
+	var result string
+	for _, resource := range chartRenderResult.Resources {
+		b, err := yaml.Marshal(resource)
+		if err != nil {
+			return "", fmt.Errorf("marshal resource: %w", err)
+		}
+
+		if result != "" {
+			result += "---\n"
+		}
+
+		result += string(b)
+	}
+
+	return result, nil
 }
 
 func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioptions.ConfigFlags {
