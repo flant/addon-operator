@@ -300,7 +300,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 					Info:            filteredInfo,
 					Encoder:         scheme.DefaultJSONEncoder(),
 					Force:           force,
-					ServerSideApply: true,
+					ServerSideApply: false,
 					ForceConflicts:  true,
 					IOStreams:       diffProgram.IOStreams,
 					FieldManager:    filedManagerName,
