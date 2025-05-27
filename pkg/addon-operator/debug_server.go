@@ -13,6 +13,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 	"k8s.io/cli-runtime/pkg/resource"
 	"k8s.io/kubectl/pkg/cmd/diff"
@@ -28,29 +30,50 @@ import (
 
 const filedManagerName = "kubectl-client-side-apply"
 
+// removeGenerationField removes the metadata.generation field from a Kubernetes object
+// to exclude it from diff comparisons
+func removeGenerationField(obj runtime.Object) runtime.Object {
+	if obj == nil {
+		return nil
+	}
+	objCopy := obj.DeepCopyObject()
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(objCopy)
+	if err != nil {
+		return objCopy
+	}
+	if metadata, found := unstructuredObj["metadata"]; found {
+		if metadataMap, ok := metadata.(map[string]any); ok {
+			delete(metadataMap, "generation")
+		}
+	}
+	result := &unstructured.Unstructured{}
+	result.SetUnstructuredContent(unstructuredObj)
+	return result
+}
+
 func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
-	dbgSrv.RegisterHandler(http.MethodGet, "/global/list.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
-		return map[string]interface{}{
+	dbgSrv.RegisterHandler(http.MethodGet, "/global/list.{format:(json|yaml)}", func(_ *http.Request) (any, error) {
+		return map[string]any{
 			"globalHooks": op.ModuleManager.GetGlobalHooksNames(),
 		}, nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/global/values.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/global/values.{format:(json|yaml)}", func(_ *http.Request) (any, error) {
 		return op.ModuleManager.GetGlobal().GetValues(false), nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/global/config.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/global/config.{format:(json|yaml)}", func(_ *http.Request) (any, error) {
 		return op.ModuleManager.GetGlobal().GetConfigValues(false), nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/global/patches.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/global/patches.{format:(json|yaml)}", func(_ *http.Request) (any, error) {
 		return op.ModuleManager.GetGlobal().GetValuesPatches(), nil
 	})
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/global/snapshots.{format:(json|yaml)}",
-		func(_ *http.Request) (interface{}, error) {
+		func(_ *http.Request) (any, error) {
 			kubeHookNames := op.ModuleManager.GetGlobalHooksInOrder(types.OnKubernetesEvent)
-			snapshots := make(map[string]interface{})
+			snapshots := make(map[string]any)
 			for _, hName := range kubeHookNames {
 				h := op.ModuleManager.GetGlobalHook(hName)
 				snapshots[hName] = h.GetHookController().SnapshotsDump()
@@ -98,13 +121,13 @@ func (op *AddonOperator) RegisterDebugGraphRoutes(dbgSrv *debug.Server) {
 }
 
 func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
-	dbgSrv.RegisterHandler(http.MethodGet, "/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (any, error) {
 		mods := op.ModuleManager.GetEnabledModuleNames()
 		sort.Strings(mods)
 		return map[string][]string{"enabledModules": mods}, nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/{type:(config|values)}.{format:(json|yaml)}", func(r *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/{type:(config|values)}.{format:(json|yaml)}", func(r *http.Request) (any, error) {
 		modName := chi.URLParam(r, "name")
 		valType := chi.URLParam(r, "type")
 
@@ -147,7 +170,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		return "no values", nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/render", func(r *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/render", func(r *http.Request) (any, error) {
 		modName := chi.URLParam(r, "name")
 		debugMode, err := strconv.ParseBool(r.URL.Query().Get("debug"))
 		if err != nil {
@@ -255,9 +278,26 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 				force := i == maxRetries
 
+				filteredLocal := removeGenerationField(local)
+				var filteredInfo *resource.Info
+				if info.Object != nil {
+					filteredLive := removeGenerationField(info.Object)
+					filteredInfo = &resource.Info{
+						Namespace:       info.Namespace,
+						Name:            info.Name,
+						Source:          info.Source,
+						Object:          filteredLive,
+						ResourceVersion: info.ResourceVersion,
+						Mapping:         info.Mapping,
+						Client:          info.Client,
+					}
+				} else {
+					filteredInfo = info
+				}
+
 				obj := diff.InfoObject{
-					LocalObj:        local,
-					Info:            info,
+					LocalObj:        filteredLocal,
+					Info:            filteredInfo,
 					Encoder:         scheme.DefaultJSONEncoder(),
 					Force:           force,
 					ServerSideApply: true,
@@ -289,7 +329,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		return "No diff found", nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/patches.json", func(r *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/patches.json", func(r *http.Request) (any, error) {
 		modName := chi.URLParam(r, "name")
 
 		m := op.ModuleManager.GetModule(modName)
@@ -300,8 +340,8 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		return m.GetValuesPatches(), nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/module/resource-monitor.{format:(json|yaml)}", func(_ *http.Request) (interface{}, error) {
-		dump := map[string]interface{}{}
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/resource-monitor.{format:(json|yaml)}", func(_ *http.Request) (any, error) {
+		dump := map[string]any{}
 
 		for _, moduleName := range op.ModuleManager.GetEnabledModuleNames() {
 			if !op.HelmResourcesManager.HasMonitor(moduleName) {
@@ -316,7 +356,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		return dump, nil
 	})
 
-	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/snapshots.{format:(json|yaml)}", func(r *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/snapshots.{format:(json|yaml)}", func(r *http.Request) (any, error) {
 		modName := chi.URLParam(r, "name")
 
 		m := op.ModuleManager.GetModule(modName)
@@ -325,7 +365,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		}
 
 		mHooks := m.GetHooks()
-		snapshots := make(map[string]interface{})
+		snapshots := make(map[string]any)
 		for _, h := range mHooks {
 			snapshots[h.GetName()] = h.GetHookController().SnapshotsDump()
 		}
@@ -335,7 +375,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 }
 
 func (op *AddonOperator) RegisterDiscoveryRoute(dbgSrv *debug.Server) {
-	dbgSrv.RegisterHandler(http.MethodGet, "/discovery", func(_ *http.Request) (interface{}, error) {
+	dbgSrv.RegisterHandler(http.MethodGet, "/discovery", func(_ *http.Request) (any, error) {
 		buf := bytes.NewBuffer(nil)
 		walkFn := func(
 			method string,
