@@ -32,14 +32,22 @@ func (f *Wrapped) UnmarshalTo(v any) error {
 
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
-		// error replace with "not pointer"
-		return fmt.Errorf("reflect.TypeOf(v): %s", reflect.TypeOf(v))
+		return fmt.Errorf("expected pointer to value, got: %T", v)
 	}
 
 	rw := reflect.ValueOf(f.Wrapped)
 	if rw.Kind() != reflect.Pointer || rw.IsNil() {
-		rv.Elem().Set(rw)
+		rv.Elem().Set(reflect.Zero(rv.Elem().Type()))
+		return nil
+	}
 
+	if rw.Type().AssignableTo(rv.Elem().Type()) {
+		rv.Elem().Set(rw.Elem())
+		return nil
+	}
+
+	if rw.Type() == rv.Type().Elem() {
+		rv.Elem().Set(rw)
 		return nil
 	}
 
