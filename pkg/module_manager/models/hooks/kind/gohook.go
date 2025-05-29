@@ -131,7 +131,8 @@ func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.
 					continue
 				}
 
-				if reflect.ValueOf(goSnapshot).IsNil() {
+				rw := reflect.ValueOf(goSnapshot)
+				if rw.Kind() == reflect.Pointer && rw.IsNil() {
 					continue
 				}
 
