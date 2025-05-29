@@ -28,6 +28,28 @@ func Test_FilterResult(t *testing.T) {
 		assert.Equal(t, "INPUT STRING", ss.String)
 	})
 
+	t.Run("UnmarshalTo_StructWithSeveralFields", func(t *testing.T) {
+		type SomeStruct2 struct {
+			String  string
+			String2 string
+		}
+
+		w := &go_hook.Wrapped{
+			Wrapped: SomeStruct2{
+				String:  "INPUT STRING",
+				String2: "INPUT TESTING STRING",
+			},
+		}
+
+		ss := SomeStruct2{}
+
+		err := w.UnmarshalTo(&ss)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "INPUT STRING", ss.String)
+		assert.Equal(t, "INPUT TESTING STRING", ss.String2)
+	})
+
 	t.Run("UnmarshalTo_NilWrapped", func(t *testing.T) {
 		w := &go_hook.Wrapped{
 			Wrapped: nil,

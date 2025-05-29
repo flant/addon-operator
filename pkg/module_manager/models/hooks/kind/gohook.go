@@ -3,6 +3,7 @@ package kind
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -127,6 +128,11 @@ func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.
 				goSnapshot := snapshot.FilterResult
 
 				if goSnapshot == nil {
+					continue
+				}
+
+				rw := reflect.ValueOf(goSnapshot)
+				if rw.Kind() == reflect.Pointer && rw.IsNil() {
 					continue
 				}
 
