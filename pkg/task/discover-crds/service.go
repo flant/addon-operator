@@ -23,12 +23,12 @@ func (d *DiscoveredGVKs) AddGVK(crds ...string) {
 }
 
 func (d *DiscoveredGVKs) ProcessGVKs(processor func(crdList []string)) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	if len(d.discoveredGVKs) == 0 {
 		return
 	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	gvkList := make([]string, 0, len(d.discoveredGVKs))
 	for gvk := range d.discoveredGVKs {
