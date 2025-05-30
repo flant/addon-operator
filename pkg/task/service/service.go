@@ -77,7 +77,7 @@ type TaskHandlerService struct {
 	crdExtraLabels map[string]string
 
 	// discoveredCRDs is a concurrent map of discovered CRDs
-	discoveredCRDs *discovercrds.DiscoveredCRDS
+	discoveredCRDs *discovercrds.DiscoveredGVKs
 
 	taskFactory map[sh_task.TaskType]func(t sh_task.Task, logger *log.Logger) task.Task
 
@@ -253,6 +253,6 @@ func (s *TaskHandlerService) GetTaskFactory() map[sh_task.TaskType]func(t sh_tas
 	return s.taskFactory
 }
 
-func (s *TaskHandlerService) GetDiscoveredCRDs() *discovercrds.DiscoveredCRDS {
+func (s *TaskHandlerService) GetDiscoveredGVKs() *discovercrds.DiscoveredGVKs {
 	return s.discoveredCRDs
 }

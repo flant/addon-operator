@@ -31,7 +31,7 @@ type TaskDependencies interface {
 	GetConvergeState() *converge.ConvergeState
 	GetCRDExtraLabels() map[string]string
 	GetQueueService() *taskqueue.Service
-	GetDiscoveredCRDs() *discovercrds.DiscoveredCRDS
+	GetDiscoveredGVKs() *discovercrds.DiscoveredGVKs
 }
 
 // RegisterTaskHandler creates a factory function for ModuleEnsureCRDs tasks
@@ -44,7 +44,7 @@ func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.
 			svc.GetConvergeState(),
 			svc.GetQueueService(),
 			svc.GetCRDExtraLabels(),
-			svc.GetDiscoveredCRDs(),
+			svc.GetDiscoveredGVKs(),
 			logger.Named("module-ensure-crds"),
 		)
 	}
@@ -60,7 +60,7 @@ type Task struct {
 	queueService   *taskqueue.Service
 	crdExtraLabels map[string]string
 
-	discoveredGVKs *discovercrds.DiscoveredCRDS
+	discoveredGVKs *discovercrds.DiscoveredGVKs
 
 	logger *log.Logger
 }
@@ -73,7 +73,7 @@ func NewTask(
 	convergeState *converge.ConvergeState,
 	queueService *taskqueue.Service,
 	crdExtraLabels map[string]string,
-	discoveredCRDs *discovercrds.DiscoveredCRDS,
+	discoveredGVKs *discovercrds.DiscoveredGVKs,
 	logger *log.Logger,
 ) *Task {
 	return &Task{
@@ -84,7 +84,7 @@ func NewTask(
 		queueService:   queueService,
 		crdExtraLabels: crdExtraLabels,
 
-		discoveredGVKs: discoveredCRDs,
+		discoveredGVKs: discoveredGVKs,
 
 		logger: logger,
 	}
@@ -115,7 +115,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		res.Status = queue.Fail
 	} else {
 		for _, gvk := range appliedGVKs {
-			s.discoveredGVKs.AddCRD(gvk)
+			s.discoveredGVKs.AddGVK(gvk)
 		}
 	}
 
@@ -153,7 +153,7 @@ func (s *Task) CheckCRDsEnsured(t sh_task.Task) {
 
 		s.convergeState.CRDsEnsured = true
 
-		s.discoveredGVKs.WorkWithGVK(func(gvks []string) {
+		s.discoveredGVKs.ProcessGVKs(func(gvks []string) {
 			s.moduleManager.SetGlobalDiscoveryAPIVersions(gvks)
 		})
 	}

@@ -2,49 +2,37 @@ package discovercrds
 
 import "sync"
 
-type DiscoveredCRDS struct {
+type DiscoveredGVKs struct {
 	mu             *sync.Mutex
-	discoveredCRDs map[string]struct{}
+	discoveredGVKs map[string]struct{}
 }
 
-func NewDiscoveredCRDS() *DiscoveredCRDS {
-	return &DiscoveredCRDS{
+func NewDiscoveredGVKs() *DiscoveredGVKs {
+	return &DiscoveredGVKs{
 		mu:             &sync.Mutex{},
-		discoveredCRDs: make(map[string]struct{}),
+		discoveredGVKs: make(map[string]struct{}),
 	}
 }
 
-func (d *DiscoveredCRDS) AddCRD(crd string) {
+func (d *DiscoveredGVKs) AddGVK(crd string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.discoveredCRDs[crd] = struct{}{}
+	d.discoveredGVKs[crd] = struct{}{}
 }
 
-func (d *DiscoveredCRDS) GetCRDs() []string {
+func (d *DiscoveredGVKs) ProcessGVKs(processor func(crdList []string)) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	crds := make([]string, 0, len(d.discoveredCRDs))
-	for crd := range d.discoveredCRDs {
-		crds = append(crds, crd)
-	}
-
-	return crds
-}
-
-func (d *DiscoveredCRDS) WorkWithGVK(fn func(gvks []string)) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if len(d.discoveredCRDs) == 0 {
+	if len(d.discoveredGVKs) == 0 {
 		return
 	}
 
-	gvks := make([]string, 0, len(d.discoveredCRDs))
-	for gvk := range d.discoveredCRDs {
-		gvks = append(gvks, gvk)
+	gvkList := make([]string, 0, len(d.discoveredGVKs))
+	for gvk := range d.discoveredGVKs {
+		gvkList = append(gvkList, gvk)
 	}
 
-	fn(gvks)
+	processor(gvkList)
 }
