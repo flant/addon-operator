@@ -3,13 +3,12 @@ package discovercrds
 import "sync"
 
 type DiscoveredGVKs struct {
-	mu             *sync.Mutex
+	mu             sync.Mutex
 	discoveredGVKs map[string]struct{}
 }
 
 func NewDiscoveredGVKs() *DiscoveredGVKs {
 	return &DiscoveredGVKs{
-		mu:             &sync.Mutex{},
 		discoveredGVKs: make(map[string]struct{}),
 	}
 }
