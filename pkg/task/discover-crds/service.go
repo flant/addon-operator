@@ -14,11 +14,13 @@ func NewDiscoveredGVKs() *DiscoveredGVKs {
 	}
 }
 
-func (d *DiscoveredGVKs) AddGVK(crd string) {
+func (d *DiscoveredGVKs) AddGVK(crds ...string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.discoveredGVKs[crd] = struct{}{}
+	for _, crd := range crds {
+		d.discoveredGVKs[crd] = struct{}{}
+	}
 }
 
 func (d *DiscoveredGVKs) ProcessGVKs(processor func(crdList []string)) {

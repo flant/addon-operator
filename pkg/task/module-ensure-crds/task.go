@@ -114,9 +114,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 		res.Status = queue.Fail
 	} else {
-		for _, gvk := range appliedGVKs {
-			s.discoveredGVKs.AddGVK(gvk)
-		}
+		s.discoveredGVKs.AddGVK(appliedGVKs...)
 	}
 
 	if res.Status == queue.Success {
