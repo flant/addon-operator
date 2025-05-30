@@ -97,6 +97,7 @@ func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig
 		kubeConfigManager:    config.KubeConfigManager,
 		convergeState:        config.ConvergeState,
 		crdExtraLabels:       config.CRDExtraLabels,
+		discoveredCRDs:       discovercrds.NewDiscoveredGVKs(),
 		logger:               logger,
 	}
 
