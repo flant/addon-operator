@@ -3,7 +3,6 @@ package moduleensurecrds
 import (
 	"context"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -14,6 +13,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
+	discovercrds "github.com/flant/addon-operator/pkg/task/discover-crds"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	klient "github.com/flant/kube-client/client"
 	sh_task "github.com/flant/shell-operator/pkg/task"
@@ -31,6 +31,7 @@ type TaskDependencies interface {
 	GetConvergeState() *converge.ConvergeState
 	GetCRDExtraLabels() map[string]string
 	GetQueueService() *taskqueue.Service
+	GetDiscoveredCRDs() *discovercrds.DiscoveredCRDS
 }
 
 // RegisterTaskHandler creates a factory function for ModuleEnsureCRDs tasks
@@ -43,6 +44,7 @@ func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.
 			svc.GetConvergeState(),
 			svc.GetQueueService(),
 			svc.GetCRDExtraLabels(),
+			svc.GetDiscoveredCRDs(),
 			logger.Named("module-ensure-crds"),
 		)
 	}
@@ -58,8 +60,7 @@ type Task struct {
 	queueService   *taskqueue.Service
 	crdExtraLabels map[string]string
 
-	discoveredGVKsLock sync.Mutex
-	discoveredGVKs     map[string]struct{} // GVKs from applied modules' CRDs
+	discoveredGVKs *discovercrds.DiscoveredCRDS
 
 	logger *log.Logger
 }
@@ -72,6 +73,7 @@ func NewTask(
 	convergeState *converge.ConvergeState,
 	queueService *taskqueue.Service,
 	crdExtraLabels map[string]string,
+	discoveredCRDs *discovercrds.DiscoveredCRDS,
 	logger *log.Logger,
 ) *Task {
 	return &Task{
@@ -82,7 +84,7 @@ func NewTask(
 		queueService:   queueService,
 		crdExtraLabels: crdExtraLabels,
 
-		discoveredGVKs: make(map[string]struct{}),
+		discoveredGVKs: discoveredCRDs,
 
 		logger: logger,
 	}
@@ -112,13 +114,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 		res.Status = queue.Fail
 	} else {
-		s.discoveredGVKsLock.Lock()
-
 		for _, gvk := range appliedGVKs {
-			s.discoveredGVKs[gvk] = struct{}{}
+			s.discoveredGVKs.AddCRD(gvk)
 		}
-
-		s.discoveredGVKsLock.Unlock()
 	}
 
 	if res.Status == queue.Success {
@@ -155,17 +153,8 @@ func (s *Task) CheckCRDsEnsured(t sh_task.Task) {
 
 		s.convergeState.CRDsEnsured = true
 
-		// apply global values patch
-		s.discoveredGVKsLock.Lock()
-		defer s.discoveredGVKsLock.Unlock()
-
-		if len(s.discoveredGVKs) != 0 {
-			gvks := make([]string, 0, len(s.discoveredGVKs))
-			for gvk := range s.discoveredGVKs {
-				gvks = append(gvks, gvk)
-			}
-
+		s.discoveredGVKs.WorkWithGVK(func(gvks []string) {
 			s.moduleManager.SetGlobalDiscoveryAPIVersions(gvks)
-		}
+		})
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	applykubeconfigvalues "github.com/flant/addon-operator/pkg/task/apply-kube-config-values"
 	convergemodules "github.com/flant/addon-operator/pkg/task/converge-modules"
+	discovercrds "github.com/flant/addon-operator/pkg/task/discover-crds"
 	discoverhelmrelease "github.com/flant/addon-operator/pkg/task/discover-helm-release"
 	globalhookenablekubernetesbindings "github.com/flant/addon-operator/pkg/task/global-hook-enable-kubernetes-bindings"
 	globalhookenableschedulebindings "github.com/flant/addon-operator/pkg/task/global-hook-enable-schedule-bindings"
@@ -74,6 +75,9 @@ type TaskHandlerService struct {
 	// crdExtraLabels contains labels for processing CRD files
 	// like heritage=addon-operator
 	crdExtraLabels map[string]string
+
+	// discoveredCRDs is a concurrent map of discovered CRDs
+	discoveredCRDs *discovercrds.DiscoveredCRDS
 
 	taskFactory map[sh_task.TaskType]func(t sh_task.Task, logger *log.Logger) task.Task
 
@@ -247,4 +251,8 @@ func (s *TaskHandlerService) GetCRDExtraLabels() map[string]string {
 
 func (s *TaskHandlerService) GetTaskFactory() map[sh_task.TaskType]func(t sh_task.Task, logger *log.Logger) task.Task {
 	return s.taskFactory
+}
+
+func (s *TaskHandlerService) GetDiscoveredCRDs() *discovercrds.DiscoveredCRDS {
+	return s.discoveredCRDs
 }
