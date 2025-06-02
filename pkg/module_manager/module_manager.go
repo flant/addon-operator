@@ -13,6 +13,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/hashicorp/go-multierror"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -53,6 +54,8 @@ const (
 
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
 	moduleMaintenanceMetricName  = "{PREFIX}mm_module_maintenance"
+
+	moduleManagerServiceName = "module-manager"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -630,7 +633,10 @@ func (mm *ModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []string
 	return names
 }
 
-func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]string) error {
+func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, logLabels map[string]string) error {
+	ctx, span := otel.Tracer(moduleManagerServiceName).Start(ctx, "DeleteModule")
+	defer span.End()
+
 	ml := mm.GetModule(moduleName)
 
 	// Stop kubernetes informers and remove scheduled functions
@@ -638,7 +644,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 
 	// DELETE
 	{
-		defer trace.StartRegion(context.Background(), "ModuleDelete-HelmPhase").End()
+		span.AddEvent("ModuleDelete-HelmPhase")
 
 		deleteLogLabels := utils.MergeLabels(logLabels,
 			map[string]string{
@@ -687,7 +693,7 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 			}
 		}
 
-		err := ml.RunHooksByBinding(AfterDeleteHelm, deleteLogLabels)
+		err := ml.RunHooksByBinding(ctx, AfterDeleteHelm, deleteLogLabels)
 		if err != nil {
 			return fmt.Errorf("run hooks by bindng: %w", err)
 		}
@@ -703,11 +709,14 @@ func (mm *ModuleManager) DeleteModule(moduleName string, logLabels map[string]st
 }
 
 // RunModule runs beforeHelm hook, helm upgrade --install and afterHelm or afterDeleteHelm hook
-func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]string) ( /*valuesChanged*/ bool, error) {
+func (mm *ModuleManager) RunModule(ctx context.Context, moduleName string, logLabels map[string]string) ( /*valuesChanged*/ bool, error) {
+	ctx, span := otel.Tracer(moduleManagerServiceName).Start(ctx, "RunModule")
+	defer span.End()
+
 	bm := mm.GetModule(moduleName)
 
 	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
-	defer trace.StartRegion(context.Background(), "ModuleRun-HelmPhase").End()
+	span.AddEvent("ModuleRun-HelmPhase")
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"module": bm.GetName(),
@@ -720,14 +729,14 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 
 	var err error
 
-	treg := trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-beforeHelm")
-	err = bm.RunHooksByBinding(BeforeHelm, logLabels)
+	treg := trace.StartRegion(ctx, "ModuleRun-HelmPhase-beforeHelm")
+	err = bm.RunHooksByBinding(ctx, BeforeHelm, logLabels)
 	treg.End()
 	if err != nil {
 		return false, fmt.Errorf("run hooks by binding: %w", err)
 	}
 
-	treg = trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-helm")
+	treg = trace.StartRegion(ctx, "ModuleRun-HelmPhase-helm")
 	schemaStorage := bm.GetValuesStorage().GetSchemaStorage()
 	deps := &modules.HelmModuleDependencies{
 		HelmClientFactory:   mm.dependencies.Helm,
@@ -742,7 +751,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	}
 
 	if err == nil {
-		err = helmModule.RunHelmInstall(logLabels, bm.GetMaintenanceState())
+		err = helmModule.RunHelmInstall(ctx, logLabels, bm.GetMaintenanceState())
 		if err != nil && errors.Is(err, modules.ErrReleaseIsUnmanaged) {
 			bm.SetUnmanaged()
 			mm.dependencies.HelmResourcesManager.StopMonitor(moduleName)
@@ -759,7 +768,7 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	oldValues := bm.GetValues(false)
 	oldValuesChecksum := oldValues.Checksum()
 	treg = trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-afterHelm")
-	err = bm.RunHooksByBinding(AfterHelm, logLabels)
+	err = bm.RunHooksByBinding(ctx, AfterHelm, logLabels)
 	treg.End()
 	if err != nil {
 		return false, fmt.Errorf("run hooks by binding: %w", err)
@@ -772,17 +781,18 @@ func (mm *ModuleManager) RunModule(moduleName string, logLabels map[string]strin
 	return oldValuesChecksum != newValuesChecksum, nil
 }
 
-func (mm *ModuleManager) RunGlobalHook(hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, string, error) {
-	return mm.global.RunHookByName(hookName, binding, bindingContext, logLabels)
+func (mm *ModuleManager) RunGlobalHook(ctx context.Context, hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, string, error) {
+	return mm.global.RunHookByName(ctx, hookName, binding, bindingContext, logLabels)
 }
 
-func (mm *ModuleManager) RunModuleHook(moduleName, hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string /*beforeChecksum*/, string /*afterChecksum*/, error) {
+func (mm *ModuleManager) RunModuleHook(ctx context.Context, moduleName, hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string /*beforeChecksum*/, string /*afterChecksum*/, error) {
 	ml := mm.GetModule(moduleName)
 
-	return ml.RunHookByName(hookName, binding, bindingContext, logLabels)
+	return ml.RunHookByName(ctx, hookName, binding, bindingContext, logLabels)
 }
 
 func (mm *ModuleManager) HandleKubeEvent(
+	ctx context.Context,
 	kubeEvent KubeEvent,
 	createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo) sh_task.Task,
 	createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo) sh_task.Task,
@@ -795,7 +805,7 @@ func (mm *ModuleManager) HandleKubeEvent(
 				return nil
 			}
 
-			task := gh.GetHookController().HandleKubeEventWithFormTask(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
+			task := gh.GetHookController().HandleKubeEventWithFormTask(ctx, kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
 				if createGlobalTaskFn == nil {
 					return nil
 				}
@@ -811,7 +821,7 @@ func (mm *ModuleManager) HandleKubeEvent(
 			return nil
 		}
 
-		task := mh.GetHookController().HandleKubeEventWithFormTask(kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
+		task := mh.GetHookController().HandleKubeEventWithFormTask(ctx, kubeEvent, func(info controller.BindingExecutionInfo) sh_task.Task {
 			if createModuleTaskFn == nil {
 				return nil
 			}
@@ -825,10 +835,10 @@ func (mm *ModuleManager) HandleKubeEvent(
 	return tasks
 }
 
-func (mm *ModuleManager) HandleGlobalEnableKubernetesBindings(hookName string, createTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo)) error {
+func (mm *ModuleManager) HandleGlobalEnableKubernetesBindings(ctx context.Context, hookName string, createTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo)) error {
 	gh := mm.GetGlobalHook(hookName)
 
-	err := gh.GetHookController().HandleEnableKubernetesBindings(func(info controller.BindingExecutionInfo) {
+	err := gh.GetHookController().HandleEnableKubernetesBindings(ctx, func(info controller.BindingExecutionInfo) {
 		if createTaskFn != nil {
 			createTaskFn(gh, info)
 		}
@@ -840,13 +850,13 @@ func (mm *ModuleManager) HandleGlobalEnableKubernetesBindings(hookName string, c
 	return nil
 }
 
-func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(moduleName string, createTaskFn func(*hooks.ModuleHook, controller.BindingExecutionInfo)) error {
+func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(ctx context.Context, moduleName string, createTaskFn func(*hooks.ModuleHook, controller.BindingExecutionInfo)) error {
 	ml := mm.GetModule(moduleName)
 
 	kubeHooks := ml.GetHooks(OnKubernetesEvent)
 
 	for _, mh := range kubeHooks {
-		err := mh.GetHookController().HandleEnableKubernetesBindings(func(info controller.BindingExecutionInfo) {
+		err := mh.GetHookController().HandleEnableKubernetesBindings(ctx, func(info controller.BindingExecutionInfo) {
 			if createTaskFn != nil {
 				createTaskFn(mh, info)
 			}
@@ -892,6 +902,7 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 }
 
 func (mm *ModuleManager) HandleScheduleEvent(
+	ctx context.Context,
 	crontab string,
 	createGlobalTaskFn func(*hooks.GlobalHook, controller.BindingExecutionInfo) sh_task.Task,
 	createModuleTaskFn func(*modules.BasicModule, *hooks.ModuleHook, controller.BindingExecutionInfo) sh_task.Task,
@@ -903,7 +914,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 				return nil
 			}
 
-			newTasks := gh.GetHookController().HandleScheduleEventWithFormTasks(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
+			newTasks := gh.GetHookController().HandleScheduleEventWithFormTasks(ctx, crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
 				if createGlobalTaskFn == nil {
 					return nil
 				}
@@ -919,7 +930,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 			return nil
 		}
 
-		newTasks := mh.GetHookController().HandleScheduleEventWithFormTasks(crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
+		newTasks := mh.GetHookController().HandleScheduleEventWithFormTasks(ctx, crontab, func(info controller.BindingExecutionInfo) sh_task.Task {
 			if createGlobalTaskFn == nil {
 				return nil
 			}

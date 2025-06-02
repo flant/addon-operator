@@ -1,10 +1,13 @@
 package metrics
 
 import (
+	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	pointer "k8s.io/utils/ptr"
 
 	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
+
+var _ sdkpkg.MetricsCollector = (*MemoryMetricsCollector)(nil)
 
 type MemoryMetricsCollector struct {
 	defaultGroup string
@@ -18,21 +21,21 @@ func NewCollector(defaultGroup string) *MemoryMetricsCollector {
 }
 
 // Inc increments specified Counter metric
-func (dms *MemoryMetricsCollector) Inc(name string, labels map[string]string, opts ...Option) {
+func (dms *MemoryMetricsCollector) Inc(name string, labels map[string]string, opts ...sdkpkg.MetricCollectorOption) {
 	dms.Add(name, 1, labels, opts...)
 }
 
 // Add adds custom value for Counter metric
-func (dms *MemoryMetricsCollector) Add(name string, value float64, labels map[string]string, options ...Option) {
-	opts := dms.defaultMetricsOptions()
+func (dms *MemoryMetricsCollector) Add(name string, value float64, labels map[string]string, opts ...sdkpkg.MetricCollectorOption) {
+	options := dms.defaultMetricsOptions()
 
-	for _, opt := range options {
-		opt(opts)
+	for _, opt := range opts {
+		opt.Apply(options)
 	}
 
 	dms.metrics = append(dms.metrics, operation.MetricOperation{
 		Name:   name,
-		Group:  opts.group,
+		Group:  options.group,
 		Action: "add",
 		Value:  pointer.To(value),
 		Labels: labels,
@@ -40,16 +43,16 @@ func (dms *MemoryMetricsCollector) Add(name string, value float64, labels map[st
 }
 
 // Set specifies custom value for Gauge metric
-func (dms *MemoryMetricsCollector) Set(name string, value float64, labels map[string]string, options ...Option) {
-	opts := dms.defaultMetricsOptions()
+func (dms *MemoryMetricsCollector) Set(name string, value float64, labels map[string]string, opts ...sdkpkg.MetricCollectorOption) {
+	options := dms.defaultMetricsOptions()
 
-	for _, opt := range options {
-		opt(opts)
+	for _, opt := range opts {
+		opt.Apply(options)
 	}
 
 	dms.metrics = append(dms.metrics, operation.MetricOperation{
 		Name:   name,
-		Group:  opts.group,
+		Group:  options.group,
 		Action: "set",
 		Value:  pointer.To(value),
 		Labels: labels,
@@ -80,12 +83,18 @@ type metricsOptions struct {
 	group string
 }
 
-// Option set options for metrics collector
-type Option func(options *metricsOptions)
+func (o *metricsOptions) WithGroup(group string) {
+	o.group = group
+}
 
-// WithGroup pass group for metric
+type Option func(o sdkpkg.MetricCollectorOptionApplier)
+
+func (opt Option) Apply(o sdkpkg.MetricCollectorOptionApplier) {
+	opt(o)
+}
+
 func WithGroup(group string) Option {
-	return func(options *metricsOptions) {
-		options.group = group
+	return func(o sdkpkg.MetricCollectorOptionApplier) {
+		o.WithGroup(group)
 	}
 }

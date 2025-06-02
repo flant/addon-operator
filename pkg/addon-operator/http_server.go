@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -101,7 +102,7 @@ func (op *AddonOperator) registerDefaultRoutes() {
 
 // handleRootPage serves the main HTML page with links to all available endpoints
 func (op *AddonOperator) handleRootPage(writer http.ResponseWriter, _ *http.Request) {
-	_, _ = writer.Write([]byte(fmt.Sprintf(`<html>
+	_, _ = fmt.Fprintf(writer, `<html>
 	<head><title>Addon-operator</title></head>
 	<body>
 	<h1>Addon-operator</h1>
@@ -114,7 +115,7 @@ func (op *AddonOperator) handleRootPage(writer http.ResponseWriter, _ *http.Requ
 	  <a href="/readyz">ready url</a>
 	</p>
 	</body>
-	</html>`, app.ListenPort)))
+	</html>`, app.ListenPort)
 }
 
 // handleHealthCheck responds with 200 OK for health probes
@@ -123,10 +124,50 @@ func (op *AddonOperator) handleHealthCheck(writer http.ResponseWriter, _ *http.R
 }
 
 // handleConvergeStatus reports the current convergence state
-func (op *AddonOperator) handleConvergeStatus(writer http.ResponseWriter, _ *http.Request) {
+func (op *AddonOperator) handleConvergeStatus(writer http.ResponseWriter, request *http.Request) {
 	convergeTasks := ConvergeTasksInQueue(op.engine.TaskQueues.GetMain())
+
+	if request.URL.Query().Get("output") == "json" {
+		writer.Header().Set("Content-Type", "application/json")
+		response := generateConvergeJSON(op.ConvergeState.GetFirstRunPhase(), convergeTasks)
+		_ = json.NewEncoder(writer).Encode(response)
+		return
+	}
+
 	statusLines := generateConvergeStatusLines(op.ConvergeState.GetFirstRunPhase(), convergeTasks)
 	_, _ = writer.Write([]byte(strings.Join(statusLines, "\n") + "\n"))
+}
+
+type status struct {
+	ConvergeInProgress        int  `json:"CONVERGE_IN_PROGRESS"`
+	ConvergeWaitTask          bool `json:"CONVERGE_WAIT_TASK"`
+	StartupConvergeDone       bool `json:"STARTUP_CONVERGE_DONE"`
+	StartupConvergeInProgress int  `json:"STARTUP_CONVERGE_IN_PROGRESS"`
+	StartupConvergeNotStarted bool `json:"STARTUP_CONVERGE_NOT_STARTED"`
+}
+
+func generateConvergeJSON(phase converge.FirstConvergePhase, convergeTasks int) status {
+	response := status{}
+
+	switch phase {
+	case converge.FirstNotStarted:
+		response.StartupConvergeNotStarted = true
+	case converge.FirstStarted:
+		if convergeTasks > 0 {
+			response.StartupConvergeInProgress = convergeTasks
+		} else {
+			response.StartupConvergeDone = true
+		}
+	case converge.FirstDone:
+		response.StartupConvergeDone = true
+		if convergeTasks > 0 {
+			response.ConvergeInProgress = convergeTasks
+		} else {
+			response.ConvergeWaitTask = true
+		}
+	}
+
+	return response
 }
 
 // generateConvergeStatusLines creates status messages based on the current convergence state

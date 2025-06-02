@@ -1,6 +1,7 @@
 package kind
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -119,7 +120,7 @@ func (sh *ShellHook) GetHookConfigDescription() string {
 }
 
 // Execute runs the hook via the OS interpreter and returns the result of the execution
-func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
+func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
 	result := &HookResult{
 		Patches: make(map[utils.ValuesPatchType]*utils.ValuesPatch),
 	}
@@ -175,7 +176,7 @@ func (sh *ShellHook) Execute(configVersion string, bContext []bindingcontext.Bin
 		WithLogger(sh.Logger.Named("executor")).
 		WithChroot(utils.GetModuleChrootPath(sh.moduleName))
 
-	usage, err := cmd.RunAndLogLines(logLabels)
+	usage, err := cmd.RunAndLogLines(ctx, logLabels)
 	result.Usage = usage
 	if err != nil {
 		return result, err

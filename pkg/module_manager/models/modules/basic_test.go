@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +22,7 @@ foo:
 	bm, err := NewBasicModule("test-1", "/tmp/test", 100, value, nil, nil)
 	require.NoError(t, err)
 
-	patch := utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
+	patch := utils.ValuesPatch{Operations: []*sdkutils.ValuesPatchOperation{
 		{
 			Op:    "add",
 			Path:  "/test1/foo/xxx",

@@ -48,7 +48,7 @@ fooBar:
 	modules, err := loader.LoadModules()
 	require.NoError(t, err)
 	m := modules[0]
-	assert.Equal(t, "foo-bar", m.Name)
+	assert.Equal(t, "foo-bar", m.GetName())
 	assert.YAMLEq(t, `
 hello:
     world: xxx

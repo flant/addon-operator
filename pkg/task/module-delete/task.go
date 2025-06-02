@@ -3,10 +3,10 @@ package moduledelete
 import (
 	"context"
 	"log/slog"
-	"runtime/trace"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
@@ -15,6 +15,10 @@ import (
 	"github.com/flant/shell-operator/pkg/metric"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
+)
+
+const (
+	taskName = "module-delete"
 )
 
 // TaskDependencies defines the interface for accessing necessary components
@@ -64,7 +68,8 @@ func NewTask(
 }
 
 func (s *Task) Handle(ctx context.Context) queue.TaskResult {
-	defer trace.StartRegion(ctx, "ModuleDelete").End()
+	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
+	defer span.End()
 
 	var res queue.TaskResult
 
@@ -85,7 +90,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		// op.ModuleManager.DisableModuleHooks(hm.ModuleName)
 		// Remove all hooks from parallel queues.
 		s.drainModuleQueues(hm.ModuleName)
-		err = s.moduleManager.DeleteModule(hm.ModuleName, s.shellTask.GetLogLabels())
+		err = s.moduleManager.DeleteModule(ctx, hm.ModuleName, s.shellTask.GetLogLabels())
 	}
 
 	s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, err)

@@ -51,7 +51,7 @@ type executableHook interface {
 	GetName() string
 	GetPath() string
 
-	Execute(configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (result *kind.HookResult, err error)
+	Execute(ctx context.Context, configVersion string, bContext []bindingcontext.BindingContext, moduleSafeName string, configValues, values utils.Values, logLabels map[string]string) (result *kind.HookResult, err error)
 	RateLimitWait(ctx context.Context) error
 
 	WithHookController(ctrl *controller.HookController)

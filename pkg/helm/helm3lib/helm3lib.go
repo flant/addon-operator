@@ -526,3 +526,16 @@ func (h *LibClient) newDryRunInstAction(namespace, releaseName string) *action.I
 
 	return inst
 }
+
+// ListReleases retrieves all Helm releases regardless of their state.
+func (h *LibClient) ListReleases() ([]*release.Release, error) {
+	l := action.NewList(actionConfig)
+	// list all releases regardless of their state
+	l.StateMask = action.ListAll
+	list, err := l.Run()
+	if err != nil {
+		return nil, fmt.Errorf("helm list failed: %w", err)
+	}
+
+	return list, nil
+}
