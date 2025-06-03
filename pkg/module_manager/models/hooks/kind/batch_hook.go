@@ -280,6 +280,7 @@ func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) (*BatchHookConfig, e
 
 		if input.Readiness != nil {
 			cfg.Readiness = input.Readiness
+			cfg.Hooks[BatchHookReadyKey] = input.Readiness
 		}
 	default:
 		return nil, fmt.Errorf("unknown version '%s'", input.Version)
@@ -298,6 +299,11 @@ func (h *BatchHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 	bhcfg, err := h.GetConfig()
 	if err != nil {
 		return nil, err
+	}
+
+	fmt.Printf("BatchHook %s config: %+v\n", h.ID, bhcfg.Hooks)
+	for k, v := range bhcfg.Hooks {
+		fmt.Printf("BatchHook %s config[%s]: %+v\n", h.ID, k, v)
 	}
 
 	c, ok := bhcfg.Hooks[h.ID]

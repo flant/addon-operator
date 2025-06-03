@@ -146,6 +146,7 @@ func Test_BatchHook_Config(t *testing.T) {
 					Path:   filename,
 					Logger: log.NewNop(),
 				},
+				ID: "0",
 			}
 
 			err := os.WriteFile(filename, []byte(`#!/bin/bash
