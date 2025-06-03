@@ -183,11 +183,11 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	return result, nil
 }
 
-func (h *BatchHook) getConfig() ([]sdkhook.HookConfig, error) {
+func (h *BatchHook) getConfig() (*BatchHookConfig, error) {
 	return GetBatchHookConfig(h.moduleName, h.Path)
 }
 
-func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, error) {
+func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 	args := []string{"hook", "config"}
 
 	cmd := executor.NewExecutor(
@@ -202,7 +202,6 @@ func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, erro
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	cfgs := &sdkhook.BatchHookConfig{}
 	// if config is not array, then it is a hook config v1
 	if strings.HasPrefix(strings.TrimSpace(string(o)), "[") {
 		hooks := make([]sdkhook.HookConfig, 0)
@@ -213,10 +212,12 @@ func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, erro
 			return nil, fmt.Errorf("decode: %w", err)
 		}
 
-		cfgs.Hooks = hooks
-
-		return cfgs.Hooks, nil
+		return &BatchHookConfig{
+			Hooks: hooks,
+		}, nil
 	}
+
+	cfgs := &sdkhook.BatchHookConfig{}
 
 	buf := bytes.NewReader(o)
 	err = json.NewDecoder(buf).Decode(&cfgs)
@@ -224,11 +225,29 @@ func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, erro
 		return nil, fmt.Errorf("decode: %w", err)
 	}
 
-	return cfgs.Hooks, nil
+	return remapSDKConfigToConfig(cfgs), nil
+}
+
+func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) *BatchHookConfig {
+	if input == nil {
+		panic("remapSDKConfigToConfig: input is nil")
+	}
+
+	cfg := &BatchHookConfig{}
+
+	switch input.Version {
+	case sdkhook.BatchHookConfigV1:
+		cfg.Hooks = input.Hooks
+		cfg.Readiness = input.Readiness
+	default:
+		panic(fmt.Sprintf("remapSDKConfigToConfig: unknown version %s", input.Version))
+	}
+
+	return cfg
 }
 
 // GetConfig returns config via executing the hook with `--config` param
-func (h *BatchHook) GetConfig() ([]sdkhook.HookConfig, error) {
+func (h *BatchHook) GetConfig() (*BatchHookConfig, error) {
 	return h.getConfig()
 }
 
@@ -239,7 +258,7 @@ func (h *BatchHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 		return nil, err
 	}
 
-	h.config = &bhcfg[h.ID]
+	h.config = &bhcfg.Hooks[h.ID]
 
 	hcv1 := remapHookConfigV1FromHookConfig(h.config)
 

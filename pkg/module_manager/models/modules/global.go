@@ -173,6 +173,14 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 	ctx, span := otel.Tracer("gm-"+gm.GetName()).Start(ctx, "executeHook")
 	defer span.End()
 
+	logLabels = utils.MergeLabels(logLabels, map[string]string{
+		"hook":            h.GetName(),
+		"hook.type":       "module",
+		pkg.LogKeyModule:  gm.GetName(),
+		pkg.LogKeyBinding: string(bindingType),
+		"path":            h.GetPath(),
+	})
+
 	// Convert bindingContext for version
 	// versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
 	logEntry := utils.EnrichLoggerWithLabels(gm.logger, logLabels)
@@ -594,6 +602,8 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 	gm.logger.Debug("Hook paths",
 		slog.Any("path", hooksRelativePaths))
 
+	readinessFound := false
+
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(hooksDir, hookPath)
 		if err != nil {
@@ -605,7 +615,20 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
 
-		for idx, cfg := range sdkcfgs {
+		if sdkcfgs.Readiness != nil {
+			if readinessFound {
+				return nil, fmt.Errorf("multiple readiness hooks found in %s", hookPath)
+			}
+
+			readinessFound = true
+
+			// add readiness hook
+			nestedHookName := fmt.Sprintf("%s-readiness", hookName)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", 0, gm.keepTemporaryHookFiles, true, gm.logger.Named("batch-hook"))
+			hks = append(hks, shHook)
+		}
+
+		for idx, cfg := range sdkcfgs.Hooks {
 			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
 			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
 

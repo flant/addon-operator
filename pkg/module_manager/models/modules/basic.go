@@ -369,7 +369,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
 
-		for idx, cfg := range sdkcfgs {
+		for idx, cfg := range sdkcfgs.Hooks {
 			nestedHookName := fmt.Sprintf("%s:%s:%d", hookName, cfg.Metadata.Name, idx)
 			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), uint(idx), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
 
@@ -900,7 +900,9 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
 		"hook":            h.GetName(),
 		"hook.type":       "module",
+		pkg.LogKeyModule:  bm.GetName(),
 		pkg.LogKeyBinding: string(bindingType),
+		"path":            h.GetPath(),
 	})
 
 	logEntry := utils.EnrichLoggerWithLabels(bm.logger, logLabels)
