@@ -300,7 +300,12 @@ func (h *BatchHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 		return nil, err
 	}
 
-	h.config = bhcfg.Hooks[h.ID]
+	c, ok := bhcfg.Hooks[h.ID]
+	if !ok {
+		panic(fmt.Sprintf("hook '%s' not found in batch hook config", h.ID))
+	}
+
+	h.config = c
 
 	hcv1 := remapHookConfigV1FromHookConfig(h.config)
 
