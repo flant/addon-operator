@@ -197,11 +197,14 @@ func (h *BatchHook) getConfig() (*BatchHookConfig, error) {
 func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 	args := []string{"hook", "config"}
 
+	envs := make([]string, 0)
+	envs = append(envs, os.Environ()...)
+
 	cmd := executor.NewExecutor(
 		"",
 		hookPath,
 		args,
-		[]string{}).
+		envs).
 		WithChroot(utils.GetModuleChrootPath(moduleName))
 
 	o, err := cmd.Output()
@@ -237,12 +240,17 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		return nil, fmt.Errorf("decode: %w", err)
 	}
 
-	return remapSDKConfigToConfig(cfgs), nil
+	cfg, err := remapSDKConfigToConfig(cfgs)
+	if err != nil {
+		return nil, fmt.Errorf("remapSDKConfigToConfig: %w", err)
+	}
+
+	return cfg, nil
 }
 
-func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) *BatchHookConfig {
+func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) (*BatchHookConfig, error) {
 	if input == nil {
-		panic("remapSDKConfigToConfig: input is nil")
+		return nil, fmt.Errorf("input is nil")
 	}
 
 	cfg := &BatchHookConfig{}
@@ -258,10 +266,10 @@ func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) *BatchHookConfig {
 			cfg.Readiness = input.Readiness
 		}
 	default:
-		panic(fmt.Sprintf("remapSDKConfigToConfig: unknown version %s", input.Version))
+		return nil, fmt.Errorf("unknown version '%s'", input.Version)
 	}
 
-	return cfg
+	return cfg, nil
 }
 
 // GetConfig returns config via executing the hook with `--config` param
