@@ -144,8 +144,8 @@ github.com/flant/go-openapi-validate v0.19.12-flant.1 h1:GuB9XEfiLHq3M7fafRLq1AW
 github.com/flant/go-openapi-validate v0.19.12-flant.1/go.mod h1:Rzou8hA/CBw8donlS6WNEUQupNvUZ0waH08tGe6kAQ4=
 github.com/flant/kube-client v1.3.0 h1:iVxwpUZO4AhURkq6n44qfzp0Bjs5WatzTtJrfxeRDkE=
 github.com/flant/kube-client v1.3.0/go.mod h1:yaFoNwyomNm0/OLXRxGYvR7or2pfLv9M9qPDSPPwljI=
-github.com/flant/shell-operator v1.7.4-0.20250603185244-b635e30dca4e h1:cquesl+8iP31GQ9CxRBT7YGp2PdI/gXr3kmwDvW963w=
-github.com/flant/shell-operator v1.7.4-0.20250603185244-b635e30dca4e/go.mod h1:tg2MQvMW+H7KvjSHs4PGKFNQjFuR3gbVlhEqWYOlMaA=
+github.com/flant/shell-operator v1.7.4-0.20250603193505-8ec129009546 h1:cVQoF2yhxkaGp4mlZUpFQBpnpb4TR69iTsIbB8FUf5o=
+github.com/flant/shell-operator v1.7.4-0.20250603193505-8ec129009546/go.mod h1:tg2MQvMW+H7KvjSHs4PGKFNQjFuR3gbVlhEqWYOlMaA=
 github.com/flopp/go-findfont v0.1.0 h1:lPn0BymDUtJo+ZkV01VS3661HL6F4qFlkhcJN55u6mU=
 github.com/flopp/go-findfont v0.1.0/go.mod h1:wKKxRDjD024Rh7VMwoU90i6ikQRCr+JTHB5n4Ejkqvw=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=
