@@ -59,7 +59,8 @@ type BasicModule struct {
 
 	valuesStorage *ValuesStorage
 
-	hooks *HooksStorage
+	hooks        *HooksStorage
+	hasReadiness bool
 
 	// dependency
 	dc *hooks.HookExecutionDependencyContainer
@@ -171,6 +172,11 @@ func (bm *BasicModule) GetPath() string {
 // GetHooks returns module hooks, they could be filtered by BindingType optionally
 func (bm *BasicModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleHook {
 	return bm.hooks.getHooks(bt...)
+}
+
+// HasReadiness returns whether the module has a readiness probe configured.
+func (bm *BasicModule) HasReadiness() bool {
+	return bm.hasReadiness
 }
 
 // DeregisterHooks clean up all module hooks
@@ -369,9 +375,22 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
 
-		for idx, cfg := range sdkcfgs.Hooks {
-			nestedHookName := fmt.Sprintf("%s:%s:%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), uint(idx), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
+		if sdkcfgs.Readiness != nil {
+			if bm.hasReadiness {
+				return nil, fmt.Errorf("multiple readiness hooks found in %s", hookPath)
+			}
+
+			bm.hasReadiness = true
+
+			// add readiness hook
+			nestedHookName := fmt.Sprintf("%s-readiness", hookName)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), kind.BatchHookReadyKey, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
+			hks = append(hks, shHook)
+		}
+
+		for key, cfg := range sdkcfgs.Hooks {
+			nestedHookName := fmt.Sprintf("%s:%s:%s", hookName, cfg.Metadata.Name, key)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), key, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}
@@ -1290,6 +1309,11 @@ const (
 	CanRunHelm ModuleRunPhase = "CanRunHelm"
 	// HooksDisabled - module has its hooks disabled (before update or deletion).
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
+
+	// WaitForReadiness - module is waiting for readiness hooks to complete.
+	// This phase is used to ensure that the module is fully operational before proceeding with further actions.
+	// It is typically used after the Helm chart has been applied and before the module is considered fully ready.
+	WaitForReadiness ModuleRunPhase = "WaitForReadiness"
 
 	// Ready - all phases are complete.
 	// This is the final phase, which indicates that the ModuleRun task completed without errors.

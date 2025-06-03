@@ -53,7 +53,7 @@ fi
 	assert.NotZero(t, len(config.Hooks))
 
 	// Use a variable for the first hook to avoid repetition
-	hook := config.Hooks[0]
+	hook := config.Hooks["0"]
 
 	// Verify metadata
 	assert.Equal(t, "main", hook.Metadata.Name)

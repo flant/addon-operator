@@ -34,12 +34,12 @@ type BatchHook struct {
 	moduleName string
 	sh_hook.Hook
 	// hook ID in batch
-	ID     uint
+	ID     string
 	config *sdkhook.HookConfig
 }
 
 // NewBatchHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewBatchHook(name, path, moduleName string, id uint, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+func NewBatchHook(name, path, moduleName string, id string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
 	return &BatchHook{
 		moduleName: moduleName,
 		Hook: sh_hook.Hook{
@@ -133,7 +133,14 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 
 	envs := make([]string, 0)
 	args := make([]string, 0)
-	args = append(args, "hook", "run", strconv.Itoa(int(h.ID)))
+
+	switch h.ID {
+	case BatchHookReadyKey:
+		args = append(args, "hook", "ready")
+	default:
+		args = append(args, "hook", "run", h.ID)
+	}
+
 	envs = append(envs, os.Environ()...)
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
@@ -212,9 +219,14 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 			return nil, fmt.Errorf("decode: %w", err)
 		}
 
-		return &BatchHookConfig{
-			Hooks: hooks,
-		}, nil
+		cfg := &BatchHookConfig{}
+
+		cfg.Hooks = make(map[string]*sdkhook.HookConfig, len(hooks))
+		for idx, h := range hooks {
+			cfg.Hooks[strconv.Itoa(idx)] = &h
+		}
+
+		return cfg, nil
 	}
 
 	cfgs := &sdkhook.BatchHookConfig{}
@@ -237,8 +249,14 @@ func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) *BatchHookConfig {
 
 	switch input.Version {
 	case sdkhook.BatchHookConfigV1:
-		cfg.Hooks = input.Hooks
-		cfg.Readiness = input.Readiness
+		cfg.Hooks = make(map[string]*sdkhook.HookConfig, len(input.Hooks)+1) // +1 for readiness hook
+		for idx, h := range input.Hooks {
+			cfg.Hooks[strconv.Itoa(idx)] = &h
+		}
+
+		if input.Readiness != nil {
+			cfg.Readiness = input.Readiness
+		}
 	default:
 		panic(fmt.Sprintf("remapSDKConfigToConfig: unknown version %s", input.Version))
 	}
@@ -258,7 +276,7 @@ func (h *BatchHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 		return nil, err
 	}
 
-	h.config = &bhcfg.Hooks[h.ID]
+	h.config = bhcfg.Hooks[h.ID]
 
 	hcv1 := remapHookConfigV1FromHookConfig(h.config)
 

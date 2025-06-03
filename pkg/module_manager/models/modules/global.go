@@ -37,6 +37,7 @@ type GlobalModule struct {
 	valuesStorage *ValuesStorage
 
 	enabledByHookC chan *EnabledPatchReport
+	hasReadiness   bool
 
 	// dependency
 	dc *hooks.HookExecutionDependencyContainer
@@ -602,8 +603,6 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 	gm.logger.Debug("Hook paths",
 		slog.Any("path", hooksRelativePaths))
 
-	readinessFound := false
-
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := filepath.Rel(hooksDir, hookPath)
 		if err != nil {
@@ -616,21 +615,21 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 		}
 
 		if sdkcfgs.Readiness != nil {
-			if readinessFound {
+			if gm.hasReadiness {
 				return nil, fmt.Errorf("multiple readiness hooks found in %s", hookPath)
 			}
 
-			readinessFound = true
+			gm.hasReadiness = true
 
 			// add readiness hook
 			nestedHookName := fmt.Sprintf("%s-readiness", hookName)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", 0, gm.keepTemporaryHookFiles, true, gm.logger.Named("batch-hook"))
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", kind.BatchHookReadyKey, gm.keepTemporaryHookFiles, true, gm.logger.Named("batch-hook"))
 			hks = append(hks, shHook)
 		}
 
-		for idx, cfg := range sdkcfgs.Hooks {
-			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
+		for key, cfg := range sdkcfgs.Hooks {
+			nestedHookName := fmt.Sprintf("%s-%s-%s", hookName, cfg.Metadata.Name, key)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", key, gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}
