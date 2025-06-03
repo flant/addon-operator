@@ -242,10 +242,26 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 
 	cfg, err := remapSDKConfigToConfig(cfgs)
 	if err != nil {
+		outputLog := &BatchHookLog{}
+
+		buf := bytes.NewReader(o)
+		err = json.NewDecoder(buf).Decode(&cfgs)
+		if err != nil {
+			return nil, fmt.Errorf("decode: %w", err)
+		}
+
+		if outputLog.Level != "" {
+			return nil, fmt.Errorf("got log except config: %s", string(o))
+		}
+
 		return nil, fmt.Errorf("remapSDKConfigToConfig: %w", err)
 	}
 
 	return cfg, nil
+}
+
+type BatchHookLog struct {
+	Level string `json:"level"`
 }
 
 func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) (*BatchHookConfig, error) {
