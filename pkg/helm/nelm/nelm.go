@@ -32,6 +32,8 @@ func Init(opts *CommonOptions, logger *NelmLogger) error {
 	log.Default = logger
 	color.Disable()
 
+	commonOptions = opts
+
 	getter := buildConfigFlagsFromEnv(&commonOptions.Namespace, cli.New())
 
 	// FIXME(addon-operator): add all other options from getter in the same manner
@@ -42,8 +44,6 @@ func Init(opts *CommonOptions, logger *NelmLogger) error {
 	if opts.HelmDriver == "" {
 		opts.HelmDriver = os.Getenv("HELM_DRIVER")
 	}
-
-	commonOptions = opts
 
 	versionResult, err := action.Version(context.TODO(), action.VersionOptions{
 		OutputNoPrint: true,
