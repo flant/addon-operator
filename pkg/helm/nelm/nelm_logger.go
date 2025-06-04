@@ -2,7 +2,6 @@ package nelm
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/werf/nelm/pkg/log"
 )
@@ -84,12 +83,12 @@ func (n *NelmLogger) ErrorPop(ctx context.Context, group string) {
 // FIXME(addon-operator): example implementation
 func (n *NelmLogger) InfoBlock(ctx context.Context, opts log.BlockOptions, fn func()) {
 	if opts.BlockTitle != "" {
-		fmt.Printf("----------\n%s\n", opts.BlockTitle)
+		n.Info(ctx, "----------\n%s\n", opts.BlockTitle)
 	}
 
-	fmt.Printf("----------\n")
+	n.Info(ctx, "----------\n")
 	fn()
-	fmt.Printf("----------\n")
+	n.Info(ctx, "----------\n")
 }
 
 func (n *NelmLogger) InfoBlockErr(ctx context.Context, opts log.BlockOptions, fn func() error) error {
