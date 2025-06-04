@@ -78,6 +78,15 @@ type NelmClient struct {
 	labels map[string]string
 }
 
+// GetReleaseLabels returns the labels associated with the NelmClient as a YAML string.
+func (c *NelmClient) GetReleaseLabels(releaseName string, namespace string) (string, error) {
+	b, err := yaml.Marshal(c.labels)
+	if err != nil {
+		return "", fmt.Errorf("marshal release labels: %w", err)
+	}
+	return string(b), nil
+}
+
 func (c *NelmClient) WithLogLabels(logLabels map[string]string) {
 	c.logger = c.logger.EnrichWithLabels(logLabels)
 }
