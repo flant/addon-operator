@@ -62,6 +62,10 @@ func (d *DefaultNelmActions) ChartRender(ctx context.Context, opts action.ChartR
 	return action.ChartRender(ctx, opts)
 }
 
+// NewNelmClient creates a new NelmClient instance with the specified options, logger, labels and actions.
+// It initializes default values for options if not provided and sets up the client configuration.
+// The default value for actions is nil, in which case functions from the werf/nelm package will be used
+// actions is used for testing
 func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]string, actions NelmActions) *NelmClient {
 	nelmLog.Default = nil
 
