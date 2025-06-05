@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -324,21 +325,19 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 
 	c.logger.Info("Render nelm templates for chart was successful", slog.String("chart", chartName))
 
-	var result string
+	var result strings.Builder
 	for _, resource := range chartRenderResult.Resources {
 		b, err := yaml.Marshal(resource)
 		if err != nil {
 			return "", fmt.Errorf("marshal resource: %w", err)
 		}
-
-		if result != "" {
-			result += "---\n"
+		if result.Len() > 0 {
+			result.WriteString("---\n")
 		}
-
-		result += string(b)
+		result.Write(b)
 	}
 
-	return result, nil
+	return result.String(), nil
 }
 
 func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioptions.ConfigFlags {
