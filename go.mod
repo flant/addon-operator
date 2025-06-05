@@ -19,7 +19,7 @@ require (
 	github.com/goccy/go-graphviz v0.2.9
 	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/google/cel-go v0.17.8
-	github.com/gookit/color v1.5.4
+	github.com/gookit/color v1.5.4 // indirect
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/gomega v1.37.0
