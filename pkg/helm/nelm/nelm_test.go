@@ -1,40 +1,92 @@
 package nelm
 
 import (
+	"context"
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/werf/nelm/pkg/action"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
+
+func strPtr(s string) *string {
+	return &s
+}
+
+// MockNelmActions is a mock implementation of NelmActions interface
+type MockNelmActions struct {
+	mock.Mock
+}
+
+func (m *MockNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV1, error) {
+	args := m.Called(ctx, name, namespace, opts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*action.ReleaseGetResultV1), args.Error(1)
+}
+
+func (m *MockNelmActions) ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) error {
+	args := m.Called(ctx, name, namespace, opts)
+	return args.Error(0)
+}
+
+func (m *MockNelmActions) ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) error {
+	args := m.Called(ctx, name, namespace, opts)
+	return args.Error(0)
+}
+
+func (m *MockNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV1, error) {
+	args := m.Called(ctx, opts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*action.ReleaseListResultV1), args.Error(1)
+}
+
+func (m *MockNelmActions) ChartRender(ctx context.Context, opts action.ChartRenderOptions) (*action.ChartRenderResultV1, error) {
+	args := m.Called(ctx, opts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*action.ChartRenderResultV1), args.Error(1)
+}
 
 func TestNewNelmClient(t *testing.T) {
 	tests := []struct {
 		name     string
 		opts     *CommonOptions
 		labels   map[string]string
+		actions  NelmActions
 		wantOpts *CommonOptions
 	}{
 		{
 			name: "with default options",
-			opts: nil,
+			opts: &CommonOptions{
+				HistoryMax:  5,
+				Timeout:     time.Second * 30,
+				HelmDriver:  "secret",
+				KubeContext: "test-context",
+			},
+			labels: map[string]string{"test": "label"},
 			wantOpts: &CommonOptions{
-				HistoryMax: 10,
+				HistoryMax:  5,
+				Timeout:     time.Second * 30,
+				HelmDriver:  "secret",
+				KubeContext: "test-context",
 			},
 		},
 		{
-			name: "with custom options",
-			opts: &CommonOptions{
-				HistoryMax:  20,
-				Timeout:     time.Second * 30,
-				HelmDriver:  "secret",
-				KubeContext: "test-context",
-			},
+			name: "with nil options",
+			opts: nil,
 			wantOpts: &CommonOptions{
-				HistoryMax:  20,
-				Timeout:     time.Second * 30,
-				HelmDriver:  "secret",
-				KubeContext: "test-context",
+				HistoryMax: 10,
 			},
 		},
 	}
@@ -42,12 +94,176 @@ func TestNewNelmClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := log.NewLogger(log.Options{})
-			client := NewNelmClient(tt.opts, logger, tt.labels)
+			client := NewNelmClient(tt.opts, logger, tt.labels, tt.actions)
+
 			assert.NotNil(t, client)
-			assert.Equal(t, tt.wantOpts.HistoryMax, client.opts.HistoryMax)
-			assert.Equal(t, tt.wantOpts.Timeout, client.opts.Timeout)
-			assert.Equal(t, tt.wantOpts.HelmDriver, client.opts.HelmDriver)
-			assert.Equal(t, tt.wantOpts.KubeContext, client.opts.KubeContext)
+			if tt.opts != nil {
+				assert.Equal(t, tt.wantOpts.HistoryMax, client.opts.HistoryMax)
+				assert.Equal(t, tt.wantOpts.Timeout, client.opts.Timeout)
+				assert.Equal(t, tt.wantOpts.HelmDriver, client.opts.HelmDriver)
+				assert.Equal(t, tt.wantOpts.KubeContext, client.opts.KubeContext)
+			} else {
+				assert.Equal(t, tt.wantOpts.HistoryMax, client.opts.HistoryMax)
+			}
+		})
+	}
+}
+
+func TestGetReleaseLabels(t *testing.T) {
+	tests := []struct {
+		name        string
+		releaseName string
+		labelName   string
+		mockResult  *action.ReleaseGetResultV1
+		mockError   error
+		want        string
+		wantErr     bool
+	}{
+		{
+			name:        "successful get label",
+			releaseName: "test-release",
+			labelName:   "test-label",
+			mockResult: &action.ReleaseGetResultV1{
+				Release: &action.ReleaseGetResultRelease{
+					Annotations: map[string]string{
+						"test-label": "test-value",
+					},
+				},
+			},
+			want:    "test-value",
+			wantErr: false,
+		},
+		{
+			name:        "label not found",
+			releaseName: "test-release",
+			labelName:   "non-existent",
+			mockResult: &action.ReleaseGetResultV1{
+				Release: &action.ReleaseGetResultRelease{
+					Annotations: map[string]string{},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockActions := new(MockNelmActions)
+			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.Anything, mock.Anything).
+				Return(tt.mockResult, tt.mockError)
+
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			got, err := client.GetReleaseLabels(tt.releaseName, tt.labelName)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestLastReleaseStatus(t *testing.T) {
+	tests := []struct {
+		name        string
+		releaseName string
+		mockResult  *action.ReleaseGetResultV1
+		mockError   error
+		wantRev     string
+		wantStatus  string
+		wantErr     bool
+	}{
+		{
+			name:        "successful get status",
+			releaseName: "test-release",
+			mockResult: &action.ReleaseGetResultV1{
+				Release: &action.ReleaseGetResultRelease{
+					Revision: 1,
+					Status:   "deployed",
+				},
+			},
+			wantRev:    "1",
+			wantStatus: "deployed",
+			wantErr:    false,
+		},
+		{
+			name:        "release not found",
+			releaseName: "non-existent",
+			mockError:   &action.ReleaseNotFoundError{},
+			wantRev:     "0",
+			wantStatus:  "",
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockActions := new(MockNelmActions)
+			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.Anything, mock.Anything).
+				Return(tt.mockResult, tt.mockError)
+
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			gotRev, gotStatus, err := client.LastReleaseStatus(tt.releaseName)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantRev, gotRev)
+			assert.Equal(t, tt.wantStatus, gotStatus)
+		})
+	}
+}
+
+func TestIsReleaseExists(t *testing.T) {
+	tests := []struct {
+		name        string
+		releaseName string
+		mockResult  *action.ReleaseGetResultV1
+		mockError   error
+		want        bool
+		wantErr     bool
+	}{
+		{
+			name:        "release exists",
+			releaseName: "test-release",
+			mockResult: &action.ReleaseGetResultV1{
+				Release: &action.ReleaseGetResultRelease{
+					Revision: 1,
+					Status:   "deployed",
+				},
+			},
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name:        "release not found",
+			releaseName: "non-existent",
+			mockError:   &action.ReleaseNotFoundError{},
+			want:        false,
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockActions := new(MockNelmActions)
+			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.Anything, mock.Anything).
+				Return(tt.mockResult, tt.mockError)
+
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			got, err := client.IsReleaseExists(tt.releaseName)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -105,124 +321,19 @@ func TestWithLogLabels(t *testing.T) {
 	assert.NotNil(t, client.logger)
 }
 
-func createTestClient() *NelmClient {
+func createTestClientWithActions(actions NelmActions) *NelmClient {
 	opts := &CommonOptions{
 		HistoryMax:  10,
 		Timeout:     time.Second * 30,
 		HelmDriver:  "secret",
 		KubeContext: "test-context",
 	}
-	opts.Namespace = stringPtr("default")
-	return &NelmClient{
-		logger: log.NewLogger(log.Options{}),
-		opts:   opts,
-		labels: make(map[string]string),
-	}
+	opts.ConfigFlags.Namespace = strPtr("default")
+	return NewNelmClient(opts, log.NewLogger(log.Options{}), make(map[string]string), actions)
 }
 
-func stringPtr(s string) *string {
-	return &s
-}
-
-func TestGetReleaseLabels(t *testing.T) {
-	tests := []struct {
-		name      string
-		release   string
-		labelName string
-		wantValue string
-		wantError bool
-	}{
-		{
-			name:      "non-existent release",
-			release:   "non-existent",
-			labelName: "test-label",
-			wantError: true,
-		},
-	}
-
-	client := createTestClient()
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			value, err := client.GetReleaseLabels(tt.release, tt.labelName)
-			if tt.wantError {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.wantValue, value)
-		})
-	}
-}
-
-func TestLastReleaseStatus(t *testing.T) {
-	tests := []struct {
-		name       string
-		release    string
-		wantRev    string
-		wantStatus string
-		wantError  bool
-	}{
-		{
-			name:      "non-existent release",
-			release:   "non-existent",
-			wantRev:   "0",
-			wantError: true,
-		},
-	}
-
-	client := createTestClient()
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rev, status, err := client.LastReleaseStatus(tt.release)
-			if tt.wantError {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.wantRev, rev)
-			assert.Equal(t, tt.wantStatus, status)
-		})
-	}
-}
-
-func TestIsReleaseExists(t *testing.T) {
-	tests := []struct {
-		name      string
-		release   string
-		want      bool
-		wantError bool
-	}{
-		{
-			name:      "non-existent release",
-			release:   "non-existent",
-			want:      false,
-			wantError: true,
-		},
-	}
-
-	client := createTestClient()
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			exists, err := client.IsReleaseExists(tt.release)
-			if tt.wantError {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, exists)
-		})
-	}
-}
-
-func TestListReleasesNames(t *testing.T) {
-	client := createTestClient()
-
-	names, err := client.ListReleasesNames()
-	assert.Error(t, err)
-	assert.Nil(t, names)
+func createTestClient() *NelmClient {
+	return createTestClientWithActions(&MockNelmActions{})
 }
 
 func TestUpgradeRelease(t *testing.T) {
@@ -234,86 +345,132 @@ func TestUpgradeRelease(t *testing.T) {
 		setValues   []string
 		labels      map[string]string
 		namespace   string
-		wantError   bool
+		mockError   error
+		wantErr     bool
 	}{
 		{
-			name:        "invalid chart",
+			name:        "successful upgrade",
 			releaseName: "test-release",
-			chartName:   "invalid-chart",
-			valuesPaths: []string{},
-			setValues:   []string{},
-			labels:      map[string]string{},
-			namespace:   "default",
-			wantError:   true,
+			chartName:   "test-chart",
+			valuesPaths: []string{"values.yaml"},
+			setValues:   []string{"key=value"},
+			labels:      map[string]string{"test": "label"},
+			namespace:   "test-namespace",
+			mockError:   nil,
+			wantErr:     false,
+		},
+		{
+			name:        "upgrade error",
+			releaseName: "test-release",
+			chartName:   "test-chart",
+			valuesPaths: []string{"values.yaml"},
+			setValues:   []string{"key=value"},
+			labels:      map[string]string{"test": "label"},
+			namespace:   "test-namespace",
+			mockError:   fmt.Errorf("upgrade error"),
+			wantErr:     true,
 		},
 	}
 
-	client := createTestClient()
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockActions := new(MockNelmActions)
+			mockActions.On("ReleaseInstall", mock.Anything, tt.releaseName, tt.namespace, mock.Anything).
+				Return(tt.mockError)
+
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
 			err := client.UpgradeRelease(tt.releaseName, tt.chartName, tt.valuesPaths, tt.setValues, tt.labels, tt.namespace)
-			if tt.wantError {
+
+			if tt.wantErr {
 				assert.Error(t, err)
-				return
+			} else {
+				assert.NoError(t, err)
 			}
-			assert.NoError(t, err)
 		})
 	}
 }
 
-func TestGetReleaseValues(t *testing.T) {
+func TestDeleteRelease(t *testing.T) {
 	tests := []struct {
-		name      string
-		release   string
-		wantError bool
+		name        string
+		releaseName string
+		mockError   error
+		wantErr     bool
 	}{
 		{
-			name:      "non-existent release",
-			release:   "non-existent",
-			wantError: true,
+			name:        "successful delete",
+			releaseName: "test-release",
+			mockError:   nil,
+			wantErr:     false,
+		},
+		{
+			name:        "release not found",
+			releaseName: "non-existent",
+			mockError:   &action.ReleaseNotFoundError{},
+			wantErr:     true,
 		},
 	}
 
-	client := createTestClient()
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			values, err := client.GetReleaseValues(tt.release)
-			if tt.wantError {
+			mockActions := new(MockNelmActions)
+			mockActions.On("ReleaseUninstall", mock.Anything, tt.releaseName, mock.Anything, mock.Anything).
+				Return(tt.mockError)
+
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			err := client.DeleteRelease(tt.releaseName)
+
+			if tt.wantErr {
 				assert.Error(t, err)
-				return
+			} else {
+				assert.NoError(t, err)
 			}
-			assert.NoError(t, err)
-			assert.NotNil(t, values)
 		})
 	}
 }
 
-func TestGetReleaseChecksum(t *testing.T) {
+func TestListReleasesNames(t *testing.T) {
 	tests := []struct {
-		name      string
-		release   string
-		wantError bool
+		name       string
+		mockResult *action.ReleaseListResultV1
+		mockError  error
+		want       []string
+		wantErr    bool
 	}{
 		{
-			name:      "non-existent release",
-			release:   "non-existent",
-			wantError: true,
+			name: "successful list",
+			mockResult: &action.ReleaseListResultV1{
+				Releases: []*action.ReleaseListResultRelease{
+					{Name: "release-1"},
+					{Name: "release-2"},
+				},
+			},
+			want:    []string{"release-1", "release-2"},
+			wantErr: false,
+		},
+		{
+			name:       "empty list",
+			mockResult: &action.ReleaseListResultV1{},
+			want:       []string{},
+			wantErr:    false,
 		},
 	}
 
-	client := createTestClient()
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checksum, err := client.GetReleaseChecksum(tt.release)
-			if tt.wantError {
+			mockActions := new(MockNelmActions)
+			mockActions.On("ReleaseList", mock.Anything, mock.Anything).
+				Return(tt.mockResult, tt.mockError)
+
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			got, err := client.ListReleasesNames()
+
+			if tt.wantErr {
 				assert.Error(t, err)
-				return
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
 			}
-			assert.NoError(t, err)
-			assert.NotEmpty(t, checksum)
 		})
 	}
 }
@@ -323,35 +480,212 @@ func TestRender(t *testing.T) {
 		name        string
 		releaseName string
 		chartName   string
-		valuesPaths []string
-		setValues   []string
-		namespace   string
-		debug       bool
-		wantError   bool
+		mockResult  *action.ChartRenderResultV1
+		mockError   error
+		want        string
+		wantErr     bool
 	}{
 		{
-			name:        "invalid chart",
+			name:        "successful render",
+			releaseName: "test-release",
+			chartName:   "test-chart",
+			mockResult: &action.ChartRenderResultV1{
+				Resources: []map[string]interface{}{
+					{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata": map[string]interface{}{
+							"name": "test-config",
+						},
+					},
+				},
+			},
+			want:    "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-config\n",
+			wantErr: false,
+		},
+		{
+			name:        "render error",
 			releaseName: "test-release",
 			chartName:   "invalid-chart",
-			valuesPaths: []string{},
-			setValues:   []string{},
-			namespace:   "default",
-			debug:       false,
-			wantError:   true,
+			mockError:   fmt.Errorf("render error"),
+			want:        "",
+			wantErr:     true,
 		},
 	}
 
-	client := createTestClient()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockActions := new(MockNelmActions)
+			mockActions.On("ChartRender", mock.Anything, mock.Anything).
+				Return(tt.mockResult, tt.mockError)
+
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			got, err := client.Render(tt.releaseName, tt.chartName, nil, nil, "default", false)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestNelmClient_GetReleaseValues(t *testing.T) {
+	tests := []struct {
+		name        string
+		releaseName string
+		mockValues  map[string]interface{}
+		want        utils.Values
+		wantErr     bool
+	}{
+		{
+			name:        "successful get values",
+			releaseName: "test-release",
+			mockValues: map[string]interface{}{
+				"key1": "value1",
+				"key2": map[string]interface{}{
+					"nested": "value",
+				},
+			},
+			want: utils.Values{
+				"key1": "value1",
+				"key2": map[string]interface{}{
+					"nested": "value",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "release not found",
+			releaseName: "non-existent",
+			mockValues:  nil,
+			want:        nil,
+			wantErr:     true,
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := client.Render(tt.releaseName, tt.chartName, tt.valuesPaths, tt.setValues, tt.namespace, tt.debug)
-			if tt.wantError {
-				assert.Error(t, err)
+			mockActions := &MockNelmActions{}
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+
+			if tt.wantErr {
+				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
+					Return(nil, fmt.Errorf("release not found"))
+			} else {
+				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
+					Return(&action.ReleaseGetResultV1{
+						ApiVersion: "v1",
+						Release:    &action.ReleaseGetResultRelease{},
+						Chart:      &action.ReleaseGetResultChart{},
+						Values:     tt.mockValues,
+					}, nil)
+			}
+
+			got, err := client.GetReleaseValues(tt.releaseName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetReleaseValues() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			assert.NoError(t, err)
-			assert.NotEmpty(t, result)
+			if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetReleaseValues() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNelmClient_GetReleaseChecksum(t *testing.T) {
+	tests := []struct {
+		name        string
+		releaseName string
+		mockRelease *action.ReleaseGetResultV1
+		want        string
+		wantErr     bool
+	}{
+		{
+			name:        "get checksum from annotations",
+			releaseName: "test-release",
+			mockRelease: &action.ReleaseGetResultV1{
+				Release: &action.ReleaseGetResultRelease{
+					Annotations: map[string]string{
+						"moduleChecksum": "test-checksum",
+					},
+				},
+			},
+			want:    "test-checksum",
+			wantErr: false,
+		},
+		{
+			name:        "get checksum from values",
+			releaseName: "test-release",
+			mockRelease: &action.ReleaseGetResultV1{
+				Values: map[string]interface{}{
+					"_addonOperatorModuleChecksum": "test-checksum",
+				},
+			},
+			want:    "test-checksum",
+			wantErr: false,
+		},
+		{
+			name:        "checksum not found",
+			releaseName: "test-release",
+			mockRelease: &action.ReleaseGetResultV1{
+				Release: &action.ReleaseGetResultRelease{
+					Annotations: map[string]string{},
+				},
+				Values: map[string]interface{}{},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:        "release not found",
+			releaseName: "non-existent",
+			mockRelease: nil,
+			want:        "",
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockActions := &MockNelmActions{}
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+
+			if tt.mockRelease == nil {
+				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
+					Return(nil, fmt.Errorf("release not found"))
+			} else if tt.name == "get checksum from annotations" {
+				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
+					Return(&action.ReleaseGetResultV1{
+						ApiVersion: "v1",
+						Release:    &action.ReleaseGetResultRelease{Annotations: map[string]string{"moduleChecksum": "test-checksum"}},
+						Chart:      &action.ReleaseGetResultChart{},
+						Values:     map[string]interface{}{},
+					}, nil)
+			} else if tt.name == "get checksum from values" {
+				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
+					Return(&action.ReleaseGetResultV1{
+						ApiVersion: "v1",
+						Release:    &action.ReleaseGetResultRelease{Annotations: map[string]string{}},
+						Chart:      &action.ReleaseGetResultChart{},
+						Values:     map[string]interface{}{"_addonOperatorModuleChecksum": "test-checksum"},
+					}, nil)
+			} else {
+				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
+					Return(tt.mockRelease, nil)
+			}
+
+			got, err := client.GetReleaseChecksum(tt.releaseName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetReleaseChecksum() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetReleaseChecksum() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
