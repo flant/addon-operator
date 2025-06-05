@@ -282,8 +282,12 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 
 	releaseNames := make([]string, 0)
 	for _, release := range releaseListResult.Releases {
-		c.logger.Warn("release name is empty, skipped", slog.String("chart", release.Chart.Name))
+		chartName := "unknown"
+		if release.Chart != nil {
+			chartName = release.Chart.Name
+		}
 		if release.Name == "" {
+			c.logger.Warn("release name is empty, skipped", slog.String("chart", chartName))
 			continue
 		}
 
