@@ -279,7 +279,7 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 
 	var releaseNames []string
 	for _, release := range releaseListResult.Releases {
-		// FIXME(addon-operator): not sure how this can happen, it is impossible to deploy a release with no name with Nelm, and, I believe, with Helm too
+		c.logger.Warn("release name is empty, skipped", slog.String("chart", release.Chart.Name))
 		if release.Name == "" {
 			continue
 		}
