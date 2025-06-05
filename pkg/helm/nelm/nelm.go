@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
+	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/werf/nelm/pkg/action"
 	nelmLog "github.com/werf/nelm/pkg/log"
@@ -67,13 +68,23 @@ type NelmClient struct {
 	opts *CommonOptions
 }
 
-// GetReleaseLabels returns the labels associated with the NelmClient as a YAML string.
-func (c *NelmClient) GetReleaseLabels(releaseName string, namespace string) (string, error) {
-	b, err := yaml.Marshal(c.labels)
+// GetReleaseLabels returns a specific label value from the release.
+func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
+	releaseGetResult, err := action.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+		KubeContext:          c.opts.KubeContext,
+		OutputNoPrint:        true,
+		ReleaseStorageDriver: c.opts.HelmDriver,
+	})
 	if err != nil {
-		return "", fmt.Errorf("marshal release labels: %w", err)
+		return "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
-	return string(b), nil
+
+	// In nelm, labels are stored as annotations
+	if value, ok := releaseGetResult.Release.Annotations[labelName]; ok {
+		return value, nil
+	}
+
+	return "", helm3lib.ErrLabelIsNotFound
 }
 
 func (c *NelmClient) WithLogLabels(logLabels map[string]string) {
