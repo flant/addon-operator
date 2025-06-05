@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/werf/nelm/pkg/action"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+
+	"github.com/flant/addon-operator/pkg/utils"
 )
 
 func strPtr(s string) *string {
@@ -321,21 +322,6 @@ func TestWithLogLabels(t *testing.T) {
 	assert.NotNil(t, client.logger)
 }
 
-func createTestClientWithActions(actions NelmActions) *NelmClient {
-	opts := &CommonOptions{
-		HistoryMax:  10,
-		Timeout:     time.Second * 30,
-		HelmDriver:  "secret",
-		KubeContext: "test-context",
-	}
-	opts.ConfigFlags.Namespace = strPtr("default")
-	return NewNelmClient(opts, log.NewLogger(log.Options{}), make(map[string]string), actions)
-}
-
-func createTestClient() *NelmClient {
-	return createTestClientWithActions(&MockNelmActions{})
-}
-
 func TestUpgradeRelease(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -490,11 +476,11 @@ func TestRender(t *testing.T) {
 			releaseName: "test-release",
 			chartName:   "test-chart",
 			mockResult: &action.ChartRenderResultV1{
-				Resources: []map[string]interface{}{
+				Resources: []map[string]any{
 					{
 						"apiVersion": "v1",
 						"kind":       "ConfigMap",
-						"metadata": map[string]interface{}{
+						"metadata": map[string]any{
 							"name": "test-config",
 						},
 					},
@@ -536,22 +522,22 @@ func TestNelmClient_GetReleaseValues(t *testing.T) {
 	tests := []struct {
 		name        string
 		releaseName string
-		mockValues  map[string]interface{}
+		mockValues  map[string]any
 		want        utils.Values
 		wantErr     bool
 	}{
 		{
 			name:        "successful get values",
 			releaseName: "test-release",
-			mockValues: map[string]interface{}{
+			mockValues: map[string]any{
 				"key1": "value1",
-				"key2": map[string]interface{}{
+				"key2": map[string]any{
 					"nested": "value",
 				},
 			},
 			want: utils.Values{
 				"key1": "value1",
-				"key2": map[string]interface{}{
+				"key2": map[string]any{
 					"nested": "value",
 				},
 			},
@@ -621,7 +607,7 @@ func TestNelmClient_GetReleaseChecksum(t *testing.T) {
 			name:        "get checksum from values",
 			releaseName: "test-release",
 			mockRelease: &action.ReleaseGetResultV1{
-				Values: map[string]interface{}{
+				Values: map[string]any{
 					"_addonOperatorModuleChecksum": "test-checksum",
 				},
 			},
@@ -635,7 +621,7 @@ func TestNelmClient_GetReleaseChecksum(t *testing.T) {
 				Release: &action.ReleaseGetResultRelease{
 					Annotations: map[string]string{},
 				},
-				Values: map[string]interface{}{},
+				Values: map[string]any{},
 			},
 			want:    "",
 			wantErr: true,
@@ -654,26 +640,27 @@ func TestNelmClient_GetReleaseChecksum(t *testing.T) {
 			mockActions := &MockNelmActions{}
 			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
 
-			if tt.mockRelease == nil {
+			switch {
+			case tt.mockRelease == nil:
 				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
 					Return(nil, fmt.Errorf("release not found"))
-			} else if tt.name == "get checksum from annotations" {
+			case tt.name == "get checksum from annotations":
 				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
 					Return(&action.ReleaseGetResultV1{
 						ApiVersion: "v1",
 						Release:    &action.ReleaseGetResultRelease{Annotations: map[string]string{"moduleChecksum": "test-checksum"}},
 						Chart:      &action.ReleaseGetResultChart{},
-						Values:     map[string]interface{}{},
+						Values:     map[string]any{},
 					}, nil)
-			} else if tt.name == "get checksum from values" {
+			case tt.name == "get checksum from values":
 				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
 					Return(&action.ReleaseGetResultV1{
 						ApiVersion: "v1",
 						Release:    &action.ReleaseGetResultRelease{Annotations: map[string]string{}},
 						Chart:      &action.ReleaseGetResultChart{},
-						Values:     map[string]interface{}{"_addonOperatorModuleChecksum": "test-checksum"},
+						Values:     map[string]any{"_addonOperatorModuleChecksum": "test-checksum"},
 					}, nil)
-			} else {
+			default:
 				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
 					Return(tt.mockRelease, nil)
 			}

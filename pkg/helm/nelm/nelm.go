@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/werf/nelm/pkg/action"
+	nelmLog "github.com/werf/nelm/pkg/log"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
@@ -19,10 +22,6 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/werf/nelm/pkg/action"
-	nelmLog "github.com/werf/nelm/pkg/log"
-
-	"github.com/deckhouse/deckhouse/pkg/log"
 )
 
 var _ client.HelmClient = (*NelmClient)(nil)
@@ -49,15 +48,19 @@ type DefaultNelmActions struct{}
 func (d *DefaultNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV1, error) {
 	return action.ReleaseGet(ctx, name, namespace, opts)
 }
+
 func (d *DefaultNelmActions) ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) error {
 	return action.ReleaseInstall(ctx, name, namespace, opts)
 }
+
 func (d *DefaultNelmActions) ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) error {
 	return action.ReleaseUninstall(ctx, name, namespace, opts)
 }
+
 func (d *DefaultNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV1, error) {
 	return action.ReleaseList(ctx, opts)
 }
+
 func (d *DefaultNelmActions) ChartRender(ctx context.Context, opts action.ChartRenderOptions) (*action.ChartRenderResultV1, error) {
 	return action.ChartRender(ctx, opts)
 }
@@ -277,7 +280,7 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 		return nil, fmt.Errorf("list nelm releases: %w", err)
 	}
 
-	var releaseNames []string
+	releaseNames := make([]string, 0)
 	for _, release := range releaseListResult.Releases {
 		c.logger.Warn("release name is empty, skipped", slog.String("chart", release.Chart.Name))
 		if release.Name == "" {
