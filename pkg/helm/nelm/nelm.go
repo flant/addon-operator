@@ -296,10 +296,6 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 
 	sort.Strings(releaseNames)
 
-	if len(releaseNames) == 0 {
-		return []string{}, nil
-	}
-
 	return releaseNames, nil
 }
 
