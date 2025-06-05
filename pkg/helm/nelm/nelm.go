@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"sort"
 	"strconv"
 	"time"
 
-	"github.com/gookit/color"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
@@ -18,64 +18,53 @@ import (
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
-
 	"github.com/werf/nelm/pkg/action"
-	"github.com/werf/nelm/pkg/log"
+	nelmLog "github.com/werf/nelm/pkg/log"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 )
 
-var (
-	_             client.HelmClient = &NelmClient{}
-	commonOptions *CommonOptions
-)
+var _ client.HelmClient = (*NelmClient)(nil)
 
-func Init(opts *CommonOptions, logger *NelmLogger) error {
-	log.Default = logger
-	color.Disable()
+type CommonOptions struct {
+	genericclioptions.ConfigFlags
 
-	commonOptions = opts
+	HistoryMax  int32
+	Timeout     time.Duration
+	HelmDriver  string
+	KubeContext string
+}
 
-	getter := buildConfigFlagsFromEnv(&commonOptions.Namespace, cli.New())
+func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]string) *NelmClient {
+	nelmLog.Default = nil
 
-	// FIXME(addon-operator): add all other options from getter in the same manner
-	if opts.KubeContext == "" && getter.Context != nil {
-		opts.KubeContext = *getter.Context
+	if opts == nil {
+		opts = &CommonOptions{}
+	}
+
+	opts = applyCommonOptionsDefaults(opts,
+		buildConfigFlagsFromEnv(opts.Namespace, cli.New()))
+
+	if opts.HistoryMax == 0 {
+		opts.HistoryMax = 10
 	}
 
 	if opts.HelmDriver == "" {
 		opts.HelmDriver = os.Getenv("HELM_DRIVER")
 	}
 
-	versionResult, err := action.Version(context.TODO(), action.VersionOptions{
-		OutputNoPrint: true,
-	})
-	if err != nil {
-		return fmt.Errorf("get nelm version: %w", err)
-	}
-
-	logger.Info(context.TODO(), "Nelm version", slog.String("version", versionResult.FullVersion))
-
-	return nil
-}
-
-type CommonOptions struct {
-	Namespace   string
-	HistoryMax  int32
-	Timeout     time.Duration
-	HelmDriver  string
-	KubeContext string
-	// FIXME(addon-operator): add all other options from *genericclioptions.ConfigFlags
-}
-
-func NewNelmClient(logger *NelmLogger, labels map[string]string) *NelmClient {
 	return &NelmClient{
 		logger: logger.With("operator.component", "nelm"),
 		labels: labels,
+		opts:   opts,
 	}
 }
 
 type NelmClient struct {
-	logger *NelmLogger
+	logger *log.Logger
 	labels map[string]string
+
+	opts *CommonOptions
 }
 
 // GetReleaseLabels returns the labels associated with the NelmClient as a YAML string.
@@ -88,20 +77,18 @@ func (c *NelmClient) GetReleaseLabels(releaseName string, namespace string) (str
 }
 
 func (c *NelmClient) WithLogLabels(logLabels map[string]string) {
-	c.logger = c.logger.EnrichWithLabels(logLabels)
+	c.logger = c.logger.With(logLabels)
 }
 
 func (c *NelmClient) WithExtraLabels(labels map[string]string) {
-	for k, v := range labels {
-		c.labels[k] = v
-	}
+	maps.Copy(c.labels, labels)
 }
 
 func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, error) {
-	releaseGetResult, err := action.ReleaseGet(context.TODO(), releaseName, commonOptions.Namespace, action.ReleaseGetOptions{
-		KubeContext:          commonOptions.KubeContext,
+	releaseGetResult, err := action.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
-		ReleaseStorageDriver: commonOptions.HelmDriver,
+		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
 		var releaseNotFoundErr *action.ReleaseNotFoundError
@@ -116,7 +103,7 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 }
 
 func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
-	c.logger.Info(context.TODO(), "Running nelm install for release",
+	c.logger.Info("Running nelm install for release",
 		slog.String("release", releaseName),
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
@@ -124,19 +111,19 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, values
 	if err := action.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
 		Chart:                chartName,
 		ExtraLabels:          c.labels,
-		KubeContext:          commonOptions.KubeContext,
+		KubeContext:          c.opts.KubeContext,
 		NoInstallCRDs:        true,
-		ReleaseHistoryLimit:  int(commonOptions.HistoryMax),
+		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
 		ReleaseLabels:        labels,
-		ReleaseStorageDriver: commonOptions.HelmDriver,
-		Timeout:              commonOptions.Timeout,
+		ReleaseStorageDriver: c.opts.HelmDriver,
+		Timeout:              c.opts.Timeout,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
 	}); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
 
-	c.logger.Info(context.TODO(), "Nelm install successful",
+	c.logger.Info("Nelm install successful",
 		slog.String("release", releaseName),
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
@@ -149,10 +136,10 @@ func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) 
 }
 
 func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
-	releaseGetResult, err := action.ReleaseGet(context.TODO(), releaseName, commonOptions.Namespace, action.ReleaseGetOptions{
-		KubeContext:          commonOptions.KubeContext,
+	releaseGetResult, err := action.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
-		ReleaseStorageDriver: commonOptions.HelmDriver,
+		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
 		return "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
@@ -172,18 +159,18 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 }
 
 func (c *NelmClient) DeleteRelease(releaseName string) error {
-	c.logger.Debug(context.TODO(), "nelm release: execute nelm uninstall", slog.String("release", releaseName))
+	c.logger.Debug("nelm release: execute nelm uninstall", slog.String("release", releaseName))
 
-	if err := action.ReleaseUninstall(context.TODO(), releaseName, commonOptions.Namespace, action.ReleaseUninstallOptions{
-		KubeContext:          commonOptions.KubeContext,
-		ReleaseHistoryLimit:  int(commonOptions.HistoryMax),
-		ReleaseStorageDriver: commonOptions.HelmDriver,
-		Timeout:              commonOptions.Timeout,
+	if err := action.ReleaseUninstall(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseUninstallOptions{
+		KubeContext:          c.opts.KubeContext,
+		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
+		ReleaseStorageDriver: c.opts.HelmDriver,
+		Timeout:              c.opts.Timeout,
 	}); err != nil {
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
 
-	c.logger.Debug(context.TODO(), "nelm release deleted", slog.String("release", releaseName))
+	c.logger.Debug("nelm release deleted", slog.String("release", releaseName))
 
 	return nil
 }
@@ -203,9 +190,9 @@ func (c *NelmClient) IsReleaseExists(releaseName string) (bool, error) {
 
 func (c *NelmClient) ListReleasesNames() ([]string, error) {
 	releaseListResult, err := action.ReleaseList(context.TODO(), action.ReleaseListOptions{
-		KubeContext:          commonOptions.KubeContext,
+		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
-		ReleaseStorageDriver: commonOptions.HelmDriver,
+		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list nelm releases: %w", err)
@@ -227,17 +214,17 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 }
 
 func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
-	c.logger.Debug(context.TODO(), "Render nelm templates for chart ...",
+	c.logger.Debug("Render nelm templates for chart ...",
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
 
 	chartRenderResult, err := action.ChartRender(context.TODO(), action.ChartRenderOptions{
 		Chart:                chartName,
 		ExtraLabels:          c.labels,
-		KubeContext:          commonOptions.KubeContext,
+		KubeContext:          c.opts.KubeContext,
 		ReleaseName:          releaseName,
-		ReleaseNamespace:     commonOptions.Namespace,
-		ReleaseStorageDriver: commonOptions.HelmDriver,
+		ReleaseNamespace:     *c.opts.Namespace,
+		ReleaseStorageDriver: c.opts.HelmDriver,
 		Remote:               true,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
@@ -246,7 +233,7 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		return "", fmt.Errorf("render nelm chart %q: %w", chartName, err)
 	}
 
-	c.logger.Info(context.TODO(), "Render nelm templates for chart was successful", slog.String("chart", chartName))
+	c.logger.Info("Render nelm templates for chart was successful", slog.String("chart", chartName))
 
 	var result string
 	for _, resource := range chartRenderResult.Resources {
@@ -284,4 +271,53 @@ func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioption
 	}
 
 	return flags
+}
+
+func applyCommonOptionsDefaults(opts *CommonOptions, getter *genericclioptions.ConfigFlags) *CommonOptions {
+	if opts == nil {
+		opts = &CommonOptions{}
+	}
+
+	if getter == nil {
+		return opts
+	}
+
+	if opts.Timeout == 0 && getter.Timeout != nil {
+		duration, _ := time.ParseDuration(*getter.Timeout)
+		opts.Timeout = duration
+	}
+	if opts.KubeContext == "" && getter.Context != nil {
+		opts.KubeContext = *getter.Context
+	}
+	if opts.Namespace == nil && getter.Namespace != nil {
+		opts.Namespace = getter.Namespace
+	}
+	if opts.BearerToken == nil && getter.BearerToken != nil {
+		opts.BearerToken = getter.BearerToken
+	}
+	if opts.APIServer == nil && getter.APIServer != nil {
+		opts.APIServer = getter.APIServer
+	}
+	if opts.CAFile == nil && getter.CAFile != nil {
+		opts.CAFile = getter.CAFile
+	}
+	if opts.KubeConfig == nil && getter.KubeConfig != nil {
+		opts.KubeConfig = getter.KubeConfig
+	}
+	if opts.Impersonate == nil && getter.Impersonate != nil {
+		opts.Impersonate = getter.Impersonate
+	}
+	if opts.Insecure == nil && getter.Insecure != nil {
+		opts.Insecure = getter.Insecure
+	}
+	if opts.TLSServerName == nil && getter.TLSServerName != nil {
+		opts.TLSServerName = getter.TLSServerName
+	}
+	if opts.ImpersonateGroup == nil && getter.ImpersonateGroup != nil {
+		opts.ImpersonateGroup = getter.ImpersonateGroup
+	}
+	if opts.WrapConfigFn == nil && getter.WrapConfigFn != nil {
+		opts.WrapConfigFn = getter.WrapConfigFn
+	}
+	return opts
 }
