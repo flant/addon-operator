@@ -54,9 +54,14 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 		opts.HelmDriver = os.Getenv("HELM_DRIVER")
 	}
 
+	clientLabels := make(map[string]string)
+	if labels != nil {
+		maps.Copy(clientLabels, labels)
+	}
+
 	return &NelmClient{
 		logger: logger.With("operator.component", "nelm"),
-		labels: labels,
+		labels: clientLabels,
 		opts:   opts,
 	}
 }
@@ -92,7 +97,12 @@ func (c *NelmClient) WithLogLabels(logLabels map[string]string) {
 }
 
 func (c *NelmClient) WithExtraLabels(labels map[string]string) {
-	maps.Copy(c.labels, labels)
+	if labels != nil {
+		if c.labels == nil {
+			c.labels = make(map[string]string)
+		}
+		maps.Copy(c.labels, labels)
+	}
 }
 
 func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, error) {
@@ -143,7 +153,26 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, values
 }
 
 func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) {
-	panic("not going to be implemented")
+	releaseGetResult, err := action.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+		KubeContext:          c.opts.KubeContext,
+		OutputNoPrint:        true,
+		ReleaseStorageDriver: c.opts.HelmDriver,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get nelm release %q: %w", releaseName, err)
+	}
+
+	valuesBytes, err := yaml.Marshal(releaseGetResult.Values)
+	if err != nil {
+		return nil, fmt.Errorf("marshal values for release %q: %w", releaseName, err)
+	}
+
+	result := make(utils.Values)
+	if err := yaml.Unmarshal(valuesBytes, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal values for release %q: %w", releaseName, err)
+	}
+
+	return result, nil
 }
 
 func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
@@ -191,11 +220,9 @@ func (c *NelmClient) IsReleaseExists(releaseName string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-
 	if revision == "0" {
 		return false, nil
 	}
-
 	return false, err
 }
 
@@ -234,13 +261,16 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		ExtraLabels:          c.labels,
 		KubeContext:          c.opts.KubeContext,
 		ReleaseName:          releaseName,
-		ReleaseNamespace:     *c.opts.Namespace,
+		ReleaseNamespace:     namespace,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 		Remote:               true,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
 	})
 	if err != nil {
+		if !debug {
+			return "", fmt.Errorf("render nelm chart %q: %w\n\nUse --debug flag to render out invalid YAML", chartName, err)
+		}
 		return "", fmt.Errorf("render nelm chart %q: %w", chartName, err)
 	}
 
