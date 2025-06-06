@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	LabelMaintenanceNoResourceReconciliation = "_maintenance.deckhouse.io/no-resource-reconciliation"
+	LabelMaintenanceNoResourceReconciliation = "maintenance.deckhouse.io/no-resource-reconciliation"
 )
 
 // HelmModule representation of the module, which has Helm Chart and could be installed with the helm lib
