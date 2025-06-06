@@ -2,12 +2,14 @@ package helm
 
 import (
 	"maps"
+	"os"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
+	"github.com/flant/addon-operator/pkg/helm/nelm"
 )
 
 type ClientFactory struct {
@@ -52,27 +54,40 @@ type Options struct {
 }
 
 func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*ClientFactory, error) {
-	_, err := DetectHelmVersion()
+	clientType, err := DetectHelmVersion()
 	if err != nil {
 		return nil, err
 	}
 
 	factory := new(ClientFactory)
 	factory.labels = labels
+	factory.ClientType = clientType
 
-	log.Info("Helm3Lib detected. Use builtin Helm.")
-
-	factory.ClientType = Helm3Lib
-	factory.NewClientFn = helm3lib.NewClient
-
-	err = helm3lib.Init(&helm3lib.Options{
-		Namespace:         helmopts.Namespace,
-		HistoryMax:        helmopts.HistoryMax,
-		Timeout:           helmopts.Timeout,
-		HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
-	}, helmopts.Logger)
-	if err != nil {
-		return nil, err
+	switch clientType {
+	case Helm3Lib:
+		factory.NewClientFn = helm3lib.NewClient
+		err = helm3lib.Init(&helm3lib.Options{
+			Namespace:         helmopts.Namespace,
+			HistoryMax:        helmopts.HistoryMax,
+			Timeout:           helmopts.Timeout,
+			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
+		}, helmopts.Logger)
+		if err != nil {
+			return nil, err
+		}
+	case Nelm:
+		factory.NewClientFn = func(logger *log.Logger, labels map[string]string) client.HelmClient {
+			opts := &nelm.CommonOptions{
+				HistoryMax:  helmopts.HistoryMax,
+				Timeout:     helmopts.Timeout,
+				HelmDriver:  os.Getenv("HELM_DRIVER"),
+				KubeContext: os.Getenv("KUBE_CONTEXT"),
+			}
+			if helmopts.Namespace != "" {
+				opts.Namespace = &helmopts.Namespace
+			}
+			return nelm.NewNelmClient(opts, logger, labels)
+		}
 	}
 
 	return factory, nil
