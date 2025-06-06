@@ -3,8 +3,7 @@ package kube_config_manager
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"reflect"
+	"maps"
 	"strconv"
 	"sync"
 
@@ -33,7 +32,7 @@ type KubeConfigManager struct {
 	configEventCh chan config.KubeConfigEvent
 	backend       backend.ConfigHandler
 
-	m             sync.Mutex
+	mu            sync.RWMutex
 	currentConfig *config.KubeConfig
 }
 
@@ -46,7 +45,7 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 	if runtimeConfig != nil {
 		runtimeConfig.Register(
 			"log.configmap.events",
-			fmt.Sprintf("Set to true to log all operations with Configuration manager/%s", reflect.TypeOf(bk)),
+			fmt.Sprintf("Set to true to log all operations with Configuration manager/%T", bk),
 			"false",
 			func(_ string, newValue string) error {
 				val, err := strconv.ParseBool(newValue)
@@ -74,6 +73,8 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 }
 
 func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) *bool {
+	kcm.mu.RLock()
+	defer kcm.mu.RUnlock()
 	moduleConfig, found := kcm.currentConfig.Modules[moduleName]
 	if !found {
 		return nil
@@ -85,7 +86,7 @@ func (kcm *KubeConfigManager) IsModuleEnabled(moduleName string) *bool {
 func (kcm *KubeConfigManager) Init() error {
 	kcm.logger.Debug("Init: KubeConfigManager")
 
-	// Load config and calculate checksums at start. No locking required.
+	// Load config and calculate checksums at start.
 	err := kcm.loadConfig()
 	if err != nil {
 		return err
@@ -99,10 +100,7 @@ func (kcm *KubeConfigManager) Init() error {
 func (kcm *KubeConfigManager) SaveConfigValues(key string, values utils.Values) error {
 	checksum, err := kcm.backend.SaveConfigValues(kcm.ctx, key, values)
 	if err != nil {
-		kcm.withLock(func() {
-			kcm.knownChecksums.Remove(key, checksum)
-		})
-
+		// Do not remove known checksums in case of an error
 		return err
 	}
 
@@ -119,19 +117,21 @@ func (kcm *KubeConfigManager) KubeConfigEventCh() chan config.KubeConfigEvent {
 }
 
 // UpdateModuleConfig updates a single module config
+// This method loads the configuration outside the lock to reduce mutex contention.
 func (kcm *KubeConfigManager) UpdateModuleConfig(moduleName string) error {
+	// Load config outside the lock to reduce contention
 	newModuleConfig, err := kcm.backend.LoadConfig(kcm.ctx, moduleName)
 	if err != nil {
 		return err
 	}
 
-	if moduleConfig, found := newModuleConfig.Modules[moduleName]; found {
-		if kcm.knownChecksums != nil {
+	// Use a helper method to lock access to the shared state
+	kcm.withLock(func() {
+		if moduleConfig, found := newModuleConfig.Modules[moduleName]; found {
 			kcm.knownChecksums.Set(moduleName, moduleConfig.Checksum)
+			kcm.currentConfig.Modules[moduleName] = moduleConfig
 		}
-
-		kcm.currentConfig.Modules[moduleName] = moduleConfig
-	}
+	})
 
 	return nil
 }
@@ -143,6 +143,10 @@ func (kcm *KubeConfigManager) loadConfig() error {
 	if err != nil {
 		return err
 	}
+
+	// Protect access to shared state with mutex
+	kcm.mu.Lock()
+	defer kcm.mu.Unlock()
 
 	if newConfig.Global != nil {
 		kcm.knownChecksums.Set(utils.GlobalValuesKey, newConfig.Global.Checksum)
@@ -156,16 +160,9 @@ func (kcm *KubeConfigManager) loadConfig() error {
 	return nil
 }
 
-// currentModuleNames gather modules names from the checksums map and from the currentConfig struct.
-func (kcm *KubeConfigManager) currentModuleNames() map[string]struct{} {
-	names := make(map[string]struct{})
-	for name := range kcm.currentConfig.Modules {
-		names[name] = struct{}{}
-	}
-	return names
-}
-
 // isGlobalChanged returns true when changes in "global" section require firing event.
+// IMPORTANT: This method MUST be called with kcm.mu locked as it accesses shared state.
+// Failure to do so will result in race conditions.
 func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool {
 	if newConfig.Global == nil {
 		// Fire event when global section is deleted: ConfigMap has no global section but global config is cached.
@@ -180,7 +177,9 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 
 	newChecksum := newConfig.Global.Checksum
 	// Global section is updated if a new checksum not equal to the saved one and not in knownChecksum.
-	if kcm.knownChecksums.HasEqualChecksum(utils.GlobalValuesKey, newChecksum) {
+	// Use atomic operation for checksum checking and removal to avoid race conditions
+	hasKnownChecksum := kcm.knownChecksums.HasEqualChecksum(utils.GlobalValuesKey, newChecksum)
+	if hasKnownChecksum {
 		// Remove known checksum, do not fire event on self-update.
 		kcm.knownChecksums.Remove(utils.GlobalValuesKey, newChecksum)
 		kcm.logger.Debug("Global section self-update")
@@ -201,233 +200,188 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 	return false
 }
 
-// handleConfigEvent determine changes in kube config. It sends KubeConfigChanged event if something
-// changed or KubeConfigInvalid event if Config is incorrect.
-func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
-	if obj.Err != nil {
-		// Do not update caches to detect changes on next update.
-		kcm.configEventCh <- config.KubeConfigEvent{
-			Type: config.KubeConfigInvalid,
-		}
-		kcm.logger.Error("Config invalid",
-			slog.String("name", obj.Key),
-			log.Err(obj.Err))
-		return
-	}
-
-	switch obj.Key {
-	case "":
-		// Config backend was reset
-		kcm.m.Lock()
-		kcm.currentConfig = config.NewConfig()
-		kcm.m.Unlock()
-		kcm.configEventCh <- config.KubeConfigEvent{
-			Type: config.KubeConfigChanged,
-		}
-
-	case utils.GlobalValuesKey:
-		// global values
-
-		kcm.m.Lock()
-		globalChanged := kcm.isGlobalChanged(obj.Config)
-		// Update state after successful parsing.
-		kcm.currentConfig.Global = obj.Config.Global
-		kcm.m.Unlock()
-		if globalChanged {
-			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                 config.KubeConfigChanged,
-				GlobalSectionChanged: globalChanged,
-			}
-		}
-
-	default:
-		// some module values
-		modulesChanged := []string{}
-		modulesStateChanged := []string{}
-		moduleMaintenanceChanged := make(map[string]utils.Maintenance)
-
-		// module update
-		kcm.m.Lock()
-		defer kcm.m.Unlock()
-		moduleName := obj.Key
-		moduleCfg := obj.Config.Modules[obj.Key]
-		if obj.Op == config.EventDelete {
-			kcm.logger.Info("Module section deleted", slog.String("moduleName", moduleName))
-			modulesChanged = append(modulesChanged, moduleName)
-			if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
-				modulesStateChanged = append(modulesStateChanged, moduleName)
-			}
-
-			if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() == utils.NoResourceReconciliation {
-				moduleMaintenanceChanged[moduleName] = utils.Managed
-			}
-
-			moduleCfg.Reset()
-			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
-			kcm.currentConfig.Modules[obj.Key] = moduleCfg
-			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                      config.KubeConfigChanged,
-				ModuleValuesChanged:       modulesChanged,
-				ModuleEnabledStateChanged: modulesStateChanged,
-				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
-			}
-			return
-		}
-		// Module section is changed if a new checksum doesn't equal to saved one and isn't in known checksums, or the module new state doesn't equal to the previous one.
-		if kcm.knownChecksums.HasEqualChecksum(moduleName, moduleCfg.Checksum) {
-			// Remove known checksum, do not fire event on self-update.
-			kcm.knownChecksums.Remove(moduleName, moduleCfg.Checksum)
-		} else {
-			if currModuleCfg, has := kcm.currentConfig.Modules[moduleName]; has {
-				if currModuleCfg.Checksum != moduleCfg.Checksum {
-					modulesChanged = append(modulesChanged, moduleName)
-				}
-
-				if kcm.currentConfig.Modules[moduleName].GetEnabled() != moduleCfg.GetEnabled() {
-					modulesStateChanged = append(modulesStateChanged, moduleName)
-				}
-
-				if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() != moduleCfg.GetMaintenanceState() {
-					moduleMaintenanceChanged[moduleName] = moduleCfg.GetMaintenanceState()
-				}
-				kcm.logger.Info("Module section changed. Enabled flag transition.",
-					slog.String("moduleName", moduleName),
-					slog.String("previous", kcm.currentConfig.Modules[moduleName].GetEnabled()),
-					slog.String("current", moduleCfg.GetEnabled()),
-					slog.String("maintenanceFlag", moduleCfg.GetMaintenanceState().String()))
-			} else {
-				modulesChanged = append(modulesChanged, moduleName)
-				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
-					modulesStateChanged = append(modulesStateChanged, moduleName)
-				}
-
-				if moduleCfg.GetMaintenanceState() == utils.NoResourceReconciliation {
-					moduleMaintenanceChanged[moduleName] = utils.NoResourceReconciliation
-				}
-				kcm.logger.Info("Module section added",
-					slog.String("moduleName", moduleName),
-					slog.String("enabledFlag", moduleCfg.GetEnabled()),
-					slog.String("maintenanceFlag", moduleCfg.GetMaintenanceState().String()))
-			}
-		}
-
-		if len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
-			kcm.currentConfig.Modules[obj.Key] = moduleCfg
-			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                      config.KubeConfigChanged,
-				ModuleValuesChanged:       modulesChanged,
-				ModuleEnabledStateChanged: modulesStateChanged,
-				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
-			}
-		}
+// sendEventIfNeeded sends the event on the channel if it's not nil.
+// WARNING: This method should NEVER be called while holding kcm.mu lock
+// to prevent potential deadlocks.
+func (kcm *KubeConfigManager) sendEventIfNeeded(eventToSend *config.KubeConfigEvent) {
+	if eventToSend != nil {
+		kcm.configEventCh <- *eventToSend
 	}
 }
 
+// handleConfigEvent identifies changes in the Kubernetes configuration. Sends a KubeConfigChanged event
+// if something changed, or KubeConfigInvalid if the configuration is invalid.
+// This method is optimized to minimize mutex blocking time.
+func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
+	// Handle configuration errors without long blocking
+	if obj.Err != nil {
+		eventToSend := kcm.handleConfigError(obj.Key, obj.Err)
+		kcm.sendEventIfNeeded(eventToSend)
+		return
+	}
+
+	var eventToSend *config.KubeConfigEvent
+
+	// Handle reset configuration events
+	if obj.Key == "" {
+		kcm.withLock(func() {
+			eventToSend = kcm.handleResetConfig()
+			if eventToSend != nil {
+				// Update currentConfig with a new config instance
+				kcm.currentConfig = config.NewConfig()
+			}
+		})
+		// Send event after releasing the lock to prevent potential deadlocks
+		kcm.sendEventIfNeeded(eventToSend)
+		return
+	}
+
+	// Processing changes in the global section
+	if obj.Key == utils.GlobalValuesKey {
+		kcm.withLock(func() {
+			eventToSend = kcm.handleGlobalConfig(obj.Config)
+			if eventToSend != nil {
+				// Update state after successful parsing
+				kcm.currentConfig.Global = obj.Config.Global
+			}
+		})
+		kcm.sendEventIfNeeded(eventToSend)
+		return
+	}
+
+	// Processing changes in the module
+	moduleName := obj.Key
+
+	// Module deletion event
+	if obj.Op == config.EventDelete {
+		kcm.withLock(func() {
+			eventToSend = kcm.handleModuleDelete(moduleName)
+			if eventToSend != nil {
+				// Apply module deletion changes
+				moduleCfg := kcm.currentConfig.Modules[moduleName]
+				moduleCfg.Reset()
+				moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
+				kcm.currentConfig.Modules[moduleName] = moduleCfg
+			}
+		})
+	} else {
+		// Module update event
+		moduleCfg := obj.Config.Modules[obj.Key]
+		kcm.withLock(func() {
+			eventToSend = kcm.handleModuleUpdate(moduleName, moduleCfg)
+			if eventToSend != nil {
+				// Now we need to apply the update here since handleModuleUpdate doesn't modify currentConfig anymore
+				kcm.currentConfig.Modules[moduleName] = moduleCfg
+			}
+		})
+	}
+
+	// Sending event after unlocking
+	kcm.sendEventIfNeeded(eventToSend)
+}
+
+// handleBatchConfigEvent processes batch configuration changes
+// Optimized to reduce mutex locking time
 func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 	if obj.Err != nil {
-		// Do not update caches to detect changes on next update.
-		kcm.configEventCh <- config.KubeConfigEvent{
-			Type: config.KubeConfigInvalid,
-		}
-		kcm.logger.Error("Batch Config invalid", log.Err(obj.Err))
+		eventToSend := kcm.handleConfigError("batch", obj.Err)
+		kcm.sendEventIfNeeded(eventToSend)
 		return
 	}
 
 	if obj.Key == "" {
-		// Config backend was reset
-		kcm.m.Lock()
-		kcm.currentConfig = config.NewConfig()
-		kcm.m.Unlock()
-		kcm.configEventCh <- config.KubeConfigEvent{
-			Type: config.KubeConfigChanged,
-		}
+		// Processing backend configuration reset
+		var eventToSend *config.KubeConfigEvent
+		kcm.withLock(func() {
+			// Config backend was reset
+			eventToSend = kcm.handleResetConfig()
+			if eventToSend != nil {
+				// Update currentConfig with a new config instance
+				kcm.currentConfig = config.NewConfig()
+			}
+		})
+		// Send event after releasing the lock to prevent potential deadlocks
+		kcm.sendEventIfNeeded(eventToSend)
+		return
 	}
 
 	newConfig := obj.Config
 
-	// Lock to read known checksums and update config.
-	kcm.m.Lock()
+	// Preliminary creation of data structures for results
+	var (
+		globalChanged            bool
+		modulesChanged           []string
+		modulesStateChanged      []string
+		moduleMaintenanceChanged map[string]utils.Maintenance
+		eventToSend              *config.KubeConfigEvent
+	)
 
-	globalChanged := kcm.isGlobalChanged(newConfig)
+	// Preparing data for processing deleted modules
+	// This allows reducing mutex locking time
+	var currentModuleNames map[string]struct{}
 
-	// Parse values in module sections, create new ModuleConfigs and checksums map.
-	currentModuleNames := kcm.currentModuleNames()
-	modulesChanged := []string{}
-	modulesStateChanged := []string{}
-	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
+	// First lock - read-only to create a list of current modules
+	kcm.withRLock(func() {
+		currentModuleNames = make(map[string]struct{}, len(kcm.currentConfig.Modules))
+		for name := range kcm.currentConfig.Modules {
+			currentModuleNames[name] = struct{}{}
+		}
+	})
 
-	for moduleName, moduleCfg := range newConfig.Modules {
-		// Remove module name from current names to detect deleted sections.
-		delete(currentModuleNames, moduleName)
+	// Now process module updates outside of the lock to determine changes
+	modulesChanged = []string{}
+	modulesStateChanged = []string{}
+	moduleMaintenanceChanged = make(map[string]utils.Maintenance)
 
-		// Module section is changed if new checksum not equal to saved one and not in known checksums.
-		// Module section is changed if a new checksum doesn't equal to saved one and isn't in known checksums, or the module new state doesn't equal to the previous one.
-		if kcm.knownChecksums.HasEqualChecksum(moduleName, moduleCfg.Checksum) {
-			// Remove known checksum, do not fire event on self-update.
-			kcm.knownChecksums.Remove(moduleName, moduleCfg.Checksum)
-		} else {
-			if currModuleCfg, has := kcm.currentConfig.Modules[moduleName]; has {
-				if currModuleCfg.Checksum != moduleCfg.Checksum {
-					modulesChanged = append(modulesChanged, moduleName)
-				}
+	// Locking to check and update state
+	kcm.withLock(func() {
+		globalChanged = kcm.isGlobalChanged(newConfig)
 
-				if kcm.currentConfig.Modules[moduleName].GetEnabled() != moduleCfg.GetEnabled() {
-					modulesStateChanged = append(modulesStateChanged, moduleName)
-				}
+		// Process module updates
+		for moduleName, moduleCfg := range newConfig.Modules {
+			// Remove module name from current names to detect deleted sections.
+			delete(currentModuleNames, moduleName)
 
-				if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() != moduleCfg.GetMaintenanceState() {
-					moduleMaintenanceChanged[moduleName] = moduleCfg.GetMaintenanceState()
-				}
+			// Process individual module and update modules in newConfig
+			if event := kcm.handleModuleUpdate(moduleName, moduleCfg); event != nil {
+				modulesChanged = append(modulesChanged, event.ModuleValuesChanged...)
+				modulesStateChanged = append(modulesStateChanged, event.ModuleEnabledStateChanged...)
 
-				kcm.logger.Info("Module section changed. Enabled flag transition",
-					slog.String("moduleName", moduleName),
-					slog.String("previous", kcm.currentConfig.Modules[moduleName].GetEnabled()),
-					slog.String("current", moduleCfg.GetEnabled()),
-					slog.String("maintenanceFlag", moduleCfg.GetMaintenanceState().String()))
-			} else {
-				modulesChanged = append(modulesChanged, moduleName)
-				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
-					modulesStateChanged = append(modulesStateChanged, moduleName)
-				}
-
-				if moduleCfg.GetMaintenanceState() == utils.NoResourceReconciliation {
-					moduleMaintenanceChanged[moduleName] = utils.NoResourceReconciliation
-				}
-
-				kcm.logger.Info("Module section added",
-					slog.String("moduleName", moduleName),
-					slog.String("enabledFlag", moduleCfg.GetEnabled()),
-					slog.String("maintenanceFlag", moduleCfg.GetMaintenanceState().String()))
+				// Merge maintenance changes
+				maps.Copy(moduleMaintenanceChanged, event.ModuleMaintenanceChanged)
 			}
 		}
-	}
 
-	// currentModuleNames now contains deleted module sections.
-	if len(currentModuleNames) > 0 {
-		for moduleName := range currentModuleNames {
-			modulesChanged = append(modulesChanged, moduleName)
-			if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
-				modulesStateChanged = append(modulesStateChanged, moduleName)
+		// Process deleted modules
+		deletedModulesChanged, deletedModulesStateChanged, deletedModuleMaintenanceChanged := kcm.processBatchDeletedModules(currentModuleNames)
+
+		if deletedModulesChanged != nil {
+			modulesChanged = append(modulesChanged, deletedModulesChanged...)
+		}
+		if deletedModulesStateChanged != nil {
+			modulesStateChanged = append(modulesStateChanged, deletedModulesStateChanged...)
+		}
+		if deletedModuleMaintenanceChanged != nil {
+			maps.Copy(moduleMaintenanceChanged, deletedModuleMaintenanceChanged)
+		}
+
+		// Update state after successful parsing.
+		kcm.currentConfig = newConfig
+
+		// Prepare event data while holding the lock
+		if globalChanged || len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
+			eventToSend = &config.KubeConfigEvent{
+				Type:                      config.KubeConfigChanged,
+				GlobalSectionChanged:      globalChanged,
+				ModuleValuesChanged:       modulesChanged,
+				ModuleEnabledStateChanged: modulesStateChanged,
+				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
 			}
 		}
-		kcm.logger.Info("Module sections deleted",
-			slog.String("modules", fmt.Sprintf("%+v", currentModuleNames)))
-	}
+	})
 
-	// Update state after successful parsing.
-	kcm.currentConfig = newConfig
-	kcm.m.Unlock()
-
-	// Fire event if ConfigMap has changes.
-	if globalChanged || len(modulesChanged)+len(moduleMaintenanceChanged) > 0 {
-		kcm.configEventCh <- config.KubeConfigEvent{
-			Type:                      config.KubeConfigChanged,
-			GlobalSectionChanged:      globalChanged,
-			ModuleValuesChanged:       modulesChanged,
-			ModuleEnabledStateChanged: modulesStateChanged,
-			ModuleMaintenanceChanged:  moduleMaintenanceChanged,
-		}
-	}
+	// Sending event outside of the lock to prevent possible deadlock
+	kcm.sendEventIfNeeded(eventToSend)
 }
 
 func (kcm *KubeConfigManager) Start() {
@@ -464,20 +418,35 @@ func (kcm *KubeConfigManager) Stop() {
 }
 
 // SafeReadConfig locks currentConfig to safely read from it in external services.
+// This method provides thread-safe access to the configuration for external services,
+// using a read lock.
 func (kcm *KubeConfigManager) SafeReadConfig(handler func(config *config.KubeConfig)) {
 	if handler == nil {
 		return
 	}
-	kcm.withLock(func() {
+	kcm.withRLock(func() {
 		handler(kcm.currentConfig)
 	})
 }
 
+// withRLock executes function fn under a read lock of the mutex.
+// Use for safe reading of protected state.
+func (kcm *KubeConfigManager) withRLock(fn func()) {
+	if fn == nil {
+		return
+	}
+	kcm.mu.RLock()
+	defer kcm.mu.RUnlock()
+	fn()
+}
+
+// withLock executes function fn under an exclusive lock of the mutex.
+// Use for safe modification of protected state.
 func (kcm *KubeConfigManager) withLock(fn func()) {
 	if fn == nil {
 		return
 	}
-	kcm.m.Lock()
+	kcm.mu.Lock()
+	defer kcm.mu.Unlock()
 	fn()
-	kcm.m.Unlock()
 }

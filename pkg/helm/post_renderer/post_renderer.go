@@ -3,6 +3,7 @@ package post_renderer
 import (
 	"bytes"
 	"fmt"
+	"maps"
 
 	"sigs.k8s.io/kustomize/kyaml/kio"
 )
@@ -29,8 +30,11 @@ func (p *PostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, erro
 
 	for _, node := range nodes {
 		labels := node.GetLabels()
-		for k, v := range p.extraLabels {
-			labels[k] = v
+		if labels == nil {
+			labels = make(map[string]string)
+		}
+		if p.extraLabels != nil {
+			maps.Copy(labels, p.extraLabels)
 		}
 
 		_ = node.SetLabels(labels)

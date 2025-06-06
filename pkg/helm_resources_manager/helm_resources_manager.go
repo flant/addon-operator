@@ -48,7 +48,7 @@ type helmResourcesManager struct {
 
 	logger *log.Logger
 
-	l        sync.RWMutex
+	mu       sync.RWMutex
 	monitors map[string]*ResourcesMonitor
 }
 
@@ -78,11 +78,11 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 		_ = cache.Start(cctx)
 	}()
 
-	log.Debug("Helm resource manager: cache's been started")
+	logger.Debug("Helm resource manager: cache's been started")
 	if synced := cache.WaitForCacheSync(cctx); !synced {
 		return nil, fmt.Errorf("Couldn't sync helm resource informer cache")
 	}
-	log.Debug("Helm resourcer manager: cache has been synced")
+	logger.Debug("Helm resource manager: cache has been synced")
 
 	return &helmResourcesManager{
 		eventCh:    make(chan ReleaseStatusEvent),
@@ -96,6 +96,8 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 }
 
 func (hm *helmResourcesManager) WithDefaultNamespace(namespace string) {
+	hm.mu.Lock()
+	defer hm.mu.Unlock()
 	hm.Namespace = namespace
 }
 
@@ -110,7 +112,7 @@ func (hm *helmResourcesManager) Ch() chan ReleaseStatusEvent {
 }
 
 func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, lastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
-	log.Debug("Start helm resources monitor for module",
+	hm.logger.Debug("Start helm resources monitor for module",
 		slog.String("module", moduleName))
 	hm.StopMonitor(moduleName)
 
@@ -128,17 +130,17 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 
 	rm := NewResourcesMonitor(hm.ctx, cfg)
 
-	hm.l.Lock()
+	hm.mu.Lock()
 	hm.monitors[moduleName] = rm
-	hm.l.Unlock()
+	hm.mu.Unlock()
 	rm.Start()
 }
 
 func (hm *helmResourcesManager) absentResourcesCallback(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string) {
-	log.Debug("Detect absent resources for module",
+	hm.logger.Debug("Detect absent resources for module",
 		slog.String("module", moduleName))
 	for _, m := range absent {
-		log.Debug("absent module",
+		hm.logger.Debug("absent module",
 			slog.String("namespace", m.Namespace(defaultNs)),
 			slog.String("kind", m.Kind()),
 			slog.String("module", m.Name()))
@@ -151,65 +153,65 @@ func (hm *helmResourcesManager) absentResourcesCallback(moduleName string, unexp
 }
 
 func (hm *helmResourcesManager) StopMonitors() {
-	hm.l.Lock()
+	hm.mu.Lock()
 	for moduleName, monitor := range hm.monitors {
 		monitor.Stop()
 		delete(hm.monitors, moduleName)
 	}
-	hm.l.Unlock()
+	hm.mu.Unlock()
 }
 
 func (hm *helmResourcesManager) PauseMonitors() {
-	hm.l.RLock()
+	hm.mu.RLock()
 	for _, monitor := range hm.monitors {
 		monitor.Pause()
 	}
-	hm.l.RUnlock()
+	hm.mu.RUnlock()
 }
 
 func (hm *helmResourcesManager) ResumeMonitors() {
-	hm.l.RLock()
+	hm.mu.RLock()
 	for _, monitor := range hm.monitors {
 		monitor.Resume()
 	}
-	hm.l.RUnlock()
+	hm.mu.RUnlock()
 }
 
 func (hm *helmResourcesManager) StopMonitor(moduleName string) {
-	hm.l.Lock()
+	hm.mu.Lock()
 	if monitor, ok := hm.monitors[moduleName]; ok {
 		monitor.Stop()
 		delete(hm.monitors, moduleName)
 	}
-	hm.l.Unlock()
+	hm.mu.Unlock()
 }
 
 func (hm *helmResourcesManager) PauseMonitor(moduleName string) {
-	hm.l.RLock()
+	hm.mu.RLock()
 	if monitor, ok := hm.monitors[moduleName]; ok {
 		monitor.Pause()
 	}
-	hm.l.RUnlock()
+	hm.mu.RUnlock()
 }
 
 func (hm *helmResourcesManager) ResumeMonitor(moduleName string) {
-	hm.l.RLock()
+	hm.mu.RLock()
 	if monitor, ok := hm.monitors[moduleName]; ok {
 		monitor.Resume()
 	}
-	hm.l.RUnlock()
+	hm.mu.RUnlock()
 }
 
 func (hm *helmResourcesManager) HasMonitor(moduleName string) bool {
-	hm.l.RLock()
+	hm.mu.RLock()
 	_, ok := hm.monitors[moduleName]
-	hm.l.RUnlock()
+	hm.mu.RUnlock()
 	return ok
 }
 
 func (hm *helmResourcesManager) AbsentResources(moduleName string) ([]manifest.Manifest, error) {
-	hm.l.RLock()
-	defer hm.l.RUnlock()
+	hm.mu.RLock()
+	defer hm.mu.RUnlock()
 	if monitor, ok := hm.monitors[moduleName]; ok {
 		return monitor.AbsentResources()
 	}
@@ -217,8 +219,8 @@ func (hm *helmResourcesManager) AbsentResources(moduleName string) ([]manifest.M
 }
 
 func (hm *helmResourcesManager) GetMonitor(moduleName string) *ResourcesMonitor {
-	hm.l.RLock()
-	defer hm.l.RUnlock()
+	hm.mu.RLock()
+	defer hm.mu.RUnlock()
 	return hm.monitors[moduleName]
 }
 

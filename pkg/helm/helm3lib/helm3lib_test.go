@@ -174,6 +174,79 @@ func TestLastReleaseStatusReturnsErrorForNonExistingRelease(t *testing.T) {
 	g.Expect(err).Should(HaveOccurred(), "should return an error for a non-existing release")
 }
 
+func TestParseSetValues(t *testing.T) {
+	g := NewWithT(t)
+
+	tests := []struct {
+		name     string
+		input    []string
+		expected map[string]any
+	}{
+		{
+			name:     "empty input returns empty map",
+			input:    nil,
+			expected: map[string]any{},
+		},
+		{
+			name:     "empty slice returns empty map",
+			input:    []string{},
+			expected: map[string]any{},
+		},
+		{
+			name:     "single key-value",
+			input:    []string{"foo=bar"},
+			expected: map[string]any{"foo": "bar"},
+		},
+		{
+			name:     "multiple key-values",
+			input:    []string{"foo=bar", "baz=qux"},
+			expected: map[string]any{"foo": "bar", "baz": "qux"},
+		},
+		{
+			name:     "value with equals sign",
+			input:    []string{"foo=bar=baz"},
+			expected: map[string]any{"foo": "bar=baz"},
+		},
+		{
+			name:     "key and value with whitespace",
+			input:    []string{" foo = bar "},
+			expected: map[string]any{"foo": "bar"},
+		},
+		{
+			name:     "entry with no equals is skipped",
+			input:    []string{"foo"},
+			expected: map[string]any{},
+		},
+		{
+			name:     "entry with empty key is skipped",
+			input:    []string{"=bar"},
+			expected: map[string]any{},
+		},
+		{
+			name:     "entry with empty value",
+			input:    []string{"foo="},
+			expected: map[string]any{"foo": ""},
+		},
+		{
+			name:     "duplicate keys, last wins",
+			input:    []string{"foo=bar", "foo=baz"},
+			expected: map[string]any{"foo": "baz"},
+		},
+		{
+			name:     "mixed valid and invalid entries",
+			input:    []string{"foo=bar", "baz", "=qux", "key=value=with=equals", "  spaced = spaced value  "},
+			expected: map[string]any{"foo": "bar", "key": "value=with=equals", "spaced": "spaced value"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(_ *testing.T) {
+			result := parseSetValues(tt.input)
+			g.Expect(result).To(Equal(tt.expected))
+		})
+	}
+}
+
 func initHelmClient(t *testing.T) *LibClient {
 	g := NewWithT(t)
 	err := Init(&Options{

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"sort"
 	"strconv"
@@ -81,8 +82,11 @@ func (h *LibClient) WithLogLabels(logLabels map[string]string) {
 }
 
 func (h *LibClient) WithExtraLabels(labels map[string]string) {
-	for k, v := range labels {
-		h.labels[k] = v
+	if h.labels == nil {
+		h.labels = make(map[string]string)
+	}
+	if labels != nil {
+		maps.Copy(h.labels, labels)
 	}
 }
 
@@ -210,13 +214,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	}
 
 	if len(setValues) > 0 {
-		m := make(map[string]interface{})
-		for _, sv := range setValues {
-			arr := strings.Split(sv, "=")
-			if len(arr) == 2 {
-				m[arr[0]] = arr[1]
-			}
-		}
+		m := parseSetValues(setValues)
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
@@ -447,6 +445,40 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	return releases, nil
 }
 
+// parseSetValues parses setValues slice into a map, supporting '=' in values.
+// Each entry should be in the format "key=value".
+//
+// Behavior:
+//   - Supports '=' characters within values (only the first '=' is used as delimiter)
+//   - Trims whitespace from both keys and values
+//   - Skips entries that don't contain '=' (malformed entries)
+//   - Skips entries with empty keys (after trimming whitespace)
+//   - For duplicate keys, the last occurrence in the slice takes precedence
+//   - Returns an empty map if setValues is nil or empty
+//
+// Examples:
+//   - "key=value" -> {"key": "value"}
+//   - "key=value=with=equals" -> {"key": "value=with=equals"}
+//   - " key = value " -> {"key": "value"}
+//   - "=value" -> skipped (empty key)
+//   - "key" -> skipped (no '=' delimiter)
+//   - ["key=value1", "key=value2"] -> {"key": "value2"} (last wins)
+func parseSetValues(setValues []string) map[string]any {
+	m := make(map[string]any)
+	for _, sv := range setValues {
+		arr := strings.SplitN(sv, "=", 2)
+		if len(arr) == 2 {
+			key := strings.TrimSpace(arr[0])
+			if key == "" {
+				// skip entries with empty key
+				continue
+			}
+			m[key] = strings.TrimSpace(arr[1])
+		}
+	}
+	return m
+}
+
 func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
 	chart, err := loader.Load(chartName)
 	if err != nil {
@@ -465,13 +497,7 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	}
 
 	if len(setValues) > 0 {
-		m := make(map[string]interface{})
-		for _, sv := range setValues {
-			arr := strings.Split(sv, "=")
-			if len(arr) == 2 {
-				m[arr[0]] = arr[1]
-			}
-		}
+		m := parseSetValues(setValues)
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
