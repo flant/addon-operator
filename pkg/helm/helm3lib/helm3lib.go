@@ -364,6 +364,9 @@ func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, err
 	gv := action.NewGet(actionConfig)
 	rel, err := gv.Run(releaseName)
 	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return "", ErrLabelIsNotFound
+		}
 		return "", fmt.Errorf("helm get failed: %s", err)
 	}
 
