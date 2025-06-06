@@ -95,8 +95,8 @@ func TestNewNelmClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := log.NewLogger(log.Options{})
-			client := NewNelmClient(tt.opts, logger, tt.labels, tt.actions)
-
+			client := NewNelmClient(tt.opts, logger, tt.labels)
+			client.actions = tt.actions
 			assert.NotNil(t, client)
 			if tt.opts != nil {
 				assert.Equal(t, tt.wantOpts.HistoryMax, client.opts.HistoryMax)
@@ -154,7 +154,9 @@ func TestGetReleaseLabels(t *testing.T) {
 			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.Anything, mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
-			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
+			client.actions = mockActions
+
 			got, err := client.GetReleaseLabels(tt.releaseName, tt.labelName)
 
 			if tt.wantErr {
@@ -206,7 +208,8 @@ func TestLastReleaseStatus(t *testing.T) {
 			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.Anything, mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
-			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
+			client.actions = mockActions
 			gotRev, gotStatus, err := client.LastReleaseStatus(tt.releaseName)
 
 			if tt.wantErr {
@@ -256,7 +259,8 @@ func TestIsReleaseExists(t *testing.T) {
 			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.Anything, mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
-			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
+			client.actions = mockActions
 			got, err := client.IsReleaseExists(tt.releaseName)
 
 			if tt.wantErr {
@@ -364,7 +368,8 @@ func TestUpgradeRelease(t *testing.T) {
 			mockActions.On("ReleaseInstall", mock.Anything, tt.releaseName, tt.namespace, mock.Anything).
 				Return(tt.mockError)
 
-			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
+			client.actions = mockActions
 			err := client.UpgradeRelease(tt.releaseName, tt.chartName, tt.valuesPaths, tt.setValues, tt.labels, tt.namespace)
 
 			if tt.wantErr {
@@ -403,7 +408,8 @@ func TestDeleteRelease(t *testing.T) {
 			mockActions.On("ReleaseUninstall", mock.Anything, tt.releaseName, mock.Anything, mock.Anything).
 				Return(tt.mockError)
 
-			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
+			client.actions = mockActions
 			err := client.DeleteRelease(tt.releaseName)
 
 			if tt.wantErr {
@@ -448,7 +454,8 @@ func TestListReleasesNames(t *testing.T) {
 			mockActions.On("ReleaseList", mock.Anything, mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
-			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
+			client.actions = mockActions
 			got, err := client.ListReleasesNames()
 
 			if tt.wantErr {
@@ -505,7 +512,8 @@ func TestRender(t *testing.T) {
 			mockActions.On("ChartRender", mock.Anything, mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
-			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
+			client.actions = mockActions
 			got, err := client.Render(tt.releaseName, tt.chartName, nil, nil, "default", false)
 
 			if tt.wantErr {
@@ -555,7 +563,8 @@ func TestNelmClient_GetReleaseValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockActions := &MockNelmActions{}
-			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
+			client.actions = mockActions
 
 			if tt.wantErr {
 				mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, "default", mock.Anything).
@@ -638,7 +647,8 @@ func TestNelmClient_GetReleaseChecksum(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockActions := &MockNelmActions{}
-			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil, mockActions)
+			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
+			client.actions = mockActions
 
 			switch {
 			case tt.mockRelease == nil:
