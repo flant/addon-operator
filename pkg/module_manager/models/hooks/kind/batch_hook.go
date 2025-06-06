@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -159,6 +160,18 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	usage, err := cmd.RunAndLogLines(ctx, logLabels)
 	result.Usage = usage
 	if err != nil {
+		outputError := &sdkhook.Error{}
+		trimmed := strings.TrimPrefix(err.Error(), "stderr:")
+
+		err := json.NewDecoder(bytes.NewBufferString(trimmed)).Decode(outputError)
+		if err != nil {
+			return result, err
+		}
+
+		if outputError.Message != "" {
+			return result, errors.New(outputError.Message)
+		}
+
 		return result, err
 	}
 

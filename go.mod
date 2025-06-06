@@ -5,7 +5,7 @@ go 1.23.8
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250424095005-9ab587d01d7a
-	github.com/deckhouse/module-sdk v0.2.3-0.20250603070655-af3ff640854c
+	github.com/deckhouse/module-sdk v0.2.3-0.20250606143723-d1fcd7a0c63f
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.3.0
