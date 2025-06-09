@@ -302,11 +302,10 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		slog.String("namespace", namespace))
 
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
-		Chart:       chartName,
-		ExtraLabels: c.labels,
-		KubeContext: c.opts.KubeContext,
-		// TODO: check chart files
-		OutputFilePath:       os.TempDir() + chartName,
+		Chart:                chartName,
+		ExtraLabels:          c.labels,
+		KubeContext:          c.opts.KubeContext,
+		OutputFilePath:       "/dev/null",
 		OutputNoPrint:        true,
 		ReleaseName:          releaseName,
 		ReleaseNamespace:     namespace,
