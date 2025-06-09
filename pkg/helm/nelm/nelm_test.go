@@ -9,10 +9,9 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
-
 	helmrelease "github.com/werf/3p-helm/pkg/release"
 	"github.com/werf/nelm/pkg/action"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
 func strPtr(s string) *string {
@@ -168,7 +167,7 @@ func TestGetReleaseLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockActions := new(MockNelmActions)
-			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(ns string) bool { return true }), mock.Anything).
+			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(_ string) bool { return true }), mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
 			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
@@ -225,7 +224,7 @@ func TestLastReleaseStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockActions := new(MockNelmActions)
-			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(ns string) bool { return true }), mock.Anything).
+			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(_ string) bool { return true }), mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
 			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
@@ -276,7 +275,7 @@ func TestIsReleaseExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockActions := new(MockNelmActions)
-			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(ns string) bool { return true }), mock.Anything).
+			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(_ string) bool { return true }), mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
 			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
@@ -426,7 +425,7 @@ func TestDeleteRelease(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockActions := new(MockNelmActions)
-			mockActions.On("ReleaseUninstall", mock.Anything, tt.releaseName, mock.MatchedBy(func(ns string) bool { return true }), mock.Anything).
+			mockActions.On("ReleaseUninstall", mock.Anything, tt.releaseName, mock.MatchedBy(func(_ string) bool { return true }), mock.Anything).
 				Return(tt.mockError)
 
 			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
@@ -599,7 +598,7 @@ func TestGetReleaseValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockActions := new(MockNelmActions)
-			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(ns string) bool { return true }), mock.Anything).
+			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(_ string) bool { return true }), mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
 			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)
@@ -666,7 +665,7 @@ func TestGetReleaseChecksum(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockActions := new(MockNelmActions)
-			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(ns string) bool { return true }), mock.Anything).
+			mockActions.On("ReleaseGet", mock.Anything, tt.releaseName, mock.MatchedBy(func(_ string) bool { return true }), mock.Anything).
 				Return(tt.mockResult, tt.mockError)
 
 			client := NewNelmClient(&CommonOptions{ConfigFlags: genericclioptions.ConfigFlags{Namespace: strPtr("default")}}, log.NewLogger(log.Options{}), nil)

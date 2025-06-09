@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/werf/nelm/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
@@ -20,7 +21,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/werf/nelm/pkg/action"
 )
 
 var _ client.HelmClient = (*NelmClient)(nil)
@@ -174,7 +174,6 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
-
 	if err != nil {
 		var releaseNotFoundErr *action.ReleaseNotFoundError
 		if errors.As(err, &releaseNotFoundErr) {
@@ -304,7 +303,7 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 	return releaseNames, nil
 }
 
-func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
+func (c *NelmClient) Render(releaseName, chartName string, _, _ []string, namespace string, debug bool) (string, error) {
 	c.logger.Debug("Render nelm templates for chart ...",
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
