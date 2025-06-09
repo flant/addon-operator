@@ -220,10 +220,12 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 		return "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
-	if releaseGetResult.Release != nil {
-		if checksum, ok := releaseGetResult.Release.Annotations["moduleChecksum"]; ok {
-			return checksum, nil
-		}
+	if releaseGetResult == nil || releaseGetResult.Release == nil {
+		return "", fmt.Errorf("got NIL nelm release %q", releaseName)
+	}
+
+	if checksum, ok := releaseGetResult.Release.Annotations["moduleChecksum"]; ok {
+		return checksum, nil
 	}
 
 	if recordedChecksum, hasKey := releaseGetResult.Values["_addonOperatorModuleChecksum"]; hasKey {
