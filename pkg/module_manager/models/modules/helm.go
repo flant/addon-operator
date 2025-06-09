@@ -77,7 +77,7 @@ var ErrModuleIsNotHelm = errors.New("module is not a helm")
 func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator, opts ...ModuleOption) (*HelmModule, error) {
 	moduleValues := bm.GetValues(false)
 
-	chartValues := map[string]interface{}{
+	chartValues := map[string]any{
 		"global": bm.dc.GlobalValuesGetter.GetValues(false),
 		utils.ModuleNameToValuesKey(bm.GetName()): moduleValues,
 	}

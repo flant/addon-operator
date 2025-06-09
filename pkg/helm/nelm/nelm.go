@@ -235,7 +235,8 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("moduleChecksum label not found in nelm release %q", releaseName)
+	// if we dont have checkSum we should run Upgrade
+	return "", nil
 }
 
 func (c *NelmClient) DeleteRelease(releaseName string) error {
@@ -301,9 +302,11 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		slog.String("namespace", namespace))
 
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
-		Chart:                chartName,
-		ExtraLabels:          c.labels,
-		KubeContext:          c.opts.KubeContext,
+		Chart:       chartName,
+		ExtraLabels: c.labels,
+		KubeContext: c.opts.KubeContext,
+		// TODO: check chart files
+		OutputFilePath:       os.TempDir() + chartName,
 		OutputNoPrint:        true,
 		ReleaseName:          releaseName,
 		ReleaseNamespace:     namespace,
