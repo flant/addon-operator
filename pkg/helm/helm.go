@@ -84,7 +84,7 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 				KubeContext: os.Getenv("KUBE_CONTEXT"),
 			}
 			if helmopts.Namespace != "" {
-				opts.Namespace = &helmopts.Namespace
+				opts.Namespace = helmopts.Namespace
 			}
 			return nelm.NewNelmClient(opts, logger, labels)
 		}

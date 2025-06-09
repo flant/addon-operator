@@ -30,6 +30,7 @@ var _ client.HelmClient = (*NelmClient)(nil)
 type CommonOptions struct {
 	genericclioptions.ConfigFlags
 
+	Namespace   string
 	HistoryMax  int32
 	Timeout     time.Duration
 	HelmDriver  string
@@ -107,7 +108,7 @@ type NelmClient struct {
 
 // GetReleaseLabels returns a specific label value from the release.
 func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
-	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -138,7 +139,7 @@ func (c *NelmClient) WithExtraLabels(labels map[string]string) {
 }
 
 func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, error) {
-	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -185,7 +186,7 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, values
 }
 
 func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) {
-	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -211,7 +212,7 @@ func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) 
 }
 
 func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
-	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -240,7 +241,7 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 func (c *NelmClient) DeleteRelease(releaseName string) error {
 	c.logger.Debug("nelm release: execute nelm uninstall", slog.String("release", releaseName))
 
-	if err := c.actions.ReleaseUninstall(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseUninstallOptions{
+	if err := c.actions.ReleaseUninstall(context.TODO(), releaseName, c.opts.Namespace, action.ReleaseUninstallOptions{
 		KubeContext:          c.opts.KubeContext,
 		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -303,6 +304,7 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		Chart:                chartName,
 		ExtraLabels:          c.labels,
 		KubeContext:          c.opts.KubeContext,
+		OutputNoPrint:        true,
 		ReleaseName:          releaseName,
 		ReleaseNamespace:     namespace,
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -334,10 +336,10 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 	return result.String(), nil
 }
 
-func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioptions.ConfigFlags {
+func buildConfigFlagsFromEnv(ns string, env *cli.EnvSettings) *genericclioptions.ConfigFlags {
 	flags := genericclioptions.NewConfigFlags(true)
 
-	flags.Namespace = ns
+	flags.Namespace = &ns
 	flags.Context = &env.KubeContext
 	flags.BearerToken = &env.KubeToken
 	flags.APIServer = &env.KubeAPIServer
@@ -371,8 +373,8 @@ func applyCommonOptionsDefaults(opts *CommonOptions, getter *genericclioptions.C
 	if opts.KubeContext == "" && getter.Context != nil {
 		opts.KubeContext = *getter.Context
 	}
-	if opts.Namespace == nil && getter.Namespace != nil {
-		opts.Namespace = getter.Namespace
+	if opts.Namespace == "" && getter.Namespace != nil {
+		opts.Namespace = *getter.Namespace
 	}
 	if opts.BearerToken == nil && getter.BearerToken != nil {
 		opts.BearerToken = getter.BearerToken
