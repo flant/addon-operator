@@ -225,18 +225,29 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 		return "", fmt.Errorf("got NIL nelm release %q", releaseName)
 	}
 
-	if checksum, ok := releaseGetResult.Release.Annotations["moduleChecksum"]; ok {
-		return checksum, nil
+	checksum, err := c.GetReleaseLabels(releaseName, "moduleChecksum")
+	if err != nil {
+		return "", fmt.Errorf("get nelm release labels %q: %w", releaseName, err)
 	}
 
-	if recordedChecksum, hasKey := releaseGetResult.Values["_addonOperatorModuleChecksum"]; hasKey {
-		if recordedChecksumStr, ok := recordedChecksum.(string); ok {
-			return recordedChecksumStr, nil
+	if checksum == "" {
+		values, err := c.GetReleaseValues(releaseName)
+		if err != nil {
+			return "", fmt.Errorf("get nelm release values %q: %w", releaseName, err)
 		}
+
+		if checksum, hasKey := values["_addonOperatorModuleChecksum"]; hasKey {
+			if checksumStr, ok := checksum.(string); ok {
+				return checksumStr, nil
+			}
+
+			return "", fmt.Errorf("checksum is not a string for release %q", releaseName)
+		}
+
+		return "", fmt.Errorf("no checksum found for release %q", releaseName)
 	}
 
-	// if we dont have checkSum we should run Upgrade
-	return "", nil
+	return checksum, nil
 }
 
 func (c *NelmClient) DeleteRelease(releaseName string) error {
