@@ -166,7 +166,7 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 
 func (c *NelmClient) WithLogLabels(logLabels map[string]string) {
 	if logLabels != nil {
-		c.logger = c.logger.With(logLabels)
+		c.logger = c.logger.With(mapToSlogArgs(logLabels)...)
 	}
 }
 
@@ -446,4 +446,13 @@ func (c *NelmClient) IsReleaseExists(releaseName string) (bool, error) {
 	}
 
 	return false, err
+}
+
+// mapToSlogArgs converts a map[string]string to a slice of key-value pairs for slog.With.
+func mapToSlogArgs(m map[string]string) []any {
+	args := make([]any, 0, len(m)*2)
+	for k, v := range m {
+		args = append(args, k, v)
+	}
+	return args
 }
