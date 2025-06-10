@@ -4,16 +4,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/gofrs/uuid/v5"
 
+	"github.com/flant/addon-operator/pkg"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	shapp "github.com/flant/shell-operator/pkg/app"
@@ -33,12 +36,12 @@ type BatchHook struct {
 	moduleName string
 	sh_hook.Hook
 	// hook ID in batch
-	ID     uint
+	ID     string
 	config *sdkhook.HookConfig
 }
 
 // NewBatchHook new hook, which runs via the OS interpreter like bash/python/etc
-func NewBatchHook(name, path, moduleName string, id uint, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+func NewBatchHook(name, path, moduleName string, id string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
 	return &BatchHook{
 		moduleName: moduleName,
 		Hook: sh_hook.Hook{
@@ -118,7 +121,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
-				h.Hook.Logger.With("hook", h.GetName()).
+				h.Hook.Logger.With(pkg.LogKeyHook, h.GetName()).
 					Error("Remove tmp file",
 						slog.String("file", f),
 						log.Err(err))
@@ -132,11 +135,21 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 
 	envs := make([]string, 0)
 	args := make([]string, 0)
-	args = append(args, "hook", "run", strconv.Itoa(int(h.ID)))
+
+	switch h.ID {
+	case BatchHookReadyKey:
+		args = append(args, "hook", "ready")
+	default:
+		args = append(args, "hook", "run", h.ID)
+	}
+
 	envs = append(envs, os.Environ()...)
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
+
+	// transfer information about parent module to hook
+	envs = append(envs, "MODULE_NAME="+h.moduleName)
 
 	cmd := executor.NewExecutor(
 		"",
@@ -151,6 +164,18 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	usage, err := cmd.RunAndLogLines(ctx, logLabels)
 	result.Usage = usage
 	if err != nil {
+		outputError := &sdkhook.Error{}
+		trimmed := strings.TrimPrefix(err.Error(), "stderr:")
+
+		err := json.NewDecoder(bytes.NewBufferString(trimmed)).Decode(outputError)
+		if err != nil {
+			return result, err
+		}
+
+		if outputError.Message != "" {
+			return result, errors.New(outputError.Message)
+		}
+
 		return result, err
 	}
 
@@ -182,18 +207,21 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	return result, nil
 }
 
-func (h *BatchHook) getConfig() ([]sdkhook.HookConfig, error) {
+func (h *BatchHook) getConfig() (*BatchHookConfig, error) {
 	return GetBatchHookConfig(h.moduleName, h.Path)
 }
 
-func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, error) {
+func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 	args := []string{"hook", "config"}
+
+	envs := make([]string, 0)
+	envs = append(envs, os.Environ()...)
 
 	cmd := executor.NewExecutor(
 		"",
 		hookPath,
 		args,
-		[]string{}).
+		envs).
 		WithChroot(utils.GetModuleChrootPath(moduleName))
 
 	o, err := cmd.Output()
@@ -201,18 +229,87 @@ func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, erro
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	cfgs := make([]sdkhook.HookConfig, 0)
+	// Deprecated: old batch hook config format
+	// TODO: remove in future
+	// if config is array, then it is an old hook config
+	if strings.HasPrefix(strings.TrimSpace(string(o)), "[") {
+		hooks := make([]sdkhook.HookConfig, 0)
+
+		buf := bytes.NewReader(o)
+		err = json.NewDecoder(buf).Decode(&hooks)
+		if err != nil {
+			return nil, fmt.Errorf("decode: %w", err)
+		}
+
+		cfg := &BatchHookConfig{}
+
+		cfg.Hooks = make(map[string]*sdkhook.HookConfig, len(hooks))
+		for idx, h := range hooks {
+			cfg.Hooks[strconv.Itoa(idx)] = &h
+		}
+
+		return cfg, nil
+	}
+
+	cfgs := &sdkhook.BatchHookConfig{}
+
 	buf := bytes.NewReader(o)
 	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
 	}
 
-	return cfgs, nil
+	cfg, err := remapSDKConfigToConfig(cfgs)
+	if err != nil {
+		outputLog := &BatchHookLog{}
+
+		buf := bytes.NewReader(o)
+		err = json.NewDecoder(buf).Decode(&cfgs)
+		if err != nil {
+			return nil, fmt.Errorf("decode: %w", err)
+		}
+
+		if outputLog.Level != "" {
+			return nil, fmt.Errorf("got log except config: %s", string(o))
+		}
+
+		return nil, fmt.Errorf("remapSDKConfigToConfig: %w", err)
+	}
+
+	return cfg, nil
+}
+
+type BatchHookLog struct {
+	Level string `json:"level"`
+}
+
+func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) (*BatchHookConfig, error) {
+	if input == nil {
+		return nil, fmt.Errorf("input is nil")
+	}
+
+	cfg := &BatchHookConfig{}
+
+	switch input.Version {
+	case sdkhook.BatchHookConfigV1:
+		cfg.Hooks = make(map[string]*sdkhook.HookConfig, len(input.Hooks)+1) // +1 for readiness hook
+		for idx, h := range input.Hooks {
+			cfg.Hooks[strconv.Itoa(idx)] = &h
+		}
+
+		if input.Readiness != nil {
+			cfg.Readiness = input.Readiness
+			cfg.Hooks[BatchHookReadyKey] = input.Readiness
+		}
+	default:
+		return nil, fmt.Errorf("unknown version '%s'", input.Version)
+	}
+
+	return cfg, nil
 }
 
 // GetConfig returns config via executing the hook with `--config` param
-func (h *BatchHook) GetConfig() ([]sdkhook.HookConfig, error) {
+func (h *BatchHook) GetConfig() (*BatchHookConfig, error) {
 	return h.getConfig()
 }
 
@@ -223,7 +320,12 @@ func (h *BatchHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 		return nil, err
 	}
 
-	h.config = &bhcfg[h.ID]
+	c, ok := bhcfg.Hooks[h.ID]
+	if !ok {
+		panic(fmt.Sprintf("hook '%s' not found in batch hook config", h.ID))
+	}
+
+	h.config = c
 
 	hcv1 := remapHookConfigV1FromHookConfig(h.config)
 

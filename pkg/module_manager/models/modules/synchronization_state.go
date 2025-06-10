@@ -65,7 +65,7 @@ func (s *SynchronizationState) IsCompleted() bool {
 		if !state.Done {
 			done = false
 			log.Debug("Synchronization isn't done",
-				slog.String("hook", state.HookName),
+				slog.String(pkg.LogKeyHook, state.HookName),
 				slog.String(pkg.LogKeyBinding, state.BindingName))
 			break
 		}
@@ -99,7 +99,7 @@ func (s *SynchronizationState) DoneForBinding(id string) {
 		s.state[id] = state
 	}
 	log.Debug("Synchronization done",
-		slog.String("hook", state.HookName),
+		slog.String(pkg.LogKeyHook, state.HookName),
 		slog.String(pkg.LogKeyBinding, state.BindingName))
 	state.Done = true
 }
