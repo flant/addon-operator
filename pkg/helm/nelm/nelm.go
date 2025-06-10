@@ -419,7 +419,10 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("moduleChecksum not found in release %s", releaseName)
+	c.logger.Warn("Module checksum not found in release labels or values",
+		slog.String("release", releaseName))
+
+	return "", nil
 }
 
 // IsReleaseExists checks if the release exists by trying to get its status.
