@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"k8s.io/client-go/rest"
@@ -259,6 +260,7 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 
 	// Prepare ChartRenderOptions with merged values
 	opts := action.ChartRenderOptions{
+		OutputFilePath:   "/dev/null", // No output file, we want to return the manifest as a string
 		Chart:            chartName,
 		KubeContext:      c.opts.KubeContext,
 		ValuesFilesPaths: valuesPaths,
@@ -279,21 +281,20 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		if !debug {
 			return "", fmt.Errorf("nelm render failed: %w", err)
 		}
-		// If debug, try to get partial manifest and append error
 		if result == nil {
 			return "", err
 		}
 	}
 
 	// Collect YAML from Resources and CRDs fields
-	var manifests []byte
+	var builder strings.Builder
 	if result != nil {
 		if len(result.Resources) > 0 {
 			for _, res := range result.Resources {
 				b, marshalErr := yaml.Marshal(res)
 				if marshalErr == nil {
-					manifests = append(manifests, b...)
-					manifests = append(manifests, []byte("---\n")...)
+					builder.Write(b)
+					builder.WriteString("---\n")
 				}
 			}
 		}
@@ -301,14 +302,14 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 			for _, crd := range result.CRDs {
 				b, marshalErr := yaml.Marshal(crd)
 				if marshalErr == nil {
-					manifests = append(manifests, b...)
-					manifests = append(manifests, []byte("---\n")...)
+					builder.Write(b)
+					builder.WriteString("---\n")
 				}
 			}
 		}
 	}
 
-	manifestStr := string(manifests)
+	manifestStr := builder.String()
 	if err != nil && debug {
 		manifestStr += fmt.Sprintf("\n\n\n%v", err)
 	}
