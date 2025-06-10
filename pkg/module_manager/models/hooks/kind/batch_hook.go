@@ -139,7 +139,6 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	switch h.ID {
 	case BatchHookReadyKey:
 		args = append(args, "hook", "ready")
-		envs = append(envs, "MODULE_NAME="+h.moduleName)
 	default:
 		args = append(args, "hook", "run", h.ID)
 	}
@@ -148,6 +147,9 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
+
+	// transfer information about parent module to hook
+	envs = append(envs, "MODULE_NAME="+h.moduleName)
 
 	cmd := executor.NewExecutor(
 		"",
