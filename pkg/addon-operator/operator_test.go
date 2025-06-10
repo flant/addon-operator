@@ -242,15 +242,10 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 
 	res.helmClient.ReleaseNames = []string{moduleToPurge, moduleToDelete}
 
-	type taskInfo struct {
-		taskType         sh_task.TaskType
-		bindingType      BindingType
-		moduleName       string
-		hookName         string
-		spawnerTaskPhase string
+	taskHandleHistory := TaskHandleHistory{
+		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	taskHandleHistory := make([]taskInfo, 0)
 	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
@@ -261,7 +256,8 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		case task.ModuleRun:
 			phase = string(op.ModuleManager.GetModule(hm.ModuleName).GetPhase())
 		}
-		taskHandleHistory = append(taskHandleHistory, taskInfo{
+
+		taskHandleHistory.Add(&TaskInfo{
 			taskType:         tsk.GetType(),
 			bindingType:      hm.BindingType,
 			moduleName:       hm.ModuleName,
@@ -338,7 +334,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		{task.ConvergeModules, "", "", string(converge.WaitAfterAll)},
 	}
 
-	for i, historyInfo := range taskHandleHistory {
+	for i, historyInfo := range taskHandleHistory.Get() {
 		if i >= len(historyExpects) {
 			break
 		}
