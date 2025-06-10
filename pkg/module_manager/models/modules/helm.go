@@ -18,7 +18,6 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
-	helm3lib "github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/manifest"
 	"github.com/flant/shell-operator/pkg/utils/measure"
@@ -77,7 +76,7 @@ var ErrModuleIsNotHelm = errors.New("module is not a helm")
 func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmModuleDependencies, validator HelmValuesValidator, opts ...ModuleOption) (*HelmModule, error) {
 	moduleValues := bm.GetValues(false)
 
-	chartValues := map[string]interface{}{
+	chartValues := map[string]any{
 		"global": bm.dc.GlobalValuesGetter.GetValues(false),
 		utils.ModuleNameToValuesKey(bm.GetName()): moduleValues,
 	}
@@ -210,7 +209,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 	if state == Unmanaged {
 		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
-		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) {
+		if err != nil && !errors.Is(err, client.ErrLabelIsNotFound) {
 			return fmt.Errorf("get release label failed: %w", err)
 		}
 
