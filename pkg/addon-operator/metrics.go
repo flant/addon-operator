@@ -23,8 +23,8 @@ func registerHookMetrics(metricStorage metric.Storage) {
 	metricStorage.RegisterGauge(
 		"{PREFIX}binding_count",
 		map[string]string{
-			"module": "",
-			"hook":   "",
+			"module":          "",
+			pkg.MetricKeyHook: "",
 		})
 	// ConfigMap validation errors
 	metricStorage.RegisterCounter("{PREFIX}config_values_errors_total", map[string]string{})
@@ -46,7 +46,7 @@ func registerHookMetrics(metricStorage metric.Storage) {
 
 	moduleHookLabels := map[string]string{
 		"module":                "",
-		"hook":                  "",
+		pkg.MetricKeyHook:       "",
 		pkg.MetricKeyBinding:    "",
 		"queue":                 "",
 		pkg.MetricKeyActivation: "",
@@ -70,7 +70,7 @@ func registerHookMetrics(metricStorage metric.Storage) {
 
 	// global hook running
 	globalHookLabels := map[string]string{
-		"hook":                  "",
+		pkg.MetricKeyHook:       "",
 		pkg.MetricKeyBinding:    "",
 		"queue":                 "",
 		pkg.MetricKeyActivation: "",
@@ -119,7 +119,7 @@ func registerHookMetrics(metricStorage metric.Storage) {
 		"{PREFIX}task_wait_in_queue_seconds_total",
 		map[string]string{
 			"module":             "",
-			"hook":               "",
+			pkg.MetricKeyHook:    "",
 			pkg.MetricKeyBinding: "",
 			"queue":              "",
 		})

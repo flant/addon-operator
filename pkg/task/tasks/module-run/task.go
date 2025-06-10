@@ -254,11 +254,11 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			}
 
 			taskLogLabels := utils.MergeLabels(s.shellTask.GetLogLabels(), map[string]string{
-				"binding":   string(htypes.OnKubernetesEvent) + "Synchronization",
-				"module":    hm.ModuleName,
-				"hook":      hook.GetName(),
-				"hook.type": "module",
-				"queue":     queueName,
+				"binding":      string(htypes.OnKubernetesEvent) + "Synchronization",
+				"module":       hm.ModuleName,
+				pkg.LogKeyHook: hook.GetName(),
+				"hook.type":    "module",
+				"queue":        queueName,
 			})
 
 			if len(info.BindingContext) > 0 {
@@ -438,7 +438,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hook.GetName()))
+					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
 	}
@@ -451,7 +451,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hook.GetName()))
+					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
 	}

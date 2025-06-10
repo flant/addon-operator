@@ -16,6 +16,7 @@ import (
 	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/gofrs/uuid/v5"
 
+	"github.com/flant/addon-operator/pkg"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	shapp "github.com/flant/shell-operator/pkg/app"
@@ -120,7 +121,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
-				h.Hook.Logger.With("hook", h.GetName()).
+				h.Hook.Logger.With(pkg.LogKeyHook, h.GetName()).
 					Error("Remove tmp file",
 						slog.String("file", f),
 						log.Err(err))

@@ -10,6 +10,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
@@ -128,8 +129,8 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 			"{PREFIX}binding_count",
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
-				"hook":   hk.GetName(),
-				"module": "", // empty "module" label for label set consistency with module hooks
+				pkg.MetricKeyHook: hk.GetName(),
+				"module":          "", // empty "module" label for label set consistency with module hooks
 			})
 	}
 
@@ -156,8 +157,8 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 			"{PREFIX}binding_count",
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
-				"module": ml.GetName(),
-				"hook":   hk.GetName(),
+				"module":          ml.GetName(),
+				pkg.MetricKeyHook: hk.GetName(),
 			})
 	}
 
