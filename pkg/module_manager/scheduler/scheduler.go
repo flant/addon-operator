@@ -24,6 +24,7 @@ import (
 	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
+	system_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/system"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/utils"
 )
@@ -31,6 +32,8 @@ import (
 const (
 	getEnabled = true
 	getAll     = false
+
+	functionalWeight = 999
 )
 
 var defaultAppliedExtenders = []extenders.ExtenderName{
@@ -38,6 +41,7 @@ var defaultAppliedExtenders = []extenders.ExtenderName{
 	dynamic_extender.Name,
 	kube_config_extender.Name,
 	script_extender.Name,
+	system_extender.Name,
 }
 
 type extenderContainer struct {
@@ -165,7 +169,13 @@ func (s *Scheduler) GetGraphImage(ctx context.Context) (image.Image, error) {
 func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 	s.l.Lock()
 	defer s.l.Unlock()
-	vertex := node.NewNode().WithName(module.GetName()).WithWeight(module.GetOrder()).WithType(node.ModuleType).WithModule(module)
+
+	weight := module.GetOrder()
+	if !module.GetSystem() {
+		weight = functionalWeight
+	}
+
+	vertex := node.NewNode().WithName(module.GetName()).WithWeight(weight).WithType(node.ModuleType).WithModule(module)
 	// add module vertex
 	if err := s.dag.AddVertex(vertex, graph.VertexAttribute("colorscheme", "greens3"), graph.VertexAttribute("style", "filled"), graph.VertexAttribute("color", "2"), graph.VertexAttribute("fillcolor", "1"), graph.VertexAttribute(node.TypeAttribute, string(node.ModuleType))); err != nil {
 		return err
@@ -206,7 +216,7 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 					continue
 				}
 				// add an edge from the parent to the vertex
-				if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
+				if err = s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
 					return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
 				}
 			}
@@ -219,7 +229,7 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 		switch {
 		// parent found
 		case err == nil:
-			if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
+			if err = s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
 				return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
 			}
 		// some other error
@@ -227,11 +237,11 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 			return err
 		// parent not found - create it
 		default:
-			parent := node.NewNode().WithName(vertex.GetWeight().String()).WithWeight(uint32(vertex.GetWeight())).WithType(node.WeightType)
-			if err := s.addWeightVertex(parent); err != nil {
+			parent = node.NewNode().WithName(vertex.GetWeight().String()).WithWeight(uint32(vertex.GetWeight())).WithType(node.WeightType)
+			if err = s.addWeightVertex(parent); err != nil {
 				return err
 			}
-			if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
+			if err = s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
 				return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
 			}
 		}
@@ -289,20 +299,20 @@ func (s *Scheduler) addWeightVertex(vertex *node.Node) error {
 	}
 
 	if parent != nil {
-		if err := s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
+		if err = s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
 			return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
 		}
 
 		if child != nil {
 			// insert a new vertex between two existing ones
-			if err := s.dag.RemoveEdge(parent.GetName(), child.GetName()); err != nil {
+			if err = s.dag.RemoveEdge(parent.GetName(), child.GetName()); err != nil {
 				return fmt.Errorf("couldn't delete an existing edge between %s and %s vertices: %w", parent.GetName(), child.GetName(), err)
 			}
 		}
 	}
 
 	if child != nil {
-		if err := s.dag.AddEdge(vertex.GetName(), child.GetName()); err != nil {
+		if err = s.dag.AddEdge(vertex.GetName(), child.GetName()); err != nil {
 			return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", vertex.GetName(), child.GetName(), err)
 		}
 	}
@@ -616,7 +626,7 @@ func (s *Scheduler) getModuleNamesByOrder(onlyEnabled bool, logLabels map[string
 
 		// if the list of enabled modules is empty, it's first run through the graph
 		if s.enabledModules == nil && len(prevName) > 0 {
-			err := s.dag.UpdateEdge(prevName, name, graph.EdgeAttribute("labeltooltip", "depth"), graph.EdgeAttribute("label", fmt.Sprintf("%d", depth)))
+			err = s.dag.UpdateEdge(prevName, name, graph.EdgeAttribute("labeltooltip", "depth"), graph.EdgeAttribute("label", fmt.Sprintf("%d", depth)))
 			if err != nil {
 				bfsErr = fmt.Errorf("couldn not get %s-%s edge from the graph: %w", prevName, name, err)
 				return true, depth

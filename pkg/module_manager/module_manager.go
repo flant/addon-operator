@@ -34,6 +34,7 @@ import (
 	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
+	system_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/system"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -56,6 +57,8 @@ const (
 	moduleMaintenanceMetricName  = "{PREFIX}mm_module_maintenance"
 
 	moduleManagerServiceName = "module-manager"
+
+	bootstrappedValueSection = "clusterIsBootstrapped"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -354,7 +357,7 @@ func (mm *ModuleManager) Init(logger *log.Logger) error {
 	if err != nil {
 		return fmt.Errorf("couldn't create static extender: %w", err)
 	}
-	if err := mm.moduleScheduler.AddExtender(staticExtender); err != nil {
+	if err = mm.moduleScheduler.AddExtender(staticExtender); err != nil {
 		return fmt.Errorf("couldn't add static extender: %w", err)
 	}
 
@@ -364,7 +367,7 @@ func (mm *ModuleManager) Init(logger *log.Logger) error {
 	}
 
 	kubeConfigExtender := kube_config_extender.NewExtender(mm.dependencies.KubeConfigManager)
-	if err := mm.moduleScheduler.AddExtender(kubeConfigExtender); err != nil {
+	if err = mm.moduleScheduler.AddExtender(kubeConfigExtender); err != nil {
 		return fmt.Errorf("couldn't add kube config extender: %w", err)
 	}
 
@@ -373,16 +376,34 @@ func (mm *ModuleManager) Init(logger *log.Logger) error {
 		return fmt.Errorf("couldn't create script_enabled extender: %w", err)
 	}
 
-	if err := mm.moduleScheduler.AddExtender(scriptEnabledExtender); err != nil {
+	if err = mm.moduleScheduler.AddExtender(scriptEnabledExtender); err != nil {
 		return fmt.Errorf("couldn't add scrpt_enabled extender: %w", err)
 	}
 
-	// by this point we must have all required scheduler extenders attached
-	if err := mm.moduleScheduler.ApplyExtenders(app.AppliedExtenders); err != nil {
+	systemExtender := system_extender.NewExtender(func() (bool, error) {
+		value, ok := mm.global.GetValues(false)[bootstrappedValueSection]
+		if !ok {
+			return false, nil
+		}
+
+		bootstrapped, ok := value.(bool)
+		if !ok {
+			return false, errors.New("bootstrapped value not boolean")
+		}
+
+		return bootstrapped, nil
+	})
+
+	if err = mm.moduleScheduler.AddExtender(systemExtender); err != nil {
+		return fmt.Errorf("couldn't add system extender: %w", err)
+	}
+
+	// by this point, we must have all required scheduler extenders attached
+	if err = mm.moduleScheduler.ApplyExtenders(app.AppliedExtenders); err != nil {
 		return fmt.Errorf("couldn't apply extenders to the module scheduler: %w", err)
 	}
 
-	return mm.registerModules(scriptEnabledExtender)
+	return mm.registerModules(scriptEnabledExtender, systemExtender)
 }
 
 func (mm *ModuleManager) GetKubeConfigValid() bool {
@@ -1392,7 +1413,7 @@ func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool
 } */
 
 // registerModules load all available modules from modules directory.
-func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.Extender) error {
+func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.Extender, systemExtender *system_extender.Extender) error {
 	if mm.ModulesDir == "" {
 		mm.logger.Warn("empty modules directory is passed, no modules to load")
 
@@ -1434,9 +1455,11 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		mod.WithDependencies(dep)
 		set.Add(mod)
 
-		if err := mm.moduleScheduler.AddModuleVertex(mod); err != nil {
+		if err = mm.moduleScheduler.AddModuleVertex(mod); err != nil {
 			return fmt.Errorf("add module vertex: %w", err)
 		}
+
+		systemExtender.AddBasicModule(mod.GetName(), mod.GetSystem())
 
 		scriptEnabledExtender.AddBasicModule(mod)
 
@@ -1446,8 +1469,7 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		})
 	}
 
-	mm.logger.Debug("Found modules",
-		slog.Any("modules", set.NamesInOrder()))
+	mm.logger.Debug("Found modules", slog.Any("modules", set.NamesInOrder()))
 
 	mm.l.Lock()
 	mm.modules = set

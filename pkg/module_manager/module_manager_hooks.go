@@ -100,7 +100,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 
 	// applies a scheduler extender to follow which modules get enabled/disabled by dynamic patches
 	dynamicExtender := dynamic_extender.NewExtender()
-	if err := mm.moduleScheduler.AddExtender(dynamicExtender); err != nil {
+	if err = mm.moduleScheduler.AddExtender(dynamicExtender); err != nil {
 		return err
 	}
 	// catch dynamin Enabled patches from global hooks
