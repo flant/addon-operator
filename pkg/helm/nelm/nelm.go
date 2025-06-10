@@ -12,12 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/client-go/rest"
-
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/werf/nelm/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
@@ -113,6 +112,11 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 		maps.Copy(clientLabels, labels)
 	}
 
+	// Ensure logger is not nil
+	if logger == nil {
+		panic("logger is required in NewNelmClient")
+	}
+
 	return &NelmClient{
 		logger:  logger.With("operator.component", "nelm"),
 		labels:  clientLabels,
@@ -153,7 +157,9 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 }
 
 func (c *NelmClient) WithLogLabels(logLabels map[string]string) {
-	c.logger = c.logger.With(logLabels)
+	if logLabels != nil {
+		c.logger = c.logger.With(logLabels)
+	}
 }
 
 func (c *NelmClient) WithExtraLabels(labels map[string]string) {
@@ -253,7 +259,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 }
 
 // Render renders the chart templates with provided values and returns the manifest as a string.
-func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
+func (c *NelmClient) Render(_, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
 	c.logger.Debug("Render nelm templates for chart ...",
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
@@ -274,6 +280,9 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 	result, err := render()
 	if err != nil {
 		// Try one more time (like helm3lib does reinit)
+		c.logger.Debug("First nelm render attempt failed, trying again",
+			slog.String("chart", chartName),
+			slog.String("error", err.Error()))
 		result, err = render()
 	}
 
@@ -295,6 +304,9 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 				if marshalErr == nil {
 					builder.Write(b)
 					builder.WriteString("---\n")
+				} else {
+					c.logger.Warn("Failed to marshal resource",
+						slog.String("error", marshalErr.Error()))
 				}
 			}
 		}
@@ -304,6 +316,9 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 				if marshalErr == nil {
 					builder.Write(b)
 					builder.WriteString("---\n")
+				} else {
+					c.logger.Warn("Failed to marshal CRD",
+						slog.String("error", marshalErr.Error()))
 				}
 			}
 		}
@@ -394,11 +409,14 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 // IsReleaseExists checks if the release exists by trying to get its status.
 func (c *NelmClient) IsReleaseExists(releaseName string) (bool, error) {
 	revision, _, err := c.LastReleaseStatus(releaseName)
-	if err == nil {
+	if err == nil && revision != "" {
 		return true, nil
 	}
-	if revision == "" {
+
+	var releaseNotFoundErr *action.ReleaseNotFoundError
+	if errors.As(err, &releaseNotFoundErr) {
 		return false, nil
 	}
+
 	return false, err
 }
