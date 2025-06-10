@@ -401,9 +401,25 @@ func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) 
 	return result, nil
 }
 
-// GetReleaseChecksum returns the checksum label of the release.
+// GetReleaseChecksum returns the checksum label of the release. If not found, fallback to values.
 func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
-	return c.GetReleaseLabels(releaseName, "moduleChecksum")
+	checksum, err := c.GetReleaseLabels(releaseName, "moduleChecksum")
+	if err == nil && checksum != "" {
+		return checksum, nil
+	}
+
+	// fallback: try to get from values
+	releaseValues, errValues := c.GetReleaseValues(releaseName)
+	if errValues != nil {
+		return "", fmt.Errorf("get moduleChecksum: label and values not found: %w", err)
+	}
+	if recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]; hasKey {
+		if recordedChecksumStr, ok := recordedChecksum.(string); ok {
+			return recordedChecksumStr, nil
+		}
+	}
+
+	return "", fmt.Errorf("moduleChecksum not found in release %s", releaseName)
 }
 
 // IsReleaseExists checks if the release exists by trying to get its status.
