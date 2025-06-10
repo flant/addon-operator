@@ -315,11 +315,6 @@ func (h *BatchHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
 		return nil, err
 	}
 
-	fmt.Printf("BatchHook %s config: %+v\n", h.ID, bhcfg.Hooks)
-	for k, v := range bhcfg.Hooks {
-		fmt.Printf("BatchHook %s config[%s]: %+v\n", h.ID, k, v)
-	}
-
 	c, ok := bhcfg.Hooks[h.ID]
 	if !ok {
 		panic(fmt.Sprintf("hook '%s' not found in batch hook config", h.ID))
