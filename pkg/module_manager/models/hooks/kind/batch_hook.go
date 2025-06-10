@@ -227,7 +227,9 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	// if config is not array, then it is a hook config v1
+	// Deprecated: old batch hook config format
+	// TODO: remove in future
+	// if config is array, then it is an old hook config
 	if strings.HasPrefix(strings.TrimSpace(string(o)), "[") {
 		hooks := make([]sdkhook.HookConfig, 0)
 
