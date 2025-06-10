@@ -1,8 +1,13 @@
 package client
 
 import (
+	"errors"
+
 	"github.com/flant/addon-operator/pkg/utils"
 )
+
+// ErrLabelIsNotFound is returned when a label is not found in the release
+var ErrLabelIsNotFound = errors.New("label is not found")
 
 type HelmClient interface {
 	LastReleaseStatus(releaseName string) (string, string, error)

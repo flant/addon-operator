@@ -148,7 +148,7 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 		return value, nil
 	}
 
-	return "", fmt.Errorf("label %s not found", labelName)
+	return "", client.ErrLabelIsNotFound
 }
 
 func (c *NelmClient) WithLogLabels(logLabels map[string]string) {
@@ -189,6 +189,12 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		slog.String("namespace", namespace),
 	)
 
+	// Prepare annotations with correct moduleChecksum from labels
+	extraAnnotations := make(map[string]string)
+	if checksum, exists := labels["moduleChecksum"]; exists {
+		extraAnnotations["moduleChecksum"] = checksum
+	}
+
 	// First check if release exists
 	_, err := c.actions.ReleaseGet(context.TODO(), releaseName, namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
@@ -199,7 +205,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		var releaseNotFoundErr *action.ReleaseNotFoundError
 		if errors.As(err, &releaseNotFoundErr) {
 			// If release doesn't exist, do install
-			return c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
+			installOptions := action.ReleaseInstallOptions{
 				Chart:                chartName,
 				ExtraLabels:          c.labels,
 				KubeContext:          c.opts.KubeContext,
@@ -210,22 +216,30 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 				Timeout:              c.opts.Timeout,
 				ValuesFilesPaths:     valuesPaths,
 				ValuesSets:           setValues,
-			})
+			}
+			if len(extraAnnotations) > 0 {
+				installOptions.ExtraAnnotations = extraAnnotations
+			}
+			return c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, installOptions)
 		}
 		return fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
 	// If release exists, do upgrade
-	if err := c.actions.ReleasePlanInstall(context.TODO(), releaseName, namespace, action.ReleasePlanInstallOptions{
+	planInstallOptions := action.ReleasePlanInstallOptions{
 		Chart:                chartName,
 		ExtraLabels:          labels,
-		ExtraAnnotations:     map[string]string{"moduleChecksum": fmt.Sprintf("%v", valuesPaths)},
 		KubeContext:          c.opts.KubeContext,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 		Timeout:              c.opts.Timeout,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
-	}); err != nil {
+	}
+	if len(extraAnnotations) > 0 {
+		planInstallOptions.ExtraAnnotations = extraAnnotations
+	}
+
+	if err := c.actions.ReleasePlanInstall(context.TODO(), releaseName, namespace, planInstallOptions); err != nil {
 		return fmt.Errorf("upgrade release: %w", err)
 	}
 
