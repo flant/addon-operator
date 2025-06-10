@@ -127,6 +127,8 @@ func (f *TopologicalOne) GetTopologicalHints(moduleName string) []string {
 		return []string{"foo", "bar"}
 	case "operator-trivy":
 		return []string{"istio", "admission-policy-engine"}
+	case "cilium-hubble":
+		return []string{"cni-cilium"}
 	}
 
 	return nil
