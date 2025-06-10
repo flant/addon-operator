@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/werf/logboek"
 	"github.com/werf/nelm/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/werf/logboek"
 )
 
 var _ client.HelmClient = (*NelmClient)(nil)
