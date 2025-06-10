@@ -149,7 +149,7 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 		return "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
-	if checksum, ok := releaseGetResult.Release.Annotations["moduleChecksum"]; ok {
+	if checksum, ok := releaseGetResult.Release.StorageLabels["moduleChecksum"]; ok {
 		return checksum, nil
 	}
 
@@ -165,7 +165,7 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 func (c *NelmClient) DeleteRelease(releaseName string) error {
 	c.logger.Debug(context.TODO(), "nelm release: execute nelm uninstall", slog.String("release", releaseName))
 
-	if err := action.ReleaseUninstall(context.TODO(), releaseName, commonOptions.Namespace, action.ReleaseUninstallOptions{
+	if err := action.LegacyReleaseUninstall(context.TODO(), releaseName, commonOptions.Namespace, action.LegacyReleaseUninstallOptions{
 		KubeContext:          commonOptions.KubeContext,
 		ReleaseHistoryLimit:  int(commonOptions.HistoryMax),
 		ReleaseStorageDriver: commonOptions.HelmDriver,
