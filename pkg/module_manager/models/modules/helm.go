@@ -14,6 +14,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
 	"go.opentelemetry.io/otel"
+	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -210,7 +211,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 	if state == Unmanaged {
 		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
-		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) && !strings.Contains(err.Error(), "release: not found") {
+		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) && !errors.Is(err, driver.ErrReleaseNotFound) {
 			return fmt.Errorf("get release label failed: %w", err)
 		}
 
