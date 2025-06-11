@@ -210,7 +210,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 	if state == Unmanaged {
 		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
-		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) {
+		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) && !strings.Contains(err.Error(), "release: not found") {
 			return fmt.Errorf("get release label failed: %w", err)
 		}
 
