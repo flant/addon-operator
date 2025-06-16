@@ -80,8 +80,7 @@ type Scheduler struct {
 	// provides a shared state of enabled modules to some extenders like script_enabled
 	vertexStateBuffer vertexStateBuffer
 
-	// additional edges to connect vertices with
-	topologicalHints map[extenders.ExtenderName]map[string][]string
+	modules []node.ModuleInterface
 
 	logger *log.Logger
 }
@@ -108,7 +107,7 @@ func NewScheduler(ctx context.Context, logger *log.Logger) *Scheduler {
 		dag:               graph.New(nodeHash, graph.Directed(), graph.Acyclic(), graph.PreventCycles()),
 		diff:              make(map[string]bool),
 		vertexStateBuffer: vertexStateBuffer{},
-		topologicalHints:  make(map[extenders.ExtenderName]map[string][]string, 0),
+		modules:           make([]node.ModuleInterface, 0),
 		logger:            logger,
 	}
 }
@@ -175,75 +174,93 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 		weight = functionalWeight
 	}
 
-	vertex := node.NewNode().WithName(module.GetName()).WithWeight(weight).WithType(node.ModuleType).WithModule(module)
-	// add module vertex
-	if err := s.dag.AddVertex(vertex, graph.VertexAttribute("colorscheme", "greens3"), graph.VertexAttribute("style", "filled"), graph.VertexAttribute("color", "2"), graph.VertexAttribute("fillcolor", "1"), graph.VertexAttribute(node.TypeAttribute, string(node.ModuleType))); err != nil {
+	vertex := node.NewNode().
+		WithName(module.GetName()).
+		WithWeight(weight).
+		WithType(node.ModuleType).
+		WithModule(module)
+
+	if err := s.dag.AddVertex(vertex,
+		graph.VertexAttribute("colorscheme", "greens3"),
+		graph.VertexAttribute("style", "filled"),
+		graph.VertexAttribute("color", "2"),
+		graph.VertexAttribute("fillcolor", "1"),
+		graph.VertexAttribute(node.TypeAttribute, string(node.ModuleType))); err != nil {
+
 		return err
 	}
 
-	// check if the current vertex has to be a parent for other vertices
-	for _, parents := range s.topologicalHints {
-		if children, found := parents[module.GetName()]; found {
-			for _, child := range children {
-				if err := s.dag.AddEdge(module.GetName(), child); err != nil {
-					return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", module.GetName(), vertex.GetName(), err)
+	s.modules = append(s.modules, module)
+
+	return nil
+}
+
+// Initialize creates edges for modules
+func (s *Scheduler) Initialize() error {
+	// add edges
+	for _, module := range s.modules {
+		var parentsExist bool
+		for _, parents := range s.getEdgesFromExtenders(module.GetName()) {
+			for _, parentName := range parents {
+				parent, err := s.dag.Vertex(parentName)
+				if err != nil && !errors.Is(err, graph.ErrVertexNotFound) {
+					return err
 				}
-			}
-			delete(parents, module.GetName())
-		}
-	}
 
-	// check if there are additional dependencies for the module
-	hints := s.getEdgesFromExtenders(module.GetName())
-	// the module's vertex has be connected directly to some other vertices
-	if len(hints) > 0 {
-		for extenderName, parents := range hints {
-			for _, p := range parents {
-				parent, err := s.dag.Vertex(p)
-				// parent vertex not found - add a record to the hint store
-				if err != nil {
-					_, extFound := s.topologicalHints[extenderName]
-					if !extFound {
-						s.topologicalHints[extenderName] = make(map[string][]string, 0)
-					}
-
-					_, parentFound := s.topologicalHints[extenderName][p]
-					if !parentFound {
-						s.topologicalHints[extenderName][p] = make([]string, 0)
-					}
-
-					s.topologicalHints[extenderName][p] = append(s.topologicalHints[extenderName][p], vertex.GetName())
+				if errors.Is(err, graph.ErrVertexNotFound) {
 					continue
 				}
+
+				if module.GetSystem() != parent.GetModule().GetSystem() {
+					continue
+				}
+
+				parentsExist = true
+
 				// add an edge from the parent to the vertex
-				if err = s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
-					return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+				if err = s.dag.AddEdge(parentName, module.GetName()); err != nil {
+					if errors.Is(err, graph.ErrEdgeAlreadyExists) {
+						continue
+					}
+
+					return fmt.Errorf("add edge between '%s' and '%s': %w", parentName, module.GetName(), err)
 				}
 			}
 		}
 
+		// module already connected to parents
+		if parentsExist {
+			continue
+		}
+
+		weight := module.GetOrder()
+		if !module.GetSystem() {
+			weight = functionalWeight
+		}
+
+		weightName := node.NodeWeight(weight).String()
+
 		// no dependencies - the module's vertex has to be connected to the corresponding weight vertex
-	} else {
-		// check if pertaining weight vertex already exists
-		parent, err := s.dag.Vertex(vertex.GetWeight().String())
-		switch {
-		// parent found
-		case err == nil:
-			if err = s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
-				return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+		parent, err := s.dag.Vertex(weightName)
+		if err != nil {
+			// some other error
+			if !errors.Is(err, graph.ErrVertexNotFound) {
+				return err
 			}
-		// some other error
-		case !errors.Is(err, graph.ErrVertexNotFound):
-			return err
-		// parent not found - create it
-		default:
-			parent = node.NewNode().WithName(vertex.GetWeight().String()).WithWeight(uint32(vertex.GetWeight())).WithType(node.WeightType)
+
+			// parent isn't found - create it
+			parent = node.NewNode().WithName(weightName).WithWeight(weight).WithType(node.WeightType)
 			if err = s.addWeightVertex(parent); err != nil {
 				return err
 			}
-			if err = s.dag.AddEdge(parent.GetName(), vertex.GetName()); err != nil {
-				return fmt.Errorf("couldn't add an edge between %s and %s vertices: %w", parent.GetName(), vertex.GetName(), err)
+		}
+
+		if err = s.dag.AddEdge(parent.GetName(), module.GetName()); err != nil {
+			if errors.Is(err, graph.ErrEdgeAlreadyExists) {
+				continue
 			}
+
+			return fmt.Errorf("add edge between '%s' and '%s': %w", parent.GetName(), module.GetName(), err)
 		}
 	}
 
@@ -508,6 +525,8 @@ func (s *Scheduler) printSummary() (map[string]bool, error) {
 	result := make(map[string]bool, 0)
 
 	s.l.Lock()
+	defer s.l.Unlock()
+
 	vertices, err := s.getModuleVerticesByOrder(map[string]string{})
 	if err != nil {
 		return nil, err
@@ -518,26 +537,6 @@ func (s *Scheduler) printSummary() (map[string]bool, error) {
 			result[fmt.Sprintf("%s/%s", vertex.GetName(), vertex.GetUpdatedBy())] = vertex.IsEnabled()
 		}
 	}
-
-	for extenderName, parents := range s.topologicalHints {
-		for _, children := range parents {
-			for _, child := range children {
-				found := false
-				for k := range result {
-					if strings.HasPrefix(k, child) {
-						found = true
-						break
-					}
-				}
-
-				if !found {
-					result[fmt.Sprintf("%s/%s", child, extenderName)] = false
-				}
-			}
-		}
-	}
-
-	s.l.Unlock()
 
 	return result, nil
 }
@@ -830,18 +829,18 @@ outerCycle:
 	}
 
 	// check the hint storage if any undemanded hints left to update states of the isolated vertices (orphaned vertices)
-	for extenderName, parents := range s.topologicalHints {
-		for _, children := range parents {
-			for _, child := range children {
-				if _, found := s.vertexStateBuffer.state[child]; !found {
-					s.vertexStateBuffer.state[child] = &vertexState{
-						enabled:   false,
-						updatedBy: string(extenderName),
-					}
-				}
-			}
-		}
-	}
+	// for extenderName, parents := range s.topologicalHints {
+	// 	for _, children := range parents {
+	// 		for _, child := range children {
+	// 			if _, found := s.vertexStateBuffer.state[child]; !found {
+	// 				s.vertexStateBuffer.state[child] = &vertexState{
+	// 					enabled:   false,
+	// 					updatedBy: string(extenderName),
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	// merge the state diffs
 	for vertexName, newStateDiff := range stateDiff {

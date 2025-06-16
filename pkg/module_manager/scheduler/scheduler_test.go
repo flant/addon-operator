@@ -13,13 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
-	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	extender_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/mock"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
-	system_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/system"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	node_mock "github.com/flant/addon-operator/pkg/module_manager/scheduler/node/mock"
 )
@@ -80,6 +78,9 @@ nodeLocalDnsEnabled: false
 		err = s.AddModuleVertex(m)
 		assert.NoError(t, err)
 	}
+
+	err = s.Initialize()
+	require.NoError(t, err)
 
 	err = s.ApplyExtenders("Static")
 	require.NoError(t, err)
@@ -239,21 +240,15 @@ ciliumHubbleEnabled: true
 	err = s.AddExtender(&extender_mock.TopologicalOne{})
 	require.NoError(t, err)
 
-	systemext := system_extender.NewExtender(func() (bool, error) {
-		return true, nil
-	})
-
-	err = s.AddExtender(systemext)
-	require.NoError(t, err)
-
 	for _, m := range basicModules {
-		systemext.AddBasicModule(m.Name, m.System)
-
 		err = s.AddModuleVertex(m)
 		assert.NoError(t, err)
 	}
 
-	err = s.ApplyExtenders("Static,System")
+	err = s.Initialize()
+	require.NoError(t, err)
+
+	err = s.ApplyExtenders("Static")
 	require.NoError(t, err)
 
 	_, _ = s.RecalculateGraph(logLabels)
@@ -264,13 +259,13 @@ ciliumHubbleEnabled: true
 		slices.Sort(v)
 	}
 	assert.NoError(t, err)
+
 	expected := [][]string{
 		{"cni-cilium"},
-		{"cilium-hubble"},
 		{"node-manager"},
 		{"kube-dns"},
 		{"provider-yandex"},
-		{"cert-manager", "node-local-dns", "prometheus-crd"},
+		{"cert-manager", "cilium-hubble", "node-local-dns", "prometheus-crd"},
 		{"operator-prometheus"},
 		{"prometheus"},
 	}
@@ -330,10 +325,13 @@ certManagerEnabled: true
 	require.NoError(t, err)
 
 	for _, m := range basicModules {
-		err := s.AddModuleVertex(m)
+		err = s.AddModuleVertex(m)
 		assert.NoError(t, err)
 		scripte.AddBasicModule(m)
 	}
+
+	err = s.Initialize()
+	require.NoError(t, err)
 
 	err = s.ApplyExtenders("Static,ScriptEnabled")
 	require.NoError(t, err)
@@ -365,6 +363,9 @@ func TestAddModuleVertex(t *testing.T) {
 	err = s.AddModuleVertex(basicModuleIngress)
 	assert.NoError(t, err)
 
+	err = s.Initialize()
+	require.NoError(t, err)
+
 	// new module vertex is in place
 	vertexIngress, err := s.dag.Vertex(basicModuleIngress.GetName())
 	assert.NoError(t, err)
@@ -386,6 +387,9 @@ func TestAddModuleVertex(t *testing.T) {
 
 	err = s.AddModuleVertex(basicModuleAPE)
 	assert.NoError(t, err)
+
+	err = s.Initialize()
+	require.NoError(t, err)
 
 	vertexAPE, err := s.dag.Vertex(basicModuleAPE.GetName())
 	assert.NoError(t, err)
@@ -410,6 +414,9 @@ func TestAddModuleVertex(t *testing.T) {
 	err = s.AddModuleVertex(basicModuleDNS)
 	assert.NoError(t, err)
 
+	err = s.Initialize()
+	require.NoError(t, err)
+
 	vertexDNS, err := s.dag.Vertex(basicModuleDNS.GetName())
 	assert.NoError(t, err)
 
@@ -429,6 +436,9 @@ func TestAddModuleVertex(t *testing.T) {
 	err = s.AddModuleVertex(basicModuleChrony)
 	assert.NoError(t, err)
 
+	err = s.Initialize()
+	require.NoError(t, err)
+
 	_, err = s.dag.Vertex(basicModuleChrony.GetName())
 	assert.NoError(t, err)
 
@@ -444,6 +454,9 @@ func TestAddModuleVertex(t *testing.T) {
 
 	err = s.AddModuleVertex(basicModuleFoo)
 	assert.NoError(t, err)
+
+	err = s.Initialize()
+	require.NoError(t, err)
 
 	vertexFoo, err := s.dag.Vertex(basicModuleFoo.GetName())
 	assert.NoError(t, err)
@@ -463,37 +476,13 @@ func TestAddModuleVertex(t *testing.T) {
 	err = s.AddModuleVertex(basicModuleFooBar)
 	assert.NoError(t, err)
 
+	err = s.Initialize()
+	require.NoError(t, err)
+
 	vertexFooBar, err := s.dag.Vertex(basicModuleFooBar.GetName())
 	assert.NoError(t, err)
 
 	_, err = s.dag.Edge(vertexFoo.GetName(), vertexFooBar.GetName())
-	assert.NoError(t, err)
-
-	// missing hint (vertex "bar" doesn't exist) is kept in the store
-	assert.Equal(t, s.topologicalHints, map[extenders.ExtenderName]map[string][]string{"TopologicalOne": {"bar": []string{"foobar"}}})
-
-	// new missing vertex - bar
-	basicModuleBar := &node_mock.MockModule{
-		Name:  "bar",
-		Order: 900,
-	}
-
-	err = s.AddModuleVertex(basicModuleBar)
-	assert.NoError(t, err)
-
-	vertexBar, err := s.dag.Vertex(basicModuleBar.GetName())
-	assert.NoError(t, err)
-
-	weightVertexBar, err := s.dag.Vertex(vertexBar.GetWeight().String())
-	assert.NoError(t, err)
-
-	_, err = s.dag.Edge(weightVertexBar.GetName(), basicModuleBar.GetName())
-	assert.NoError(t, err)
-
-	// hint store has to be empty
-	assert.Equal(t, s.topologicalHints, map[extenders.ExtenderName]map[string][]string{"TopologicalOne": {}})
-
-	_, err = s.dag.Edge(vertexBar.GetName(), vertexFooBar.GetName())
 	assert.NoError(t, err)
 }
 
@@ -617,6 +606,9 @@ kubeDnsEnabled: false
 	for _, v := range basicModules {
 		scripte.AddBasicModule(v)
 	}
+
+	err = s.Initialize()
+	require.NoError(t, err)
 
 	// terminator goes last
 	err = s.ApplyExtenders("Static,ScriptEnabled")
@@ -848,12 +840,6 @@ l2LoadBalancerEnabled: false
 			EnabledScriptResult: true,
 			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
 		},
-		{
-			Name:                "my-module",
-			Order:               350,
-			EnabledScriptResult: true,
-			EnabledModules:      &enabledScriptInternalListOfEnabledModules,
-		},
 	}
 
 	// init scheduler
@@ -862,13 +848,14 @@ l2LoadBalancerEnabled: false
 	// add and apply topological extenders
 	err := s.AddExtender(&extender_mock.TopologicalOne{})
 	require.NoError(t, err)
-	err = s.AddExtender(&extender_mock.TopologicalTwo{})
-	require.NoError(t, err)
 
 	for _, m := range basicModules {
 		err = s.AddModuleVertex(m)
 		assert.NoError(t, err)
 	}
+
+	err = s.Initialize()
+	require.NoError(t, err)
 
 	tmp, err := os.MkdirTemp(t.TempDir(), "values-test")
 	require.NoError(t, err)
@@ -883,7 +870,7 @@ l2LoadBalancerEnabled: false
 	err = s.AddExtender(se)
 	require.NoError(t, err)
 
-	err = s.ApplyExtenders("TopologicalOne,TopologicalTwo,Static")
+	err = s.ApplyExtenders("TopologicalOne,Static")
 	require.NoError(t, err)
 
 	updated, verticesToUpdate := s.RecalculateGraph(logLabels)
@@ -906,7 +893,6 @@ l2LoadBalancerEnabled: false
 		"prometheus-crd/":                false,
 		"prometheus/":                    false,
 		"test-echo/":                     false,
-		"my-module/TopologicalTwo":       false,
 	}
 
 	expectedDiff := map[string]bool{
@@ -973,7 +959,6 @@ l2LoadBalancerEnabled: false
 		"prometheus-crd/":                             false,
 		"prometheus/":                                 false,
 		"test-echo/":                                  false,
-		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = map[string]bool{
@@ -1033,7 +1018,6 @@ l2LoadBalancerEnabled: false
 		"test-echo/KubeConfig":                        true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
-		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = map[string]bool{
@@ -1095,7 +1079,6 @@ l2LoadBalancerEnabled: false
 		"test-echo/KubeConfig":                        true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
-		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = map[string]bool{
@@ -1152,7 +1135,6 @@ l2LoadBalancerEnabled: false
 		"test-echo/KubeConfig":                        true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
-		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = map[string]bool{
@@ -1195,7 +1177,6 @@ l2LoadBalancerEnabled: false
 		"test-echo/KubeConfig":                        true,
 		"prometheus/KubeConfig":                       true,
 		"prometheus-crd/KubeConfig":                   true,
-		"my-module/TopologicalTwo":                    false,
 	}
 
 	expectedDiff = nil

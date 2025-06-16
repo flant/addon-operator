@@ -1469,6 +1469,10 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		})
 	}
 
+	if err = mm.moduleScheduler.Initialize(); err != nil {
+		return fmt.Errorf("initialize scheduler: %w", err)
+	}
+
 	mm.logger.Debug("Found modules", slog.Any("modules", set.NamesInOrder()))
 
 	mm.l.Lock()
