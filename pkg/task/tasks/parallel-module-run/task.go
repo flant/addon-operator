@@ -211,7 +211,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hook.GetName()))
+					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
 	}
@@ -224,7 +224,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hook.GetName()))
+					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
 	}

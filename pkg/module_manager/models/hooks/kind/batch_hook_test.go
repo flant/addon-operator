@@ -45,14 +45,25 @@ fi
 	defer os.Remove(hookPath)
 	require.NoError(t, err)
 
-	cfg, err := kind.GetBatchHookConfig("moduleName", hookPath)
+	// Get batch hook config from hook path
+	config, err := kind.GetBatchHookConfig("moduleName", hookPath)
 	require.NoError(t, err)
-	assert.Equal(t, "main", cfg[0].Metadata.Name)
-	assert.Equal(t, "some-path/hooks/", cfg[0].Metadata.Path)
-	assert.Equal(t, ptr.To(uint(10)), cfg[0].OnStartup)
-	assert.Equal(t, ptr.To(uint(5)), cfg[0].OnBeforeHelm)
-	assert.Equal(t, ptr.To(uint(15)), cfg[0].OnAfterHelm)
-	assert.Equal(t, ptr.To(uint(25)), cfg[0].OnAfterDeleteHelm)
+
+	// Verify we have hooks
+	assert.NotZero(t, len(config.Hooks))
+
+	// Use a variable for the first hook to avoid repetition
+	hook := config.Hooks["0"]
+
+	// Verify metadata
+	assert.Equal(t, "main", hook.Metadata.Name)
+	assert.Equal(t, "some-path/hooks/", hook.Metadata.Path)
+
+	// Verify hook phase order values
+	assert.Equal(t, ptr.To(uint(10)), hook.OnStartup)
+	assert.Equal(t, ptr.To(uint(5)), hook.OnBeforeHelm)
+	assert.Equal(t, ptr.To(uint(15)), hook.OnAfterHelm)
+	assert.Equal(t, ptr.To(uint(25)), hook.OnAfterDeleteHelm)
 }
 
 func Test_BatchHook_Config(t *testing.T) {
@@ -118,20 +129,6 @@ func Test_BatchHook_Config(t *testing.T) {
 				afterDeleteHelm: ptr.To(25.0),
 			},
 		},
-		// func() {
-		// 	g.Expect(err).ShouldNot(HaveOccurred())
-		// 	g.Expect(config.Schedules).To(HaveLen(1))
-		// 	g.Expect(config.HasBinding(OnStartup)).To(BeTrue())
-		// 	g.Expect(config.OnStartup.Order).To(Equal(10.0))
-		// 	g.Expect(config.HasBinding(OnKubernetesEvent)).To(BeFalse())
-		// 	// Check module specific bindings
-		// 	g.Expect(config.HasBinding(BeforeHelm)).To(BeTrue())
-		// 	g.Expect(config.BeforeHelm.Order).To(Equal(5.0))
-		// 	g.Expect(config.HasBinding(AfterHelm)).To(BeTrue())
-		// 	g.Expect(config.AfterHelm.Order).To(Equal(15.0))
-		// 	g.Expect(config.HasBinding(AfterDeleteHelm)).To(BeTrue())
-		// 	g.Expect(config.AfterDeleteHelm.Order).To(Equal(25.0))
-		// },
 	}
 
 	for _, tt := range tests {
@@ -149,6 +146,7 @@ func Test_BatchHook_Config(t *testing.T) {
 					Path:   filename,
 					Logger: log.NewNop(),
 				},
+				ID: "0",
 			}
 
 			err := os.WriteFile(filename, []byte(`#!/bin/bash

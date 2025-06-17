@@ -13,6 +13,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"gopkg.in/yaml.v3"
 
+	"github.com/flant/addon-operator/pkg"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
 	shapp "github.com/flant/shell-operator/pkg/app"
@@ -143,7 +144,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
-				sh.Hook.Logger.With("hook", sh.GetName()).
+				sh.Hook.Logger.With(pkg.LogKeyHook, sh.GetName()).
 					Error("Remove tmp file",
 						slog.String("file", f),
 						log.Err(err))
@@ -259,14 +260,14 @@ func (sh *ShellHook) getConfig() ([]byte, error) {
 	output, err := cmd.Output()
 	if err != nil {
 		sh.Hook.Logger.Debug("Hook config failed",
-			slog.String("hook", sh.Name),
+			slog.String(pkg.LogKeyHook, sh.Name),
 			log.Err(err),
 			slog.String("output", string(output)))
 		return nil, err
 	}
 
 	sh.Hook.Logger.Debug("Hook config output",
-		slog.String("hook", sh.Name),
+		slog.String(pkg.LogKeyHook, sh.Name),
 		slog.String("output", string(output)))
 
 	return output, nil

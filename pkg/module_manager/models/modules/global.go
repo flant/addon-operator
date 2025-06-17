@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
@@ -36,6 +37,7 @@ type GlobalModule struct {
 	valuesStorage *ValuesStorage
 
 	enabledByHookC chan *EnabledPatchReport
+	hasReadiness   bool
 
 	// dependency
 	dc *hooks.HookExecutionDependencyContainer
@@ -172,6 +174,14 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 	ctx, span := otel.Tracer("gm-"+gm.GetName()).Start(ctx, "executeHook")
 	defer span.End()
 
+	logLabels = utils.MergeLabels(logLabels, map[string]string{
+		pkg.LogKeyHook:    h.GetName(),
+		"hook.type":       "module",
+		pkg.LogKeyModule:  gm.GetName(),
+		pkg.LogKeyBinding: string(bindingType),
+		"path":            h.GetPath(),
+	})
+
 	// Convert bindingContext for version
 	// versionedContextList := ConvertBindingContextList(h.Config.Version, bindingContext)
 	logEntry := utils.EnrichLoggerWithLabels(gm.logger, logLabels)
@@ -186,7 +196,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 	hookResult, err := h.Execute(ctx, h.GetConfigVersion(), bc, "global", prefixedConfigValues, prefixedValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
 		metricLabels := map[string]string{
-			"hook":                  h.GetName(),
+			pkg.MetricKeyHook:       h.GetName(),
 			pkg.MetricKeyBinding:    string(bindingType),
 			"queue":                 logLabels["queue"],
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
@@ -202,7 +212,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 
 	// Apply metric operations
 	err = gm.dc.HookMetricsStorage.SendBatch(hookResult.Metrics, map[string]string{
-		"hook": h.GetName(),
+		pkg.MetricKeyHook: h.GetName(),
 	})
 	if err != nil {
 		return err
@@ -225,7 +235,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 
 		if configValuesPatchResult != nil && configValuesPatchResult.ValuesChanged {
 			logEntry.Debug("Global hook: validate global config values before update",
-				slog.String("hook", h.GetName()))
+				slog.String(pkg.LogKeyHook, h.GetName()))
 			// Validate merged static and new values.
 			// TODO: probably, we have to replace with with some transaction method on valuesStorage
 			newValues, validationErr := gm.valuesStorage.GenerateNewConfigValues(configValuesPatchResult.Values, true)
@@ -236,14 +246,14 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 			err := gm.dc.KubeConfigManager.SaveConfigValues(utils.GlobalValuesKey, configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debug("Global hook kube config global values stay unchanged",
-					slog.String("hook", h.GetName()),
+					slog.String(pkg.LogKeyHook, h.GetName()),
 					slog.String("value", gm.valuesStorage.GetConfigValues(false).DebugString()))
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.GetName(), err)
 			}
 
 			gm.valuesStorage.SaveConfigValues(newValues)
 
-			logEntry.Debug("Global hook: kube config global values updated", slog.String("hook", h.GetName()))
+			logEntry.Debug("Global hook: kube config global values updated", slog.String(pkg.LogKeyHook, h.GetName()))
 			logEntry.Debug("New kube config global values",
 				slog.String("values", gm.valuesStorage.GetConfigValues(false).DebugString()))
 		}
@@ -267,7 +277,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 		// and no patches for 'global' section — valuesPatchResult will be nil in this case.
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
 			logEntry.Debug("Global hook: validate global values before update",
-				slog.String("hook", h.GetName()))
+				slog.String(pkg.LogKeyHook, h.GetName()))
 			validationErr := gm.valuesStorage.validateValues(valuesPatchResult.Values)
 			if validationErr != nil {
 				return fmt.Errorf("cannot apply values patch for global values: %w", validationErr)
@@ -279,7 +289,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 				return fmt.Errorf("error on commit values: %w", err)
 			}
 
-			logEntry.Debug("Global hook: kube global values updated", slog.String("hook", h.GetName()))
+			logEntry.Debug("Global hook: kube global values updated", slog.String(pkg.LogKeyHook, h.GetName()))
 			logEntry.Debug("New global values",
 				slog.String("values", gm.valuesStorage.GetValues(false).DebugString()))
 		}
@@ -343,7 +353,7 @@ func (gm *GlobalModule) SetAvailableAPIVersions(apiVersions []string) {
 	// keep apiVersions sorted to prevent helm rollout on each restart
 	sort.Strings(apiVersions)
 	data, _ := json.Marshal(apiVersions)
-	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
+	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*sdkutils.ValuesPatchOperation{
 		{
 			Op:    "add",
 			Path:  "/global/discovery/apiVersions",
@@ -364,7 +374,7 @@ func (gm *GlobalModule) SetEnabledModules(enabledModules []string) {
 	// keep apiVersions sorted to prevent helm rollout on each restart
 	sort.Strings(enabledModules)
 	data, _ := json.Marshal(enabledModules)
-	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*utils.ValuesPatchOperation{
+	gm.valuesStorage.appendValuesPatch(utils.ValuesPatch{Operations: []*sdkutils.ValuesPatchOperation{
 		{
 			Op:    "add",
 			Path:  "/global/enabledModules",
@@ -436,13 +446,13 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 	if gm.logger.GetLevel() == log.LevelDebug {
 		for _, h := range hks {
 			gm.logger.Debug("GlobalHook",
-				slog.String("hook", h.GetName()),
+				slog.String(pkg.LogKeyHook, h.GetName()),
 				slog.String("path", h.GetPath()))
 		}
 	}
 
 	for _, globalHook := range hks {
-		hookLogEntry := gm.logger.With("hook", globalHook.GetName()).
+		hookLogEntry := gm.logger.With(pkg.LogKeyHook, globalHook.GetName()).
 			With("hook.type", "global")
 
 		// TODO: we could make multierr here and return all config errors at once
@@ -453,10 +463,10 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 
 		// Add hook info as log labels
 		for _, kubeCfg := range globalHook.GetHookConfig().OnKubernetesEvents {
-			kubeCfg.Monitor.Metadata.LogLabels["hook"] = globalHook.GetName()
+			kubeCfg.Monitor.Metadata.LogLabels[pkg.LogKeyHook] = globalHook.GetName()
 			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "global"
 			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
-				"hook":               globalHook.GetName(),
+				pkg.MetricKeyHook:    globalHook.GetName(),
 				pkg.MetricKeyBinding: kubeCfg.BindingName,
 				"module":             "", // empty "module" label for label set consistency with module hooks
 				"queue":              kubeCfg.Queue,
@@ -604,9 +614,22 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
 
-		for idx, cfg := range sdkcfgs {
-			nestedHookName := fmt.Sprintf("%s-%s-%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", uint(idx), gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
+		if sdkcfgs.Readiness != nil {
+			if gm.hasReadiness {
+				return nil, fmt.Errorf("multiple readiness hooks found in %s", hookPath)
+			}
+
+			gm.hasReadiness = true
+
+			// add readiness hook
+			nestedHookName := fmt.Sprintf("%s-readiness", hookName)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", kind.BatchHookReadyKey, gm.keepTemporaryHookFiles, true, gm.logger.Named("batch-hook"))
+			hks = append(hks, shHook)
+		}
+
+		for key, cfg := range sdkcfgs.Hooks {
+			nestedHookName := fmt.Sprintf("%s-%s-%s", hookName, cfg.Metadata.Name, key)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, "global", key, gm.keepTemporaryHookFiles, false, gm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}

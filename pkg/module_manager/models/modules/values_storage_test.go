@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -160,7 +161,7 @@ modules:
 	require.NoError(t, err)
 
 	vp := utils.NewValuesPatch()
-	vp.Operations = append(vp.Operations, &utils.ValuesPatchOperation{
+	vp.Operations = append(vp.Operations, &sdkutils.ValuesPatchOperation{
 		Op:    "add",
 		Path:  "/global/modules/resourcesRequests/everyNode/cpu",
 		Value: json.RawMessage(`"500m"`),
