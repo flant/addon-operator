@@ -66,12 +66,14 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 	switch clientType {
 	case Helm3Lib:
 		factory.NewClientFn = helm3lib.NewClient
+
 		err = helm3lib.Init(&helm3lib.Options{
 			Namespace:         helmopts.Namespace,
 			HistoryMax:        helmopts.HistoryMax,
 			Timeout:           helmopts.Timeout,
 			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
 		}, helmopts.Logger)
+
 		if err != nil {
 			return nil, err
 		}
@@ -83,10 +85,12 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 				HelmDriver:  os.Getenv("HELM_DRIVER"),
 				KubeContext: os.Getenv("KUBE_CONTEXT"),
 			}
+
 			if helmopts.Namespace != "" {
 				opts.Namespace = helmopts.Namespace
 			}
-			return nelm.NewNelmClient(opts, logger, labels)
+
+			return nelm.NewNelmClient(opts, logger.Named("nelm-client").With("operator.component", "nelm"), labels)
 		}
 	}
 

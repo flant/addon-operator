@@ -23,6 +23,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/utils"
+	nelmlog "github.com/werf/nelm/pkg/log"
 )
 
 var _ client.HelmClient = (*NelmClient)(nil)
@@ -94,6 +95,8 @@ func nelmBuildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericcliop
 }
 
 func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]string) *NelmClient {
+	nelmlog.Default = NewNelmLogger(logger.Named("global"))
+
 	if opts == nil {
 		opts = &CommonOptions{}
 	}
@@ -120,7 +123,7 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 	}
 
 	return &NelmClient{
-		logger:  logger.With("operator.component", "nelm"),
+		logger:  logger.Named("local"),
 		labels:  clientLabels,
 		opts:    opts,
 		actions: &DefaultNelmActions{},
@@ -143,22 +146,33 @@ func (c *NelmClient) logboekContext() context.Context {
 
 // GetReleaseLabels returns a specific label value from the release.
 func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
+	logger := c.logger.With(
+		slog.String("release_name", releaseName),
+		slog.String("label_name", releaseName),
+	)
+
+	logger.Info("get release labels")
+
 	result, err := c.actions.ReleaseGet(c.logboekContext(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
+		logger.Error("get nelm release")
 		return "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
 	if result.Release == nil {
+		logger.Error("release is not found")
 		return "", fmt.Errorf("release %s not found", releaseName)
 	}
 
 	if value, ok := result.Release.StorageLabels[labelName]; ok {
 		return value, nil
 	}
+
+	logger.Error("label is not found")
 
 	return "", client.ErrLabelIsNotFound
 }
@@ -179,17 +193,25 @@ func (c *NelmClient) WithExtraLabels(labels map[string]string) {
 }
 
 func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, error) {
+	logger := c.logger.With(
+		slog.String("release_name", releaseName),
+	)
+
+	logger.Info("get last release status")
+
 	result, err := c.actions.ReleaseGet(c.logboekContext(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("get release: %w", err)
+		logger.Error("get nelm release")
+		return "", "", fmt.Errorf("get nelm release: %w", err)
 	}
 
 	if result.Release == nil {
-		return "", "", fmt.Errorf("release %s not found", releaseName)
+		logger.Error("nelm release is not found")
+		return "", "", fmt.Errorf("nelm release %s not found", releaseName)
 	}
 
 	// Convert helmrelease.Status to string and return revision
@@ -197,11 +219,13 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 }
 
 func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
-	c.logger.Info("Running nelm upgrade for release",
-		slog.String("release", releaseName),
+	logger := c.logger.With(
+		slog.String("release_name", releaseName),
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace),
 	)
+
+	logger.Info("Running nelm upgrade for release")
 
 	// Prepare annotations with correct moduleChecksum from labels
 	extraAnnotations := make(map[string]string)
@@ -216,8 +240,12 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
+		logger.Warn("nelm release get has an error", log.Err(err))
+
 		var releaseNotFoundErr *action.ReleaseNotFoundError
 		if errors.As(err, &releaseNotFoundErr) {
+			logger.Warn("nelm release get has not found error", log.Err(err))
+
 			// If release doesn't exist, do install
 			installOptions := action.ReleaseInstallOptions{
 				Chart:                chartName,
@@ -231,11 +259,20 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 				ValuesFilesPaths:     valuesPaths,
 				ValuesSets:           setValues,
 			}
+
 			if len(extraAnnotations) > 0 {
 				installOptions.ExtraAnnotations = extraAnnotations
 			}
-			return c.actions.ReleaseInstall(c.logboekContext(), releaseName, namespace, installOptions)
+
+			err := c.actions.ReleaseInstall(c.logboekContext(), releaseName, namespace, installOptions)
+			if err != nil {
+				return fmt.Errorf("nelm release install: %w", err)
+			}
+
+			return nil
 		}
+
+		logger.Error("get nelm release")
 		return fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
@@ -249,27 +286,29 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
 	}
+
 	if len(extraAnnotations) > 0 {
 		planInstallOptions.ExtraAnnotations = extraAnnotations
 	}
 
 	if err := c.actions.ReleasePlanInstall(c.logboekContext(), releaseName, namespace, planInstallOptions); err != nil {
+		logger.Error("upgrade nelm release")
 		return fmt.Errorf("upgrade release: %w", err)
 	}
 
-	c.logger.Info("Nelm upgrade successful",
-		slog.String("release", releaseName),
-		slog.String("chart", chartName),
-		slog.String("namespace", namespace))
+	logger.Info("nelm upgrade successful")
 
 	return nil
 }
 
 // Render renders the chart templates with provided values and returns the manifest as a string.
 func (c *NelmClient) Render(_, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
-	c.logger.Debug("Render nelm templates for chart ...",
+	logger := c.logger.With(
 		slog.String("chart", chartName),
-		slog.String("namespace", namespace))
+		slog.String("namespace", namespace),
+	)
+
+	logger.Debug("Render nelm templates for chart ...")
 
 	// Prepare ChartRenderOptions with merged values
 	opts := action.ChartRenderOptions{
@@ -287,8 +326,7 @@ func (c *NelmClient) Render(_, chartName string, valuesPaths, setValues []string
 	result, err := render()
 	if err != nil {
 		// Try one more time (like helm3lib does reinit)
-		c.logger.Debug("First nelm render attempt failed, trying again",
-			slog.String("chart", chartName),
+		logger.Warn("First nelm render attempt failed, trying again",
 			slog.String("error", err.Error()))
 		result, err = render()
 	}
@@ -312,7 +350,7 @@ func (c *NelmClient) Render(_, chartName string, valuesPaths, setValues []string
 					builder.Write(b)
 					builder.WriteString("---\n")
 				} else {
-					c.logger.Warn("Failed to marshal resource",
+					logger.Warn("Failed to marshal resource",
 						slog.String("error", marshalErr.Error()))
 				}
 			}
@@ -324,7 +362,7 @@ func (c *NelmClient) Render(_, chartName string, valuesPaths, setValues []string
 					builder.Write(b)
 					builder.WriteString("---\n")
 				} else {
-					c.logger.Warn("Failed to marshal CRD",
+					logger.Warn("Failed to marshal CRD",
 						slog.String("error", marshalErr.Error()))
 				}
 			}
@@ -344,7 +382,9 @@ func (c *NelmClient) Render(_, chartName string, valuesPaths, setValues []string
 
 // DeleteRelease deletes the specified release.
 func (c *NelmClient) DeleteRelease(releaseName string) error {
-	c.logger.Debug("nelm release: execute nelm uninstall", slog.String("release", releaseName))
+	logger := c.logger.With(slog.String("release", releaseName))
+
+	logger.Debug("nelm release: execute nelm uninstall")
 
 	if err := c.actions.ReleaseUninstall(c.logboekContext(), releaseName, c.opts.Namespace, action.LegacyReleaseUninstallOptions{
 		KubeContext:          c.opts.KubeContext,
@@ -355,7 +395,8 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
 
-	c.logger.Debug("nelm release deleted", slog.String("release", releaseName))
+	logger.Debug("nelm release deleted")
+
 	return nil
 }
 
@@ -451,4 +492,14 @@ func mapToSlogArgs(m map[string]string) []any {
 		args = append(args, k, v)
 	}
 	return args
+}
+
+// ListReleases retrieves all Helm releases regardless of their state.
+func (c *NelmClient) ListReleases() ([]*action.ReleaseListResultRelease, error) {
+	l, err := action.ReleaseList(context.TODO(), action.ReleaseListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("nelm list failed: %w", err)
+	}
+
+	return l.Releases, nil
 }
