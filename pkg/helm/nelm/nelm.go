@@ -151,12 +151,12 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
-		logger.Error("get nelm release")
+		logger.Error("get nelm release", log.Err(err))
 		return "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
 	if result.Release == nil {
-		logger.Error("release is not found")
+		logger.Error("nelm release is not found", log.Err(err))
 		return "", fmt.Errorf("release %s not found", releaseName)
 	}
 
@@ -197,12 +197,12 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
-		logger.Error("get nelm release")
+		logger.Error("get nelm release", log.Err(err))
 		return "", "", fmt.Errorf("get nelm release: %w", err)
 	}
 
 	if result.Release == nil {
-		logger.Error("nelm release is not found")
+		logger.Error("nelm release is not found", log.Err(err))
 		return "", "", fmt.Errorf("nelm release %s not found", releaseName)
 	}
 
@@ -223,6 +223,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	extraAnnotations := make(map[string]string)
 	if checksum, exists := labels["moduleChecksum"]; exists {
 		extraAnnotations["moduleChecksum"] = checksum
+		extraAnnotations["meta.helm.sh/release-name"] = releaseName
+		extraAnnotations["meta.helm.sh/release-namespace"] = namespace
 	}
 
 	// First check if release exists
@@ -258,13 +260,14 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 
 			err := c.actions.ReleaseInstall(context.Background(), releaseName, namespace, installOptions)
 			if err != nil {
+				logger.Error("nelm release install", log.Err(err))
 				return fmt.Errorf("nelm release install: %w", err)
 			}
 
 			return nil
 		}
 
-		logger.Error("get nelm release")
+		logger.Error("get nelm release", log.Err(err))
 		return fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
@@ -284,8 +287,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	}
 
 	if err := c.actions.ReleasePlanInstall(context.Background(), releaseName, namespace, planInstallOptions); err != nil {
-		logger.Error("upgrade nelm release")
-		return fmt.Errorf("upgrade release: %w", err)
+		logger.Error("upgrade nelm release", log.Err(err))
+		return fmt.Errorf("upgrade nelm release: %w", err)
 	}
 
 	logger.Info("nelm upgrade successful")
@@ -384,6 +387,7 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 		ReleaseStorageDriver: c.opts.HelmDriver,
 		Timeout:              c.opts.Timeout,
 	}); err != nil {
+		logger.Error("nelm release uninstall", log.Err(err))
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
 
