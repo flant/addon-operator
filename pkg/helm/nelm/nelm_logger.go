@@ -96,6 +96,8 @@ func (n *NelmLogger) SetLevel(ctx context.Context, lvl nelmlog.Level) {
 	newLvl := log.LevelInfo
 
 	switch lvl {
+	case nelmlog.TraceLevel:
+		newLvl = log.LevelTrace
 	case nelmlog.DebugLevel:
 		newLvl = log.LevelDebug
 	case nelmlog.InfoLevel:
@@ -111,6 +113,8 @@ func (n *NelmLogger) SetLevel(ctx context.Context, lvl nelmlog.Level) {
 
 func (n *NelmLogger) Level(ctx context.Context) nelmlog.Level {
 	switch n.logger.GetLevel() {
+	case log.LevelTrace:
+		return nelmlog.TraceLevel
 	case log.LevelDebug:
 		return nelmlog.DebugLevel
 	case log.LevelInfo:
