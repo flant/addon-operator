@@ -22,15 +22,15 @@ type NelmLogger struct {
 }
 
 func (n *NelmLogger) Trace(ctx context.Context, format string, a ...interface{}) {
-	n.logger.DebugContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...))
 }
 
 func (n *NelmLogger) TraceStruct(ctx context.Context, obj interface{}, format string, a ...interface{}) {
-	n.logger.DebugContext(ctx, fmt.Sprintf(format, a...), slog.Any("obj", obj))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...), slog.Any("obj", obj))
 }
 
 func (n *NelmLogger) TracePush(ctx context.Context, _, format string, a ...interface{}) {
-	n.logger.DebugContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...))
 }
 
 func (n *NelmLogger) TracePop(ctx context.Context, group string) {
