@@ -162,17 +162,17 @@ func (bm *BasicModule) WithDependencies(dep *hooks.HookExecutionDependencyContai
 
 // GetOrder returns the module order
 func (bm *BasicModule) GetOrder() uint32 {
-	return bm.Config.Weight
+	return bm.Order
 }
 
 // GetName returns the module name
 func (bm *BasicModule) GetName() string {
-	return bm.Config.Name
+	return bm.Name
 }
 
 // GetPath returns the module path on a filesystem
 func (bm *BasicModule) GetPath() string {
-	return bm.Config.Path
+	return bm.Path
 }
 
 // GetHooks returns module hooks, they could be filtered by BindingType optionally
