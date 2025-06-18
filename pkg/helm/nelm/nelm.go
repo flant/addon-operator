@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -236,8 +237,12 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	if err != nil {
 		logger.Warn("nelm release get has an error", log.Err(err))
 
-		var releaseNotFoundErr *action.ReleaseNotFoundError
-		if errors.As(err, &releaseNotFoundErr) {
+		// TODO: WHY THIS NOT WORK?
+		// var releaseNotFoundErr *action.ReleaseNotFoundError
+		// if errors.As(err, &releaseNotFoundErr) {
+		notFoundRegex := regexp.MustCompile(`release ".*" \(.*\) not found`)
+
+		if notFoundRegex.MatchString(err.Error()) {
 			logger.Warn("nelm release get has not found error", log.Err(err))
 
 			// If release doesn't exist, do install
