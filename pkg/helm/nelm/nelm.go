@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -199,7 +198,7 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 	})
 	var releaseNotFoundErr *action.ReleaseNotFoundError
 	if errors.As(err, &releaseNotFoundErr) {
-		return "0", "", fmt.Errorf("get nelm release: %w", releaseNotFoundErr)
+		return "0", "", fmt.Errorf("nelm release is not found: %w", releaseNotFoundErr)
 	}
 
 	if err != nil {
@@ -237,13 +236,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	if err != nil {
 		logger.Warn("nelm release get has an error", log.Err(err))
 
-		// TODO: WHY YOU DID NOT WORK?
-		// var releaseNotFoundErr *action.ReleaseNotFoundError
-		// if errors.As(err, &releaseNotFoundErr) {
-
-		notFoundRegex := regexp.MustCompile(`release ".*" \(.*\) not found`)
-
-		if notFoundRegex.MatchString(err.Error()) {
+		var releaseNotFoundErr *action.ReleaseNotFoundError
+		if errors.As(err, &releaseNotFoundErr) {
 			logger.Warn("nelm release get has not found error", log.Err(err))
 
 			// If release doesn't exist, do install
@@ -487,7 +481,7 @@ func (c *NelmClient) IsReleaseExists(releaseName string) (bool, error) {
 		return false, nil
 	}
 
-	return false, err
+	return false, fmt.Errorf("last release status: %w", err)
 }
 
 // mapToSlogArgs converts a map[string]string to a slice of key-value pairs for slog.With.

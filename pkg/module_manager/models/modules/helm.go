@@ -318,7 +318,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	}()
 
 	if err != nil {
-		return err
+		return fmt.Errorf("upgrade release: %w", err)
 	}
 
 	// Start monitor resources if release was successful
@@ -356,7 +356,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 		logEntry.Debug("helm release get values error, no upgrade",
 			slog.String("release", releaseName),
 			log.Err(err))
-		return false, err
+		return false, fmt.Errorf("get release checksum: %w", err)
 	}
 
 	// Calculate a checksum of current values and compare to a stored checksum.

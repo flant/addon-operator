@@ -154,6 +154,7 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (string /*revision*/, 
 		if errors.Is(err, driver.ErrReleaseNotFound) || strings.HasPrefix(err.Error(), "no revision for release") {
 			return "0", "", fmt.Errorf("release '%s' not found\n", releaseName)
 		}
+
 		return "", "", err
 	}
 
