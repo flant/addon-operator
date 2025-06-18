@@ -827,20 +827,6 @@ outerCycle:
 		return true, nil
 	}
 
-	// check the hint storage if any undemanded hints left to update states of the isolated vertices (orphaned vertices)
-	// for extenderName, parents := range s.topologicalHints {
-	// 	for _, children := range parents {
-	// 		for _, child := range children {
-	// 			if _, found := s.vertexStateBuffer.state[child]; !found {
-	// 				s.vertexStateBuffer.state[child] = &vertexState{
-	// 					enabled:   false,
-	// 					updatedBy: string(extenderName),
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	// merge the state diffs
 	for vertexName, newStateDiff := range stateDiff {
 		// if a new diff has an opposite state for the module, the module is deleted from the resulting diff
