@@ -19,12 +19,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
+	bootstrapped_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/bootstrapped"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
-	system_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/system"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
 	"github.com/flant/addon-operator/pkg/utils"
 )
@@ -41,7 +41,7 @@ var defaultAppliedExtenders = []extenders.ExtenderName{
 	dynamic_extender.Name,
 	kube_config_extender.Name,
 	script_extender.Name,
-	system_extender.Name,
+	bootstrapped_extender.Name,
 }
 
 type extenderContainer struct {
@@ -186,7 +186,6 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 		graph.VertexAttribute("color", "2"),
 		graph.VertexAttribute("fillcolor", "1"),
 		graph.VertexAttribute(node.TypeAttribute, string(node.ModuleType))); err != nil {
-
 		return err
 	}
 
@@ -199,7 +198,7 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 func (s *Scheduler) Initialize() error {
 	// add edges
 	for _, module := range s.modules {
-		var parentsExist bool
+		var connected bool
 		for _, parents := range s.getEdgesFromExtenders(module.GetName()) {
 			for _, parentName := range parents {
 				parent, err := s.dag.Vertex(parentName)
@@ -215,7 +214,7 @@ func (s *Scheduler) Initialize() error {
 					continue
 				}
 
-				parentsExist = true
+				connected = true
 
 				// add an edge from the parent to the vertex
 				if err = s.dag.AddEdge(parentName, module.GetName()); err != nil {
@@ -229,7 +228,7 @@ func (s *Scheduler) Initialize() error {
 		}
 
 		// module already connected to parents
-		if parentsExist {
+		if connected {
 			continue
 		}
 

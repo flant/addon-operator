@@ -1,4 +1,4 @@
-package system
+package bootstrapped
 
 import (
 	"k8s.io/utils/ptr"
@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	Name extenders.ExtenderName = "System"
+	Name extenders.ExtenderName = "Bootstrapped"
 )
 
 type Extender struct {
