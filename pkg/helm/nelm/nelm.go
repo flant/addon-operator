@@ -115,6 +115,7 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, values
 	if err := action.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
 		Chart:                chartName,
 		ExtraLabels:          c.labels,
+		ForceAdoption:        true,
 		KubeContext:          commonOptions.KubeContext,
 		NoInstallCRDs:        true,
 		ReleaseHistoryLimit:  int(commonOptions.HistoryMax),
@@ -225,6 +226,7 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 	chartRenderResult, err := action.ChartRender(context.TODO(), action.ChartRenderOptions{
 		Chart:                chartName,
 		ExtraLabels:          c.labels,
+		ForceAdoption:        true,
 		KubeContext:          commonOptions.KubeContext,
 		ReleaseName:          releaseName,
 		ReleaseNamespace:     commonOptions.Namespace,

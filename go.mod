@@ -25,7 +25,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.17.0
-	github.com/werf/nelm v1.6.1-0.20250610135727-9b116db2530d
+	github.com/werf/nelm v1.6.1-0.20250618103836-1489430f28a8
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.15.4
