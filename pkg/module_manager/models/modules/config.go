@@ -1,8 +1,12 @@
 package modules
 
 type Config struct {
-	Name           string
-	Weight         uint32
+	// required fields
+	// parameters used by addon operator
+	Name   string
+	Weight uint32
+	Path   string
+
 	Tags           []string
 	Subsystems     []string
 	Namespace      string
@@ -13,7 +17,6 @@ type Config struct {
 	Requirements *ModuleRequirements
 
 	DisableOptions *ModuleDisableOptions
-	Path           string
 
 	Accessibility *Accessibility
 }
@@ -65,7 +68,6 @@ type Editions struct {
 }
 
 type Accessibility struct {
-	// TODO: change Batches name to the new one.
 	Batches  *Batches
 	Editions *Editions
 }

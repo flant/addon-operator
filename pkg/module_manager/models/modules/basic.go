@@ -75,7 +75,6 @@ type BasicModule struct {
 	Config *Config
 }
 
-// TODO: add options WithLogger
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
 func NewBasicModule(config *Config, staticValues utils.Values, configBytes, valuesBytes []byte, opts ...ModuleOption) (*BasicModule, error) {

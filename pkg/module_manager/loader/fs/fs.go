@@ -75,7 +75,7 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 }
 
 // LoadModule reads single directory and returns BasicModule
-func (fl *FileSystemLoader) LoadModule(_, modulePath string) (*modules.BasicModule, error) {
+func (fl *FileSystemLoader) LoadModule(modulePath string) (*modules.BasicModule, error) {
 	// the module's parent directory
 	var modulesDir string
 	if strings.HasSuffix(modulePath, "/") {
