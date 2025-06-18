@@ -71,6 +71,8 @@ type BasicModule struct {
 
 	l     sync.RWMutex
 	state *moduleState
+
+	Config *Config
 }
 
 // TODO: add options WithLogger
