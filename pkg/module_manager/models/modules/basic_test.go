@@ -19,7 +19,7 @@ foo:
 `
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))
 	require.NoError(t, err)
-	bm, err := NewBasicModule("test-1", "/tmp/test", 100, value, nil, nil)
+	bm, err := NewBasicModule(&Config{Name: "test-1", Path: "/tmp/test", Weight: 100}, value, nil, nil)
 	require.NoError(t, err)
 
 	patch := utils.ValuesPatch{Operations: []*sdkutils.ValuesPatchOperation{

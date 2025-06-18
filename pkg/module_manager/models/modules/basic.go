@@ -78,17 +78,21 @@ type BasicModule struct {
 // TODO: add options WithLogger
 // NewBasicModule creates new BasicModule
 // staticValues - are values from modules/values.yaml and /modules/<module-name>/values.yaml, they could not be changed during the runtime
-func NewBasicModule(name, path string, order uint32, staticValues utils.Values, configBytes, valuesBytes []byte, opts ...ModuleOption) (*BasicModule, error) {
-	valuesStorage, err := NewValuesStorage(name, staticValues, configBytes, valuesBytes)
+func NewBasicModule(config *Config, staticValues utils.Values, configBytes, valuesBytes []byte, opts ...ModuleOption) (*BasicModule, error) {
+	if config == nil {
+		return nil, errors.New("module configuration is nil")
+	}
+
+	valuesStorage, err := NewValuesStorage(config.Name, staticValues, configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new values storage: %w", err)
 	}
 
-	crdsFromPath := getCRDsFromPath(path, app.CRDsFilters)
+	crdsFromPath := getCRDsFromPath(config.Path, app.CRDsFilters)
 	bmodule := &BasicModule{
-		Name:          name,
-		Order:         order,
-		Path:          path,
+		Name:          config.Name,
+		Order:         config.Weight,
+		Path:          config.Path,
 		crdsExist:     len(crdsFromPath) > 0,
 		crdFilesPaths: crdsFromPath,
 		valuesStorage: valuesStorage,
@@ -99,6 +103,7 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 		},
 		hooks:                  newHooksStorage(),
 		keepTemporaryHookFiles: shapp.DebugKeepTmpFiles,
+		Config:                 config,
 	}
 
 	for _, opt := range opts {
@@ -106,7 +111,7 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 	}
 
 	if bmodule.logger == nil {
-		bmodule.logger = log.NewLogger(log.Options{}).Named("basic-module").Named(name)
+		bmodule.logger = log.NewLogger(log.Options{}).Named("basic-module").Named(config.Name)
 	}
 
 	return bmodule, nil
@@ -158,17 +163,17 @@ func (bm *BasicModule) WithDependencies(dep *hooks.HookExecutionDependencyContai
 
 // GetOrder returns the module order
 func (bm *BasicModule) GetOrder() uint32 {
-	return bm.Order
+	return bm.Config.Weight
 }
 
 // GetName returns the module name
 func (bm *BasicModule) GetName() string {
-	return bm.Name
+	return bm.Config.Name
 }
 
 // GetPath returns the module path on a filesystem
 func (bm *BasicModule) GetPath() string {
-	return bm.Path
+	return bm.Config.Path
 }
 
 // GetHooks returns module hooks, they could be filtered by BindingType optionally
