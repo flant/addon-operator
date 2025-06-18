@@ -1459,7 +1459,11 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 			return fmt.Errorf("add module vertex: %w", err)
 		}
 
-		bootstrappedExtender.AddBasicModule(mod.GetName(), mod.GetSystem())
+		// functional modules require bootstrapped cluster
+		if !mod.GetSystem() {
+			bootstrappedExtender.AddFunctionalModule(mod.GetName())
+		}
+
 		scriptEnabledExtender.AddBasicModule(mod)
 
 		mm.SendModuleEvent(events.ModuleEvent{

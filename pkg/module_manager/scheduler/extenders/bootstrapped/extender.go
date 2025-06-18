@@ -14,12 +14,13 @@ const (
 type Extender struct {
 	// check if the cluster bootstrapped
 	isBootstrapped func() (bool, error)
-	modules        map[string]bool
+	// functional modules require bootstrapped cluster
+	modules map[string]struct{}
 }
 
 func NewExtender(helper func() (bool, error)) *Extender {
 	return &Extender{
-		modules:        make(map[string]bool),
+		modules:        make(map[string]struct{}),
 		isBootstrapped: helper,
 	}
 }
@@ -29,12 +30,7 @@ func (e *Extender) Name() extenders.ExtenderName {
 }
 
 func (e *Extender) Filter(moduleName string, _ map[string]string) (*bool, error) {
-	if system, ok := e.modules[moduleName]; ok {
-		// system modules do not require bootstrapped cluster
-		if system {
-			return ptr.To(true), nil
-		}
-
+	if _, ok := e.modules[moduleName]; ok {
 		bootstrapped, err := e.isBootstrapped()
 		if err != nil {
 			return nil, exterr.Permanent(err)
@@ -51,6 +47,6 @@ func (e *Extender) IsTerminator() bool {
 	return true
 }
 
-func (e *Extender) AddBasicModule(moduleName string, system bool) {
-	e.modules[moduleName] = system
+func (e *Extender) AddFunctionalModule(moduleName string) {
+	e.modules[moduleName] = struct{}{}
 }
