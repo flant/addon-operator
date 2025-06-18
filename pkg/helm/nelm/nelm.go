@@ -197,14 +197,14 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
+	var releaseNotFoundErr *action.ReleaseNotFoundError
+	if errors.As(err, &releaseNotFoundErr) {
+		return "0", "", fmt.Errorf("get nelm release: %w", releaseNotFoundErr)
+	}
+
 	if err != nil {
 		logger.Error("get nelm release", log.Err(err))
 		return "", "", fmt.Errorf("get nelm release: %w", err)
-	}
-
-	if result.Release == nil {
-		logger.Error("nelm release is not found", log.Err(err))
-		return "", "", fmt.Errorf("nelm release %s not found", releaseName)
 	}
 
 	// Convert helmrelease.Status to string and return revision
@@ -237,9 +237,10 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	if err != nil {
 		logger.Warn("nelm release get has an error", log.Err(err))
 
-		// TODO: WHY THIS NOT WORK?
+		// TODO: WHY YOU DID NOT WORK?
 		// var releaseNotFoundErr *action.ReleaseNotFoundError
 		// if errors.As(err, &releaseNotFoundErr) {
+
 		notFoundRegex := regexp.MustCompile(`release ".*" \(.*\) not found`)
 
 		if notFoundRegex.MatchString(err.Error()) {
