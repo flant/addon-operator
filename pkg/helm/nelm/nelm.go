@@ -252,6 +252,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 				Timeout:              c.opts.Timeout,
 				ValuesFilesPaths:     valuesPaths,
 				ValuesSets:           setValues,
+				ForceAdoption:        true,
 			}
 
 			if len(extraAnnotations) > 0 {
@@ -280,6 +281,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		Timeout:              c.opts.Timeout,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
+		ForceAdoption:        true,
 	}
 
 	if len(extraAnnotations) > 0 {
@@ -312,6 +314,7 @@ func (c *NelmClient) Render(_, chartName string, valuesPaths, setValues []string
 		KubeContext:      c.opts.KubeContext,
 		ValuesFilesPaths: valuesPaths,
 		ValuesSets:       setValues,
+		ForceAdoption:    true,
 	}
 
 	render := func() (*action.ChartRenderResultV1, error) {
