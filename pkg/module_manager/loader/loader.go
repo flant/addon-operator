@@ -6,5 +6,5 @@ import (
 
 type ModuleLoader interface {
 	LoadModules() ([]*modules.BasicModule, error)
-	LoadModule(moduleSource string, modulePath string) (*modules.BasicModule, error)
+	LoadModule(modulePath string) (*modules.BasicModule, error)
 }
