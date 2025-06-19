@@ -41,7 +41,7 @@ type CommonOptions struct {
 type NelmActions interface {
 	ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV1, error)
 	ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) error
-	ReleaseUninstall(ctx context.Context, name, namespace string, opts action.LegacyReleaseUninstallOptions) error
+	ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) error
 	ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV1, error)
 	ChartRender(ctx context.Context, opts action.ChartRenderOptions) (*action.ChartRenderResultV1, error)
 	ReleasePlanInstall(ctx context.Context, name, namespace string, opts action.ReleasePlanInstallOptions) error
@@ -57,8 +57,8 @@ func (d *DefaultNelmActions) ReleaseInstall(ctx context.Context, name, namespace
 	return action.ReleaseInstall(ctx, name, namespace, opts)
 }
 
-func (d *DefaultNelmActions) ReleaseUninstall(ctx context.Context, name, namespace string, opts action.LegacyReleaseUninstallOptions) error {
-	return action.LegacyReleaseUninstall(ctx, name, namespace, opts)
+func (d *DefaultNelmActions) ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) error {
+	return action.ReleaseUninstall(ctx, name, namespace, opts)
 }
 
 func (d *DefaultNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV1, error) {
@@ -392,7 +392,7 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 
 	logger.Debug("nelm release: execute nelm uninstall")
 
-	if err := c.actions.ReleaseUninstall(c.logboekContext(), releaseName, c.opts.Namespace, action.LegacyReleaseUninstallOptions{
+	if err := c.actions.ReleaseUninstall(c.logboekContext(), releaseName, c.opts.Namespace, action.ReleaseUninstallOptions{
 		KubeContext:          c.opts.KubeContext,
 		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
 		ReleaseStorageDriver: c.opts.HelmDriver,
