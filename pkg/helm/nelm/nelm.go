@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"maps"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/werf/logboek"
 	"github.com/werf/nelm/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -138,11 +136,11 @@ type NelmClient struct {
 	actions NelmActions
 }
 
-// logboekContext returns a context with a logger, which writes to io.Discard to suppress logboek output.
-func (c *NelmClient) logboekContext() context.Context {
-	logger := logboek.NewLogger(io.Discard, io.Discard)
-	return logboek.NewContext(context.Background(), logger)
-}
+// // logboekContext returns a context with a logger, which writes to io.Discard to suppress logboek output.
+// func (c *NelmClient) logboekContext() context.Context {
+// 	logger := logboek.NewLogger(io.Discard, io.Discard)
+// 	return logboek.NewContext(context.Background(), logger)
+// }
 
 // GetReleaseLabels returns a specific label value from the release.
 func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
@@ -153,7 +151,7 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 
 	logger.Info("get release labels")
 
-	result, err := c.actions.ReleaseGet(c.logboekContext(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
+	result, err := c.actions.ReleaseGet(context.Background(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -199,7 +197,7 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 
 	logger.Info("get last release status")
 
-	result, err := c.actions.ReleaseGet(c.logboekContext(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
+	result, err := c.actions.ReleaseGet(context.Background(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -236,7 +234,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	}
 
 	// First check if release exists
-	_, err := c.actions.ReleaseGet(c.logboekContext(), releaseName, namespace, action.ReleaseGetOptions{
+	_, err := c.actions.ReleaseGet(context.Background(), releaseName, namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -267,7 +265,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 				installOptions.ExtraAnnotations = extraAnnotations
 			}
 
-			err := c.actions.ReleaseInstall(c.logboekContext(), releaseName, namespace, installOptions)
+			err := c.actions.ReleaseInstall(context.Background(), releaseName, namespace, installOptions)
 			if err != nil {
 				logger.Error("nelm release install", log.Err(err))
 				return fmt.Errorf("nelm release install: %w", err)
@@ -296,7 +294,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		planInstallOptions.ExtraAnnotations = extraAnnotations
 	}
 
-	if err := c.actions.ReleasePlanInstall(c.logboekContext(), releaseName, namespace, planInstallOptions); err != nil {
+	if err := c.actions.ReleasePlanInstall(context.Background(), releaseName, namespace, planInstallOptions); err != nil {
 		logger.Error("upgrade nelm release", log.Err(err))
 		return fmt.Errorf("upgrade nelm release: %w", err)
 	}
@@ -326,7 +324,7 @@ func (c *NelmClient) Render(_, chartName string, valuesPaths, setValues []string
 	}
 
 	render := func() (*action.ChartRenderResultV1, error) {
-		return c.actions.ChartRender(c.logboekContext(), opts)
+		return c.actions.ChartRender(context.Background(), opts)
 	}
 
 	result, err := render()
@@ -392,7 +390,7 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 
 	logger.Debug("nelm release: execute nelm uninstall")
 
-	if err := c.actions.ReleaseUninstall(c.logboekContext(), releaseName, c.opts.Namespace, action.ReleaseUninstallOptions{
+	if err := c.actions.ReleaseUninstall(context.Background(), releaseName, c.opts.Namespace, action.ReleaseUninstallOptions{
 		KubeContext:          c.opts.KubeContext,
 		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -409,7 +407,7 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 
 // ListReleasesNames returns a sorted list of release names.
 func (c *NelmClient) ListReleasesNames() ([]string, error) {
-	releaseListResult, err := c.actions.ReleaseList(c.logboekContext(), action.ReleaseListOptions{
+	releaseListResult, err := c.actions.ReleaseList(context.Background(), action.ReleaseListOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
@@ -431,7 +429,7 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 
 // GetReleaseValues returns the values of the specified release as utils.Values.
 func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) {
-	releaseGetResult, err := c.actions.ReleaseGet(c.logboekContext(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
+	releaseGetResult, err := c.actions.ReleaseGet(context.Background(), releaseName, c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
