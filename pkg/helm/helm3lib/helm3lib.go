@@ -154,6 +154,7 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (string /*revision*/, 
 		if errors.Is(err, driver.ErrReleaseNotFound) || strings.HasPrefix(err.Error(), "no revision for release") {
 			return "0", "", fmt.Errorf("release '%s' not found\n", releaseName)
 		}
+
 		return "", "", err
 	}
 
@@ -358,8 +359,6 @@ func (h *LibClient) GetReleaseValues(releaseName string) (utils.Values, error) {
 	return gv.Run(releaseName)
 }
 
-var ErrLabelIsNotFound = errors.New("label is not found")
-
 func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
 	gv := action.NewGet(actionConfig)
 	rel, err := gv.Run(releaseName)
@@ -371,7 +370,7 @@ func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, err
 		return value, nil
 	}
 
-	return "", ErrLabelIsNotFound
+	return "", client.ErrLabelIsNotFound
 }
 
 // Deprecated: use GetReleaseLabels instead
