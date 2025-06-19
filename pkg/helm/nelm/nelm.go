@@ -229,8 +229,6 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	extraAnnotations := make(map[string]string)
 	if checksum, exists := labels["moduleChecksum"]; exists {
 		extraAnnotations["moduleChecksum"] = checksum
-		extraAnnotations["meta.helm.sh/release-name"] = releaseName
-		extraAnnotations["meta.helm.sh/release-namespace"] = namespace
 	}
 
 	// First check if release exists
