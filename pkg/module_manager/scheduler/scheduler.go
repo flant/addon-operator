@@ -170,7 +170,7 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 	defer s.l.Unlock()
 
 	weight := module.GetOrder()
-	if !module.GetSystem() {
+	if !module.GetCritical() {
 		weight = functionalWeight
 	}
 
@@ -210,7 +210,7 @@ func (s *Scheduler) Initialize() error {
 					continue
 				}
 
-				if module.GetSystem() != parent.GetModule().GetSystem() {
+				if module.GetCritical() != parent.GetModule().GetCritical() {
 					continue
 				}
 
@@ -233,7 +233,7 @@ func (s *Scheduler) Initialize() error {
 		}
 
 		weight := module.GetOrder()
-		if !module.GetSystem() {
+		if !module.GetCritical() {
 			weight = functionalWeight
 		}
 
