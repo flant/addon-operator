@@ -1460,7 +1460,7 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		}
 
 		// functional modules require bootstrapped cluster
-		if !mod.GetSystem() {
+		if !mod.GetCritical() {
 			bootstrappedExtender.AddFunctionalModule(mod.GetName())
 		}
 

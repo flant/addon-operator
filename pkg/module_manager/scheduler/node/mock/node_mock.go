@@ -28,7 +28,7 @@ func (m MockModule) GetOrder() uint32 {
 	return m.Order
 }
 
-func (m MockModule) GetSystem() bool {
+func (m MockModule) GetCritical() bool {
 	return m.System
 }
 

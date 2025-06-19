@@ -71,7 +71,7 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 		return nil, fmt.Errorf("new basic module: %w", err)
 	}
 
-	m.SetSystem(true)
+	m.SetCritical(true)
 
 	return m, nil
 }

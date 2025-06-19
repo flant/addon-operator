@@ -54,7 +54,7 @@ type BasicModule struct {
 	// required
 	Path string
 
-	system bool
+	critical bool
 
 	crdsExist     bool
 	crdFilesPaths []string
@@ -116,8 +116,8 @@ func (bm *BasicModule) WithLogger(logger *log.Logger) {
 	bm.logger = logger
 }
 
-func (bm *BasicModule) SetSystem(value bool) {
-	bm.system = value
+func (bm *BasicModule) SetCritical(value bool) {
+	bm.critical = value
 }
 
 // getCRDsFromPath scan path/crds directory and store yaml file in slice
@@ -180,8 +180,8 @@ func (bm *BasicModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleHo
 	return bm.hooks.getHooks(bt...)
 }
 
-func (bm *BasicModule) GetSystem() bool {
-	return bm.system
+func (bm *BasicModule) GetCritical() bool {
+	return bm.critical
 }
 
 // HasReadiness returns whether the module has a readiness probe configured.

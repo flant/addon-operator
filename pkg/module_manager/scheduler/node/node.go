@@ -10,7 +10,7 @@ type ModuleInterface interface {
 	GetName() string
 	GetOrder() uint32
 	GetPath() string
-	GetSystem() bool
+	GetCritical() bool
 }
 
 type NodeType string
