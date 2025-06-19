@@ -255,6 +255,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 		return err
 	}
 
+	logEntry.Debug("chart has resources", slog.String("manifest", renderedManifests))
 	logEntry.Debug("chart has resources", slog.Int("count", len(manifests)))
 
 	span.AddEvent("ModuleRun-HelmPhase-helm-check-upgrade")

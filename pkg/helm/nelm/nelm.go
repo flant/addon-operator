@@ -464,6 +464,7 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 	if errValues != nil {
 		return "", fmt.Errorf("get moduleChecksum: label and values not found: %w", err)
 	}
+
 	if recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]; hasKey {
 		if recordedChecksumStr, ok := recordedChecksum.(string); ok {
 			return recordedChecksumStr, nil
