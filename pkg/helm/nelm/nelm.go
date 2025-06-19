@@ -225,11 +225,11 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 
 	logger.Info("Running nelm upgrade for release")
 
-	// Prepare annotations with correct moduleChecksum from labels
-	extraAnnotations := make(map[string]string)
-	if checksum, exists := labels["moduleChecksum"]; exists {
-		extraAnnotations["moduleChecksum"] = checksum
-	}
+	// // Prepare annotations with correct moduleChecksum from labels
+	// extraAnnotations := make(map[string]string)
+	// if checksum, exists := labels["moduleChecksum"]; exists {
+	// 	extraAnnotations["moduleChecksum"] = checksum
+	// }
 
 	// First check if release exists
 	_, err := c.actions.ReleaseGet(context.Background(), releaseName, namespace, action.ReleaseGetOptions{
@@ -259,8 +259,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 				ForceAdoption:        true,
 			}
 
-			if len(extraAnnotations) > 0 {
-				installOptions.ExtraAnnotations = extraAnnotations
+			if len(labels) > 0 {
+				installOptions.ExtraAnnotations = labels
 			}
 
 			err := c.actions.ReleaseInstall(context.Background(), releaseName, namespace, installOptions)
@@ -288,8 +288,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		ForceAdoption:        true,
 	}
 
-	if len(extraAnnotations) > 0 {
-		planInstallOptions.ExtraAnnotations = extraAnnotations
+	if len(labels) > 0 {
+		planInstallOptions.ExtraAnnotations = labels
 	}
 
 	if err := c.actions.ReleasePlanInstall(context.Background(), releaseName, namespace, planInstallOptions); err != nil {
