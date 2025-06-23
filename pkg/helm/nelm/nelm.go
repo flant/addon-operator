@@ -374,6 +374,10 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 		if checksum, ok := releaseGetResult.Release.Annotations["moduleChecksum"]; ok {
 			return checksum, nil
 		}
+
+		if checksum, ok := releaseGetResult.Release.StorageLabels["moduleChecksum"]; ok {
+			return checksum, nil
+		}
 	}
 
 	if recordedChecksum, hasKey := releaseGetResult.Values["_addonOperatorModuleChecksum"]; hasKey {
