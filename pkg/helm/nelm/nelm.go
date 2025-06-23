@@ -166,7 +166,7 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 		return "", fmt.Errorf("release %s not found", releaseName)
 	}
 
-	if value, ok := result.Release.StorageLabels[labelName]; ok {
+	if value, ok := result.Release.Annotations[labelName]; ok {
 		return value, nil
 	}
 
@@ -227,8 +227,12 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 
 	// Prepare annotations with correct moduleChecksum from labels
 	extraAnnotations := make(map[string]string)
-	if checksum, exists := labels["moduleChecksum"]; exists {
-		extraAnnotations["moduleChecksum"] = checksum
+	if val, exists := labels["moduleChecksum"]; exists {
+		extraAnnotations["moduleChecksum"] = val
+	}
+
+	if val, exists := labels["maintenance.deckhouse.io/no-resource-reconciliation"]; exists {
+		extraAnnotations["maintenance.deckhouse.io/no-resource-reconciliation"] = val
 	}
 
 	// First check if release exists
@@ -260,7 +264,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 			}
 
 			if len(labels) > 0 {
-				installOptions.ExtraAnnotations = labels
+				installOptions.ExtraAnnotations = extraAnnotations
 			}
 
 			err := c.actions.ReleaseInstall(context.Background(), releaseName, namespace, installOptions)
@@ -289,7 +293,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	}
 
 	if len(labels) > 0 {
-		planInstallOptions.ExtraAnnotations = labels
+		planInstallOptions.ExtraAnnotations = extraAnnotations
 	}
 
 	if err := c.actions.ReleasePlanInstall(context.Background(), releaseName, namespace, planInstallOptions); err != nil {
