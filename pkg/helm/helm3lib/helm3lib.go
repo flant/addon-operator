@@ -363,7 +363,7 @@ func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, err
 	gv := action.NewGet(actionConfig)
 	rel, err := gv.Run(releaseName)
 	if err != nil {
-		return "", fmt.Errorf("helm get failed: %s", err)
+		return "", fmt.Errorf("helm get failed: %w", err)
 	}
 
 	if value, ok := rel.Labels[labelName]; ok {
