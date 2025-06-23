@@ -1,3 +1,4 @@
+// nolint: goprintffuncname
 package nelm
 
 import (
@@ -33,51 +34,51 @@ func (n *NelmLogger) TracePush(ctx context.Context, _, format string, a ...inter
 	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...))
 }
 
-func (n *NelmLogger) TracePop(ctx context.Context, group string) {
+func (n *NelmLogger) TracePop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) Debug(ctx context.Context, format string, a ...interface{}) {
 	n.logger.DebugContext(ctx, fmt.Sprintf(format, a...))
 }
 
-func (n *NelmLogger) DebugPush(ctx context.Context, group, format string, a ...interface{}) {
+func (n *NelmLogger) DebugPush(ctx context.Context, _, format string, a ...interface{}) {
 	n.logger.DebugContext(ctx, fmt.Sprintf(format, a...))
 }
 
-func (n *NelmLogger) DebugPop(ctx context.Context, group string) {
+func (n *NelmLogger) DebugPop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) Info(ctx context.Context, format string, a ...interface{}) {
 	n.logger.InfoContext(ctx, fmt.Sprintf(format, a...))
 }
 
-func (n *NelmLogger) InfoPush(ctx context.Context, group, format string, a ...interface{}) {
+func (n *NelmLogger) InfoPush(ctx context.Context, _, format string, a ...interface{}) {
 	n.logger.InfoContext(ctx, fmt.Sprintf(format, a...))
 }
 
-func (n *NelmLogger) InfoPop(ctx context.Context, group string) {
+func (n *NelmLogger) InfoPop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) Warn(ctx context.Context, format string, a ...interface{}) {
 	n.logger.WarnContext(ctx, fmt.Sprintf(format, a...))
 }
 
-func (n *NelmLogger) WarnPush(ctx context.Context, group, format string, a ...interface{}) {
+func (n *NelmLogger) WarnPush(ctx context.Context, _, format string, a ...interface{}) {
 	n.logger.WarnContext(ctx, fmt.Sprintf(format, a...))
 }
 
-func (n *NelmLogger) WarnPop(ctx context.Context, group string) {
+func (n *NelmLogger) WarnPop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) Error(ctx context.Context, format string, a ...interface{}) {
 	n.logger.ErrorContext(ctx, fmt.Sprintf(format, a...))
 }
 
-func (n *NelmLogger) ErrorPush(ctx context.Context, group, format string, a ...interface{}) {
+func (n *NelmLogger) ErrorPush(ctx context.Context, _, format string, a ...interface{}) {
 	n.logger.ErrorContext(ctx, fmt.Sprintf(format, a...))
 }
 
-func (n *NelmLogger) ErrorPop(ctx context.Context, group string) {
+func (n *NelmLogger) ErrorPop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) InfoBlock(ctx context.Context, opts nelmlog.BlockOptions, fn func()) {
@@ -92,7 +93,7 @@ func (n *NelmLogger) InfoBlockErr(ctx context.Context, opts nelmlog.BlockOptions
 	return fmt.Errorf("inner func err: %w", fn())
 }
 
-func (n *NelmLogger) SetLevel(ctx context.Context, lvl nelmlog.Level) {
+func (n *NelmLogger) SetLevel(_ context.Context, lvl nelmlog.Level) {
 	newLvl := log.LevelInfo
 
 	switch lvl {
@@ -111,7 +112,7 @@ func (n *NelmLogger) SetLevel(ctx context.Context, lvl nelmlog.Level) {
 	n.logger.SetLevel(newLvl)
 }
 
-func (n *NelmLogger) Level(ctx context.Context) nelmlog.Level {
+func (n *NelmLogger) Level(_ context.Context) nelmlog.Level {
 	switch n.logger.GetLevel() {
 	case log.LevelTrace:
 		return nelmlog.TraceLevel
@@ -130,7 +131,7 @@ func (n *NelmLogger) Level(ctx context.Context) nelmlog.Level {
 	}
 }
 
-func (n *NelmLogger) AcceptLevel(ctx context.Context, lvl nelmlog.Level) bool {
+func (n *NelmLogger) AcceptLevel(_ context.Context, _ nelmlog.Level) bool {
 	return true
 }
 

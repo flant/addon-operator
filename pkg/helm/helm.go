@@ -73,7 +73,6 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 			Timeout:           helmopts.Timeout,
 			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
 		}, helmopts.Logger)
-
 		if err != nil {
 			return nil, err
 		}
