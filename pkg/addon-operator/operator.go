@@ -133,7 +133,7 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	// Have to initialize common operator to have all common dependencies below
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, map[string]string{
 		"module":             "",
-		"hook":               "",
+		pkg.MetricKeyHook:    "",
 		pkg.MetricKeyBinding: "",
 		"queue":              "",
 		"kind":               "",
@@ -454,7 +454,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	onStartupHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.OnStartup)
 	for _, hookName := range onStartupHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			"hook":            hookName,
+			pkg.LogKeyHook:    hookName,
 			"hook.type":       "global",
 			"queue":           "main",
 			pkg.LogKeyBinding: string(htypes.OnStartup),
@@ -480,7 +480,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	schedHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.Schedule)
 	for _, hookName := range schedHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			"hook":            hookName,
+			pkg.LogKeyHook:    hookName,
 			"hook.type":       "global",
 			"queue":           "main",
 			pkg.LogKeyBinding: string(task.GlobalHookEnableScheduleBindings),
@@ -500,7 +500,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	kubeHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.OnKubernetesEvent)
 	for _, hookName := range kubeHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			"hook":            hookName,
+			pkg.LogKeyHook:    hookName,
 			"hook.type":       "global",
 			"queue":           "main",
 			pkg.LogKeyBinding: string(task.GlobalHookEnableKubernetesBindings),
@@ -583,7 +583,7 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 
 				log.Debug("Queue started for global 'schedule' hook",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hookName))
+					slog.String(pkg.LogKeyHook, hookName))
 			}
 		}
 		for _, hookBinding := range h.GetHookConfig().OnKubernetesEvents {
@@ -592,7 +592,7 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 
 				log.Debug("Queue started for global 'kubernetes' hook",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hookName))
+					slog.String(pkg.LogKeyHook, hookName))
 			}
 		}
 	}
@@ -615,7 +615,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hook.GetName()))
+					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
 	}
@@ -628,7 +628,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hook.GetName()))
+					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
 	}

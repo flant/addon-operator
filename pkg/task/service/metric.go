@@ -13,7 +13,7 @@ import (
 func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 	metricLabels := map[string]string{
 		"module":             "",
-		"hook":               "",
+		pkg.MetricKeyHook:    "",
 		pkg.MetricKeyBinding: string(t.GetType()),
 		"queue":              t.GetQueueName(),
 	}
@@ -25,7 +25,7 @@ func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 		task.GlobalHookEnableScheduleBindings,
 		task.GlobalHookEnableKubernetesBindings,
 		task.GlobalHookWaitKubernetesSynchronization:
-		metricLabels["hook"] = hm.HookName
+		metricLabels[pkg.MetricKeyHook] = hm.HookName
 
 	case task.ModuleRun,
 		task.ModuleDelete,
@@ -44,7 +44,7 @@ func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 	}
 	if t.GetType() == task.ModuleHookRun {
 		// set binding name instead of type
-		metricLabels["hook"] = hm.HookName
+		metricLabels[pkg.MetricKeyHook] = hm.HookName
 		metricLabels[pkg.MetricKeyBinding] = hm.Binding
 	}
 

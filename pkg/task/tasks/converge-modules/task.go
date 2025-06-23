@@ -227,7 +227,7 @@ func (s *Task) CreateBeforeAllTasks(logLabels map[string]string, eventDescriptio
 
 	for _, hookName := range beforeAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			"hook":            hookName,
+			pkg.LogKeyHook:    hookName,
 			"hook.type":       "global",
 			"queue":           "main",
 			pkg.LogKeyBinding: string(hookTypes.BeforeAll),
@@ -270,7 +270,7 @@ func (s *Task) CreateAfterAllTasks(logLabels map[string]string, eventDescription
 
 	for i, hookName := range afterAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			"hook":            hookName,
+			pkg.LogKeyHook:    hookName,
 			"hook.type":       "global",
 			"queue":           "main",
 			pkg.LogKeyBinding: string(hookTypes.AfterAll),
