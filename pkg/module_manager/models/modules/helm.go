@@ -14,6 +14,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
+	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
@@ -204,7 +205,7 @@ func (hm *HelmModule) RunHelmInstall(logLabels map[string]string, state Maintena
 
 	if state == Unmanaged {
 		releaseValues, err := helmClient.GetReleaseValues(helmReleaseName)
-		if err != nil {
+		if err != nil && !errors.Is(err, driver.ErrReleaseNotFound) {
 			return fmt.Errorf("get release label failed: %w", err)
 		}
 
