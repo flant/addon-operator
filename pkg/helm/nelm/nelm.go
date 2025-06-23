@@ -235,56 +235,27 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		extraAnnotations["maintenance.deckhouse.io/no-resource-reconciliation"] = val
 	}
 
-	// First check if release exists
-	_, err := c.actions.ReleaseGet(context.Background(), releaseName, namespace, action.ReleaseGetOptions{
-		KubeContext:          c.opts.KubeContext,
-		OutputNoPrint:        true,
-		ReleaseStorageDriver: c.opts.HelmDriver,
-	})
-	if err != nil {
-		logger.Warn("nelm release get has an error", log.Err(err))
+	// // First check if release exists
+	// _, err := c.actions.ReleaseGet(context.Background(), releaseName, namespace, action.ReleaseGetOptions{
+	// 	KubeContext:          c.opts.KubeContext,
+	// 	OutputNoPrint:        true,
+	// 	ReleaseStorageDriver: c.opts.HelmDriver,
+	// })
+	// if err != nil {
+	// 	logger.Warn("nelm release get has an error", log.Err(err))
 
-		var releaseNotFoundErr *action.ReleaseNotFoundError
-		if errors.As(err, &releaseNotFoundErr) {
-			logger.Warn("nelm release get has not found error", log.Err(err))
+	// 	var releaseNotFoundErr *action.ReleaseNotFoundError
+	// 	if errors.As(err, &releaseNotFoundErr) {
+	// logger.Warn("nelm release get has not found error", log.Err(err))
 
-			// If release doesn't exist, do install
-			installOptions := action.ReleaseInstallOptions{
-				Chart:                chartName,
-				ExtraLabels:          c.labels,
-				KubeContext:          c.opts.KubeContext,
-				NoInstallCRDs:        true,
-				ReleaseHistoryLimit:  int(c.opts.HistoryMax),
-				ReleaseLabels:        labels,
-				ReleaseStorageDriver: c.opts.HelmDriver,
-				Timeout:              c.opts.Timeout,
-				ValuesFilesPaths:     valuesPaths,
-				ValuesSets:           setValues,
-				ForceAdoption:        true,
-			}
-
-			if len(labels) > 0 {
-				installOptions.ExtraAnnotations = extraAnnotations
-			}
-
-			err := c.actions.ReleaseInstall(context.Background(), releaseName, namespace, installOptions)
-			if err != nil {
-				logger.Error("nelm release install", log.Err(err))
-				return fmt.Errorf("nelm release install: %w", err)
-			}
-
-			return nil
-		}
-
-		logger.Error("get nelm release", log.Err(err))
-		return fmt.Errorf("get nelm release %q: %w", releaseName, err)
-	}
-
-	// If release exists, do upgrade
-	planInstallOptions := action.ReleasePlanInstallOptions{
+	// If release doesn't exist, do install
+	installOptions := action.ReleaseInstallOptions{
 		Chart:                chartName,
-		ExtraLabels:          labels,
+		ExtraLabels:          c.labels,
 		KubeContext:          c.opts.KubeContext,
+		NoInstallCRDs:        true,
+		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
+		ReleaseLabels:        labels,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 		Timeout:              c.opts.Timeout,
 		ValuesFilesPaths:     valuesPaths,
@@ -293,13 +264,42 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	}
 
 	if len(labels) > 0 {
-		planInstallOptions.ExtraAnnotations = extraAnnotations
+		installOptions.ExtraAnnotations = extraAnnotations
 	}
 
-	if err := c.actions.ReleasePlanInstall(context.Background(), releaseName, namespace, planInstallOptions); err != nil {
-		logger.Error("upgrade nelm release", log.Err(err))
-		return fmt.Errorf("upgrade nelm release: %w", err)
+	err := c.actions.ReleaseInstall(context.Background(), releaseName, namespace, installOptions)
+	if err != nil {
+		logger.Error("nelm release install", log.Err(err))
+		return fmt.Errorf("nelm release install: %w", err)
 	}
+
+	// return nil
+	// 	}
+
+	// 	logger.Error("get nelm release", log.Err(err))
+	// 	return fmt.Errorf("get nelm release %q: %w", releaseName, err)
+	// }
+
+	// // If release exists, do upgrade
+	// planInstallOptions := action.ReleasePlanInstallOptions{
+	// 	Chart:                chartName,
+	// 	ExtraLabels:          labels,
+	// 	KubeContext:          c.opts.KubeContext,
+	// 	ReleaseStorageDriver: c.opts.HelmDriver,
+	// 	Timeout:              c.opts.Timeout,
+	// 	ValuesFilesPaths:     valuesPaths,
+	// 	ValuesSets:           setValues,
+	// 	ForceAdoption:        true,
+	// }
+
+	// if len(labels) > 0 {
+	// 	planInstallOptions.ExtraAnnotations = extraAnnotations
+	// }
+
+	// if err := c.actions.ReleasePlanInstall(context.Background(), releaseName, namespace, planInstallOptions); err != nil {
+	// 	logger.Error("upgrade nelm release", log.Err(err))
+	// 	return fmt.Errorf("upgrade nelm release: %w", err)
+	// }
 
 	logger.Info("nelm upgrade successful")
 
