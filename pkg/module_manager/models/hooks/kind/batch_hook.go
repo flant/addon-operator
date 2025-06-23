@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
@@ -189,11 +190,14 @@ func (h *BatchHook) getConfig() ([]sdkhook.HookConfig, error) {
 func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, error) {
 	args := []string{"hook", "config"}
 
+	envs := make([]string, 0)
+	envs = append(envs, os.Environ()...)
+
 	cmd := executor.NewExecutor(
 		"",
 		hookPath,
 		args,
-		[]string{}).
+		envs).
 		WithChroot(utils.GetModuleChrootPath(moduleName))
 
 	o, err := cmd.Output()
@@ -201,14 +205,28 @@ func GetBatchHookConfig(moduleName, hookPath string) ([]sdkhook.HookConfig, erro
 		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
-	cfgs := make([]sdkhook.HookConfig, 0)
+	// Deprecated: old batch hook config format
+	if strings.HasPrefix(strings.TrimSpace(string(o)), "[") {
+		hooks := make([]sdkhook.HookConfig, 0)
+
+		buf := bytes.NewReader(o)
+		err = json.NewDecoder(buf).Decode(&hooks)
+		if err != nil {
+			return nil, fmt.Errorf("decode: %w", err)
+		}
+
+		return hooks, nil
+	}
+
+	cfgs := &sdkhook.BatchHookConfig{}
+
 	buf := bytes.NewReader(o)
 	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
 	}
 
-	return cfgs, nil
+	return cfgs.Hooks, nil
 }
 
 // GetConfig returns config via executing the hook with `--config` param
