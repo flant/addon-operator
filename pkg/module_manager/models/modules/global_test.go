@@ -51,9 +51,7 @@ exit 0
 
 	found := false
 	for _, h := range gm.GetHooks() {
-		tst := h.GetName()
-		print(tst)
-		if h.GetName() == "testGlobalOutside/customHooks/custom_hook.sh" {
+		if h.GetName() == "customHooks/custom_hook.sh" {
 			found = true
 		}
 	}
