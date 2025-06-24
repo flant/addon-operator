@@ -153,13 +153,10 @@ func normalizeHookPath(modulePath, hookPath string) (string, error) {
 	hooksIdx := strings.Index(hookPath, "/hooks/")
 	if hooksIdx == -1 {
 		relPath, err := filepath.Rel(filepath.Dir(modulePath), hookPath)
-		if err != nil {
-			return "", err
-		}
-		return relPath, nil
+		return relPath, err
 	}
-	relPath := hookPath[hooksIdx+len("/hooks/"):]
-	return filepath.Join("hooks", relPath), nil
+	relPath := hookPath[hooksIdx+1:]
+	return relPath, nil
 }
 
 // WithDependencies inject module dependencies
