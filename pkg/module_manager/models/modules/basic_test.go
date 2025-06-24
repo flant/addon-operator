@@ -3,6 +3,8 @@ package modules
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
@@ -42,6 +44,26 @@ foo:
   xxx: yyy
 `,
 		res.Values.AsString("yaml"))
+}
+
+func getHookName(hookPath string) string {
+	hooksIdx := strings.Index(hookPath, "/hooks/")
+	if hooksIdx == -1 {
+		return filepath.Base(hookPath)
+	}
+	relPath := hookPath[hooksIdx+len("/hooks/"):]
+	return filepath.Join("hooks", relPath)
+}
+func TestHookNameFormat(t *testing.T) {
+	//module := &BasicModule{Path: "/deckhouse/modules/echo"}
+	hookPath := "/deckhouse/modules/echo/v1.2.3/dddd/test.sh"
+	expected := "hooks/test.sh"
+
+	actual := getHookName(hookPath)
+	if actual != expected {
+		t.Errorf("Expected %q, got %q", expected, actual)
+	}
+
 }
 
 func TestIsFileBatchHook(t *testing.T) {
