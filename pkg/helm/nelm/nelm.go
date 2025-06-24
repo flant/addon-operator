@@ -313,6 +313,7 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		slog.String("namespace", namespace))
 
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
+		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
 		Chart:                chartName,
 		ExtraLabels:          c.labels,
 		KubeContext:          c.opts.KubeContext,
