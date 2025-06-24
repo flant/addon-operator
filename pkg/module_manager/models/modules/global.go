@@ -552,7 +552,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 		slog.Any("paths", hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
-		hookName, err := filepath.Rel(hooksDir, hookPath)
+		hookName, err := normalizeHookPath(hooksDir, hookPath)
 		if err != nil {
 			return nil, err
 		}
@@ -604,7 +604,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 		slog.Any("path", hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
-		hookName, err := filepath.Rel(hooksDir, hookPath)
+		hookName, err := normalizeHookPath(hooksDir, hookPath)
 		if err != nil {
 			return nil, err
 		}

@@ -174,6 +174,48 @@ exit 0
 	require.True(t, found, "hook 'hooks/test.sh' should be registered")
 }
 
+func TestHooksOutsideHooksDirAreNotRegistered(t *testing.T) {
+	modulePath := "/tmp/modules/example/v1.2.3"
+	hookPath := filepath.Join(modulePath, "customHooks", "invalid_hook.sh")
+
+	err := os.MkdirAll(filepath.Dir(hookPath), 0o755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(hookPath, []byte(`#!/bin/sh
+if [ "$1" = "--config" ]; then
+  echo '{"configVersion":"v1","onStartup":10}'
+  exit 0
+fi
+exit 0
+`), 0o755)
+	require.NoError(t, err)
+	defer os.RemoveAll("/tmp/modules")
+
+	bm, err := NewBasicModule("example", modulePath, 1, utils.Values{}, nil, nil)
+	require.NoError(t, err)
+
+	logger := log.NewLogger(log.Options{})
+	storage := metric_storage.NewMetricStorage(context.TODO(), "addon_operator_", false, logger)
+
+	bm.WithLogger(logger)
+	bm.WithDependencies(&hooks.HookExecutionDependencyContainer{
+		HookMetricsStorage: storage,
+		MetricStorage:      storage,
+		KubeObjectPatcher:  objectpatch.NewObjectPatcher(nil, logger),
+		KubeConfigManager:  &noopConfigManager{},
+		GlobalValuesGetter: &noopValuesGetter{},
+	})
+
+	_, err = bm.RegisterHooks(logger)
+	require.NoError(t, err)
+
+	hooks := bm.GetHooks()
+	for _, h := range hooks {
+		t.Logf("Registered: %s", h.GetName())
+	}
+	require.Empty(t, hooks, "Hooks outside 'hooks/' dir should not be registered")
+}
+
 func TestIsFileBatchHook(t *testing.T) {
 	hookPath := "./testdata/batchhook"
 
