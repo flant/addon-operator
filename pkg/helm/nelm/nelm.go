@@ -67,7 +67,7 @@ func (d *DefaultNelmActions) ChartRender(ctx context.Context, opts action.ChartR
 }
 
 func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]string) *NelmClient {
-	nelmLog.Default = nelmLog.DefaultNull
+	nelmLog.Default = NewNelmLogger(logger)
 
 	if opts == nil {
 		opts = &CommonOptions{}
