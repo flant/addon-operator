@@ -59,7 +59,8 @@ type BasicModule struct {
 
 	valuesStorage *ValuesStorage
 
-	hooks *HooksStorage
+	hooks        *HooksStorage
+	hasReadiness bool
 
 	// dependency
 	dc *hooks.HookExecutionDependencyContainer
@@ -171,6 +172,11 @@ func (bm *BasicModule) GetPath() string {
 // GetHooks returns module hooks, they could be filtered by BindingType optionally
 func (bm *BasicModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleHook {
 	return bm.hooks.getHooks(bt...)
+}
+
+// HasReadiness returns whether the module has a readiness probe configured.
+func (bm *BasicModule) HasReadiness() bool {
+	return bm.hasReadiness
 }
 
 // DeregisterHooks clean up all module hooks
@@ -369,9 +375,22 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
 
-		for idx, cfg := range sdkcfgs {
-			nestedHookName := fmt.Sprintf("%s:%s:%d", hookName, cfg.Metadata.Name, idx)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), uint(idx), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
+		if sdkcfgs.Readiness != nil {
+			if bm.hasReadiness {
+				return nil, fmt.Errorf("multiple readiness hooks found in %s", hookPath)
+			}
+
+			bm.hasReadiness = true
+
+			// add readiness hook
+			nestedHookName := fmt.Sprintf("%s-readiness", hookName)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), kind.BatchHookReadyKey, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
+			hks = append(hks, shHook)
+		}
+
+		for key, cfg := range sdkcfgs.Hooks {
+			nestedHookName := fmt.Sprintf("%s:%s:%s", hookName, cfg.Metadata.Name, key)
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), key, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
 
 			hks = append(hks, shHook)
 		}
@@ -476,7 +495,7 @@ func (bm *BasicModule) searchModuleGoHooks() []*kind.GoHook {
 
 func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger) error {
 	for _, moduleHook := range hks {
-		hookLogEntry := logger.With("hook", moduleHook.GetName()).
+		hookLogEntry := logger.With(pkg.LogKeyHook, moduleHook.GetName()).
 			With("hook.type", "module")
 
 		// TODO: we could make multierr here and return all config errors at once
@@ -490,14 +509,15 @@ func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger
 		// Add hook info as log labels
 		for _, kubeCfg := range moduleHook.GetHookConfig().OnKubernetesEvents {
 			kubeCfg.Monitor.Metadata.LogLabels["module"] = bm.GetName()
-			kubeCfg.Monitor.Metadata.LogLabels["hook"] = moduleHook.GetName()
+			kubeCfg.Monitor.Metadata.LogLabels[pkg.LogKeyHook] = moduleHook.GetName()
 			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "module"
+
 			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
-				"hook":               moduleHook.GetName(),
+				pkg.MetricKeyHook:    moduleHook.GetName(),
 				pkg.MetricKeyBinding: kubeCfg.BindingName,
-				"module":             bm.GetName(),
-				"queue":              kubeCfg.Queue,
-				"kind":               kubeCfg.Monitor.Kind,
+				pkg.MetricKeyModule:  bm.GetName(),
+				pkg.MetricKeyQueue:   kubeCfg.Queue,
+				pkg.MetricKeyKind:    kubeCfg.Monitor.Kind,
 			}
 		}
 
@@ -605,7 +625,7 @@ func (bm *BasicModule) RunHooksByBinding(ctx context.Context, binding sh_op_type
 
 		metricLabels := map[string]string{
 			"module":                bm.GetName(),
-			"hook":                  moduleHook.GetName(),
+			pkg.MetricKeyHook:       moduleHook.GetName(),
 			pkg.MetricKeyBinding:    string(binding),
 			"queue":                 "main", // AfterHelm,BeforeHelm hooks always handle in main queue
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
@@ -640,7 +660,7 @@ func (bm *BasicModule) RunHookByName(ctx context.Context, hookName string, bindi
 
 	metricLabels := map[string]string{
 		"module":                bm.GetName(),
-		"hook":                  hookName,
+		pkg.MetricKeyHook:       hookName,
 		pkg.MetricKeyBinding:    string(binding),
 		"queue":                 logLabels["queue"],
 		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
@@ -752,7 +772,7 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 		// usage metrics
 		metricLabels := map[string]string{
 			"module":                bm.GetName(),
-			"hook":                  "enabled",
+			pkg.MetricKeyHook:       "enabled",
 			pkg.MetricKeyBinding:    "enabled",
 			"queue":                 logLabels["queue"],
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
@@ -898,9 +918,11 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 	)
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		"hook":            h.GetName(),
+		pkg.LogKeyHook:    h.GetName(),
 		"hook.type":       "module",
+		pkg.LogKeyModule:  bm.GetName(),
 		pkg.LogKeyBinding: string(bindingType),
+		"path":            h.GetPath(),
 	})
 
 	logEntry := utils.EnrichLoggerWithLabels(bm.logger, logLabels)
@@ -961,8 +983,8 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 
 	// Apply metric operations
 	err = bm.dc.HookMetricsStorage.SendBatch(hookResult.Metrics, map[string]string{
-		"hook":   h.GetName(),
-		"module": bm.GetName(),
+		pkg.MetricKeyHook: h.GetName(),
+		"module":          bm.GetName(),
 	})
 	if err != nil {
 		return err
@@ -1007,7 +1029,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 			bm.valuesStorage.SaveConfigValues(newValues)
 
 			logEntry.Debug("Module hook: kube module config values updated",
-				slog.String("hook", h.GetName()),
+				slog.String(pkg.LogKeyHook, h.GetName()),
 				slog.String("module", bm.GetName()),
 				slog.String("values", bm.valuesStorage.GetConfigValues(false).DebugString()))
 		}
@@ -1041,7 +1063,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 			}
 
 			logEntry.Debug("Module hook: dynamic module values updated",
-				slog.String("hook", h.GetName()),
+				slog.String(pkg.LogKeyHook, h.GetName()),
 				slog.String("module", bm.GetName()),
 				slog.String("values", bm.valuesStorage.GetValues(false).DebugString()))
 		}
@@ -1049,7 +1071,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 
 	logEntry.Debug("Module hook success",
 		slog.String("module", bm.GetName()),
-		slog.String("hook", h.GetName()))
+		slog.String(pkg.LogKeyHook, h.GetName()))
 
 	return nil
 }
@@ -1288,6 +1310,11 @@ const (
 	CanRunHelm ModuleRunPhase = "CanRunHelm"
 	// HooksDisabled - module has its hooks disabled (before update or deletion).
 	HooksDisabled ModuleRunPhase = "HooksDisabled"
+
+	// WaitForReadiness - module is waiting for readiness hooks to complete.
+	// This phase is used to ensure that the module is fully operational before proceeding with further actions.
+	// It is typically used after the Helm chart has been applied and before the module is considered fully ready.
+	WaitForReadiness ModuleRunPhase = "WaitForReadiness"
 
 	// Ready - all phases are complete.
 	// This is the final phase, which indicates that the ModuleRun task completed without errors.

@@ -19,4 +19,5 @@ const (
 	MetricKeyHook       = "hook"
 	MetricKeyModule     = "module"
 	MetricKeyQueue      = "queue"
+	MetricKeyKind       = "kind"
 )

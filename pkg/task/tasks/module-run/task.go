@@ -167,6 +167,16 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
 			s.logTaskAdd("after", res.AfterTasks...)
 		} else {
+			s.logger.Debug("Readiness check",
+				slog.String("module", hm.ModuleName),
+				slog.String("phase", string(baseModule.GetPhase())),
+				slog.Bool("hasReadiness", true))
+
+			// If module has readiness, it runs automatically by schedule
+			if baseModule.HasReadiness() {
+				return
+			}
+
 			s.logger.Info("ModuleRun success, module is ready")
 			// if values not changed we do not need to make another task
 			// so we think that module made all the things what it can
@@ -244,11 +254,11 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			}
 
 			taskLogLabels := utils.MergeLabels(s.shellTask.GetLogLabels(), map[string]string{
-				"binding":   string(htypes.OnKubernetesEvent) + "Synchronization",
-				"module":    hm.ModuleName,
-				"hook":      hook.GetName(),
-				"hook.type": "module",
-				"queue":     queueName,
+				"binding":      string(htypes.OnKubernetesEvent) + "Synchronization",
+				"module":       hm.ModuleName,
+				pkg.LogKeyHook: hook.GetName(),
+				"hook.type":    "module",
+				"queue":        queueName,
 			})
 
 			if len(info.BindingContext) > 0 {
@@ -428,7 +438,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hook.GetName()))
+					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
 	}
@@ -441,7 +451,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),
-					slog.String("hook", hook.GetName()))
+					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
 	}

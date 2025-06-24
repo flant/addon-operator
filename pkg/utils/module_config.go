@@ -126,7 +126,7 @@ func (mc *ModuleConfig) GetValues() Values {
 func (mc *ModuleConfig) Reset() {
 	mc.values = Values{}
 	mc.IsEnabled = nil
-	mc.Maintenance = NoResourceReconciliation
+	mc.Maintenance = Managed
 }
 
 // LoadFromValues loads module config from a map.
