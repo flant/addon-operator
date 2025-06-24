@@ -149,14 +149,10 @@ func matchPrefix(path string, crdsFilters string) bool {
 	return false
 }
 
-func convertHookName(modulePath, hookPath string) (string, error) {
+func normalizeHookPath(modulePath, hookPath string) (string, error) {
 	hooksIdx := strings.Index(hookPath, "/hooks/")
 	if hooksIdx == -1 {
-		relPath, err := filepath.Rel(filepath.Dir(modulePath), hookPath)
-		if err != nil {
-			return "", err
-		}
-		return relPath, nil
+		return "", fmt.Errorf("hook path %q does not contain '/hooks/' segment", hookPath)
 	}
 	relPath := hookPath[hooksIdx+len("/hooks/"):]
 	return filepath.Join("hooks", relPath), nil
@@ -337,7 +333,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 			})
 			options = append(options, kind.WithPythonVenv(discoveredPythonVenvPath))
 		}
-		hookName, err := convertHookName(bm.Path, hookPath)
+		hookName, err := normalizeHookPath(bm.Path, hookPath)
 		if err != nil {
 			return nil, fmt.Errorf("could not get hook name: %w", err)
 		}
@@ -377,7 +373,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 	bm.logger.Debug("sorted paths", slog.Any("paths", hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
-		hookName, err := convertHookName(bm.Path, hookPath)
+		hookName, err := normalizeHookPath(bm.Path, hookPath)
 		if err != nil {
 			return nil, fmt.Errorf("could not get hook name: %w", err)
 		}

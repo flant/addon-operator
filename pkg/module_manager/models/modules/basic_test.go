@@ -54,7 +54,7 @@ foo:
 }
 
 func TestConvertHookName(t *testing.T) {
-	name, err := convertHookName("/modules/console/v1.35.3", "/modules/console/v1.35.3/hooks/https/copy_cert.py")
+	name, err := normalizeHookPath("/modules/console/v1.35.3", "/modules/console/v1.35.3/hooks/https/copy_cert.py")
 	require.NoError(t, err)
 	require.Equal(t, "hooks/https/copy_cert.py", name)
 }
