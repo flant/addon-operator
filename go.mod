@@ -26,7 +26,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.18.0
-	github.com/werf/nelm v1.4.2-0.20250527153113-7fe26b436d2d
+	github.com/werf/nelm v1.6.1-0.20250618103836-1489430f28a8
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v3 v3.0.1
@@ -192,7 +192,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wI2L/jsondiff v0.5.0 // indirect
-	github.com/werf/3p-helm v0.0.0-20250523104754-b2fc45bbcb87 // indirect
+	github.com/werf/3p-helm v0.0.0-20250609150428-130783e0dc18 // indirect
 	github.com/werf/common-go v0.0.0-20250520111308-b0eda28dde0d // indirect
 	github.com/werf/kubedog v0.13.1-0.20250411133038-3d8084fab0ec // indirect
 	github.com/werf/lockgate v0.1.1 // indirect

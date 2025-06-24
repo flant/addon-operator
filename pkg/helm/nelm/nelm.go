@@ -172,6 +172,7 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, values
 		Timeout:              c.opts.Timeout,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
+		ForceAdoption:        true,
 	}); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
@@ -211,6 +212,8 @@ func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) 
 }
 
 func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
+	logger := c.logger.With(slog.String("release_name", releaseName))
+
 	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
 		OutputNoPrint:        true,
@@ -221,16 +224,25 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 	}
 
 	if releaseGetResult.Release != nil {
+		if checksum, ok := releaseGetResult.Release.StorageLabels["moduleChecksum"]; ok {
+			logger.Debug("using storage labels")
+			return checksum, nil
+		}
+
 		if checksum, ok := releaseGetResult.Release.Annotations["moduleChecksum"]; ok {
+			logger.Debug("using annotations")
 			return checksum, nil
 		}
 	}
 
 	if recordedChecksum, hasKey := releaseGetResult.Values["_addonOperatorModuleChecksum"]; hasKey {
 		if recordedChecksumStr, ok := recordedChecksum.(string); ok {
+			logger.Debug("using values")
 			return recordedChecksumStr, nil
 		}
 	}
+
+	logger.Warn("moduleChecksum label not found in nelm release")
 
 	return "", fmt.Errorf("moduleChecksum label not found in nelm release %q", releaseName)
 }
@@ -307,6 +319,7 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		Remote:               true,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
+		ForceAdoption:        true,
 	})
 	if err != nil {
 		if !debug {
