@@ -73,8 +73,11 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 		opts = &CommonOptions{}
 	}
 
-	opts = applyCommonOptionsDefaults(opts,
-		buildConfigFlagsFromEnv(opts.Namespace, cli.New()))
+	// TODO: maybe it did not work because of this???
+	// opts = applyCommonOptionsDefaults(opts,
+	// 	buildConfigFlagsFromEnv(opts.Namespace, cli.New()))
+
+	opts.ConfigFlags = *buildConfigFlagsFromEnv(opts.Namespace, cli.New())
 
 	if opts.HistoryMax == 0 {
 		opts.HistoryMax = 10
