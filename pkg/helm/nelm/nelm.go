@@ -128,7 +128,7 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 }
 
 func (c *NelmClient) WithLogLabels(logLabels map[string]string) {
-	c.logger = c.logger.With(logLabels)
+	c.logger = utils.EnrichLoggerWithLabels(c.logger, logLabels)
 }
 
 func (c *NelmClient) WithExtraLabels(labels map[string]string) {
