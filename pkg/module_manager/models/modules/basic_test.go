@@ -10,14 +10,13 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
-	"github.com/flant/shell-operator/pkg/hook/controller"
-	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/utils"
-
+	"github.com/flant/shell-operator/pkg/hook/controller"
+	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	metric_storage "github.com/flant/shell-operator/pkg/metric_storage"
 )
@@ -101,6 +100,7 @@ foo:
 	require.Len(t, hooks, 1)
 	require.Equal(t, "hooks/https/test_hook.py", hooks[0].GetName())
 }
+
 func TestHookErrorsSummary(t *testing.T) {
 	bm := &BasicModule{
 		Name:  "test",
