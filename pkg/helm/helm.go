@@ -86,7 +86,7 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 			if helmopts.Namespace != "" {
 				opts.Namespace = &helmopts.Namespace
 			}
-			return nelm.NewNelmClient(opts, logger, labels)
+			return nelm.NewNelmClient(opts, logger.Named("nelm"), labels)
 		}
 	}
 
