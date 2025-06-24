@@ -152,8 +152,7 @@ func matchPrefix(path string, crdsFilters string) bool {
 func normalizeHookPath(modulePath, hookPath string) (string, error) {
 	hooksIdx := strings.Index(hookPath, "/hooks/")
 	if hooksIdx == -1 {
-		relPath, err := filepath.Rel(filepath.Dir(modulePath), hookPath)
-		return relPath, err
+		return filepath.Rel(filepath.Dir(modulePath), hookPath)
 	}
 	relPath := hookPath[hooksIdx+1:]
 	return relPath, nil
