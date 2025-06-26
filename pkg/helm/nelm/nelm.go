@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -163,6 +164,16 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, values
 		slog.String("release", releaseName),
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
+
+	go func() {
+		for {
+			buf := make([]byte, 1<<16)
+			runtime.Stack(buf, true)
+			log.Warn("for-nelm-traces", slog.String("trace", string(buf)))
+
+			time.Sleep(time.Second * time.Duration(10))
+		}
+	}()
 
 	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
 		Chart:                chartName,
