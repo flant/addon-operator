@@ -180,8 +180,18 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 	s.logTaskEnd(t, res, logger)
 
 	hm := task.HookMetadataAccessor(t)
+
+	if !hm.Critical {
+		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.AfterTasks) == 0 {
+			s.functionalScheduler.Done(hm.ModuleName)
+		}
+
+		return res
+	}
+
 	if hm.ParallelRunMetadata == nil || len(hm.ParallelRunMetadata.ChannelId) == 0 {
 		s.logger.Warn("Parallel task had no communication channel set")
+		return res
 	}
 
 	if parallelChannel, ok := s.parallelTaskChannels.Get(hm.ParallelRunMetadata.ChannelId); ok {
@@ -191,6 +201,9 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 
 		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.AfterTasks) == 0 {
 			parallelChannel.SendSuccess(hm.ModuleName)
+			if !hm.Critical {
+				s.functionalScheduler.Done(hm.ModuleName)
+			}
 		}
 	}
 

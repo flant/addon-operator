@@ -18,7 +18,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
-	"github.com/flant/addon-operator/pkg/task/functional"
 	"github.com/flant/addon-operator/pkg/task/helpers"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -39,7 +38,6 @@ type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
 	GetMetricStorage() metric.Storage
 	GetQueueService() *taskqueue.Service
-	GetFunctionalScheduler() *functional.Scheduler
 }
 
 // RegisterTaskHandler creates a factory function for ModuleRun tasks
@@ -49,7 +47,6 @@ func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.
 			t,
 			helpers.IsOperatorStartupTask(t),
 			svc.GetModuleManager(),
-			svc.GetFunctionalScheduler(),
 			svc.GetMetricStorage(),
 			svc.GetQueueService(),
 			logger.Named("module-run"),
@@ -59,13 +56,12 @@ func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.
 
 // Task handles module execution
 type Task struct {
-	shellTask           sh_task.Task
-	isOperatorStartup   bool
-	moduleManager       *module_manager.ModuleManager
-	functionalScheduler *functional.Scheduler
-	metricStorage       metric.Storage
-	queueService        *taskqueue.Service
-	logger              *log.Logger
+	shellTask         sh_task.Task
+	isOperatorStartup bool
+	moduleManager     *module_manager.ModuleManager
+	metricStorage     metric.Storage
+	queueService      *taskqueue.Service
+	logger            *log.Logger
 }
 
 // NewTask creates a new task handler for running modules
@@ -73,19 +69,17 @@ func NewTask(
 	shellTask sh_task.Task,
 	isOperatorStartup bool,
 	moduleManager *module_manager.ModuleManager,
-	functionalScheduler *functional.Scheduler,
 	metricStorage metric.Storage,
 	queueService *taskqueue.Service,
 	logger *log.Logger,
 ) *Task {
 	return &Task{
-		shellTask:           shellTask,
-		isOperatorStartup:   isOperatorStartup,
-		moduleManager:       moduleManager,
-		metricStorage:       metricStorage,
-		queueService:        queueService,
-		functionalScheduler: functionalScheduler,
-		logger:              logger,
+		shellTask:         shellTask,
+		isOperatorStartup: isOperatorStartup,
+		moduleManager:     moduleManager,
+		metricStorage:     metricStorage,
+		queueService:      queueService,
+		logger:            logger,
 	}
 }
 
@@ -187,8 +181,6 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			// if values not changed we do not need to make another task
 			// so we think that module made all the things what it can
 			s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.Ready)
-
-			s.functionalScheduler.Done(baseModule.Name)
 		}
 	}(&res, &valuesChanged)
 

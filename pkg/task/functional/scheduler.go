@@ -28,6 +28,7 @@ type Scheduler struct {
 	wg *sync.WaitGroup
 
 	mtx       sync.Mutex
+	requests  []*Request
 	done      map[string]struct{}
 	scheduled map[string]struct{}
 
@@ -70,6 +71,7 @@ func (s *Scheduler) Start(ctx context.Context, modules []*Request) {
 	s.mtx.Lock()
 	s.done = make(map[string]struct{}, len(modules))
 	s.scheduled = make(map[string]struct{}, len(modules))
+	s.requests = modules
 	s.mtx.Unlock()
 
 	s.doneCh = make(chan string, channelsBuffer)
@@ -78,7 +80,7 @@ func (s *Scheduler) Start(ctx context.Context, modules []*Request) {
 	s.wg.Add(2)
 	go func() {
 		defer s.wg.Done()
-		s.runScheduleLoop(batchCtx, modules)
+		s.runScheduleLoop(batchCtx)
 	}()
 
 	go func() {
@@ -88,8 +90,8 @@ func (s *Scheduler) Start(ctx context.Context, modules []*Request) {
 }
 
 // runScheduleLoop launches the scheduling loop for a batch.
-func (s *Scheduler) runScheduleLoop(ctx context.Context, modules []*Request) {
-	s.reschedule("", modules)
+func (s *Scheduler) runScheduleLoop(ctx context.Context) {
+	s.reschedule("")
 
 	for {
 		select {
@@ -99,14 +101,12 @@ func (s *Scheduler) runScheduleLoop(ctx context.Context, modules []*Request) {
 			if !ok {
 				return
 			}
-			if s.reschedule(name, modules) {
-				return
-			}
+			s.reschedule(name)
 		}
 	}
 }
 
-// process waits for requests to be processed
+// runProcessLoop waits for requests to be processed
 func (s *Scheduler) runProcessLoop(ctx context.Context) {
 	var idx int
 	for {
@@ -121,19 +121,16 @@ func (s *Scheduler) runProcessLoop(ctx context.Context) {
 }
 
 // reschedule marks module done and schedule new modules to be processed
-func (s *Scheduler) reschedule(name string, modules []*Request) bool {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
+func (s *Scheduler) reschedule(name string) {
 	// skip not present in the batch modules
 	if _, ok := s.scheduled[name]; !ok && name != "" {
-		return false
+		return
 	}
 
 	// mark module done
 	s.done[name] = struct{}{}
 
-	for _, req := range modules {
+	for _, req := range s.requests {
 		// skip already processed
 		if _, ok := s.done[req.Name]; ok {
 			continue
@@ -155,14 +152,11 @@ func (s *Scheduler) reschedule(name string, modules []*Request) bool {
 
 		// schedule module if ready
 		if ready {
-			s.logger.Debug("the '%s' module scheduling triggered by '%s'", req.Name, name)
+			s.logger.Debug("trigger module scheduling", slog.String("module", req.Name), slog.Any("trigger", name))
 			s.scheduled[req.Name] = struct{}{}
 			s.processCh <- req
 		}
 	}
-
-	// check if all modules processed
-	return len(s.done) == len(modules)
 }
 
 // handleRequest creates a ModuleRun task for request in a parallel queue
@@ -184,7 +178,17 @@ func (s *Scheduler) handleRequest(idx int, req *Request) {
 
 // Done sends signal that module processing done
 func (s *Scheduler) Done(name string) {
-	s.doneCh <- name
+	if s.doneCh != nil {
+		s.doneCh <- name
+	}
+}
+
+// Finished defines if processing done
+func (s *Scheduler) Finished() bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return len(s.done) == len(s.requests)
 }
 
 // Stop is the graceful shutdown

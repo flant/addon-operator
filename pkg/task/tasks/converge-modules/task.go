@@ -176,10 +176,20 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				s.logTaskAdd("head", res.HeadTasks...)
 				return res
 			}
+
+			if !s.functionalScheduler.Finished() {
+				res.Status = queue.Keep
+				return res
+			}
 		}
 	}
 
 	if s.convergeState.GetPhase() == converge.WaitDeleteAndRunModules {
+		if !s.functionalScheduler.Finished() {
+			res.Status = queue.Keep
+			return res
+		}
+
 		s.logger.Info("ConvergeModules: ModuleRun tasks done, execute AfterAll global hooks")
 		// Put AfterAll tasks before current task.
 		tasks, handleErr := s.CreateAfterAllTasks(s.shellTask.GetLogLabels(), hm.EventDescription)
@@ -409,6 +419,7 @@ func (s *Task) CreateConvergeModulesTasks(ctx context.Context,
 					EventDescription:    eventDescription,
 					ModuleName:          fmt.Sprintf("Parallel run for %s", strings.Join(modules, ", ")),
 					IsReloadAll:         true,
+					Critical:            true,
 					ParallelRunMetadata: &parallelRunMetadata,
 				})
 			modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
@@ -444,6 +455,7 @@ func (s *Task) CreateConvergeModulesTasks(ctx context.Context,
 					ModuleName:       modules[0],
 					DoModuleStartup:  doModuleStartup,
 					IsReloadAll:      true,
+					Critical:         true,
 				})
 			modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
 
