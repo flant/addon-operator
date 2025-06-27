@@ -2,6 +2,7 @@ package validation
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"reflect"
@@ -133,8 +134,12 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 
 	// Validate values against x-deckhouse-validation rules.
 	if values, ok := dataObj.(map[string]interface{}); ok {
-		if err := cel.Validate(s, values); err != nil {
+		validationErrs, err := cel.Validate(s, values)
+		if err != nil {
 			return err
+		}
+		if len(validationErrs) > 0 {
+			return errors.Join(validationErrs...)
 		}
 	}
 

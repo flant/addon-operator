@@ -198,17 +198,74 @@ properties:
 }
 
 func Test_ValidateConfigValues_CEL(t *testing.T) {
-	g := NewWithT(t)
-
-	// Prepare module values that violate the CEL rule
-	values, err := utils.NewValuesFromBytes([]byte(`
+	tests := []struct {
+		name            string
+		valuesYAML      string
+		schemaYAML      string
+		expectError     bool
+		errorSubstrings []string
+	}{
+		{
+			name: "CEL validation fails when array length < 1",
+			valuesYAML: `
+moduleName:
+  arr: [1]
+`,
+			schemaYAML: `
+type: object
+properties:
+  arr:
+    type: array
+x-deckhouse-validations:
+  - expression: "self.arr.size() < 1"
+    message: "arr must be greater than 1"
+`,
+			expectError:     true,
+			errorSubstrings: []string{"arr must be greater than 1"},
+		},
+		{
+			name: "CEL validation fails when array length < 1 self is array",
+			valuesYAML: `
+moduleName:
+  arr: [1]
+`,
+			schemaYAML: `
+type: object
+properties:
+  arr:
+    type: array
+    x-deckhouse-validations:
+      - expression: "self.size() < 1"
+        message: "arr must be greater than 1"
+`,
+			expectError:     true,
+			errorSubstrings: []string{"arr must be greater than 1"},
+		},
+		{
+			name: "CEL validation fails when replicas < 1 and self is not a map",
+			valuesYAML: `
 moduleName:
   replicas: 1
-`))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Schema with a CEL validation: replicas must be > 0
-	schema := `
+`,
+			schemaYAML: `
+type: object
+properties:
+  replicas:
+    type: integer
+    x-deckhouse-validations:
+      - expression: "self < 1"
+        message: "replicas must be greater than 1"
+`,
+			expectError:     true,
+			errorSubstrings: []string{"replicas must be greater than 1"},
+		},
+		{
+			name: "CEL validation fails when replicas < 1 and ignores not existing field",
+			valuesYAML: `
+moduleName:
+  replicas: 1
+`,
+			schemaYAML: `
 type: object
 properties:
   replicas:
@@ -218,12 +275,190 @@ x-deckhouse-validations:
     message: "ignore not existing field"
   - expression: "self.replicas < 1"
     message: "replicas must be greater than 1"
-`
+`,
+			expectError:     true,
+			errorSubstrings: []string{"replicas must be greater than 1"},
+		},
+		{
+			name: "CEL validation works",
+			valuesYAML: `
+moduleName:
+  a:
+    b: abd
+`,
+			schemaYAML: `
+type: object
+properties:
+  a:
+    type: object
+    properties:
+      b:
+        type: string
 
-	vs, err := modules.NewValuesStorage("moduleName", nil, []byte(schema), nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
+x-deckhouse-validations:
+- expression: 'self.a.b == "abc"'
+  message: "Not equal to abc"
+`,
+			expectError:     true,
+			errorSubstrings: []string{"Not equal to abc"},
+		},
+		{
+			name: "CEL validation works with nested properties",
+			valuesYAML: `
+moduleName:
+  a:
+    b: abd
+    c: 122
+`,
+			schemaYAML: `
+type: object
+properties:
+  a:
+    type: object
+    properties:
+      b:
+        type: string
+      c:
+        type: number
+    x-deckhouse-validations:
+      - expression: 'self.b == "abc"'
+        message: "Not equal to abc"
+      - expression: 'self.c == 123'
+        message: "Not equal to 123"
+`,
+			expectError:     true,
+			errorSubstrings: []string{"Not equal to abc", "Not equal to 123"},
+		},
+		{
+			name: "CEL validation works with deep nested properties",
+			valuesYAML: `
+moduleName:
+  a:
+    b:
+      c:
+        d: 122
+`,
+			schemaYAML: `
+type: object
+properties:
+  a:
+    type: object
+    properties:
+      b:
+        type: object
+        properties:
+          c:
+            type: object
+            properties:
+              d:
+                type: number
+            x-deckhouse-validations:
+            - expression: 'self.d == 123'
+              message: "Not equal to 123"
+`,
+			expectError:     true,
+			errorSubstrings: []string{"Not equal to 123"},
+		},
+		{
+			name: "CEL validation works with several similliar field with different types on different levels",
+			valuesYAML: `
+moduleName:
+  a:
+    a: "ab"
+    c:
+      a: 21
+`,
+			schemaYAML: `
+# several similliar field with different types on different levels
+type: object
+properties:
+  a:
+    type: object
+    properties:
+      a:
+        type: string
+      c:
+        type: object
+        properties:
+          a:
+            type: number
+        x-deckhouse-validations:
+        - expression: 'self.a == 25'
+          message: "Not equal to 25"
+    x-deckhouse-validations:
+      - expression: 'self.a == "abc"'
+        message: "Not equal to abc"
+`,
+			expectError:     true,
+			errorSubstrings: []string{"Not equal to abc", "Not equal to 25"},
+		},
+		{
+			name: "CEL validation for map values",
+			valuesYAML: `
+moduleName:
+  mymap:
+    foo: 1
+    bar: 0
+`,
+			schemaYAML: `
+type: object
+properties:
+  mymap:
+    type: object
+    foo:
+      type: integer
+    bar:
+      type: integer
+x-deckhouse-validations:
+- expression: "self.mymap.all(key, self.mymap[key] > 0)"
+  message: "all map values must be greater than 0"
+`,
+			expectError:     true,
+			errorSubstrings: []string{"all map values must be greater than 0"},
+		},
+		{
+			name: "CEL validation for additionalProperties (map values)",
+			valuesYAML: `
+moduleName:
+  mymap:
+    foo: 1
+    bar: 0
+`,
+			schemaYAML: `
+type: object
+properties:
+  mymap:
+    type: object
+    additionalProperties:
+      type: integer
+    x-deckhouse-validations:
+    - expression: "self.all(key, self[key] > 0)"
+      message: "all map values must be greater than 0"
+`,
+			expectError:     true,
+			errorSubstrings: []string{"all map values must be greater than 0"},
+		},
+	}
 
-	err = vs.GetSchemaStorage().ValidateConfigValues("moduleName", values)
-	g.Expect(err).Should(HaveOccurred(), "expected CEL validation error")
-	g.Expect(err.Error()).Should(ContainSubstring("replicas must be greater than 1"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			values, err := utils.NewValuesFromBytes([]byte(tt.valuesYAML))
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			vs, err := modules.NewValuesStorage("moduleName", nil, []byte(tt.schemaYAML), nil)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			err = vs.GetSchemaStorage().ValidateConfigValues("moduleName", values)
+			if tt.expectError {
+				g.Expect(err).Should(HaveOccurred(), "expected CEL validation error")
+				for _, substr := range tt.errorSubstrings {
+					g.Expect(err.Error()).Should(ContainSubstring(substr))
+				}
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}
+		})
+	}
 }
