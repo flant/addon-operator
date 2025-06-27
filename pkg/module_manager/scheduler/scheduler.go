@@ -561,6 +561,21 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 	return vertex.IsEnabled()
 }
 
+func (s *Scheduler) GetDependencies() map[string][]string {
+	result := make(map[string][]string)
+	for _, ext := range s.extenders {
+		if tope, ok := ext.ext.(extenders.TopologicalExtender); ok {
+			for _, module := range s.modules {
+				if hints := tope.GetTopologicalHints(module.GetName()); len(hints) > 0 {
+					result[module.GetName()] = hints
+				}
+			}
+		}
+	}
+
+	return result
+}
+
 // GetEnabledModuleNames returns a list of all enabled module-type vertices from s.enabledModules
 // so that traversing the graph isn't required.
 func (s *Scheduler) GetEnabledModuleNames() []string {

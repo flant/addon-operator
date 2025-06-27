@@ -604,6 +604,10 @@ func (mm *ModuleManager) GetModule(name string) *modules.BasicModule {
 	return mm.modules.Get(name)
 }
 
+func (mm *ModuleManager) GetModuleDependencies() map[string][]string {
+	return mm.moduleScheduler.GetDependencies()
+}
+
 func (mm *ModuleManager) GetModuleNames() []string {
 	return mm.modules.NamesInOrder()
 }

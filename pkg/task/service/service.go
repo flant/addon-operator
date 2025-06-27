@@ -14,6 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	discovercrds "github.com/flant/addon-operator/pkg/task/discover-crds"
+	"github.com/flant/addon-operator/pkg/task/functional"
 	paralleltask "github.com/flant/addon-operator/pkg/task/parallel"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	applykubeconfigvalues "github.com/flant/addon-operator/pkg/task/tasks/apply-kube-config-values"
@@ -56,6 +57,8 @@ type TaskHandlerService struct {
 
 	// a map of channels to communicate with parallel queues and its lock
 	parallelTaskChannels *paralleltask.TaskChannels
+
+	functionalScheduler *functional.Scheduler
 
 	helm *helm.ClientFactory
 
@@ -105,6 +108,8 @@ func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig
 		Engine: config.Engine,
 		Handle: svc.Handle,
 	}, logger.Named("task-queue-service"))
+
+	svc.functionalScheduler = functional.NewScheduler(svc.queueService)
 
 	svc.initFactory()
 
@@ -240,6 +245,10 @@ func (s *TaskHandlerService) GetKubeConfigManager() *kube_config_manager.KubeCon
 
 func (s *TaskHandlerService) GetQueueService() *taskqueue.Service {
 	return s.queueService
+}
+
+func (s *TaskHandlerService) GetFunctionalScheduler() *functional.Scheduler {
+	return s.functionalScheduler
 }
 
 func (s *TaskHandlerService) GetConvergeState() *converge.ConvergeState {
