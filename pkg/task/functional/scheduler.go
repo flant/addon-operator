@@ -3,8 +3,10 @@ package functional
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/queue"
@@ -17,6 +19,7 @@ const (
 
 type Scheduler struct {
 	queueService *queue.Service
+	logger       *log.Logger
 
 	// batch control
 	cancel context.CancelFunc
@@ -41,9 +44,10 @@ type Request struct {
 	Labels       map[string]string
 }
 
-func NewScheduler(qService *queue.Service) *Scheduler {
+func NewScheduler(qService *queue.Service, logger *log.Logger) *Scheduler {
 	return &Scheduler{
 		queueService: qService,
+		logger:       logger,
 		wg:           new(sync.WaitGroup),
 	}
 }
@@ -56,6 +60,8 @@ func (s *Scheduler) Start(ctx context.Context, modules []*Request) {
 		// wait for batch goroutines to finish
 		s.wg.Wait()
 	}
+
+	s.logger.Debug("following functional modules will be scheduled", slog.Any("modules", modules))
 
 	// initialize new batch state.
 	batchCtx, cancel := context.WithCancel(ctx)
@@ -106,7 +112,6 @@ func (s *Scheduler) runProcessLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			//
 			return
 		case req := <-s.processCh:
 			s.handleRequest(idx, req)
@@ -121,7 +126,7 @@ func (s *Scheduler) reschedule(name string, modules []*Request) bool {
 	defer s.mtx.Unlock()
 
 	// skip not present in the batch modules
-	if _, ok := s.scheduled[name]; !ok {
+	if _, ok := s.scheduled[name]; !ok && name != "" {
 		return false
 	}
 
@@ -150,6 +155,7 @@ func (s *Scheduler) reschedule(name string, modules []*Request) bool {
 
 		// schedule module if ready
 		if ready {
+			s.logger.Debug("the '%s' module scheduling triggered by '%s'", req.Name, name)
 			s.scheduled[req.Name] = struct{}{}
 			s.processCh <- req
 		}
