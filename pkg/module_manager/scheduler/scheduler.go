@@ -550,6 +550,43 @@ func (s *Scheduler) GetUpdatedByExtender(moduleName string) (string, error) {
 	return vertex.GetUpdatedBy(), err
 }
 
+func (s *Scheduler) GetFunctionalDependencies() map[string][]string {
+	result := make(map[string][]string, len(s.modules))
+
+	for _, ext := range s.extenders {
+		for _, module := range s.modules {
+			if tope, ok := ext.ext.(extenders.TopologicalExtender); ok {
+				if parents := tope.GetTopologicalHints(module.GetName()); len(parents) > 0 {
+					var deps []string
+					for _, parent := range parents {
+						if !s.IsModuleCritical(parent) {
+							deps = append(deps, parent)
+						}
+					}
+
+					result[module.GetName()] = deps
+				}
+
+				break
+			}
+		}
+	}
+
+	return result
+}
+
+func (s *Scheduler) IsModuleCritical(moduleName string) bool {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	vertex, err := s.dag.Vertex(moduleName)
+	if err != nil {
+		return false
+	}
+
+	return vertex.GetModule().GetCritical()
+}
+
 func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 	s.l.Lock()
 	defer s.l.Unlock()
@@ -559,21 +596,6 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 	}
 
 	return vertex.IsEnabled()
-}
-
-func (s *Scheduler) GetDependencies() map[string][]string {
-	result := make(map[string][]string)
-	for _, ext := range s.extenders {
-		if tope, ok := ext.ext.(extenders.TopologicalExtender); ok {
-			for _, module := range s.modules {
-				if hints := tope.GetTopologicalHints(module.GetName()); len(hints) > 0 {
-					result[module.GetName()] = hints
-				}
-			}
-		}
-	}
-
-	return result
 }
 
 // GetEnabledModuleNames returns a list of all enabled module-type vertices from s.enabledModules

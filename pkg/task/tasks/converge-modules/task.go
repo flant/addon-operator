@@ -465,7 +465,7 @@ func (s *Task) CreateConvergeModulesTasks(ctx context.Context,
 		}
 	}
 
-	deps := s.moduleManager.GetModuleDependencies()
+	deps := s.moduleManager.GetFunctionalDependencies()
 
 	// handle functional modules
 	schedulerRequests := make([]*functional.Request, len(functionalModules))
