@@ -16,6 +16,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/task"
+	"github.com/flant/addon-operator/pkg/task/functional"
 	"github.com/flant/addon-operator/pkg/task/helpers"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -35,6 +36,7 @@ type TaskDependencies interface {
 	GetMetricStorage() metric.Storage
 	GetConvergeState() *converge.ConvergeState
 	GetQueueService() *taskqueue.Service
+	GetFunctionalScheduler() *functional.Scheduler
 }
 
 // RegisterTaskHandler creates a factory function that instantiates ConvergeModules tasks.
@@ -45,6 +47,7 @@ func RegisterTaskHandler(deps TaskDependencies) func(t sh_task.Task, logger *log
 			deps.GetModuleManager(),
 			deps.GetMetricStorage(),
 			deps.GetConvergeState(),
+			deps.GetFunctionalScheduler(),
 			deps.GetQueueService(),
 			logger.Named("converge-modules"),
 		)
@@ -55,10 +58,11 @@ func RegisterTaskHandler(deps TaskDependencies) func(t sh_task.Task, logger *log
 type Task struct {
 	shellTask sh_task.Task
 
-	moduleManager *module_manager.ModuleManager
-	metricStorage metric.Storage
-	convergeState *converge.ConvergeState
-	queueService  *taskqueue.Service
+	moduleManager       *module_manager.ModuleManager
+	metricStorage       metric.Storage
+	convergeState       *converge.ConvergeState
+	queueService        *taskqueue.Service
+	functionalScheduler *functional.Scheduler
 
 	logger *log.Logger
 }
@@ -69,16 +73,18 @@ func NewTask(
 	moduleManager *module_manager.ModuleManager,
 	metricStorage metric.Storage,
 	convergeState *converge.ConvergeState,
+	functionalScheduler *functional.Scheduler,
 	queueService *taskqueue.Service,
 	logger *log.Logger,
 ) *Task {
 	return &Task{
-		shellTask:     shellTask,
-		moduleManager: moduleManager,
-		metricStorage: metricStorage,
-		convergeState: convergeState,
-		queueService:  queueService,
-		logger:        logger,
+		shellTask:           shellTask,
+		moduleManager:       moduleManager,
+		metricStorage:       metricStorage,
+		convergeState:       convergeState,
+		queueService:        queueService,
+		functionalScheduler: functionalScheduler,
+		logger:              logger,
 	}
 }
 
@@ -161,7 +167,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 					}
 				}()
 			}
-			tasks := s.CreateConvergeModulesTasks(state, s.shellTask.GetLogLabels(), string(taskEvent))
+			tasks := s.CreateConvergeModulesTasks(ctx, state, s.shellTask.GetLogLabels(), string(taskEvent))
 
 			s.convergeState.SetPhase(converge.WaitDeleteAndRunModules)
 			if len(tasks) > 0 {
@@ -170,10 +176,20 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				s.logTaskAdd("head", res.HeadTasks...)
 				return res
 			}
+
+			if !s.functionalScheduler.Finished() {
+				res.Status = queue.Keep
+				return res
+			}
 		}
 	}
 
 	if s.convergeState.GetPhase() == converge.WaitDeleteAndRunModules {
+		if !s.functionalScheduler.Finished() {
+			res.Status = queue.Keep
+			return res
+		}
+
 		s.logger.Info("ConvergeModules: ModuleRun tasks done, execute AfterAll global hooks")
 		// Put AfterAll tasks before current task.
 		tasks, handleErr := s.CreateAfterAllTasks(s.shellTask.GetLogLabels(), hm.EventDescription)
@@ -311,7 +327,10 @@ func (s *Task) CreateAfterAllTasks(logLabels map[string]string, eventDescription
 // - ModuleDelete tasks for modules that need to be disabled
 // - ModuleRun tasks for individual modules that need to be enabled or rerun
 // - ParallelModuleRun tasks for groups of modules that can be processed in parallel
-func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, logLabels map[string]string, eventDescription string) []sh_task.Task {
+func (s *Task) CreateConvergeModulesTasks(ctx context.Context,
+	state *module_manager.ModulesState,
+	logLabels map[string]string,
+	eventDescription string) []sh_task.Task {
 	modulesTasks := make([]sh_task.Task, 0, len(state.ModulesToDisable)+len(state.AllEnabledModules))
 	resultingTasks := make([]sh_task.Task, 0, len(state.ModulesToDisable)+len(state.AllEnabledModules))
 	queuedAt := time.Now()
@@ -344,7 +363,22 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 	log.Debug("The following modules are going to be enabled/rerun",
 		slog.String("modules", fmt.Sprintf("%v", state.AllEnabledModulesByOrder)))
 
+	var functionalModules []string
 	for _, modules := range state.AllEnabledModulesByOrder {
+		if len(modules) == 0 {
+			continue
+		}
+
+		basicModule := s.moduleManager.GetModule(modules[0])
+		if basicModule == nil {
+			continue
+		}
+
+		if !basicModule.GetCritical() {
+			functionalModules = append(functionalModules, modules...)
+			continue
+		}
+
 		newLogLabels := utils.MergeLabels(logLabels)
 		delete(newLogLabels, "task.id")
 		switch {
@@ -385,6 +419,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 					EventDescription:    eventDescription,
 					ModuleName:          fmt.Sprintf("Parallel run for %s", strings.Join(modules, ", ")),
 					IsReloadAll:         true,
+					Critical:            true,
 					ParallelRunMetadata: &parallelRunMetadata,
 				})
 			modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
@@ -420,6 +455,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 					ModuleName:       modules[0],
 					DoModuleStartup:  doModuleStartup,
 					IsReloadAll:      true,
+					Critical:         true,
 				})
 			modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
 
@@ -428,6 +464,53 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 				slog.String("state", fmt.Sprintf("%v", state)))
 		}
 	}
+
+	deps := s.moduleManager.GetFunctionalDependencies()
+
+	// handle functional modules
+	schedulerRequests := make([]*functional.Request, len(functionalModules))
+	for idx, module := range functionalModules {
+		// notify about module enabling
+		ev := events.ModuleEvent{
+			ModuleName: module,
+			EventType:  events.ModuleEnabled,
+		}
+		s.moduleManager.SendModuleEvent(ev)
+
+		newLogLabels := utils.MergeLabels(logLabels)
+		delete(newLogLabels, "task.id")
+		newLogLabels["module"] = module
+
+		doModuleStartup := false
+		// add EnsureCRDs task if module is about to be enabled
+		if _, has := newlyEnabled[module]; has {
+			if s.moduleManager.ModuleHasCRDs(module) {
+				resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+					WithLogLabels(newLogLabels).
+					WithQueueName("main").
+					WithMetadata(task.HookMetadata{
+						EventDescription: "EnsureCRDs",
+						ModuleName:       module,
+						IsReloadAll:      true,
+					}).WithQueuedAt(queuedAt))
+			}
+			doModuleStartup = true
+		}
+
+		schedulerRequests[idx] = &functional.Request{
+			Name:         module,
+			Dependencies: deps[module],
+			Description:  eventDescription,
+			IsReloadAll:  true,
+			DoStartup:    doModuleStartup,
+		}
+	}
+
+	// schedule functional modules in parallel queues
+	if len(schedulerRequests) > 0 {
+		s.functionalScheduler.Start(ctx, schedulerRequests)
+	}
+
 	// as resultingTasks contains new ensureCRDsTasks we invalidate
 	// ConvregeState.CRDsEnsured if there are new ensureCRDsTasks to execute
 	if s.convergeState.CRDsEnsured && len(resultingTasks) > 0 {

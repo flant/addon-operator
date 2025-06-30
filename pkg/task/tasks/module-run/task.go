@@ -172,7 +172,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 				slog.String("phase", string(baseModule.GetPhase())),
 				slog.Bool("hasReadiness", true))
 
-			// If module has readiness, it runs automatically by schedule
+			// If the module has readiness, it runs automatically by schedule
 			if baseModule.HasReadiness() {
 				return
 			}
