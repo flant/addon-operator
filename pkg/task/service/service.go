@@ -201,9 +201,6 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 
 		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.AfterTasks) == 0 {
 			parallelChannel.SendSuccess(hm.ModuleName)
-			if !hm.Critical {
-				s.functionalScheduler.Done(hm.ModuleName)
-			}
 		}
 	}
 

@@ -553,8 +553,8 @@ func (s *Scheduler) GetUpdatedByExtender(moduleName string) (string, error) {
 func (s *Scheduler) GetFunctionalDependencies() map[string][]string {
 	result := make(map[string][]string, len(s.modules))
 
-	for _, ext := range s.extenders {
-		for _, module := range s.modules {
+	for _, module := range s.modules {
+		for _, ext := range s.extenders {
 			if tope, ok := ext.ext.(extenders.TopologicalExtender); ok {
 				if parents := tope.GetTopologicalHints(module.GetName()); len(parents) > 0 {
 					var deps []string
@@ -566,7 +566,6 @@ func (s *Scheduler) GetFunctionalDependencies() map[string][]string {
 
 					result[module.GetName()] = deps
 				}
-
 				break
 			}
 		}
