@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
+	"github.com/flant/addon-operator/pkg/helm/nelm"
 )
 
 func TestHelmFactory(t *testing.T) {
@@ -31,7 +32,7 @@ func TestHelmFactory(t *testing.T) {
 		helm, err := InitHelmClientFactory(opts, map[string]string{})
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Ensure client is a builtin Helm3 library.
+		// Ensure client is of correct type
 		helmCl := helm.NewClient(log.NewNop())
 		g.Expect(helmCl).To(BeAssignableToTypeOf(clientType), "should create %s client", name)
 
@@ -76,5 +77,9 @@ func TestHelmFactory(t *testing.T) {
 
 	t.Run("init with helm3lib client", func(t *testing.T) {
 		testCLient(t, "helm3", new(helm3lib.LibClient), map[string]string{})
+	})
+
+	t.Run("init with nelm client", func(t *testing.T) {
+		testCLient(t, "nelm", new(nelm.NelmClient), map[string]string{"USE_NELM": "true"})
 	})
 }
