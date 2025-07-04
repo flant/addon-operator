@@ -604,6 +604,19 @@ func (mm *ModuleManager) GetModule(name string) *modules.BasicModule {
 	return mm.modules.Get(name)
 }
 
+func (mm *ModuleManager) GetCritical(moduleName string) bool {
+	module := mm.GetModule(moduleName)
+	if module == nil {
+		return false
+	}
+
+	return module.GetCritical()
+}
+
+func (mm *ModuleManager) GetFunctionalDependencies() map[string][]string {
+	return mm.moduleScheduler.GetFunctionalDependencies()
+}
+
 func (mm *ModuleManager) GetModuleNames() []string {
 	return mm.modules.NamesInOrder()
 }

@@ -68,6 +68,15 @@ func (s *Service) AddLastTaskToMain(t sh_task.Task) error {
 	return nil
 }
 
+func (s *Service) GetQueueLength(queueName string) int {
+	q := s.engine.TaskQueues.GetByName(queueName)
+	if q == nil {
+		return 0
+	}
+
+	return q.Length()
+}
+
 func (s *Service) AddLastTaskToQueue(queueName string, t sh_task.Task) error {
 	q := s.engine.TaskQueues.GetByName(queueName)
 	if q == nil {

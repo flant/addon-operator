@@ -53,7 +53,7 @@ var (
 	CRDsFilters = "doc-,_"
 
 	// NumberOfParallelQueues defines the number of precreated parallel queues for parallel execution
-	NumberOfParallelQueues   = 15
+	NumberOfParallelQueues   = 20
 	ParallelQueuePrefix      = "parallel_queue"
 	ParallelQueueNamePattern = ParallelQueuePrefix + "_%d"
 )

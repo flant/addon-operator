@@ -106,7 +106,7 @@ func (s *TaskHandlerService) UpdateFirstConvergeStatus(convergeTasks int) {
 	case converge.FirstStarted:
 		// Mark as done when all convergence tasks are completed
 		if convergeTasks == 0 {
-			log.Info("First converge is finished. Operator is ready now.")
+			s.logger.Debug("first converge is finished. Operator is ready now.")
 			s.convergeState.SetFirstRunPhase(converge.FirstDone)
 		}
 	}
