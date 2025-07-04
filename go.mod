@@ -8,8 +8,8 @@ require (
 	github.com/deckhouse/module-sdk v0.3.1
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
-	github.com/flant/kube-client v1.3.0
-	github.com/flant/shell-operator v1.7.3
+	github.com/flant/kube-client v1.3.1-0.20250704150444-b08cc051a445
+	github.com/flant/shell-operator v1.7.4-0.20250704150814-5366db753f07
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
