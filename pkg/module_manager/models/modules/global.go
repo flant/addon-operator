@@ -76,7 +76,7 @@ func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookE
 	}
 
 	if gmodule.logger == nil {
-		gmodule.logger = log.NewLogger(log.Options{}).Named("global-module")
+		gmodule.logger = log.NewLogger().Named("global-module")
 	}
 
 	return gmodule, nil

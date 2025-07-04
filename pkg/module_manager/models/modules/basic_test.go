@@ -93,7 +93,7 @@ foo:
 
 	bm.WithDependencies(&hooks.HookExecutionDependencyContainer{})
 
-	_, err = bm.RegisterHooks(log.NewLogger(log.Options{}))
+	_, err = bm.RegisterHooks(log.NewLogger())
 	require.NoError(t, err)
 
 	hooks := bm.GetHooks()
@@ -141,7 +141,7 @@ exit 0
 	bm, err := NewBasicModule("example", modulePath, 1, utils.Values{}, nil, nil)
 	require.NoError(t, err)
 
-	logger := log.NewLogger(log.Options{})
+	logger := log.NewLogger()
 	storage := metric_storage.NewMetricStorage(context.TODO(), "addon_operator_", false, logger)
 
 	bm.WithDependencies(&hooks.HookExecutionDependencyContainer{
@@ -194,7 +194,7 @@ exit 0
 	bm, err := NewBasicModule("example", modulePath, 1, utils.Values{}, nil, nil)
 	require.NoError(t, err)
 
-	logger := log.NewLogger(log.Options{})
+	logger := log.NewLogger()
 	storage := metric_storage.NewMetricStorage(context.TODO(), "addon_operator_", false, logger)
 
 	bm.WithLogger(logger)

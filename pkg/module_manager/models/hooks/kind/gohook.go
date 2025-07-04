@@ -42,7 +42,7 @@ type GoHook struct {
 func NewGoHook(config *gohook.HookConfig, f ReconcileFunc) *GoHook {
 	logger := config.Logger
 	if logger == nil {
-		logger = log.NewLogger(log.Options{}).Named("auto-hook-logger")
+		logger = log.NewLogger().Named("auto-hook-logger")
 	}
 
 	return &GoHook{
