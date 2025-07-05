@@ -15,27 +15,51 @@ func TestBasicModuleSet(t *testing.T) {
 	ms.Add(&modules.BasicModule{
 		Name:  "BasicModule-two",
 		Order: 10,
+		Config: &modules.Config{
+			Name:   "BasicModule-two",
+			Weight: 10,
+		},
 	})
 	ms.Add(&modules.BasicModule{
 		Name:  "BasicModule-one",
 		Order: 5,
+		Config: &modules.Config{
+			Name:   "BasicModule-one",
+			Weight: 5,
+		},
 	})
 	ms.Add(&modules.BasicModule{
 		Name:  "BasicModule-three-two",
 		Order: 15,
+		Config: &modules.Config{
+			Name:   "BasicModule-three-two",
+			Weight: 15,
+		},
 	})
 	ms.Add(&modules.BasicModule{
 		Name:  "BasicModule-four",
 		Order: 1,
+		Config: &modules.Config{
+			Name:   "BasicModule-four",
+			Weight: 1,
+		},
 	})
 	ms.Add(&modules.BasicModule{
 		Name:  "BasicModule-three-one",
 		Order: 15,
+		Config: &modules.Config{
+			Name:   "BasicModule-three-one",
+			Weight: 15,
+		},
 	})
 	// "overridden" BasicModule
 	ms.Add(&modules.BasicModule{
 		Name:  "BasicModule-four",
 		Order: 20,
+		Config: &modules.Config{
+			Name:   "BasicModule-four",
+			Weight: 20,
+		},
 	})
 	ms.SetInited()
 

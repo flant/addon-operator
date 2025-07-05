@@ -1156,13 +1156,13 @@ func (mm *ModuleManager) AreModulesInited() bool {
 }
 
 // RunModuleWithNewOpenAPISchema updates the module's OpenAPI schema from modulePath directory and pushes RunModuleTask if the module is enabled
-func (mm *ModuleManager) RunModuleWithNewOpenAPISchema(moduleName, moduleSource, modulePath string) error {
+func (mm *ModuleManager) RunModuleWithNewOpenAPISchema(moduleName, modulePath string) error {
 	currentModule := mm.modules.Get(moduleName)
 	if currentModule == nil {
 		return fmt.Errorf("failed to get basic module - not found")
 	}
 
-	basicModule, err := mm.moduleLoader.LoadModule(moduleSource, modulePath)
+	basicModule, err := mm.moduleLoader.LoadModule(modulePath)
 	if err != nil {
 		return fmt.Errorf("load module: %w", err)
 	}
