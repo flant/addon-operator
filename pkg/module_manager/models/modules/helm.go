@@ -104,7 +104,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	if hm.logger == nil {
-		hm.logger = log.NewLogger(log.Options{}).Named("helm-module")
+		hm.logger = log.NewLogger().Named("helm-module")
 	}
 
 	isHelm, err := hm.isHelmChart()
