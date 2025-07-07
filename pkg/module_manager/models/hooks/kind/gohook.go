@@ -331,9 +331,15 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		if inSch.Name == "" {
 			return c, spew.Errorf(`"name" is a required field in binding: %v`, inSch)
 		}
+
+		if inSch.Crontab == "" {
+			return c, spew.Errorf(`"crontab" is a required field in binding: %v`, inSch)
+		}
+
 		res.BindingName = inSch.Name
 
 		res.AllowFailure = input.AllowFailure
+
 		res.ScheduleEntry = schdulertypes.ScheduleEntry{
 			Crontab: inSch.Crontab,
 			Id:      config.ScheduleID(),
