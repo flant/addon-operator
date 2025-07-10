@@ -8,6 +8,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/deckhouse/deckhouse/pkg/log"
 	sdkpatchablevalues "github.com/deckhouse/module-sdk/pkg/patchable-values"
+	"gopkg.in/robfig/cron.v2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
@@ -331,9 +332,15 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		if inSch.Name == "" {
 			return c, spew.Errorf(`"name" is a required field in binding: %v`, inSch)
 		}
+
+		if _, err := cron.Parse(inSch.Crontab); err != nil {
+			return c, spew.Errorf("crontab '%s' is invalid: %w", inSch.Crontab, err)
+		}
+
 		res.BindingName = inSch.Name
 
 		res.AllowFailure = input.AllowFailure
+
 		res.ScheduleEntry = schdulertypes.ScheduleEntry{
 			Crontab: inSch.Crontab,
 			Id:      config.ScheduleID(),
