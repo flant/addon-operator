@@ -6,6 +6,7 @@ import (
 )
 
 type MockModule struct {
+	Critical              bool
 	EnabledScriptResult   bool
 	EnabledScriptErr      error
 	EnabledModules        *[]string
@@ -25,6 +26,10 @@ func (m MockModule) GetPath() string {
 
 func (m MockModule) GetOrder() uint32 {
 	return m.Order
+}
+
+func (m MockModule) GetCritical() bool {
+	return m.Critical
 }
 
 func (m MockModule) RunEnabledScript(_ context.Context, _ string, _ []string, _ map[string]string) (bool, error) {

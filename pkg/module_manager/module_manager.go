@@ -30,6 +30,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/moduleset"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
+	bootstrapped_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/bootstrapped"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
 	script_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/script_enabled"
@@ -56,6 +57,8 @@ const (
 	moduleMaintenanceMetricName  = "{PREFIX}mm_module_maintenance"
 
 	moduleManagerServiceName = "module-manager"
+
+	bootstrappedValueSection = "clusterIsBootstrapped"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -377,12 +380,30 @@ func (mm *ModuleManager) Init(logger *log.Logger) error {
 		return fmt.Errorf("couldn't add scrpt_enabled extender: %w", err)
 	}
 
-	// by this point we must have all required scheduler extenders attached
+	bootstrappedExtender := bootstrapped_extender.NewExtender(func() (bool, error) {
+		value, ok := mm.global.GetValues(false)[bootstrappedValueSection]
+		if !ok {
+			return false, nil
+		}
+
+		bootstrapped, ok := value.(bool)
+		if !ok {
+			return false, errors.New("bootstrapped value not boolean")
+		}
+
+		return bootstrapped, nil
+	})
+
+	if err = mm.moduleScheduler.AddExtender(bootstrappedExtender); err != nil {
+		return fmt.Errorf("couldn't add bootstrapped extender: %w", err)
+	}
+
+	// by this point, we must have all required scheduler extenders attached
 	if err := mm.moduleScheduler.ApplyExtenders(app.AppliedExtenders); err != nil {
 		return fmt.Errorf("couldn't apply extenders to the module scheduler: %w", err)
 	}
 
-	return mm.registerModules(scriptEnabledExtender)
+	return mm.registerModules(scriptEnabledExtender, bootstrappedExtender)
 }
 
 func (mm *ModuleManager) GetKubeConfigValid() bool {
@@ -1392,7 +1413,7 @@ func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool
 } */
 
 // registerModules load all available modules from modules directory.
-func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.Extender) error {
+func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.Extender, bootstrappedExtender *bootstrapped_extender.Extender) error {
 	if mm.ModulesDir == "" {
 		mm.logger.Warn("empty modules directory is passed, no modules to load")
 
@@ -1434,8 +1455,13 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		mod.WithDependencies(dep)
 		set.Add(mod)
 
-		if err := mm.moduleScheduler.AddModuleVertex(mod); err != nil {
+		if err = mm.moduleScheduler.AddModuleVertex(mod); err != nil {
 			return fmt.Errorf("add module vertex: %w", err)
+		}
+
+		// functional modules require bootstrapped cluster
+		if !mod.GetCritical() {
+			bootstrappedExtender.AddFunctionalModule(mod.GetName())
 		}
 
 		scriptEnabledExtender.AddBasicModule(mod)
@@ -1446,8 +1472,11 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		})
 	}
 
-	mm.logger.Debug("Found modules",
-		slog.Any("modules", set.NamesInOrder()))
+	if err = mm.moduleScheduler.Initialize(); err != nil {
+		return fmt.Errorf("initialize scheduler: %w", err)
+	}
+
+	mm.logger.Debug("Found modules", slog.Any("modules", set.NamesInOrder()))
 
 	mm.l.Lock()
 	mm.modules = set
