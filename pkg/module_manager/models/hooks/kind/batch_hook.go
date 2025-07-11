@@ -189,7 +189,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 		return result, fmt.Errorf("got bad json patch for values: %w", err)
 	}
 
-	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath)
+	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath, h.GetName())
 	if err != nil {
 		return result, fmt.Errorf("got bad metrics: %w", err)
 	}
