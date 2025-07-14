@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
 	nelmlog "github.com/werf/nelm/pkg/log"
 )
 
@@ -85,6 +86,8 @@ func (n *NelmLogger) ErrorPop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) InfoBlock(ctx context.Context, opts nelmlog.BlockOptions, fn func()) {
+	fmt.Printf("LESIKOVTEST: start infoblock\n")
+	fmt.Printf("LESIKOVTEST: blocktitle: %s\n", opts.BlockTitle)
 	n.logger.InfoContext(ctx, opts.BlockTitle)
 
 	fn()
