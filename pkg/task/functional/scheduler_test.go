@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/stretchr/testify/require"
 
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/stretchr/testify/require"
 )
 
 // mockQueueService records AddLastTaskToQueue calls.
