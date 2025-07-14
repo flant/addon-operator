@@ -752,6 +752,26 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 		}
 	}()
 
+	reasonFilePath, err := bm.prepareModuleEnabledReasonFile(tmpDir)
+	if err != nil {
+		logEntry.Error("Prepare MODULE_ENABLED_REASON file",
+			slog.String("path", reasonFilePath),
+			log.Err(err))
+		return false, err
+	}
+	defer func() {
+		if bm.keepTemporaryHookFiles {
+			return
+		}
+		err := os.Remove(reasonFilePath)
+		if err != nil {
+			bm.logger.With("module", bm.GetName()).
+				Error("Remove tmp file",
+					slog.String("path", enabledResultFilePath),
+					log.Err(err))
+		}
+	}()
+
 	logEntry.Debug("Execute enabled script",
 		slog.String("path", enabledScriptPath),
 		slog.Any("modules", precedingEnabledModules))
@@ -761,6 +781,7 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 	envs = append(envs, fmt.Sprintf("CONFIG_VALUES_PATH=%s", configValuesPath))
 	envs = append(envs, fmt.Sprintf("VALUES_PATH=%s", valuesPath))
 	envs = append(envs, fmt.Sprintf("MODULE_ENABLED_RESULT=%s", enabledResultFilePath))
+	envs = append(envs, fmt.Sprintf("MODULE_ENABLED_REASON=%s", reasonFilePath))
 
 	if err := bm.AssembleEnvironmentForModule(environmentmanager.EnabledScriptEnvironment); err != nil {
 		return false, fmt.Errorf("Assemble %q module's environment: %w", bm.GetName(), err)
@@ -811,8 +832,21 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 	logEntry.Info("Enabled script run successful",
 		slog.Bool("result", moduleEnabled),
 		slog.String("status", result))
+	var reason string
+	if !moduleEnabled {
+		reason, err = bm.readModuleEnabledReason(reasonFilePath)
+		if err != nil {
+			logEntry.Error("Read enabled result",
+				slog.String("path", enabledScriptPath),
+				log.Err(err))
+			return false, fmt.Errorf("bad enabled result")
+		}
+	}
 	bm.l.Lock()
 	bm.state.enabledScriptResult = &moduleEnabled
+	if reason != "" {
+		bm.state.enabledScriptReason = &reason
+	}
 	bm.l.Unlock()
 	return moduleEnabled, nil
 }
@@ -824,6 +858,14 @@ func (bm *BasicModule) prepareValuesJsonFileForEnabledScript(tmpdir string, prec
 
 func (bm *BasicModule) prepareModuleEnabledResultFile(tmpdir string) (string, error) {
 	path := filepath.Join(tmpdir, fmt.Sprintf("%s.module-enabled-result", bm.GetName()))
+	if err := utils.CreateEmptyWritableFile(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func (bm *BasicModule) prepareModuleEnabledReasonFile(tmpdir string) (string, error) {
+	path := filepath.Join(tmpdir, fmt.Sprintf("%s.module-enabled-reason", bm.GetName()))
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
@@ -846,6 +888,14 @@ func (bm *BasicModule) readModuleEnabledResult(filePath string) (bool, error) {
 	}
 
 	return false, fmt.Errorf("expected 'true' or 'false', got '%s'", value)
+}
+
+func (bm *BasicModule) readModuleEnabledReason(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("cannot read %s: %w", path, err)
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 // VALUES_PATH
@@ -1210,6 +1260,13 @@ func (bm *BasicModule) GetEnabledScriptResult() *bool {
 	return bm.state.enabledScriptResult
 }
 
+// GetEnabledScriptReason returns a string why the module is disabled
+func (bm *BasicModule) GetEnabledScriptReason() *string {
+	bm.l.RLock()
+	defer bm.l.RUnlock()
+	return bm.state.enabledScriptReason
+}
+
 // GetLastHookError get error of the last executed hook
 func (bm *BasicModule) GetLastHookError() error {
 	bm.l.RLock()
@@ -1348,4 +1405,5 @@ type moduleState struct {
 	hookErrors           map[string]error
 	synchronizationState *SynchronizationState
 	enabledScriptResult  *bool
+	enabledScriptReason  *string
 }
