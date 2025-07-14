@@ -7,19 +7,19 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/werf/nelm/pkg/action"
-	nelmLog "github.com/werf/nelm/pkg/log"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/yaml"
+
+	"github.com/werf/nelm/pkg/action"
+	nelmLog "github.com/werf/nelm/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
