@@ -99,6 +99,10 @@ func (n *NelmLogger) InfoBlockErr(ctx context.Context, opts nelmlog.BlockOptions
 	return fmt.Errorf("inner func err: %w", fn())
 }
 
+func (n *NelmLogger) BlockContentWidth(ctx context.Context) int {
+	return 120
+}
+
 func (n *NelmLogger) SetLevel(_ context.Context, lvl nelmlog.Level) {
 	newLvl := log.LevelInfo
 
