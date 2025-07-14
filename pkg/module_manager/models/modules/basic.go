@@ -106,7 +106,7 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 	}
 
 	if bmodule.logger == nil {
-		bmodule.logger = log.NewLogger(log.Options{}).Named("basic-module").Named(name)
+		bmodule.logger = log.NewLogger().Named("basic-module").Named(name)
 	}
 
 	return bmodule, nil
