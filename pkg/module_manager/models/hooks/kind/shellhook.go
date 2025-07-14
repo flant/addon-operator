@@ -192,7 +192,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 		return result, fmt.Errorf("got bad json patch for values: %w", err)
 	}
 
-	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath, h.GetName())
+	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath, sh.GetName())
 	if err != nil {
 		return result, fmt.Errorf("got bad metrics: %w", err)
 	}
