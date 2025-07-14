@@ -95,9 +95,7 @@ func TestScheduler_LinearDependencies(t *testing.T) {
 	defer cancel()
 
 	mqs := &mockQueueService{}
-	s := NewScheduler(ctx, mqs, log.NewLogger(log.Options{
-		Level: slog.LevelDebug,
-	}))
+	s := NewScheduler(ctx, mqs, log.NewLogger(log.WithLevel(slog.LevelDebug)))
 
 	// A → B
 	a := &Request{Name: "A"}
@@ -131,9 +129,7 @@ func TestScheduler_MultipleDependencies(t *testing.T) {
 	defer cancel()
 
 	mqs := &mockQueueService{}
-	s := NewScheduler(ctx, mqs, log.NewLogger(log.Options{
-		Level: slog.LevelDebug,
-	}))
+	s := NewScheduler(ctx, mqs, log.NewLogger(log.WithLevel(slog.LevelDebug)))
 
 	// A, B → C
 	a := &Request{Name: "A"}
@@ -190,9 +186,7 @@ func TestScheduler_RemoveClearsDone(t *testing.T) {
 	defer cancel()
 
 	mqs := &mockQueueService{}
-	s := NewScheduler(ctx, mqs, log.NewLogger(log.Options{
-		Level: slog.LevelDebug,
-	}))
+	s := NewScheduler(ctx, mqs, log.NewLogger(log.WithLevel(slog.LevelDebug)))
 
 	// build a chain: operator-prometheus → prometheus → monitoring-application
 	a := &Request{Name: "operator-prometheus"}
