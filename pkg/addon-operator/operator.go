@@ -120,7 +120,7 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	}
 
 	if ao.Logger == nil {
-		ao.Logger = log.NewLogger(log.Options{}).Named("addon-operator")
+		ao.Logger = log.NewLogger().Named("addon-operator")
 	}
 
 	so := shell_operator.NewShellOperator(cctx, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
