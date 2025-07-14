@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	channelsBuffer = 24
+	channelsBuffer = 32
 
 	Root = ""
 )
 
 type Scheduler struct {
-	queueService QueueService
+	queueService queueService
 	logger       *log.Logger
 
 	mtx       sync.Mutex
@@ -32,7 +32,7 @@ type Scheduler struct {
 	processCh chan *Request
 }
 
-type QueueService interface {
+type queueService interface {
 	AddLastTaskToQueue(queueName string, task sh_task.Task) error
 }
 
@@ -46,7 +46,7 @@ type Request struct {
 }
 
 // NewScheduler creates a scheduler instance and starts it
-func NewScheduler(ctx context.Context, qService QueueService, logger *log.Logger) *Scheduler {
+func NewScheduler(ctx context.Context, qService queueService, logger *log.Logger) *Scheduler {
 	s := &Scheduler{
 		queueService: qService,
 		logger:       logger,
@@ -74,10 +74,7 @@ func (s *Scheduler) runScheduleLoop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case name, ok := <-s.doneCh:
-			if !ok {
-				return
-			}
+		case name := <-s.doneCh:
 			s.reschedule(name)
 		}
 	}
@@ -97,15 +94,18 @@ func (s *Scheduler) runProcessLoop(ctx context.Context) {
 	}
 }
 
-// Add adds request to process
+// Add adds requests to process
 func (s *Scheduler) Add(reqs ...*Request) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	for _, req := range reqs {
 		s.logger.Debug("add request", slog.Any("request", req))
+		// update module
 		s.requests[req.Name] = req
+		// undone module
 		delete(s.done, req.Name)
+		// unschedule module
 		delete(s.scheduled, req.Name)
 	}
 }
@@ -116,7 +116,11 @@ func (s *Scheduler) Remove(name string) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	// undone module
 	delete(s.done, name)
+	// unschedule module
+	delete(s.scheduled, name)
+	// remove module
 	delete(s.requests, name)
 }
 
