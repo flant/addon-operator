@@ -14,11 +14,16 @@ import (
 )
 
 const (
+	// size for done and process channels
 	channelsBuffer = 32
 
+	// Root triggers modules without dependencies
 	Root = ""
 )
 
+// Scheduler is used to process functional modules,
+// it waits until modules` dependencies are processed and then
+// runs ModuleRun tasks for them in parallel queues
 type Scheduler struct {
 	queueService queueService
 	logger       *log.Logger
@@ -36,6 +41,7 @@ type queueService interface {
 	AddLastTaskToQueue(queueName string, task sh_task.Task) error
 }
 
+// Request describes a module and run task options
 type Request struct {
 	Name         string
 	Description  string
@@ -185,7 +191,9 @@ func (s *Scheduler) handleRequest(idx int, req *Request) {
 			IsReloadAll:      req.IsReloadAll,
 		})
 
-	_ = s.queueService.AddLastTaskToQueue(queueName, moduleTask)
+	if err := s.queueService.AddLastTaskToQueue(queueName, moduleTask); err != nil {
+		s.logger.Error("add last task to queue", slog.String("queue", queueName), slog.Any("error", err))
+	}
 }
 
 // Done sends signal that module processing done

@@ -78,6 +78,7 @@ func TestScheduler_DuplicateAddIgnored(t *testing.T) {
 func (m *mockQueueService) AddLastTaskToQueue(_ string, task sh_task.Task) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.calls = append(m.calls, task.GetDescription())
 	return nil
 }
@@ -85,6 +86,7 @@ func (m *mockQueueService) AddLastTaskToQueue(_ string, task sh_task.Task) error
 func (m *mockQueueService) len() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	return len(m.calls)
 }
 

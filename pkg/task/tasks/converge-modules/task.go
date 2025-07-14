@@ -29,6 +29,8 @@ import (
 const (
 	taskName = "converge-modules"
 
+	// repeatInterval is the interval at which the convergence status is checked
+	// while waiting until the functional scheduler done
 	repeatInterval = 3 * time.Second
 )
 
@@ -195,7 +197,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				s.logger.Debug("ConvergeModules: main queue has pending tasks, pass them")
 				res.Status = queue.Success
 				res.DelayBeforeNextTask = 0
-				_ = s.queueService.AddLastTaskToMain(s.shellTask)
+				if err := s.queueService.AddLastTaskToMain(s.shellTask); err != nil {
+					s.logger.Error("add last task to queue", slog.String("queue", "main"), slog.Any("error", err))
+				}
 			}
 
 			return res
@@ -366,6 +370,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 			})
 		modulesTasks = append(modulesTasks, newTask.WithQueuedAt(queuedAt))
 
+		// undone, unschedule and remove the disabled module from the functional scheduler
 		s.functionalScheduler.Remove(moduleName)
 	}
 
