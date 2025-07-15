@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
-	bootstrapped_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/bootstrapped"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	kube_config_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/kube_config"
@@ -41,7 +40,6 @@ var defaultAppliedExtenders = []extenders.ExtenderName{
 	dynamic_extender.Name,
 	kube_config_extender.Name,
 	script_extender.Name,
-	bootstrapped_extender.Name,
 }
 
 type extenderContainer struct {
