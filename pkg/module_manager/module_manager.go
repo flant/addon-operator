@@ -56,8 +56,6 @@ const (
 	moduleMaintenanceMetricName  = "{PREFIX}mm_module_maintenance"
 
 	moduleManagerServiceName = "module-manager"
-
-	bootstrappedValueSection = "clusterIsBootstrapped"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
