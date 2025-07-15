@@ -113,6 +113,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				ModuleName:       moduleName,
 				DoModuleStartup:  moduleMetadata.DoModuleStartup,
 				IsReloadAll:      hm.IsReloadAll,
+				Critical:         hm.Critical,
 				ParallelRunMetadata: &task.ParallelRunMetadata{
 					ChannelId: s.shellTask.GetId(),
 				},

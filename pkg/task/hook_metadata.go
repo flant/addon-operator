@@ -27,6 +27,7 @@ type HookMetadata struct {
 	BindingType         types.BindingType
 	BindingContext      []bindingcontext.BindingContext
 	AllowFailure        bool // Task considered as 'ok' if hook failed. False by default. Can be true for some schedule hooks.
+	Critical            bool
 
 	DoModuleStartup bool // Execute onStartup and kubernetes@Synchronization hooks for module
 	IsReloadAll     bool // ModuleRun task is a part of 'Reload all modules' process.
