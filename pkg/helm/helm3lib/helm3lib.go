@@ -86,6 +86,10 @@ func (h *LibClient) WithExtraLabels(labels map[string]string) {
 	}
 }
 
+func (h *LibClient) WithExtraAnnotations(annotations map[string]string) {
+	// helm3lib doesn't support annotations, no-op implementation
+}
+
 // buildConfigFlagsFromEnv builds a ConfigFlags object from the environment and
 // returns it. It uses a persistent config, meaning that underlying clients will
 // be cached and reused.
