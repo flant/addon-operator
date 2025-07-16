@@ -13,13 +13,12 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/werf/nelm/pkg/action"
+	nelmLog "github.com/werf/nelm/pkg/log"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/yaml"
-
-	"github.com/werf/nelm/pkg/action"
-	nelmLog "github.com/werf/nelm/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
@@ -417,53 +416,4 @@ func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioption
 	}
 
 	return flags
-}
-
-func applyCommonOptionsDefaults(opts *CommonOptions, getter *genericclioptions.ConfigFlags) *CommonOptions {
-	if opts == nil {
-		opts = &CommonOptions{}
-	}
-
-	if getter == nil {
-		return opts
-	}
-
-	if opts.Timeout == 0 && getter.Timeout != nil {
-		duration, _ := time.ParseDuration(*getter.Timeout)
-		opts.Timeout = duration
-	}
-	if opts.KubeContext == "" && getter.Context != nil {
-		opts.KubeContext = *getter.Context
-	}
-	if opts.Namespace == nil && getter.Namespace != nil {
-		opts.Namespace = getter.Namespace
-	}
-	if opts.BearerToken == nil && getter.BearerToken != nil {
-		opts.BearerToken = getter.BearerToken
-	}
-	if opts.APIServer == nil && getter.APIServer != nil {
-		opts.APIServer = getter.APIServer
-	}
-	if opts.CAFile == nil && getter.CAFile != nil {
-		opts.CAFile = getter.CAFile
-	}
-	if opts.KubeConfig == nil && getter.KubeConfig != nil {
-		opts.KubeConfig = getter.KubeConfig
-	}
-	if opts.Impersonate == nil && getter.Impersonate != nil {
-		opts.Impersonate = getter.Impersonate
-	}
-	if opts.Insecure == nil && getter.Insecure != nil {
-		opts.Insecure = getter.Insecure
-	}
-	if opts.TLSServerName == nil && getter.TLSServerName != nil {
-		opts.TLSServerName = getter.TLSServerName
-	}
-	if opts.ImpersonateGroup == nil && getter.ImpersonateGroup != nil {
-		opts.ImpersonateGroup = getter.ImpersonateGroup
-	}
-	if opts.WrapConfigFn == nil && getter.WrapConfigFn != nil {
-		opts.WrapConfigFn = getter.WrapConfigFn
-	}
-	return opts
 }
