@@ -188,7 +188,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	if checksum, exists := labels["moduleChecksum"]; exists {
 		extraAnnotations["moduleChecksum"] = checksum
 	}
-	
+
 	// Add client annotations
 	if c.annotations != nil {
 		maps.Copy(extraAnnotations, c.annotations)
