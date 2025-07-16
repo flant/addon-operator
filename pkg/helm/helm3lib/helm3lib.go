@@ -86,7 +86,7 @@ func (h *LibClient) WithExtraLabels(labels map[string]string) {
 	}
 }
 
-func (h *LibClient) WithExtraAnnotations(annotations map[string]string) {
+func (h *LibClient) WithExtraAnnotations(_ map[string]string) {
 	// helm3lib doesn't support annotations, no-op implementation
 }
 
