@@ -102,8 +102,9 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 }
 
 type NelmClient struct {
-	logger *log.Logger
-	labels map[string]string
+	logger      *log.Logger
+	labels      map[string]string
+	annotations map[string]string
 
 	opts    *CommonOptions
 	actions NelmActions
@@ -141,6 +142,20 @@ func (c *NelmClient) WithExtraLabels(labels map[string]string) {
 	}
 }
 
+func (c *NelmClient) WithExtraAnnotations(annotations map[string]string) {
+	if annotations != nil {
+		if c.annotations == nil {
+			c.annotations = make(map[string]string)
+		}
+		maps.Copy(c.annotations, annotations)
+	}
+}
+
+// GetAnnotations returns the annotations for testing purposes
+func (c *NelmClient) GetAnnotations() map[string]string {
+	return c.annotations
+}
+
 func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, error) {
 	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
@@ -159,25 +174,47 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 	return strconv.FormatInt(int64(releaseGetResult.Release.Revision), 10), releaseGetResult.Release.Status.String(), nil
 }
 
-func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
-	c.logger.Info("Running nelm install for release",
-		slog.String("release", releaseName),
+func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
+	logger := c.logger.With(
+		slog.String("release_name", releaseName),
 		slog.String("chart", chartName),
-		slog.String("namespace", namespace))
+		slog.String("namespace", namespace),
+	)
 
-	// go func() {
-	// 	for {
-	// 		buf := make([]byte, 1<<16)
-	// 		runtime.Stack(buf, true)
-	// 		log.Warn("for-nelm-traces", slog.String("trace", string(buf)))
-	//
-	// 		time.Sleep(time.Second * time.Duration(10))
-	// 	}
-	// }()
+	logger.Info("Running nelm upgrade for release")
+
+	// Prepare annotations with correct moduleChecksum from labels
+	extraAnnotations := make(map[string]string)
+	if checksum, exists := labels["moduleChecksum"]; exists {
+		extraAnnotations["moduleChecksum"] = checksum
+	}
+	
+	// Add client annotations
+	if c.annotations != nil {
+		maps.Copy(extraAnnotations, c.annotations)
+	}
+
+	// First check if release exists
+	_, err := c.actions.ReleaseGet(context.Background(), releaseName, namespace, action.ReleaseGetOptions{
+		KubeContext:          c.opts.KubeContext,
+		OutputNoPrint:        true,
+		ReleaseStorageDriver: c.opts.HelmDriver,
+	})
+	if err != nil {
+		logger.Warn("nelm release get has an error", log.Err(err))
+
+		var releaseNotFoundErr *action.ReleaseNotFoundError
+		if errors.As(err, &releaseNotFoundErr) {
+			logger.Info("Release not found, will create new one")
+		} else {
+			return fmt.Errorf("get nelm release %q: %w", releaseName, err)
+		}
+	}
 
 	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
 		Chart:                chartName,
 		ExtraLabels:          c.labels,
+		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
 		NoInstallCRDs:        true,
 		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
@@ -191,7 +228,7 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chartName string, values
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
 
-	c.logger.Info("Nelm install successful",
+	logger.Info("Nelm upgrade successful",
 		slog.String("release", releaseName),
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
@@ -327,6 +364,7 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
 		Chart:                chartName,
 		ExtraLabels:          c.labels,
+		ExtraAnnotations:     c.annotations,
 		KubeContext:          c.opts.KubeContext,
 		ReleaseName:          releaseName,
 		ReleaseNamespace:     namespace,
