@@ -1,6 +1,8 @@
 package go_hook_test
 
 import (
+	"bytes"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -210,6 +212,17 @@ func Test_FilterResult(t *testing.T) {
 		var num int
 		err := w.UnmarshalTo(num)
 		assert.Error(t, err)
+	})
+
+	t.Run("UnmarshalTo_CommonInterface", func(t *testing.T) {
+		var buf bytes.Buffer
+
+		w := &go_hook.Wrapped{Wrapped: &buf}
+		var writer io.Writer
+		err := w.UnmarshalTo(&writer)
+
+		assert.NoError(t, err)
+		assert.Equal(t, &buf, writer)
 	})
 
 	t.Run("UnmarshalTo_NilPointerWrappedToValue", func(t *testing.T) {
