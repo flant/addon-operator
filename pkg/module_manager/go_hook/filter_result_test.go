@@ -61,17 +61,190 @@ func Test_FilterResult(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("UnmarshalTo_NilTarget", func(t *testing.T) {
+	t.Run("UnmarshalTo_IntToFloat64Error", func(t *testing.T) {
 		w := &go_hook.Wrapped{
-			Wrapped: &SomeStruct{
-				String: "INPUT STRING",
+			Wrapped: 32,
+		}
+
+		var target float32
+		err := w.UnmarshalTo(&target)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("UnmarshalTo_IntToFloat64PtrError", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: 42,
+		}
+
+		var target *float64
+		err := w.UnmarshalTo(&target)
+
+		assert.Error(t, err)
+		assert.Nil(t, target)
+	})
+
+	t.Run("UnmarshalTo_IntPtrToFloat64Error", func(t *testing.T) {
+		val := 42
+		w := &go_hook.Wrapped{
+			Wrapped: &val,
+		}
+
+		var target float64
+		err := w.UnmarshalTo(&target)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("UnmarshalTo_CustomIntTypeError", func(t *testing.T) {
+		type MyInt int
+		w := &go_hook.Wrapped{
+			Wrapped: MyInt(42),
+		}
+
+		var target int
+		err := w.UnmarshalTo(&target)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("UnmarshalTo_IntToEmptyInterface", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: 42,
+		}
+
+		var target interface{}
+		err := w.UnmarshalTo(&target)
+
+		assert.NoError(t, err)
+		assert.Equal(t, 42, target)
+	})
+
+	t.Run("UnmarshalTo_DifferentStructs", func(t *testing.T) {
+		type StructA struct{ X int }
+		type StructB struct{ X int }
+
+		w := &go_hook.Wrapped{
+			Wrapped: StructA{X: 42},
+		}
+
+		var target StructB
+		err := w.UnmarshalTo(&target)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("UnmarshalTo_SameStructType", func(t *testing.T) {
+		type Person struct {
+			Name string
+			Age  int
+		}
+
+		w := &go_hook.Wrapped{
+			Wrapped: Person{Name: "Alice", Age: 30},
+		}
+
+		var target Person
+		err := w.UnmarshalTo(&target)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "Alice", target.Name)
+		assert.Equal(t, 30, target.Age)
+	})
+
+	t.Run("UnmarshalTo_DifferentStructsWithSameFields", func(t *testing.T) {
+		type A struct{ X int }
+		type B struct{ X int }
+
+		w := &go_hook.Wrapped{
+			Wrapped: A{X: 42},
+		}
+
+		var target B
+		err := w.UnmarshalTo(&target)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("UnmarshalTo_AnonymousField", func(t *testing.T) {
+		type Base struct {
+			ID int
+		}
+		type Extended struct {
+			Base
+			Name string
+		}
+
+		w := &go_hook.Wrapped{
+			Wrapped: Extended{
+				Base: Base{ID: 1},
+				Name: "Test",
 			},
 		}
 
-		var ss *SomeStruct
+		var target Extended
+		err := w.UnmarshalTo(&target)
 
-		err := w.UnmarshalTo(ss)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, target.ID)
+	})
+
+	t.Run("UnmarshalTo_NoInitPointerToStruct", func(t *testing.T) {
+		type Item struct {
+			Value string
+		}
+
+		w := &go_hook.Wrapped{
+			Wrapped: &Item{Value: "pointer"},
+		}
+
+		var target *Item
+		err := w.UnmarshalTo(&target)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "pointer", target.Value)
+	})
+
+	t.Run("UnmarshalTo_NotPointerTarget", func(t *testing.T) {
+		w := &go_hook.Wrapped{Wrapped: 10}
+		var num int
+		err := w.UnmarshalTo(num)
 		assert.Error(t, err)
+	})
+
+	t.Run("UnmarshalTo_NilPointerWrappedToValue", func(t *testing.T) {
+		type MyStruct struct{ Field string }
+
+		var nilPtr *MyStruct
+		w := &go_hook.Wrapped{Wrapped: nilPtr}
+
+		var target MyStruct
+		err := w.UnmarshalTo(&target)
+		assert.NoError(t, err)
+		assert.Equal(t, "", target.Field)
+	})
+
+	t.Run("UnmarshalTo_DoublePointerToPointer", func(t *testing.T) {
+		val := 100
+		ptr1 := &val
+		ptr2 := &ptr1
+		w := &go_hook.Wrapped{Wrapped: ptr2}
+
+		var target *int
+		err := w.UnmarshalTo(&target)
+		assert.NoError(t, err)
+		assert.NotNil(t, target)
+		assert.Equal(t, 100, *target)
+	})
+
+	t.Run("String_ComplexStruct", func(t *testing.T) {
+		type Person struct {
+			Name string `json:"Name"`
+			Age  int    `json:"Age"`
+		}
+		w := &go_hook.Wrapped{Wrapped: Person{Name: "John", Age: 25}}
+		result := w.String()
+		assert.Equal(t, `{"Name":"John","Age":25}`, result)
 	})
 
 	t.Run("UnmarshalTo_DifferentTypes", func(t *testing.T) {
