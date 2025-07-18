@@ -16,4 +16,5 @@ type HelmClient interface {
 	IsReleaseExists(releaseName string) (bool, error)
 	WithLogLabels(map[string]string)
 	WithExtraLabels(map[string]string)
+	WithExtraAnnotations(map[string]string)
 }
