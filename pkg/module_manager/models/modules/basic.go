@@ -54,6 +54,8 @@ type BasicModule struct {
 	// required
 	Path string
 
+	critical bool
+
 	crdsExist     bool
 	crdFilesPaths []string
 
@@ -104,7 +106,7 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 	}
 
 	if bmodule.logger == nil {
-		bmodule.logger = log.NewLogger(log.Options{}).Named("basic-module").Named(name)
+		bmodule.logger = log.NewLogger().Named("basic-module").Named(name)
 	}
 
 	return bmodule, nil
@@ -112,6 +114,10 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 
 func (bm *BasicModule) WithLogger(logger *log.Logger) {
 	bm.logger = logger
+}
+
+func (bm *BasicModule) SetCritical(value bool) {
+	bm.critical = value
 }
 
 // getCRDsFromPath scan path/crds directory and store yaml file in slice
@@ -149,6 +155,15 @@ func matchPrefix(path string, crdsFilters string) bool {
 	return false
 }
 
+func normalizeHookPath(modulePath, hookPath string) (string, error) {
+	hooksIdx := strings.Index(hookPath, "/hooks/")
+	if hooksIdx == -1 {
+		return filepath.Rel(modulePath, hookPath)
+	}
+	relPath := hookPath[hooksIdx+1:]
+	return relPath, nil
+}
+
 // WithDependencies inject module dependencies
 func (bm *BasicModule) WithDependencies(dep *hooks.HookExecutionDependencyContainer) {
 	bm.dc = dep
@@ -172,6 +187,10 @@ func (bm *BasicModule) GetPath() string {
 // GetHooks returns module hooks, they could be filtered by BindingType optionally
 func (bm *BasicModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleHook {
 	return bm.hooks.getHooks(bt...)
+}
+
+func (bm *BasicModule) GetCritical() bool {
+	return bm.critical
 }
 
 // HasReadiness returns whether the module has a readiness probe configured.
@@ -324,8 +343,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 			})
 			options = append(options, kind.WithPythonVenv(discoveredPythonVenvPath))
 		}
-
-		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
+		hookName, err := normalizeHookPath(filepath.Dir(bm.Path), hookPath)
 		if err != nil {
 			return nil, fmt.Errorf("could not get hook name: %w", err)
 		}
@@ -365,7 +383,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 	bm.logger.Debug("sorted paths", slog.Any("paths", hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
-		hookName, err := filepath.Rel(filepath.Dir(bm.Path), hookPath)
+		hookName, err := normalizeHookPath(filepath.Dir(bm.Path), hookPath)
 		if err != nil {
 			return nil, fmt.Errorf("could not get hook name: %w", err)
 		}
