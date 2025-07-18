@@ -127,28 +127,8 @@ func (f *TopologicalOne) GetTopologicalHints(moduleName string) []string {
 		return []string{"foo", "bar"}
 	case "operator-trivy":
 		return []string{"istio", "admission-policy-engine"}
-	}
-
-	return nil
-}
-
-type TopologicalTwo struct{}
-
-func (f *TopologicalTwo) Name() extenders.ExtenderName {
-	return extenders.ExtenderName("TopologicalTwo")
-}
-
-func (f *TopologicalTwo) Filter(_ string, _ map[string]string) (*bool, error) {
-	return nil, nil
-}
-
-func (f *TopologicalTwo) IsTerminator() bool {
-	return true
-}
-
-func (f *TopologicalTwo) GetTopologicalHints(moduleName string) []string {
-	if moduleName == "my-module" {
-		return []string{"unknown-module"}
+	case "cilium-hubble":
+		return []string{"cni-cilium"}
 	}
 
 	return nil

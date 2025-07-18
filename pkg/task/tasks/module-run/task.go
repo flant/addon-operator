@@ -167,16 +167,6 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
 			s.logTaskAdd("after", res.AfterTasks...)
 		} else {
-			s.logger.Debug("Readiness check",
-				slog.String("module", hm.ModuleName),
-				slog.String("phase", string(baseModule.GetPhase())),
-				slog.Bool("hasReadiness", true))
-
-			// If module has readiness, it runs automatically by schedule
-			if baseModule.HasReadiness() {
-				return
-			}
-
 			s.logger.Info("ModuleRun success, module is ready")
 			// if values not changed we do not need to make another task
 			// so we think that module made all the things what it can

@@ -91,8 +91,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250424095005-9ab587d01d7a h1:c4CKIIsfpCn9wzMziOPfrqptAuHLCtTPM/heobSxPfk=
-github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250424095005-9ab587d01d7a/go.mod h1:pbAxTSDcPmwyl3wwKDcEB3qdxHnRxqTV+J0K+sha8bw=
+github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250704135428-7600b0581807 h1:0kf//0CzwRhJZBTz3yzeZtHIQumWqsCU0DR+HM5r+PA=
+github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250704135428-7600b0581807/go.mod h1:pbAxTSDcPmwyl3wwKDcEB3qdxHnRxqTV+J0K+sha8bw=
 github.com/deckhouse/module-sdk v0.3.1 h1:1llT0xnpJOBWh1QBqAZ0RF40uMPzmu1726Js6YeCg3Q=
 github.com/deckhouse/module-sdk v0.3.1/go.mod h1:So8R2pxrMEX3DGK1Q0wkqpRCEI087IBCj8k04lCvX1E=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
@@ -142,10 +142,10 @@ github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/flant/go-openapi-validate v0.19.12-flant.1 h1:GuB9XEfiLHq3M7fafRLq1AWkndSY/+/5MX7ad1xJ/8A=
 github.com/flant/go-openapi-validate v0.19.12-flant.1/go.mod h1:Rzou8hA/CBw8donlS6WNEUQupNvUZ0waH08tGe6kAQ4=
-github.com/flant/kube-client v1.3.0 h1:iVxwpUZO4AhURkq6n44qfzp0Bjs5WatzTtJrfxeRDkE=
-github.com/flant/kube-client v1.3.0/go.mod h1:yaFoNwyomNm0/OLXRxGYvR7or2pfLv9M9qPDSPPwljI=
-github.com/flant/shell-operator v1.7.3 h1:lAmylHFxC+p1ZDTzBj3++GoDdDJW9GNKPLeEtt/eXiU=
-github.com/flant/shell-operator v1.7.3/go.mod h1:Q/y6q+s8T1EEoJcl4aHm+WqAjXuOfBqUVXzGx/H8VS4=
+github.com/flant/kube-client v1.3.1 h1:1SdD799sujXNg2F6Z27le/+qkcKQaKf9Z492YGEhVhc=
+github.com/flant/kube-client v1.3.1/go.mod h1:mql6hsZMgBLAhdj3Emb8TrP5MVdXduFQ2NLjzn6IF0Y=
+github.com/flant/shell-operator v1.9.0 h1:XaNif0v0NK2S0AzSfujYO6d/ifHsw6nmPylGmuBlPaU=
+github.com/flant/shell-operator v1.9.0/go.mod h1:9gZmjxCuyLDz3hFsmRXYTlw7+hpw199CMYzSodWKk50=
 github.com/flopp/go-findfont v0.1.0 h1:lPn0BymDUtJo+ZkV01VS3661HL6F4qFlkhcJN55u6mU=
 github.com/flopp/go-findfont v0.1.0/go.mod h1:wKKxRDjD024Rh7VMwoU90i6ikQRCr+JTHB5n4Ejkqvw=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=
