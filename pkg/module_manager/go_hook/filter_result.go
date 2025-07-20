@@ -37,18 +37,24 @@ func (f *Wrapped) UnmarshalTo(v any) error {
 	}
 
 	rw := reflect.ValueOf(f.Wrapped)
-	if rw.Kind() != reflect.Pointer || rw.IsNil() {
+	if rw.Type().AssignableTo(rv.Elem().Type()) {
 		rv.Elem().Set(rw)
-
 		return nil
 	}
 
-	if rw.Type() != rv.Type() {
+	if rw.Kind() == reflect.Pointer {
+		if rw.IsNil() {
+			rv.Elem().Set(reflect.Zero(rv.Elem().Type()))
+			return nil
+		}
+		rw = rw.Elem()
+	}
+
+	if !rw.Type().AssignableTo(rv.Elem().Type()) {
 		return ErrUnmarshalToTypesNotMatch
 	}
 
-	rv.Elem().Set(rw.Elem())
-
+	rv.Elem().Set(rw)
 	return nil
 }
 
