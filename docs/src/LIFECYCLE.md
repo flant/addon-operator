@@ -88,7 +88,11 @@ As a result of a 'module discovery' process, the tasks for the execution of all 
 
 ### Enabled script
 
-A script or an executable file that returns the status of the module. The script has access to the module values in `$VALUES_PATH` and `$CONFIG_VALUES_PATH` files, more details about the values are available [here](VALUES.md#using-the-values-in-enabled-scripts). The variable `$MODULE_ENABLED_RESULT` passes the path to the file into which the script should write the module status: `true` or `false`.
+A script or an executable file that returns the status of the module. The script has access to the module values in `$VALUES_PATH` and `$CONFIG_VALUES_PATH` files, more details about the values are available [here](VALUES.md#using-the-values-in-enabled-scripts).
+
+The addon-operator exports two environment variables:
+**`$MODULE_ENABLED_RESULT`** — *required* path to a temporary file; Write `true` or `false` here.
+**`$MODULE_ENABLED_REASON`** — *optional* path to another file; write a **explanation** when the script decides to disable the module.  
 
 Below is an example of the `enabled` script that disables the module when parameter `param2` is set to "stopMePlease".
 
@@ -99,6 +103,7 @@ param2=$(jq -r '.simpleModule.param2' $VALUES_PATH)
 
 if [[ $param2 == "stopMePlease" ]] ; then
   echo "false" > $MODULE_ENABLED_RESULT
+  echo "Module disabled: param2 == stopMePlease" > "$MODULE_ENABLED_REASON"
 else
   echo "true" > $MODULE_ENABLED_RESULT
 fi

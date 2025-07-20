@@ -234,3 +234,69 @@ fi
 	err = IsFileBatchHook("moduleName", hookPath, fileInfo)
 	require.NoError(t, err)
 }
+
+func stubDeps(logger *log.Logger) *hooks.HookExecutionDependencyContainer {
+	st := metric_storage.NewMetricStorage(context.TODO(), "addon_operator_", false, logger)
+	return &hooks.HookExecutionDependencyContainer{
+		HookMetricsStorage: st,
+		MetricStorage:      st,
+		KubeObjectPatcher:  objectpatch.NewObjectPatcher(nil, logger),
+		GlobalValuesGetter: &noopValuesGetter{},
+		KubeConfigManager:  &noopConfigManager{},
+	}
+}
+
+func TestRunEnabledScriptTrue(t *testing.T) {
+	tmpModuleDir := t.TempDir()
+	enabledPath := filepath.Join(tmpModuleDir, "enabled")
+
+	require.NoError(t, os.WriteFile(enabledPath, []byte(`#!/bin/sh
+echo "true" > "$MODULE_ENABLED_RESULT"
+exit 0
+`), 0o755))
+
+	bm, err := NewBasicModule("example", tmpModuleDir, 1, utils.Values{}, nil, nil)
+	require.NoError(t, err)
+
+	logger := log.NewLogger()
+	bm.WithLogger(logger)
+	bm.WithDependencies(stubDeps(logger))
+
+	ok, err := bm.RunEnabledScript(context.TODO(), t.TempDir(), nil, map[string]string{})
+	require.NoError(t, err)
+	require.True(t, ok, "Module should be enabled")
+
+	require.NotNil(t, bm.GetEnabledScriptResult())
+	require.True(t, *bm.GetEnabledScriptResult())
+	r := bm.GetEnabledScriptReason()
+	require.Nil(t, r)
+}
+
+func TestRunEnabledScriptFalseWithReason(t *testing.T) {
+	tmpModuleDir := t.TempDir()
+	enabledPath := filepath.Join(tmpModuleDir, "enabled")
+
+	require.NoError(t, os.WriteFile(enabledPath, []byte(`#!/bin/sh
+echo "false" > "$MODULE_ENABLED_RESULT"
+echo "Kubernetes version is too low" > "$MODULE_ENABLED_REASON"
+exit 0
+`), 0o755))
+
+	bm, err := NewBasicModule("example", tmpModuleDir, 1, utils.Values{}, nil, nil)
+	require.NoError(t, err)
+
+	logger := log.NewLogger()
+	bm.WithLogger(logger)
+	bm.WithDependencies(stubDeps(logger))
+
+	ok, err := bm.RunEnabledScript(context.TODO(), t.TempDir(), nil, map[string]string{})
+	require.NoError(t, err)
+	require.False(t, ok, "Module should be disabled")
+
+	require.NotNil(t, bm.GetEnabledScriptResult())
+	require.False(t, *bm.GetEnabledScriptResult())
+
+	erGetter := bm.GetEnabledScriptReason()
+	require.NotNil(t, erGetter)
+	require.Equal(t, "Kubernetes version is too low", *erGetter)
+}
