@@ -109,7 +109,7 @@ func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig
 		Handle: svc.Handle,
 	}, logger.Named("task-queue-service"))
 
-	svc.functionalScheduler = functional.NewScheduler(ctx, svc.queueService, logger.Named("functional-scheduler"))
+	svc.functionalScheduler = functional.NewScheduler(svc.queueService, logger.Named("functional-scheduler"))
 
 	svc.initFactory()
 

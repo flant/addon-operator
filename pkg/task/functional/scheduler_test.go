@@ -1,7 +1,6 @@
 package functional
 
 import (
-	"context"
 	"log/slog"
 	"sync"
 	"testing"
@@ -24,11 +23,8 @@ type mockQueueService struct {
 func TestScheduler_MissingDependencyLaterAdded(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	mqs := &mockQueueService{}
-	s := NewScheduler(ctx, mqs, log.NewNop())
+	s := NewScheduler(mqs, log.NewNop())
 
 	// D waits for X which is unknown at the moment.
 	d := &Request{Name: "D", Dependencies: []string{"X"}}
@@ -58,11 +54,8 @@ func TestScheduler_MissingDependencyLaterAdded(t *testing.T) {
 func TestScheduler_DuplicateAddIgnored(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	mqs := &mockQueueService{}
-	s := NewScheduler(ctx, mqs, log.NewNop())
+	s := NewScheduler(mqs, log.NewNop())
 
 	r := &Request{Name: "uniq"}
 	s.Add(r)
@@ -93,11 +86,8 @@ func (m *mockQueueService) len() int {
 func TestScheduler_LinearDependencies(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	mqs := &mockQueueService{}
-	s := NewScheduler(ctx, mqs, log.NewLogger(log.WithLevel(slog.LevelDebug)))
+	s := NewScheduler(mqs, log.NewLogger(log.WithLevel(slog.LevelDebug)))
 
 	// A → B
 	a := &Request{Name: "A"}
@@ -127,11 +117,8 @@ func TestScheduler_LinearDependencies(t *testing.T) {
 func TestScheduler_MultipleDependencies(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	mqs := &mockQueueService{}
-	s := NewScheduler(ctx, mqs, log.NewLogger(log.WithLevel(slog.LevelDebug)))
+	s := NewScheduler(mqs, log.NewLogger(log.WithLevel(slog.LevelDebug)))
 
 	// A, B → C
 	a := &Request{Name: "A"}
@@ -164,11 +151,8 @@ func TestScheduler_MultipleDependencies(t *testing.T) {
 func TestScheduler_MissingDependencyBlocks(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
-	defer cancel()
-
 	mqs := &mockQueueService{}
-	s := NewScheduler(ctx, mqs, log.NewNop())
+	s := NewScheduler(mqs, log.NewNop())
 
 	// D depends on never-done X
 	d := &Request{Name: "D", Dependencies: []string{"X"}}
@@ -184,11 +168,8 @@ func TestScheduler_MissingDependencyBlocks(t *testing.T) {
 func TestScheduler_RemoveClearsDone(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	mqs := &mockQueueService{}
-	s := NewScheduler(ctx, mqs, log.NewLogger(log.WithLevel(slog.LevelDebug)))
+	s := NewScheduler(mqs, log.NewLogger(log.WithLevel(slog.LevelDebug)))
 
 	// build a chain: operator-prometheus → prometheus → monitoring-application
 	a := &Request{Name: "operator-prometheus"}
