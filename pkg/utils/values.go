@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"strconv"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -91,9 +92,17 @@ func (v Values) DebugString() string {
 }
 
 func (v Values) Checksum() string {
-	valuesJson, _ := json.Marshal(v)
+	valuesJson, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
 
-	return utils_checksum.CalculateChecksum(string(valuesJson))
+	checksum, err := utils_checksum.CalculateChecksum(string(valuesJson))
+	if err != nil {
+		return ""
+	}
+
+	return strconv.Itoa(int(checksum))
 }
 
 func (v Values) HasKey(key string) bool {
