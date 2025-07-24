@@ -3,7 +3,6 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
@@ -192,11 +191,7 @@ func (mc *ModuleConfig) FromYaml(yamlString []byte) (*ModuleConfig, error) {
 
 func (mc *ModuleConfig) Checksum() string {
 	vChecksum := mc.values.Checksum()
-	checksum, err := utils_checksum.CalculateChecksum(vChecksum)
-	if err != nil {
-		return ""
-	}
-	return strconv.Itoa(int(checksum))
+	return utils_checksum.CalculateChecksum_old(vChecksum)
 }
 
 func ModuleEnabledValue(i interface{}) (*bool, error) {
