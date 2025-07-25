@@ -1064,7 +1064,6 @@ func (mm *ModuleManager) GlobalSynchronizationNeeded() bool {
 			return true
 		}
 	}
-
 	return false
 }
 

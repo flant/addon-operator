@@ -61,7 +61,14 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		Status: queue.Success,
 	}
 
-	if s.moduleManager.GlobalSynchronizationNeeded() && !s.moduleManager.GlobalSynchronizationState().IsCompleted() {
+	// Add debug logging to understand the issue
+	syncNeeded := s.moduleManager.GlobalSynchronizationNeeded()
+	syncCompleted := s.moduleManager.GlobalSynchronizationState().IsCompleted()
+
+	// Dump synchronization state for debugging
+	s.moduleManager.GlobalSynchronizationState().DebugDumpState(s.logger)
+
+	if syncNeeded && !syncCompleted {
 		// dump state
 		s.moduleManager.GlobalSynchronizationState().DebugDumpState(s.logger)
 		s.shellTask.WithQueuedAt(time.Now())

@@ -101,6 +101,7 @@ func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig
 		convergeState:        config.ConvergeState,
 		crdExtraLabels:       config.CRDExtraLabels,
 		discoveredCRDs:       discovercrds.NewDiscoveredGVKs(),
+		taskFactory:          map[sh_task.TaskType]func(t sh_task.Task, logger *log.Logger) task.Task{},
 		logger:               logger,
 	}
 
