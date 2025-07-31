@@ -2,6 +2,7 @@ package addon_operator
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/gofrs/uuid/v5"
@@ -45,7 +46,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 		}
 		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 		logEntry.Debug("Create tasks for 'kubernetes' event",
-			slog.String("event", kubeEvent.String()))
+			slog.String("event", fmt.Sprintf("%+v", kubeEvent)))
 
 		// Handle kubernetes events for global and module hooks
 		tailTasks := op.ModuleManager.HandleKubeEvent(

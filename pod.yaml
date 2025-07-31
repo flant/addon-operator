@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: addon-operator
+spec:
+  containers:
+    - name: addon-operator
+      image: addon:v1
+      imagePullPolicy: Never
+      env:
+        - name: SHELL_OPERATOR_ENABLE_EVENT_DEBOUNCER
+          value: "false"
+        - name: ADDON_OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+  serviceAccountName: addon-operator-acc
