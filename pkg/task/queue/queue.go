@@ -46,7 +46,7 @@ func (s *Service) CreateAndStartQueue(queueName string) {
 }
 
 func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
-	s.engine.TaskQueues.NewNamedQueue(queueName, handler, []sh_task.TaskType{task.GlobalHookRun, task.ModuleHookRun})
+	s.engine.TaskQueues.NewNamedQueue(queueName, handler, []sh_task.TaskType{task.ModuleHookRun})
 	s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)
 }
 
