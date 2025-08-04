@@ -421,13 +421,10 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 
 	// Create main queue with compaction callback
 	callback := func(compactedTasks []sh_task.Task, targetTask sh_task.Task) {
-		fmt.Printf("[TRACE-CALLBACK] BootstrapMainQueue callback called: compactedTasks=%d, targetTask=%s\n", len(compactedTasks), targetTask.GetId())
-
 		// Mark compacted synchronization tasks as done in GlobalSynchronizationState
 		for _, compactedTask := range compactedTasks {
 			thm := task.HookMetadataAccessor(compactedTask)
 			if thm.IsSynchronization() {
-				fmt.Printf("[TRACE-CALLBACK] BootstrapMainQueue: marking sync task as done, hook=%s, bindingId=%s, moduleName=%s\n", thm.HookName, thm.KubernetesBindingId, thm.ModuleName)
 				logEntry.Debug("Compacted synchronization task, marking as Done",
 					slog.String("hook", thm.HookName),
 					slog.String("binding", thm.Binding),
@@ -443,13 +440,10 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 					if op.ModuleManager != nil {
 						baseModule := op.ModuleManager.GetModule(thm.ModuleName)
 						if baseModule != nil && baseModule.Synchronization() != nil {
-							fmt.Printf("[TRACE-CALLBACK] BootstrapMainQueue: marking module sync task as done, module=%s, hook=%s, bindingId=%s\n", thm.ModuleName, thm.HookName, thm.KubernetesBindingId)
 							baseModule.Synchronization().DoneForBinding(thm.KubernetesBindingId)
 						}
 					}
 				}
-			} else {
-				fmt.Printf("[TRACE-CALLBACK] BootstrapMainQueue: task is not sync, hook=%s, bindingId=%s, moduleName=%s\n", thm.HookName, thm.KubernetesBindingId, thm.ModuleName)
 			}
 		}
 	}
@@ -598,28 +592,17 @@ func (op *AddonOperator) CreateAndStartQueue(queueName string) {
 
 // CreateAndStartQueueWithCallback creates a named queue with default handler and custom compaction callback and starts it.
 func (op *AddonOperator) CreateAndStartQueueWithCallback(queueName string, compactionCallback func(compactedTasks []sh_task.Task, targetTask sh_task.Task)) {
-	// Try to use new method with callback, fallback to old method if not available
-	if op.engine.TaskQueues.NewNamedQueueWithCallback != nil {
-		fmt.Printf("[TRACE-CALLBACK] CreateAndStartQueueWithCallback: using NewNamedQueueWithCallback for queue=%s\n", queueName)
-		op.engine.TaskQueues.NewNamedQueueWithCallback(queueName, op.TaskService.Handle, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, compactionCallback)
-	} else {
-		// Fallback to old method
-		fmt.Printf("[TRACE-CALLBACK] CreateAndStartQueueWithCallback: using fallback NewNamedQueue for queue=%s\n", queueName)
-		op.engine.TaskQueues.NewNamedQueue(queueName, op.TaskService.Handle, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun})
-	}
+	op.engine.TaskQueues.NewNamedQueueWithCallback(queueName, op.TaskService.Handle, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, compactionCallback)
 	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
 }
 
 func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
 	// Create callback for compaction events
 	callback := func(compactedTasks []sh_task.Task, targetTask sh_task.Task) {
-		fmt.Printf("[TRACE-CALLBACK] startQueue callback called: queue=%s, compactedTasks=%d, targetTask=%s\n", queueName, len(compactedTasks), targetTask.GetId())
-
 		// Mark compacted synchronization tasks as done in GlobalSynchronizationState
 		for _, compactedTask := range compactedTasks {
 			thm := task.HookMetadataAccessor(compactedTask)
 			if thm.IsSynchronization() {
-				fmt.Printf("[TRACE-CALLBACK] startQueue: marking sync task as done, queue=%s, hook=%s, bindingId=%s, moduleName=%s\n", queueName, thm.HookName, thm.KubernetesBindingId, thm.ModuleName)
 				op.Logger.Debug("Compacted synchronization task, marking as Done",
 					slog.String("hook", thm.HookName),
 					slog.String("binding", thm.Binding),
@@ -635,26 +618,15 @@ func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.C
 					if op.ModuleManager != nil {
 						baseModule := op.ModuleManager.GetModule(thm.ModuleName)
 						if baseModule != nil && baseModule.Synchronization() != nil {
-							fmt.Printf("[TRACE-CALLBACK] startQueue: marking module sync task as done, queue=%s, module=%s, hook=%s, bindingId=%s\n", queueName, thm.ModuleName, thm.HookName, thm.KubernetesBindingId)
 							baseModule.Synchronization().DoneForBinding(thm.KubernetesBindingId)
 						}
 					}
 				}
-			} else {
-				fmt.Printf("[TRACE-CALLBACK] startQueue: task is not sync, queue=%s, hook=%s, bindingId=%s, moduleName=%s\n", queueName, thm.HookName, thm.KubernetesBindingId, thm.ModuleName)
 			}
 		}
 	}
 
-	// Try to use new method with callback, fallback to old method if not available
-	if op.engine.TaskQueues.NewNamedQueueWithCallback != nil {
-		fmt.Printf("[TRACE-CALLBACK] startQueue: using NewNamedQueueWithCallback for queue=%s\n", queueName)
-		op.engine.TaskQueues.NewNamedQueueWithCallback(queueName, handler, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, callback)
-	} else {
-		// Fallback to old method
-		fmt.Printf("[TRACE-CALLBACK] startQueue: using fallback NewNamedQueue for queue=%s\n", queueName)
-		op.engine.TaskQueues.NewNamedQueue(queueName, handler, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun})
-	}
+	op.engine.TaskQueues.NewNamedQueueWithCallback(queueName, handler, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, callback)
 	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
 }
 
@@ -701,13 +673,10 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 
 	// Create callback for compaction events
 	callback := func(compactedTasks []sh_task.Task, targetTask sh_task.Task) {
-		fmt.Printf("[TRACE-CALLBACK] operator: callback called for module=%s, compactedTasks=%d, targetTask=%s\n", moduleName, len(compactedTasks), targetTask.GetId())
-
 		// Mark compacted synchronization tasks as done in module's SynchronizationState
 		for _, compactedTask := range compactedTasks {
 			thm := task.HookMetadataAccessor(compactedTask)
 			if thm.IsSynchronization() {
-				fmt.Printf("[TRACE-CALLBACK] operator: marking module sync task as done, module=%s, hook=%s, bindingId=%s\n", moduleName, thm.HookName, thm.KubernetesBindingId)
 				if m.Synchronization() != nil {
 					m.Synchronization().DoneForBinding(thm.KubernetesBindingId)
 				}

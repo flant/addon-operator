@@ -1061,12 +1061,9 @@ func (mm *ModuleManager) GlobalSynchronizationNeeded() bool {
 	for _, ghName := range mm.GetGlobalHooksInOrder(OnKubernetesEvent) {
 		gHook := mm.GetGlobalHook(ghName)
 		if gHook.SynchronizationNeeded() {
-			fmt.Printf("GlobalSynchronizationNeeded: hook requires synchronization, hook=%s\n", ghName)
 			return true
 		}
 	}
-
-	fmt.Printf("GlobalSynchronizationNeeded: no hooks require synchronization")
 	return false
 }
 
