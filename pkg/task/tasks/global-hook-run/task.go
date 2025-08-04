@@ -2,6 +2,7 @@ package globalhookrun
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -79,6 +80,8 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 	taskHook := s.moduleManager.GetGlobalHook(hm.HookName)
+
+	fmt.Printf("GlobalHookRun: starting task, hook=%s, bindingType=%s, isSynchronization=%v\n", hm.HookName, hm.BindingType, hm.IsSynchronization())
 
 	err := taskHook.RateLimitWait(ctx)
 	if err != nil {
@@ -305,6 +308,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	if isSynchronization && res.Status == queue.Success {
+		fmt.Printf("GlobalHookRun: marking synchronization task as done, hook=%s, bindingId=%s\n", hm.HookName, hm.KubernetesBindingId)
 		s.moduleManager.GlobalSynchronizationState().DoneForBinding(hm.KubernetesBindingId)
 
 		// Unlock Kubernetes events for all monitors when Synchronization task is done.
@@ -312,6 +316,8 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		for _, monitorID := range hm.MonitorIDs {
 			taskHook.GetHookController().UnlockKubernetesEventsFor(monitorID)
 		}
+	} else {
+		fmt.Printf("GlobalHookRun: NOT marking as done, isSynchronization=%v, res.Status=%s, hook=%s\n", isSynchronization, res.Status, hm.HookName)
 	}
 
 	return res

@@ -107,7 +107,8 @@ func (s *SynchronizationState) DoneForBinding(id string) {
 func (s *SynchronizationState) DebugDumpState(logEntry *log.Logger) {
 	s.m.RLock()
 	defer s.m.RUnlock()
+	fmt.Printf("SynchronizationState DebugDumpState: total entries=%d\n", len(s.state))
 	for id, state := range s.state {
-		logEntry.Debug(fmt.Sprintf("%s/%s: queued=%v done=%v id=%s", state.HookName, state.BindingName, state.Queued, state.Done, id))
+		fmt.Printf("  %s/%s: queued=%v done=%v id=%s\n", state.HookName, state.BindingName, state.Queued, state.Done, id)
 	}
 }

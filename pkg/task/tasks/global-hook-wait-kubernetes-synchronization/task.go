@@ -2,7 +2,7 @@ package globalhookwaitkubernetessynchronization
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -66,9 +66,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	syncNeeded := s.moduleManager.GlobalSynchronizationNeeded()
 	syncCompleted := s.moduleManager.GlobalSynchronizationState().IsCompleted()
 
-	s.logger.Debug("GlobalHookWaitKubernetesSynchronization check",
-		slog.Bool("syncNeeded", syncNeeded),
-		slog.Bool("syncCompleted", syncCompleted))
+	fmt.Printf("GlobalHookWaitKubernetesSynchronization check: syncNeeded=%v, syncCompleted=%v\n", syncNeeded, syncCompleted)
 
 	// Dump synchronization state for debugging
 	s.moduleManager.GlobalSynchronizationState().DebugDumpState(s.logger)
@@ -78,7 +76,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.moduleManager.GlobalSynchronizationState().DebugDumpState(s.logger)
 		s.shellTask.WithQueuedAt(time.Now())
 
-		s.logger.Debug("GlobalHookWaitKubernetesSynchronization returning Repeat")
+		fmt.Printf("GlobalHookWaitKubernetesSynchronization returning Repeat\n")
 		res.Status = queue.Repeat
 	} else {
 		s.logger.Info("Synchronization done for all global hooks")
