@@ -293,3 +293,39 @@ func (s *TaskHandlerService) GetTaskFactory() map[sh_task.TaskType]func(t sh_tas
 func (s *TaskHandlerService) GetDiscoveredGVKs() *discovercrds.DiscoveredGVKs {
 	return s.discoveredCRDs
 }
+
+// SetCompactionCallback sets a callback for task compaction events
+func (s *TaskHandlerService) SetCompactionCallback(queueName string) {
+	callback := func(compactedTasks []sh_task.Task, targetTask sh_task.Task) {
+		// Mark compacted synchronization tasks as done in GlobalSynchronizationState
+		for _, compactedTask := range compactedTasks {
+			thm := task.HookMetadataAccessor(compactedTask)
+			if thm.IsSynchronization() {
+				s.logger.Debug("Compacted synchronization task, marking as Done",
+					slog.String("hook", thm.HookName),
+					slog.String("binding", thm.Binding),
+					slog.String("id", thm.KubernetesBindingId))
+				s.moduleManager.GlobalSynchronizationState().DoneForBinding(thm.KubernetesBindingId)
+			}
+		}
+	}
+	s.queueService.SetCompactionCallback(queueName, callback)
+}
+
+// CreateAndStartQueueWithCompactionCallback creates a queue with compaction callback
+func (s *TaskHandlerService) CreateAndStartQueueWithCompactionCallback(queueName string) {
+	callback := func(compactedTasks []sh_task.Task, targetTask sh_task.Task) {
+		// Mark compacted synchronization tasks as done in GlobalSynchronizationState
+		for _, compactedTask := range compactedTasks {
+			thm := task.HookMetadataAccessor(compactedTask)
+			if thm.IsSynchronization() {
+				s.logger.Debug("Compacted synchronization task, marking as Done",
+					slog.String("hook", thm.HookName),
+					slog.String("binding", thm.Binding),
+					slog.String("id", thm.KubernetesBindingId))
+				s.moduleManager.GlobalSynchronizationState().DoneForBinding(thm.KubernetesBindingId)
+			}
+		}
+	}
+	s.queueService.StartQueueWithCallback(queueName, s.Handle, callback)
+}

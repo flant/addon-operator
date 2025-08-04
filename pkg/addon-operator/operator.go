@@ -418,7 +418,22 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 	// Prepopulate main queue with 'onStartup' and 'enable kubernetes bindings' tasks for
 	// global hooks and add a task to discover modules state.
 	tqs.WithMainName("main")
-	tqs.NewNamedQueue("main", op.TaskService.Handle, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun})
+
+	// Create main queue with compaction callback
+	callback := func(compactedTasks []sh_task.Task, targetTask sh_task.Task) {
+		// Mark compacted synchronization tasks as done in GlobalSynchronizationState
+		for _, compactedTask := range compactedTasks {
+			thm := task.HookMetadataAccessor(compactedTask)
+			if thm.IsSynchronization() {
+				logEntry.Debug("Compacted synchronization task, marking as Done",
+					slog.String("hook", thm.HookName),
+					slog.String("binding", thm.Binding),
+					slog.String("id", thm.KubernetesBindingId))
+				op.ModuleManager.GlobalSynchronizationState().DoneForBinding(thm.KubernetesBindingId)
+			}
+		}
+	}
+	op.engine.TaskQueues.NewNamedQueueWithCallback("main", op.TaskService.Handle, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, callback)
 
 	tasks := op.CreateBootstrapTasks(logLabels)
 	op.logTaskAdd(logEntry, "append", tasks...)
@@ -562,7 +577,22 @@ func (op *AddonOperator) CreateAndStartQueue(queueName string) {
 }
 
 func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
-	op.engine.TaskQueues.NewNamedQueue(queueName, handler, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun})
+	// Create callback for compaction events
+	callback := func(compactedTasks []sh_task.Task, targetTask sh_task.Task) {
+		// Mark compacted synchronization tasks as done in GlobalSynchronizationState
+		for _, compactedTask := range compactedTasks {
+			thm := task.HookMetadataAccessor(compactedTask)
+			if thm.IsSynchronization() {
+				op.Logger.Debug("Compacted synchronization task, marking as Done",
+					slog.String("hook", thm.HookName),
+					slog.String("binding", thm.Binding),
+					slog.String("id", thm.KubernetesBindingId))
+				op.ModuleManager.GlobalSynchronizationState().DoneForBinding(thm.KubernetesBindingId)
+			}
+		}
+	}
+
+	op.engine.TaskQueues.NewNamedQueueWithCallback(queueName, handler, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, callback)
 	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
 }
 
