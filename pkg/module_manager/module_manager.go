@@ -377,7 +377,7 @@ func (mm *ModuleManager) Init(logger *log.Logger) error {
 		return fmt.Errorf("couldn't add scrpt_enabled extender: %w", err)
 	}
 
-	// by this point we must have all required scheduler extenders attached
+	// by this point, we must have all required scheduler extenders attached
 	if err := mm.moduleScheduler.ApplyExtenders(app.AppliedExtenders); err != nil {
 		return fmt.Errorf("couldn't apply extenders to the module scheduler: %w", err)
 	}
@@ -581,6 +581,19 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 
 func (mm *ModuleManager) GetModule(name string) *modules.BasicModule {
 	return mm.modules.Get(name)
+}
+
+func (mm *ModuleManager) GetCritical(moduleName string) bool {
+	module := mm.GetModule(moduleName)
+	if module == nil {
+		return false
+	}
+
+	return module.GetCritical()
+}
+
+func (mm *ModuleManager) GetFunctionalDependencies() map[string][]string {
+	return mm.moduleScheduler.GetFunctionalDependencies()
 }
 
 func (mm *ModuleManager) GetModuleNames() []string {
@@ -1434,7 +1447,7 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		mod.WithDependencies(dep)
 		set.Add(mod)
 
-		if err := mm.moduleScheduler.AddModuleVertex(mod); err != nil {
+		if err = mm.moduleScheduler.AddModuleVertex(mod); err != nil {
 			return fmt.Errorf("add module vertex: %w", err)
 		}
 
@@ -1446,8 +1459,11 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		})
 	}
 
-	mm.logger.Debug("Found modules",
-		slog.Any("modules", set.NamesInOrder()))
+	if err = mm.moduleScheduler.Initialize(); err != nil {
+		return fmt.Errorf("initialize scheduler: %w", err)
+	}
+
+	mm.logger.Debug("Found modules", slog.Any("modules", set.NamesInOrder()))
 
 	mm.l.Lock()
 	mm.modules = set

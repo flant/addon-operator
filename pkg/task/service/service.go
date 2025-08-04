@@ -14,6 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	discovercrds "github.com/flant/addon-operator/pkg/task/discover-crds"
+	"github.com/flant/addon-operator/pkg/task/functional"
 	paralleltask "github.com/flant/addon-operator/pkg/task/parallel"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	applykubeconfigvalues "github.com/flant/addon-operator/pkg/task/tasks/apply-kube-config-values"
@@ -56,6 +57,8 @@ type TaskHandlerService struct {
 
 	// a map of channels to communicate with parallel queues and its lock
 	parallelTaskChannels *paralleltask.TaskChannels
+
+	functionalScheduler *functional.Scheduler
 
 	helm *helm.ClientFactory
 
@@ -105,6 +108,8 @@ func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig
 		Engine: config.Engine,
 		Handle: svc.Handle,
 	}, logger.Named("task-queue-service"))
+
+	svc.functionalScheduler = functional.NewScheduler(ctx, svc.queueService, logger.Named("functional-scheduler"))
 
 	svc.initFactory()
 
@@ -175,8 +180,35 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 	s.logTaskEnd(t, res, logger)
 
 	hm := task.HookMetadataAccessor(t)
+
+	s.logger.Debug("parallel task done",
+		slog.String("task_type", string(t.GetType())),
+		slog.String("module", hm.ModuleName),
+		slog.Bool("critical", hm.Critical),
+		slog.String("result", string(res.Status)))
+
+	if !hm.Critical {
+		if t.GetType() == task.ModuleRun {
+			if res.Status == queue.Success && len(res.AfterTasks) == 0 {
+				s.functionalScheduler.Done(hm.ModuleName)
+			}
+
+			if res.Status == queue.Fail {
+				if s.queueService.GetQueueLength(t.GetQueueName()) > 1 {
+					res.Status = queue.Success
+					if err := s.queueService.AddLastTaskToQueue(t.GetQueueName(), t); err != nil {
+						s.logger.Error("add last task to queue", slog.String("queue", t.GetQueueName()), slog.Any("error", err))
+					}
+				}
+			}
+		}
+
+		return res
+	}
+
 	if hm.ParallelRunMetadata == nil || len(hm.ParallelRunMetadata.ChannelId) == 0 {
 		s.logger.Warn("Parallel task had no communication channel set")
+		return res
 	}
 
 	if parallelChannel, ok := s.parallelTaskChannels.Get(hm.ParallelRunMetadata.ChannelId); ok {
@@ -240,6 +272,10 @@ func (s *TaskHandlerService) GetKubeConfigManager() *kube_config_manager.KubeCon
 
 func (s *TaskHandlerService) GetQueueService() *taskqueue.Service {
 	return s.queueService
+}
+
+func (s *TaskHandlerService) GetFunctionalScheduler() *functional.Scheduler {
+	return s.functionalScheduler
 }
 
 func (s *TaskHandlerService) GetConvergeState() *converge.ConvergeState {

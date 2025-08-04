@@ -22,7 +22,7 @@ type Wrapped struct {
 
 var (
 	ErrEmptyWrapped             = errors.New("empty filter result")
-	ErrUnmarshalToTypesNotMatch = errors.New("unmarshal error: input and output types not match")
+	ErrUnmarshalToTypesNotMatch = errors.New("input and output types not match")
 )
 
 func (f *Wrapped) UnmarshalTo(v any) error {
@@ -44,7 +44,8 @@ func (f *Wrapped) UnmarshalTo(v any) error {
 	}
 
 	if rw.Type() != rv.Type() {
-		return ErrUnmarshalToTypesNotMatch
+		return fmt.Errorf("input type: %s, wrapped type: %s: %w",
+			rv.Type(), rw.Type(), ErrUnmarshalToTypesNotMatch)
 	}
 
 	rv.Elem().Set(rw.Elem())
