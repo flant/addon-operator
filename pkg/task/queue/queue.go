@@ -45,6 +45,11 @@ func (s *Service) CreateAndStartQueue(queueName string) {
 	s.startQueue(queueName, s.Handle)
 }
 
+// CreateAndStartQueueWithCallback creates a named queue with default handler and compaction callback and starts it.
+func (s *Service) CreateAndStartQueueWithCallback(queueName string, compactionCallback func(compactedTasks []sh_task.Task, targetTask sh_task.Task)) {
+	s.StartQueueWithCallback(queueName, s.Handle, compactionCallback)
+}
+
 func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
 	s.engine.TaskQueues.NewNamedQueue(queueName, handler, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun})
 	s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)

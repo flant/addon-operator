@@ -590,10 +590,24 @@ func (op *AddonOperator) CreateAndStartParallelQueues() {
 	}
 }
 
-// CreateAndStartQueue creates a named queue and starts it.
+// CreateAndStartQueue creates a named queue with default handler and starts it.
 // It returns false is queue is already created
 func (op *AddonOperator) CreateAndStartQueue(queueName string) {
 	op.startQueue(queueName, op.TaskService.Handle)
+}
+
+// CreateAndStartQueueWithCallback creates a named queue with default handler and custom compaction callback and starts it.
+func (op *AddonOperator) CreateAndStartQueueWithCallback(queueName string, compactionCallback func(compactedTasks []sh_task.Task, targetTask sh_task.Task)) {
+	// Try to use new method with callback, fallback to old method if not available
+	if op.engine.TaskQueues.NewNamedQueueWithCallback != nil {
+		fmt.Printf("[TRACE-CALLBACK] CreateAndStartQueueWithCallback: using NewNamedQueueWithCallback for queue=%s\n", queueName)
+		op.engine.TaskQueues.NewNamedQueueWithCallback(queueName, op.TaskService.Handle, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, compactionCallback)
+	} else {
+		// Fallback to old method
+		fmt.Printf("[TRACE-CALLBACK] CreateAndStartQueueWithCallback: using fallback NewNamedQueue for queue=%s\n", queueName)
+		op.engine.TaskQueues.NewNamedQueue(queueName, op.TaskService.Handle, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun})
+	}
+	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
 }
 
 func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
@@ -685,11 +699,27 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 		return
 	}
 
+	// Create callback for compaction events
+	callback := func(compactedTasks []sh_task.Task, targetTask sh_task.Task) {
+		fmt.Printf("[TRACE-CALLBACK] operator: callback called for module=%s, compactedTasks=%d, targetTask=%s\n", moduleName, len(compactedTasks), targetTask.GetId())
+
+		// Mark compacted synchronization tasks as done in module's SynchronizationState
+		for _, compactedTask := range compactedTasks {
+			thm := task.HookMetadataAccessor(compactedTask)
+			if thm.IsSynchronization() {
+				fmt.Printf("[TRACE-CALLBACK] operator: marking module sync task as done, module=%s, hook=%s, bindingId=%s\n", moduleName, thm.HookName, thm.KubernetesBindingId)
+				if m.Synchronization() != nil {
+					m.Synchronization().DoneForBinding(thm.KubernetesBindingId)
+				}
+			}
+		}
+	}
+
 	scheduleHooks := m.GetHooks(htypes.Schedule)
 	for _, hook := range scheduleHooks {
 		for _, hookBinding := range hook.GetHookConfig().Schedules {
 			if !op.IsQueueExists(hookBinding.Queue) {
-				op.CreateAndStartQueue(hookBinding.Queue)
+				op.CreateAndStartQueueWithCallback(hookBinding.Queue, callback)
 
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
@@ -702,7 +732,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range kubeEventsHooks {
 		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
 			if !op.IsQueueExists(hookBinding.Queue) {
-				op.CreateAndStartQueue(hookBinding.Queue)
+				op.CreateAndStartQueueWithCallback(hookBinding.Queue, callback)
 
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),

@@ -2,6 +2,7 @@ package modulerun
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"runtime/trace"
 	"strings"
@@ -420,11 +421,27 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 		return
 	}
 
+	// Create callback for compaction events
+	callback := func(compactedTasks []sh_task.Task, targetTask sh_task.Task) {
+		fmt.Printf("[TRACE-CALLBACK] module-run: callback called for module=%s, compactedTasks=%d, targetTask=%s\n", moduleName, len(compactedTasks), targetTask.GetId())
+
+		// Mark compacted synchronization tasks as done in module's SynchronizationState
+		for _, compactedTask := range compactedTasks {
+			thm := task.HookMetadataAccessor(compactedTask)
+			if thm.IsSynchronization() {
+				fmt.Printf("[TRACE-CALLBACK] module-run: marking module sync task as done, module=%s, hook=%s, bindingId=%s\n", moduleName, thm.HookName, thm.KubernetesBindingId)
+				if m.Synchronization() != nil {
+					m.Synchronization().DoneForBinding(thm.KubernetesBindingId)
+				}
+			}
+		}
+	}
+
 	scheduleHooks := m.GetHooks(htypes.Schedule)
 	for _, hook := range scheduleHooks {
 		for _, hookBinding := range hook.GetHookConfig().Schedules {
 			if !s.queueService.IsQueueExists(hookBinding.Queue) {
-				s.queueService.CreateAndStartQueue(hookBinding.Queue)
+				s.queueService.CreateAndStartQueueWithCallback(hookBinding.Queue, callback)
 
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
@@ -437,7 +454,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range kubeEventsHooks {
 		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
 			if !s.queueService.IsQueueExists(hookBinding.Queue) {
-				s.queueService.CreateAndStartQueue(hookBinding.Queue)
+				s.queueService.CreateAndStartQueueWithCallback(hookBinding.Queue, callback)
 
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),
