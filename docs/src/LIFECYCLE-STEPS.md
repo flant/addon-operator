@@ -89,8 +89,10 @@ Startup steps:
           - '{moduleName}' section in ConfigMap
           - patched with patches saved from previous module hooks
     - output
-      - 'enabled' state ($MODULE_ENABLED_RESULT temporary file)
-        - if hook return "false", hook state is disabled
+      - **module status**
+        - `$MODULE_ENABLED_RESULT` - *required* file, script writes `true` or `false`
+          - if `$MODULE_ENABLED_RESULT` contains `false`, the module is considered disabled
+        - `$MODULE_ENABLED_REASON` - *optional* file, the script can put a human-readable reason string
   - no 'enabled' script
     - merged 'enabled' state is used
   - create 3 lists
