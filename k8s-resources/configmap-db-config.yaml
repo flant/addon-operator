@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  namespace: default
+data:
+  database.type: "postgresql"
+  database.host: "db-service"
+  database.port: "5432"
+  database.name: "myapp_production"
+  database.user: "postgres"
+  database.password: "secretpassword"
+  database.pool.initial-size: "5"
+  database.pool.max-size: "20"
+  database.pool.min-idle: "5"
+  database.pool.max-idle: "10"
+  database.timeout.connect: "30s"
+  database.timeout.query: "60s"
+  database.timeout.idle: "300s"
+  database.ssl.enabled: "true"

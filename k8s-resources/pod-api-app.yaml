@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: api-app
+  namespace: default
+  labels:
+    app: api-app
+spec:
+  containers:
+  - name: api-app
+    image: node:16-alpine
+    ports:
+    - containerPort: 8080
+    volumeMounts:
+    - name: config-volume
+      mountPath: /etc/config
+  volumes:
+  - name: config-volume
+    configMap:
+      name: app-config

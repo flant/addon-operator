@@ -16,7 +16,6 @@ package global_hooks
 
 import (
 	"fmt"
-	"time"
 
 	sdkobjectpatch "github.com/deckhouse/module-sdk/pkg/object-patch"
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
@@ -52,24 +51,23 @@ func runTestHook(input *go_hook.HookInput) error {
 		return fmt.Errorf("failed to unmarshal pods: %w", err)
 	}
 	fmt.Println("[TEST HOOK] len of pods", len(pods))
-	for _, pod := range pods {
-		patch := map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"annotations": map[string]interface{}{
-					"test-hook/self-trigger": fmt.Sprintf("%s", time.Now().UnixNano()),
-				},
-			},
-		}
-		input.PatchCollector.PatchWithMerge(
-			patch,
-			"v1",
-			"Pod",
-			pod.GetNamespace(),
-			pod.GetName(),
-		)
-		fmt.Println("[TEST HOOK] patched pod", pod.GetName())
-	}
+	// for _, pod := range pods {
+	// 	patch := map[string]interface{}{
+	// 		"metadata": map[string]interface{}{
+	// 			"annotations": map[string]interface{}{
+	// 				"test-hook/self-trigger": fmt.Sprintf("%s", time.Now().UnixNano()),
+	// 			},
+	// 		},
+	// 	}
+	// 	input.PatchCollector.PatchWithMerge(
+	// 		patch,
+	// 		"v1",
+	// 		"Pod",
+	// 		pod.GetNamespace(),
+	// 		pod.GetName(),
+	// 	)
+	// 	fmt.Println("[TEST HOOK] patched pod", pod.GetName())
+	// }
 
-	time.Sleep(20 * time.Second)
 	return nil
 }
