@@ -120,8 +120,7 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 		return "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
-	// In nelm, labels are stored as annotations
-	if value, ok := releaseGetResult.Release.Annotations[labelName]; ok {
+	if value, ok := releaseGetResult.Release.StorageLabels[labelName]; ok {
 		return value, nil
 	}
 
