@@ -84,9 +84,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	additionalLabels := make(map[string]string)
-	if bm.GetMaintenanceState() != Managed {
-		additionalLabels[LabelMaintenanceNoResourceReconciliation] = ""
-	}
+	// LabelMaintenanceNoResourceReconciliation is now only stored in Helm release metadata, not on resources
 
 	hm := &HelmModule{
 		name:             bm.GetName(),
