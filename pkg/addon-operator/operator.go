@@ -447,7 +447,12 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 			}
 		}
 	}
-	op.engine.TaskQueues.NewNamedQueueWithCallback("main", op.TaskService.Handle, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, callback)
+	op.engine.TaskQueues.NewNamedQueue("main", queue.QueueOpts{
+		Handler:            op.TaskService.Handle,
+		CompactionCallback: callback,
+		TaskTypesToMerge:   []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun},
+		Logger:             op.Logger.With("operator.component", "mainQueue"),
+	})
 
 	tasks := op.CreateBootstrapTasks(logLabels)
 	op.logTaskAdd(logEntry, "append", tasks...)
@@ -592,7 +597,12 @@ func (op *AddonOperator) CreateAndStartQueue(queueName string) {
 
 // CreateAndStartQueueWithCallback creates a named queue with default handler and custom compaction callback and starts it.
 func (op *AddonOperator) CreateAndStartQueueWithCallback(queueName string, compactionCallback func(compactedTasks []sh_task.Task, targetTask sh_task.Task)) {
-	op.engine.TaskQueues.NewNamedQueueWithCallback(queueName, op.TaskService.Handle, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, compactionCallback)
+	op.engine.TaskQueues.NewNamedQueue(queueName, queue.QueueOpts{
+		Handler:            op.TaskService.Handle,
+		CompactionCallback: compactionCallback,
+		TaskTypesToMerge:   []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun},
+		Logger:             op.Logger.With("operator.component", "queue", "queue", queueName),
+	})
 	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
 }
 
@@ -626,7 +636,12 @@ func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.C
 		}
 	}
 
-	op.engine.TaskQueues.NewNamedQueueWithCallback(queueName, handler, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, callback)
+	op.engine.TaskQueues.NewNamedQueue(queueName, queue.QueueOpts{
+		Handler:            handler,
+		CompactionCallback: callback,
+		TaskTypesToMerge:   []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun},
+		Logger:             op.Logger.With("operator.component", "queue", "queue", queueName),
+	})
 	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
 }
 

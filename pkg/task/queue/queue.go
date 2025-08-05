@@ -51,12 +51,22 @@ func (s *Service) CreateAndStartQueueWithCallback(queueName string, compactionCa
 }
 
 func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
-	s.engine.TaskQueues.NewNamedQueue(queueName, handler, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun})
+	s.engine.TaskQueues.NewNamedQueue(queueName, queue.QueueOpts{
+		Handler:            handler,
+		CompactionCallback: nil,
+		TaskTypesToMerge:   []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun},
+		Logger:             s.logger.With("operator.component", "queue", "queue", queueName),
+	})
 	s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)
 }
 
 func (s *Service) StartQueueWithCallback(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult, compactionCallback func(compactedTasks []sh_task.Task, targetTask sh_task.Task)) {
-	s.engine.TaskQueues.NewNamedQueueWithCallback(queueName, handler, []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun}, compactionCallback)
+	s.engine.TaskQueues.NewNamedQueue(queueName, queue.QueueOpts{
+		Handler:            handler,
+		CompactionCallback: compactionCallback,
+		TaskTypesToMerge:   []sh_task.TaskType{task.ModuleHookRun, task.GlobalHookRun},
+		Logger:             s.logger.With("operator.component", "queue", "queue", queueName),
+	})
 	s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)
 }
 
