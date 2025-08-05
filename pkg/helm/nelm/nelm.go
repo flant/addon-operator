@@ -181,13 +181,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 
 	logger.Info("Running nelm upgrade for release")
 
-	// Prepare annotations with correct moduleChecksum from labels
-	extraAnnotations := make(map[string]string)
-	if checksum, exists := labels["moduleChecksum"]; exists {
-		extraAnnotations["moduleChecksum"] = checksum
-	}
-
 	// Add client annotations
+	extraAnnotations := make(map[string]string)
 	if c.annotations != nil {
 		maps.Copy(extraAnnotations, c.annotations)
 	}
@@ -276,11 +271,6 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 	if releaseGetResult.Release != nil {
 		if checksum, ok := releaseGetResult.Release.StorageLabels["moduleChecksum"]; ok {
 			logger.Debug("using storage labels")
-			return checksum, nil
-		}
-
-		if checksum, ok := releaseGetResult.Release.Annotations["moduleChecksum"]; ok {
-			logger.Debug("using annotations")
 			return checksum, nil
 		}
 	}
