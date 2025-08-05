@@ -196,9 +196,7 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 			if res.Status == queue.Fail {
 				if s.queueService.GetQueueLength(t.GetQueueName()) > 1 {
 					res.Status = queue.Success
-					if err := s.queueService.AddLastTaskToQueue(t.GetQueueName(), t); err != nil {
-						s.logger.Error("add last task to queue", slog.String("queue", t.GetQueueName()), slog.Any("error", err))
-					}
+					res.TailTasks = append(res.TailTasks, t)
 				}
 			}
 		}

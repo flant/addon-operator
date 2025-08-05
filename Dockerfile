@@ -57,4 +57,5 @@ WORKDIR /
 RUN mkdir /global-hooks /modules
 ENV MODULES_DIR /modules
 ENV GLOBAL_HOOKS_DIR /global-hooks
+
 ENTRYPOINT ["/sbin/tini", "--", "/addon-operator"]
