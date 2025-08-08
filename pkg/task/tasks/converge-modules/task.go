@@ -197,9 +197,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				s.logger.Debug("ConvergeModules: main queue has pending tasks, pass them")
 				res.Status = queue.Success
 				res.DelayBeforeNextTask = 0
-				if err := s.queueService.AddLastTaskToMain(s.shellTask); err != nil {
-					s.logger.Error("add last task to queue", slog.String("queue", "main"), slog.Any("error", err))
-				}
+				res.TailTasks = append(res.TailTasks, s.shellTask)
 			}
 
 			return res

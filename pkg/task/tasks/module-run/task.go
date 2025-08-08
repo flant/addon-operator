@@ -424,7 +424,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range scheduleHooks {
 		for _, hookBinding := range hook.GetHookConfig().Schedules {
 			if !s.queueService.IsQueueExists(hookBinding.Queue) {
-				s.queueService.CreateAndStartQueue(hookBinding.Queue)
+				s.queueService.CreateAndStartQueue(hookBinding.Queue, taskqueue.CompactionCallback(s.moduleManager, s.logger))
 
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
@@ -437,7 +437,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range kubeEventsHooks {
 		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
 			if !s.queueService.IsQueueExists(hookBinding.Queue) {
-				s.queueService.CreateAndStartQueue(hookBinding.Queue)
+				s.queueService.CreateAndStartQueue(hookBinding.Queue, taskqueue.CompactionCallback(s.moduleManager, s.logger))
 
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),

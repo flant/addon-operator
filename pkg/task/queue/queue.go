@@ -41,12 +41,17 @@ func NewService(ctx context.Context, cfg *ServiceConfig, logger *log.Logger) *Se
 
 // CreateAndStartQueue creates a named queue with default handler and starts it.
 // It returns false is queue is already created
-func (s *Service) CreateAndStartQueue(queueName string) {
-	s.startQueue(queueName, s.Handle)
+func (s *Service) CreateAndStartQueue(queueName string, callback Callback) {
+	s.startQueue(queueName, s.Handle, callback)
 }
 
-func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
-	s.engine.TaskQueues.NewNamedQueue(queueName, handler)
+func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult, callback Callback) {
+	s.engine.TaskQueues.NewNamedQueue(queueName, queue.QueueOpts{
+		Handler:            handler,
+		CompactionCallback: callback,
+		CompactableTypes:   MergeTasks,
+		Logger:             s.logger.With("operator.component", "queue", "queue", queueName),
+	})
 	s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)
 }
 

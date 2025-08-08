@@ -99,6 +99,8 @@ var (
 	_ task_metadata.HookNameAccessor       = HookMetadata{}
 	_ task_metadata.BindingContextAccessor = HookMetadata{}
 	_ task_metadata.MonitorIDAccessor      = HookMetadata{}
+	_ task_metadata.BindingContextSetter   = HookMetadata{}
+	_ task_metadata.MonitorIDSetter        = HookMetadata{}
 	_ task.MetadataDescriptionGetter       = HookMetadata{}
 	_ modules.TaskMetadata                 = HookMetadata{}
 )
@@ -169,8 +171,18 @@ func (hm HookMetadata) GetBindingContext() []bindingcontext.BindingContext {
 	return hm.BindingContext
 }
 
+func (hm HookMetadata) SetBindingContext(context []bindingcontext.BindingContext) interface{} {
+	hm.BindingContext = context
+	return hm
+}
+
 func (hm HookMetadata) GetMonitorIDs() []string {
 	return hm.MonitorIDs
+}
+
+func (hm HookMetadata) SetMonitorIDs(monitorIDs []string) interface{} {
+	hm.MonitorIDs = monitorIDs
+	return hm
 }
 
 func (hm HookMetadata) IsSynchronization() bool {
