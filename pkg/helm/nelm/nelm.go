@@ -217,7 +217,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
 		ForceAdoption:        true,
-		NoLogs:               true,
+		NoPodLogs:            true,
 	}); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
@@ -295,7 +295,7 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
 		ReleaseStorageDriver: c.opts.HelmDriver,
 		Timeout:              c.opts.Timeout,
-		NoLogs:               true,
+		NoPodLogs:            true,
 	}); err != nil {
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
