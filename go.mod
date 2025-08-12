@@ -5,7 +5,7 @@ go 1.23.8
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250704135428-7600b0581807
-	github.com/deckhouse/module-sdk v0.3.6-0.20250812072932-9b04cedd5069
+	github.com/deckhouse/module-sdk v0.3.6
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.3.1
@@ -41,16 +41,8 @@ require (
 )
 
 require (
-	github.com/caarlos0/env/v11 v11.3.1 // indirect
-	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
-	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/sylabs/oci-tools v0.7.0 // indirect
-	github.com/vbatts/tar-split v0.11.3 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
-	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 )
 
 require (
