@@ -535,14 +535,18 @@ func remapHookConfigV1FromHookConfig(hcfg *sdkhook.HookConfig) *config.HookConfi
 	}
 
 	for _, sch := range hcfg.Schedule {
-		hcv1.Schedule = append(hcv1.Schedule, config.ScheduleConfigV1{
+		newScheduleCfg := config.ScheduleConfigV1{
 			Name:    sch.Name,
 			Crontab: sch.Crontab,
-		})
+			Queue:   sch.Queue,
+			Group:   "main",
+		}
+
+		hcv1.Schedule = append(hcv1.Schedule, newScheduleCfg)
 	}
 
 	for _, kube := range hcfg.Kubernetes {
-		newShCfg := config.OnKubernetesEventConfigV1{
+		newKubeEventCfg := config.OnKubernetesEventConfigV1{
 			ApiVersion:                   kube.APIVersion,
 			Kind:                         kube.Kind,
 			Name:                         kube.Name,
@@ -561,13 +565,13 @@ func remapHookConfigV1FromHookConfig(hcfg *sdkhook.HookConfig) *config.HookConfi
 		}
 
 		if kube.NameSelector != nil {
-			newShCfg.NameSelector = &config.KubeNameSelectorV1{
+			newKubeEventCfg.NameSelector = &config.KubeNameSelectorV1{
 				MatchNames: kube.NameSelector.MatchNames,
 			}
 		}
 
 		if kube.NamespaceSelector != nil {
-			newShCfg.Namespace = &config.KubeNamespaceSelectorV1{
+			newKubeEventCfg.Namespace = &config.KubeNamespaceSelectorV1{
 				NameSelector:  (*kemtypes.NameSelector)(kube.NamespaceSelector.NameSelector),
 				LabelSelector: kube.NamespaceSelector.LabelSelector,
 			}
@@ -582,35 +586,35 @@ func remapHookConfigV1FromHookConfig(hcfg *sdkhook.HookConfig) *config.HookConfi
 				fs.MatchExpressions = append(fs.MatchExpressions, kemtypes.FieldSelectorRequirement(expr))
 			}
 
-			newShCfg.FieldSelector = fs
+			newKubeEventCfg.FieldSelector = fs
 		}
 
 		if kube.KeepFullObjectsInMemory != nil {
-			newShCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
+			newKubeEventCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
 		}
 
 		// *bool --> ExecuteHookOnEvents: [All events] || empty array or nothing
 		if kube.ExecuteHookOnEvents != nil && !*kube.ExecuteHookOnEvents {
-			newShCfg.ExecuteHookOnEvents = make([]kemtypes.WatchEventType, 0, 1)
+			newKubeEventCfg.ExecuteHookOnEvents = make([]kemtypes.WatchEventType, 0, 1)
 		}
 
 		if kube.ExecuteHookOnSynchronization != nil {
-			newShCfg.ExecuteHookOnSynchronization = strconv.FormatBool(*kube.ExecuteHookOnSynchronization)
+			newKubeEventCfg.ExecuteHookOnSynchronization = strconv.FormatBool(*kube.ExecuteHookOnSynchronization)
 		}
 
 		if kube.WaitForSynchronization != nil {
-			newShCfg.WaitForSynchronization = strconv.FormatBool(*kube.WaitForSynchronization)
+			newKubeEventCfg.WaitForSynchronization = strconv.FormatBool(*kube.WaitForSynchronization)
 		}
 
 		if kube.KeepFullObjectsInMemory != nil {
-			newShCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
+			newKubeEventCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
 		}
 
 		if kube.AllowFailure != nil {
-			newShCfg.AllowFailure = *kube.AllowFailure
+			newKubeEventCfg.AllowFailure = *kube.AllowFailure
 		}
 
-		hcv1.OnKubernetesEvent = append(hcv1.OnKubernetesEvent, newShCfg)
+		hcv1.OnKubernetesEvent = append(hcv1.OnKubernetesEvent, newKubeEventCfg)
 	}
 
 	return hcv1
