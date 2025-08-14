@@ -21,6 +21,13 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
+	shapp "github.com/flant/shell-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/executor"
+	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
+	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
+	utils_file "github.com/flant/shell-operator/pkg/utils/file"
+	"github.com/flant/shell-operator/pkg/utils/measure"
+
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
@@ -30,12 +37,6 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
-	shapp "github.com/flant/shell-operator/pkg/app"
-	"github.com/flant/shell-operator/pkg/executor"
-	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
-	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
-	utils_file "github.com/flant/shell-operator/pkg/utils/file"
-	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
 // BasicModule is a basic representation of the Module, which addon-operator works with
@@ -201,6 +202,7 @@ func (bm *BasicModule) HasReadiness() bool {
 // DeregisterHooks clean up all module hooks
 func (bm *BasicModule) DeregisterHooks() {
 	bm.hooks.clean()
+	bm.hasReadiness = false
 }
 
 // HooksControllersReady returns controllersReady status of the hook storage
