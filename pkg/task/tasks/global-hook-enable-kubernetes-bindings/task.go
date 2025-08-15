@@ -184,7 +184,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	s.logTaskAdd("append", parallelSyncTasks...)
 
 	// Note: No need to add "main" Synchronization tasks to the GlobalSynchronizationState.
-	res.HeadTasks = mainSyncTasks
+	res.AddHeadTasks(mainSyncTasks...)
 	s.logTaskAdd("head", mainSyncTasks...)
 
 	res.Status = queue.Success

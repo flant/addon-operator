@@ -7,6 +7,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -15,6 +16,7 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	discovercrds "github.com/flant/addon-operator/pkg/task/discover-crds"
 	"github.com/flant/addon-operator/pkg/task/functional"
+	"github.com/flant/addon-operator/pkg/task/helpers"
 	paralleltask "github.com/flant/addon-operator/pkg/task/parallel"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	applykubeconfigvalues "github.com/flant/addon-operator/pkg/task/tasks/apply-kube-config-values"
@@ -189,14 +191,15 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 
 	if !hm.Critical {
 		if t.GetType() == task.ModuleRun {
-			if res.Status == queue.Success && len(res.AfterTasks) == 0 {
+			if res.Status == queue.Success && len(res.GetAfterTasks()) == 0 {
 				s.functionalScheduler.Done(hm.ModuleName)
 			}
 
 			if res.Status == queue.Fail {
 				if s.queueService.GetQueueLength(t.GetQueueName()) > 1 {
 					res.Status = queue.Success
-					res.TailTasks = append(res.TailTasks, t)
+					res.AddTailTasks(t.DeepCopyWithNewUUID())
+					s.logTaskAdd("tail", t)
 				}
 			}
 		}
@@ -214,7 +217,7 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 			parallelChannel.SendFailure(hm.ModuleName, t.GetFailureMessage())
 		}
 
-		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.AfterTasks) == 0 {
+		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.GetAfterTasks()) == 0 {
 			parallelChannel.SendSuccess(hm.ModuleName)
 		}
 	}
@@ -290,4 +293,12 @@ func (s *TaskHandlerService) GetTaskFactory() map[sh_task.TaskType]func(t sh_tas
 
 func (s *TaskHandlerService) GetDiscoveredGVKs() *discovercrds.DiscoveredGVKs {
 	return s.discoveredCRDs
+}
+
+// logTaskAdd prints info about queued tasks.
+func (s *TaskHandlerService) logTaskAdd(action string, tasks ...sh_task.Task) {
+	logger := s.logger.With(pkg.LogKeyTaskFlow, "add")
+	for _, tsk := range tasks {
+		logger.Info(helpers.TaskDescriptionForTaskFlowLog(tsk, action, "", ""))
+	}
 }
