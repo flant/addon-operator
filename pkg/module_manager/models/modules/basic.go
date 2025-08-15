@@ -201,6 +201,7 @@ func (bm *BasicModule) HasReadiness() bool {
 // DeregisterHooks clean up all module hooks
 func (bm *BasicModule) DeregisterHooks() {
 	bm.hooks.clean()
+	bm.hasReadiness = false
 }
 
 // HooksControllersReady returns controllersReady status of the hook storage
