@@ -197,7 +197,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			if s.queueService.GetQueueLength(queue.MainQueueName) > 1 {
 				s.logger.Debug("ConvergeModules: main queue has pending tasks, pass them")
 				res.DelayBeforeNextTask = 0
-				res.AddTailTasks(s.shellTask)
+				res.AddTailTasks(s.shellTask.DeepCopyWithNewUUID())
 				res.Status = queue.Success
 				s.logTaskAdd("tail", s.shellTask)
 			}

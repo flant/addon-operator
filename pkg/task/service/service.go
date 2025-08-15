@@ -198,7 +198,7 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 			if res.Status == queue.Fail {
 				if s.queueService.GetQueueLength(t.GetQueueName()) > 1 {
 					res.Status = queue.Success
-					res.AddTailTasks(t)
+					res.AddTailTasks(t.DeepCopyWithNewUUID())
 					s.logTaskAdd("tail", t)
 				}
 			}
