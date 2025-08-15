@@ -191,7 +191,7 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 
 	if !hm.Critical {
 		if t.GetType() == task.ModuleRun {
-			if res.Status == queue.Success && len(res.GetAfterTasks()) == 0 {
+			if res.Status == queue.Success && len(res.GetAfterTasks()) == 0 && len(res.GetTailTasks()) == 0 {
 				s.functionalScheduler.Done(hm.ModuleName)
 			}
 
