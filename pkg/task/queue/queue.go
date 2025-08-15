@@ -46,12 +46,11 @@ func (s *Service) CreateAndStartQueue(queueName string, callback Callback) {
 }
 
 func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult, callback Callback) {
-	s.engine.TaskQueues.NewNamedQueue(queueName, queue.QueueOpts{
-		Handler:            handler,
-		CompactionCallback: callback,
-		CompactableTypes:   MergeTasks,
-		Logger:             s.logger.With("operator.component", "queue", "queue", queueName),
-	})
+	s.engine.TaskQueues.NewNamedQueue(queueName, handler,
+		queue.WithCompactionCallback(callback),
+		queue.WithCompactableTypes(MergeTasks...),
+		queue.WithLogger(s.logger.With("operator.component", "queue", "queue", queueName)),
+	)
 	s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)
 }
 
