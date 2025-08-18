@@ -222,6 +222,8 @@ func (bm *BasicModule) ResetState() {
 		maintenanceState = Unmanaged
 	}
 
+	bm.valuesStorage.SaveConfigValues(nil)
+
 	bm.state = &moduleState{
 		Phase:                Startup,
 		hookErrors:           make(map[string]error),
