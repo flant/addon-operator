@@ -128,10 +128,10 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.convergeState.SetPhase(converge.WaitBeforeAll)
 
 		if len(tasks) > 0 {
-			res.HeadTasks = tasks
+			res.AddHeadTasks(tasks...)
 			res.Status = queue.Keep
 
-			s.logTaskAdd("head", res.HeadTasks...)
+			s.logTaskAdd("head", tasks...)
 
 			return res
 		}
@@ -175,9 +175,10 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 			s.convergeState.SetPhase(converge.WaitDeleteAndRunModules)
 			if len(tasks) > 0 {
-				res.HeadTasks = tasks
+				res.AddHeadTasks(tasks...)
 				res.Status = queue.Keep
-				s.logTaskAdd("head", res.HeadTasks...)
+				s.logTaskAdd("head", tasks...)
+
 				return res
 			}
 		}
@@ -195,11 +196,10 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 			if s.queueService.GetQueueLength(queue.MainQueueName) > 1 {
 				s.logger.Debug("ConvergeModules: main queue has pending tasks, pass them")
-				res.Status = queue.Success
 				res.DelayBeforeNextTask = 0
-				if err := s.queueService.AddLastTaskToMain(s.shellTask); err != nil {
-					s.logger.Error("add last task to queue", slog.String("queue", "main"), slog.Any("error", err))
-				}
+				res.AddTailTasks(s.shellTask.DeepCopyWithNewUUID())
+				res.Status = queue.Success
+				s.logTaskAdd("tail", s.shellTask)
 			}
 
 			return res
@@ -211,9 +211,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		if handleErr == nil {
 			s.convergeState.SetPhase(converge.WaitAfterAll)
 			if len(tasks) > 0 {
-				res.HeadTasks = tasks
+				res.AddHeadTasks(tasks...)
 				res.Status = queue.Keep
-				s.logTaskAdd("head", res.HeadTasks...)
+				s.logTaskAdd("head", tasks...)
 				return res
 			}
 		}

@@ -26,6 +26,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/task"
 	paralleltask "github.com/flant/addon-operator/pkg/task/parallel"
+	queueutils "github.com/flant/addon-operator/pkg/task/queue"
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
@@ -418,7 +419,11 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 	// Prepopulate main queue with 'onStartup' and 'enable kubernetes bindings' tasks for
 	// global hooks and add a task to discover modules state.
 	tqs.WithMainName("main")
-	tqs.NewNamedQueue("main", op.TaskService.Handle)
+	tqs.NewNamedQueue("main", op.TaskService.Handle,
+		queue.WithCompactionCallback(queueutils.CompactionCallback(op.ModuleManager, op.Logger)),
+		queue.WithCompactableTypes(queueutils.MergeTasks...),
+		queue.WithLogger(op.Logger.With("operator.component", "mainQueue")),
+	)
 
 	tasks := op.CreateBootstrapTasks(logLabels)
 	op.logTaskAdd(logEntry, "append", tasks...)
@@ -562,7 +567,11 @@ func (op *AddonOperator) CreateAndStartQueue(queueName string) {
 }
 
 func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
-	op.engine.TaskQueues.NewNamedQueue(queueName, handler)
+	op.engine.TaskQueues.NewNamedQueue(queueName, handler,
+		queue.WithCompactionCallback(queueutils.CompactionCallback(op.ModuleManager, op.Logger)),
+		queue.WithCompactableTypes(queueutils.MergeTasks...),
+		queue.WithLogger(op.Logger.With("operator.component", "queue", "queue", queueName)),
+	)
 	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
 }
 

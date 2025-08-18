@@ -162,10 +162,11 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			newTask := sh_task.NewTask(task.ModuleRun).
 				WithLogLabels(newLabels).
 				WithQueueName(s.shellTask.GetQueueName()).
-				WithMetadata(hm)
+				WithMetadata(hm).
+				WithQueuedAt(time.Now())
 
-			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
-			s.logTaskAdd("after", res.AfterTasks...)
+			res.AddAfterTasks(newTask)
+			s.logTaskAdd("after", newTask)
 		} else {
 			s.logger.Info("ModuleRun success, module is ready")
 			// if values not changed we do not need to make another task
@@ -337,7 +338,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 			// Put Synchronization tasks for kubernetes hooks before ModuleRun task.
 			if len(mainSyncTasks) > 0 {
-				res.HeadTasks = mainSyncTasks
+				res.AddHeadTasks(mainSyncTasks...)
 				res.Status = queue.Keep
 				s.logTaskAdd("head", mainSyncTasks...)
 				return res
@@ -424,7 +425,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range scheduleHooks {
 		for _, hookBinding := range hook.GetHookConfig().Schedules {
 			if !s.queueService.IsQueueExists(hookBinding.Queue) {
-				s.queueService.CreateAndStartQueue(hookBinding.Queue)
+				s.queueService.CreateAndStartQueue(hookBinding.Queue, taskqueue.CompactionCallback(s.moduleManager, s.logger))
 
 				log.Debug("Queue started for module 'schedule'",
 					slog.String("queue", hookBinding.Queue),
@@ -437,7 +438,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	for _, hook := range kubeEventsHooks {
 		for _, hookBinding := range hook.GetHookConfig().OnKubernetesEvents {
 			if !s.queueService.IsQueueExists(hookBinding.Queue) {
-				s.queueService.CreateAndStartQueue(hookBinding.Queue)
+				s.queueService.CreateAndStartQueue(hookBinding.Queue, taskqueue.CompactionCallback(s.moduleManager, s.logger))
 
 				log.Debug("Queue started for module 'kubernetes'",
 					slog.String("queue", hookBinding.Queue),

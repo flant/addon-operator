@@ -74,9 +74,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	res.Status = queue.Success
 
 	tasks := s.CreatePurgeTasks(state.ModulesToPurge, s.shellTask)
-	res.AfterTasks = tasks
+	res.AddAfterTasks(tasks...)
 
-	s.logTaskAdd("after", res.AfterTasks...)
+	s.logTaskAdd("after", tasks...)
 
 	return res
 }

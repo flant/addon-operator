@@ -93,8 +93,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250704135428-7600b0581807 h1:0kf//0CzwRhJZBTz3yzeZtHIQumWqsCU0DR+HM5r+PA=
 github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250704135428-7600b0581807/go.mod h1:pbAxTSDcPmwyl3wwKDcEB3qdxHnRxqTV+J0K+sha8bw=
-github.com/deckhouse/module-sdk v0.3.1 h1:1llT0xnpJOBWh1QBqAZ0RF40uMPzmu1726Js6YeCg3Q=
-github.com/deckhouse/module-sdk v0.3.1/go.mod h1:So8R2pxrMEX3DGK1Q0wkqpRCEI087IBCj8k04lCvX1E=
+github.com/deckhouse/module-sdk v0.3.6 h1:TtuTYz0QMsBRbl/Hrpj1PBpKVjL3No+FZk5Mz1+yLbQ=
+github.com/deckhouse/module-sdk v0.3.6/go.mod h1:ZvBCciV7Kkqm4+/OPgJy3C+/pUDcGGBcSRGZbVUVFfM=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
@@ -144,8 +144,8 @@ github.com/flant/go-openapi-validate v0.19.12-flant.1 h1:GuB9XEfiLHq3M7fafRLq1AW
 github.com/flant/go-openapi-validate v0.19.12-flant.1/go.mod h1:Rzou8hA/CBw8donlS6WNEUQupNvUZ0waH08tGe6kAQ4=
 github.com/flant/kube-client v1.3.1 h1:1SdD799sujXNg2F6Z27le/+qkcKQaKf9Z492YGEhVhc=
 github.com/flant/kube-client v1.3.1/go.mod h1:mql6hsZMgBLAhdj3Emb8TrP5MVdXduFQ2NLjzn6IF0Y=
-github.com/flant/shell-operator v1.9.1 h1:P4f8kyxSK+TRUS7EYLcY9+IrCvvF0e8MBRPA7hPdCnQ=
-github.com/flant/shell-operator v1.9.1/go.mod h1:9gZmjxCuyLDz3hFsmRXYTlw7+hpw199CMYzSodWKk50=
+github.com/flant/shell-operator v1.10.1-0.20250815085444-18c1db6d06f2 h1:sUy4yPRzyk8g/9ZxQSlvm+HIqu5/fcBDy51aY0z9+vg=
+github.com/flant/shell-operator v1.10.1-0.20250815085444-18c1db6d06f2/go.mod h1:9gZmjxCuyLDz3hFsmRXYTlw7+hpw199CMYzSodWKk50=
 github.com/flopp/go-findfont v0.1.0 h1:lPn0BymDUtJo+ZkV01VS3661HL6F4qFlkhcJN55u6mU=
 github.com/flopp/go-findfont v0.1.0/go.mod h1:wKKxRDjD024Rh7VMwoU90i6ikQRCr+JTHB5n4Ejkqvw=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=
