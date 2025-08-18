@@ -10,7 +10,7 @@ import (
 	sh_task "github.com/flant/shell-operator/pkg/task"
 )
 
-var MergeTasks = []sh_task.TaskType{task.ModuleHookRun}
+var MergeTasks = []sh_task.TaskType{task.GlobalHookRun, task.ModuleHookRun}
 
 type ModuleManager interface {
 	GlobalSynchronizationState() *modules.SynchronizationState
