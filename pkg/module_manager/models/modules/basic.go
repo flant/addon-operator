@@ -222,6 +222,7 @@ func (bm *BasicModule) ResetState() {
 		maintenanceState = Unmanaged
 	}
 
+	bm.valuesStorage.valuesPatches = make([]utils.ValuesPatch, 0, 1)
 	bm.valuesStorage.SaveConfigValues(nil)
 
 	bm.state = &moduleState{
