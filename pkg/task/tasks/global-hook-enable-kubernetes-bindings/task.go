@@ -120,7 +120,8 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				WaitForSynchronization:   info.KubernetesBinding.WaitForSynchronization,
 				MonitorIDs:               []string{info.KubernetesBinding.Monitor.Metadata.MonitorId},
 				ExecuteOnSynchronization: info.KubernetesBinding.ExecuteHookOnSynchronization,
-			})
+			}).
+			WithCompactionID(hook.GetName())
 		newTask.WithQueuedAt(queuedAt)
 
 		if info.QueueName == s.shellTask.GetQueueName() {

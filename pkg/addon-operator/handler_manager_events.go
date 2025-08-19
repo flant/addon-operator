@@ -98,7 +98,8 @@ func (op *AddonOperator) createGlobalHookTaskFactory(
 				AllowFailure:             info.AllowFailure,
 				Binding:                  info.Binding,
 				ReloadAllOnValuesChanges: reloadOnValuesChanges,
-			})
+			}).
+			WithCompactionID(globalHook.GetName())
 
 		return newTask
 	}
@@ -143,7 +144,8 @@ func (op *AddonOperator) createModuleHookTaskFactory(
 				BindingType:      bindingType,
 				BindingContext:   info.BindingContext,
 				AllowFailure:     info.AllowFailure,
-			})
+			}).
+			WithCompactionID(moduleHook.GetName())
 
 		return newTask
 	}
