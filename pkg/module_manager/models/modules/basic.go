@@ -222,7 +222,10 @@ func (bm *BasicModule) ResetState() {
 		maintenanceState = Unmanaged
 	}
 
+	// clear values
+	// reset valuesPatches that are set from all patches from all hooks
 	bm.valuesStorage.valuesPatches = make([]utils.ValuesPatch, 0, 1)
+	// reset configValues (after reset this calls calculateResultValues())
 	bm.valuesStorage.SaveConfigValues(nil)
 
 	bm.state = &moduleState{
