@@ -167,11 +167,6 @@ func (st *SchemaStorage) InjectRegistrySpec() {
 		return
 	}
 
-	// skip if already present
-	if _, exists := scheme.Properties["registry"]; exists {
-		return
-	}
-
 	scheme.Properties["registry"] = spec.Schema{
 		SchemaProps: spec.SchemaProps{
 			Type:                 spec.StringOrArray{"object"},
