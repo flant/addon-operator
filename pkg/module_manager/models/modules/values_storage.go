@@ -183,6 +183,8 @@ func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
+	vs.schemaStorage.InjectRegistrySpec()
+
 	vs.resultValues["registry"] = registry
 }
 
