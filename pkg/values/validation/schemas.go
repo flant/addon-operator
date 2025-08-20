@@ -119,6 +119,8 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 		return fmt.Errorf("validate config: schema is not provided")
 	}
 
+	injectRegistryProperty(s)
+
 	validator := validate.NewSchemaValidator(s, nil, rootName, strfmt.Default) // , validate.DisableObjectArrayTypeCheck(true)
 
 	switch v := dataObj.(type) {
@@ -158,6 +160,36 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 	}
 
 	return allErrs.ErrorOrNil()
+}
+
+// injectRegistryProperty mutates the module schema to add a strict-typed "registry" field
+func injectRegistryProperty(s *spec.Schema) {
+	// skip if already present
+	if _, exists := s.Properties["registry"]; exists {
+		return
+	}
+
+	s.Properties["registry"] = spec.Schema{
+		SchemaProps: spec.SchemaProps{
+			Type:                 spec.StringOrArray{"object"},
+			AdditionalProperties: &spec.SchemaOrBool{Allows: false},
+			Properties: map[string]spec.Schema{
+				"base": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}, MinLength: swag.Int64(1)},
+				},
+				"dockercfg": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}},
+				},
+				"scheme": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}},
+				},
+				"ca": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}},
+				},
+			},
+			Required: []string{"base", "scheme"},
+		},
+	}
 }
 
 // ModuleSchemasDescription describes which schemas are present in storage for the module.
@@ -265,6 +297,8 @@ func PrepareSchemas(configBytes, valuesBytes []byte) (map[SchemaType]*spec.Schem
 			&schema.CopyTransformer{},
 			// Transform x-required-for-helm
 			&schema.RequiredForHelmTransformer{},
+			// Allow unknown fields (e.g., "registry") to pass validation
+			&schema.AdditionalPropertiesTransformer{},
 		)
 	}
 
