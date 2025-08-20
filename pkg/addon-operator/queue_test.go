@@ -26,7 +26,7 @@ func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleEnsureCRDs, Id: currentTaskID}
 				q.AddLast(Task)
@@ -47,7 +47,7 @@ func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleEnsureCRDs, Id: currentTaskID}
 				q.AddLast(Task)
@@ -67,7 +67,7 @@ func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: currentTaskID}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -103,7 +103,7 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -123,7 +123,7 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -146,7 +146,7 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "test"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
@@ -166,7 +166,7 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -286,7 +286,7 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 			metricStorage := metric.NewStorageMock(t)
 			metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-			q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+			q := queue.NewTasksQueue(metricStorage)
 
 			for i := range tt.in {
 				tsk := &tt.in[i]
@@ -376,7 +376,7 @@ func Test_ModulesWithPendingModuleRun(t *testing.T) {
 			metricStorage := metric.NewStorageMock(t)
 			metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-			q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+			q := queue.NewTasksQueue(metricStorage)
 
 			for _, tsk := range tt.in {
 				q.AddLast(tsk)
@@ -527,7 +527,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				// Fill queue from the test case.
 				queues = append(queues, q)
@@ -655,7 +655,7 @@ func Test_RemoveCurrentConvergeTasksFromId(t *testing.T) {
 			metricStorage := metric.NewStorageMock(t)
 			metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-			q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+			q := queue.NewTasksQueue(metricStorage)
 
 			// Fill queue from the test case.
 			for i := range tt.initialTasks {
@@ -703,7 +703,7 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -723,7 +723,7 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.GlobalHookRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -750,7 +750,7 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 
-				q := queue.NewTasksQueue().WithMetricStorage(metricStorage)
+				q := queue.NewTasksQueue(metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.GlobalHookRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))

@@ -246,7 +246,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().Handler = func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -267,7 +267,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 
 		// Handle it.
 		return op.TaskService.Handle(ctx, tsk)
-	})
+	}
 
 	op.engine.TaskQueues.StartMain(op.ctx)
 
@@ -380,7 +380,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().Handler = func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -410,7 +410,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 
 		// Handle it.
 		return op.TaskService.Handle(ctx, tsk)
-	})
+	}
 
 	// Start 'main' queue and wait for first converge.
 	op.engine.TaskQueues.StartMain(op.ctx)
@@ -545,7 +545,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	op.engine.TaskQueues.GetMain().WithHandler(func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
+	op.engine.TaskQueues.GetMain().Handler = func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -570,7 +570,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 
 		// Handle it.
 		return op.TaskService.Handle(ctx, tsk)
-	})
+	}
 
 	op.engine.TaskQueues.StartMain(op.ctx)
 
