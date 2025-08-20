@@ -284,7 +284,8 @@ func (s *Task) CreateBeforeAllTasks(logLabels map[string]string, eventDescriptio
 				BindingType:              hookTypes.BeforeAll,
 				BindingContext:           []bc.BindingContext{beforeAllBc},
 				ReloadAllOnValuesChanges: false,
-			})
+			}).
+			WithCompactionID(hookName)
 		tasks = append(tasks, newTask.WithQueuedAt(queuedAt))
 	}
 
@@ -329,7 +330,8 @@ func (s *Task) CreateAfterAllTasks(logLabels map[string]string, eventDescription
 		newTask := sh_task.NewTask(task.GlobalHookRun).
 			WithLogLabels(hookLogLabels).
 			WithQueueName("main").
-			WithMetadata(taskMetadata)
+			WithMetadata(taskMetadata).
+			WithCompactionID(taskMetadata.HookName)
 		tasks = append(tasks, newTask.WithQueuedAt(queuedAt))
 	}
 
