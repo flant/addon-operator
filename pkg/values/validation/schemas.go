@@ -119,11 +119,7 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 		return fmt.Errorf("validate config: schema is not provided")
 	}
 
-	if values, ok := dataObj.(map[string]interface{}); ok {
-		if len(values) > 0 && values["registry"] != nil {
-			injectRegistryProperty(s)
-		}
-	}
+	injectRegistryProperty(s)
 
 	validator := validate.NewSchemaValidator(s, nil, rootName, strfmt.Default) // , validate.DisableObjectArrayTypeCheck(true)
 
