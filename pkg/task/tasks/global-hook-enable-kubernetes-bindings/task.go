@@ -120,7 +120,8 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				WaitForSynchronization:   info.KubernetesBinding.WaitForSynchronization,
 				MonitorIDs:               []string{info.KubernetesBinding.Monitor.Metadata.MonitorId},
 				ExecuteOnSynchronization: info.KubernetesBinding.ExecuteHookOnSynchronization,
-			})
+			}).
+			WithCompactionID(hook.GetName())
 		newTask.WithQueuedAt(queuedAt)
 
 		if info.QueueName == s.shellTask.GetQueueName() {
@@ -184,7 +185,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	s.logTaskAdd("append", parallelSyncTasks...)
 
 	// Note: No need to add "main" Synchronization tasks to the GlobalSynchronizationState.
-	res.HeadTasks = mainSyncTasks
+	res.AddHeadTasks(mainSyncTasks...)
 	s.logTaskAdd("head", mainSyncTasks...)
 
 	res.Status = queue.Success

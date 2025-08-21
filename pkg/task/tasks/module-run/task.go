@@ -162,10 +162,11 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			newTask := sh_task.NewTask(task.ModuleRun).
 				WithLogLabels(newLabels).
 				WithQueueName(s.shellTask.GetQueueName()).
-				WithMetadata(hm)
+				WithMetadata(hm).
+				WithQueuedAt(time.Now())
 
-			res.AfterTasks = []sh_task.Task{newTask.WithQueuedAt(time.Now())}
-			s.logTaskAdd("after", res.AfterTasks...)
+			res.AddAfterTasks(newTask)
+			s.logTaskAdd("after", newTask)
 		} else {
 			s.logger.Info("ModuleRun success, module is ready")
 			// if values not changed we do not need to make another task
@@ -280,7 +281,9 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			newTask := sh_task.NewTask(task.ModuleHookRun).
 				WithLogLabels(taskLogLabels).
 				WithQueueName(queueName).
-				WithMetadata(taskMeta)
+				WithMetadata(taskMeta).
+				WithCompactionID(taskMeta.HookName)
+
 			newTask.WithQueuedAt(time.Now())
 
 			if queueName == s.shellTask.GetQueueName() {
@@ -337,7 +340,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 			// Put Synchronization tasks for kubernetes hooks before ModuleRun task.
 			if len(mainSyncTasks) > 0 {
-				res.HeadTasks = mainSyncTasks
+				res.AddHeadTasks(mainSyncTasks...)
 				res.Status = queue.Keep
 				s.logTaskAdd("head", mainSyncTasks...)
 				return res
