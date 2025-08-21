@@ -5,12 +5,12 @@ go 1.23.8
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250704135428-7600b0581807
-	github.com/deckhouse/module-sdk v0.3.6
+	github.com/deckhouse/module-sdk v0.3.7
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.3.1
-	github.com/flant/shell-operator v1.10.2
-	github.com/go-chi/chi/v5 v5.2.1
+	github.com/flant/shell-operator v1.10.3
+	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/strfmt v0.19.5
@@ -178,7 +178,7 @@ require (
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/image v0.21.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/oauth2 v0.21.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/term v0.30.0 // indirect
