@@ -281,7 +281,9 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			newTask := sh_task.NewTask(task.ModuleHookRun).
 				WithLogLabels(taskLogLabels).
 				WithQueueName(queueName).
-				WithMetadata(taskMeta)
+				WithMetadata(taskMeta).
+				WithCompactionID(taskMeta.HookName)
+
 			newTask.WithQueuedAt(time.Now())
 
 			if queueName == s.shellTask.GetQueueName() {

@@ -477,7 +477,8 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 				BindingType:              htypes.OnStartup,
 				BindingContext:           []bc.BindingContext{onStartupBindingContext},
 				ReloadAllOnValuesChanges: false,
-			})
+			}).
+			WithCompactionID(hookName)
 		tasks = append(tasks, newTask.WithQueuedAt(queuedAt))
 	}
 
