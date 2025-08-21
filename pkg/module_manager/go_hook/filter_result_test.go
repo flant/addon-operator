@@ -470,3 +470,357 @@ func Test_FilterResult(t *testing.T) {
 		assert.Equal(t, "333", result)
 	})
 }
+
+func Test_FilterResult_UnmarshalToWithoutAssignable(t *testing.T) {
+	type SomeStruct struct {
+		String string
+	}
+
+	t.Run("ExactTypeMatch", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: &SomeStruct{
+				String: "INPUT STRING",
+			},
+		}
+
+		ss := &SomeStruct{}
+
+		err := w.UnmarshalToWithoutAssignable(ss)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "INPUT STRING", ss.String)
+	})
+
+	t.Run("ExactTypeMatch_ValueToValue", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: SomeStruct{
+				String: "INPUT STRING",
+			},
+		}
+
+		ss := SomeStruct{}
+
+		err := w.UnmarshalToWithoutAssignable(&ss)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "INPUT STRING", ss.String)
+	})
+
+	t.Run("ExactTypeMatch_PointerToPointer", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: &SomeStruct{
+				String: "INPUT STRING",
+			},
+		}
+
+		var ss *SomeStruct
+
+		err := w.UnmarshalToWithoutAssignable(&ss)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "INPUT STRING", ss.String)
+	})
+
+	t.Run("ExactTypeMatch_PrimitiveTypes", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: 42,
+		}
+
+		var num int
+		err := w.UnmarshalToWithoutAssignable(&num)
+		assert.NoError(t, err)
+		assert.Equal(t, 42, num)
+	})
+
+	t.Run("ExactTypeMatch_String", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: "test string",
+		}
+
+		var str string
+		err := w.UnmarshalToWithoutAssignable(&str)
+		assert.NoError(t, err)
+		assert.Equal(t, "test string", str)
+	})
+
+	t.Run("ExactTypeMatch_Slice", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: []int{1, 2, 3},
+		}
+
+		var slice []int
+		err := w.UnmarshalToWithoutAssignable(&slice)
+		assert.NoError(t, err)
+		assert.Equal(t, []int{1, 2, 3}, slice)
+	})
+
+	t.Run("ExactTypeMatch_Map", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: map[string]int{"one": 1, "two": 2},
+		}
+
+		var m map[string]int
+		err := w.UnmarshalToWithoutAssignable(&m)
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]int{"one": 1, "two": 2}, m)
+	})
+
+	t.Run("NilPointerWrapped", func(t *testing.T) {
+		var nilPtr *SomeStruct
+		w := &go_hook.Wrapped{
+			Wrapped: nilPtr,
+		}
+
+		var ss *SomeStruct
+		err := w.UnmarshalToWithoutAssignable(&ss)
+		assert.NoError(t, err)
+		assert.Nil(t, ss)
+	})
+
+	t.Run("NilPointerWrappedToValue", func(t *testing.T) {
+		var nilPtr *SomeStruct
+		w := &go_hook.Wrapped{
+			Wrapped: nilPtr,
+		}
+
+		var ss SomeStruct
+		err := w.UnmarshalToWithoutAssignable(&ss)
+		assert.NoError(t, err)
+		assert.Equal(t, "", ss.String)
+	})
+
+	t.Run("DifferentTypes_ShouldFail", func(t *testing.T) {
+		type OtherStruct struct {
+			Field int
+		}
+
+		w := &go_hook.Wrapped{
+			Wrapped: &SomeStruct{
+				String: "INPUT STRING",
+			},
+		}
+
+		os := &OtherStruct{}
+
+		err := w.UnmarshalToWithoutAssignable(os)
+		assert.Error(t, err)
+		assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err)
+	})
+
+	t.Run("DifferentPrimitiveTypes_ShouldFail", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: 42,
+		}
+
+		var target float64
+		err := w.UnmarshalToWithoutAssignable(&target)
+		assert.Error(t, err)
+		assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err)
+	})
+
+	t.Run("CustomTypeToBaseType_ShouldFail", func(t *testing.T) {
+		type MyInt int
+		w := &go_hook.Wrapped{
+			Wrapped: MyInt(42),
+		}
+
+		var target int
+		err := w.UnmarshalToWithoutAssignable(&target)
+		assert.Error(t, err)
+		assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err)
+	})
+
+	t.Run("BaseTypeToCustomType_ShouldFail", func(t *testing.T) {
+		type MyInt int
+		w := &go_hook.Wrapped{
+			Wrapped: 42,
+		}
+
+		var target MyInt
+		err := w.UnmarshalToWithoutAssignable(&target)
+		assert.Error(t, err)
+		assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err)
+	})
+
+	t.Run("DifferentStructsWithSameFields_ShouldFail", func(t *testing.T) {
+		type A struct{ X int }
+		type B struct{ X int }
+
+		w := &go_hook.Wrapped{
+			Wrapped: A{X: 42},
+		}
+
+		var target B
+		err := w.UnmarshalToWithoutAssignable(&target)
+		assert.Error(t, err)
+		assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err)
+	})
+
+	t.Run("Int32ToString_ShouldFail", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: int32(6443),
+		}
+
+		var portData string
+		err := w.UnmarshalToWithoutAssignable(&portData)
+		assert.Error(t, err)
+		assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err)
+	})
+
+	t.Run("NilWrapped_ShouldFail", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: nil,
+		}
+
+		ss := &SomeStruct{}
+
+		err := w.UnmarshalToWithoutAssignable(ss)
+		assert.Error(t, err)
+		assert.Equal(t, go_hook.ErrEmptyWrapped, err)
+	})
+
+	t.Run("NotPointerTarget_ShouldFail", func(t *testing.T) {
+		w := &go_hook.Wrapped{Wrapped: 10}
+		var num int
+		err := w.UnmarshalToWithoutAssignable(num)
+		assert.Error(t, err)
+	})
+
+	t.Run("NilTarget_ShouldFail", func(t *testing.T) {
+		w := &go_hook.Wrapped{
+			Wrapped: &SomeStruct{
+				String: "INPUT STRING",
+			},
+		}
+
+		var ss *SomeStruct
+		err := w.UnmarshalToWithoutAssignable(ss)
+		assert.Error(t, err)
+	})
+
+	t.Run("CompareWithOriginalUnmarshalTo", func(t *testing.T) {
+		type MyInt int
+
+		w := &go_hook.Wrapped{
+			Wrapped: MyInt(42),
+		}
+
+		var target int
+
+		err1 := w.UnmarshalTo(&target)
+		assert.Error(t, err1)
+
+		err2 := w.UnmarshalToWithoutAssignable(&target)
+		assert.Error(t, err2)
+		assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err2)
+	})
+
+	t.Run("CompareUnmarshalToOldAndUnmarshalToWithoutAssignable", func(t *testing.T) {
+		t.Run("IntToString_ShouldFailInBoth", func(t *testing.T) {
+			w := &go_hook.Wrapped{
+				Wrapped: 42,
+			}
+
+			var target string
+
+			assert.Panics(t, func() {
+				w.UnmarshalToOld(&target)
+			})
+
+			err2 := w.UnmarshalToWithoutAssignable(&target)
+			assert.Error(t, err2)
+			assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err2)
+		})
+
+		t.Run("StringToInt_ShouldFailInBoth", func(t *testing.T) {
+			w := &go_hook.Wrapped{
+				Wrapped: "42",
+			}
+
+			var target int
+
+			assert.Panics(t, func() {
+				w.UnmarshalToOld(&target)
+			})
+
+			err2 := w.UnmarshalToWithoutAssignable(&target)
+			assert.Error(t, err2)
+			assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err2)
+		})
+
+		t.Run("ExactTypeMatch_ShouldWorkInBoth", func(t *testing.T) {
+			w := &go_hook.Wrapped{
+				Wrapped: 42,
+			}
+
+			var target int
+
+			err1 := w.UnmarshalToOld(&target)
+			assert.NoError(t, err1)
+			assert.Equal(t, 42, target)
+
+			target = 0
+
+			err2 := w.UnmarshalToWithoutAssignable(&target)
+			assert.NoError(t, err2)
+			assert.Equal(t, 42, target)
+		})
+
+		t.Run("PointerToValue_ShouldWorkInBoth", func(t *testing.T) {
+			val := 42
+			w := &go_hook.Wrapped{
+				Wrapped: &val,
+			}
+
+			var target int
+
+			err1 := w.UnmarshalToOld(&target)
+			assert.NoError(t, err1)
+			assert.Equal(t, 42, target)
+
+			target = 0
+
+			err2 := w.UnmarshalToWithoutAssignable(&target)
+			assert.NoError(t, err2)
+			assert.Equal(t, 42, target)
+		})
+
+		t.Run("ValueToPointer_ShouldFailInBoth", func(t *testing.T) {
+			w := &go_hook.Wrapped{
+				Wrapped: 42,
+			}
+
+			var target *int
+
+			assert.Panics(t, func() {
+				w.UnmarshalToOld(&target)
+			})
+
+			err2 := w.UnmarshalToWithoutAssignable(&target)
+			assert.Error(t, err2)
+			assert.Equal(t, go_hook.ErrUnmarshalToTypesNotMatch, err2)
+		})
+
+		t.Run("StructExactMatch_ShouldWorkInBoth", func(t *testing.T) {
+			type TestStruct struct {
+				Field string
+			}
+
+			w := &go_hook.Wrapped{
+				Wrapped: TestStruct{Field: "test"},
+			}
+
+			var target TestStruct
+
+			err1 := w.UnmarshalToOld(&target)
+			assert.NoError(t, err1)
+			assert.Equal(t, "test", target.Field)
+
+			target = TestStruct{}
+
+			err2 := w.UnmarshalToWithoutAssignable(&target)
+			assert.NoError(t, err2)
+			assert.Equal(t, "test", target.Field)
+		})
+	})
+}
