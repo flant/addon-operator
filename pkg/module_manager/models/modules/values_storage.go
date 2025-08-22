@@ -44,6 +44,12 @@ type ValuesStorage struct {
 	// result of the merging all input values
 	resultValues utils.Values
 }
+type Registry struct {
+	Base      string `json:"base" yaml:"base"`
+	DockerCfg string `json:"dockercfg" yaml:"dockercfg"`
+	Scheme    string `json:"scheme" yaml:"scheme"`
+	CA        string `json:"ca,omitempty" yaml:"ca,omitempty"`
+}
 
 // NewValuesStorage build a new storage for module values
 //
@@ -171,6 +177,15 @@ func (vs *ValuesStorage) GetValues(withPrefix bool) utils.Values {
 	}
 
 	return vs.resultValues
+}
+
+func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
+	vs.lock.Lock()
+	defer vs.lock.Unlock()
+
+	vs.schemaStorage.InjectRegistrySpec()
+
+	vs.resultValues["registry"] = registry
 }
 
 // GetConfigValues returns only user defined values
