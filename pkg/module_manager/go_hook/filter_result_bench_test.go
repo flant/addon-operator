@@ -667,3 +667,73 @@ func BenchmarkNilPointerCases(b *testing.B) {
 		}
 	})
 }
+
+func BenchmarkCompareDirectCast_ValueStruct(b *testing.B) {
+	data := createTestData()
+	var anyVal any = *data
+
+	b.Run("DirectCast", func(b *testing.B) {
+		var target BenchmarkData
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			target = anyVal.(BenchmarkData)
+		}
+		_ = target
+	})
+
+	b.Run("UnmarshalToOld", func(b *testing.B) {
+		w := &go_hook.Wrapped{Wrapped: *data}
+		var target BenchmarkData
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = w.UnmarshalToOld(&target)
+		}
+	})
+
+	b.Run("UnmarshalToWithoutAssignable", func(b *testing.B) {
+		w := &go_hook.Wrapped{Wrapped: *data}
+		var target BenchmarkData
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = w.UnmarshalToWithoutAssignable(&target)
+		}
+	})
+}
+
+func BenchmarkCompareDirectCast_PointerStruct(b *testing.B) {
+	data := createTestData()
+	var anyVal any = data
+
+	b.Run("DirectCast", func(b *testing.B) {
+		var target *BenchmarkData
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			target = anyVal.(*BenchmarkData)
+		}
+		_ = target
+	})
+
+	b.Run("UnmarshalToOld", func(b *testing.B) {
+		w := &go_hook.Wrapped{Wrapped: data}
+		var target *BenchmarkData
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = w.UnmarshalToOld(&target)
+		}
+	})
+
+	b.Run("UnmarshalToWithoutAssignable", func(b *testing.B) {
+		w := &go_hook.Wrapped{Wrapped: data}
+		var target *BenchmarkData
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = w.UnmarshalToWithoutAssignable(&target)
+		}
+	})
+}
