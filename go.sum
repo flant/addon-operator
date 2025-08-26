@@ -148,6 +148,8 @@ github.com/flant/shell-operator v1.10.3 h1:6BKpAssV5ChJ+kMvWMuOVLulAeEfkFLXJsYH5
 github.com/flant/shell-operator v1.10.3/go.mod h1:El4fR63G/anIxQklPbK3CUiGTBcurUzf/4runR7FQhg=
 github.com/flant/shell-operator v1.10.4-0.20250826074118-80d01969a7ad h1:RrN5fd7TJkDObke6dSNGMZujYCY4lfGoIZXFBc4u+Rk=
 github.com/flant/shell-operator v1.10.4-0.20250826074118-80d01969a7ad/go.mod h1:El4fR63G/anIxQklPbK3CUiGTBcurUzf/4runR7FQhg=
+github.com/flant/shell-operator v1.10.4-0.20250826095631-0d9870fa9963 h1:CdepOaraJ/kGT3UUKkOzScl8dlhtoKVcQY775ZEOq78=
+github.com/flant/shell-operator v1.10.4-0.20250826095631-0d9870fa9963/go.mod h1:El4fR63G/anIxQklPbK3CUiGTBcurUzf/4runR7FQhg=
 github.com/flopp/go-findfont v0.1.0 h1:lPn0BymDUtJo+ZkV01VS3661HL6F4qFlkhcJN55u6mU=
 github.com/flopp/go-findfont v0.1.0/go.mod h1:wKKxRDjD024Rh7VMwoU90i6ikQRCr+JTHB5n4Ejkqvw=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=
