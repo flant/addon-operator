@@ -21,7 +21,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalCmd.Command("list", "List global hooks.").
 		Action(func(_ *kingpin.ParseContext) error {
-			dump, err := globalRequest(sh_debug.DefaultClient()).List(outputFormat)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			dump, err := globalRequest(client).List(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -31,7 +35,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalCmd.Command("values", "Dump current global values.").
 		Action(func(_ *kingpin.ParseContext) error {
-			dump, err := globalRequest(sh_debug.DefaultClient()).Values(outputFormat)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			dump, err := globalRequest(client).Values(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -41,7 +49,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalCmd.Command("config", "Dump global config values.").
 		Action(func(_ *kingpin.ParseContext) error {
-			dump, err := globalRequest(sh_debug.DefaultClient()).Config(outputFormat)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			dump, err := globalRequest(client).Config(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -51,7 +63,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalCmd.Command("patches", "Dump global value patches.").
 		Action(func(_ *kingpin.ParseContext) error {
-			dump, err := globalRequest(sh_debug.DefaultClient()).Patches()
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			dump, err := globalRequest(client).Patches()
 			if err != nil {
 				return err
 			}
@@ -61,7 +77,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	globalCmd.Command("snapshots", "Dump snapshots for all global hooks.").
 		Action(func(_ *kingpin.ParseContext) error {
-			out, err := globalRequest(sh_debug.DefaultClient()).Snapshots(outputFormat)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			out, err := globalRequest(client).Snapshots(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -77,7 +97,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleCmd.Command("list", "List available modules and their enabled status.").
 		Action(func(_ *kingpin.ParseContext) error {
-			modules, err := moduleRequest(sh_debug.DefaultClient()).List(outputFormat)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			modules, err := moduleRequest(client).List(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -92,7 +116,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleValuesCmd := moduleCmd.Command("values", "Dump module values by name.").
 		Action(func(_ *kingpin.ParseContext) error {
-			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Values(outputFormat, showGlobal)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			dump, err := moduleRequest(client).Name(moduleName).Values(outputFormat, showGlobal)
 			if err != nil {
 				return err
 			}
@@ -109,7 +137,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleRenderCmd := moduleCmd.Command("render", "Render module manifests.").
 		Action(func(_ *kingpin.ParseContext) error {
-			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Render(debug, diff)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			dump, err := moduleRequest(client).Name(moduleName).Render(debug, diff)
 			if err != nil {
 				return err
 			}
@@ -122,7 +154,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleConfigCmd := moduleCmd.Command("config", "Dump module config values by name.").
 		Action(func(_ *kingpin.ParseContext) error {
-			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Config(outputFormat, showGlobal)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			dump, err := moduleRequest(client).Config(outputFormat, showGlobal)
 			if err != nil {
 				return err
 			}
@@ -134,7 +170,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	modulePatchesCmd := moduleCmd.Command("patches", "Dump module value patches by name.").
 		Action(func(_ *kingpin.ParseContext) error {
-			dump, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Patches()
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			dump, err := moduleRequest(client).Name(moduleName).Patches()
 			if err != nil {
 				return err
 			}
@@ -145,7 +185,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleResourceMonitorCmd := moduleCmd.Command("resource-monitor", "Dump resource monitors.").
 		Action(func(_ *kingpin.ParseContext) error {
-			out, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).ResourceMonitor(outputFormat)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			out, err := moduleRequest(client).Name(moduleName).ResourceMonitor(outputFormat)
 			if err != nil {
 				return err
 			}
@@ -156,7 +200,11 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 
 	moduleSnapshotsCmd := moduleCmd.Command("snapshots", "Dump snapshots for all hooks.").
 		Action(func(_ *kingpin.ParseContext) error {
-			out, err := moduleRequest(sh_debug.DefaultClient()).Name(moduleName).Snapshots(outputFormat)
+			client, err := sh_debug.DefaultClient()
+			if err != nil {
+				return err
+			}
+			out, err := moduleRequest(client).Name(moduleName).Snapshots(outputFormat)
 			if err != nil {
 				return err
 			}
