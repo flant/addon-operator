@@ -121,7 +121,7 @@ func (h *GoHook) Execute(ctx context.Context, _ string, bContext []bindingcontex
 	logEntry := utils.EnrichLoggerWithLabels(h.basicHook.Logger, logLabels).
 		With("output", "gohook")
 
-	formattedSnapshots := make(gohook.NewSnapshots, len(bContext))
+	formattedSnapshots := make(gohook.Snapshots, len(bContext))
 	for _, bc := range bContext {
 		for snapBindingName, snaps := range bc.Snapshots {
 			for _, snapshot := range snaps {
