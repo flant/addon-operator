@@ -62,8 +62,8 @@ func (h *GoHook) BackportHookConfig(cfg *config.HookConfig) {
 }
 
 // Run start ReconcileFunc
-func (h *GoHook) Run(input *gohook.HookInput) error {
-	return h.reconcileFunc(input)
+func (h *GoHook) Run(ctx context.Context, input *gohook.HookInput) error {
+	return h.reconcileFunc(ctx, input)
 }
 
 // AddMetadata add hook metadata, name and path which are resolved by SDK registry
@@ -104,7 +104,7 @@ func (h *GoHook) GetHookConfigDescription() string {
 }
 
 // Execute runs the hook and return the result of the execution
-func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
+func (h *GoHook) Execute(ctx context.Context, _ string, bContext []bindingcontext.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
 	// Values are patched in-place, so an error can occur.
 	patchableValues, err := sdkpatchablevalues.NewPatchableValues(values)
 	if err != nil {
@@ -144,7 +144,7 @@ func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.
 	metricsCollector := metrics.NewCollector(h.GetName())
 	patchCollector := objectpatch.NewPatchCollector()
 
-	err = h.Run(&gohook.HookInput{
+	err = h.Run(ctx, &gohook.HookInput{
 		Snapshots:        formattedSnapshots,
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
@@ -198,7 +198,7 @@ func (h *GoHook) GetKind() HookKind {
 }
 
 // ReconcileFunc function which holds the main logic of the hook
-type ReconcileFunc func(input *gohook.HookInput) error
+type ReconcileFunc func(ctx context.Context, input *gohook.HookInput) error
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
 func (h *GoHook) GetConfigForModule(_ string) (*config.HookConfig, error) {

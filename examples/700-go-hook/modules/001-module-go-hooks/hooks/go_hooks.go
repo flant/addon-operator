@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -53,7 +54,7 @@ func ObjFilter(obj *unstructured.Unstructured) (gohook.FilterResult, error) {
 	return &podSpec, nil
 }
 
-func run(input *gohook.HookInput) error {
+func run(_ context.Context, input *gohook.HookInput) error {
 	pods := input.Snapshots.Get("pods")
 
 	for _, o := range pods {
