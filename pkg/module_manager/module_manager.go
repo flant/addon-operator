@@ -592,7 +592,7 @@ func (mm *ModuleManager) GetCritical(moduleName string) bool {
 	return module.GetCritical()
 }
 
-func (mm *ModuleManager) GetFunctionalDependencies() map[string][]string {
+func (mm *ModuleManager) GetFunctionalDependencies() map[string][]extenders.Hint {
 	return mm.moduleScheduler.GetFunctionalDependencies()
 }
 

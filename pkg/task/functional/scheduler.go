@@ -9,6 +9,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 )
@@ -45,7 +46,7 @@ type queueService interface {
 type Request struct {
 	Name         string
 	Description  string
-	Dependencies []string
+	Dependencies []extenders.Hint
 	IsReloadAll  bool
 	DoStartup    bool
 	Labels       map[string]string
@@ -162,7 +163,14 @@ func (s *Scheduler) reschedule(done string) {
 		// check if all dependencies done
 		ready := true
 		for _, dep := range req.Dependencies {
-			if _, ok := s.done[dep]; !ok {
+			//  - if optional and not present in requests -> ignore
+			//  - if optional and present but not done -> not ready
+			if dep.Optional {
+				if _, present := s.requests[dep.Name]; !present {
+					continue
+				}
+			}
+			if _, ok := s.done[dep.Name]; !ok {
 				ready = false
 				break
 			}

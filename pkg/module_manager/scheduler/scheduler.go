@@ -198,8 +198,8 @@ func (s *Scheduler) Initialize() error {
 	for _, module := range s.modules {
 		var connected bool
 		for _, parents := range s.getEdgesFromExtenders(module.GetName()) {
-			for _, parentName := range parents {
-				parent, err := s.dag.Vertex(parentName)
+			for _, hint := range parents {
+				parent, err := s.dag.Vertex(hint.Name)
 				if err != nil && !errors.Is(err, graph.ErrVertexNotFound) {
 					return err
 				}
@@ -215,12 +215,12 @@ func (s *Scheduler) Initialize() error {
 				connected = true
 
 				// add an edge from the parent to the vertex
-				if err = s.dag.AddEdge(parentName, module.GetName()); err != nil {
+				if err = s.dag.AddEdge(hint.Name, module.GetName()); err != nil {
 					if errors.Is(err, graph.ErrEdgeAlreadyExists) {
 						continue
 					}
 
-					return fmt.Errorf("add edge between '%s' and '%s': %w", parentName, module.GetName(), err)
+					return fmt.Errorf("add edge between '%s' and '%s': %w", hint.Name, module.GetName(), err)
 				}
 			}
 		}
@@ -416,8 +416,8 @@ func (s *Scheduler) setExtendersMeta() {
 }
 
 // getEdgesFromExtenders cycles through topological extenders to build a map of additional edges for the module
-func (s *Scheduler) getEdgesFromExtenders(moduleName string) map[extenders.ExtenderName][]string {
-	result := make(map[extenders.ExtenderName][]string, 0)
+func (s *Scheduler) getEdgesFromExtenders(moduleName string) map[extenders.ExtenderName][]extenders.Hint {
+	result := make(map[extenders.ExtenderName][]extenders.Hint, 0)
 	for _, e := range s.extenders {
 		if tope, ok := e.ext.(extenders.TopologicalExtender); ok {
 			if hints := tope.GetTopologicalHints(moduleName); len(hints) > 0 {
@@ -548,16 +548,16 @@ func (s *Scheduler) GetUpdatedByExtender(moduleName string) (string, error) {
 	return vertex.GetUpdatedBy(), err
 }
 
-func (s *Scheduler) GetFunctionalDependencies() map[string][]string {
-	result := make(map[string][]string, len(s.modules))
+func (s *Scheduler) GetFunctionalDependencies() map[string][]extenders.Hint {
+	result := make(map[string][]extenders.Hint, len(s.modules))
 
 	for _, module := range s.modules {
 		for _, ext := range s.extenders {
 			if tope, ok := ext.ext.(extenders.TopologicalExtender); ok {
 				if parents := tope.GetTopologicalHints(module.GetName()); len(parents) > 0 {
-					var deps []string
+					var deps []extenders.Hint
 					for _, parent := range parents {
-						if !s.IsModuleCritical(parent) {
+						if !s.IsModuleCritical(parent.Name) {
 							deps = append(deps, parent)
 						}
 					}

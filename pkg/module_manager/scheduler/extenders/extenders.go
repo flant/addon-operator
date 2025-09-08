@@ -28,7 +28,12 @@ type NotificationExtender interface {
 
 type TopologicalExtender interface {
 	// GetTopologicalHints returns the list of vertices that should be connected to the specified vertex
-	GetTopologicalHints(string) []string
+	GetTopologicalHints(string) []Hint
+}
+
+type Hint struct {
+	Name     string
+	Optional bool
 }
 
 // Hail to enabled scripts
