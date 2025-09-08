@@ -1,6 +1,8 @@
 package global_hooks
 
 import (
+	"context"
+
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/sdk"
 )
@@ -10,6 +12,6 @@ func init() {
 	sdk.RegisterFunc(&gohook.HookConfig{}, main)
 }
 
-func main(_ *gohook.HookInput) error {
+func main(_ context.Context, _ *gohook.HookInput) error {
 	return nil
 }
