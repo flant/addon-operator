@@ -117,6 +117,15 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
+		c.logger.Debug("Failed to get nelm release", log.Err(err), slog.String("release", releaseName))
+
+		var releaseNotFoundErr *action.ReleaseNotFoundError
+		if errors.As(err, &releaseNotFoundErr) {
+			c.logger.Debug("Release not found when getting labels", slog.String("release", releaseName))
+			// Return the original ReleaseNotFoundError so it can be checked upstream
+			return "", err
+		}
+
 		return "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
