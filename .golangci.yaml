@@ -19,7 +19,7 @@ linters:
     - ineffassign
     - misspell
     - musttag
-    # - nolintlint
+    - nolintlint
     - nonamedreturns
     - prealloc
     - revive
