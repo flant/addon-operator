@@ -451,7 +451,7 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	return releases, nil
 }
 
-func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
+func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, _ map[string]string, namespace string, debug bool) (string, error) {
 	chart, err := loader.Load(chartName)
 	if err != nil {
 		return "", err

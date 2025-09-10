@@ -229,6 +229,15 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 	span.AddEvent("ModuleRun-HelmPhase-helm-render")
 
+	// Prepare release labels
+	releaseLabels := map[string]string{
+		LabelMaintenanceNoResourceReconciliation: "false",
+	}
+
+	if state == Unmanaged {
+		releaseLabels[LabelMaintenanceNoResourceReconciliation] = "true"
+	}
+
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
 	func() {
@@ -247,6 +256,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 			hm.path,
 			[]string{valuesPath},
 			[]string{},
+			releaseLabels,
 			hm.defaultNamespace,
 			false,
 		)
@@ -256,6 +266,9 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	}
 
 	checksum := utils.CalculateStringsChecksum(renderedManifests)
+
+	// Add checksum to release labels
+	releaseLabels["moduleChecksum"] = checksum
 
 	manifests, err := manifest.ListFromYamlDocs(renderedManifests)
 	if err != nil {
@@ -304,15 +317,6 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 		defer measure.Duration(func(d time.Duration) {
 			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
 		})()
-
-		releaseLabels := map[string]string{
-			"moduleChecksum":                         checksum,
-			LabelMaintenanceNoResourceReconciliation: "false",
-		}
-
-		if state == Unmanaged {
-			releaseLabels[LabelMaintenanceNoResourceReconciliation] = "true"
-		}
 
 		err = helmClient.UpgradeRelease(
 			helmReleaseName,
@@ -433,5 +437,9 @@ func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
 		helm.WithExtraLabels(hm.additionalLabels),
 	}
 
-	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
+	releaseLabels := map[string]string{
+		LabelMaintenanceNoResourceReconciliation: "false",
+	}
+
+	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }

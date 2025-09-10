@@ -181,7 +181,7 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 	return strconv.FormatInt(int64(releaseGetResult.Release.Revision), 10), releaseGetResult.Release.Status.String(), nil
 }
 
-func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
+func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths []string, setValues []string, releaseLabels map[string]string, namespace string) error {
 	logger := c.logger.With(
 		slog.String("release_name", releaseName),
 		slog.String("chart", chartName),
@@ -213,14 +213,25 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		}
 	}
 
+	extraLabels := c.labels
+	if len(extraLabels) == 0 {
+		extraLabels = make(map[string]string, 1)
+	}
+
+	// Add no-resource-reconciliation label to other resources if it exists in the release
+	maintenanceLabel, ok := releaseLabels["maintenance.deckhouse.io/no-resource-reconciliation"]
+	if ok && maintenanceLabel == "true" {
+		extraLabels["maintenance.deckhouse.io/no-resource-reconciliation"] = ""
+	}
+
 	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
 		Chart:                chartName,
-		ExtraLabels:          c.labels,
+		ExtraLabels:          extraLabels,
 		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
 		NoInstallCRDs:        true,
 		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
-		ReleaseLabels:        labels,
+		ReleaseLabels:        releaseLabels,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 		Timeout:              c.opts.Timeout,
 		ValuesFilesPaths:     valuesPaths,
@@ -354,15 +365,25 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 	return releaseNames, nil
 }
 
-func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
+func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string, debug bool) (string, error) {
 	c.logger.Debug("Render nelm templates for chart ...",
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
 
+	extraLabels := c.labels
+	if len(extraLabels) == 0 {
+		extraLabels = make(map[string]string, 1)
+	}
+
+	maintenanceLabel, ok := releaseLabels["maintenance.deckhouse.io/no-resource-reconciliation"]
+	if ok && maintenanceLabel == "true" {
+		extraLabels["maintenance.deckhouse.io/no-resource-reconciliation"] = ""
+	}
+
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
 		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
 		Chart:                chartName,
-		ExtraLabels:          c.labels,
+		ExtraLabels:          extraLabels,
 		ExtraAnnotations:     c.annotations,
 		KubeContext:          c.opts.KubeContext,
 		ReleaseName:          releaseName,
