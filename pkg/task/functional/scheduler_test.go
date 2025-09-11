@@ -10,9 +10,8 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/stretchr/testify/require"
 
-	sh_task "github.com/flant/shell-operator/pkg/task"
-
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
+	sh_task "github.com/flant/shell-operator/pkg/task"
 )
 
 // mockQueueService records AddLastTaskToQueue calls.
