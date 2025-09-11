@@ -196,6 +196,12 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		maps.Copy(extraAnnotations, c.annotations)
 	}
 
+	// Add no-resource-reconciliation annotation to other resources if it exists in the release
+	maintenanceLabel, ok := releaseLabels["maintenance.deckhouse.io/no-resource-reconciliation"]
+	if ok && maintenanceLabel == "true" {
+		extraAnnotations["maintenance.deckhouse.io/no-resource-reconciliation"] = ""
+	}
+
 	// First check if release exists
 	_, err := c.actions.ReleaseGet(context.Background(), releaseName, namespace, action.ReleaseGetOptions{
 		KubeContext:          c.opts.KubeContext,
@@ -213,20 +219,9 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		}
 	}
 
-	extraLabels := c.labels
-	if len(extraLabels) == 0 {
-		extraLabels = make(map[string]string, 1)
-	}
-
-	// Add no-resource-reconciliation label to other resources if it exists in the release
-	maintenanceLabel, ok := releaseLabels["maintenance.deckhouse.io/no-resource-reconciliation"]
-	if ok && maintenanceLabel == "true" {
-		extraLabels["maintenance.deckhouse.io/no-resource-reconciliation"] = ""
-	}
-
 	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
 		Chart:                chartName,
-		ExtraLabels:          extraLabels,
+		ExtraLabels:          c.labels,
 		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
 		NoInstallCRDs:        true,
@@ -370,21 +365,23 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		slog.String("chart", chartName),
 		slog.String("namespace", namespace))
 
-	extraLabels := c.labels
-	if len(extraLabels) == 0 {
-		extraLabels = make(map[string]string, 1)
+	// Add client annotations
+	extraAnnotations := make(map[string]string)
+	if c.annotations != nil {
+		maps.Copy(extraAnnotations, c.annotations)
 	}
 
+	// Add no-resource-reconciliation annotation to other resources if it exists in the release
 	maintenanceLabel, ok := releaseLabels["maintenance.deckhouse.io/no-resource-reconciliation"]
 	if ok && maintenanceLabel == "true" {
-		extraLabels["maintenance.deckhouse.io/no-resource-reconciliation"] = ""
+		extraAnnotations["maintenance.deckhouse.io/no-resource-reconciliation"] = ""
 	}
 
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
 		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
 		Chart:                chartName,
-		ExtraLabels:          extraLabels,
-		ExtraAnnotations:     c.annotations,
+		ExtraLabels:          c.labels,
+		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
 		ReleaseName:          releaseName,
 		ReleaseNamespace:     namespace,
