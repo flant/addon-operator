@@ -44,6 +44,7 @@ type ValuesStorage struct {
 	// result of the merging all input values
 	resultValues utils.Values
 }
+
 type Registry struct {
 	Base      string `json:"base" yaml:"base"`
 	DockerCfg string `json:"dockercfg" yaml:"dockercfg"`
