@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sh_task "github.com/flant/shell-operator/pkg/task"
+
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 )
 
 // mockQueueService records AddLastTaskToQueue calls.
@@ -31,7 +33,7 @@ func TestScheduler_MissingDependencyLaterAdded(t *testing.T) {
 	s := NewScheduler(ctx, mqs, log.NewNop())
 
 	// D waits for X which is unknown at the moment.
-	d := &Request{Name: "D", Dependencies: []string{"X"}}
+	d := &Request{Name: "D", Dependencies: []extenders.Hint{{Name: "X"}}}
 	s.Add(d)
 	s.Done(Root)
 
@@ -101,7 +103,7 @@ func TestScheduler_LinearDependencies(t *testing.T) {
 
 	// A → B
 	a := &Request{Name: "A"}
-	b := &Request{Name: "B", Dependencies: []string{"A"}}
+	b := &Request{Name: "B", Dependencies: []extenders.Hint{{Name: "A"}}}
 
 	s.Add(a, b)
 
@@ -136,7 +138,7 @@ func TestScheduler_MultipleDependencies(t *testing.T) {
 	// A, B → C
 	a := &Request{Name: "A"}
 	b := &Request{Name: "B"}
-	c := &Request{Name: "C", Dependencies: []string{"A", "B"}}
+	c := &Request{Name: "C", Dependencies: []extenders.Hint{{Name: "A"}, {Name: "B"}}}
 
 	s.Add(a, b, c)
 	s.Done(Root)
@@ -171,7 +173,7 @@ func TestScheduler_MissingDependencyBlocks(t *testing.T) {
 	s := NewScheduler(ctx, mqs, log.NewNop())
 
 	// D depends on never-done X
-	d := &Request{Name: "D", Dependencies: []string{"X"}}
+	d := &Request{Name: "D", Dependencies: []extenders.Hint{{Name: "X"}}}
 	s.Add(d)
 	s.Done(Root)
 
@@ -192,8 +194,8 @@ func TestScheduler_RemoveClearsDone(t *testing.T) {
 
 	// build a chain: operator-prometheus → prometheus → monitoring-application
 	a := &Request{Name: "operator-prometheus"}
-	b := &Request{Name: "prometheus", Dependencies: []string{"operator-prometheus"}}
-	c := &Request{Name: "monitoring-application", Dependencies: []string{"prometheus"}}
+	b := &Request{Name: "prometheus", Dependencies: []extenders.Hint{{Name: "operator-prometheus"}}}
+	c := &Request{Name: "monitoring-application", Dependencies: []extenders.Hint{{Name: "prometheus"}}}
 
 	s.Add(a, b, c)
 	s.Done(Root)
