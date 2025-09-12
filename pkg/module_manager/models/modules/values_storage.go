@@ -186,6 +186,10 @@ func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
 
 	vs.schemaStorage.InjectRegistrySpec()
 
+	if vs.staticValues == nil {
+		vs.staticValues = utils.Values{}
+	}
+
 	vs.staticValues["registry"] = registry
 }
 
