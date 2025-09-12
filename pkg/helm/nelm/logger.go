@@ -1,4 +1,4 @@
-// nolint: goprintffuncname
+//nolint:goprintffuncname
 package nelm
 
 import (
