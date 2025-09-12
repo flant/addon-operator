@@ -161,8 +161,8 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 }
 
 // InjectRegistrySpec mutates the module schema to add a strict-typed "registry" field
-func (st *SchemaStorage) InjectRegistrySpec() {
-	scheme := st.Schemas[ValuesSchema]
+func (st *SchemaStorage) InjectRegistrySpec(schemaType SchemaType) {
+	scheme := st.Schemas[schemaType]
 	if scheme == nil {
 		return
 	}

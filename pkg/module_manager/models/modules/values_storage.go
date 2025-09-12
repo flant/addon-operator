@@ -184,7 +184,10 @@ func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
-	vs.schemaStorage.InjectRegistrySpec()
+	// inject spec to values schema
+	vs.schemaStorage.InjectRegistrySpec(validation.ValuesSchema)
+	// inject spec to helm schema
+	vs.schemaStorage.InjectRegistrySpec(validation.HelmValuesSchema)
 
 	if vs.staticValues == nil {
 		vs.staticValues = utils.Values{}
