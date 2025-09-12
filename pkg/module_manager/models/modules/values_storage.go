@@ -186,7 +186,7 @@ func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
 
 	vs.schemaStorage.InjectRegistrySpec()
 
-	vs.resultValues["registry"] = registry
+	vs.staticValues["registry"] = registry
 }
 
 // GetConfigValues returns only user defined values
