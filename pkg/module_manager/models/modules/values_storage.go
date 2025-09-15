@@ -44,6 +44,7 @@ type ValuesStorage struct {
 	// result of the merging all input values
 	resultValues utils.Values
 }
+
 type Registry struct {
 	Base      string `json:"base" yaml:"base"`
 	DockerCfg string `json:"dockercfg" yaml:"dockercfg"`
@@ -183,9 +184,18 @@ func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
-	vs.schemaStorage.InjectRegistrySpec()
+	// inject spec to values schema
+	vs.schemaStorage.InjectRegistrySpec(validation.ValuesSchema)
+	// inject spec to helm schema
+	vs.schemaStorage.InjectRegistrySpec(validation.HelmValuesSchema)
 
-	vs.resultValues["registry"] = registry
+	if vs.staticValues == nil {
+		vs.staticValues = utils.Values{}
+	}
+
+	vs.staticValues["registry"] = registry
+
+	_ = vs.calculateResultValues()
 }
 
 // GetConfigValues returns only user defined values
