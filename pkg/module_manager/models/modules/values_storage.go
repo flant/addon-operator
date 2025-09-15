@@ -45,6 +45,13 @@ type ValuesStorage struct {
 	resultValues utils.Values
 }
 
+type Registry struct {
+	Base      string `json:"base" yaml:"base"`
+	DockerCfg string `json:"dockercfg" yaml:"dockercfg"`
+	Scheme    string `json:"scheme" yaml:"scheme"`
+	CA        string `json:"ca,omitempty" yaml:"ca,omitempty"`
+}
+
 // NewValuesStorage build a new storage for module values
 //
 //	staticValues - values from /modules/<module-name>/values.yaml, which couldn't be reloaded during the runtime
@@ -171,6 +178,24 @@ func (vs *ValuesStorage) GetValues(withPrefix bool) utils.Values {
 	}
 
 	return vs.resultValues
+}
+
+func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
+	vs.lock.Lock()
+	defer vs.lock.Unlock()
+
+	// inject spec to values schema
+	vs.schemaStorage.InjectRegistrySpec(validation.ValuesSchema)
+	// inject spec to helm schema
+	vs.schemaStorage.InjectRegistrySpec(validation.HelmValuesSchema)
+
+	if vs.staticValues == nil {
+		vs.staticValues = utils.Values{}
+	}
+
+	vs.staticValues["registry"] = registry
+
+	_ = vs.calculateResultValues()
 }
 
 // GetConfigValues returns only user defined values
