@@ -14,6 +14,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/hashicorp/go-multierror"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
@@ -1169,13 +1170,13 @@ func (mm *ModuleManager) AreModulesInited() bool {
 }
 
 // RunModuleWithNewOpenAPISchema updates the module's OpenAPI schema from modulePath directory and pushes RunModuleTask if the module is enabled
-func (mm *ModuleManager) RunModuleWithNewOpenAPISchema(moduleName, moduleSource, modulePath string) error {
+func (mm *ModuleManager) RunModuleWithNewOpenAPISchema(moduleName string) error {
 	currentModule := mm.modules.Get(moduleName)
 	if currentModule == nil {
 		return fmt.Errorf("failed to get basic module - not found")
 	}
 
-	basicModule, err := mm.moduleLoader.LoadModule(moduleSource, modulePath)
+	basicModule, err := mm.moduleLoader.LoadModule(moduleName)
 	if err != nil {
 		return fmt.Errorf("load module: %w", err)
 	}
@@ -1193,216 +1194,66 @@ func (mm *ModuleManager) RunModuleWithNewOpenAPISchema(moduleName, moduleSource,
 }
 
 // RegisterModule checks if a module already exists and reapplies(reloads) its configuration.
-// If it's a new module - converges all modules - EXPERIMENTAL
-func (mm *ModuleManager) RegisterModule(_, _ string) error {
-	return fmt.Errorf("not implemented yet")
-}
+// If it's a new module - converges all modules
+func (mm *ModuleManager) RegisterModule(ctx context.Context, moduleName string) error {
+	ctx, span := otel.Tracer(moduleManagerServiceName).Start(ctx, "RegisterModule")
+	defer span.End()
 
-/*
-	   	if !mm.modules.IsInited() {
-	   		return moduleset.ErrNotInited
-	   	}
+	span.SetAttributes(attribute.String("module", moduleName))
 
-	   	if mm.ModulesDir == "" {
-	   		log.Warnf("Empty modules directory is passed! No modules to load.")
-	   		return nil
-	   	}
+	mm.logger.Debug("register the module", slog.String("module", moduleName))
 
-	   	if mm.moduleLoader == nil {
-	   		log.Errorf("no module loader set")
-	   		return fmt.Errorf("no module loader set")
-	   	}
+	if module := mm.GetModule(moduleName); module != nil {
+		mm.logger.Debug("unregister the module", slog.String("module", moduleName))
 
-	   // get basic module definition
-	   basicModule, err := mm.moduleLoader.LoadModule(moduleSource, modulePath)
-
-	   	if err != nil {
-	   		return fmt.Errorf("failed to get basic module's definition: %w", err)
-	   	}
-
-	   moduleName := basicModule.GetName()
-
-	   // load and registry global hooks
-
-	   	dep := &hooks.HookExecutionDependencyContainer{
-	   		HookMetricsStorage: mm.dependencies.HookMetricStorage,
-	   		KubeConfigManager:  mm.dependencies.KubeConfigManager,
-	   		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
-	   		MetricStorage:      mm.dependencies.MetricStorage,
-	   		GlobalValuesGetter: mm.global,
-	   	}
-
-	   basicModule.WithDependencies(dep)
-
-	   // check if module already exists
-
-	   	if mm.modules.Has(moduleName) {
-	   		// if module is disabled in module manager
-	   		if !mm.IsModuleEnabled(moduleName) {
-	   			// update(upsert) module config in moduleset
-	   			mm.modules.Add(basicModule)
-	   			// get kube config for the module to check if it has enabled: true
-	   			moduleKubeConfigEnabled := mm.dependencies.KubeConfigManager.IsModuleEnabled(moduleName)
-	   			// if module isn't explicitly enabled in the module kube config - exit
-	   			if moduleKubeConfigEnabled == nil || (moduleKubeConfigEnabled != nil && !*moduleKubeConfigEnabled) {
-	   				return nil
-	   			}
-	   			mm.AddEnabledModuleByConfigName(moduleName)
-
-	   			// if the module kube config has enabled true, check enable script
-	   			isEnabled, err := basicModule.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
-	   			if err != nil {
-	   				return err
-	   			}
-
-	   			if isEnabled {
-	   				mm.SendModuleEvent(events.ModuleEvent{
-	   					ModuleName: moduleName,
-	   					EventType:  events.ModuleEnabled,
-	   				})
-	   				err := mm.UpdateModuleKubeConfig(moduleName)
-	   				if err != nil {
-	   					return err
-	   				}
-	   				log.Infof("Push ConvergeModules task because %q Module was re-enabled", moduleName)
-	   				mm.PushConvergeModulesTask(moduleName, "re-enabled")
-	   			}
-	   			return nil
-	   		}
-	   		// module is enabled, disable its hooks
-	   		mm.DisableModuleHooks(moduleName)
-
-	   		module := mm.GetModule(moduleName)
-	   		// check for nil to prevent operator from panicking
-	   		if module == nil {
-	   			return fmt.Errorf("couldn't get %s module configuration", moduleName)
-	   		}
-
-	   		// deregister modules' hooks
-	   		module.DeregisterHooks()
-
-	   		// upsert a new module in the moduleset
-	   		mm.modules.Add(basicModule)
-
-	   		// check if module is enabled via enabled scripts
-	   		isEnabled, err := basicModule.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
-	   		if err != nil {
-	   			return err
-	   		}
-
-	   		ev := events.ModuleEvent{
-	   			ModuleName: moduleName,
-	   			EventType:  events.ModuleEnabled,
-	   		}
-
-	   		if isEnabled {
-	   			// enqueue module startup sequence if it is enabled
-	   			err := mm.PushRunModuleTask(moduleName, false)
-	   			if err != nil {
-	   				return err
-	   			}
-	   		} else {
-	   			ev.EventType = events.ModuleDisabled
-	   			mm.PushDeleteModuleTask(moduleName)
-	   			// modules is disabled - update modulemanager's state
-	   			mm.DeleteEnabledModuleName(moduleName)
-	   		}
-	   		mm.SendModuleEvent(ev)
-	   		return nil
-	   	}
-
-	   // module doesn't exist
-	   mm.modules.Add(basicModule)
-
-	   // a new module requires to be registered
-
-	   	mm.SendModuleEvent(events.ModuleEvent{
-	   		ModuleName: moduleName,
-	   		EventType:  events.ModuleRegistered,
-	   	})
-
-	   // get kube config for the module to check if it has enabled: true
-	   moduleKubeConfigEnabled := mm.dependencies.KubeConfigManager.IsModuleEnabled(moduleName)
-	   // if module isn't explicitly enabled in the module kube config - exit
-
-	   	if moduleKubeConfigEnabled == nil || (moduleKubeConfigEnabled != nil && !*moduleKubeConfigEnabled) {
-	   		return nil
-	   	}
-
-	   mm.AddEnabledModuleByConfigName(moduleName)
-
-	   // if the module kube config has enabled true, check enable script
-	   isEnabled, err := basicModule.RunEnabledScript(mm.TempDir, mm.GetEnabledModuleNames(), map[string]string{})
-
-	   	if err != nil {
-	   		return err
-	   	}
-
-	   	if isEnabled {
-	   		err := mm.UpdateModuleKubeConfig(moduleName)
-	   		if err != nil {
-	   			return err
-	   		}
-	   		log.Infof("Push ConvergeModules task because %q Module was enabled", moduleName)
-	   		mm.PushConvergeModulesTask(moduleName, "registered-and-enabled")
-	   		mm.SendModuleEvent(events.ModuleEvent{
-	   			ModuleName: moduleName,
-	   			EventType:  events.ModuleEnabled,
-	   		})
-	   	}
-
-	   return nil
-}
-
-// PushDeleteModule pushes moduleDelete task for a module into the main queue
-// TODO: EXPERIMENTAL
-/*func (mm *ModuleManager) PushDeleteModuleTask(moduleName string) {
-	// check if there is already moduleDelete task in the main queue for the module
-	if queueHasPendingModuleDeleteTask(mm.dependencies.TaskQueues.GetMain(), moduleName) {
-		return
+		mm.DisableModuleHooks(moduleName)
+		mm.dependencies.HelmResourcesManager.StopMonitor(moduleName)
+		module.ResetState()
+		module.DeregisterHooks()
 	}
 
-	newTask := sh_task.NewTask(task.ModuleDelete).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{
-			EventDescription: "ModuleManager-Delete-Module",
-			ModuleName:       moduleName,
-		})
-	newTask.SetProp("triggered-by", "ModuleManager")
-
-	mm.dependencies.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
-
-	log.Infof("Push ConvergeModules task because %q Module was disabled", moduleName)
-	mm.PushConvergeModulesTask(moduleName, "disabled")
-}
-
-// PushConvergeModulesTask pushes ConvergeModulesTask into the main queue to update all modules on a module enable/disable event
-// TODO: EXPERIMENTAL
-func (mm *ModuleManager) PushConvergeModulesTask(moduleName, moduleState string) {
-	newConvergeTask := sh_task.NewTask(task.ConvergeModules).
-		WithQueueName("main").
-		WithMetadata(task.HookMetadata{
-			EventDescription: fmt.Sprintf("ModuleManager-%s-Module", moduleState),
-			ModuleName:       moduleName,
-		}).
-		WithQueuedAt(time.Now())
-	newConvergeTask.SetProp("triggered-by", "ModuleManager")
-	newConvergeTask.SetProp(converge.ConvergeEventProp, converge.ReloadAllModules)
-
-	mm.dependencies.TaskQueues.GetMain().AddLast(newConvergeTask.WithQueuedAt(time.Now()))
-}
-
-// queueHasPendingModuleDeleteTask returns true if queue has pending tasks
-// with the type "ModuleDelete" related to the module "moduleName"
-// TODO: EXPERIMENTAL
-func queueHasPendingModuleDeleteTask(q *queue.TaskQueue, moduleName string) bool {
-	if q == nil {
-		return false
+	module, err := mm.moduleLoader.LoadModule(moduleName)
+	if err != nil {
+		return fmt.Errorf("load the module '%s': %w", moduleName, err)
 	}
-	modules := modulesWithPendingTasks(q, task.ModuleDelete)
-	meta, has := modules[moduleName]
-	return has && meta.doStartup
-} */
+
+	// load and registry global hooks
+	dep := &hooks.HookExecutionDependencyContainer{
+		HookMetricsStorage: mm.dependencies.HookMetricStorage,
+		KubeConfigManager:  mm.dependencies.KubeConfigManager,
+		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
+		MetricStorage:      mm.dependencies.MetricStorage,
+		GlobalValuesGetter: mm.global,
+	}
+
+	module.WithDependencies(dep)
+
+	// add module to set
+	mm.modules.Add(module)
+
+	// add module to scheduler
+	if err = mm.moduleScheduler.AddModuleVertex(module); err != nil {
+		return fmt.Errorf("add module vertex: %w", err)
+	}
+
+	// reinit scheduler
+	if err = mm.moduleScheduler.Initialize(); err != nil {
+		return fmt.Errorf("initialize module scheduler: %w", err)
+	}
+
+	mm.SendModuleEvent(events.ModuleEvent{
+		ModuleName: module.Name,
+		EventType:  events.ModuleRegistered,
+	})
+
+	// send event to trigger reconverge
+	mm.SchedulerEventCh() <- extenders.ExtenderEvent{
+		ExtenderName:      dynamic_extender.Name,
+		EncapsulatedEvent: dynamic_extender.DynamicExtenderEvent{},
+	}
+
+	return nil
+}
 
 // registerModules load all available modules from modules directory.
 func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.Extender) error {
