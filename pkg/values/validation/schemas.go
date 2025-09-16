@@ -160,6 +160,40 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 	return allErrs.ErrorOrNil()
 }
 
+// InjectRegistrySpec mutates the module schema to add a strict-typed "registry" field
+func (st *SchemaStorage) InjectRegistrySpec(schemaType SchemaType) {
+	scheme := st.Schemas[schemaType]
+	if scheme == nil {
+		return
+	}
+
+	if len(scheme.Properties) == 0 {
+		scheme.Properties = make(map[string]spec.Schema)
+	}
+
+	scheme.Properties["registry"] = spec.Schema{
+		SchemaProps: spec.SchemaProps{
+			Type:                 spec.StringOrArray{"object"},
+			AdditionalProperties: &spec.SchemaOrBool{Allows: false},
+			Properties: map[string]spec.Schema{
+				"base": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}, MinLength: swag.Int64(1)},
+				},
+				"dockercfg": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}},
+				},
+				"scheme": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}},
+				},
+				"ca": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}},
+				},
+			},
+			Required: []string{"base", "scheme"},
+		},
+	}
+}
+
 // ModuleSchemasDescription describes which schemas are present in storage for the module.
 func (st *SchemaStorage) ModuleSchemasDescription() string {
 	types := availableSchemaTypes(st.Schemas)

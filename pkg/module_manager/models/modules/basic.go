@@ -1215,6 +1215,10 @@ func (bm *BasicModule) GetConfigValues(withPrefix bool) utils.Values {
 	return bm.valuesStorage.GetConfigValues(withPrefix)
 }
 
+func (bm *BasicModule) InjectRegistryValue(registry *Registry) {
+	bm.valuesStorage.InjectRegistryValue(registry)
+}
+
 // Synchronization xxx
 // TODO: don't like this honestly, i think we can remake it
 func (bm *BasicModule) Synchronization() *SynchronizationState {
