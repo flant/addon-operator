@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,7 +86,10 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	additionalLabels := make(map[string]string)
-	// LabelMaintenanceNoResourceReconciliation is now only stored in Helm release metadata, not on resources
+	// LabelMaintenanceNoResourceReconciliation is now only stored in Helm release metadata,and in resources annotations
+	if bm.GetMaintenanceState() != Managed {
+		additionalLabels[LabelMaintenanceNoResourceReconciliation] = ""
+	}
 
 	hm := &HelmModule{
 		name:             bm.GetName(),
@@ -423,10 +427,11 @@ func (hm *HelmModule) safeName() string {
 	return sanitize.BaseName(hm.name)
 }
 
-func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
+func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceState) (string, error) {
 	if namespace == "" {
 		namespace = "default"
 	}
+
 	valuesPath, err := hm.PrepareValuesYamlFile()
 	if err != nil {
 		return "", err
@@ -438,7 +443,7 @@ func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
 	}
 
 	releaseLabels := map[string]string{
-		LabelMaintenanceNoResourceReconciliation: "false",
+		LabelMaintenanceNoResourceReconciliation: strconv.FormatBool(state == Unmanaged),
 	}
 
 	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, releaseLabels, namespace, debug)
