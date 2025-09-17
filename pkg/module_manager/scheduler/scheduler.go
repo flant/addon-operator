@@ -78,7 +78,7 @@ type Scheduler struct {
 	// provides a shared state of enabled modules to some extenders like script_enabled
 	vertexStateBuffer vertexStateBuffer
 
-	modules []node.ModuleInterface
+	modules map[string]node.ModuleInterface
 
 	logger *log.Logger
 }
@@ -105,7 +105,7 @@ func NewScheduler(ctx context.Context, logger *log.Logger) *Scheduler {
 		dag:               graph.New(nodeHash, graph.Directed(), graph.Acyclic(), graph.PreventCycles()),
 		diff:              make(map[string]bool),
 		vertexStateBuffer: vertexStateBuffer{},
-		modules:           make([]node.ModuleInterface, 0),
+		modules:           make(map[string]node.ModuleInterface),
 		logger:            logger,
 	}
 }
@@ -172,22 +172,29 @@ func (s *Scheduler) AddModuleVertex(module node.ModuleInterface) error {
 		weight = functionalWeight
 	}
 
+	if err := s.dag.RemoveVertex(module.GetName()); err != nil {
+		if !errors.Is(err, graph.ErrVertexNotFound) {
+			return fmt.Errorf("remove module vertex '%s': %w", module.GetName(), err)
+		}
+	}
+
 	vertex := node.NewNode().
 		WithName(module.GetName()).
 		WithWeight(weight).
 		WithType(node.ModuleType).
 		WithModule(module)
 
-	if err := s.dag.AddVertex(vertex,
+	err := s.dag.AddVertex(vertex,
 		graph.VertexAttribute("colorscheme", "greens3"),
 		graph.VertexAttribute("style", "filled"),
 		graph.VertexAttribute("color", "2"),
 		graph.VertexAttribute("fillcolor", "1"),
-		graph.VertexAttribute(node.TypeAttribute, string(node.ModuleType))); err != nil {
-		return err
+		graph.VertexAttribute(node.TypeAttribute, string(node.ModuleType)))
+	if err != nil {
+		return fmt.Errorf("add module vertex '%s': %w", module.GetName(), err)
 	}
 
-	s.modules = append(s.modules, module)
+	s.modules[module.GetName()] = module
 
 	return nil
 }

@@ -1233,12 +1233,12 @@ func (mm *ModuleManager) RegisterModule(ctx context.Context, moduleName string) 
 
 	// add module to scheduler
 	if err = mm.moduleScheduler.AddModuleVertex(module); err != nil {
-		return fmt.Errorf("add module vertex: %w", err)
+		return err
 	}
 
 	// reinit scheduler
 	if err = mm.moduleScheduler.Initialize(); err != nil {
-		return fmt.Errorf("initialize module scheduler: %w", err)
+		return fmt.Errorf("reinitialize module scheduler: %w", err)
 	}
 
 	mm.SendModuleEvent(events.ModuleEvent{
