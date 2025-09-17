@@ -52,7 +52,7 @@ func (dms *MemoryMetricsCollector) Set(name string, value float64, labels map[st
 	dms.metrics = append(dms.metrics, operation.MetricOperation{
 		Name:   name,
 		Group:  options.group,
-		Action: operation.ActionGaugeAdd,
+		Action: operation.ActionGaugeSet,
 		Value:  pointer.To(value),
 		Labels: labels,
 	})
