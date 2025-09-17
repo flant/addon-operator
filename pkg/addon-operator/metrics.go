@@ -3,8 +3,9 @@ package addon_operator
 import (
 	"time"
 
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
+
 	"github.com/flant/addon-operator/pkg"
-	"github.com/flant/shell-operator/pkg/metric"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
@@ -18,117 +19,117 @@ var buckets_1msTo10s = []float64{
 }
 
 // registerHookMetrics register metrics specified for addon-operator
-func registerHookMetrics(metricStorage metric.Storage) {
+func registerHookMetrics(metricStorage metricsstorage.Storage) {
 	// configuration metrics
-	metricStorage.RegisterGauge(
+	_, _ = metricStorage.RegisterGauge(
 		"{PREFIX}binding_count",
-		map[string]string{
-			"module":          "",
-			pkg.MetricKeyHook: "",
+		[]string{
+			"module",
+			pkg.MetricKeyHook,
 		})
 	// ConfigMap validation errors
-	metricStorage.RegisterCounter("{PREFIX}config_values_errors_total", map[string]string{})
+	_, _ = metricStorage.RegisterCounter("{PREFIX}config_values_errors_total", []string{})
 
 	// modules
-	metricStorage.RegisterCounter("{PREFIX}modules_discover_errors_total", map[string]string{})
-	metricStorage.RegisterCounter("{PREFIX}module_delete_errors_total", map[string]string{"module": ""})
+	_, _ = metricStorage.RegisterCounter("{PREFIX}modules_discover_errors_total", []string{})
+	_, _ = metricStorage.RegisterCounter("{PREFIX}module_delete_errors_total", []string{"module"})
 
 	// module
-	metricStorage.RegisterHistogram(
+	_, _ = metricStorage.RegisterHistogram(
 		"{PREFIX}module_run_seconds",
-		map[string]string{
-			"module":                "",
-			pkg.MetricKeyActivation: "",
+		[]string{
+			"module",
+			pkg.MetricKeyActivation,
 		},
 		buckets_1msTo10s,
 	)
-	metricStorage.RegisterCounter("{PREFIX}module_run_errors_total", map[string]string{"module": ""})
+	_, _ = metricStorage.RegisterCounter("{PREFIX}module_run_errors_total", []string{"module"})
 
-	moduleHookLabels := map[string]string{
-		"module":                "",
-		pkg.MetricKeyHook:       "",
-		pkg.MetricKeyBinding:    "",
-		"queue":                 "",
-		pkg.MetricKeyActivation: "",
+	moduleHookLabels := []string{
+		"module",
+		pkg.MetricKeyHook,
+		pkg.MetricKeyBinding,
+		"queue",
+		pkg.MetricKeyActivation,
 	}
-	metricStorage.RegisterHistogram(
+	_, _ = metricStorage.RegisterHistogram(
 		"{PREFIX}module_hook_run_seconds",
 		moduleHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogram(
+	_, _ = metricStorage.RegisterHistogram(
 		"{PREFIX}module_hook_run_user_cpu_seconds",
 		moduleHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogram(
+	_, _ = metricStorage.RegisterHistogram(
 		"{PREFIX}module_hook_run_sys_cpu_seconds",
 		moduleHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterGauge("{PREFIX}module_hook_run_max_rss_bytes", moduleHookLabels)
-	metricStorage.RegisterCounter("{PREFIX}module_hook_allowed_errors_total", moduleHookLabels)
-	metricStorage.RegisterCounter("{PREFIX}module_hook_errors_total", moduleHookLabels)
-	metricStorage.RegisterCounter("{PREFIX}module_hook_success_total", moduleHookLabels)
+	_, _ = metricStorage.RegisterGauge("{PREFIX}module_hook_run_max_rss_bytes", moduleHookLabels)
+	_, _ = metricStorage.RegisterCounter("{PREFIX}module_hook_allowed_errors_total", moduleHookLabels)
+	_, _ = metricStorage.RegisterCounter("{PREFIX}module_hook_errors_total", moduleHookLabels)
+	_, _ = metricStorage.RegisterCounter("{PREFIX}module_hook_success_total", moduleHookLabels)
 
 	// global hook running
-	globalHookLabels := map[string]string{
-		pkg.MetricKeyHook:       "",
-		pkg.MetricKeyBinding:    "",
-		"queue":                 "",
-		pkg.MetricKeyActivation: "",
+	globalHookLabels := []string{
+		pkg.MetricKeyHook,
+		pkg.MetricKeyBinding,
+		"queue",
+		pkg.MetricKeyActivation,
 	}
-	metricStorage.RegisterHistogram(
+	_, _ = metricStorage.RegisterHistogram(
 		"{PREFIX}global_hook_run_seconds",
 		globalHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogram(
+	_, _ = metricStorage.RegisterHistogram(
 		"{PREFIX}global_hook_run_user_cpu_seconds",
 		globalHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogram(
+	_, _ = metricStorage.RegisterHistogram(
 		"{PREFIX}global_hook_run_sys_cpu_seconds",
 		globalHookLabels,
 		buckets_1msTo10s)
-	metricStorage.RegisterGauge("{PREFIX}global_hook_run_max_rss_bytes", globalHookLabels)
-	metricStorage.RegisterCounter("{PREFIX}global_hook_allowed_errors_total", globalHookLabels)
-	metricStorage.RegisterCounter("{PREFIX}global_hook_errors_total", globalHookLabels)
-	metricStorage.RegisterCounter("{PREFIX}global_hook_success_total", globalHookLabels)
+	_, _ = metricStorage.RegisterGauge("{PREFIX}global_hook_run_max_rss_bytes", globalHookLabels)
+	_, _ = metricStorage.RegisterCounter("{PREFIX}global_hook_allowed_errors_total", globalHookLabels)
+	_, _ = metricStorage.RegisterCounter("{PREFIX}global_hook_errors_total", globalHookLabels)
+	_, _ = metricStorage.RegisterCounter("{PREFIX}global_hook_success_total", globalHookLabels)
 
 	// converge duration
-	metricStorage.RegisterCounter("{PREFIX}convergence_seconds", map[string]string{pkg.MetricKeyActivation: ""})
-	metricStorage.RegisterCounter("{PREFIX}convergence_total", map[string]string{pkg.MetricKeyActivation: ""})
+	_, _ = metricStorage.RegisterCounter("{PREFIX}convergence_seconds", []string{pkg.MetricKeyActivation})
+	_, _ = metricStorage.RegisterCounter("{PREFIX}convergence_total", []string{pkg.MetricKeyActivation})
 
 	// helm operations
-	metricStorage.RegisterHistogram(
+	_, _ = metricStorage.RegisterHistogram(
 		"{PREFIX}module_helm_seconds",
-		map[string]string{
-			"module":                "",
-			pkg.MetricKeyActivation: "",
+		[]string{
+			"module",
+			pkg.MetricKeyActivation,
 		},
 		buckets_1msTo10s)
-	metricStorage.RegisterHistogram(
+	_, _ = metricStorage.RegisterHistogram(
 		"{PREFIX}helm_operation_seconds",
-		map[string]string{
-			"module":                "",
-			pkg.MetricKeyActivation: "",
-			"operation":             "",
+		[]string{
+			"module",
+			pkg.MetricKeyActivation,
+			"operation",
 		},
 		buckets_1msTo10s)
 
 	// task age
 	// hook_run task waiting time
-	metricStorage.RegisterCounter(
+	_, _ = metricStorage.RegisterCounter(
 		"{PREFIX}task_wait_in_queue_seconds_total",
-		map[string]string{
-			"module":             "",
-			pkg.MetricKeyHook:    "",
-			pkg.MetricKeyBinding: "",
-			"queue":              "",
+		[]string{
+			"module",
+			pkg.MetricKeyHook,
+			pkg.MetricKeyBinding,
+			"queue",
 		})
 }
 
 // StartLiveTicksUpdater starts a goroutine that periodically updates
 // the live_ticks metric every 10 seconds.
 // This metric can be used to verify that addon-operator is alive and functioning.
-func StartLiveTicksUpdater(metricStorage metric.Storage) {
+func StartLiveTicksUpdater(metricStorage metricsstorage.Storage) {
 	// Addon-operator live ticks.
 	go func() {
 		for {
@@ -143,7 +144,7 @@ func StartLiveTicksUpdater(metricStorage metric.Storage) {
 // the tasks_queue_length metric every 5 seconds.
 // This metric shows the number of pending tasks in each queue, which can be useful
 // for monitoring system load and potential backlog issues.
-func StartTasksQueueLengthUpdater(metricStorage metric.Storage, tqs *queue.TaskQueueSet) {
+func StartTasksQueueLengthUpdater(metricStorage metricsstorage.Storage, tqs *queue.TaskQueueSet) {
 	go func() {
 		for {
 			// Gather task queues lengths.

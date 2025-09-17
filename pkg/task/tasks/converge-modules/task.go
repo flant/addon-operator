@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
@@ -21,7 +22,6 @@ import (
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	"github.com/flant/addon-operator/pkg/utils"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
-	"github.com/flant/shell-operator/pkg/metric"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
@@ -37,7 +37,7 @@ const (
 // TaskDependencies defines the external dependencies required by the ConvergeModules task.
 type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
-	GetMetricStorage() metric.Storage
+	GetMetricStorage() metricsstorage.Storage
 	GetConvergeState() *converge.ConvergeState
 	GetQueueService() *taskqueue.Service
 	GetFunctionalScheduler() *functional.Scheduler
@@ -63,7 +63,7 @@ type Task struct {
 	shellTask sh_task.Task
 
 	moduleManager       *module_manager.ModuleManager
-	metricStorage       metric.Storage
+	metricStorage       metricsstorage.Storage
 	convergeState       *converge.ConvergeState
 	queueService        *taskqueue.Service
 	functionalScheduler *functional.Scheduler
@@ -75,7 +75,7 @@ type Task struct {
 func NewTask(
 	shellTask sh_task.Task,
 	moduleManager *module_manager.ModuleManager,
-	metricStorage metric.Storage,
+	metricStorage metricsstorage.Storage,
 	convergeState *converge.ConvergeState,
 	functionalScheduler *functional.Scheduler,
 	queueService *taskqueue.Service,

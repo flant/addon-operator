@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
@@ -16,7 +17,6 @@ import (
 	"github.com/flant/addon-operator/pkg/task/helpers"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/metric"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
@@ -30,7 +30,7 @@ const (
 type TaskDependencies interface {
 	GetHelmResourcesManager() helm_resources_manager.HelmResourcesManager
 	GetModuleManager() *module_manager.ModuleManager
-	GetMetricStorage() metric.Storage
+	GetMetricStorage() metricsstorage.Storage
 	GetQueueService() *taskqueue.Service
 }
 
@@ -56,7 +56,7 @@ type Task struct {
 
 	helmResourcesManager helm_resources_manager.HelmResourcesManager
 	moduleManager        *module_manager.ModuleManager
-	metricStorage        metric.Storage
+	metricStorage        metricsstorage.Storage
 	queueService         *taskqueue.Service
 
 	logger *log.Logger
@@ -68,7 +68,7 @@ func NewTask(
 	isOperatorStartup bool,
 	helmResourcesManager helm_resources_manager.HelmResourcesManager,
 	moduleManager *module_manager.ModuleManager,
-	metricStorage metric.Storage,
+	metricStorage metricsstorage.Storage,
 	queueService *taskqueue.Service,
 	logger *log.Logger,
 ) *Task {

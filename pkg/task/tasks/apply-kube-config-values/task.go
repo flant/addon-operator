@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/metric"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
@@ -24,7 +24,7 @@ const (
 // TaskDependencies defines the interface for accessing necessary components
 type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
-	GetMetricStorage() metric.Storage
+	GetMetricStorage() metricsstorage.Storage
 	GetKubeConfigManager() *kube_config_manager.KubeConfigManager
 }
 
@@ -45,7 +45,7 @@ func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.
 type Task struct {
 	shellTask         sh_task.Task
 	moduleManager     *module_manager.ModuleManager
-	metricStorage     metric.Storage
+	metricStorage     metricsstorage.Storage
 	kubeConfigManager *kube_config_manager.KubeConfigManager
 	logger            *log.Logger
 }
@@ -54,7 +54,7 @@ type Task struct {
 func NewTask(
 	shellTask sh_task.Task,
 	moduleManager *module_manager.ModuleManager,
-	metricStorage metric.Storage,
+	metricStorage metricsstorage.Storage,
 	kubeConfigManager *kube_config_manager.KubeConfigManager,
 	logger *log.Logger,
 ) *Task {

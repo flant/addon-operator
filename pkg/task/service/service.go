@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
@@ -34,7 +35,6 @@ import (
 	parallelmodulerun "github.com/flant/addon-operator/pkg/task/tasks/parallel-module-run"
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
-	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -46,7 +46,7 @@ type TaskHandlerServiceConfig struct {
 	Helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	ModuleManager        *module_manager.ModuleManager
-	MetricStorage        metric.Storage
+	MetricStorage        metricsstorage.Storage
 	KubeConfigManager    *kube_config_manager.KubeConfigManager
 	ConvergeState        *converge.ConvergeState
 	CRDExtraLabels       map[string]string
@@ -69,7 +69,7 @@ type TaskHandlerService struct {
 
 	moduleManager *module_manager.ModuleManager
 
-	metricStorage     metric.Storage
+	metricStorage     metricsstorage.Storage
 	kubeConfigManager *kube_config_manager.KubeConfigManager
 
 	queueService *taskqueue.Service
@@ -263,7 +263,7 @@ func (s *TaskHandlerService) GetModuleManager() *module_manager.ModuleManager {
 	return s.moduleManager
 }
 
-func (s *TaskHandlerService) GetMetricStorage() metric.Storage {
+func (s *TaskHandlerService) GetMetricStorage() metricsstorage.Storage {
 	return s.metricStorage
 }
 

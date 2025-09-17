@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +29,6 @@ import (
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
 	"github.com/flant/kube-client/fake"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	metricstorage "github.com/flant/shell-operator/pkg/metric_storage"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
@@ -133,8 +133,8 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		ScheduleManager:      op.engine.ScheduleManager,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
-		MetricStorage:        metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
-		HookMetricStorage:    metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
+		MetricStorage:        metricstorage.NewMetricStorage("addon_operator_", metricstorage.WithLogger(log.NewNop())),
+		HookMetricStorage:    metricstorage.NewMetricStorage("addon_operator_", metricstorage.WithLogger(log.NewNop())),
 	}
 	cfg := module_manager.ModuleManagerConfig{
 		DirectoryConfig: dirs,

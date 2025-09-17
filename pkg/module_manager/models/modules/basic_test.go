@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
-	metric_storage "github.com/flant/shell-operator/pkg/metric_storage"
 )
 
 func TestHandleModulePatch(t *testing.T) {
@@ -142,7 +142,7 @@ exit 0
 	require.NoError(t, err)
 
 	logger := log.NewLogger()
-	storage := metric_storage.NewMetricStorage(context.TODO(), "addon_operator_", false, logger)
+	storage := metricsstorage.NewMetricStorage("addon_operator_", metricsstorage.WithLogger(logger))
 
 	bm.WithDependencies(&hooks.HookExecutionDependencyContainer{
 		HookMetricsStorage: storage,
@@ -195,7 +195,7 @@ exit 0
 	require.NoError(t, err)
 
 	logger := log.NewLogger()
-	storage := metric_storage.NewMetricStorage(context.TODO(), "addon_operator_", false, logger)
+	storage := metricsstorage.NewMetricStorage("addon_operator_", metricsstorage.WithLogger(logger))
 
 	bm.WithLogger(logger)
 	bm.WithDependencies(&hooks.HookExecutionDependencyContainer{
@@ -236,7 +236,7 @@ fi
 }
 
 func stubDeps(logger *log.Logger) *hooks.HookExecutionDependencyContainer {
-	st := metric_storage.NewMetricStorage(context.TODO(), "addon_operator_", false, logger)
+	st := metricsstorage.NewMetricStorage("addon_operator_", metricsstorage.WithLogger(logger))
 	return &hooks.HookExecutionDependencyContainer{
 		HookMetricsStorage: st,
 		MetricStorage:      st,
