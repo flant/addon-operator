@@ -93,8 +93,12 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250814094423-e9f108b41a1a h1:An8WnJ2wm42Rr6fbhNusLho6KNfPAYV+nuitsEHNXSE=
 github.com/deckhouse/deckhouse/pkg/log v0.0.0-20250814094423-e9f108b41a1a/go.mod h1:pbAxTSDcPmwyl3wwKDcEB3qdxHnRxqTV+J0K+sha8bw=
+github.com/deckhouse/deckhouse/pkg/log v0.1.0 h1:2aPfyiHHSIJlX4x7ysyPOaIb7CLmyY+hUf9uDb8TYd8=
+github.com/deckhouse/deckhouse/pkg/log v0.1.0/go.mod h1:pbAxTSDcPmwyl3wwKDcEB3qdxHnRxqTV+J0K+sha8bw=
 github.com/deckhouse/deckhouse/pkg/metrics-storage v0.0.0-20250917093148-02923ff3534e h1:EDSA2O4j6tmctv0i+CTPT/hhTt5DBTvD/R0WvWgnaOs=
 github.com/deckhouse/deckhouse/pkg/metrics-storage v0.0.0-20250917093148-02923ff3534e/go.mod h1:uVM+foGwYlP7aehi41ZtA/iHIq6r0kzAjbBddwV94mo=
+github.com/deckhouse/deckhouse/pkg/metrics-storage v0.1.0 h1:4GwVaK/vt48jjJ90WMAnCw2qwbeC/Zx34hsBWzD2CO0=
+github.com/deckhouse/deckhouse/pkg/metrics-storage v0.1.0/go.mod h1:uVM+foGwYlP7aehi41ZtA/iHIq6r0kzAjbBddwV94mo=
 github.com/deckhouse/module-sdk v0.3.7 h1:Ur9c/SBYP/XJqFUo9N1vhcc+K8mc+YZAJvSfNQS5AaE=
 github.com/deckhouse/module-sdk v0.3.7/go.mod h1:DnyDfCXEbaF6RQxQSkdc9hXJTkJX/tDXTJ+8sGAvMOI=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
@@ -148,6 +152,8 @@ github.com/flant/kube-client v1.3.1 h1:1SdD799sujXNg2F6Z27le/+qkcKQaKf9Z492YGEhV
 github.com/flant/kube-client v1.3.1/go.mod h1:mql6hsZMgBLAhdj3Emb8TrP5MVdXduFQ2NLjzn6IF0Y=
 github.com/flant/shell-operator v1.10.5-0.20250917123528-2f23799ab64c h1:RT3EUCTTrP4663/G0SOiE5Gu0fem3wlKdHn2wAnJXJg=
 github.com/flant/shell-operator v1.10.5-0.20250917123528-2f23799ab64c/go.mod h1:y3i3roUed8rcX/PSZmSYQM15zXck8WXaXFclB+MmQlY=
+github.com/flant/shell-operator v1.10.5-0.20250917133913-48a7783db6ab h1:VzpV5KakvVjtYwAAi4yxcWecdyCxSGuycQ1KHaqvGuA=
+github.com/flant/shell-operator v1.10.5-0.20250917133913-48a7783db6ab/go.mod h1:V37pIZNSnZO6if4524+LlPJZSO//ZO+0KDvj9DqLrYU=
 github.com/flopp/go-findfont v0.1.0 h1:lPn0BymDUtJo+ZkV01VS3661HL6F4qFlkhcJN55u6mU=
 github.com/flopp/go-findfont v0.1.0/go.mod h1:wKKxRDjD024Rh7VMwoU90i6ikQRCr+JTHB5n4Ejkqvw=
 github.com/fogleman/gg v1.3.0 h1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=
