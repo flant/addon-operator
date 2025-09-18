@@ -5,12 +5,12 @@ go 1.23.8
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.1.0
-	github.com/deckhouse/deckhouse/pkg/metrics-storage v0.2.0
+	github.com/deckhouse/deckhouse/pkg/metrics-storage v0.2.1
 	github.com/deckhouse/module-sdk v0.3.7
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.3.1
-	github.com/flant/shell-operator v1.10.5-0.20250918095432-5d15317a10fe
+	github.com/flant/shell-operator v1.10.5-0.20250918101846-b177cb29435a
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
