@@ -86,6 +86,10 @@ func (h *LibClient) WithExtraLabels(labels map[string]string) {
 	}
 }
 
+func (h *LibClient) WithExtraAnnotations(_ map[string]string) {
+	// helm3lib doesn't support annotations, no-op implementation
+}
+
 // buildConfigFlagsFromEnv builds a ConfigFlags object from the environment and
 // returns it. It uses a persistent config, meaning that underlying clients will
 // be cached and reused.
@@ -447,7 +451,7 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	return releases, nil
 }
 
-func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, namespace string, debug bool) (string, error) {
+func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, _ map[string]string, namespace string, debug bool) (string, error) {
 	chart, err := loader.Load(chartName)
 	if err != nil {
 		return "", err

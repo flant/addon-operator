@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
+	"github.com/flant/addon-operator/pkg/helm/nelm"
 )
 
 func TestHelmFactory(t *testing.T) {
@@ -31,7 +32,7 @@ func TestHelmFactory(t *testing.T) {
 		helm, err := InitHelmClientFactory(opts, map[string]string{})
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Ensure client is a builtin Helm3 library.
+		// Ensure client is of correct type
 		helmCl := helm.NewClient(log.NewNop())
 		g.Expect(helmCl).To(BeAssignableToTypeOf(clientType), "should create %s client", name)
 
@@ -77,4 +78,64 @@ func TestHelmFactory(t *testing.T) {
 	t.Run("init with helm3lib client", func(t *testing.T) {
 		testCLient(t, "helm3", new(helm3lib.LibClient), map[string]string{})
 	})
+
+	t.Run("init with nelm client", func(t *testing.T) {
+		testCLient(t, "nelm", new(nelm.NelmClient), map[string]string{"USE_NELM": "true"})
+	})
+}
+
+func TestNelmSkipLogsAnnotation(t *testing.T) {
+	g := NewWithT(t)
+
+	// Test with nelm client type
+	os.Setenv("USE_NELM", "true")
+	defer os.Unsetenv("USE_NELM")
+
+	opts := &Options{
+		Namespace: "test-namespace",
+		Logger:    log.NewNop(),
+	}
+
+	// Test that factory creates nelm client correctly
+	helm, err := InitHelmClientFactory(opts, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(helm.ClientType).To(Equal(Nelm))
+
+	// Test with existing labels - skip-logs should not be in labels
+	existingLabels := map[string]string{
+		"heritage": "addon-operator",
+		"test":     "value",
+	}
+	helm2, err := InitHelmClientFactory(opts, existingLabels)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(helm2.labels).To(HaveKeyWithValue("heritage", "addon-operator"))
+	g.Expect(helm2.labels).To(HaveKeyWithValue("test", "value"))
+	g.Expect(helm2.labels).ToNot(HaveKey("werf.io/skip-logs"))
+}
+
+func TestHelm3LibNoSkipLogsAnnotation(t *testing.T) {
+	g := NewWithT(t)
+
+	// Test with helm3lib client type (default)
+	os.Unsetenv("USE_NELM")
+
+	opts := &Options{
+		Namespace: "test-namespace",
+		Logger:    log.NewNop(),
+	}
+
+	// Test that factory creates helm3lib client correctly
+	helm, err := InitHelmClientFactory(opts, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(helm.ClientType).To(Equal(Helm3Lib))
+
+	existingLabels := map[string]string{
+		"heritage": "addon-operator",
+		"test":     "value",
+	}
+	helm2, err := InitHelmClientFactory(opts, existingLabels)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(helm2.labels).ToNot(HaveKey("werf.io/skip-logs"))
+	g.Expect(helm2.labels).To(HaveKeyWithValue("heritage", "addon-operator"))
+	g.Expect(helm2.labels).To(HaveKeyWithValue("test", "value"))
 }

@@ -179,7 +179,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 			return nil, fmt.Errorf("failed to create helm module: %w", err)
 		}
 
-		releaseManifests, err := hm.Render(app.Namespace, debugMode)
+		releaseManifests, err := hm.Render(app.Namespace, debugMode, m.GetMaintenanceState())
 		if err != nil {
 			return nil, fmt.Errorf("failed to render manifests: %w", err)
 		}

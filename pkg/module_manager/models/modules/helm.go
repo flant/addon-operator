@@ -7,12 +7,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
+	"github.com/werf/nelm/pkg/action"
 	"go.opentelemetry.io/otel"
 	"helm.sh/helm/v3/pkg/storage/driver"
 
@@ -84,6 +86,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	additionalLabels := make(map[string]string)
+	// LabelMaintenanceNoResourceReconciliation is now only stored in Helm release metadata,and in resources annotations
 	if bm.GetMaintenanceState() != Managed {
 		additionalLabels[LabelMaintenanceNoResourceReconciliation] = ""
 	}
@@ -212,7 +215,13 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	if state == Unmanaged {
 		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
 		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) && !errors.Is(err, driver.ErrReleaseNotFound) {
-			return fmt.Errorf("get release label failed: %w", err)
+			// Also check for nelm ReleaseNotFoundError
+			var releaseNotFoundErr *action.ReleaseNotFoundError
+			if !errors.As(err, &releaseNotFoundErr) {
+				logEntry.Warn("get release label failed", log.Err(err), slog.String("release", helmReleaseName))
+				return fmt.Errorf("get release label failed: %w", err)
+			}
+			logEntry.Debug("release not found when checking unmanaged state", slog.String("release", helmReleaseName))
 		}
 
 		if isUnmanaged == "true" {
@@ -223,6 +232,15 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	}
 
 	span.AddEvent("ModuleRun-HelmPhase-helm-render")
+
+	// Prepare release labels
+	releaseLabels := map[string]string{
+		LabelMaintenanceNoResourceReconciliation: "false",
+	}
+
+	if state == Unmanaged {
+		releaseLabels[LabelMaintenanceNoResourceReconciliation] = "true"
+	}
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
@@ -242,6 +260,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 			hm.path,
 			[]string{valuesPath},
 			[]string{},
+			releaseLabels,
 			hm.defaultNamespace,
 			false,
 		)
@@ -251,6 +270,9 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	}
 
 	checksum := utils.CalculateStringsChecksum(renderedManifests)
+
+	// Add checksum to release labels
+	releaseLabels["moduleChecksum"] = checksum
 
 	manifests, err := manifest.ListFromYamlDocs(renderedManifests)
 	if err != nil {
@@ -299,15 +321,6 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 		defer measure.Duration(func(d time.Duration) {
 			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
 		})()
-
-		releaseLabels := map[string]string{
-			"moduleChecksum":                         checksum,
-			LabelMaintenanceNoResourceReconciliation: "false",
-		}
-
-		if state == Unmanaged {
-			releaseLabels[LabelMaintenanceNoResourceReconciliation] = "true"
-		}
 
 		err = helmClient.UpgradeRelease(
 			helmReleaseName,
@@ -414,10 +427,11 @@ func (hm *HelmModule) safeName() string {
 	return sanitize.BaseName(hm.name)
 }
 
-func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
+func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceState) (string, error) {
 	if namespace == "" {
 		namespace = "default"
 	}
+
 	valuesPath, err := hm.PrepareValuesYamlFile()
 	if err != nil {
 		return "", err
@@ -428,5 +442,9 @@ func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
 		helm.WithExtraLabels(hm.additionalLabels),
 	}
 
-	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
+	releaseLabels := map[string]string{
+		LabelMaintenanceNoResourceReconciliation: strconv.FormatBool(state == Unmanaged),
+	}
+
+	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }
