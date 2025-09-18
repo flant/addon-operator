@@ -142,7 +142,10 @@ exit 0
 	require.NoError(t, err)
 
 	logger := log.NewLogger()
-	storage := metricsstorage.NewMetricStorage("addon_operator_", metricsstorage.WithLogger(logger))
+	storage := metricsstorage.NewMetricStorage(
+		metricsstorage.WithPrefix("addon_operator_"),
+		metricsstorage.WithLogger(logger),
+	)
 
 	bm.WithDependencies(&hooks.HookExecutionDependencyContainer{
 		HookMetricsStorage: storage,
@@ -195,7 +198,10 @@ exit 0
 	require.NoError(t, err)
 
 	logger := log.NewLogger()
-	storage := metricsstorage.NewMetricStorage("addon_operator_", metricsstorage.WithLogger(logger))
+	storage := metricsstorage.NewMetricStorage(
+		metricsstorage.WithPrefix("addon_operator_"),
+		metricsstorage.WithLogger(logger),
+	)
 
 	bm.WithLogger(logger)
 	bm.WithDependencies(&hooks.HookExecutionDependencyContainer{
@@ -236,7 +242,10 @@ fi
 }
 
 func stubDeps(logger *log.Logger) *hooks.HookExecutionDependencyContainer {
-	st := metricsstorage.NewMetricStorage("addon_operator_", metricsstorage.WithLogger(logger))
+	st := metricsstorage.NewMetricStorage(
+		metricsstorage.WithPrefix("addon_operator_"),
+		metricsstorage.WithLogger(logger),
+	)
 	return &hooks.HookExecutionDependencyContainer{
 		HookMetricsStorage: st,
 		MetricStorage:      st,

@@ -30,7 +30,10 @@ exit 0
 	require.NoError(t, err)
 	defer os.RemoveAll("/tmp/global")
 	logger := log.NewLogger()
-	storage := metricsstorage.NewMetricStorage("addon_operator_", metricsstorage.WithLogger(logger))
+	storage := metricsstorage.NewMetricStorage(
+		metricsstorage.WithPrefix("addon_operator_"),
+		metricsstorage.WithLogger(logger),
+	)
 	gm, err := NewGlobalModule(
 		globalHooksDir,
 		utils.Values{},

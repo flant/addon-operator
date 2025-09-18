@@ -133,8 +133,14 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		ScheduleManager:      op.engine.ScheduleManager,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
-		MetricStorage:        metricstorage.NewMetricStorage("addon_operator_", metricstorage.WithLogger(log.NewNop())),
-		HookMetricStorage:    metricstorage.NewMetricStorage("addon_operator_", metricstorage.WithLogger(log.NewNop())),
+		MetricStorage: metricstorage.NewMetricStorage(
+			metricstorage.WithPrefix("addon_operator_"),
+			metricstorage.WithLogger(log.NewNop()),
+		),
+		HookMetricStorage: metricstorage.NewMetricStorage(
+			metricstorage.WithPrefix("addon_operator_"),
+			metricstorage.WithLogger(log.NewNop()),
+		),
 	}
 	cfg := module_manager.ModuleManagerConfig{
 		DirectoryConfig: dirs,
