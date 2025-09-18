@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/deckhouse/pkg/metrics-storage/operation"
 	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/gofrs/uuid/v5"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	kemtypes "github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 var _ gohook.HookConfigLoader = (*BatchHook)(nil)
@@ -189,10 +189,12 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 		return result, fmt.Errorf("got bad json patch for values: %w", err)
 	}
 
-	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath, h.GetName())
+	operations, err := sh_hook.MetricOperationsFromFile(metricsPath, h.Name)
 	if err != nil {
-		return result, fmt.Errorf("got bad metrics: %w", err)
+		return result, fmt.Errorf("got bad metrics: %s", err)
 	}
+
+	result.Metrics = h.remapOperationsToOperations(operations)
 
 	kubernetesPatchBytes, err := os.ReadFile(kubernetesPatchPath)
 	if err != nil {
@@ -618,4 +620,35 @@ func remapHookConfigV1FromHookConfig(hcfg *sdkhook.HookConfig) *config.HookConfi
 	}
 
 	return hcv1
+}
+
+func (h *BatchHook) remapOperationsToOperations(ops []sh_hook.MetricOperation) []operation.MetricOperation {
+	result := make([]operation.MetricOperation, 0, len(ops))
+	for _, op := range ops {
+		newOp := operation.MetricOperation{
+			Name:    op.Name,
+			Value:   op.Value,
+			Buckets: op.Buckets,
+			Labels:  op.Labels,
+			Group:   op.Group,
+		}
+
+		switch op.Action {
+		case "add":
+			newOp.Action = operation.ActionCounterAdd
+		case "set":
+			newOp.Action = operation.ActionGaugeSet
+		case "observe":
+			newOp.Action = operation.ActionHistogramObserve
+		case "expire":
+			newOp.Action = operation.ActionExpireMetrics
+		default:
+			h.Logger.Warn("unknown action in shoperation.MetricOperation: " + op.Action)
+			continue
+		}
+
+		result = append(result, newOp)
+	}
+
+	return result
 }

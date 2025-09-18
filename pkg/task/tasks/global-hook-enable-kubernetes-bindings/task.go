@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"github.com/gofrs/uuid/v5"
 	"go.opentelemetry.io/otel"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/metric"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
@@ -32,7 +32,7 @@ const (
 // TaskDependencies provides access to services needed by task handlers.
 type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
-	GetMetricStorage() metric.Storage
+	GetMetricStorage() metricsstorage.Storage
 	GetQueueService() *taskqueue.Service
 }
 
@@ -53,7 +53,7 @@ func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.
 type Task struct {
 	shellTask     sh_task.Task
 	moduleManager *module_manager.ModuleManager
-	metricStorage metric.Storage
+	metricStorage metricsstorage.Storage
 	queueService  *taskqueue.Service
 	logger        *log.Logger
 }
@@ -62,7 +62,7 @@ type Task struct {
 func NewTask(
 	shellTask sh_task.Task,
 	moduleManager *module_manager.ModuleManager,
-	metricStorage metric.Storage,
+	metricStorage metricsstorage.Storage,
 	queueService *taskqueue.Service,
 	logger *log.Logger,
 ) *Task {

@@ -1057,7 +1057,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 	}
 
 	// Apply metric operations
-	err = bm.dc.HookMetricsStorage.SendBatch(hookResult.Metrics, map[string]string{
+	err = bm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
 		pkg.MetricKeyHook: h.GetName(),
 		"module":          bm.GetName(),
 	})

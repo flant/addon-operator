@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 
@@ -35,7 +36,6 @@ import (
 	"github.com/flant/shell-operator/pkg/debug"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -80,7 +80,7 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
-	MetricStorage metric.Storage
+	MetricStorage metricsstorage.Storage
 
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
@@ -132,12 +132,12 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	shapp.SetupLogging(rc, ao.Logger)
 
 	// Have to initialize common operator to have all common dependencies below
-	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, map[string]string{
-		"module":             "",
-		pkg.MetricKeyHook:    "",
-		pkg.MetricKeyBinding: "",
-		"queue":              "",
-		"kind":               "",
+	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, []string{
+		"module",
+		pkg.MetricKeyHook,
+		pkg.MetricKeyBinding,
+		"queue",
+		"kind",
 	})
 	if err != nil {
 		panic(err)

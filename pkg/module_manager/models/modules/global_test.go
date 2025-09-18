@@ -1,18 +1,17 @@
 package modules
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/utils"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
-	metric_storage "github.com/flant/shell-operator/pkg/metric_storage"
 )
 
 func TestRunHookByNameWorksWithNormalizedCustomPathName(t *testing.T) {
@@ -31,7 +30,10 @@ exit 0
 	require.NoError(t, err)
 	defer os.RemoveAll("/tmp/global")
 	logger := log.NewLogger()
-	storage := metric_storage.NewMetricStorage(context.TODO(), "addon_operator_", false, logger)
+	storage := metricsstorage.NewMetricStorage(
+		metricsstorage.WithPrefix("addon_operator_"),
+		metricsstorage.WithLogger(logger),
+	)
 	gm, err := NewGlobalModule(
 		globalHooksDir,
 		utils.Values{},

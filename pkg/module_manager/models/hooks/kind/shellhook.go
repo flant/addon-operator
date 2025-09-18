@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/deckhouse/pkg/metrics-storage/operation"
 	"github.com/go-openapi/spec"
 	"github.com/gofrs/uuid/v5"
 	"gopkg.in/yaml.v3"
@@ -23,7 +24,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
-	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 const (
@@ -193,10 +193,12 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 		return result, fmt.Errorf("got bad json patch for values: %w", err)
 	}
 
-	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath, sh.GetName())
+	operations, err := sh_hook.MetricOperationsFromFile(metricsPath, sh.Name)
 	if err != nil {
-		return result, fmt.Errorf("got bad metrics: %w", err)
+		return result, fmt.Errorf("got bad metrics: %s", err)
 	}
+
+	result.Metrics = sh.remapOperationsToOperations(operations)
 
 	kubernetesPatchBytes, err := os.ReadFile(kubernetesPatchPath)
 	if err != nil {
@@ -590,4 +592,35 @@ func (sh *ShellHook) prepareValuesJsonFile(moduleSafeName string, values utils.V
 		slog.String("values", values.DebugString()))
 
 	return path, nil
+}
+
+func (sh *ShellHook) remapOperationsToOperations(ops []sh_hook.MetricOperation) []operation.MetricOperation {
+	result := make([]operation.MetricOperation, 0, len(ops))
+	for _, op := range ops {
+		newOp := operation.MetricOperation{
+			Name:    op.Name,
+			Value:   op.Value,
+			Buckets: op.Buckets,
+			Labels:  op.Labels,
+			Group:   op.Group,
+		}
+
+		switch op.Action {
+		case "add":
+			newOp.Action = operation.ActionCounterAdd
+		case "set":
+			newOp.Action = operation.ActionGaugeSet
+		case "observe":
+			newOp.Action = operation.ActionHistogramObserve
+		case "expire":
+			newOp.Action = operation.ActionExpireMetrics
+		default:
+			sh.Logger.Warn("unknown action in shoperation.MetricOperation: " + op.Action)
+			continue
+		}
+
+		result = append(result, newOp)
+	}
+
+	return result
 }

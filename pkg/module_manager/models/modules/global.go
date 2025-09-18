@@ -211,7 +211,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 	}
 
 	// Apply metric operations
-	err = gm.dc.HookMetricsStorage.SendBatch(hookResult.Metrics, map[string]string{
+	err = gm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
 		pkg.MetricKeyHook: h.GetName(),
 	})
 	if err != nil {

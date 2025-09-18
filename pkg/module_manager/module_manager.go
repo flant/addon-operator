@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"github.com/hashicorp/go-multierror"
 	"go.opentelemetry.io/otel"
 
@@ -42,7 +43,6 @@ import (
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	kubeeventsmanager "github.com/flant/shell-operator/pkg/kube_events_manager"
 	. "github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	"github.com/flant/shell-operator/pkg/metric"
 	schedulemanager "github.com/flant/shell-operator/pkg/schedule_manager"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -98,8 +98,8 @@ type ModuleManagerDependencies struct {
 	ScheduleManager      schedulemanager.ScheduleManager
 	Helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
-	MetricStorage        metric.Storage
-	HookMetricStorage    metric.Storage
+	MetricStorage        metricsstorage.Storage
+	HookMetricStorage    metricsstorage.Storage
 	TaskQueues           *queue.TaskQueueSet
 }
 
