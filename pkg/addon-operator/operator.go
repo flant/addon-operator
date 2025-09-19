@@ -168,21 +168,27 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	// Init logging subsystem.
 	shapp.SetupLogging(rc, ao.Logger)
 
-	shmetrics.RegisterOperatorMetrics(so.MetricStorage, []string{
+	err := shmetrics.RegisterOperatorMetrics(so.MetricStorage, []string{
 		"module",
 		pkg.MetricKeyHook,
 		pkg.MetricKeyBinding,
 		"queue",
 		"kind",
 	})
-
-	// Have to initialize common operator to have all common dependencies below
-	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort)
 	if err != nil {
 		panic(err)
 	}
 
-	metrics.RegisterHookMetrics(so.HookMetricStorage)
+	// Have to initialize common operator to have all common dependencies below
+	err = so.AssembleCommonOperator(app.ListenAddress, app.ListenPort)
+	if err != nil {
+		panic(err)
+	}
+
+	err = metrics.RegisterHookMetrics(so.HookMetricStorage)
+	if err != nil {
+		panic(err)
+	}
 
 	labelSelector, err := metav1.ParseToLabelSelector(app.ExtraLabels)
 	if err != nil {
