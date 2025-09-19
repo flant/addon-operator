@@ -50,9 +50,7 @@ import (
 )
 
 const (
-	moduleInfoMetricGroup        = "mm_module_info"
-	moduleMaintenanceMetricGroup = "mm_module_maintenance"
-	moduleManagerServiceName     = "module-manager"
+	moduleManagerServiceName = "module-manager"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -285,7 +283,7 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 		}
 
 		if moduleConfig.GetMaintenanceState() == utils.NoResourceReconciliation {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, metrics.ModuleManagerModuleMaintenance, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(metrics.ModuleMaintenanceMetricGroup, metrics.ModuleManagerModuleMaintenance, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
 			mod.SetMaintenanceState(moduleConfig.GetMaintenanceState())
 		}
 
@@ -488,13 +486,13 @@ func (mm *ModuleManager) SetGlobalDiscoveryAPIVersions(apiVersions []string) {
 
 // UpdateModulesMetrics updates modules' states metrics
 func (mm *ModuleManager) UpdateModulesMetrics() {
-	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoMetricGroup, metrics.ModuleManagerModuleInfo)
+	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(metrics.ModuleInfoMetricGroup, metrics.ModuleManagerModuleInfo)
 	for _, module := range mm.GetModuleNames() {
 		enabled := "false"
 		if mm.IsModuleEnabled(module) {
 			enabled = "true"
 		}
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, metrics.ModuleManagerModuleInfo, 1, map[string]string{"moduleName": module, "enabled": enabled})
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(metrics.ModuleInfoMetricGroup, metrics.ModuleManagerModuleInfo, 1, map[string]string{"moduleName": module, "enabled": enabled})
 	}
 }
 
@@ -505,9 +503,9 @@ func (mm *ModuleManager) SetModuleMaintenanceState(moduleName string, state util
 			slog.String("module", moduleName),
 			slog.String("state", state.String()))
 		if state == utils.NoResourceReconciliation {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, metrics.ModuleManagerModuleMaintenance, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(metrics.ModuleMaintenanceMetricGroup, metrics.ModuleManagerModuleMaintenance, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
 		} else {
-			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleMaintenanceMetricGroup, metrics.ModuleManagerModuleMaintenance)
+			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(metrics.ModuleMaintenanceMetricGroup, metrics.ModuleManagerModuleMaintenance)
 		}
 	}
 }

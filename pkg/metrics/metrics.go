@@ -43,6 +43,10 @@ const (
 	ModuleManagerModuleMaintenance    = "{PREFIX}mm_module_maintenance"
 	ModulesHelmReleaseRedeployedTotal = "{PREFIX}modules_helm_release_redeployed_total"
 	ModulesAbsentResourcesTotal       = "{PREFIX}modules_absent_resources_total"
+
+	// Metric group names for grouped metrics
+	ModuleInfoMetricGroup        = "mm_module_info"
+	ModuleMaintenanceMetricGroup = "mm_module_maintenance"
 )
 
 var buckets_1msTo10s = []float64{
@@ -69,22 +73,40 @@ func RegisterHookMetrics(metricStorage metricsstorage.Storage) error {
 	}
 
 	// ConfigMap validation errors
-	_, _ = metricStorage.RegisterCounter(ConfigValuesErrorsTotal, []string{})
+	_, err = metricStorage.RegisterCounter(ConfigValuesErrorsTotal, []string{}, options.WithHelp("Total number of configuration values errors"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ConfigValuesErrorsTotal, err)
+	}
 
 	// modules
-	_, _ = metricStorage.RegisterCounter(ModulesDiscoverErrorsTotal, []string{})
-	_, _ = metricStorage.RegisterCounter(ModuleDeleteErrorsTotal, []string{"module"})
+	_, err = metricStorage.RegisterCounter(ModulesDiscoverErrorsTotal, []string{}, options.WithHelp("Total number of module discovery errors"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModulesDiscoverErrorsTotal, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(ModuleDeleteErrorsTotal, []string{"module"}, options.WithHelp("Total number of module deletion errors"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleDeleteErrorsTotal, err)
+	}
 
 	// module
-	_, _ = metricStorage.RegisterHistogram(
+	_, err = metricStorage.RegisterHistogram(
 		ModuleRunSeconds,
 		[]string{
 			"module",
 			pkg.MetricKeyActivation,
 		},
 		buckets_1msTo10s,
+		options.WithHelp("Time taken for module execution in seconds"),
 	)
-	_, _ = metricStorage.RegisterCounter(ModuleRunErrorsTotal, []string{"module"})
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleRunSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(ModuleRunErrorsTotal, []string{"module"}, options.WithHelp("Total number of module run errors"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleRunErrorsTotal, err)
+	}
 
 	moduleHookLabels := []string{
 		"module",
@@ -93,22 +115,52 @@ func RegisterHookMetrics(metricStorage metricsstorage.Storage) error {
 		"queue",
 		pkg.MetricKeyActivation,
 	}
-	_, _ = metricStorage.RegisterHistogram(
+	_, err = metricStorage.RegisterHistogram(
 		ModuleHookRunSeconds,
 		moduleHookLabels,
-		buckets_1msTo10s)
-	_, _ = metricStorage.RegisterHistogram(
+		buckets_1msTo10s,
+		options.WithHelp("Time taken for module hook execution in seconds"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleHookRunSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterHistogram(
 		ModuleHookRunUserCPUSeconds,
 		moduleHookLabels,
-		buckets_1msTo10s)
-	_, _ = metricStorage.RegisterHistogram(
+		buckets_1msTo10s,
+		options.WithHelp("User CPU time used by module hook execution in seconds"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleHookRunUserCPUSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterHistogram(
 		ModuleHookRunSysCPUSeconds,
 		moduleHookLabels,
-		buckets_1msTo10s)
-	_, _ = metricStorage.RegisterGauge(ModuleHookRunMaxRSSBytes, moduleHookLabels)
-	_, _ = metricStorage.RegisterCounter(ModuleHookAllowedErrorsTotal, moduleHookLabels)
-	_, _ = metricStorage.RegisterCounter(ModuleHookErrorsTotal, moduleHookLabels)
-	_, _ = metricStorage.RegisterCounter(ModuleHookSuccessTotal, moduleHookLabels)
+		buckets_1msTo10s,
+		options.WithHelp("System CPU time used by module hook execution in seconds"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleHookRunSysCPUSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterGauge(ModuleHookRunMaxRSSBytes, moduleHookLabels, options.WithHelp("Maximum resident set size in bytes used by module hook execution"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleHookRunMaxRSSBytes, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(ModuleHookAllowedErrorsTotal, moduleHookLabels, options.WithHelp("Total number of allowed module hook errors"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleHookAllowedErrorsTotal, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(ModuleHookErrorsTotal, moduleHookLabels, options.WithHelp("Total number of module hook errors"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleHookErrorsTotal, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(ModuleHookSuccessTotal, moduleHookLabels, options.WithHelp("Total number of successful module hook executions"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleHookSuccessTotal, err)
+	}
 
 	// global hook running
 	globalHookLabels := []string{
@@ -117,54 +169,104 @@ func RegisterHookMetrics(metricStorage metricsstorage.Storage) error {
 		"queue",
 		pkg.MetricKeyActivation,
 	}
-	_, _ = metricStorage.RegisterHistogram(
+	_, err = metricStorage.RegisterHistogram(
 		GlobalHookRunSeconds,
 		globalHookLabels,
-		buckets_1msTo10s)
-	_, _ = metricStorage.RegisterHistogram(
+		buckets_1msTo10s,
+		options.WithHelp("Time taken for global hook execution in seconds"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", GlobalHookRunSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterHistogram(
 		GlobalHookRunUserCPUSeconds,
 		globalHookLabels,
-		buckets_1msTo10s)
-	_, _ = metricStorage.RegisterHistogram(
+		buckets_1msTo10s,
+		options.WithHelp("User CPU time used by global hook execution in seconds"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", GlobalHookRunUserCPUSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterHistogram(
 		GlobalHookRunSysCPUSeconds,
 		globalHookLabels,
-		buckets_1msTo10s)
-	_, _ = metricStorage.RegisterGauge(GlobalHookRunMaxRSSBytes, globalHookLabels)
-	_, _ = metricStorage.RegisterCounter(GlobalHookAllowedErrorsTotal, globalHookLabels)
-	_, _ = metricStorage.RegisterCounter(GlobalHookErrorsTotal, globalHookLabels)
-	_, _ = metricStorage.RegisterCounter(GlobalHookSuccessTotal, globalHookLabels)
+		buckets_1msTo10s,
+		options.WithHelp("System CPU time used by global hook execution in seconds"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", GlobalHookRunSysCPUSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterGauge(GlobalHookRunMaxRSSBytes, globalHookLabels, options.WithHelp("Maximum resident set size in bytes used by global hook execution"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", GlobalHookRunMaxRSSBytes, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(GlobalHookAllowedErrorsTotal, globalHookLabels, options.WithHelp("Total number of allowed global hook errors"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", GlobalHookAllowedErrorsTotal, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(GlobalHookErrorsTotal, globalHookLabels, options.WithHelp("Total number of global hook errors"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", GlobalHookErrorsTotal, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(GlobalHookSuccessTotal, globalHookLabels, options.WithHelp("Total number of successful global hook executions"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", GlobalHookSuccessTotal, err)
+	}
 
 	// converge duration
-	_, _ = metricStorage.RegisterCounter(ConvergenceSeconds, []string{pkg.MetricKeyActivation})
-	_, _ = metricStorage.RegisterCounter(ConvergenceTotal, []string{pkg.MetricKeyActivation})
+	_, err = metricStorage.RegisterCounter(ConvergenceSeconds, []string{pkg.MetricKeyActivation}, options.WithHelp("Total time spent in convergence operations in seconds"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ConvergenceSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(ConvergenceTotal, []string{pkg.MetricKeyActivation}, options.WithHelp("Total number of convergence operations completed"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ConvergenceTotal, err)
+	}
 
 	// helm operations
-	_, _ = metricStorage.RegisterHistogram(
+	_, err = metricStorage.RegisterHistogram(
 		ModuleHelmSeconds,
 		[]string{
 			"module",
 			pkg.MetricKeyActivation,
 		},
-		buckets_1msTo10s)
-	_, _ = metricStorage.RegisterHistogram(
+		buckets_1msTo10s,
+		options.WithHelp("Time taken for Helm operations on modules in seconds"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleHelmSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterHistogram(
 		HelmOperationSeconds,
 		[]string{
 			"module",
 			pkg.MetricKeyActivation,
 			"operation",
 		},
-		buckets_1msTo10s)
+		buckets_1msTo10s,
+		options.WithHelp("Time taken for specific Helm operations in seconds"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", HelmOperationSeconds, err)
+	}
 
 	// task age
 	// hook_run task waiting time
-	_, _ = metricStorage.RegisterCounter(
+	_, err = metricStorage.RegisterCounter(
 		TaskWaitInQueueSecondsTotal,
 		[]string{
 			"module",
 			pkg.MetricKeyHook,
 			pkg.MetricKeyBinding,
 			"queue",
-		})
+		},
+		options.WithHelp("Total time in seconds that tasks have waited in queue before execution"))
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", TaskWaitInQueueSecondsTotal, err)
+	}
 
 	return nil
 }
