@@ -21,6 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/metrics"
 	environmentmanager "github.com/flant/addon-operator/pkg/module_manager/environment_manager"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/loader"
@@ -49,13 +50,9 @@ import (
 )
 
 const (
-	moduleInfoMetricGroup = "mm_module_info"
-	moduleInfoMetricName  = "{PREFIX}mm_module_info"
-
+	moduleInfoMetricGroup        = "mm_module_info"
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
-	moduleMaintenanceMetricName  = "{PREFIX}mm_module_maintenance"
-
-	moduleManagerServiceName = "module-manager"
+	moduleManagerServiceName     = "module-manager"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -288,7 +285,7 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 		}
 
 		if moduleConfig.GetMaintenanceState() == utils.NoResourceReconciliation {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, moduleMaintenanceMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, metrics.ModuleManagerModuleMaintenance, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
 			mod.SetMaintenanceState(moduleConfig.GetMaintenanceState())
 		}
 
@@ -412,7 +409,7 @@ func (mm *ModuleManager) checkConfig() {
 		}
 		mm.kubeConfigLock.RLock()
 		if !mm.kubeConfigValid || !mm.kubeConfigValuesValid {
-			mm.dependencies.MetricStorage.CounterAdd("{PREFIX}config_values_errors_total", 1.0, map[string]string{})
+			mm.dependencies.MetricStorage.CounterAdd(metrics.ConfigValuesErrorsTotal, 1.0, map[string]string{})
 		}
 		mm.kubeConfigLock.RUnlock()
 		time.Sleep(5 * time.Second)
@@ -491,13 +488,13 @@ func (mm *ModuleManager) SetGlobalDiscoveryAPIVersions(apiVersions []string) {
 
 // UpdateModulesMetrics updates modules' states metrics
 func (mm *ModuleManager) UpdateModulesMetrics() {
-	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoMetricGroup, moduleInfoMetricName)
+	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoMetricGroup, metrics.ModuleManagerModuleInfo)
 	for _, module := range mm.GetModuleNames() {
 		enabled := "false"
 		if mm.IsModuleEnabled(module) {
 			enabled = "true"
 		}
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{"moduleName": module, "enabled": enabled})
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, metrics.ModuleManagerModuleInfo, 1, map[string]string{"moduleName": module, "enabled": enabled})
 	}
 }
 
@@ -508,9 +505,9 @@ func (mm *ModuleManager) SetModuleMaintenanceState(moduleName string, state util
 			slog.String("module", moduleName),
 			slog.String("state", state.String()))
 		if state == utils.NoResourceReconciliation {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, moduleMaintenanceMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, metrics.ModuleManagerModuleMaintenance, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
 		} else {
-			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleMaintenanceMetricGroup, moduleMaintenanceMetricName)
+			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleMaintenanceMetricGroup, metrics.ModuleManagerModuleMaintenance)
 		}
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
@@ -102,7 +103,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		s.metricStorage.HistogramObserve("{PREFIX}global_hook_run_seconds", d.Seconds(), metricLabels, nil)
+		s.metricStorage.HistogramObserve(metrics.GlobalHookRunSeconds, d.Seconds(), metricLabels, nil)
 	})()
 
 	isSynchronization := hm.IsSynchronization()
@@ -299,9 +300,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			//}
 		}
 
-		s.metricStorage.CounterAdd("{PREFIX}global_hook_allowed_errors_total", allowed, metricLabels)
-		s.metricStorage.CounterAdd("{PREFIX}global_hook_errors_total", errors, metricLabels)
-		s.metricStorage.CounterAdd("{PREFIX}global_hook_success_total", success, metricLabels)
+		s.metricStorage.CounterAdd(metrics.GlobalHookAllowedErrorsTotal, allowed, metricLabels)
+		s.metricStorage.CounterAdd(metrics.GlobalHookErrorsTotal, errors, metricLabels)
+		s.metricStorage.CounterAdd(metrics.GlobalHookSuccessTotal, success, metricLabels)
 	}
 
 	if isSynchronization && res.Status == queue.Success {

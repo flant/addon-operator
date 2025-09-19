@@ -8,6 +8,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -61,14 +62,14 @@ func (s *TaskHandlerService) recordConvergenceMetrics(durationSeconds float64) {
 
 	// Record the time taken for convergence
 	s.metricStorage.CounterAdd(
-		"{PREFIX}convergence_seconds",
+		metrics.ConvergenceSeconds,
 		durationSeconds,
 		metricLabels,
 	)
 
 	// Increment the total convergence operations counter
 	s.metricStorage.CounterAdd(
-		"{PREFIX}convergence_total",
+		metrics.ConvergenceTotal,
 		1.0,
 		metricLabels,
 	)

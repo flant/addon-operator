@@ -21,6 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -36,6 +37,7 @@ import (
 	"github.com/flant/shell-operator/pkg/debug"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
+	shmetrics "github.com/flant/shell-operator/pkg/metrics"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -80,7 +82,8 @@ type AddonOperator struct {
 	// AdmissionServer handles validation and mutation admission webhooks
 	AdmissionServer *AdmissionServer
 
-	MetricStorage metricsstorage.Storage
+	MetricStorage     metricsstorage.Storage
+	HookMetricStorage metricsstorage.Storage
 
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
@@ -105,6 +108,18 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
+func WithMetricStorage(storage metricsstorage.Storage) Option {
+	return func(operator *AddonOperator) {
+		operator.MetricStorage = storage
+	}
+}
+
+func WithHookMetricStorage(storage metricsstorage.Storage) Option {
+	return func(operator *AddonOperator) {
+		operator.HookMetricStorage = storage
+	}
+}
+
 func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
@@ -124,26 +139,50 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 		ao.Logger = log.NewLogger().Named("addon-operator")
 	}
 
-	so := shell_operator.NewShellOperator(cctx, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
+	// Use provided metric storage or create default
+	if ao.MetricStorage == nil {
+		ao.MetricStorage = metricsstorage.NewMetricStorage(
+			metricsstorage.WithPrefix(shapp.PrometheusMetricsPrefix),
+			metricsstorage.WithLogger(ao.Logger.Named("metric-storage")),
+		)
+	}
+
+	// Use provided hook metric storage or create default
+	if ao.HookMetricStorage == nil {
+		ao.HookMetricStorage = metricsstorage.NewMetricStorage(
+			metricsstorage.WithPrefix(shapp.PrometheusMetricsPrefix),
+			metricsstorage.WithNewRegistry(),
+			metricsstorage.WithLogger(ao.Logger.Named("hook-metric-storage")),
+		)
+	}
+
+	so := shell_operator.NewShellOperator(
+		cctx,
+		shell_operator.WithLogger(ao.Logger.Named("shell-operator")),
+		shell_operator.WithMetricStorage(ao.MetricStorage),
+		shell_operator.WithHookMetricStorage(ao.HookMetricStorage),
+	)
 
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
 	shapp.SetupLogging(rc, ao.Logger)
 
-	// Have to initialize common operator to have all common dependencies below
-	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, []string{
+	shmetrics.RegisterOperatorMetrics(so.MetricStorage, []string{
 		"module",
 		pkg.MetricKeyHook,
 		pkg.MetricKeyBinding,
 		"queue",
 		"kind",
 	})
+
+	// Have to initialize common operator to have all common dependencies below
+	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort)
 	if err != nil {
 		panic(err)
 	}
 
-	registerHookMetrics(so.HookMetricStorage)
+	metrics.RegisterHookMetrics(so.HookMetricStorage)
 
 	labelSelector, err := metav1.ParseToLabelSelector(app.ExtraLabels)
 	if err != nil {

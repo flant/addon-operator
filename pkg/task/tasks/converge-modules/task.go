@@ -14,6 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/task"
@@ -236,7 +237,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			slog.String("phase", string(s.convergeState.GetPhase())),
 			slog.Int("count", s.shellTask.GetFailureCount()+1),
 			log.Err(handleErr))
-		s.metricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
+		s.metricStorage.CounterAdd(metrics.ModulesDiscoverErrorsTotal, 1.0, map[string]string{})
 		s.shellTask.UpdateFailureMessage(handleErr.Error())
 		s.shellTask.WithQueuedAt(time.Now())
 		return res
