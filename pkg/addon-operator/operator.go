@@ -612,7 +612,7 @@ func (op *AddonOperator) CreateAndStartQueue(queueName string) {
 	op.startQueue(queueName, op.TaskService.Handle)
 }
 
-func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) sh_task.TaskResult) {
+func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) sh_task.Result) {
 	op.engine.TaskQueues.NewNamedQueue(queueName, handler,
 		queue.WithCompactionCallback(queueutils.CompactionCallback(op.ModuleManager, op.Logger)),
 		queue.WithCompactableTypes(queueutils.MergeTasks...),

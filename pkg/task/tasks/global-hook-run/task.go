@@ -71,11 +71,11 @@ func NewTask(shellTask sh_task.Task, isOperatorStartup bool, svc TaskDependencie
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.Result {
 	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res sh_task.TaskResult
+	var res sh_task.Result
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 	taskHook := s.moduleManager.GetGlobalHook(hm.HookName)

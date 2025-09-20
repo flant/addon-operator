@@ -118,7 +118,7 @@ func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig
 }
 
 // TaskHandler handles tasks in queue.
-func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) sh_task.TaskResult {
+func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) sh_task.Result {
 	taskLogLabels := t.GetLogLabels()
 	logger := utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
 
@@ -129,7 +129,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) sh_task
 	if !ok {
 		s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
 
-		return sh_task.TaskResult{}
+		return sh_task.Result{}
 	}
 
 	res := transformTask(t, logger).Handle(ctx)
@@ -151,7 +151,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) sh_task
 }
 
 // ParallelHandle handles limited types of tasks in parallel queues.
-func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task) sh_task.TaskResult {
+func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task) sh_task.Result {
 	taskLogLabels := t.GetLogLabels()
 	logger := utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
 
@@ -168,11 +168,11 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 		if !ok {
 			s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
 
-			return sh_task.TaskResult{}
+			return sh_task.Result{}
 		}
 	}
 
-	var res sh_task.TaskResult
+	var res sh_task.Result
 
 	if transformTask != nil {
 		res = transformTask(t, logger).Handle(ctx)

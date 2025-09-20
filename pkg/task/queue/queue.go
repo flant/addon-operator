@@ -18,14 +18,14 @@ import (
 
 type ServiceConfig struct {
 	Engine *shell_operator.ShellOperator
-	Handle func(ctx context.Context, t sh_task.Task) sh_task.TaskResult
+	Handle func(ctx context.Context, t sh_task.Task) sh_task.Result
 }
 
 type Service struct {
 	engine *shell_operator.ShellOperator
 	ctx    context.Context
 
-	Handle func(ctx context.Context, t sh_task.Task) sh_task.TaskResult
+	Handle func(ctx context.Context, t sh_task.Task) sh_task.Result
 
 	logger *log.Logger
 }
@@ -45,7 +45,7 @@ func (s *Service) CreateAndStartQueue(queueName string, callback Callback) {
 	s.startQueue(queueName, s.Handle, callback)
 }
 
-func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) sh_task.TaskResult, callback Callback) {
+func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) sh_task.Result, callback Callback) {
 	s.engine.TaskQueues.NewNamedQueue(queueName, handler,
 		queue.WithCompactionCallback(callback),
 		queue.WithCompactableTypes(MergeTasks...),

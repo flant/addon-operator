@@ -67,13 +67,13 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.Result {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
 	var (
 		handleErr error
-		res       sh_task.TaskResult
+		res       sh_task.Result
 		hm        = task.HookMetadataAccessor(s.shellTask)
 	)
 

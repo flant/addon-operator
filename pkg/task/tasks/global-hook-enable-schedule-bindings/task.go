@@ -46,11 +46,11 @@ func NewTask(shellTask sh_task.Task, moduleManager *module_manager.ModuleManager
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.Result {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	result := sh_task.TaskResult{}
+	result := sh_task.Result{}
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 

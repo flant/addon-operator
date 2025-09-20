@@ -74,11 +74,11 @@ func NewTask(
 // Handle runs multiple ModuleRun tasks in parallel and aggregates their results.
 // It creates tasks for each module in separate parallel queues, then monitors their completion
 // through a communication channel.
-func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.Result {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res sh_task.TaskResult
+	var res sh_task.Result
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 

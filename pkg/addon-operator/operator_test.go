@@ -259,7 +259,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	handler := func(ctx context.Context, tsk sh_task.Task) sh_task.TaskResult {
+	handler := func(ctx context.Context, tsk sh_task.Task) sh_task.Result {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -395,7 +395,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	handler := func(ctx context.Context, tsk sh_task.Task) sh_task.TaskResult {
+	handler := func(ctx context.Context, tsk sh_task.Task) sh_task.Result {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -562,7 +562,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	handler := func(ctx context.Context, tsk sh_task.Task) sh_task.TaskResult {
+	handler := func(ctx context.Context, tsk sh_task.Task) sh_task.Result {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""

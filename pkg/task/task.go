@@ -38,5 +38,5 @@ const (
 )
 
 type Task interface {
-	Handle(ctx context.Context) sh_task.TaskResult
+	Handle(ctx context.Context) sh_task.Result
 }

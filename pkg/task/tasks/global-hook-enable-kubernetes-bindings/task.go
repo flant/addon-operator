@@ -75,11 +75,11 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.Result {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res sh_task.TaskResult
+	var res sh_task.Result
 	s.logger.Debug("Global hook enable kubernetes bindings")
 
 	hm := task.HookMetadataAccessor(s.shellTask)

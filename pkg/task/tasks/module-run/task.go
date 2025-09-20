@@ -97,7 +97,7 @@ func NewTask(
 //
 // ModuleRun is restarted if hook or chart is failed.
 // After first Handle success, no onStartup and kubernetes.Synchronization tasks will run.
-func (s *Task) Handle(ctx context.Context) (res sh_task.TaskResult) { //nolint:nonamedreturns
+func (s *Task) Handle(ctx context.Context) (res sh_task.Result) { //nolint:nonamedreturns
 	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
@@ -130,7 +130,7 @@ func (s *Task) Handle(ctx context.Context) (res sh_task.TaskResult) { //nolint:n
 	var moduleRunErr error
 	valuesChanged := false
 
-	defer func(res *sh_task.TaskResult, valuesChanged *bool) {
+	defer func(res *sh_task.Result, valuesChanged *bool) {
 		s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
 		if moduleRunErr != nil {
 			res.Status = sh_task.Fail

@@ -41,7 +41,7 @@ func (s *TaskHandlerService) logTaskStart(tsk sh_task.Task, logger *log.Logger) 
 }
 
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
-func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result sh_task.TaskResult, logger *log.Logger) {
+func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result sh_task.Result, logger *log.Logger) {
 	logger = logger.With(pkg.LogKeyTaskFlow, "end")
 
 	level := log.LevelDebug
