@@ -3,39 +3,38 @@ package task
 import (
 	"context"
 
-	"github.com/flant/shell-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 )
 
 // Addon-operator specific task types
 const (
 	// GlobalHookRun runs a global hook.
-	GlobalHookRun task.TaskType = "GlobalHookRun"
+	GlobalHookRun sh_task.TaskType = "GlobalHookRun"
 	// ModuleHookRun runs schedule or kubernetes hook.
-	ModuleHookRun task.TaskType = "ModuleHookRun"
+	ModuleHookRun sh_task.TaskType = "ModuleHookRun"
 	// ModuleDelete runs helm delete/afterHelmDelete sequence.
-	ModuleDelete task.TaskType = "ModuleDelete"
+	ModuleDelete sh_task.TaskType = "ModuleDelete"
 	// ModuleRun runs beforeHelm/helm upgrade/afterHelm sequence.
-	ModuleRun task.TaskType = "ModuleRun"
+	ModuleRun sh_task.TaskType = "ModuleRun"
 	// ParallelModuleRun runs beforeHelm/helm upgrade/afterHelm sequence for a bunch of modules in parallel.
-	ParallelModuleRun task.TaskType = "ParallelModuleRun"
+	ParallelModuleRun sh_task.TaskType = "ParallelModuleRun"
 	// ModulePurge - delete unknown helm release (no module in ModulesDir)
-	ModulePurge task.TaskType = "ModulePurge"
+	ModulePurge sh_task.TaskType = "ModulePurge"
 	// ModuleEnsureCRDs runs ensureCRDs task for enabled module
-	ModuleEnsureCRDs task.TaskType = "ModuleEnsureCRDs"
+	ModuleEnsureCRDs sh_task.TaskType = "ModuleEnsureCRDs"
 
 	// DiscoverHelmReleases lists helm releases to detect unknown modules and initiate enabled modules list.
-	DiscoverHelmReleases task.TaskType = "DiscoverHelmReleases"
+	DiscoverHelmReleases sh_task.TaskType = "DiscoverHelmReleases"
 
 	// ConvergeModules runs beforeAll/run modules/afterAll sequence for all enabled modules.
-	ConvergeModules task.TaskType = "ConvergeModules"
+	ConvergeModules sh_task.TaskType = "ConvergeModules"
 
 	// ApplyKubeConfigValues validates and updates modules' values
-	ApplyKubeConfigValues task.TaskType = "ApplyKubeConfigValues"
+	ApplyKubeConfigValues sh_task.TaskType = "ApplyKubeConfigValues"
 
-	GlobalHookEnableKubernetesBindings      task.TaskType = "GlobalHookEnableKubernetesBindings"
-	GlobalHookWaitKubernetesSynchronization task.TaskType = "GlobalHookWaitKubernetesSynchronization"
-	GlobalHookEnableScheduleBindings        task.TaskType = "GlobalHookEnableScheduleBindings"
+	GlobalHookEnableKubernetesBindings      sh_task.TaskType = "GlobalHookEnableKubernetesBindings"
+	GlobalHookWaitKubernetesSynchronization sh_task.TaskType = "GlobalHookWaitKubernetesSynchronization"
+	GlobalHookEnableScheduleBindings        sh_task.TaskType = "GlobalHookEnableScheduleBindings"
 )
 
 type Task interface {
