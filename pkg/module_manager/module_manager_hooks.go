@@ -12,6 +12,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
@@ -126,7 +127,7 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 		hk.WithTmpDir(mm.TempDir)
 
 		mm.dependencies.MetricStorage.GaugeSet(
-			"{PREFIX}binding_count",
+			metrics.BindingCount,
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
 				pkg.MetricKeyHook: hk.GetName(),
@@ -154,7 +155,7 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 		hk.WithTmpDir(mm.TempDir)
 
 		mm.dependencies.MetricStorage.GaugeSet(
-			"{PREFIX}binding_count",
+			metrics.BindingCount,
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
 				"module":          ml.GetName(),

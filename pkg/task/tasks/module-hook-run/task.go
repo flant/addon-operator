@@ -12,13 +12,13 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
@@ -83,11 +83,11 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.Result {
 	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res queue.TaskResult
+	var res sh_task.Result
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
@@ -96,7 +96,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	// Prevent hook running in parallel queue if module is disabled in "main" queue.
 	if !s.moduleManager.IsModuleEnabled(baseModule.GetName()) {
-		res.Status = queue.Success
+		res.Status = sh_task.Success
 		return res
 	}
 
@@ -105,7 +105,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		// This could happen when the Context is
 		// canceled, or the expected wait time exceeds the Context's Deadline.
 		// The best we can do without proper context usage is to repeat the task.
-		res.Status = queue.Repeat
+		res.Status = sh_task.Repeat
 		return res
 	}
 
@@ -123,7 +123,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		s.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels, nil)
+		s.metricStorage.HistogramObserve(metrics.ModuleHookRunSeconds, d.Seconds(), metricLabels, nil)
 	})()
 
 	shouldRunHook := true
@@ -133,12 +133,12 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		// Synchronization is not a part of v0 contract, skip hook execution.
 		if taskHook.GetHookConfig().Version == "v0" {
 			shouldRunHook = false
-			res.Status = queue.Success
+			res.Status = sh_task.Success
 		}
 		// Check for "executeOnSynchronization: false".
 		if !hm.ExecuteOnSynchronization {
 			shouldRunHook = false
-			res.Status = queue.Success
+			res.Status = sh_task.Success
 		}
 	}
 
@@ -203,7 +203,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				allowed = 1.0
 				s.logger.Info("Module hook failed, but allowed to fail.", log.Err(err))
 
-				res.Status = queue.Success
+				res.Status = sh_task.Success
 
 				s.moduleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, nil)
 			} else {
@@ -216,7 +216,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				s.shellTask.UpdateFailureMessage(err.Error())
 				s.shellTask.WithQueuedAt(time.Now())
 
-				res.Status = queue.Fail
+				res.Status = sh_task.Fail
 
 				s.moduleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, err)
 			}
@@ -225,7 +225,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 			s.logger.Debug("Module hook success", slog.String("name", hm.HookName))
 
-			res.Status = queue.Success
+			res.Status = sh_task.Success
 			s.moduleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, nil)
 
 			// Handle module values change.
@@ -290,12 +290,12 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			}
 		}
 
-		s.metricStorage.CounterAdd("{PREFIX}module_hook_allowed_errors_total", allowed, metricLabels)
-		s.metricStorage.CounterAdd("{PREFIX}module_hook_errors_total", errors, metricLabels)
-		s.metricStorage.CounterAdd("{PREFIX}module_hook_success_total", success, metricLabels)
+		s.metricStorage.CounterAdd(metrics.ModuleHookAllowedErrorsTotal, allowed, metricLabels)
+		s.metricStorage.CounterAdd(metrics.ModuleHookErrorsTotal, errors, metricLabels)
+		s.metricStorage.CounterAdd(metrics.ModuleHookSuccessTotal, success, metricLabels)
 	}
 
-	if isSynchronization && res.Status == queue.Success {
+	if isSynchronization && res.Status == sh_task.Success {
 		baseModule.Synchronization().DoneForBinding(hm.KubernetesBindingId)
 		// Unlock Kubernetes events for all monitors when Synchronization task is done.
 		s.logger.Debug("Synchronization done, unlock Kubernetes events")

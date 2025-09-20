@@ -11,10 +11,10 @@ import (
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -67,13 +67,13 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.Result {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
 	var (
 		handleErr error
-		res       queue.TaskResult
+		res       sh_task.Result
 		hm        = task.HookMetadataAccessor(s.shellTask)
 	)
 
@@ -82,13 +82,13 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	})
 
 	if handleErr != nil {
-		res.Status = queue.Fail
+		res.Status = sh_task.Fail
 
 		s.logger.Error("HandleApplyKubeConfigValues failed, requeue task to retry after delay.",
 			slog.Int("count", s.shellTask.GetFailureCount()+1),
 			log.Err(handleErr))
 
-		s.metricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
+		s.metricStorage.CounterAdd(metrics.ModulesDiscoverErrorsTotal, 1.0, map[string]string{})
 
 		s.shellTask.UpdateFailureMessage(handleErr.Error())
 		s.shellTask.WithQueuedAt(time.Now())
@@ -96,7 +96,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		return res
 	}
 
-	res.Status = queue.Success
+	res.Status = sh_task.Success
 
 	s.logger.Debug("HandleApplyKubeConfigValues success")
 

@@ -14,6 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/task"
@@ -93,18 +94,18 @@ func NewTask(
 }
 
 // Handle is a multi-phase task.
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.Result {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res queue.TaskResult
+	var res sh_task.Result
 
 	taskEvent, ok := s.shellTask.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 	if !ok {
 		s.logger.Error("Possible bug! Wrong prop type in ConvergeModules: got another type instead string.",
 			slog.String("type", fmt.Sprintf("%T(%#[1]v)", s.shellTask.GetProp("event"))))
 
-		res.Status = queue.Fail
+		res.Status = sh_task.Fail
 
 		return res
 	}
@@ -129,7 +130,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 		if len(tasks) > 0 {
 			res.AddHeadTasks(tasks...)
-			res.Status = queue.Keep
+			res.Status = sh_task.Keep
 
 			s.logTaskAdd("head", tasks...)
 
@@ -176,7 +177,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			s.convergeState.SetPhase(converge.WaitDeleteAndRunModules)
 			if len(tasks) > 0 {
 				res.AddHeadTasks(tasks...)
-				res.Status = queue.Keep
+				res.Status = sh_task.Keep
 				s.logTaskAdd("head", tasks...)
 
 				return res
@@ -191,14 +192,14 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		// wait until functional converge done
 		if !s.functionalScheduler.Finished() {
 			s.logger.Warn("ConvergeModules: functional scheduler not finished")
-			res.Status = queue.Keep
+			res.Status = sh_task.Keep
 			res.DelayBeforeNextTask = repeatInterval
 
 			if s.queueService.GetQueueLength(queue.MainQueueName) > 1 {
 				s.logger.Debug("ConvergeModules: main queue has pending tasks, pass them")
 				res.DelayBeforeNextTask = 0
 				res.AddTailTasks(s.shellTask.DeepCopyWithNewUUID())
-				res.Status = queue.Success
+				res.Status = sh_task.Success
 				s.logTaskAdd("tail", s.shellTask)
 			}
 
@@ -212,7 +213,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			s.convergeState.SetPhase(converge.WaitAfterAll)
 			if len(tasks) > 0 {
 				res.AddHeadTasks(tasks...)
-				res.Status = queue.Keep
+				res.Status = sh_task.Keep
 				s.logTaskAdd("head", tasks...)
 				return res
 			}
@@ -225,25 +226,25 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 		s.logger.Info("ConvergeModules task done")
 
-		res.Status = queue.Success
+		res.Status = sh_task.Success
 
 		return res
 	}
 
 	if handleErr != nil {
-		res.Status = queue.Fail
+		res.Status = sh_task.Fail
 		s.logger.Error("ConvergeModules failed, requeue task to retry after delay.",
 			slog.String("phase", string(s.convergeState.GetPhase())),
 			slog.Int("count", s.shellTask.GetFailureCount()+1),
 			log.Err(handleErr))
-		s.metricStorage.CounterAdd("{PREFIX}modules_discover_errors_total", 1.0, map[string]string{})
+		s.metricStorage.CounterAdd(metrics.ModulesDiscoverErrorsTotal, 1.0, map[string]string{})
 		s.shellTask.UpdateFailureMessage(handleErr.Error())
 		s.shellTask.WithQueuedAt(time.Now())
 		return res
 	}
 
 	s.logger.Debug("ConvergeModules success")
-	res.Status = queue.Success
+	res.Status = sh_task.Success
 
 	return res
 }

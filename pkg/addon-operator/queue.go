@@ -14,7 +14,7 @@ import (
 
 // QueueHasPendingModuleRunTask returns true if queue has pending tasks
 // with the type "ModuleRun" related to the module "moduleName".
-func QueueHasPendingModuleRunTask(q *queue.TaskQueue, moduleName string) bool {
+func QueueHasPendingModuleRunTask(q sh_task.TaskQueue, moduleName string) bool {
 	if q == nil {
 		return false
 	}
@@ -25,7 +25,7 @@ func QueueHasPendingModuleRunTask(q *queue.TaskQueue, moduleName string) bool {
 
 // ModulesWithPendingModuleRun returns names of all modules in pending
 // ModuleRun tasks. First task in queue considered not pending and is ignored.
-func ModulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
+func ModulesWithPendingModuleRun(q sh_task.TaskQueue) map[string]struct{} {
 	if q == nil {
 		return nil
 	}
@@ -57,7 +57,7 @@ func ModulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
 	return modules
 }
 
-func ConvergeTasksInQueue(q *queue.TaskQueue) int {
+func ConvergeTasksInQueue(q sh_task.TaskQueue) int {
 	if q == nil {
 		return 0
 	}
@@ -90,7 +90,7 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 
 // RemoveCurrentConvergeTasks detects if converge tasks present in the main and parallel queues.
 // These tasks are drained and the method returns true
-func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map[string]string, logger *log.Logger) bool {
+func RemoveCurrentConvergeTasks(convergeQueues []sh_task.TaskQueue, logLabels map[string]string, logger *log.Logger) bool {
 	logEntry := utils.EnrichLoggerWithLabels(logger, logLabels)
 	convergeDrained := false
 
@@ -120,7 +120,7 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 							slog.String("type", string(t.GetType())),
 							slog.String("module", hm.ModuleName),
 							slog.String("description", hm.EventDescription),
-							slog.String("queue", queue.Name))
+							slog.String("queue", queue.GetName()))
 					} else {
 						// cancel parallel task context
 						hm.ParallelRunMetadata.CancelF()
@@ -130,7 +130,7 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 					slog.String("type", string(t.GetType())),
 					slog.String("module", hm.ModuleName),
 					slog.String("description", hm.EventDescription),
-					slog.String("queue", queue.Name))
+					slog.String("queue", queue.GetName()))
 				return false
 			}
 			return true
@@ -252,7 +252,7 @@ func ModuleEnsureCRDsTasksInQueueAfterId(q *queue.TaskQueue, afterId string) boo
 }
 
 func DrainNonMainQueue(q *queue.TaskQueue) {
-	if q == nil || q.Name == "main" {
+	if q == nil || q.GetName() == "main" {
 		return
 	}
 

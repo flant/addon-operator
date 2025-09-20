@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 )
@@ -49,5 +50,5 @@ func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 	}
 
 	taskWaitTime := time.Since(t.GetQueuedAt()).Seconds()
-	s.metricStorage.CounterAdd("{PREFIX}task_wait_in_queue_seconds_total", taskWaitTime, metricLabels)
+	s.metricStorage.CounterAdd(metrics.TaskWaitInQueueSecondsTotal, taskWaitTime, metricLabels)
 }

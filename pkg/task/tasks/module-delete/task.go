@@ -9,12 +9,12 @@ import (
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"go.opentelemetry.io/otel"
 
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -67,11 +67,11 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.Result {
 	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res queue.TaskResult
+	var res sh_task.Result
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 
@@ -96,7 +96,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, err)
 
 	if err != nil {
-		s.metricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
+		s.metricStorage.CounterAdd(metrics.ModuleDeleteErrorsTotal, 1.0, map[string]string{"module": hm.ModuleName})
 
 		s.logger.Error("Module delete failed, requeue task to retry after delay.",
 			slog.Int("count", s.shellTask.GetFailureCount()+1),
@@ -105,11 +105,11 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.shellTask.UpdateFailureMessage(err.Error())
 		s.shellTask.WithQueuedAt(time.Now())
 
-		res.Status = queue.Fail
+		res.Status = sh_task.Fail
 	} else {
 		s.logger.Debug("Module delete success", slog.String("name", hm.ModuleName))
 
-		res.Status = queue.Success
+		res.Status = sh_task.Success
 	}
 
 	return res
