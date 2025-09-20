@@ -10,7 +10,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -53,12 +52,12 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	res := queue.TaskResult{
-		Status: queue.Success,
+	res := sh_task.TaskResult{
+		Status: sh_task.Success,
 	}
 
 	if s.moduleManager.GlobalSynchronizationNeeded() && !s.moduleManager.GlobalSynchronizationState().IsCompleted() {
@@ -66,7 +65,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.moduleManager.GlobalSynchronizationState().DebugDumpState(s.logger)
 		s.shellTask.WithQueuedAt(time.Now())
 
-		res.Status = queue.Repeat
+		res.Status = sh_task.Repeat
 	} else {
 		s.logger.Info("Synchronization done for all global hooks")
 	}

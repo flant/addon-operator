@@ -23,7 +23,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -76,11 +75,11 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res queue.TaskResult
+	var res sh_task.TaskResult
 	s.logger.Debug("Global hook enable kubernetes bindings")
 
 	hm := task.HookMetadataAccessor(s.shellTask)
@@ -152,7 +151,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			log.Err(err))
 		s.shellTask.UpdateFailureMessage(err.Error())
 		s.shellTask.WithQueuedAt(queuedAt)
-		res.Status = queue.Fail
+		res.Status = sh_task.Fail
 		return res
 	}
 	// Substitute current task with Synchronization tasks for the main queue.
@@ -189,7 +188,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	res.AddHeadTasks(mainSyncTasks...)
 	s.logTaskAdd("head", mainSyncTasks...)
 
-	res.Status = queue.Success
+	res.Status = sh_task.Success
 
 	return res
 }

@@ -531,7 +531,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			queues := make([]*queue.TaskQueue, 0, len(tt.initialTasks))
+			queues := make([]sh_task.TaskQueue, 0, len(tt.initialTasks))
 			for _, tasks := range tt.initialTasks {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})

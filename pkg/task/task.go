@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
+	sh_task "github.com/flant/shell-operator/pkg/task"
 )
 
 // Addon-operator specific task types
@@ -39,5 +39,5 @@ const (
 )
 
 type Task interface {
-	Handle(ctx context.Context) queue.TaskResult
+	Handle(ctx context.Context) sh_task.TaskResult
 }

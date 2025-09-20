@@ -37,7 +37,6 @@ import (
 	klient "github.com/flant/kube-client/client"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 type TaskHandlerServiceConfig struct {
@@ -119,7 +118,7 @@ func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig
 }
 
 // TaskHandler handles tasks in queue.
-func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.TaskResult {
+func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) sh_task.TaskResult {
 	taskLogLabels := t.GetLogLabels()
 	logger := utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
 
@@ -130,12 +129,12 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 	if !ok {
 		s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
 
-		return queue.TaskResult{}
+		return sh_task.TaskResult{}
 	}
 
 	res := transformTask(t, logger).Handle(ctx)
 
-	if res.Status == queue.Success {
+	if res.Status == sh_task.Success {
 		origAfterHandle := res.AfterHandle
 
 		res.AfterHandle = func() {
@@ -152,7 +151,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 }
 
 // ParallelHandle handles limited types of tasks in parallel queues.
-func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task) queue.TaskResult {
+func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task) sh_task.TaskResult {
 	taskLogLabels := t.GetLogLabels()
 	logger := utils.EnrichLoggerWithLabels(s.logger, taskLogLabels)
 
@@ -169,11 +168,11 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 		if !ok {
 			s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
 
-			return queue.TaskResult{}
+			return sh_task.TaskResult{}
 		}
 	}
 
-	var res queue.TaskResult
+	var res sh_task.TaskResult
 
 	if transformTask != nil {
 		res = transformTask(t, logger).Handle(ctx)
@@ -191,13 +190,13 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 
 	if !hm.Critical {
 		if t.GetType() == task.ModuleRun {
-			if res.Status == queue.Success && len(res.GetAfterTasks()) == 0 {
+			if res.Status == sh_task.Success && len(res.GetAfterTasks()) == 0 {
 				s.functionalScheduler.Done(hm.ModuleName)
 			}
 
-			if res.Status == queue.Fail {
+			if res.Status == sh_task.Fail {
 				if s.queueService.GetQueueLength(t.GetQueueName()) > 1 {
-					res.Status = queue.Success
+					res.Status = sh_task.Success
 					res.AddTailTasks(t.DeepCopyWithNewUUID())
 					s.logTaskAdd("tail", t)
 				}
@@ -213,11 +212,11 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 	}
 
 	if parallelChannel, ok := s.parallelTaskChannels.Get(hm.ParallelRunMetadata.ChannelId); ok {
-		if res.Status == queue.Fail {
+		if res.Status == sh_task.Fail {
 			parallelChannel.SendFailure(hm.ModuleName, t.GetFailureMessage())
 		}
 
-		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.GetAfterTasks()) == 0 {
+		if res.Status == sh_task.Success && t.GetType() == task.ModuleRun && len(res.GetAfterTasks()) == 0 {
 			parallelChannel.SendSuccess(hm.ModuleName)
 		}
 	}

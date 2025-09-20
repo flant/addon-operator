@@ -17,7 +17,6 @@ import (
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	klient "github.com/flant/kube-client/client"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -90,14 +89,14 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 
-	res := queue.TaskResult{
-		Status: queue.Success,
+	res := sh_task.TaskResult{
+		Status: sh_task.Success,
 	}
 
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
@@ -112,12 +111,12 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.shellTask.UpdateFailureMessage(err.Error())
 		s.shellTask.WithQueuedAt(time.Now())
 
-		res.Status = queue.Fail
+		res.Status = sh_task.Fail
 	} else {
 		s.discoveredGVKs.AddGVK(appliedGVKs...)
 	}
 
-	if res.Status == queue.Success {
+	if res.Status == sh_task.Success {
 		s.CheckCRDsEnsured(s.shellTask)
 	}
 

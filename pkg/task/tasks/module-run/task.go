@@ -26,7 +26,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
@@ -98,7 +97,7 @@ func NewTask(
 //
 // ModuleRun is restarted if hook or chart is failed.
 // After first Handle success, no onStartup and kubernetes.Synchronization tasks will run.
-func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:nonamedreturns
+func (s *Task) Handle(ctx context.Context) (res sh_task.TaskResult) { //nolint:nonamedreturns
 	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
@@ -110,7 +109,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 	// Break error loop when module becomes disabled.
 	if !s.moduleManager.IsModuleEnabled(baseModule.GetName()) {
-		res.Status = queue.Success
+		res.Status = sh_task.Success
 		return res
 	}
 
@@ -131,10 +130,10 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	var moduleRunErr error
 	valuesChanged := false
 
-	defer func(res *queue.TaskResult, valuesChanged *bool) {
+	defer func(res *sh_task.TaskResult, valuesChanged *bool) {
 		s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
 		if moduleRunErr != nil {
-			res.Status = queue.Fail
+			res.Status = sh_task.Fail
 
 			s.logger.Error("ModuleRun failed. Requeue task to retry after delay.",
 				slog.String("phase", string(baseModule.GetPhase())),
@@ -146,7 +145,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			s.shellTask.WithQueuedAt(time.Now())
 		}
 
-		if res.Status != queue.Success {
+		if res.Status != sh_task.Success {
 			return
 		}
 
@@ -202,7 +201,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 				s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 			}
 
-			res.Status = queue.Repeat
+			res.Status = sh_task.Repeat
 
 			return res
 		}
@@ -219,7 +218,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.EnableScheduleBindings)
 		}
 
-		res.Status = queue.Repeat
+		res.Status = sh_task.Repeat
 
 		return res
 	}
@@ -342,13 +341,13 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			// Put Synchronization tasks for kubernetes hooks before ModuleRun task.
 			if len(mainSyncTasks) > 0 {
 				res.AddHeadTasks(mainSyncTasks...)
-				res.Status = queue.Keep
+				res.Status = sh_task.Keep
 				s.logTaskAdd("head", mainSyncTasks...)
 				return res
 			}
 		}
 
-		res.Status = queue.Repeat
+		res.Status = sh_task.Repeat
 
 		return res
 	}
@@ -375,7 +374,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			s.shellTask.WithQueuedAt(time.Now())
 		}
 
-		res.Status = queue.Repeat
+		res.Status = sh_task.Repeat
 
 		return res
 	}
@@ -389,7 +388,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 		s.moduleManager.EnableModuleScheduleBindings(hm.ModuleName)
 		s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
 
-		res.Status = queue.Repeat
+		res.Status = sh_task.Repeat
 
 		return res
 	}
@@ -410,7 +409,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	}
 
 	// this is task success, but not guarantee that module in Ready phase
-	res.Status = queue.Success
+	res.Status = sh_task.Success
 
 	return res
 }

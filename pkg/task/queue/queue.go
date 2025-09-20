@@ -18,14 +18,14 @@ import (
 
 type ServiceConfig struct {
 	Engine *shell_operator.ShellOperator
-	Handle func(ctx context.Context, t sh_task.Task) queue.TaskResult
+	Handle func(ctx context.Context, t sh_task.Task) sh_task.TaskResult
 }
 
 type Service struct {
 	engine *shell_operator.ShellOperator
 	ctx    context.Context
 
-	Handle func(ctx context.Context, t sh_task.Task) queue.TaskResult
+	Handle func(ctx context.Context, t sh_task.Task) sh_task.TaskResult
 
 	logger *log.Logger
 }
@@ -45,7 +45,7 @@ func (s *Service) CreateAndStartQueue(queueName string, callback Callback) {
 	s.startQueue(queueName, s.Handle, callback)
 }
 
-func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult, callback Callback) {
+func (s *Service) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) sh_task.TaskResult, callback Callback) {
 	s.engine.TaskQueues.NewNamedQueue(queueName, handler,
 		queue.WithCompactionCallback(callback),
 		queue.WithCompactableTypes(MergeTasks...),
@@ -102,8 +102,8 @@ func (s *Service) GetNumberOfConvergeTasks() int {
 }
 
 // getConvergeQueues returns list of all queues where modules converge tasks may be running
-func (s *Service) getConvergeQueues() []*queue.TaskQueue {
-	convergeQueues := make([]*queue.TaskQueue, 0, app.NumberOfParallelQueues+1)
+func (s *Service) getConvergeQueues() []sh_task.TaskQueue {
+	convergeQueues := make([]sh_task.TaskQueue, 0, app.NumberOfParallelQueues+1)
 	for i := 0; i < app.NumberOfParallelQueues; i++ {
 		convergeQueues = append(convergeQueues, s.engine.TaskQueues.GetByName(fmt.Sprintf(app.ParallelQueueNamePattern, i)))
 	}
@@ -113,7 +113,7 @@ func (s *Service) getConvergeQueues() []*queue.TaskQueue {
 	return convergeQueues
 }
 
-func convergeTasksInQueue(q *queue.TaskQueue) int {
+func convergeTasksInQueue(q sh_task.TaskQueue) int {
 	if q == nil {
 		return 0
 	}
@@ -130,7 +130,7 @@ func convergeTasksInQueue(q *queue.TaskQueue) int {
 
 func (s *Service) DrainNonMainQueue(queueName string) {
 	q := s.engine.TaskQueues.GetByName(queueName)
-	if q == nil || q.Name == "main" {
+	if q == nil || q.GetName() == "main" {
 		return
 	}
 
@@ -203,7 +203,7 @@ func (s *Service) MainQueueHasPendingModuleRunTask(moduleName string) bool {
 
 // modulesWithPendingModuleRun returns names of all modules in pending
 // ModuleRun tasks. First task in queue considered not pending and is ignored.
-func modulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
+func modulesWithPendingModuleRun(q sh_task.TaskQueue) map[string]struct{} {
 	if q == nil {
 		return nil
 	}

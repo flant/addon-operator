@@ -11,7 +11,6 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 // logTaskStart prints info about task at start. Also prints event source info from task props.
@@ -42,7 +41,7 @@ func (s *TaskHandlerService) logTaskStart(tsk sh_task.Task, logger *log.Logger) 
 }
 
 // logTaskEnd prints info about task at the end. Info level used only for the ConvergeModules task.
-func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result queue.TaskResult, logger *log.Logger) {
+func (s *TaskHandlerService) logTaskEnd(tsk sh_task.Task, result sh_task.TaskResult, logger *log.Logger) {
 	logger = logger.With(pkg.LogKeyTaskFlow, "end")
 
 	level := log.LevelDebug

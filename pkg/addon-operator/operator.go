@@ -612,7 +612,7 @@ func (op *AddonOperator) CreateAndStartQueue(queueName string) {
 	op.startQueue(queueName, op.TaskService.Handle)
 }
 
-func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) queue.TaskResult) {
+func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.Context, t sh_task.Task) sh_task.TaskResult) {
 	op.engine.TaskQueues.NewNamedQueue(queueName, handler,
 		queue.WithCompactionCallback(queueutils.CompactionCallback(op.ModuleManager, op.Logger)),
 		queue.WithCompactableTypes(queueutils.MergeTasks...),
@@ -863,8 +863,8 @@ func (op *AddonOperator) logTaskAdd(logEntry *log.Logger, action string, tasks .
 }
 
 // getConvergeQueues returns list of all queues where modules converge tasks may be running
-func (op *AddonOperator) getConvergeQueues() []*queue.TaskQueue {
-	convergeQueues := make([]*queue.TaskQueue, 0, app.NumberOfParallelQueues+1)
+func (op *AddonOperator) getConvergeQueues() []sh_task.TaskQueue {
+	convergeQueues := make([]sh_task.TaskQueue, 0, app.NumberOfParallelQueues+1)
 	for i := 0; i < app.NumberOfParallelQueues; i++ {
 		convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetByName(fmt.Sprintf(app.ParallelQueueNamePattern, i)))
 	}

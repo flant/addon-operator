@@ -22,7 +22,6 @@ import (
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 	"github.com/flant/shell-operator/pkg/utils/measure"
 )
 
@@ -72,11 +71,11 @@ func NewTask(shellTask sh_task.Task, isOperatorStartup bool, svc TaskDependencie
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
 	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res queue.TaskResult
+	var res sh_task.TaskResult
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 	taskHook := s.moduleManager.GetGlobalHook(hm.HookName)
@@ -86,7 +85,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		// This could happen when the Context is
 		// canceled, or the expected wait time exceeds the Context's Deadline.
 		// The best we can do without proper context usage is to repeat the task.
-		res.Status = queue.Repeat
+		res.Status = sh_task.Repeat
 		return res
 	}
 
@@ -113,13 +112,13 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		if taskHook.GetHookConfig().Version == "v0" {
 			s.logger.Info("Execute on Synchronization ignored for v0 hooks")
 			shouldRunHook = false
-			res.Status = queue.Success
+			res.Status = sh_task.Success
 		}
 		// Check for "executeOnSynchronization: false".
 		if !hm.ExecuteOnSynchronization {
 			s.logger.Info("Execute on Synchronization disabled in hook config: ExecuteOnSynchronization=false")
 			shouldRunHook = false
-			res.Status = queue.Success
+			res.Status = sh_task.Success
 		}
 	}
 
@@ -190,7 +189,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 				s.logger.Info("Global hook failed, but allowed to fail.", log.Err(err))
 
-				res.Status = queue.Success
+				res.Status = sh_task.Success
 			} else {
 				errors = 1.0
 
@@ -201,7 +200,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				s.shellTask.UpdateFailureMessage(err.Error())
 				s.shellTask.WithQueuedAt(time.Now())
 
-				res.Status = queue.Fail
+				res.Status = sh_task.Fail
 			}
 		} else {
 			// Calculate new checksum of *Enabled values.
@@ -212,7 +211,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				slog.String("afterChecksum", afterChecksum),
 				slog.String("savedChecksum", hm.ValuesChecksum))
 
-			res.Status = queue.Success
+			res.Status = sh_task.Success
 
 			reloadAll := false
 			eventDescription := ""
@@ -259,7 +258,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 						s.shellTask.UpdateFailureMessage(err.Error())
 						s.shellTask.WithQueuedAt(time.Now())
 
-						res.Status = queue.Fail
+						res.Status = sh_task.Fail
 
 						return res
 					}
@@ -305,7 +304,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.metricStorage.CounterAdd(metrics.GlobalHookSuccessTotal, success, metricLabels)
 	}
 
-	if isSynchronization && res.Status == queue.Success {
+	if isSynchronization && res.Status == sh_task.Success {
 		s.moduleManager.GlobalSynchronizationState().DoneForBinding(hm.KubernetesBindingId)
 
 		// Unlock Kubernetes events for all monitors when Synchronization task is done.

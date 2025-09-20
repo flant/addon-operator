@@ -1498,7 +1498,7 @@ func (mm *ModuleManager) EnvironmentManagerEnabled() bool {
 
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
 // with the type "ModuleRun" related to the module "moduleName" and DoModuleStartup is set to true.
-func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName string) bool {
+func queueHasPendingModuleRunTaskWithStartup(q sh_task.TaskQueue, moduleName string) bool {
 	if q == nil {
 		return false
 	}
@@ -1507,7 +1507,7 @@ func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName stri
 	return has && meta.doStartup
 }
 
-func modulesWithPendingTasks(q *queue.TaskQueue, taskType sh_task.TaskType) map[string]struct{ doStartup bool } {
+func modulesWithPendingTasks(q sh_task.TaskQueue, taskType sh_task.TaskType) map[string]struct{ doStartup bool } {
 	if q == nil {
 		return nil
 	}

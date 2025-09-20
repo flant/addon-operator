@@ -9,7 +9,6 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -47,18 +46,18 @@ func NewTask(shellTask sh_task.Task, moduleManager *module_manager.ModuleManager
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	result := queue.TaskResult{}
+	result := sh_task.TaskResult{}
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 
 	globalHook := s.moduleManager.GetGlobalHook(hm.HookName)
 	globalHook.GetHookController().EnableScheduleBindings()
 
-	result.Status = queue.Success
+	result.Status = sh_task.Success
 
 	return result
 }

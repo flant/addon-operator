@@ -11,6 +11,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/metrics-storage/options"
 
 	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
@@ -422,16 +423,21 @@ func registerTaskQueueMetrics(metricStorage metricsstorage.Storage) error {
 // Background Metric Updaters
 // ============================================================================
 
+const (
+	liveTicksInterval         = 10 * time.Second
+	queueLengthUpdateInterval = 5 * time.Second
+)
+
 // StartLiveTicksUpdater starts a goroutine that periodically updates
 // the live_ticks metric every 10 seconds.
 // This metric can be used to verify that addon-operator is alive and functioning.
 func StartLiveTicksUpdater(metricStorage metricsstorage.Storage) {
 	// Addon-operator live ticks.
 	go func() {
-		for {
-			metricStorage.CounterAdd(LiveTicks, 1.0, map[string]string{})
+		ticker := time.NewTicker(liveTicksInterval)
 
-			time.Sleep(10 * time.Second)
+		for range ticker.C {
+			metricStorage.CounterAdd(LiveTicks, 1.0, map[string]string{})
 		}
 	}()
 }
@@ -442,14 +448,14 @@ func StartLiveTicksUpdater(metricStorage metricsstorage.Storage) {
 // for monitoring system load and potential backlog issues.
 func StartTasksQueueLengthUpdater(metricStorage metricsstorage.Storage, tqs *queue.TaskQueueSet) {
 	go func() {
-		for {
-			// Gather task queues lengths.
-			tqs.Iterate(func(queue *queue.TaskQueue) {
-				queueLen := float64(queue.Length())
-				metricStorage.GaugeSet(TasksQueueLength, queueLen, map[string]string{"queue": queue.Name})
-			})
+		ticker := time.NewTicker(queueLengthUpdateInterval)
 
-			time.Sleep(5 * time.Second)
+		for range ticker.C {
+			// Gather task queues lengths.
+			tqs.Iterate(func(queue task.TaskQueue) {
+				queueLen := float64(queue.Length())
+				metricStorage.GaugeSet(TasksQueueLength, queueLen, map[string]string{"queue": queue.GetName()})
+			})
 		}
 	}()
 }

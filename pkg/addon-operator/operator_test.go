@@ -30,7 +30,6 @@ import (
 	"github.com/flant/kube-client/fake"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
 )
 
@@ -40,6 +39,10 @@ type assembleResult struct {
 	cmName               string
 	cmNamespace          string
 }
+
+var ms = metricstorage.NewMetricStorage(
+	metricstorage.WithLogger(log.NewNop()),
+)
 
 func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator, *assembleResult) {
 	g := NewWithT(t)
@@ -105,7 +108,11 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should create ConfigMap/%s", result.cmName)
 
 	// Assemble AddonOperator.
-	op := NewAddonOperator(context.Background(), WithLogger(log.NewNop()))
+	op := NewAddonOperator(
+		context.Background(),
+		WithLogger(log.NewNop()),
+		WithMetricStorage(ms),
+	)
 	op.engine.KubeClient = kubeClient
 	// Mock helm client for ModuleManager
 	result.helmClient = &mockhelm.Client{}
@@ -252,7 +259,7 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	op.engine.TaskQueues.GetMain().Handler = func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
+	handler := func(ctx context.Context, tsk sh_task.Task) sh_task.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -274,6 +281,8 @@ func Test_Operator_ConvergeModules_main_queue_only(t *testing.T) {
 		// Handle it.
 		return op.TaskService.Handle(ctx, tsk)
 	}
+
+	op.engine.TaskQueues.GetMain().SetHandler(handler)
 
 	op.engine.TaskQueues.StartMain(op.ctx)
 
@@ -386,7 +395,7 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	op.engine.TaskQueues.GetMain().Handler = func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
+	handler := func(ctx context.Context, tsk sh_task.Task) sh_task.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -417,6 +426,8 @@ func Test_HandleConvergeModules_global_changed_during_converge(t *testing.T) {
 		// Handle it.
 		return op.TaskService.Handle(ctx, tsk)
 	}
+
+	op.engine.TaskQueues.GetMain().SetHandler(handler)
 
 	// Start 'main' queue and wait for first converge.
 	op.engine.TaskQueues.StartMain(op.ctx)
@@ -551,7 +562,7 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		taskHandleHistory: make([]TaskInfo, 0),
 	}
 
-	op.engine.TaskQueues.GetMain().Handler = func(ctx context.Context, tsk sh_task.Task) queue.TaskResult {
+	handler := func(ctx context.Context, tsk sh_task.Task) sh_task.TaskResult {
 		// Put task info to history.
 		hm := task.HookMetadataAccessor(tsk)
 		phase := ""
@@ -577,6 +588,8 @@ func Test_HandleConvergeModules_global_changed(t *testing.T) {
 		// Handle it.
 		return op.TaskService.Handle(ctx, tsk)
 	}
+
+	op.engine.TaskQueues.GetMain().SetHandler(handler)
 
 	op.engine.TaskQueues.StartMain(op.ctx)
 

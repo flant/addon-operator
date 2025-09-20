@@ -15,7 +15,6 @@ import (
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -68,11 +67,11 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
 	ctx, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res queue.TaskResult
+	var res sh_task.TaskResult
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 
@@ -106,11 +105,11 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.shellTask.UpdateFailureMessage(err.Error())
 		s.shellTask.WithQueuedAt(time.Now())
 
-		res.Status = queue.Fail
+		res.Status = sh_task.Fail
 	} else {
 		s.logger.Debug("Module delete success", slog.String("name", hm.ModuleName))
 
-		res.Status = queue.Success
+		res.Status = sh_task.Success
 	}
 
 	return res

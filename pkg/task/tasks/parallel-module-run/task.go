@@ -19,7 +19,6 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -75,18 +74,18 @@ func NewTask(
 // Handle runs multiple ModuleRun tasks in parallel and aggregates their results.
 // It creates tasks for each module in separate parallel queues, then monitors their completion
 // through a communication channel.
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res queue.TaskResult
+	var res sh_task.TaskResult
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 
 	if hm.ParallelRunMetadata == nil {
 		s.logger.Error("Possible bug! Couldn't get task ParallelRunMetadata for a parallel task.",
 			slog.String("description", hm.EventDescription))
-		res.Status = queue.Fail
+		res.Status = sh_task.Fail
 		return res
 	}
 
@@ -177,7 +176,7 @@ L:
 				case <-t.C:
 					s.logger.Debug("ParallelModuleRun task aborted")
 
-					res.Status = queue.Success
+					res.Status = sh_task.Success
 
 					return res
 
@@ -190,7 +189,7 @@ L:
 
 	s.parallelTaskChannels.Delete(s.shellTask.GetId())
 
-	res.Status = queue.Success
+	res.Status = sh_task.Success
 
 	return res
 }

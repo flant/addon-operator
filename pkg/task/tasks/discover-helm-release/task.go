@@ -14,7 +14,6 @@ import (
 	"github.com/flant/addon-operator/pkg/task/helpers"
 	"github.com/flant/addon-operator/pkg/utils"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -49,17 +48,17 @@ func NewTask(shellTask sh_task.Task, moduleManager *module_manager.ModuleManager
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res queue.TaskResult
+	var res sh_task.TaskResult
 
 	s.logger.Debug("Discover Helm releases state")
 
 	state, err := s.moduleManager.RefreshStateFromHelmReleases(s.shellTask.GetLogLabels())
 	if err != nil {
-		res.Status = queue.Fail
+		res.Status = sh_task.Fail
 
 		s.logger.Error("Discover helm releases failed, requeue task to retry after delay.",
 			slog.Int("count", s.shellTask.GetFailureCount()+1),
@@ -71,7 +70,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		return res
 	}
 
-	res.Status = queue.Success
+	res.Status = sh_task.Success
 
 	tasks := s.CreatePurgeTasks(state.ModulesToPurge, s.shellTask)
 	res.AddAfterTasks(tasks...)

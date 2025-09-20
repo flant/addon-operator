@@ -9,7 +9,6 @@ import (
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
-	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
 const (
@@ -52,11 +51,11 @@ func NewTask(
 	}
 }
 
-func (s *Task) Handle(ctx context.Context) queue.TaskResult {
+func (s *Task) Handle(ctx context.Context) sh_task.TaskResult {
 	_, span := otel.Tracer(taskName).Start(ctx, "handle")
 	defer span.End()
 
-	var res queue.TaskResult
+	var res sh_task.TaskResult
 
 	s.logger.Debug("Module purge start")
 
@@ -73,7 +72,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.logger.Debug("Module purge success")
 	}
 
-	res.Status = queue.Success
+	res.Status = sh_task.Success
 
 	return res
 }
