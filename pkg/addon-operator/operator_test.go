@@ -40,10 +40,6 @@ type assembleResult struct {
 	cmNamespace          string
 }
 
-var ms = metricstorage.NewMetricStorage(
-	metricstorage.WithLogger(log.NewNop()),
-)
-
 func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator, *assembleResult) {
 	g := NewWithT(t)
 
@@ -106,6 +102,11 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	kubeClient := fake.NewFakeCluster(fake.ClusterVersionV119).Client
 	_, err := kubeClient.CoreV1().ConfigMaps(result.cmNamespace).Create(context.TODO(), cmObj, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should create ConfigMap/%s", result.cmName)
+
+	ms := metricstorage.NewMetricStorage(
+		metricstorage.WithNewRegistry(),
+		metricstorage.WithLogger(log.NewNop()),
+	)
 
 	// Assemble AddonOperator.
 	op := NewAddonOperator(
