@@ -7,6 +7,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
 	kubefake "helm.sh/helm/v3/pkg/kube/fake"
@@ -47,7 +48,10 @@ func TestHelm3LibUpgradeDelete(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releases).To(BeEmpty(), "should get empty list of releases")
 
-	err = cl.UpgradeRelease("test-release", "testdata/chart", nil, nil, map[string]string{"key": "value"}, cl.Namespace)
+	chart, err := loader.Load("testdata/chart")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.UpgradeRelease("test-release", chart, nil, nil, map[string]string{"key": "value"}, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	releasesNames, err := cl.ListReleasesNames()
@@ -91,7 +95,10 @@ func TestReleaseExistsReturnsTrueForExistingRelease(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releases).To(BeEmpty(), "should get empty list of releases")
 
-	err = cl.UpgradeRelease("existing-release", "testdata/chart", nil, nil, nil, cl.Namespace)
+	chart, err := loader.Load("testdata/chart")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.UpgradeRelease("existing-release", chart, nil, nil, nil, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	releases, err = cl.ListReleases()
@@ -129,7 +136,10 @@ func TestDeleteReleaseRemovesExistingRelease(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(releases).To(BeEmpty(), "should get empty list of releases")
 
-	err = cl.UpgradeRelease("release-to-delete", "testdata/chart", nil, nil, nil, cl.Namespace)
+	chart, err := loader.Load("testdata/chart")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.UpgradeRelease("release-to-delete", chart, nil, nil, nil, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	releases, err = cl.ListReleases()
@@ -157,7 +167,10 @@ func TestLastReleaseStatusReturnsCorrectStatusForExistingRelease(t *testing.T) {
 	g := NewWithT(t)
 	cl := initHelmClient(t)
 
-	err := cl.UpgradeRelease("status-release", "testdata/chart", nil, nil, nil, cl.Namespace)
+	chart, err := loader.Load("testdata/chart")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.UpgradeRelease("status-release", chart, nil, nil, nil, cl.Namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	revision, status, err := cl.LastReleaseStatus("status-release")
