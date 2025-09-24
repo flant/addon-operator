@@ -180,7 +180,7 @@ apiVersion: v2`, hm.name)
 		Data: []byte(chartYaml),
 	})
 
-	var ignored = []string{
+	ignored := []string{
 		"crds",
 		"docs",
 		"hooks",
