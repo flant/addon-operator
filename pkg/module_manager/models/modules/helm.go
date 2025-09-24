@@ -23,7 +23,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
-	helm3lib "github.com/flant/addon-operator/pkg/helm/helm3lib"
+	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/manifest"
 	"github.com/flant/shell-operator/pkg/utils/measure"
@@ -54,9 +54,8 @@ type HelmModule struct {
 
 	additionalLabels map[string]string
 
-	// hasVirtualChart indicates that module needs virtual Chart.yaml created in memory
-	// in case when module has no Chart.yaml and filesystem is readonly
-	hasVirtualChart bool
+	// hasChartFile if the module has Chart.yaml
+	hasChartFile bool
 }
 
 type HelmValuesValidator interface {
@@ -141,6 +140,7 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 	_, err := os.Stat(chartPath)
 	if err == nil {
 		// Chart.yaml exists, consider this module as helm chart
+		hm.hasChartFile = true
 		return true, nil
 	}
 
@@ -149,8 +149,6 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 		// check that templates/ dir exists
 		_, err = os.Stat(filepath.Join(hm.path, "templates"))
 		if err == nil {
-			// templates/ exists but Chart.yaml doesn't - need virtual chart
-			hm.hasVirtualChart = true
 			return true, nil
 		}
 		if os.IsNotExist(err) {
@@ -162,42 +160,45 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 	return false, err
 }
 
-// loadChartFromFiles creates a chart in memory using loader.LoadFiles for modules without Chart.yaml
-func (hm *HelmModule) loadChartFromFiles() (*chart.Chart, error) {
-	if !hm.hasVirtualChart {
-		// Regular chart with existing Chart.yaml - use loader.Load()
+// loadChart creates a chart in memory using loader.LoadFiles for modules without Chart.yaml
+func (hm *HelmModule) loadChart() (*chart.Chart, error) {
+	// if Chart.yaml exists, load chart from os
+	if hm.hasChartFile {
 		return loader.Load(hm.path)
 	}
 
-	// Virtual chart - create chart from files in memory
-	files := []*loader.BufferedFile{}
+	var files []*loader.BufferedFile
 
 	// Create virtual Chart.yaml
-	chartYaml := fmt.Sprintf(`name: %s
+	chartYaml := fmt.Sprintf(`
+name: %s
 version: 0.2.0
 apiVersion: v2`, hm.name)
+
 	files = append(files, &loader.BufferedFile{
 		Name: "Chart.yaml",
 		Data: []byte(chartYaml),
 	})
 
-	// Read all files from module directory
 	err := filepath.Walk(hm.path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if info.IsDir() {
+			// we need only templates
+			if info.Name() != "templates" {
+				return filepath.SkipDir
+			}
+
 			return nil
 		}
 
-		// Get relative path from module directory
 		relPath, err := filepath.Rel(hm.path, path)
 		if err != nil {
 			return err
 		}
 
-		// Read file content
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
@@ -207,24 +208,19 @@ apiVersion: v2`, hm.name)
 			Name: relPath,
 			Data: data,
 		})
+
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to read module files: %w", err)
+		return nil, fmt.Errorf("read module files: %w", err)
 	}
 
-	// Create chart from files
-	chart, err := loader.LoadFiles(files)
+	loaded, err := loader.LoadFiles(files)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load chart from files: %w", err)
+		return nil, fmt.Errorf("load chart from files: %w", err)
 	}
 
-	return chart, nil
-}
-
-// LoadChart returns a helm chart object - either loaded from filesystem or created in memory
-func (hm *HelmModule) LoadChart() (*chart.Chart, error) {
-	return hm.loadChartFromFiles()
+	return loaded, nil
 }
 
 // checkHelmValues returns error if there is a wrong patch or values are not satisfied
@@ -296,9 +292,9 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 	span.AddEvent("ModuleRun-HelmPhase-helm-render")
 
-	chart, err := hm.LoadChart()
+	moduleChart, err := hm.loadChart()
 	if err != nil {
-		return err
+		return fmt.Errorf("load module chart: %w", err)
 	}
 
 	// Prepare release labels
@@ -325,7 +321,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 		renderedManifests, err = helmClient.Render(
 			helmReleaseName,
-			chart,
+			moduleChart,
 			[]string{valuesPath},
 			[]string{},
 			releaseLabels,
@@ -392,7 +388,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 		err = helmClient.UpgradeRelease(
 			helmReleaseName,
-			chart,
+			moduleChart,
 			[]string{valuesPath},
 			[]string{},
 			releaseLabels,
@@ -514,10 +510,11 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 		LabelMaintenanceNoResourceReconciliation: strconv.FormatBool(state == Unmanaged),
 	}
 
-	chart, err := hm.LoadChart()
+	moduleChart, err := hm.loadChart()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("load module chart: %v", err)
 	}
 
-	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, chart, []string{valuesPath}, nil, releaseLabels, namespace, debug)
+	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).
+		Render(hm.name, moduleChart, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }
