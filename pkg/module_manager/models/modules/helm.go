@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -160,7 +161,7 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 	return false, err
 }
 
-// loadChart creates a chart in memory using loader.LoadFiles for modules without Chart.yaml
+// loadChart either loads Chart.yaml from os or makes it virtual
 func (hm *HelmModule) loadChart() (*chart.Chart, error) {
 	// if Chart.yaml exists, load chart from os
 	if hm.hasChartFile {
@@ -169,7 +170,6 @@ func (hm *HelmModule) loadChart() (*chart.Chart, error) {
 
 	var files []*loader.BufferedFile
 
-	// Create virtual Chart.yaml
 	chartYaml := fmt.Sprintf(`
 name: %s
 version: 0.2.0
@@ -180,14 +180,20 @@ apiVersion: v2`, hm.name)
 		Data: []byte(chartYaml),
 	})
 
+	var ignored = []string{
+		"crds",
+		"docs",
+		"hooks",
+		"images",
+	}
+
 	err := filepath.Walk(hm.path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if info.IsDir() {
-			// we need only templates
-			if info.Name() != "templates" {
+			if slices.Contains(ignored, info.Name()) {
 				return filepath.SkipDir
 			}
 
