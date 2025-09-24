@@ -652,8 +652,8 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 
 	ml := mm.GetModule(moduleName)
 
-	// Stop kubernetes informers and remove scheduled functions
-	mm.DisableModuleHooks(moduleName)
+	// Note: keep kubernetes monitors alive until afterDeleteHelm runs,
+	// so hooks can access snapshots. We'll disable hooks after running them.
 
 	// DELETE
 	{
@@ -710,6 +710,9 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 		if err != nil {
 			return fmt.Errorf("run hooks by bindng: %w", err)
 		}
+
+		// Now it is safe to stop kubernetes informers and remove scheduled functions
+		mm.DisableModuleHooks(moduleName)
 
 		// Cleanup state.
 		ml.ResetState()
