@@ -894,6 +894,18 @@ func (mm *ModuleManager) EnableModuleScheduleBindings(moduleName string) {
 	}
 }
 
+// DisableModuleScheduleBindings disables schedule bindings of the module's hooks
+func (mm *ModuleManager) DisableModuleScheduleBindings(moduleName string) {
+	ml := mm.GetModule(moduleName)
+	if !ml.HooksControllersReady() {
+		return
+	}
+	schHooks := ml.GetHooks(Schedule)
+	for _, mh := range schHooks {
+		mh.GetHookController().DisableScheduleBindings()
+	}
+}
+
 // DisableModuleHooks disables monitors/bindings of the module's hooks
 // It's advisable to use this method only if next step is to completely disable the module (as a short-term commitment).
 // Otherwise, as hooks are rather stateless, their confiuration may get overwritten, resulting in unexpected consequences.
