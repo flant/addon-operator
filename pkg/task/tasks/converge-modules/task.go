@@ -147,7 +147,8 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			// TODO disable hooks before was done in DiscoverModulesStateRefresh. Should we stick to this solution or disable events later during the handling each ModuleDelete task?
 			// Disable events for disabled modules.
 			for _, moduleName := range state.ModulesToDisable {
-				s.moduleManager.DisableModuleHooks(moduleName)
+				s.moduleManager.DisableModuleScheduleBindings(moduleName)
+				// s.moduleManager.DisableModuleHooks(moduleName)
 				// op.DrainModuleQueues(moduleName)
 			}
 			// Set ModulesToEnable list to properly run onStartup hooks for first converge.
