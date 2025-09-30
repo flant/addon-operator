@@ -2,6 +2,7 @@ package mock
 
 import (
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"helm.sh/helm/v3/pkg/chart"
 
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
@@ -48,7 +49,7 @@ func (c *Client) GetReleaseChecksum(_ string) (string, error) {
 	return "23857cb313d15f43960f4daa7013804e", nil
 }
 
-func (c *Client) UpgradeRelease(_, _ string, _ []string, _ []string, _ map[string]string, _ string) error {
+func (c *Client) UpgradeRelease(_ string, _ *chart.Chart, _ []string, _ []string, _ map[string]string, _ string) error {
 	c.UpgradeReleaseExecuted = true
 	return nil
 }
@@ -58,7 +59,7 @@ func (c *Client) DeleteRelease(_ string) error {
 	return nil
 }
 
-func (c *Client) Render(_ string, _ string, _ []string, _ []string, _ map[string]string, _ string, _ bool) (string, error) {
+func (c *Client) Render(_ string, _ *chart.Chart, _ []string, _ []string, _ map[string]string, _ string, _ bool) (string, error) {
 	return "", nil
 }
 

@@ -14,7 +14,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
@@ -164,15 +164,15 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (string /*revision*/, 
 	return strconv.FormatInt(int64(lastRelease.Version), 10), lastRelease.Info.Status.String(), nil
 }
 
-func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
-	err := h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, labels, namespace)
+func (h *LibClient) UpgradeRelease(releaseName string, chart *chart.Chart, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
+	err := h.upgradeRelease(releaseName, chart, valuesPaths, setValues, labels, namespace)
 	if err != nil {
 		// helm validation can fail because FeatureGate was enabled for example
 		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
 		if err := actionConfigInit(h.Logger); err != nil {
 			return err
 		}
-		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, labels, namespace)
+		return h.upgradeRelease(releaseName, chart, valuesPaths, setValues, labels, namespace)
 	}
 	h.Logger.Debug("helm release upgraded", slog.String("version", releaseName))
 	return nil
@@ -182,7 +182,7 @@ func (h *LibClient) hasLabelsToApply() bool {
 	return len(h.labels) > 0
 }
 
-func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
+func (h *LibClient) upgradeRelease(releaseName string, chart *chart.Chart, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
 	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
@@ -196,11 +196,6 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	upg.MaxHistory = int(options.HistoryMax)
 	upg.Timeout = options.Timeout
 	upg.Labels = labels
-
-	chart, err := loader.Load(chartName)
-	if err != nil {
-		return err
-	}
 
 	var resultValues chartutil.Values
 
@@ -226,7 +221,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 
 	h.Logger.Info("Running helm upgrade for release",
 		slog.String("release", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", chart.Metadata.Name),
 		slog.String("namespace", namespace))
 	histClient := action.NewHistory(actionConfig)
 	// Max is not working!!! Sort the final of releases by your own
@@ -312,7 +307,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	}
 	h.Logger.Info("Helm upgrade successful",
 		slog.String("release", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", chart.Metadata.Name),
 		slog.String("namespace", namespace))
 
 	return nil
@@ -451,12 +446,7 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	return releases, nil
 }
 
-func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, _ map[string]string, namespace string, debug bool) (string, error) {
-	chart, err := loader.Load(chartName)
-	if err != nil {
-		return "", err
-	}
-
+func (h *LibClient) Render(releaseName string, chart *chart.Chart, valuesPaths, setValues []string, _ map[string]string, namespace string, debug bool) (string, error) {
 	var resultValues chartutil.Values
 
 	for _, vp := range valuesPaths {
@@ -480,7 +470,7 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	}
 
 	h.Logger.Debug("Render helm templates for chart ...",
-		slog.String("chart", chartName),
+		slog.String("chart", chart.Metadata.Name),
 		slog.String("namespace", namespace))
 
 	inst := h.newDryRunInstAction(namespace, releaseName)
@@ -506,7 +496,7 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 		rs.Manifest += fmt.Sprintf("\n\n\n%v", err)
 	}
 
-	h.Logger.Info("Render helm templates for chart was successful", slog.String("chart", chartName))
+	h.Logger.Info("Render helm templates for chart was successful", slog.String("chart", chart.Metadata.Name))
 
 	return rs.Manifest, nil
 }

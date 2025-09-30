@@ -15,6 +15,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/werf/nelm/pkg/action"
 	nelmLog "github.com/werf/nelm/pkg/log"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
@@ -181,10 +182,10 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 	return strconv.FormatInt(int64(releaseGetResult.Release.Revision), 10), releaseGetResult.Release.Status.String(), nil
 }
 
-func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths []string, setValues []string, releaseLabels map[string]string, namespace string) error {
+func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valuesPaths []string, setValues []string, releaseLabels map[string]string, namespace string) error {
 	logger := c.logger.With(
 		slog.String("release_name", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", chart.Metadata.Name),
 		slog.String("namespace", namespace),
 	)
 
@@ -220,7 +221,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	}
 
 	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
-		Chart:                chartName,
+		Chart:                chart.Metadata.Name, // TODO: This is a temporary fix - nelm needs chart path, not name
 		ExtraLabels:          c.labels,
 		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
@@ -239,7 +240,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 
 	logger.Info("Nelm upgrade successful",
 		slog.String("release", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", chart.Metadata.Name),
 		slog.String("namespace", namespace))
 
 	return nil
@@ -360,9 +361,9 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 	return releaseNames, nil
 }
 
-func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string, debug bool) (string, error) {
+func (c *NelmClient) Render(releaseName string, chart *chart.Chart, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string, debug bool) (string, error) {
 	c.logger.Debug("Render nelm templates for chart ...",
-		slog.String("chart", chartName),
+		slog.String("chart", chart.Metadata.Name),
 		slog.String("namespace", namespace))
 
 	// Add client annotations
@@ -378,8 +379,8 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 	}
 
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
-		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
-		Chart:                chartName,
+		OutputFilePath:       "/dev/null",         // No output file, we want to return the manifest as a string
+		Chart:                chart.Metadata.Name, // TODO: This is a temporary fix - nelm needs chart path, not name
 		ExtraLabels:          c.labels,
 		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
@@ -393,12 +394,12 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 	})
 	if err != nil {
 		if !debug {
-			return "", fmt.Errorf("render nelm chart %q: %w\n\nUse --debug flag to render out invalid YAML", chartName, err)
+			return "", fmt.Errorf("render nelm chart %q: %w\n\nUse --debug flag to render out invalid YAML", chart.Metadata.Name, err)
 		}
-		return "", fmt.Errorf("render nelm chart %q: %w", chartName, err)
+		return "", fmt.Errorf("render nelm chart %q: %w", chart.Metadata.Name, err)
 	}
 
-	c.logger.Info("Render nelm templates for chart was successful", slog.String("chart", chartName))
+	c.logger.Info("Render nelm templates for chart was successful", slog.String("chart", chart.Metadata.Name))
 
 	var result strings.Builder
 	for _, resource := range chartRenderResult.Resources {
