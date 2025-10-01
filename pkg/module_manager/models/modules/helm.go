@@ -526,6 +526,6 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 	helmClient.WithVirtualChart(!hm.hasChartFile)
 	helmClient.WithModulePath(hm.path)
-	
+
 	return helmClient.Render(hm.name, moduleChart, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }

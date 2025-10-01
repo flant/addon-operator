@@ -72,6 +72,12 @@ func (c *Client) WithExtraLabels(_ map[string]string) {
 func (c *Client) WithExtraAnnotations(_ map[string]string) {
 }
 
+func (c *Client) WithVirtualChart(_ bool) {
+}
+
+func (c *Client) WithModulePath(_ string) {
+}
+
 func (c *Client) GetReleaseLabels(_, _ string) (string, error) {
 	return "", nil
 }
