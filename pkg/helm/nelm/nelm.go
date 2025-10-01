@@ -106,8 +106,10 @@ type NelmClient struct {
 	labels      map[string]string
 	annotations map[string]string
 
-	opts    *CommonOptions
-	actions NelmActions
+	opts         *CommonOptions
+	actions      NelmActions
+	virtualChart bool
+	modulePath   string
 }
 
 // GetReleaseLabels returns a specific label value from the release.
@@ -157,6 +159,14 @@ func (c *NelmClient) WithExtraAnnotations(annotations map[string]string) {
 		}
 		maps.Copy(c.annotations, annotations)
 	}
+}
+
+func (c *NelmClient) WithVirtualChart(virtual bool) {
+	c.virtualChart = virtual
+}
+
+func (c *NelmClient) WithModulePath(path string) {
+	c.modulePath = path
 }
 
 // GetAnnotations returns the annotations for testing purposes
@@ -220,8 +230,8 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valu
 		}
 	}
 
-	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
-		Chart:                chart.Metadata.Name, // TODO: This is a temporary fix - nelm needs chart path, not name
+	// Prepare chart options based on whether this is a virtual chart
+	opts := action.ReleaseInstallOptions{
 		ExtraLabels:          c.labels,
 		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
@@ -234,7 +244,20 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valu
 		ValuesSets:           setValues,
 		ForceAdoption:        true,
 		NoPodLogs:            true,
-	}); err != nil {
+	}
+
+	if c.virtualChart {
+		// For virtual charts, use default chart fields and empty chart path
+		opts.Chart = ""
+		opts.DefaultChartAPIVersion = chart.Metadata.APIVersion
+		opts.DefaultChartName = chart.Metadata.Name
+		opts.DefaultChartVersion = chart.Metadata.Version
+	} else {
+		// For regular charts, use the module path
+		opts.Chart = c.modulePath
+	}
+
+	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, opts); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
 
@@ -378,9 +401,9 @@ func (c *NelmClient) Render(releaseName string, chart *chart.Chart, valuesPaths,
 		extraAnnotations["maintenance.deckhouse.io/no-resource-reconciliation"] = ""
 	}
 
-	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
-		OutputFilePath:       "/dev/null",         // No output file, we want to return the manifest as a string
-		Chart:                chart.Metadata.Name, // TODO: This is a temporary fix - nelm needs chart path, not name
+	// Prepare chart render options based on whether this is a virtual chart
+	renderOpts := action.ChartRenderOptions{
+		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
 		ExtraLabels:          c.labels,
 		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
@@ -391,7 +414,20 @@ func (c *NelmClient) Render(releaseName string, chart *chart.Chart, valuesPaths,
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
 		ForceAdoption:        true,
-	})
+	}
+
+	if c.virtualChart {
+		// For virtual charts, use default chart fields and empty chart path
+		renderOpts.Chart = ""
+		renderOpts.DefaultChartAPIVersion = chart.Metadata.APIVersion
+		renderOpts.DefaultChartName = chart.Metadata.Name
+		renderOpts.DefaultChartVersion = chart.Metadata.Version
+	} else {
+		// For regular charts, use the module path
+		renderOpts.Chart = c.modulePath
+	}
+
+	chartRenderResult, err := c.actions.ChartRender(context.TODO(), renderOpts)
 	if err != nil {
 		if !debug {
 			return "", fmt.Errorf("render nelm chart %q: %w\n\nUse --debug flag to render out invalid YAML", chart.Metadata.Name, err)

@@ -19,4 +19,6 @@ type HelmClient interface {
 	WithLogLabels(map[string]string)
 	WithExtraLabels(map[string]string)
 	WithExtraAnnotations(map[string]string)
+	WithVirtualChart(bool)
+	WithModulePath(string)
 }

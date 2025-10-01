@@ -277,6 +277,8 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	}
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
+	helmClient.WithVirtualChart(!hm.hasChartFile)
+	helmClient.WithModulePath(hm.path)
 
 	if state == Unmanaged {
 		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
@@ -522,6 +524,9 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 		return "", fmt.Errorf("load module chart: %v", err)
 	}
 
-	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).
-		Render(hm.name, moduleChart, []string{valuesPath}, nil, releaseLabels, namespace, debug)
+	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
+	helmClient.WithVirtualChart(!hm.hasChartFile)
+	helmClient.WithModulePath(hm.path)
+
+	return helmClient.Render(hm.name, moduleChart, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }
