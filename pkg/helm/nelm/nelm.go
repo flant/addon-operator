@@ -15,6 +15,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/werf/nelm/pkg/action"
 	nelmLog "github.com/werf/nelm/pkg/log"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
@@ -105,8 +106,10 @@ type NelmClient struct {
 	labels      map[string]string
 	annotations map[string]string
 
-	opts    *CommonOptions
-	actions NelmActions
+	opts         *CommonOptions
+	actions      NelmActions
+	virtualChart bool
+	modulePath   string
 }
 
 // GetReleaseLabels returns a specific label value from the release.
@@ -158,6 +161,14 @@ func (c *NelmClient) WithExtraAnnotations(annotations map[string]string) {
 	}
 }
 
+func (c *NelmClient) WithVirtualChart(virtual bool) {
+	c.virtualChart = virtual
+}
+
+func (c *NelmClient) WithModulePath(path string) {
+	c.modulePath = path
+}
+
 // GetAnnotations returns the annotations for testing purposes
 func (c *NelmClient) GetAnnotations() map[string]string {
 	return c.annotations
@@ -181,10 +192,10 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 	return strconv.FormatInt(int64(releaseGetResult.Release.Revision), 10), releaseGetResult.Release.Status.String(), nil
 }
 
-func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths []string, setValues []string, releaseLabels map[string]string, namespace string) error {
+func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valuesPaths []string, setValues []string, releaseLabels map[string]string, namespace string) error {
 	logger := c.logger.With(
 		slog.String("release_name", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", chart.Metadata.Name),
 		slog.String("namespace", namespace),
 	)
 
@@ -219,8 +230,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		}
 	}
 
-	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
-		Chart:                chartName,
+	// Prepare chart options based on whether this is a virtual chart
+	opts := action.ReleaseInstallOptions{
 		ExtraLabels:          c.labels,
 		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
@@ -233,13 +244,26 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 		ValuesSets:           setValues,
 		ForceAdoption:        true,
 		NoPodLogs:            true,
-	}); err != nil {
+	}
+
+	if c.virtualChart {
+		// For virtual charts, use default chart fields and empty chart path
+		opts.Chart = ""
+		opts.DefaultChartAPIVersion = chart.Metadata.APIVersion
+		opts.DefaultChartName = chart.Metadata.Name
+		opts.DefaultChartVersion = chart.Metadata.Version
+	} else {
+		// For regular charts, use the module path
+		opts.Chart = c.modulePath
+	}
+
+	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, opts); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
 
 	logger.Info("Nelm upgrade successful",
 		slog.String("release", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", chart.Metadata.Name),
 		slog.String("namespace", namespace))
 
 	return nil
@@ -360,9 +384,9 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 	return releaseNames, nil
 }
 
-func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string, debug bool) (string, error) {
+func (c *NelmClient) Render(releaseName string, chart *chart.Chart, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string, debug bool) (string, error) {
 	c.logger.Debug("Render nelm templates for chart ...",
-		slog.String("chart", chartName),
+		slog.String("chart", chart.Metadata.Name),
 		slog.String("namespace", namespace))
 
 	// Add client annotations
@@ -377,9 +401,9 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		extraAnnotations["maintenance.deckhouse.io/no-resource-reconciliation"] = ""
 	}
 
-	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
+	// Prepare chart render options based on whether this is a virtual chart
+	renderOpts := action.ChartRenderOptions{
 		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
-		Chart:                chartName,
 		ExtraLabels:          c.labels,
 		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
@@ -390,15 +414,28 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 		ValuesFilesPaths:     valuesPaths,
 		ValuesSets:           setValues,
 		ForceAdoption:        true,
-	})
-	if err != nil {
-		if !debug {
-			return "", fmt.Errorf("render nelm chart %q: %w\n\nUse --debug flag to render out invalid YAML", chartName, err)
-		}
-		return "", fmt.Errorf("render nelm chart %q: %w", chartName, err)
 	}
 
-	c.logger.Info("Render nelm templates for chart was successful", slog.String("chart", chartName))
+	if c.virtualChart {
+		// For virtual charts, use default chart fields and empty chart path
+		renderOpts.Chart = ""
+		renderOpts.DefaultChartAPIVersion = chart.Metadata.APIVersion
+		renderOpts.DefaultChartName = chart.Metadata.Name
+		renderOpts.DefaultChartVersion = chart.Metadata.Version
+	} else {
+		// For regular charts, use the module path
+		renderOpts.Chart = c.modulePath
+	}
+
+	chartRenderResult, err := c.actions.ChartRender(context.TODO(), renderOpts)
+	if err != nil {
+		if !debug {
+			return "", fmt.Errorf("render nelm chart %q: %w\n\nUse --debug flag to render out invalid YAML", chart.Metadata.Name, err)
+		}
+		return "", fmt.Errorf("render nelm chart %q: %w", chart.Metadata.Name, err)
+	}
+
+	c.logger.Info("Render nelm templates for chart was successful", slog.String("chart", chart.Metadata.Name))
 
 	var result strings.Builder
 	for _, resource := range chartRenderResult.Resources {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
+	"helm.sh/helm/v3/pkg/chart/loader"
 
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/helm/nelm"
@@ -51,7 +52,10 @@ func TestHelmFactory(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(isExists).Should(BeFalse(), "should not found release in the empty cluster")
 
-		err = helmCl.UpgradeRelease("test-release", "helm3lib/testdata/chart", nil, nil, nil, namespace)
+		chart, err := loader.Load("helm3lib/testdata/chart")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = helmCl.UpgradeRelease("test-release", chart, nil, nil, nil, namespace)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		releasesAfterUpgrade, err := helmCl.ListReleasesNames()
