@@ -10,7 +10,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.3.1
-	github.com/flant/shell-operator v1.11.2-0.20251006170554-9f8e9743f0ce
+	github.com/flant/shell-operator v1.11.2-0.20251006184101-939e9a8497a4
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
@@ -172,7 +172,7 @@ require (
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.22.0 // indirect
+	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
