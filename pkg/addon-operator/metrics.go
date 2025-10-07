@@ -1,6 +1,7 @@
 package addon_operator
 
 import (
+	"context"
 	"time"
 
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
@@ -148,7 +149,7 @@ func StartTasksQueueLengthUpdater(metricStorage metricsstorage.Storage, tqs *que
 	go func() {
 		for {
 			// Gather task queues lengths.
-			tqs.Iterate(func(queue *queue.TaskQueue) {
+			tqs.Iterate(context.TODO(), func(_ context.Context, queue *queue.TaskQueue) {
 				queueLen := float64(queue.Length())
 				metricStorage.GaugeSet("{PREFIX}tasks_queue_length", queueLen, map[string]string{"queue": queue.Name})
 			})
