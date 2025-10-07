@@ -1536,7 +1536,7 @@ func modulesWithPendingTasks(q *queue.TaskQueue, taskType sh_task.TaskType) map[
 
 	skipFirstTask := true
 
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		// Skip the first task in the queue as it can be executed already, i.e. "not pending".
 		if skipFirstTask {
 			skipFirstTask = false

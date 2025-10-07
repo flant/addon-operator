@@ -34,7 +34,7 @@ func ModulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
 
 	skipFirstTask := true
 
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		// Skip the first task in the queue as it can be executed already, i.e. "not pending".
 		if skipFirstTask {
 			skipFirstTask = false
@@ -63,7 +63,7 @@ func ConvergeTasksInQueue(q *queue.TaskQueue) int {
 	}
 
 	convergeTasks := 0
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		if converge.IsConvergeTask(t) || converge.IsFirstConvergeTask(t) {
 			convergeTasks++
 		}
@@ -78,7 +78,7 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 	}
 
 	tasks := 0
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		taskType := t.GetType()
 		if converge.IsConvergeTask(t) && (taskType == task.ModuleRun || taskType == task.ModuleDelete) {
 			tasks++
@@ -101,7 +101,7 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 
 		stop := false
 
-		queue.Filter(func(t sh_task.Task) bool {
+		queue.DeleteFunc(func(t sh_task.Task) bool {
 			if stop {
 				return true
 			}
@@ -152,7 +152,7 @@ func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLab
 	IDFound := false
 	convergeDrained := false
 	stop := false
-	q.Filter(func(t sh_task.Task) bool {
+	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
@@ -197,7 +197,7 @@ func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels
 
 	IDFound := false
 	stop := false
-	q.Filter(func(t sh_task.Task) bool {
+	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
@@ -229,7 +229,7 @@ func ModuleEnsureCRDsTasksInQueueAfterId(q *queue.TaskQueue, afterId string) boo
 	IDFound := false
 	taskFound := false
 	stop := false
-	q.Filter(func(t sh_task.Task) bool {
+	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
@@ -257,7 +257,7 @@ func DrainNonMainQueue(q *queue.TaskQueue) {
 	}
 
 	// Remove all tasks.
-	q.Filter(func(_ sh_task.Task) bool {
+	q.DeleteFunc(func(_ sh_task.Task) bool {
 		return false
 	})
 }
