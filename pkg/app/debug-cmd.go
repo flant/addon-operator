@@ -158,7 +158,7 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
-			dump, err := moduleRequest(client).Config(outputFormat, showGlobal)
+			dump, err := moduleRequest(client).Name(moduleName).Config(outputFormat, showGlobal)
 			if err != nil {
 				return err
 			}
