@@ -12,6 +12,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	metricstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8types "k8s.io/apimachinery/pkg/types"
@@ -104,6 +105,10 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	_, err := kubeClient.CoreV1().ConfigMaps(result.cmNamespace).Create(context.TODO(), cmObj, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should create ConfigMap/%s", result.cmName)
 
+	registry := prometheus.NewRegistry()
+	prometheus.DefaultGatherer = registry
+	prometheus.DefaultRegisterer = registry
+
 	// Assemble AddonOperator.
 	op := NewAddonOperator(context.Background(), WithLogger(log.NewNop()))
 	op.engine.KubeClient = kubeClient
@@ -136,10 +141,12 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		MetricStorage: metricstorage.NewMetricStorage(
 			metricstorage.WithPrefix("addon_operator_"),
 			metricstorage.WithLogger(log.NewNop()),
+			metricstorage.WithNewRegistry(),
 		),
 		HookMetricStorage: metricstorage.NewMetricStorage(
 			metricstorage.WithPrefix("addon_operator_"),
 			metricstorage.WithLogger(log.NewNop()),
+			metricstorage.WithNewRegistry(),
 		),
 	}
 	cfg := module_manager.ModuleManagerConfig{
@@ -215,7 +222,7 @@ func Test_Operator_startup_tasks(t *testing.T) {
 	}
 
 	i := 0
-	op.engine.TaskQueues.GetMain().Iterate(func(tsk sh_task.Task) {
+	op.engine.TaskQueues.GetMain().IterateSnapshot(func(tsk sh_task.Task) {
 		// Stop checking if no expects left.
 		if i >= len(expectTasks) {
 			return

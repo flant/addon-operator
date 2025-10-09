@@ -307,7 +307,7 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 			// Check tasks after remove.
 			require.Equal(t, len(tt.expect), q.Length(), "queue length should match length of expected tasks")
 			i := 0
-			q.Iterate(func(tsk sh_task.Task) {
+			q.IterateSnapshot(func(tsk sh_task.Task) {
 				require.Equal(t, tt.expect[i].Id, tsk.GetId(), "ID should match for task %d %+v", i, tsk)
 				require.Equal(t, tt.expect[i].Type, tsk.GetType(), "Type should match for task %d %+v", i, tsk)
 				i++
@@ -566,7 +566,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 				// Check tasks in queue after remove.
 				require.Equal(t, len(tasks), queues[i].Length(), "length of queue %d should match length of expected tasks", i)
 				j := 0
-				queues[i].Iterate(func(tsk sh_task.Task) {
+				queues[i].IterateSnapshot(func(tsk sh_task.Task) {
 					require.Equal(t, tt.expectTasks[i][j].Id, tsk.GetId(), "ID should match for task %d %+v", j, tsk)
 					require.Equal(t, tt.expectTasks[i][j].Type, tsk.GetType(), "Type should match for task %d %+v", j, tsk)
 					j++
@@ -692,7 +692,7 @@ func Test_RemoveCurrentConvergeTasksFromId(t *testing.T) {
 			// Check tasks in queue after remove.
 			require.Equal(t, len(tt.expectTasks), q.Length(), "queue length should match length of expected tasks")
 			i := 0
-			q.Iterate(func(tsk sh_task.Task) {
+			q.IterateSnapshot(func(tsk sh_task.Task) {
 				require.Equal(t, tt.expectTasks[i].Id, tsk.GetId(), "ID should match for task %d %+v", i, tsk)
 				require.Equal(t, tt.expectTasks[i].Type, tsk.GetType(), "Type should match for task %d %+v", i, tsk)
 				i++

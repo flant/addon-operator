@@ -652,8 +652,8 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 
 	ml := mm.GetModule(moduleName)
 
-	// Stop kubernetes informers and remove scheduled functions
-	mm.DisableModuleHooks(moduleName)
+	// Note: keep kubernetes monitors alive until afterDeleteHelm runs,
+	// so hooks can access snapshots. We'll disable hooks after running them.
 
 	// DELETE
 	{
@@ -710,6 +710,9 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 		if err != nil {
 			return fmt.Errorf("run hooks by bindng: %w", err)
 		}
+
+		// Now it is safe to stop kubernetes informers and remove scheduled functions
+		mm.DisableModuleHooks(moduleName)
 
 		// Cleanup state.
 		ml.ResetState()
@@ -888,6 +891,18 @@ func (mm *ModuleManager) EnableModuleScheduleBindings(moduleName string) {
 	schHooks := ml.GetHooks(Schedule)
 	for _, mh := range schHooks {
 		mh.GetHookController().EnableScheduleBindings()
+	}
+}
+
+// DisableModuleScheduleBindings disables schedule bindings of the module's hooks
+func (mm *ModuleManager) DisableModuleScheduleBindings(moduleName string) {
+	ml := mm.GetModule(moduleName)
+	if !ml.HooksControllersReady() {
+		return
+	}
+	schHooks := ml.GetHooks(Schedule)
+	for _, mh := range schHooks {
+		mh.GetHookController().DisableScheduleBindings()
 	}
 }
 
@@ -1521,7 +1536,7 @@ func modulesWithPendingTasks(q *queue.TaskQueue, taskType sh_task.TaskType) map[
 
 	skipFirstTask := true
 
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		// Skip the first task in the queue as it can be executed already, i.e. "not pending".
 		if skipFirstTask {
 			skipFirstTask = false

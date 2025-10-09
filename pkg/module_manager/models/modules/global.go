@@ -640,7 +640,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 		count = strconv.Itoa(len(hks))
 	}
 
-	gm.logger.Info("Found global shell hooks in dir",
+	gm.logger.Info("Found global batch hooks in dir",
 		slog.String("count", count),
 		slog.String("dir", hooksDir))
 

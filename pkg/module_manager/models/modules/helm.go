@@ -185,6 +185,7 @@ apiVersion: v2`, hm.name)
 		"docs",
 		"hooks",
 		"images",
+		"lib",
 	}
 
 	err := filepath.Walk(hm.path, func(path string, info os.FileInfo, err error) error {

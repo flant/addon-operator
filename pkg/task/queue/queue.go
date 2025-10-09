@@ -119,7 +119,7 @@ func convergeTasksInQueue(q *queue.TaskQueue) int {
 	}
 
 	convergeTasks := 0
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		if converge.IsConvergeTask(t) || converge.IsFirstConvergeTask(t) {
 			convergeTasks++
 		}
@@ -135,7 +135,7 @@ func (s *Service) DrainNonMainQueue(queueName string) {
 	}
 
 	// Remove all tasks.
-	q.Filter(func(_ sh_task.Task) bool {
+	q.DeleteFunc(func(_ sh_task.Task) bool {
 		return false
 	})
 }
@@ -157,7 +157,7 @@ func (s *Service) RemoveAdjacentConvergeModules(queueName string, afterId string
 	IDFound := false
 	stop := false
 
-	q.Filter(func(t sh_task.Task) bool {
+	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
@@ -212,7 +212,7 @@ func modulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
 
 	skipFirstTask := true
 
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		// Skip the first task in the queue as it can be executed already, i.e. "not pending".
 		if skipFirstTask {
 			skipFirstTask = false
@@ -244,7 +244,7 @@ func (s *Service) ModuleEnsureCRDsTasksInMainQueueAfterId(afterId string) bool {
 	IDFound := false
 	taskFound := false
 	stop := false
-	q.Filter(func(t sh_task.Task) bool {
+	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}

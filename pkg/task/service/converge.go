@@ -118,7 +118,7 @@ func ConvergeTasksInQueue(q *queue.TaskQueue) int {
 	}
 
 	convergeTasks := 0
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		if converge.IsConvergeTask(t) || converge.IsFirstConvergeTask(t) {
 			convergeTasks++
 		}
@@ -133,7 +133,7 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 	}
 
 	tasks := 0
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		taskType := t.GetType()
 		if converge.IsConvergeTask(t) && (taskType == task.ModuleRun || taskType == task.ModuleDelete) {
 			tasks++
