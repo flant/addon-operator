@@ -222,7 +222,7 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valu
 
 	// Prepare chart options based on whether this is a virtual chart
 	opts := action.ReleaseInstallOptions{
-		Chart:                  chart.Metadata.Name,
+		Chart:                  chart.ChartPath(),
 		DefaultChartVersion:    chart.Metadata.Version,
 		DefaultChartName:       chart.Metadata.Name,
 		DefaultChartAPIVersion: chart.Metadata.APIVersion,
