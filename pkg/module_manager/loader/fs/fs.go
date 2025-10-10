@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
@@ -77,14 +76,9 @@ func (fl *FileSystemLoader) getBasicModule(definition moduleDefinition, commonSt
 }
 
 // LoadModule reads single directory and returns BasicModule
-func (fl *FileSystemLoader) LoadModule(_, modulePath string) (*modules.BasicModule, error) {
-	// the module's parent directory
-	var modulesDir string
-	if strings.HasSuffix(modulePath, "/") {
-		modulesDir = filepath.Dir(strings.TrimRight(modulePath, "/"))
-	} else {
-		modulesDir = filepath.Dir(modulePath)
-	}
+func (fl *FileSystemLoader) LoadModule(moduleName string) (*modules.BasicModule, error) {
+	modulesDir := fl.dirs[0]
+	modulePath := filepath.Join(modulesDir, moduleName)
 
 	commonStaticValues, err := utils.LoadValuesFileFromDir(modulesDir, app.StrictModeEnabled)
 	if err != nil {
