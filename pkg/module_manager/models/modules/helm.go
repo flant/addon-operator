@@ -165,10 +165,14 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 func (hm *HelmModule) loadChart() (*chart.Chart, error) {
 	// if Chart.yaml exists, load chart from os
 	if hm.hasChartFile {
+		hm.logger.Debug("Loading chart from existing Chart.yaml", slog.String("module", hm.name), slog.String("path", hm.path))
 		return loader.Load(hm.path)
 	}
 
+	hm.logger.Debug("Creating virtual chart for module", slog.String("module", hm.name), slog.String("path", hm.path))
+
 	var files []*loader.BufferedFile
+	var totalSize int64
 
 	chartYaml := fmt.Sprintf(`
 name: %s
@@ -179,6 +183,7 @@ apiVersion: v2`, hm.name)
 		Name: "Chart.yaml",
 		Data: []byte(chartYaml),
 	})
+	totalSize += int64(len(chartYaml))
 
 	ignored := []string{
 		"crds",
@@ -188,6 +193,8 @@ apiVersion: v2`, hm.name)
 		"lib",
 	}
 
+	hm.logger.Debug("Virtual chart: ignoring directories", slog.Any("ignored", ignored))
+
 	err := filepath.Walk(hm.path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -195,6 +202,7 @@ apiVersion: v2`, hm.name)
 
 		if info.IsDir() {
 			if slices.Contains(ignored, info.Name()) {
+				hm.logger.Debug("Virtual chart: skipping ignored directory", slog.String("dir", info.Name()), slog.String("path", path))
 				return filepath.SkipDir
 			}
 
@@ -211,6 +219,20 @@ apiVersion: v2`, hm.name)
 			return err
 		}
 
+		fileSize := int64(len(data))
+		totalSize += fileSize
+
+		if fileSize > 100*1024 { // Log files larger than 100KB
+			hm.logger.Warn("Virtual chart: reading large file", 
+				slog.String("file", relPath), 
+				slog.Int64("size", fileSize),
+				slog.String("size_human", fmt.Sprintf("%.2f KB", float64(fileSize)/1024)))
+		} else {
+			hm.logger.Debug("Virtual chart: reading file", 
+				slog.String("file", relPath), 
+				slog.Int64("size", fileSize))
+		}
+
 		files = append(files, &loader.BufferedFile{
 			Name: relPath,
 			Data: data,
@@ -220,6 +242,19 @@ apiVersion: v2`, hm.name)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read module files: %w", err)
+	}
+
+	hm.logger.Info("Virtual chart created", 
+		slog.String("module", hm.name),
+		slog.Int("files_count", len(files)),
+		slog.Int64("total_size", totalSize),
+		slog.String("total_size_human", fmt.Sprintf("%.2f KB", float64(totalSize)/1024)))
+
+	if totalSize > 3*1024*1024 { // 3MB limit
+		hm.logger.Error("Virtual chart size exceeds 3MB limit!", 
+			slog.String("module", hm.name),
+			slog.Int64("size", totalSize),
+			slog.String("size_human", fmt.Sprintf("%.2f MB", float64(totalSize)/(1024*1024))))
 	}
 
 	loaded, err := loader.LoadFiles(files)
@@ -278,7 +313,16 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 	helmClient.WithVirtualChart(!hm.hasChartFile)
-	helmClient.WithModulePath(hm.path)
+	
+	// Only pass module path to NELM for regular charts, not virtual charts
+	// For virtual charts, NELM should use the pre-built chart object with filtered files
+	if hm.hasChartFile {
+		helmClient.WithModulePath(hm.path)
+	} else {
+		// For virtual charts, pass empty path to prevent NELM from reading files directly
+		hm.logger.Debug("Skipping modulePath for virtual chart to prevent unfiltered file reading")
+		helmClient.WithModulePath("")
+	}
 
 	if state == Unmanaged {
 		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
@@ -526,7 +570,16 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 	helmClient.WithVirtualChart(!hm.hasChartFile)
-	helmClient.WithModulePath(hm.path)
+	
+	// Only pass module path to NELM for regular charts, not virtual charts  
+	// For virtual charts, NELM should use the pre-built chart object with filtered files
+	if hm.hasChartFile {
+		helmClient.WithModulePath(hm.path)
+	} else {
+		// For virtual charts, pass empty path to prevent NELM from reading files directly
+		hm.logger.Debug("Render: Skipping modulePath for virtual chart to prevent unfiltered file reading")
+		helmClient.WithModulePath("")
+	}
 
 	return helmClient.Render(hm.name, moduleChart, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }
