@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	logContext "github.com/deckhouse/deckhouse/pkg/log/context"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
@@ -164,15 +167,15 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (string /*revision*/, 
 	return strconv.FormatInt(int64(lastRelease.Version), 10), lastRelease.Info.Status.String(), nil
 }
 
-func (h *LibClient) UpgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
-	err := h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, labels, namespace)
+func (h *LibClient) UpgradeRelease(releaseName, modulePath string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
+	err := h.upgradeRelease(releaseName, modulePath, valuesPaths, setValues, labels, namespace)
 	if err != nil {
 		// helm validation can fail because FeatureGate was enabled for example
 		// handling this case we can reinitialize kubeClient and repeat one more time by backoff
 		if err := actionConfigInit(h.Logger); err != nil {
 			return err
 		}
-		return h.upgradeRelease(releaseName, chartName, valuesPaths, setValues, labels, namespace)
+		return h.upgradeRelease(releaseName, modulePath, valuesPaths, setValues, labels, namespace)
 	}
 	h.Logger.Debug("helm release upgraded", slog.String("version", releaseName))
 	return nil
@@ -182,7 +185,7 @@ func (h *LibClient) hasLabelsToApply() bool {
 	return len(h.labels) > 0
 }
 
-func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
+func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths []string, setValues []string, labels map[string]string, namespace string) error {
 	upg := action.NewUpgrade(actionConfig)
 	if namespace != "" {
 		upg.Namespace = namespace
@@ -196,11 +199,6 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 	upg.MaxHistory = int(options.HistoryMax)
 	upg.Timeout = options.Timeout
 	upg.Labels = labels
-
-	chart, err := loader.Load(chartName)
-	if err != nil {
-		return err
-	}
 
 	var resultValues chartutil.Values
 
@@ -224,9 +222,14 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
+	loaded, err := loadChart(releaseName, modulePath)
+	if err != nil {
+		return err
+	}
+
 	h.Logger.Info("Running helm upgrade for release",
 		slog.String("release", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", modulePath),
 		slog.String("namespace", namespace))
 	histClient := action.NewHistory(actionConfig)
 	// Max is not working!!! Sort the final of releases by your own
@@ -247,7 +250,7 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		instClient.UseReleaseName = true
 		instClient.Labels = labels
 
-		_, err = instClient.Run(chart, resultValues)
+		_, err = instClient.Run(loaded, resultValues)
 		return err
 	}
 	h.Logger.Debug("old releases found", slog.Int("count", len(releases)))
@@ -306,13 +309,13 @@ func (h *LibClient) upgradeRelease(releaseName string, chartName string, valuesP
 		}
 	}
 
-	_, err = upg.Run(releaseName, chart, resultValues)
+	_, err = upg.Run(releaseName, loaded, resultValues)
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s\n", err)
 	}
 	h.Logger.Info("Helm upgrade successful",
 		slog.String("release", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", modulePath),
 		slog.String("namespace", namespace))
 
 	return nil
@@ -451,12 +454,7 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	return releases, nil
 }
 
-func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues []string, _ map[string]string, namespace string, debug bool) (string, error) {
-	chart, err := loader.Load(chartName)
-	if err != nil {
-		return "", err
-	}
-
+func (h *LibClient) Render(releaseName, modulePath string, valuesPaths, setValues []string, _ map[string]string, namespace string, debug bool) (string, error) {
 	var resultValues chartutil.Values
 
 	for _, vp := range valuesPaths {
@@ -480,19 +478,24 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 	}
 
 	h.Logger.Debug("Render helm templates for chart ...",
-		slog.String("chart", chartName),
+		slog.String("chart", modulePath),
 		slog.String("namespace", namespace))
+
+	loaded, err := loadChart(releaseName, modulePath)
+	if err != nil {
+		return "", err
+	}
 
 	inst := h.newDryRunInstAction(namespace, releaseName)
 
-	rs, err := inst.Run(chart, resultValues)
+	rs, err := inst.Run(loaded, resultValues)
 	if err != nil {
 		// helm render can fail because the CRD were previously created
 		// handling this case we can reinitialize RESTClient and repeat one more time by backoff
 		_ = actionConfigInit(h.Logger)
 		inst = h.newDryRunInstAction(namespace, releaseName)
 
-		rs, err = inst.Run(chart, resultValues)
+		rs, err = inst.Run(loaded, resultValues)
 	}
 
 	if err != nil {
@@ -506,7 +509,7 @@ func (h *LibClient) Render(releaseName, chartName string, valuesPaths, setValues
 		rs.Manifest += fmt.Sprintf("\n\n\n%v", err)
 	}
 
-	h.Logger.Info("Render helm templates for chart was successful", slog.String("chart", chartName))
+	h.Logger.Info("Render helm templates for chart was successful", slog.String("chart", modulePath))
 
 	return rs.Manifest, nil
 }
@@ -542,4 +545,71 @@ func (h *LibClient) ListReleases() ([]*release.Release, error) {
 	}
 
 	return list, nil
+}
+
+func loadChart(moduleName, modulePath string) (*chart.Chart, error) {
+	if _, err := os.Stat(filepath.Join(modulePath, "Chart.yaml")); err == nil {
+		return loader.Load(modulePath)
+	}
+
+	var files []*loader.BufferedFile
+
+	chartYaml := fmt.Sprintf(`
+name: %s
+version: 0.2.0
+`, moduleName)
+
+	files = append(files, &loader.BufferedFile{
+		Name: "Chart.yaml",
+		Data: []byte(chartYaml),
+	})
+
+	ignored := []string{
+		"crds",
+		"docs",
+		"hooks",
+		"images",
+		"lib",
+	}
+
+	err := filepath.Walk(modulePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			if slices.Contains(ignored, info.Name()) {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		relPath, err := filepath.Rel(modulePath, path)
+		if err != nil {
+			return err
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		files = append(files, &loader.BufferedFile{
+			Name: relPath,
+			Data: data,
+		})
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read module files: %w", err)
+	}
+
+	loaded, err := loader.LoadFiles(files)
+	if err != nil {
+		return nil, fmt.Errorf("load chart from files: %w", err)
+	}
+
+	return loaded, nil
 }

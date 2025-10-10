@@ -181,10 +181,10 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 	return strconv.FormatInt(int64(releaseGetResult.Release.Revision), 10), releaseGetResult.Release.Status.String(), nil
 }
 
-func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths []string, setValues []string, releaseLabels map[string]string, namespace string) error {
+func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths []string, setValues []string, releaseLabels map[string]string, namespace string) error {
 	logger := c.logger.With(
 		slog.String("release_name", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", modulePath),
 		slog.String("namespace", namespace),
 	)
 
@@ -220,26 +220,29 @@ func (c *NelmClient) UpgradeRelease(releaseName, chartName string, valuesPaths [
 	}
 
 	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
-		Chart:                chartName,
-		ExtraLabels:          c.labels,
-		ExtraAnnotations:     extraAnnotations,
-		KubeContext:          c.opts.KubeContext,
-		NoInstallCRDs:        true,
-		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
-		ReleaseLabels:        releaseLabels,
-		ReleaseStorageDriver: c.opts.HelmDriver,
-		Timeout:              c.opts.Timeout,
-		ValuesFilesPaths:     valuesPaths,
-		ValuesSets:           setValues,
-		ForceAdoption:        true,
-		NoPodLogs:            true,
+		Chart:                  modulePath,
+		DefaultChartName:       releaseName,
+		DefaultChartVersion:    "0.2.0",
+		DefaultChartAPIVersion: "v2",
+		ExtraLabels:            c.labels,
+		ExtraAnnotations:       extraAnnotations,
+		KubeContext:            c.opts.KubeContext,
+		NoInstallCRDs:          true,
+		ReleaseHistoryLimit:    int(c.opts.HistoryMax),
+		ReleaseLabels:          releaseLabels,
+		ReleaseStorageDriver:   c.opts.HelmDriver,
+		Timeout:                c.opts.Timeout,
+		ValuesFilesPaths:       valuesPaths,
+		ValuesSets:             setValues,
+		ForceAdoption:          true,
+		NoPodLogs:              true,
 	}); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
 
 	logger.Info("Nelm upgrade successful",
 		slog.String("release", releaseName),
-		slog.String("chart", chartName),
+		slog.String("chart", modulePath),
 		slog.String("namespace", namespace))
 
 	return nil
@@ -360,9 +363,9 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 	return releaseNames, nil
 }
 
-func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string, debug bool) (string, error) {
+func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string, debug bool) (string, error) {
 	c.logger.Debug("Render nelm templates for chart ...",
-		slog.String("chart", chartName),
+		slog.String("chart", modulePath),
 		slog.String("namespace", namespace))
 
 	// Add client annotations
@@ -378,27 +381,30 @@ func (c *NelmClient) Render(releaseName, chartName string, valuesPaths, setValue
 	}
 
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
-		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
-		Chart:                chartName,
-		ExtraLabels:          c.labels,
-		ExtraAnnotations:     extraAnnotations,
-		KubeContext:          c.opts.KubeContext,
-		ReleaseName:          releaseName,
-		ReleaseNamespace:     namespace,
-		ReleaseStorageDriver: c.opts.HelmDriver,
-		Remote:               true,
-		ValuesFilesPaths:     valuesPaths,
-		ValuesSets:           setValues,
-		ForceAdoption:        true,
+		OutputFilePath:         "/dev/null", // No output file, we want to return the manifest as a string
+		Chart:                  modulePath,
+		DefaultChartName:       releaseName,
+		DefaultChartVersion:    "0.2.0",
+		DefaultChartAPIVersion: "v2",
+		ExtraLabels:            c.labels,
+		ExtraAnnotations:       extraAnnotations,
+		KubeContext:            c.opts.KubeContext,
+		ReleaseName:            releaseName,
+		ReleaseNamespace:       namespace,
+		ReleaseStorageDriver:   c.opts.HelmDriver,
+		Remote:                 true,
+		ValuesFilesPaths:       valuesPaths,
+		ValuesSets:             setValues,
+		ForceAdoption:          true,
 	})
 	if err != nil {
 		if !debug {
-			return "", fmt.Errorf("render nelm chart %q: %w\n\nUse --debug flag to render out invalid YAML", chartName, err)
+			return "", fmt.Errorf("render nelm chart %q: %w\n\nUse --debug flag to render out invalid YAML", modulePath, err)
 		}
-		return "", fmt.Errorf("render nelm chart %q: %w", chartName, err)
+		return "", fmt.Errorf("render nelm chart %q: %w", modulePath, err)
 	}
 
-	c.logger.Info("Render nelm templates for chart was successful", slog.String("chart", chartName))
+	c.logger.Info("Render nelm templates for chart was successful", slog.String("chart", modulePath))
 
 	var result strings.Builder
 	for _, resource := range chartRenderResult.Resources {
