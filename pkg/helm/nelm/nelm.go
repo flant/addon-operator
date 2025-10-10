@@ -106,10 +106,8 @@ type NelmClient struct {
 	labels      map[string]string
 	annotations map[string]string
 
-	opts         *CommonOptions
-	actions      NelmActions
-	virtualChart bool
-	modulePath   string
+	opts    *CommonOptions
+	actions NelmActions
 }
 
 // GetReleaseLabels returns a specific label value from the release.
@@ -159,14 +157,6 @@ func (c *NelmClient) WithExtraAnnotations(annotations map[string]string) {
 		}
 		maps.Copy(c.annotations, annotations)
 	}
-}
-
-func (c *NelmClient) WithVirtualChart(virtual bool) {
-	c.virtualChart = virtual
-}
-
-func (c *NelmClient) WithModulePath(path string) {
-	c.modulePath = path
 }
 
 // GetAnnotations returns the annotations for testing purposes
@@ -232,33 +222,22 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valu
 
 	// Prepare chart options based on whether this is a virtual chart
 	opts := action.ReleaseInstallOptions{
-		Chart:                c.modulePath,
-		ExtraLabels:          c.labels,
-		ExtraAnnotations:     extraAnnotations,
-		KubeContext:          c.opts.KubeContext,
-		NoInstallCRDs:        true,
-		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
-		ReleaseLabels:        releaseLabels,
-		ReleaseStorageDriver: c.opts.HelmDriver,
-		Timeout:              c.opts.Timeout,
-		ValuesFilesPaths:     valuesPaths,
-		ValuesSets:           setValues,
-		ForceAdoption:        true,
-		NoPodLogs:            true,
-	}
-
-	if c.virtualChart {
-		logger.Info("NELM: Using virtual chart mode",
-			slog.String("defaultName", chart.Metadata.Name),
-			slog.String("defaultVersion", chart.Metadata.Version),
-			slog.String("defaultAPIVersion", chart.Metadata.APIVersion),
-			slog.String("modulePath", c.modulePath),
-			slog.Bool("usePrebuiltChart", true),
-			slog.Int("chartTemplatesCount", len(chart.Templates)),
-			slog.Int("chartRawCount", len(chart.Raw)))
-		opts.DefaultChartAPIVersion = chart.Metadata.APIVersion
-		opts.DefaultChartName = chart.Metadata.Name
-		opts.DefaultChartVersion = chart.Metadata.Version
+		Chart:                  chart.Metadata.Name,
+		DefaultChartVersion:    chart.Metadata.Version,
+		DefaultChartName:       chart.Metadata.Name,
+		DefaultChartAPIVersion: chart.Metadata.APIVersion,
+		ExtraLabels:            c.labels,
+		ExtraAnnotations:       extraAnnotations,
+		KubeContext:            c.opts.KubeContext,
+		NoInstallCRDs:          true,
+		ReleaseHistoryLimit:    int(c.opts.HistoryMax),
+		ReleaseLabels:          releaseLabels,
+		ReleaseStorageDriver:   c.opts.HelmDriver,
+		Timeout:                c.opts.Timeout,
+		ValuesFilesPaths:       valuesPaths,
+		ValuesSets:             setValues,
+		ForceAdoption:          true,
+		NoPodLogs:              true,
 	}
 
 	if err = c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, opts); err != nil {
@@ -407,37 +386,21 @@ func (c *NelmClient) Render(releaseName string, chart *chart.Chart, valuesPaths,
 
 	// Prepare chart render options based on whether this is a virtual chart
 	renderOpts := action.ChartRenderOptions{
-		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
-		ExtraLabels:          c.labels,
-		ExtraAnnotations:     extraAnnotations,
-		KubeContext:          c.opts.KubeContext,
-		ReleaseName:          releaseName,
-		ReleaseNamespace:     namespace,
-		ReleaseStorageDriver: c.opts.HelmDriver,
-		Remote:               true,
-		ValuesFilesPaths:     valuesPaths,
-		ValuesSets:           setValues,
-		ForceAdoption:        true,
-	}
-
-	if c.virtualChart {
-		// For virtual charts, use default chart fields and empty chart path
-		// The chart object passed to this method already contains filtered files
-		c.logger.Info("NELM Render: Using virtual chart mode",
-			slog.String("defaultName", chart.Metadata.Name),
-			slog.String("defaultVersion", chart.Metadata.Version),
-			slog.String("defaultAPIVersion", chart.Metadata.APIVersion),
-			slog.String("modulePath", c.modulePath),
-			slog.Bool("usePrebuiltChart", true))
-		renderOpts.Chart = ""
-		renderOpts.DefaultChartAPIVersion = chart.Metadata.APIVersion
-		renderOpts.DefaultChartName = chart.Metadata.Name
-		renderOpts.DefaultChartVersion = chart.Metadata.Version
-	} else {
-		// For regular charts, use the module path
-		c.logger.Info("NELM Render: Using regular chart mode",
-			slog.String("chartPath", c.modulePath))
-		renderOpts.Chart = c.modulePath
+		Chart:                  chart.ChartPath(),
+		DefaultChartAPIVersion: chart.Metadata.APIVersion,
+		DefaultChartName:       chart.Metadata.Name,
+		DefaultChartVersion:    chart.Metadata.Version,
+		OutputFilePath:         "/dev/null", // No output file, we want to return the manifest as a string
+		ExtraLabels:            c.labels,
+		ExtraAnnotations:       extraAnnotations,
+		KubeContext:            c.opts.KubeContext,
+		ReleaseName:            releaseName,
+		ReleaseNamespace:       namespace,
+		ReleaseStorageDriver:   c.opts.HelmDriver,
+		Remote:                 true,
+		ValuesFilesPaths:       valuesPaths,
+		ValuesSets:             setValues,
+		ForceAdoption:          true,
 	}
 
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), renderOpts)

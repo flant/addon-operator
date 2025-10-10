@@ -90,14 +90,6 @@ func (h *LibClient) WithExtraAnnotations(_ map[string]string) {
 	// helm3lib doesn't support annotations, no-op implementation
 }
 
-func (h *LibClient) WithVirtualChart(_ bool) {
-	// helm3lib doesn't need virtual chart flag, no-op implementation
-}
-
-func (h *LibClient) WithModulePath(_ string) {
-	// helm3lib doesn't need module path, no-op implementation
-}
-
 // buildConfigFlagsFromEnv builds a ConfigFlags object from the environment and
 // returns it. It uses a persistent config, meaning that underlying clients will
 // be cached and reused.

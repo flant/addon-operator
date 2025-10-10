@@ -312,7 +312,6 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	}
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
-	helmClient.WithVirtualChart(!hm.hasChartFile)
 
 	if state == Unmanaged {
 		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
@@ -559,7 +558,6 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 	}
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
-	helmClient.WithVirtualChart(!hm.hasChartFile)
 
 	return helmClient.Render(hm.name, moduleChart, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }
