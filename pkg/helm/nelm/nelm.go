@@ -381,20 +381,21 @@ func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValu
 	}
 
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
-		OutputFilePath:       "/dev/null", // No output file, we want to return the manifest as a string
-		Chart:                modulePath,
-		DefaultChartName:     releaseName,
-		DefaultChartVersion:  "0.2.0",
-		ExtraLabels:          c.labels,
-		ExtraAnnotations:     extraAnnotations,
-		KubeContext:          c.opts.KubeContext,
-		ReleaseName:          releaseName,
-		ReleaseNamespace:     namespace,
-		ReleaseStorageDriver: c.opts.HelmDriver,
-		Remote:               true,
-		ValuesFilesPaths:     valuesPaths,
-		ValuesSets:           setValues,
-		ForceAdoption:        true,
+		OutputFilePath:         "/dev/null", // No output file, we want to return the manifest as a string
+		Chart:                  modulePath,
+		DefaultChartName:       releaseName,
+		DefaultChartVersion:    "0.2.0",
+		DefaultChartAPIVersion: "v2",
+		ExtraLabels:            c.labels,
+		ExtraAnnotations:       extraAnnotations,
+		KubeContext:            c.opts.KubeContext,
+		ReleaseName:            releaseName,
+		ReleaseNamespace:       namespace,
+		ReleaseStorageDriver:   c.opts.HelmDriver,
+		Remote:                 true,
+		ValuesFilesPaths:       valuesPaths,
+		ValuesSets:             setValues,
+		ForceAdoption:          true,
 	})
 	if err != nil {
 		if !debug {
