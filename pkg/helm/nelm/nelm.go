@@ -447,7 +447,6 @@ func (c *NelmClient) Render(releaseName string, chart *chart.Chart, valuesPaths,
 		renderOpts.DefaultChartAPIVersion = chart.Metadata.APIVersion
 		renderOpts.DefaultChartName = chart.Metadata.Name
 		renderOpts.DefaultChartVersion = chart.Metadata.Version
-
 	} else {
 		// For regular charts, use the module path
 		c.logger.Info("NELM Render: Using regular chart mode",
