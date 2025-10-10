@@ -232,6 +232,7 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valu
 
 	// Prepare chart options based on whether this is a virtual chart
 	opts := action.ReleaseInstallOptions{
+		Chart:                c.modulePath,
 		ExtraLabels:          c.labels,
 		ExtraAnnotations:     extraAnnotations,
 		KubeContext:          c.opts.KubeContext,
@@ -247,8 +248,6 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valu
 	}
 
 	if c.virtualChart {
-		// For virtual charts, use default chart fields and empty chart path
-		// The chart object passed to this method already contains filtered files
 		logger.Info("NELM: Using virtual chart mode",
 			slog.String("defaultName", chart.Metadata.Name),
 			slog.String("defaultVersion", chart.Metadata.Version),
@@ -257,25 +256,12 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valu
 			slog.Bool("usePrebuiltChart", true),
 			slog.Int("chartTemplatesCount", len(chart.Templates)),
 			slog.Int("chartRawCount", len(chart.Raw)))
-		opts.Chart = ""
 		opts.DefaultChartAPIVersion = chart.Metadata.APIVersion
 		opts.DefaultChartName = chart.Metadata.Name
 		opts.DefaultChartVersion = chart.Metadata.Version
-
-		// Log all important opts fields for debugging
-		logger.Debug("NELM virtual chart options",
-			slog.String("opts.Chart", opts.Chart),
-			slog.String("opts.DefaultChartName", opts.DefaultChartName),
-			slog.String("opts.DefaultChartVersion", opts.DefaultChartVersion),
-			slog.String("opts.DefaultChartAPIVersion", opts.DefaultChartAPIVersion))
-	} else {
-		// For regular charts, use the module path
-		logger.Info("NELM: Using regular chart mode",
-			slog.String("chartPath", c.modulePath))
-		opts.Chart = c.modulePath
 	}
 
-	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, opts); err != nil {
+	if err = c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, opts); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
 
