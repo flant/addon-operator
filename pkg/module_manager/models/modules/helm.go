@@ -21,7 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
-	helm3lib "github.com/flant/addon-operator/pkg/helm/helm3lib"
+	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/manifest"
 	"github.com/flant/shell-operator/pkg/utils/measure"
@@ -143,7 +143,7 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 		// check that templates/ dir exists
 		_, err = os.Stat(filepath.Join(hm.path, "templates"))
 		if err == nil {
-			return true, hm.createChartYaml(chartPath)
+			return true, nil
 		}
 		if os.IsNotExist(err) {
 			// if templates not exists - it's not a helm module
@@ -152,16 +152,6 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 	}
 
 	return false, err
-}
-
-func (hm *HelmModule) createChartYaml(chartPath string) error {
-	// we already have versions like 0.1.0 or 0.1.1
-	// to keep helm updatable, we have to increment this version
-	// new minor version of addon-operator seems reasonable to increase minor version of a helm chart
-	data := fmt.Sprintf(`name: %s
-version: 0.2.0`, hm.name)
-
-	return os.WriteFile(chartPath, []byte(data), 0o644)
 }
 
 // checkHelmValues returns error if there is a wrong patch or values are not satisfied
