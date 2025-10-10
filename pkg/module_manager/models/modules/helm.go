@@ -223,13 +223,13 @@ apiVersion: v2`, hm.name)
 		totalSize += fileSize
 
 		if fileSize > 100*1024 { // Log files larger than 100KB
-			hm.logger.Warn("Virtual chart: reading large file", 
-				slog.String("file", relPath), 
+			hm.logger.Warn("Virtual chart: reading large file",
+				slog.String("file", relPath),
 				slog.Int64("size", fileSize),
 				slog.String("size_human", fmt.Sprintf("%.2f KB", float64(fileSize)/1024)))
 		} else {
-			hm.logger.Debug("Virtual chart: reading file", 
-				slog.String("file", relPath), 
+			hm.logger.Debug("Virtual chart: reading file",
+				slog.String("file", relPath),
 				slog.Int64("size", fileSize))
 		}
 
@@ -244,14 +244,14 @@ apiVersion: v2`, hm.name)
 		return nil, fmt.Errorf("read module files: %w", err)
 	}
 
-	hm.logger.Info("Virtual chart created", 
+	hm.logger.Info("Virtual chart created",
 		slog.String("module", hm.name),
 		slog.Int("files_count", len(files)),
 		slog.Int64("total_size", totalSize),
 		slog.String("total_size_human", fmt.Sprintf("%.2f KB", float64(totalSize)/1024)))
 
 	if totalSize > 3*1024*1024 { // 3MB limit
-		hm.logger.Error("Virtual chart size exceeds 3MB limit!", 
+		hm.logger.Error("Virtual chart size exceeds 3MB limit!",
 			slog.String("module", hm.name),
 			slog.Int64("size", totalSize),
 			slog.String("size_human", fmt.Sprintf("%.2f MB", float64(totalSize)/(1024*1024))))
@@ -313,7 +313,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 	helmClient.WithVirtualChart(!hm.hasChartFile)
-	
+
 	// Only pass module path to NELM for regular charts, not virtual charts
 	// For virtual charts, NELM should use the pre-built chart object with filtered files
 	if hm.hasChartFile {
@@ -570,8 +570,8 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 	helmClient.WithVirtualChart(!hm.hasChartFile)
-	
-	// Only pass module path to NELM for regular charts, not virtual charts  
+
+	// Only pass module path to NELM for regular charts, not virtual charts
 	// For virtual charts, NELM should use the pre-built chart object with filtered files
 	if hm.hasChartFile {
 		helmClient.WithModulePath(hm.path)

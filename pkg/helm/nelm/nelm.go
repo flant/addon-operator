@@ -249,7 +249,7 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valu
 	if c.virtualChart {
 		// For virtual charts, use default chart fields and empty chart path
 		// The chart object passed to this method already contains filtered files
-		logger.Info("NELM: Using virtual chart mode", 
+		logger.Info("NELM: Using virtual chart mode",
 			slog.String("defaultName", chart.Metadata.Name),
 			slog.String("defaultVersion", chart.Metadata.Version),
 			slog.String("defaultAPIVersion", chart.Metadata.APIVersion),
@@ -261,20 +261,16 @@ func (c *NelmClient) UpgradeRelease(releaseName string, chart *chart.Chart, valu
 		opts.DefaultChartAPIVersion = chart.Metadata.APIVersion
 		opts.DefaultChartName = chart.Metadata.Name
 		opts.DefaultChartVersion = chart.Metadata.Version
-		
-		// IMPORTANT: For virtual charts, we should NOT use modulePath 
-		// because NELM might read unfiltered files from it
-		// The chart parameter already contains properly filtered files
-		
+
 		// Log all important opts fields for debugging
-		logger.Debug("NELM virtual chart options", 
+		logger.Debug("NELM virtual chart options",
 			slog.String("opts.Chart", opts.Chart),
 			slog.String("opts.DefaultChartName", opts.DefaultChartName),
 			slog.String("opts.DefaultChartVersion", opts.DefaultChartVersion),
 			slog.String("opts.DefaultChartAPIVersion", opts.DefaultChartAPIVersion))
 	} else {
 		// For regular charts, use the module path
-		logger.Info("NELM: Using regular chart mode", 
+		logger.Info("NELM: Using regular chart mode",
 			slog.String("chartPath", c.modulePath))
 		opts.Chart = c.modulePath
 	}
@@ -441,7 +437,7 @@ func (c *NelmClient) Render(releaseName string, chart *chart.Chart, valuesPaths,
 	if c.virtualChart {
 		// For virtual charts, use default chart fields and empty chart path
 		// The chart object passed to this method already contains filtered files
-		c.logger.Info("NELM Render: Using virtual chart mode", 
+		c.logger.Info("NELM Render: Using virtual chart mode",
 			slog.String("defaultName", chart.Metadata.Name),
 			slog.String("defaultVersion", chart.Metadata.Version),
 			slog.String("defaultAPIVersion", chart.Metadata.APIVersion),
@@ -451,13 +447,10 @@ func (c *NelmClient) Render(releaseName string, chart *chart.Chart, valuesPaths,
 		renderOpts.DefaultChartAPIVersion = chart.Metadata.APIVersion
 		renderOpts.DefaultChartName = chart.Metadata.Name
 		renderOpts.DefaultChartVersion = chart.Metadata.Version
-		
-		// IMPORTANT: For virtual charts, we should NOT use modulePath 
-		// because NELM might read unfiltered files from it
-		// The chart parameter already contains properly filtered files
+
 	} else {
 		// For regular charts, use the module path
-		c.logger.Info("NELM Render: Using regular chart mode", 
+		c.logger.Info("NELM Render: Using regular chart mode",
 			slog.String("chartPath", c.modulePath))
 		renderOpts.Chart = c.modulePath
 	}
