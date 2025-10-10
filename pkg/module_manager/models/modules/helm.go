@@ -314,16 +314,6 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 	helmClient.WithVirtualChart(!hm.hasChartFile)
 
-	// Only pass module path to NELM for regular charts, not virtual charts
-	// For virtual charts, NELM should use the pre-built chart object with filtered files
-	if hm.hasChartFile {
-		helmClient.WithModulePath(hm.path)
-	} else {
-		// For virtual charts, pass empty path to prevent NELM from reading files directly
-		hm.logger.Debug("Skipping modulePath for virtual chart to prevent unfiltered file reading")
-		helmClient.WithModulePath("")
-	}
-
 	if state == Unmanaged {
 		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
 		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) && !errors.Is(err, driver.ErrReleaseNotFound) {
@@ -570,16 +560,6 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 
 	helmClient := hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...)
 	helmClient.WithVirtualChart(!hm.hasChartFile)
-
-	// Only pass module path to NELM for regular charts, not virtual charts
-	// For virtual charts, NELM should use the pre-built chart object with filtered files
-	if hm.hasChartFile {
-		helmClient.WithModulePath(hm.path)
-	} else {
-		// For virtual charts, pass empty path to prevent NELM from reading files directly
-		hm.logger.Debug("Render: Skipping modulePath for virtual chart to prevent unfiltered file reading")
-		helmClient.WithModulePath("")
-	}
 
 	return helmClient.Render(hm.name, moduleChart, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }
