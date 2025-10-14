@@ -10,7 +10,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.3.1
-	github.com/flant/shell-operator v1.11.4-0.20251014165254-914966445652
+	github.com/flant/shell-operator v1.11.4-0.20251014175056-e86c8e612020
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/spec v0.19.8
