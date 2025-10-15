@@ -181,7 +181,8 @@ func convergeDone(op *AddonOperator) func(g Gomega) bool {
 		}
 		mainQueue := op.engine.TaskQueues.GetMain()
 		g.Expect(func() bool {
-			if mainQueue.IsEmpty() {
+			// If main queue is empty, converge is done.
+			if mainQueue.Length() == 0 {
 				return true
 			}
 			return mainQueue.GetFirst().GetFailureCount() >= 2

@@ -55,22 +55,23 @@ type helmResourcesManager struct {
 var _ HelmResourcesManager = &helmResourcesManager{}
 
 func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger *log.Logger) (HelmResourcesManager, error) {
-	//nolint:govet
 	cctx, cancel := context.WithCancel(ctx)
 	if kclient == nil {
-		//nolint:govet
+		cancel()
 		return nil, fmt.Errorf("kube client not set")
 	}
 
 	cfg := kclient.RestConfig()
 	defaultLabelSelector, err := labels.Parse(app.ExtraLabels)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	cache, err := cr_cache.New(cfg, cr_cache.Options{
 		DefaultLabelSelector: defaultLabelSelector,
 	})
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
@@ -80,6 +81,7 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 
 	log.Debug("Helm resource manager: cache's been started")
 	if synced := cache.WaitForCacheSync(cctx); !synced {
+		cancel()
 		return nil, fmt.Errorf("Couldn't sync helm resource informer cache")
 	}
 	log.Debug("Helm resourcer manager: cache has been synced")

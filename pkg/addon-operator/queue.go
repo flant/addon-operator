@@ -95,7 +95,8 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 	convergeDrained := false
 
 	for _, queue := range convergeQueues {
-		if queue == nil || queue.IsEmpty() {
+		// Skip empty queues.
+		if queue == nil || queue.Length() == 0 {
 			continue
 		}
 
