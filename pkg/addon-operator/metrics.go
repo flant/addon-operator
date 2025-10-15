@@ -148,7 +148,7 @@ func StartTasksQueueLengthUpdater(metricStorage metric.Storage, tqs *queue.TaskQ
 	go func() {
 		for {
 			// Gather task queues lengths.
-			tqs.Iterate(context.TODO(), func(_ context.Context, queue *queue.TaskQueue) {
+			tqs.IterateSnapshot(context.Background(), func(_ context.Context, queue *queue.TaskQueue) {
 				queueLen := float64(queue.Length())
 				metricStorage.GaugeSet("{PREFIX}tasks_queue_length", queueLen, map[string]string{"queue": queue.Name})
 			})
