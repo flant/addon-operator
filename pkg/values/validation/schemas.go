@@ -13,6 +13,7 @@ import (
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/loading"
 	"github.com/go-openapi/validate"
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/yaml"
@@ -52,8 +53,8 @@ func init() {
 }
 
 // YAMLDocLoader loads a yaml document from either http or a file and converts it to json.
-func YAMLDocLoader(path string) (json.RawMessage, error) {
-	data, err := swag.LoadFromFileOrHTTP(path)
+func YAMLDocLoader(path string, opts ...loading.Option) (json.RawMessage, error) {
+	data, err := loading.LoadFromFileOrHTTP(path, opts...)
 	if err != nil {
 		return nil, err
 	}
