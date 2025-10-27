@@ -294,7 +294,7 @@ afterDeleteHelm: 18
 				data: `{"configVersion": "v1", "onStartuppp":10, "kubernetes":[{"kind":"Pod", "watchEvent":["Added"]}], "beforeHelm":98}`,
 			},
 			wants: wants{
-				err: errors.New("onStartuppp is a forbidden property"),
+				err: errors.New(".onStartuppp in body is a forbidden property"),
 			},
 		},
 	}
