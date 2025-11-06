@@ -1039,10 +1039,6 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 		bm.dc.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
 
-	if hookResult == nil {
-		bm.logger.Warn("hook result must not be empty! possibly bug!")
-	}
-
 	if hookResult != nil && len(hookResult.Metrics) > 0 {
 		// Apply metric operations
 		metricsErr := bm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{

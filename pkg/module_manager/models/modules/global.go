@@ -207,10 +207,6 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 		gm.dc.MetricStorage.GaugeSet("{PREFIX}global_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
 
-	if hookResult == nil {
-		gm.logger.Warn("hook result must not be empty! possibly bug!")
-	}
-
 	if hookResult != nil && len(hookResult.Metrics) > 0 {
 		// Apply metric operations
 		err = gm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
