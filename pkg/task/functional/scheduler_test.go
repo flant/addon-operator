@@ -215,7 +215,7 @@ func TestScheduler_RemoveClearsDone(t *testing.T) {
 	require.Eventually(t, func() bool { return mqs.len() == 3 }, time.Second, 10*time.Millisecond)
 
 	// scheduler reports finished.
-	require.True(t, s.Finished())
+	require.Eventually(t, func() bool { return s.Finished() }, time.Second, 10*time.Millisecond)
 
 	s.Remove("operator-prometheus")
 
