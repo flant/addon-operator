@@ -206,16 +206,23 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 		gm.dc.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
 		gm.dc.MetricStorage.GaugeSet("{PREFIX}global_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
-	if err != nil {
-		return fmt.Errorf("global hook '%s' failed: %s", h.GetName(), err)
+
+	if hookResult == nil {
+		gm.logger.Warn("hook result must not be empty! possibly bug!")
 	}
 
-	// Apply metric operations
-	err = gm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
-		pkg.MetricKeyHook: h.GetName(),
-	})
+	if hookResult != nil && len(hookResult.Metrics) > 0 {
+		// Apply metric operations
+		err = gm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
+			pkg.MetricKeyHook: h.GetName(),
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	if err != nil {
-		return err
+		return fmt.Errorf("global hook '%s' failed: %s", h.GetName(), err)
 	}
 
 	if len(hookResult.ObjectPatcherOperations) > 0 {

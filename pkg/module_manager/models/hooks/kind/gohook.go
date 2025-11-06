@@ -158,10 +158,14 @@ func (h *GoHook) Execute(ctx context.Context, _ string, bContext []bindingcontex
 		// return non-nil HookResult if there are status patches
 		if statusPatches := objectpatch.GetPatchStatusOperationsOnHookError(patchCollector.Operations()); len(statusPatches) > 0 {
 			return &HookResult{
+				Metrics:                 metricsCollector.CollectedMetrics(),
 				ObjectPatcherOperations: statusPatches,
 			}, err
 		}
-		return nil, err
+
+		return &HookResult{
+			Metrics: metricsCollector.CollectedMetrics(),
+		}, err
 	}
 
 	result := &HookResult{

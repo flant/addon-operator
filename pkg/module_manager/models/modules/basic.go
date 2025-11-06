@@ -1038,6 +1038,22 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
 		bm.dc.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
+
+	if hookResult == nil {
+		bm.logger.Warn("hook result must not be empty! possibly bug!")
+	}
+
+	if hookResult != nil && len(hookResult.Metrics) > 0 {
+		// Apply metric operations
+		metricsErr := bm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
+			pkg.MetricKeyHook: h.GetName(),
+			"module":          bm.GetName(),
+		})
+		if metricsErr != nil {
+			return metricsErr
+		}
+	}
+
 	if err != nil {
 		// we have to check if there are some status patches to apply
 		if hookResult != nil && len(hookResult.ObjectPatcherOperations) > 0 {
@@ -1046,6 +1062,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 				return fmt.Errorf("module hook '%s' failed: %s, update status operation failed: %s", h.GetName(), err, statusPatchesErr)
 			}
 		}
+
 		return fmt.Errorf("module hook '%s' failed: %s", h.GetName(), err)
 	}
 
@@ -1054,15 +1071,6 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 		if err != nil {
 			return err
 		}
-	}
-
-	// Apply metric operations
-	err = bm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
-		pkg.MetricKeyHook: h.GetName(),
-		"module":          bm.GetName(),
-	})
-	if err != nil {
-		return err
 	}
 
 	// Apply binding actions. (Only Go hook for now).
