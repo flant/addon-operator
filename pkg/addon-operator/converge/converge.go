@@ -32,7 +32,6 @@ const (
 	WaitBeforeAll           ConvergePhase = "WaitBeforeAll"
 	WaitDeleteAndRunModules ConvergePhase = "WaitDeleteAndRunModules"
 	WaitAfterAll            ConvergePhase = "WaitAfterAll"
-	Finished                ConvergePhase = "Finished"
 )
 
 type FirstConvergePhase int
