@@ -27,7 +27,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.18.0
-	github.com/werf/nelm v1.12.3
+	github.com/werf/nelm v1.16.2-0.20251106110659-fb3b42bd8fba
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v3 v3.0.1
@@ -43,12 +43,13 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
+require github.com/go-openapi/swag/loading v0.25.1
+
 require (
 	github.com/go-openapi/swag/conv v0.25.1 // indirect
 	github.com/go-openapi/swag/fileutils v0.25.1 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.1 // indirect
 	github.com/go-openapi/swag/jsonutils v0.25.1 // indirect
-	github.com/go-openapi/swag/loading v0.25.1 // indirect
 	github.com/go-openapi/swag/mangling v0.25.1 // indirect
 	github.com/go-openapi/swag/stringutils v0.25.1 // indirect
 	github.com/go-openapi/swag/typeutils v0.25.1 // indirect
@@ -200,9 +201,9 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wI2L/jsondiff v0.5.0 // indirect
-	github.com/werf/3p-helm v0.0.0-20250731134240-58a9eff8ec5b // indirect
-	github.com/werf/common-go v0.0.0-20251009090833-3d49886e7488 // indirect
-	github.com/werf/kubedog v0.13.1-0.20250813095923-12d70b6780b0 // indirect
+	github.com/werf/3p-helm v0.0.0-20251021224308-a90f195bd29a // indirect
+	github.com/werf/common-go v0.0.0-20251017004901-cb6247f72f1a // indirect
+	github.com/werf/kubedog v0.13.1-0.20251105104917-8615bb20d8c0 // indirect
 	github.com/werf/lockgate v0.1.1 // indirect
 	github.com/werf/logboek v0.6.1 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
