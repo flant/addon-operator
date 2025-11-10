@@ -16,6 +16,9 @@ type ConvergeState struct {
 	Activation    string
 	CRDsEnsured   bool
 
+	onConvergeStart  func()
+	onConvergeFinish func()
+
 	phaseMu       sync.RWMutex
 	phase         ConvergePhase
 	firstRunPhase FirstConvergePhase
@@ -47,6 +50,14 @@ func NewConvergeState() *ConvergeState {
 	}
 }
 
+func (cs *ConvergeState) SetOnConvergeStart(callback func()) {
+	cs.onConvergeStart = callback
+}
+
+func (cs *ConvergeState) SetOnConvergeFinish(callback func()) {
+	cs.onConvergeFinish = callback
+}
+
 func (cs *ConvergeState) SetFirstRunPhase(ph FirstConvergePhase) {
 	cs.phaseMu.Lock()
 	defer cs.phaseMu.Unlock()
@@ -66,6 +77,14 @@ func (cs *ConvergeState) SetPhase(ph ConvergePhase) {
 	cs.phaseMu.Lock()
 	defer cs.phaseMu.Unlock()
 	cs.phase = ph
+
+	if ph == RunBeforeAll && cs.onConvergeStart != nil {
+		cs.onConvergeStart()
+	}
+
+	if ph == StandBy && cs.onConvergeFinish != nil {
+		cs.onConvergeFinish()
+	}
 }
 
 func (cs *ConvergeState) GetPhase() ConvergePhase {

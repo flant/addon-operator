@@ -105,6 +105,18 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
+func WithOnConvergeStart(callback func()) Option {
+	return func(operator *AddonOperator) {
+		operator.ConvergeState.SetOnConvergeStart(callback)
+	}
+}
+
+func WithOnConvergeFinish(callback func()) Option {
+	return func(operator *AddonOperator) {
+		operator.ConvergeState.SetOnConvergeFinish(callback)
+	}
+}
+
 func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
@@ -657,7 +669,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	//			log.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hookName)
 	//		}
 	//	}
-	//}
+	// }
 }
 
 func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabels map[string]string, eventDescription string) []sh_task.Task {
