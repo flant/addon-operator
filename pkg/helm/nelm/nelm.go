@@ -14,6 +14,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/werf/nelm/pkg/action"
+	"github.com/werf/nelm/pkg/common"
 	nelmLog "github.com/werf/nelm/pkg/log"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -41,7 +42,7 @@ type NelmActions interface {
 	ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) error
 	ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) error
 	ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV1, error)
-	ChartRender(ctx context.Context, opts action.ChartRenderOptions) (*action.ChartRenderResultV1, error)
+	ChartRender(ctx context.Context, opts action.ChartRenderOptions) (*action.ChartRenderResultV2, error)
 }
 
 type DefaultNelmActions struct{}
@@ -62,7 +63,7 @@ func (d *DefaultNelmActions) ReleaseList(ctx context.Context, opts action.Releas
 	return action.ReleaseList(ctx, opts)
 }
 
-func (d *DefaultNelmActions) ChartRender(ctx context.Context, opts action.ChartRenderOptions) (*action.ChartRenderResultV1, error) {
+func (d *DefaultNelmActions) ChartRender(ctx context.Context, opts action.ChartRenderOptions) (*action.ChartRenderResultV2, error) {
 	return action.ChartRender(ctx, opts)
 }
 
@@ -112,7 +113,9 @@ type NelmClient struct {
 // GetReleaseLabels returns a specific label value from the release.
 func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
 	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
-		KubeContext:          c.opts.KubeContext,
+		KubeConnectionOptions: common.KubeConnectionOptions{
+			KubeContextCurrent: c.opts.KubeContext,
+		},
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
@@ -165,7 +168,9 @@ func (c *NelmClient) GetAnnotations() map[string]string {
 
 func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, error) {
 	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
-		KubeContext:          c.opts.KubeContext,
+		KubeConnectionOptions: common.KubeConnectionOptions{
+			KubeContextCurrent: c.opts.KubeContext,
+		},
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
@@ -204,7 +209,9 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 
 	// First check if release exists
 	_, err := c.actions.ReleaseGet(context.Background(), releaseName, namespace, action.ReleaseGetOptions{
-		KubeContext:          c.opts.KubeContext,
+		KubeConnectionOptions: common.KubeConnectionOptions{
+			KubeContextCurrent: c.opts.KubeContext,
+		},
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
@@ -220,22 +227,28 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 	}
 
 	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
-		Chart:                  modulePath,
-		DefaultChartName:       releaseName,
-		DefaultChartVersion:    "0.2.0",
-		DefaultChartAPIVersion: "v2",
-		ExtraLabels:            c.labels,
-		ExtraAnnotations:       extraAnnotations,
-		KubeContext:            c.opts.KubeContext,
-		NoInstallCRDs:          true,
-		ReleaseHistoryLimit:    int(c.opts.HistoryMax),
-		ReleaseLabels:          releaseLabels,
-		ReleaseStorageDriver:   c.opts.HelmDriver,
-		Timeout:                c.opts.Timeout,
-		ValuesFilesPaths:       valuesPaths,
-		ValuesSets:             setValues,
-		ForceAdoption:          true,
-		NoPodLogs:              true,
+		KubeConnectionOptions: common.KubeConnectionOptions{
+			KubeContextCurrent: c.opts.KubeContext,
+		},
+		ValuesOptions: common.ValuesOptions{
+			ValuesFiles: valuesPaths,
+			ValuesSet:   setValues,
+		},
+		TrackingOptions: common.TrackingOptions{
+			NoPodLogs: true,
+		},
+		Chart:                   modulePath,
+		DefaultChartName:        releaseName,
+		DefaultChartVersion:     "0.2.0",
+		DefaultChartAPIVersion:  "v2",
+		ExtraLabels:             c.labels,
+		ExtraAnnotations:        extraAnnotations,
+		NoInstallStandaloneCRDs: true,
+		ReleaseHistoryLimit:     int(c.opts.HistoryMax),
+		ReleaseLabels:           releaseLabels,
+		ReleaseStorageDriver:    c.opts.HelmDriver,
+		Timeout:                 c.opts.Timeout,
+		ForceAdoption:           true,
 	}); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
@@ -250,7 +263,9 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 
 func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) {
 	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
-		KubeContext:          c.opts.KubeContext,
+		KubeConnectionOptions: common.KubeConnectionOptions{
+			KubeContextCurrent: c.opts.KubeContext,
+		},
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
@@ -278,7 +293,9 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 	logger := c.logger.With(slog.String("release_name", releaseName))
 
 	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
-		KubeContext:          c.opts.KubeContext,
+		KubeConnectionOptions: common.KubeConnectionOptions{
+			KubeContextCurrent: c.opts.KubeContext,
+		},
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
@@ -309,11 +326,15 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 	c.logger.Debug("nelm release: execute nelm uninstall", slog.String("release", releaseName))
 
 	if err := c.actions.ReleaseUninstall(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseUninstallOptions{
-		KubeContext:          c.opts.KubeContext,
+		KubeConnectionOptions: common.KubeConnectionOptions{
+			KubeContextCurrent: c.opts.KubeContext,
+		},
+		TrackingOptions: common.TrackingOptions{
+			NoPodLogs: true,
+		},
 		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
 		ReleaseStorageDriver: c.opts.HelmDriver,
 		Timeout:              c.opts.Timeout,
-		NoPodLogs:            true,
 	}); err != nil {
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
@@ -336,7 +357,9 @@ func (c *NelmClient) IsReleaseExists(releaseName string) (bool, error) {
 
 func (c *NelmClient) ListReleasesNames() ([]string, error) {
 	releaseListResult, err := c.actions.ReleaseList(context.TODO(), action.ReleaseListOptions{
-		KubeContext:          c.opts.KubeContext,
+		KubeConnectionOptions: common.KubeConnectionOptions{
+			KubeContextCurrent: c.opts.KubeContext,
+		},
 		OutputNoPrint:        true,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
@@ -381,6 +404,13 @@ func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValu
 	}
 
 	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
+		KubeConnectionOptions: common.KubeConnectionOptions{
+			KubeContextCurrent: c.opts.KubeContext,
+		},
+		ValuesOptions: common.ValuesOptions{
+			ValuesFiles: valuesPaths,
+			ValuesSet:   setValues,
+		},
 		OutputFilePath:         "/dev/null", // No output file, we want to return the manifest as a string
 		Chart:                  modulePath,
 		DefaultChartName:       releaseName,
@@ -388,13 +418,10 @@ func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValu
 		DefaultChartAPIVersion: "v2",
 		ExtraLabels:            c.labels,
 		ExtraAnnotations:       extraAnnotations,
-		KubeContext:            c.opts.KubeContext,
 		ReleaseName:            releaseName,
 		ReleaseNamespace:       namespace,
 		ReleaseStorageDriver:   c.opts.HelmDriver,
 		Remote:                 true,
-		ValuesFilesPaths:       valuesPaths,
-		ValuesSets:             setValues,
 		ForceAdoption:          true,
 	})
 	if err != nil {
