@@ -23,18 +23,15 @@ type NelmLogger struct {
 }
 
 func (n *NelmLogger) Trace(ctx context.Context, format string, a ...interface{}) {
-	// n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...))
-	n.logger.With(slog.Bool("trace", true)).Log(ctx, log.LevelDebug.Level(), fmt.Sprintf(format, a...))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...))
 }
 
 func (n *NelmLogger) TraceStruct(ctx context.Context, obj interface{}, format string, a ...interface{}) {
-	// n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...), slog.Any("obj", obj))
-	n.logger.With(slog.Bool("trace", true)).Log(ctx, log.LevelDebug.Level(), fmt.Sprintf(format, a...), slog.Any("obj", obj))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...), slog.Any("obj", obj))
 }
 
 func (n *NelmLogger) TracePush(ctx context.Context, _, format string, a ...interface{}) {
-	// n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...))
-	n.logger.With(slog.Bool("trace", true)).Log(ctx, log.LevelDebug.Level(), fmt.Sprintf(format, a...))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...))
 }
 
 func (n *NelmLogger) TracePop(_ context.Context, _ string) {
