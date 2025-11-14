@@ -102,8 +102,8 @@ github.com/deckhouse/deckhouse/pkg/log v0.1.0 h1:2aPfyiHHSIJlX4x7ysyPOaIb7CLmyY+
 github.com/deckhouse/deckhouse/pkg/log v0.1.0/go.mod h1:pbAxTSDcPmwyl3wwKDcEB3qdxHnRxqTV+J0K+sha8bw=
 github.com/deckhouse/deckhouse/pkg/metrics-storage v0.2.1 h1:DhMHRzmaVNXASH+koIy9gK25GU/EaK+zC6sVpacqWRw=
 github.com/deckhouse/deckhouse/pkg/metrics-storage v0.2.1/go.mod h1:Rz++SzCLkFW03WGgftnn91TimGU2shiKb5S/YuxcBuE=
-github.com/deckhouse/module-sdk v0.4.3-0.20251114125106-f261dcc848ce h1:5q3O0rJVrXGEry2AAq376FOzYBoy5KVMm45hnVV9qkI=
-github.com/deckhouse/module-sdk v0.4.3-0.20251114125106-f261dcc848ce/go.mod h1:+EbBnP8z+poIihgL4l1oxHng5ePqDUK44c39u7sEBss=
+github.com/deckhouse/module-sdk v0.5.0 h1:b2GJUzMKQLr7oJVJy5lXHvyymNyvNiFXpBie7MwEWwE=
+github.com/deckhouse/module-sdk v0.5.0/go.mod h1:+EbBnP8z+poIihgL4l1oxHng5ePqDUK44c39u7sEBss=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
@@ -155,8 +155,8 @@ github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/flant/kube-client v1.5.0 h1:6QZOZy3uk58Bh9YUn4CnhEz13og/cEGXB2uBZ1gWwtM=
 github.com/flant/kube-client v1.5.0/go.mod h1:hpJZ0FnDKHW3r5q5SYQgBrTw9k94q4+dcnJ4uOGYBHc=
-github.com/flant/shell-operator v1.11.5-0.20251114125359-0a237bd81e57 h1:ckViuTnwg8i6VKVXi69E+JH7FaNVpWBG52J9lquCRaI=
-github.com/flant/shell-operator v1.11.5-0.20251114125359-0a237bd81e57/go.mod h1:hrym7vuojdpXb/sM23/fQ49yaoR/8hqmyG2DAGztYPQ=
+github.com/flant/shell-operator v1.12.0 h1:VAi6EEqG5aCKgPlE+XaXmpdG5dvGPUkrHSstAREvSiU=
+github.com/flant/shell-operator v1.12.0/go.mod h1:MlEVeHh88sL5LCiMmLmtYJZSV7XL/WHIJBKJeNviExE=
 github.com/flopp/go-findfont v0.1.0 h1:lPn0BymDUtJo+ZkV01VS3661HL6F4qFlkhcJN55u6mU=
 github.com/flopp/go-findfont v0.1.0/go.mod h1:wKKxRDjD024Rh7VMwoU90i6ikQRCr+JTHB5n4Ejkqvw=
 github.com/fluxcd/flagger v1.36.1 h1:X2PumtNwZz9YSGaOtZLFm2zAKLgHhFkbNv8beg7ifyc=
