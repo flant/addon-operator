@@ -21,7 +21,6 @@ import (
 	"github.com/flant/kube-client/klogtolog"
 	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
-	"github.com/flant/shell-operator/pkg/metrics"
 	shmetrics "github.com/flant/shell-operator/pkg/metrics"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 )
@@ -76,7 +75,7 @@ func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
 		// Initialize metric names with the configured prefix
 		shmetrics.InitMetrics(shapp.PrometheusMetricsPrefix)
 		// Initialize addon-operator specific metrics
-		metrics.InitMetrics(shapp.PrometheusMetricsPrefix)
+		addon_operator.InitMetrics(shapp.PrometheusMetricsPrefix)
 
 		operator := addon_operator.NewAddonOperator(ctx, nil, nil, addon_operator.WithLogger(logger.Named("addon-operator")))
 
