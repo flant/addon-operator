@@ -36,6 +36,7 @@ import (
 	"github.com/flant/shell-operator/pkg/debug"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
+	shmetrics "github.com/flant/shell-operator/pkg/metrics"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -117,7 +118,7 @@ func WithOnConvergeFinish(callback func()) Option {
 	}
 }
 
-func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
+func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage metricsstorage.Storage, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
 	ao := &AddonOperator{
@@ -136,12 +137,34 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 		ao.Logger = log.NewLogger().Named("addon-operator")
 	}
 
-	so := shell_operator.NewShellOperator(cctx, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
+	if metricsStorage == nil {
+		ao.Logger.Warn("MetricStorage is not provided, creating a new one")
+		// TODO: remove prefixes etc
+		metricsStorage = metricsstorage.NewMetricStorage(
+			metricsstorage.WithPrefix(shapp.PrometheusMetricsPrefix),
+			metricsstorage.WithLogger(ao.Logger.Named("metric-storage")),
+		)
+	}
+
+	if hookMetricStorage == nil {
+		ao.Logger.Warn("HookMetricStorage is not provided, creating a new one")
+		// TODO: remove prefixes etc
+		hookMetricStorage = metricsstorage.NewMetricStorage(
+			metricsstorage.WithPrefix(shapp.PrometheusMetricsPrefix),
+			metricsstorage.WithNewRegistry(),
+			metricsstorage.WithLogger(ao.Logger.Named("hook-metric-storage")),
+		)
+	}
+
+	so := shell_operator.NewShellOperator(cctx, metricsStorage, hookMetricStorage, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
 
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
 	shapp.SetupLogging(rc, ao.Logger)
+
+	// Initialize metric names with the configured prefix
+	shmetrics.InitMetrics(shapp.PrometheusMetricsPrefix)
 
 	// Have to initialize common operator to have all common dependencies below
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, []string{

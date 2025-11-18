@@ -71,7 +71,7 @@ func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
 
 		ctx := context.Background()
 
-		operator := addon_operator.NewAddonOperator(ctx, addon_operator.WithLogger(logger.Named("addon-operator")))
+		operator := addon_operator.NewAddonOperator(ctx, nil, nil, addon_operator.WithLogger(logger.Named("addon-operator")))
 
 		operator.StartAPIServer()
 
