@@ -141,7 +141,6 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		ao.Logger.Warn("MetricStorage is not provided, creating a new one")
 		// TODO: remove prefixes etc
 		metricsStorage = metricsstorage.NewMetricStorage(
-			metricsstorage.WithPrefix(shapp.PrometheusMetricsPrefix),
 			metricsstorage.WithLogger(ao.Logger.Named("metric-storage")),
 		)
 	}
@@ -150,7 +149,6 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		ao.Logger.Warn("HookMetricStorage is not provided, creating a new one")
 		// TODO: remove prefixes etc
 		hookMetricStorage = metricsstorage.NewMetricStorage(
-			metricsstorage.WithPrefix(shapp.PrometheusMetricsPrefix),
 			metricsstorage.WithNewRegistry(),
 			metricsstorage.WithLogger(ao.Logger.Named("hook-metric-storage")),
 		)
