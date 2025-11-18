@@ -139,7 +139,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 
 	if metricsStorage == nil {
 		ao.Logger.Warn("MetricStorage is not provided, creating a new one")
-		// TODO: remove prefixes etc
+
 		metricsStorage = metricsstorage.NewMetricStorage(
 			metricsstorage.WithLogger(ao.Logger.Named("metric-storage")),
 		)
@@ -147,7 +147,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 
 	if hookMetricStorage == nil {
 		ao.Logger.Warn("HookMetricStorage is not provided, creating a new one")
-		// TODO: remove prefixes etc
+
 		hookMetricStorage = metricsstorage.NewMetricStorage(
 			metricsstorage.WithNewRegistry(),
 			metricsstorage.WithLogger(ao.Logger.Named("hook-metric-storage")),
