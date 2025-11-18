@@ -36,7 +36,6 @@ import (
 	"github.com/flant/shell-operator/pkg/debug"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
-	shmetrics "github.com/flant/shell-operator/pkg/metrics"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -160,11 +159,6 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
 	shapp.SetupLogging(rc, ao.Logger)
-
-	// Initialize metric names with the configured prefix
-	shmetrics.InitMetrics(shapp.PrometheusMetricsPrefix)
-	// Initialize addon-operator specific metrics
-	InitMetrics(shapp.PrometheusMetricsPrefix)
 
 	// Have to initialize common operator to have all common dependencies below
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, []string{
