@@ -165,6 +165,8 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 
 	// Initialize metric names with the configured prefix
 	shmetrics.InitMetrics(shapp.PrometheusMetricsPrefix)
+	// Initialize addon-operator specific metrics
+	InitMetrics(shapp.PrometheusMetricsPrefix)
 
 	// Have to initialize common operator to have all common dependencies below
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, []string{
@@ -178,7 +180,10 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		panic(err)
 	}
 
-	registerHookMetrics(so.HookMetricStorage)
+	// Register addon-operator specific metrics
+	if err := registerHookMetrics(so.HookMetricStorage); err != nil {
+		panic(fmt.Errorf("register hook metrics: %w", err))
+	}
 
 	labelSelector, err := metav1.ParseToLabelSelector(app.ExtraLabels)
 	if err != nil {
