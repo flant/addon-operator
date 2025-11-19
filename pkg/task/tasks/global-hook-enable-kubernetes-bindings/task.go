@@ -13,6 +13,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/task"
@@ -140,7 +141,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	if err != nil {
 		hookLabel := path.Base(globalHook.GetPath())
 		// TODO use separate metric, as in shell-operator?
-		s.metricStorage.CounterAdd("{PREFIX}global_hook_errors_total", 1.0, map[string]string{
+		s.metricStorage.CounterAdd(metrics.GlobalHookErrorsTotal, 1.0, map[string]string{
 			pkg.MetricKeyHook:       hookLabel,
 			pkg.MetricKeyBinding:    "GlobalEnableKubernetesBindings",
 			pkg.MetricKeyQueue:      s.shellTask.GetQueueName(),

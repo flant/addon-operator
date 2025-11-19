@@ -21,6 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/metrics"
 	environmentmanager "github.com/flant/addon-operator/pkg/module_manager/environment_manager"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/loader"
@@ -48,12 +49,12 @@ import (
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
 
-const (
+var (
 	moduleInfoMetricGroup = "mm_module_info"
-	moduleInfoMetricName  = "{PREFIX}mm_module_info"
+	moduleInfoMetricName  = metrics.ModuleInfoMetricName
 
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
-	moduleMaintenanceMetricName  = "{PREFIX}mm_module_maintenance"
+	moduleMaintenanceMetricName  = metrics.ModuleMaintenanceMetricName
 
 	moduleManagerServiceName = "module-manager"
 )
@@ -412,7 +413,7 @@ func (mm *ModuleManager) checkConfig() {
 		}
 		mm.kubeConfigLock.RLock()
 		if !mm.kubeConfigValid || !mm.kubeConfigValuesValid {
-			mm.dependencies.MetricStorage.CounterAdd("{PREFIX}config_values_errors_total", 1.0, map[string]string{})
+			mm.dependencies.MetricStorage.CounterAdd(metrics.ConfigValuesErrorsTotal, 1.0, map[string]string{})
 		}
 		mm.kubeConfigLock.RUnlock()
 		time.Sleep(5 * time.Second)

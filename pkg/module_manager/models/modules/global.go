@@ -16,6 +16,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -202,9 +203,9 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 		// usage metrics
-		gm.dc.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
-		gm.dc.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
-		gm.dc.MetricStorage.GaugeSet("{PREFIX}global_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
+		gm.dc.MetricStorage.HistogramObserve(metrics.GlobalHookRunSysCPUSeconds, hookResult.Usage.Sys.Seconds(), metricLabels, nil)
+		gm.dc.MetricStorage.HistogramObserve(metrics.GlobalHookRunUserCPUSeconds, hookResult.Usage.User.Seconds(), metricLabels, nil)
+		gm.dc.MetricStorage.GaugeSet(metrics.GlobalHookRunMaxRSSBytes, float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
 
 	if hookResult != nil && len(hookResult.Metrics) > 0 {

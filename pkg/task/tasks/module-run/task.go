@@ -15,6 +15,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
@@ -124,7 +125,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		s.metricStorage.HistogramObserve("{PREFIX}module_run_seconds", d.Seconds(), metricLabels, nil)
+		s.metricStorage.HistogramObserve(metrics.ModuleRunSeconds, d.Seconds(), metricLabels, nil)
 	})()
 
 	var moduleRunErr error
@@ -140,7 +141,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 				slog.Int("count", s.shellTask.GetFailureCount()+1),
 				log.Err(moduleRunErr))
 
-			s.metricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
+			s.metricStorage.CounterAdd(metrics.ModuleRunErrorsTotal, 1.0, map[string]string{"module": hm.ModuleName})
 			s.shellTask.UpdateFailureMessage(moduleRunErr.Error())
 			s.shellTask.WithQueuedAt(time.Now())
 		}

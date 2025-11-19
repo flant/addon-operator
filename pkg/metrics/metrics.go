@@ -39,6 +39,14 @@ var (
 	ModuleRunSeconds = "{PREFIX}module_run_seconds"
 	// ModuleRunErrorsTotal counts module execution errors
 	ModuleRunErrorsTotal = "{PREFIX}module_run_errors_total"
+	// ModulesHelmReleaseRedeployedTotal counts Helm release redeployments
+	ModulesHelmReleaseRedeployedTotal = "{PREFIX}modules_helm_release_redeployed_total"
+	// ModulesAbsentResourcesTotal counts absent resources per module
+	ModulesAbsentResourcesTotal = "{PREFIX}modules_absent_resources_total"
+	// ModuleInfoMetricName tracks module information
+	ModuleInfoMetricName = "{PREFIX}mm_module_info"
+	// ModuleMaintenanceMetricName tracks module maintenance state
+	ModuleMaintenanceMetricName = "{PREFIX}mm_module_maintenance"
 
 	// ============================================================================
 	// Module Hook Metrics
@@ -141,6 +149,10 @@ func InitMetrics(prefix string) {
 	ModuleDeleteErrorsTotal = ReplacePrefix(ModuleDeleteErrorsTotal, prefix)
 	ModuleRunSeconds = ReplacePrefix(ModuleRunSeconds, prefix)
 	ModuleRunErrorsTotal = ReplacePrefix(ModuleRunErrorsTotal, prefix)
+	ModulesHelmReleaseRedeployedTotal = ReplacePrefix(ModulesHelmReleaseRedeployedTotal, prefix)
+	ModulesAbsentResourcesTotal = ReplacePrefix(ModulesAbsentResourcesTotal, prefix)
+	ModuleInfoMetricName = ReplacePrefix(ModuleInfoMetricName, prefix)
+	ModuleMaintenanceMetricName = ReplacePrefix(ModuleMaintenanceMetricName, prefix)
 
 	// ============================================================================
 	// Module Hook Metrics
@@ -294,6 +306,24 @@ func registerModuleMetrics(metricStorage metricsstorage.Storage) error {
 	)
 	if err != nil {
 		return fmt.Errorf("can not register %s: %w", ModuleRunErrorsTotal, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(
+		ModulesHelmReleaseRedeployedTotal,
+		[]string{"module"},
+		options.WithHelp("Counter of Helm release redeployments per module"),
+	)
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModulesHelmReleaseRedeployedTotal, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(
+		ModulesAbsentResourcesTotal,
+		[]string{"module", "resource"},
+		options.WithHelp("Counter of absent resources per module and resource"),
+	)
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModulesAbsentResourcesTotal, err)
 	}
 
 	return nil

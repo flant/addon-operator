@@ -24,6 +24,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/metrics"
 	environmentmanager "github.com/flant/addon-operator/pkg/module_manager/environment_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -658,7 +659,7 @@ func (bm *BasicModule) RunHooksByBinding(ctx context.Context, binding sh_op_type
 
 		func() {
 			defer measure.Duration(func(d time.Duration) {
-				bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels, nil)
+				bm.dc.MetricStorage.HistogramObserve(metrics.ModuleHookRunSeconds, d.Seconds(), metricLabels, nil)
 			})()
 			err = bm.executeHook(ctx, moduleHook, binding, []bindingcontext.BindingContext{bc}, logLabels, metricLabels)
 		}()
@@ -823,9 +824,9 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 			"queue":                 logLabels["queue"],
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
-		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", usage.Sys.Seconds(), metricLabels, nil)
-		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", usage.User.Seconds(), metricLabels, nil)
-		bm.dc.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(usage.MaxRss)*1024, metricLabels)
+		bm.dc.MetricStorage.HistogramObserve(metrics.ModuleHookRunSysCPUSeconds, usage.Sys.Seconds(), metricLabels, nil)
+		bm.dc.MetricStorage.HistogramObserve(metrics.ModuleHookRunUserCPUSeconds, usage.User.Seconds(), metricLabels, nil)
+		bm.dc.MetricStorage.GaugeSet(metrics.ModuleHookRunMaxRSSBytes, float64(usage.MaxRss)*1024, metricLabels)
 	}
 	if err != nil {
 		logEntry.Error("Fail to run enabled script",
@@ -1034,9 +1035,9 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 
 	hookResult, err := h.Execute(ctx, h.GetConfigVersion(), bctx, bm.safeName(), hookConfigValues, hookValues, logLabels)
 	if hookResult != nil && hookResult.Usage != nil {
-		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
-		bm.dc.MetricStorage.HistogramObserve("{PREFIX}module_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
-		bm.dc.MetricStorage.GaugeSet("{PREFIX}module_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
+		bm.dc.MetricStorage.HistogramObserve(metrics.ModuleHookRunSysCPUSeconds, hookResult.Usage.Sys.Seconds(), metricLabels, nil)
+		bm.dc.MetricStorage.HistogramObserve(metrics.ModuleHookRunUserCPUSeconds, hookResult.Usage.User.Seconds(), metricLabels, nil)
+		bm.dc.MetricStorage.GaugeSet(metrics.ModuleHookRunMaxRSSBytes, float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
 
 	if hookResult != nil && len(hookResult.Metrics) > 0 {
