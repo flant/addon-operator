@@ -139,12 +139,10 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
 		MetricStorage: metricstorage.NewMetricStorage(
-			metricstorage.WithPrefix("addon_operator_"),
 			metricstorage.WithLogger(log.NewNop()),
 			metricstorage.WithNewRegistry(),
 		),
 		HookMetricStorage: metricstorage.NewMetricStorage(
-			metricstorage.WithPrefix("addon_operator_"),
 			metricstorage.WithLogger(log.NewNop()),
 			metricstorage.WithNewRegistry(),
 		),

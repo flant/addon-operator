@@ -143,7 +143,6 @@ exit 0
 
 	logger := log.NewLogger()
 	storage := metricsstorage.NewMetricStorage(
-		metricsstorage.WithPrefix("addon_operator_"),
 		metricsstorage.WithLogger(logger),
 	)
 
@@ -199,7 +198,6 @@ exit 0
 
 	logger := log.NewLogger()
 	storage := metricsstorage.NewMetricStorage(
-		metricsstorage.WithPrefix("addon_operator_"),
 		metricsstorage.WithLogger(logger),
 	)
 
@@ -243,7 +241,6 @@ fi
 
 func stubDeps(logger *log.Logger) *hooks.HookExecutionDependencyContainer {
 	st := metricsstorage.NewMetricStorage(
-		metricsstorage.WithPrefix("addon_operator_"),
 		metricsstorage.WithLogger(logger),
 	)
 	return &hooks.HookExecutionDependencyContainer{
