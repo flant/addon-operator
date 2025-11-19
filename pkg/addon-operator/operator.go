@@ -21,6 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -173,7 +174,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	}
 
 	// Register addon-operator specific metrics
-	if err := registerHookMetrics(so.HookMetricStorage); err != nil {
+	if err := metrics.RegisterHookMetrics(so.HookMetricStorage); err != nil {
 		panic(fmt.Errorf("register hook metrics: %w", err))
 	}
 

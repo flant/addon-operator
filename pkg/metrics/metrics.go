@@ -1,7 +1,7 @@
-// Package addon_operator provides centralized metric names and registration functions for addon-operator.
+// Package metrics provides centralized metric names and registration functions for addon-operator.
 // All metric names use variables to ensure consistency and prevent typos.
 // The {PREFIX} placeholder is replaced by the metrics storage with the appropriate prefix.
-package addon_operator
+package metrics
 
 import (
 	"context"
@@ -195,7 +195,7 @@ func InitMetrics(prefix string) {
 // registerHookMetrics registers all addon-operator specific metrics with the provided storage.
 // This includes configuration, module, hook, convergence, Helm, and task queue metrics.
 // Returns an error if any metric registration fails.
-func registerHookMetrics(metricStorage metricsstorage.Storage) error {
+func RegisterHookMetrics(metricStorage metricsstorage.Storage) error {
 	// Register configuration metrics
 	if err := registerConfigurationMetrics(metricStorage); err != nil {
 		return fmt.Errorf("register configuration metrics: %w", err)
