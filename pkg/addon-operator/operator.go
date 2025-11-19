@@ -21,6 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -117,7 +118,7 @@ func WithOnConvergeFinish(callback func()) Option {
 	}
 }
 
-func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
+func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage metricsstorage.Storage, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
 	ao := &AddonOperator{
@@ -136,7 +137,24 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 		ao.Logger = log.NewLogger().Named("addon-operator")
 	}
 
-	so := shell_operator.NewShellOperator(cctx, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
+	if metricsStorage == nil {
+		ao.Logger.Warn("MetricStorage is not provided, creating a new one")
+
+		metricsStorage = metricsstorage.NewMetricStorage(
+			metricsstorage.WithLogger(ao.Logger.Named("metric-storage")),
+		)
+	}
+
+	if hookMetricStorage == nil {
+		ao.Logger.Warn("HookMetricStorage is not provided, creating a new one")
+
+		hookMetricStorage = metricsstorage.NewMetricStorage(
+			metricsstorage.WithNewRegistry(),
+			metricsstorage.WithLogger(ao.Logger.Named("hook-metric-storage")),
+		)
+	}
+
+	so := shell_operator.NewShellOperator(cctx, metricsStorage, hookMetricStorage, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
 
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
@@ -155,7 +173,10 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 		panic(err)
 	}
 
-	registerHookMetrics(so.HookMetricStorage)
+	// Register addon-operator specific metrics
+	if err := metrics.RegisterHookMetrics(so.HookMetricStorage); err != nil {
+		panic(fmt.Errorf("register hook metrics: %w", err))
+	}
 
 	labelSelector, err := metav1.ParseToLabelSelector(app.ExtraLabels)
 	if err != nil {

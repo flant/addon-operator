@@ -10,6 +10,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/metrics"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -196,13 +197,13 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				additionalDescription := fmt.Sprintf("%d absent module resources", len(HelmReleaseStatusEvent.Absent))
 				// helm reslease in unexpected state event
 				if HelmReleaseStatusEvent.UnexpectedStatus {
-					op.engine.MetricStorage.CounterAdd("{PREFIX}modules_helm_release_redeployed_total", 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName})
+					op.engine.MetricStorage.CounterAdd(metrics.ModulesHelmReleaseRedeployedTotal, 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName})
 					eventDescription = "HelmReleaseUnexpectedStatus"
 					additionalDescription = "unexpected helm release status"
 				} else {
 					// some resources are missing and metrics are provided
 					for _, manifest := range HelmReleaseStatusEvent.Absent {
-						op.engine.MetricStorage.CounterAdd("{PREFIX}modules_absent_resources_total", 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName, "resource": fmt.Sprintf("%s/%s/%s", manifest.Namespace(""), manifest.Kind(), manifest.Name())})
+						op.engine.MetricStorage.CounterAdd(metrics.ModulesAbsentResourcesTotal, 1.0, map[string]string{"module": HelmReleaseStatusEvent.ModuleName, "resource": fmt.Sprintf("%s/%s/%s", manifest.Namespace(""), manifest.Kind(), manifest.Name())})
 					}
 				}
 

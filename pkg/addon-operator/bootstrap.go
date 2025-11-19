@@ -9,6 +9,7 @@ import (
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
 	shapp "github.com/flant/shell-operator/pkg/app"
@@ -75,8 +76,8 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) error {
 	}
 
 	// Start background updaters for metrics
-	StartLiveTicksUpdater(op.engine.MetricStorage)
-	StartTasksQueueLengthUpdater(op.engine.MetricStorage, op.engine.TaskQueues)
+	metrics.StartLiveTicksUpdater(op.engine.MetricStorage)
+	metrics.StartTasksQueueLengthUpdater(op.engine.MetricStorage, op.engine.TaskQueues)
 
 	// Register debug HTTP endpoints to inspect internal state
 	op.engine.RegisterDebugQueueRoutes(debugServer)

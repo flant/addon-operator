@@ -9,6 +9,7 @@ import (
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"go.opentelemetry.io/otel"
 
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
@@ -96,7 +97,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, err)
 
 	if err != nil {
-		s.metricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
+		s.metricStorage.CounterAdd(metrics.ModuleDeleteErrorsTotal, 1.0, map[string]string{"module": hm.ModuleName})
 
 		s.logger.Error("Module delete failed, requeue task to retry after delay.",
 			slog.Int("count", s.shellTask.GetFailureCount()+1),

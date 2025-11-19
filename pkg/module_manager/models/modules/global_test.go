@@ -31,7 +31,6 @@ exit 0
 	defer os.RemoveAll("/tmp/global")
 	logger := log.NewLogger()
 	storage := metricsstorage.NewMetricStorage(
-		metricsstorage.WithPrefix("addon_operator_"),
 		metricsstorage.WithLogger(logger),
 	)
 	gm, err := NewGlobalModule(

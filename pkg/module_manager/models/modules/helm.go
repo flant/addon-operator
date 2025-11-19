@@ -22,6 +22,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/manifest"
 	"github.com/flant/shell-operator/pkg/utils/measure"
@@ -176,7 +177,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}module_helm_seconds", d.Seconds(), metricLabels, nil)
+		hm.dependencies.MetricsStorage.HistogramObserve(metrics.ModuleHelmSeconds, d.Seconds(), metricLabels, nil)
 	})()
 
 	logEntry := utils.EnrichLoggerWithLabels(hm.logger, logLabels)
@@ -242,7 +243,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 		}
 
 		defer measure.Duration(func(d time.Duration) {
-			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
+			hm.dependencies.MetricsStorage.HistogramObserve(metrics.HelmOperationSeconds, d.Seconds(), metricLabels, nil)
 		})()
 
 		renderedManifests, err = helmClient.Render(
@@ -281,7 +282,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 			"operation":             "check-upgrade",
 		}
 		defer measure.Duration(func(d time.Duration) {
-			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
+			hm.dependencies.MetricsStorage.HistogramObserve(metrics.HelmOperationSeconds, d.Seconds(), metricLabels, nil)
 		})()
 
 		runUpgradeRelease, err = hm.shouldRunHelmUpgrade(helmClient, helmReleaseName, checksum, manifests, logLabels)
@@ -309,7 +310,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 		}
 
 		defer measure.Duration(func(d time.Duration) {
-			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
+			hm.dependencies.MetricsStorage.HistogramObserve(metrics.HelmOperationSeconds, d.Seconds(), metricLabels, nil)
 		})()
 
 		err = helmClient.UpgradeRelease(

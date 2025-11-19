@@ -110,7 +110,7 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	prometheus.DefaultRegisterer = registry
 
 	// Assemble AddonOperator.
-	op := NewAddonOperator(context.Background(), WithLogger(log.NewNop()))
+	op := NewAddonOperator(context.Background(), nil, nil, WithLogger(log.NewNop()))
 	op.engine.KubeClient = kubeClient
 	// Mock helm client for ModuleManager
 	result.helmClient = &mockhelm.Client{}
@@ -139,12 +139,10 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
 		MetricStorage: metricstorage.NewMetricStorage(
-			metricstorage.WithPrefix("addon_operator_"),
 			metricstorage.WithLogger(log.NewNop()),
 			metricstorage.WithNewRegistry(),
 		),
 		HookMetricStorage: metricstorage.NewMetricStorage(
-			metricstorage.WithPrefix("addon_operator_"),
 			metricstorage.WithLogger(log.NewNop()),
 			metricstorage.WithNewRegistry(),
 		),

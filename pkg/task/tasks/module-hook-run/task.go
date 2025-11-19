@@ -12,6 +12,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
@@ -123,7 +124,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		s.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels, nil)
+		s.metricStorage.HistogramObserve(metrics.ModuleHookRunSeconds, d.Seconds(), metricLabels, nil)
 	})()
 
 	shouldRunHook := true
@@ -290,9 +291,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			}
 		}
 
-		s.metricStorage.CounterAdd("{PREFIX}module_hook_allowed_errors_total", allowed, metricLabels)
-		s.metricStorage.CounterAdd("{PREFIX}module_hook_errors_total", errors, metricLabels)
-		s.metricStorage.CounterAdd("{PREFIX}module_hook_success_total", success, metricLabels)
+		s.metricStorage.CounterAdd(metrics.ModuleHookAllowedErrorsTotal, allowed, metricLabels)
+		s.metricStorage.CounterAdd(metrics.ModuleHookErrorsTotal, errors, metricLabels)
+		s.metricStorage.CounterAdd(metrics.ModuleHookSuccessTotal, success, metricLabels)
 	}
 
 	if isSynchronization && res.Status == queue.Success {
