@@ -45,10 +45,7 @@ func (f *ClientFactory) NewClient(logger *log.Logger, options ...ClientOption) c
 
 		// Add werf.io/skip-logs and werf.io/track-termination-mode annotations when using nelm
 		if f.ClientType == Nelm {
-			c.WithExtraAnnotations(map[string]string{
-				"werf.io/skip-logs":              "true",
-				"werf.io/track-termination-mode": "NonBlocking",
-			})
+			c.WithExtraAnnotations(map[string]string{})
 		}
 
 		for _, option := range options {
