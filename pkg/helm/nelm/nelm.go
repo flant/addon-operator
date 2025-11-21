@@ -235,7 +235,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 			ValuesSet:   setValues,
 		},
 		TrackingOptions: common.TrackingOptions{
-			NoPodLogs: true,
+			NoPodLogs:       true,
+			NoFinalTracking: true,
 		},
 		Chart:                   modulePath,
 		DefaultChartName:        releaseName,
@@ -330,7 +331,8 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 			KubeContextCurrent: c.opts.KubeContext,
 		},
 		TrackingOptions: common.TrackingOptions{
-			NoPodLogs: true,
+			NoPodLogs:       true,
+			NoFinalTracking: true,
 		},
 		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
 		ReleaseStorageDriver: c.opts.HelmDriver,
