@@ -106,18 +106,6 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
-func WithOnConvergeStart(callback func()) Option {
-	return func(operator *AddonOperator) {
-		operator.ConvergeState.SetOnConvergeStart(callback)
-	}
-}
-
-func WithOnConvergeFinish(callback func()) Option {
-	return func(operator *AddonOperator) {
-		operator.ConvergeState.SetOnConvergeFinish(callback)
-	}
-}
-
 func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage metricsstorage.Storage, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
