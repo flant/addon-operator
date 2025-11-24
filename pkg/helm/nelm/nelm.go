@@ -435,7 +435,7 @@ func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValu
 
 	var result strings.Builder
 	for _, resource := range chartRenderResult.Resources {
-		b, err := yaml.Marshal(resource)
+		b, err := yaml.Marshal(resource.Unstruct)
 		if err != nil {
 			return "", fmt.Errorf("marshal resource: %w", err)
 		}
