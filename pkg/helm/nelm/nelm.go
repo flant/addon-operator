@@ -15,6 +15,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/werf/nelm/pkg/action"
 	"github.com/werf/nelm/pkg/common"
+	"github.com/werf/nelm/pkg/featgate"
 	nelmLog "github.com/werf/nelm/pkg/log"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -92,6 +93,8 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 	if labels != nil {
 		maps.Copy(clientLabels, labels)
 	}
+
+	featgate.FeatCleanNullFields.Enable()
 
 	return &NelmClient{
 		logger:  logger.With("operator.component", "nelm"),
