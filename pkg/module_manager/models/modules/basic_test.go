@@ -306,3 +306,64 @@ exit 0
 	require.NotNil(t, erGetter)
 	require.Equal(t, "Kubernetes version is too low", *erGetter)
 }
+
+// TestHasReadinessResetOnRetry tests that hasReadiness is reset when searching for batch hooks.
+// This prevents "multiple readiness hooks found" error when registration is retried after
+// an error that occurred after hasReadiness was set (e.g., in AssembleEnvironmentForModule).
+func TestHasReadinessResetOnRetry(t *testing.T) {
+	tmpModuleDir := t.TempDir()
+
+	bm, err := NewBasicModule("test-readiness-reset", tmpModuleDir, 1, utils.Values{}, nil, nil)
+	require.NoError(t, err)
+
+	logger := log.NewLogger()
+	bm.WithLogger(logger)
+	bm.WithDependencies(stubDeps(logger))
+
+	// Simulate a state where hasReadiness was set to true from a previous failed attempt
+	bm.hasReadiness = true
+
+	// searchModuleBatchHooks should reset hasReadiness before searching for hooks
+	// Even though hooks.registered is false, hasReadiness was left as true
+	// Without the fix, this would cause issues on retry
+	_, err = bm.RegisterHooks(logger)
+	require.NoError(t, err, "RegisterHooks should not fail even if hasReadiness was true from previous attempt")
+
+	// After successful registration, hasReadiness should be false (no hooks found in empty dir)
+	require.False(t, bm.hasReadiness, "hasReadiness should be false after registering empty module")
+}
+
+// TestSearchModuleBatchHooksResetsReadiness verifies that searchModuleBatchHooks
+// resets hasReadiness at the start, preventing false "multiple readiness hooks found"
+// errors when retrying after a previous failed attempt.
+//
+// To reproduce the original bug WITHOUT the fix:
+// 1. Comment out "bm.hasReadiness = false" in searchModuleBatchHooks()
+// 2. Run this test - it will fail with "multiple readiness hooks found" error
+func TestSearchModuleBatchHooksResetsReadiness(t *testing.T) {
+	tmpModuleDir := t.TempDir()
+
+	bm, err := NewBasicModule("test-readiness-reset-batch", tmpModuleDir, 1, utils.Values{}, nil, nil)
+	require.NoError(t, err)
+
+	logger := log.NewLogger()
+	bm.WithLogger(logger)
+
+	// Simulate state after a failed registration attempt:
+	// - hasReadiness was set to true during searchModuleBatchHooks
+	// - but hooks.registered stayed false because error occurred later
+	bm.hasReadiness = true
+	// hooks.registered is false by default
+
+	// Call searchModuleBatchHooks directly (via RegisterHooks -> searchModuleHooks)
+	// Without the fix, this would return "multiple readiness hooks found" error
+	// because hasReadiness is already true from the "previous" attempt
+	batchHooks, err := bm.searchModuleBatchHooks()
+	require.NoError(t, err, "searchModuleBatchHooks should reset hasReadiness and not fail")
+
+	// No hooks in empty dir
+	require.Empty(t, batchHooks)
+
+	// hasReadiness should be false (no readiness hooks found in empty dir)
+	require.False(t, bm.hasReadiness, "hasReadiness should be false after searching empty hooks dir")
+}

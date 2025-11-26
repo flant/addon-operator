@@ -586,6 +586,9 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 
 // searchGlobalHooks recursively find all executables in hooksDir. Absent hooksDir is not an error.
 func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHook, error) {
+	// Reset hasReadiness to handle retries after errors.
+	gm.hasReadiness = false
+
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
 	}

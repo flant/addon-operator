@@ -284,6 +284,13 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 		return nil, fmt.Errorf("search module batch hooks: %w", err)
 	}
 
+	// TEMPORARY: Simulate error after hasReadiness is set to reproduce the bug.
+	// Set SIMULATE_READINESS_BUG=<module_name> to trigger error for specific module.
+	// After first error, hasReadiness stays true, causing "multiple readiness hooks found" on retry.
+	if simulateModule := os.Getenv("SIMULATE_READINESS_BUG"); simulateModule != "" && bm.Name == simulateModule && bm.hasReadiness {
+		return nil, fmt.Errorf("SIMULATED ERROR: testing hasReadiness bug for module %s", bm.Name)
+	}
+
 	if len(shellHooks)+len(batchHooks) > 0 {
 		if err := bm.AssembleEnvironmentForModule(environmentmanager.ShellHookEnvironment); err != nil {
 			return nil, fmt.Errorf("Assemble %q module's environment: %w", bm.GetName(), err)
@@ -374,6 +381,13 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 }
 
 func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
+	// FIX DISABLED FOR TESTING:
+	// Reset hasReadiness to handle retries after errors.
+	// If a previous search set hasReadiness=true but failed later (e.g., in AssembleEnvironmentForModule),
+	// hooks.registered remains false but hasReadiness stays true, causing "multiple readiness hooks found"
+	// error on retry.
+	// bm.hasReadiness = false
+
 	hooksDir := filepath.Join(bm.Path, "hooks")
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		return nil, nil
