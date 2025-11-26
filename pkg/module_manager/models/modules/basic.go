@@ -246,7 +246,7 @@ func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, e
 		return nil, nil
 	}
 
-	hks, err := bm.searchModuleHooks()
+	hks, hasReadiness, err := bm.searchModuleHooks()
 	if err != nil {
 		return nil, fmt.Errorf("search module hooks failed: %w", err)
 	}
@@ -267,26 +267,27 @@ func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, e
 	}
 
 	bm.hooks.registered = true
+	bm.hasReadiness = hasReadiness
 
 	return hks, nil
 }
 
-func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
+func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, bool, error) {
 	shellHooks, err := bm.searchModuleShellHooks()
 	if err != nil {
-		return nil, fmt.Errorf("search module shell hooks: %w", err)
+		return nil, false, fmt.Errorf("search module shell hooks: %w", err)
 	}
 
 	goHooks := bm.searchModuleGoHooks()
 
-	batchHooks, err := bm.searchModuleBatchHooks()
+	batchHooks, hasReadiness, err := bm.searchModuleBatchHooks()
 	if err != nil {
-		return nil, fmt.Errorf("search module batch hooks: %w", err)
+		return nil, false, fmt.Errorf("search module batch hooks: %w", err)
 	}
 
 	if len(shellHooks)+len(batchHooks) > 0 {
 		if err := bm.AssembleEnvironmentForModule(environmentmanager.ShellHookEnvironment); err != nil {
-			return nil, fmt.Errorf("Assemble %q module's environment: %w", bm.GetName(), err)
+			return nil, false, fmt.Errorf("Assemble %q module's environment: %w", bm.GetName(), err)
 		}
 	}
 
@@ -311,7 +312,7 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 		return mHooks[i].GetPath() < mHooks[j].GetPath()
 	})
 
-	return mHooks, nil
+	return mHooks, hasReadiness, nil
 }
 
 func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
@@ -373,18 +374,22 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 	return hks, nil
 }
 
-func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
+// searchModuleBatchHooks searches for batch hooks and returns them along with hasReadiness flag.
+// This function has no side effects - it doesn't modify bm.hasReadiness directly.
+// The caller (RegisterHooks) is responsible for setting bm.hasReadiness after successful registration.
+func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, bool, error) {
 	hooksDir := filepath.Join(bm.Path, "hooks")
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	hooksRelativePaths, err := RecursiveGetBatchHookExecutablePaths(bm.safeName(), hooksDir, bm.logger, hooksExcludedDir...)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	hks := make([]*kind.BatchHook, 0)
+	hasReadiness := false
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
@@ -393,20 +398,20 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := normalizeHookPath(filepath.Dir(bm.Path), hookPath)
 		if err != nil {
-			return nil, fmt.Errorf("could not get hook name: %w", err)
+			return nil, false, fmt.Errorf("could not get hook name: %w", err)
 		}
 
 		sdkcfgs, err := kind.GetBatchHookConfig(bm.safeName(), hookPath)
 		if err != nil {
-			return nil, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
+			return nil, false, fmt.Errorf("getting sdk config for '%s': %w", hookName, err)
 		}
 
 		if sdkcfgs.Readiness != nil {
-			if bm.hasReadiness {
-				return nil, fmt.Errorf("multiple readiness hooks found in %s", hookPath)
+			if hasReadiness {
+				return nil, false, fmt.Errorf("multiple readiness hooks found in %s", hookPath)
 			}
 
-			bm.hasReadiness = true
+			hasReadiness = true
 
 			// add readiness hook
 			nestedHookName := fmt.Sprintf("%s-readiness", hookName)
@@ -422,7 +427,7 @@ func (bm *BasicModule) searchModuleBatchHooks() ([]*kind.BatchHook, error) {
 		}
 	}
 
-	return hks, nil
+	return hks, hasReadiness, nil
 }
 
 func RecursiveGetBatchHookExecutablePaths(moduleName, dir string, logger *log.Logger, excludedDirs ...string) ([]string, error) {
