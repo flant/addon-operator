@@ -15,6 +15,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/werf/nelm/pkg/action"
 	"github.com/werf/nelm/pkg/common"
+	"github.com/werf/nelm/pkg/featgate"
 	nelmLog "github.com/werf/nelm/pkg/log"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -92,6 +93,8 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 	if labels != nil {
 		maps.Copy(clientLabels, labels)
 	}
+
+	featgate.FeatCleanNullFields.Enable()
 
 	return &NelmClient{
 		logger:  logger.With("operator.component", "nelm"),
@@ -235,20 +238,22 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 			ValuesSet:   setValues,
 		},
 		TrackingOptions: common.TrackingOptions{
-			NoPodLogs: true,
+			NoPodLogs:       true,
+			NoFinalTracking: true,
 		},
-		Chart:                   modulePath,
-		DefaultChartName:        releaseName,
-		DefaultChartVersion:     "0.2.0",
-		DefaultChartAPIVersion:  "v2",
-		ExtraLabels:             c.labels,
-		ExtraAnnotations:        extraAnnotations,
-		NoInstallStandaloneCRDs: true,
-		ReleaseHistoryLimit:     int(c.opts.HistoryMax),
-		ReleaseLabels:           releaseLabels,
-		ReleaseStorageDriver:    c.opts.HelmDriver,
-		Timeout:                 c.opts.Timeout,
-		ForceAdoption:           true,
+		Chart:                    modulePath,
+		DefaultChartName:         releaseName,
+		DefaultChartVersion:      "0.2.0",
+		DefaultChartAPIVersion:   "v2",
+		DefaultDeletePropagation: "Background",
+		ExtraLabels:              c.labels,
+		ExtraAnnotations:         extraAnnotations,
+		NoInstallStandaloneCRDs:  true,
+		ReleaseHistoryLimit:      int(c.opts.HistoryMax),
+		ReleaseLabels:            releaseLabels,
+		ReleaseStorageDriver:     c.opts.HelmDriver,
+		Timeout:                  c.opts.Timeout,
+		ForceAdoption:            true,
 	}); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
@@ -330,11 +335,13 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 			KubeContextCurrent: c.opts.KubeContext,
 		},
 		TrackingOptions: common.TrackingOptions{
-			NoPodLogs: true,
+			NoPodLogs:       true,
+			NoFinalTracking: true,
 		},
-		ReleaseHistoryLimit:  int(c.opts.HistoryMax),
-		ReleaseStorageDriver: c.opts.HelmDriver,
-		Timeout:              c.opts.Timeout,
+		ReleaseHistoryLimit:      int(c.opts.HistoryMax),
+		DefaultDeletePropagation: "Background",
+		ReleaseStorageDriver:     c.opts.HelmDriver,
+		Timeout:                  c.opts.Timeout,
 	}); err != nil {
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
