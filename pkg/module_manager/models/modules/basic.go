@@ -283,7 +283,7 @@ func (bm *BasicModule) searchModuleHooks() ([]*hooks.ModuleHook, error) {
 	if err != nil {
 		return nil, fmt.Errorf("search module batch hooks: %w", err)
 	}
-
+	fmt.Println("bm.hasReadiness", bm.hasReadiness, "bm.Name", bm.Name, "simulateModule", os.Getenv("SIMULATE_READINESS_BUG"))
 	// TEMPORARY: Simulate error after hasReadiness is set to reproduce the bug.
 	// Set SIMULATE_READINESS_BUG=<module_name> to trigger error for specific module.
 	// After first error, hasReadiness stays true, causing "multiple readiness hooks found" on retry.
