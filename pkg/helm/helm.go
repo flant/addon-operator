@@ -32,24 +32,10 @@ func WithLogLabels(logLabels map[string]string) ClientOption {
 	}
 }
 
-func WithExtraAnnotations(annotations map[string]string) ClientOption {
-	return func(c client.HelmClient) {
-		c.WithExtraAnnotations(annotations)
-	}
-}
-
 func (f *ClientFactory) NewClient(logger *log.Logger, options ...ClientOption) client.HelmClient {
 	if f.NewClientFn != nil {
 		labels := maps.Clone(f.labels)
 		c := f.NewClientFn(logger, labels)
-
-		// Add werf.io/skip-logs and werf.io/track-termination-mode annotations when using nelm
-		if f.ClientType == Nelm {
-			c.WithExtraAnnotations(map[string]string{
-				"werf.io/skip-logs":              "true",
-				"werf.io/track-termination-mode": "NonBlocking",
-			})
-		}
 
 		for _, option := range options {
 			option(c)
