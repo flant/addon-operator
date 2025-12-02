@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -68,6 +69,98 @@ func (d *DefaultNelmActions) ChartRender(ctx context.Context, opts action.ChartR
 	return action.ChartRender(ctx, opts)
 }
 
+// SafeNelmActions wraps NelmActions and provides panic recovery for all action calls.
+type SafeNelmActions struct {
+	wrapped NelmActions
+	logger  *log.Logger
+}
+
+func (s *SafeNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (result *action.ReleaseGetResultV1, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("panic in ReleaseGet",
+				slog.Any("panic", r),
+				slog.String("release", name),
+				slog.String("namespace", namespace),
+				slog.Int("revision", opts.Revision),
+				slog.String("stack", string(debug.Stack())),
+			)
+			err = fmt.Errorf("panic in ReleaseGet: %v", r)
+		}
+	}()
+	return s.wrapped.ReleaseGet(ctx, name, namespace, opts)
+}
+
+func (s *SafeNelmActions) ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("panic in ReleaseInstall",
+				slog.Any("panic", r),
+				slog.String("release", name),
+				slog.String("namespace", namespace),
+				slog.String("chart", opts.Chart),
+				slog.String("default_chart_name", opts.DefaultChartName),
+				slog.Bool("force_adoption", opts.ForceAdoption),
+				slog.Bool("auto_rollback", opts.AutoRollback),
+				slog.Int("values_files_count", len(opts.ValuesFiles)),
+				slog.Int("extra_labels_count", len(opts.ExtraLabels)),
+				slog.String("stack", string(debug.Stack())),
+			)
+			err = fmt.Errorf("panic in ReleaseInstall: %v", r)
+		}
+	}()
+	return s.wrapped.ReleaseInstall(ctx, name, namespace, opts)
+}
+
+func (s *SafeNelmActions) ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("panic in ReleaseUninstall",
+				slog.Any("panic", r),
+				slog.String("release", name),
+				slog.String("namespace", namespace),
+				slog.String("delete_propagation", opts.DefaultDeletePropagation),
+				slog.Bool("delete_release_namespace", opts.DeleteReleaseNamespace),
+				slog.String("stack", string(debug.Stack())),
+			)
+			err = fmt.Errorf("panic in ReleaseUninstall: %v", r)
+		}
+	}()
+	return s.wrapped.ReleaseUninstall(ctx, name, namespace, opts)
+}
+
+func (s *SafeNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (result *action.ReleaseListResultV1, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("panic in ReleaseList",
+				slog.Any("panic", r),
+				slog.String("namespace", opts.ReleaseNamespace),
+				slog.String("stack", string(debug.Stack())),
+			)
+			err = fmt.Errorf("panic in ReleaseList: %v", r)
+		}
+	}()
+	return s.wrapped.ReleaseList(ctx, opts)
+}
+
+func (s *SafeNelmActions) ChartRender(ctx context.Context, opts action.ChartRenderOptions) (result *action.ChartRenderResultV2, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("panic in ChartRender",
+				slog.Any("panic", r),
+				slog.String("chart", opts.Chart),
+				slog.String("release", opts.ReleaseName),
+				slog.String("namespace", opts.ReleaseNamespace),
+				slog.Bool("remote", opts.Remote),
+				slog.Int("values_files_count", len(opts.ValuesFiles)),
+				slog.String("stack", string(debug.Stack())),
+			)
+			err = fmt.Errorf("panic in ChartRender: %v", r)
+		}
+	}()
+	return s.wrapped.ChartRender(ctx, opts)
+}
+
 func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]string) *NelmClient {
 	nelmLog.Default = NewNelmLogger(logger)
 
@@ -96,11 +189,16 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 
 	featgate.FeatCleanNullFields.Enable()
 
+	nelmLogger := logger.With("operator.component", "nelm")
+
 	return &NelmClient{
-		logger:  logger.With("operator.component", "nelm"),
-		labels:  clientLabels,
-		opts:    opts,
-		actions: &DefaultNelmActions{},
+		logger: nelmLogger,
+		labels: clientLabels,
+		opts:   opts,
+		actions: &SafeNelmActions{
+			wrapped: &DefaultNelmActions{},
+			logger:  nelmLogger,
+		},
 	}
 }
 
