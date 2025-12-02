@@ -75,6 +75,7 @@ type SafeNelmActions struct {
 	logger  *log.Logger
 }
 
+//nolint:nonamedreturns // named returns required for defer/recover to modify return values
 func (s *SafeNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (result *action.ReleaseGetResultV1, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -129,6 +130,7 @@ func (s *SafeNelmActions) ReleaseUninstall(ctx context.Context, name, namespace 
 	return s.wrapped.ReleaseUninstall(ctx, name, namespace, opts)
 }
 
+//nolint:nonamedreturns // named returns required for defer/recover to modify return values
 func (s *SafeNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (result *action.ReleaseListResultV1, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -143,6 +145,7 @@ func (s *SafeNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseLi
 	return s.wrapped.ReleaseList(ctx, opts)
 }
 
+//nolint:nonamedreturns // named returns required for defer/recover to modify return values
 func (s *SafeNelmActions) ChartRender(ctx context.Context, opts action.ChartRenderOptions) (result *action.ChartRenderResultV2, err error) {
 	defer func() {
 		if r := recover(); r != nil {
