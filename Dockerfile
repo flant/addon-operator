@@ -33,7 +33,7 @@ RUN GOOS=linux \
     go build -o post-renderer ./cmd/post-renderer
 
 # Final image
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.21
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.23
 ARG TARGETPLATFORM
 # kubectl url has no variant (v7)
 # helm url has dashes and no variant (v7)
