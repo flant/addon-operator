@@ -1,5 +1,4 @@
 // Package context provides context helpers for kube-config-manager.
-
 package context
 
 import "context"
