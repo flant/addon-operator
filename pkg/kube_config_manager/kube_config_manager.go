@@ -12,6 +12,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	kcmcontext "github.com/flant/addon-operator/pkg/kube_config_manager/context"
 	"github.com/flant/addon-operator/pkg/utils"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 )
@@ -53,8 +54,9 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 				if err != nil {
 					return err
 				}
-				// nolint: revive,staticcheck // basic type is enough here
-				cctx = context.WithValue(cctx, "kube-config-manager-debug", val)
+
+				cctx = kcmcontext.WithKubeConfigManagerDebug(cctx, val)
+
 				return nil
 			},
 			nil,
