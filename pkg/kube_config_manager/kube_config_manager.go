@@ -12,6 +12,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	kcmcontext "github.com/flant/addon-operator/pkg/kube_config_manager/context"
 	"github.com/flant/addon-operator/pkg/utils"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 )
@@ -53,8 +54,9 @@ func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtime
 				if err != nil {
 					return err
 				}
-				//nolint: revive,staticcheck // basic type is enough here
-				cctx = context.WithValue(cctx, "kube-config-manager-debug", val)
+
+				cctx = kcmcontext.WithKubeConfigManagerDebug(cctx, val)
+
 				return nil
 			},
 			nil,
@@ -241,84 +243,90 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		}
 
 	default:
-		// some module values
-		modulesChanged := []string{}
-		modulesStateChanged := []string{}
-		moduleMaintenanceChanged := make(map[string]utils.Maintenance)
-
-		// module update
 		kcm.m.Lock()
 		defer kcm.m.Unlock()
+
 		moduleName := obj.Key
 		moduleCfg := obj.Config.Modules[obj.Key]
-		if obj.Op == config.EventDelete {
-			kcm.logger.Info("Module section deleted", slog.String("moduleName", moduleName))
+
+		switch obj.Op {
+		case config.EventDelete:
+			kcm.handleDeleteEvent(moduleName, moduleCfg)
+		default:
+			kcm.handleUpdateEvent(moduleName, moduleCfg)
+		}
+	}
+}
+
+func (kcm *KubeConfigManager) handleDeleteEvent(moduleName string, cfg *config.ModuleKubeConfig) {
+	var modulesChanged []string
+	var modulesStateChanged []string
+	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
+
+	kcm.logger.Info("module section deleted", slog.String("name", moduleName))
+	modulesChanged = append(modulesChanged, moduleName)
+	if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
+		modulesStateChanged = append(modulesStateChanged, moduleName)
+	}
+
+	if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() == utils.NoResourceReconciliation {
+		moduleMaintenanceChanged[moduleName] = utils.Managed
+	}
+
+	cfg.Reset()
+	cfg.Checksum = cfg.ModuleConfig.Checksum()
+	kcm.currentConfig.Modules[moduleName] = cfg
+
+	kcm.configEventCh <- config.KubeConfigEvent{
+		Type:                      config.KubeConfigChanged,
+		ModuleValuesChanged:       modulesChanged,
+		ModuleEnabledStateChanged: modulesStateChanged,
+		ModuleMaintenanceChanged:  moduleMaintenanceChanged,
+	}
+}
+
+func (kcm *KubeConfigManager) handleUpdateEvent(moduleName string, cfg *config.ModuleKubeConfig) {
+	var modulesChanged []string
+	var modulesStateChanged []string
+	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
+
+	var changed bool
+
+	if currentCfg, has := kcm.currentConfig.Modules[moduleName]; has {
+		if currentCfg.Checksum != cfg.Checksum {
+			changed = true
 			modulesChanged = append(modulesChanged, moduleName)
-			if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
-				modulesStateChanged = append(modulesStateChanged, moduleName)
-			}
-
-			if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() == utils.NoResourceReconciliation {
-				moduleMaintenanceChanged[moduleName] = utils.Managed
-			}
-
-			moduleCfg.Reset()
-			moduleCfg.Checksum = moduleCfg.ModuleConfig.Checksum()
-			kcm.currentConfig.Modules[obj.Key] = moduleCfg
-			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                      config.KubeConfigChanged,
-				ModuleValuesChanged:       modulesChanged,
-				ModuleEnabledStateChanged: modulesStateChanged,
-				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
-			}
-			return
-		}
-		// Module section is changed if a new checksum doesn't equal to saved one and isn't in known checksums, or the module new state doesn't equal to the previous one.
-		if kcm.knownChecksums.HasEqualChecksum(moduleName, moduleCfg.Checksum) {
-			// Remove known checksum, do not fire event on self-update.
-			kcm.knownChecksums.Remove(moduleName, moduleCfg.Checksum)
-		} else {
-			if currModuleCfg, has := kcm.currentConfig.Modules[moduleName]; has {
-				if currModuleCfg.Checksum != moduleCfg.Checksum {
-					modulesChanged = append(modulesChanged, moduleName)
-				}
-
-				if kcm.currentConfig.Modules[moduleName].GetEnabled() != moduleCfg.GetEnabled() {
-					modulesStateChanged = append(modulesStateChanged, moduleName)
-				}
-
-				if kcm.currentConfig.Modules[moduleName].GetMaintenanceState() != moduleCfg.GetMaintenanceState() {
-					moduleMaintenanceChanged[moduleName] = moduleCfg.GetMaintenanceState()
-				}
-				kcm.logger.Info("Module section changed. Enabled flag transition.",
-					slog.String("moduleName", moduleName),
-					slog.String("previous", kcm.currentConfig.Modules[moduleName].GetEnabled()),
-					slog.String("current", moduleCfg.GetEnabled()),
-					slog.String("maintenanceFlag", moduleCfg.GetMaintenanceState().String()))
-			} else {
-				modulesChanged = append(modulesChanged, moduleName)
-				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
-					modulesStateChanged = append(modulesStateChanged, moduleName)
-				}
-
-				if moduleCfg.GetMaintenanceState() == utils.NoResourceReconciliation {
-					moduleMaintenanceChanged[moduleName] = utils.NoResourceReconciliation
-				}
-				kcm.logger.Info("Module section added",
-					slog.String("moduleName", moduleName),
-					slog.String("enabledFlag", moduleCfg.GetEnabled()),
-					slog.String("maintenanceFlag", moduleCfg.GetMaintenanceState().String()))
-			}
 		}
 
-		if len(modulesChanged)+len(modulesStateChanged)+len(moduleMaintenanceChanged) > 0 {
-			kcm.currentConfig.Modules[obj.Key] = moduleCfg
-			kcm.configEventCh <- config.KubeConfigEvent{
-				Type:                      config.KubeConfigChanged,
-				ModuleValuesChanged:       modulesChanged,
-				ModuleEnabledStateChanged: modulesStateChanged,
-				ModuleMaintenanceChanged:  moduleMaintenanceChanged,
-			}
+		if currentCfg.GetEnabled() != cfg.GetEnabled() {
+			changed = true
+			modulesStateChanged = append(modulesStateChanged, moduleName)
+		}
+
+		if currentCfg.GetMaintenanceState() != cfg.GetMaintenanceState() {
+			changed = true
+			moduleMaintenanceChanged[moduleName] = currentCfg.GetMaintenanceState()
+		}
+	} else {
+		changed = true
+
+		modulesChanged = append(modulesChanged, moduleName)
+		if cfg.GetEnabled() != "" && cfg.GetEnabled() != "n/d" {
+			modulesStateChanged = append(modulesStateChanged, moduleName)
+		}
+
+		if cfg.GetMaintenanceState() == utils.NoResourceReconciliation {
+			moduleMaintenanceChanged[moduleName] = utils.NoResourceReconciliation
+		}
+	}
+
+	if changed {
+		kcm.currentConfig.Modules[moduleName] = cfg
+		kcm.configEventCh <- config.KubeConfigEvent{
+			Type:                      config.KubeConfigChanged,
+			ModuleValuesChanged:       modulesChanged,
+			ModuleEnabledStateChanged: modulesStateChanged,
+			ModuleMaintenanceChanged:  moduleMaintenanceChanged,
 		}
 	}
 }

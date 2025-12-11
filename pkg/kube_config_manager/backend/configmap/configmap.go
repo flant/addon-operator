@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	kcmcontext "github.com/flant/addon-operator/pkg/kube_config_manager/context"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
 )
@@ -93,12 +94,7 @@ func (b Backend) saveGlobalConfigValues(ctx context.Context, values utils.Values
 }
 
 func (b Backend) isDebugEnabled(ctx context.Context) bool {
-	debug, ok := ctx.Value("kube-config-manager-debug").(bool)
-	if !ok {
-		return false
-	}
-
-	return debug
+	return kcmcontext.IsKubeConfigManagerDebug(ctx)
 }
 
 // saveModuleConfigValues updates module section in ConfigMap.
