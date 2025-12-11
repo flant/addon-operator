@@ -296,12 +296,12 @@ func (kcm *KubeConfigManager) handleUpdateEvent(moduleName string, cfg *config.M
 			modulesChanged = append(modulesChanged, moduleName)
 		}
 
-		if currentCfg.GetEnabled() != currentCfg.GetEnabled() {
+		if currentCfg.GetEnabled() != cfg.GetEnabled() {
 			changed = true
 			modulesStateChanged = append(modulesStateChanged, moduleName)
 		}
 
-		if currentCfg.GetMaintenanceState() != currentCfg.GetMaintenanceState() {
+		if currentCfg.GetMaintenanceState() != cfg.GetMaintenanceState() {
 			changed = true
 			moduleMaintenanceChanged[moduleName] = currentCfg.GetMaintenanceState()
 		}
