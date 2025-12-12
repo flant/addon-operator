@@ -26,10 +26,10 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/module-sdk/pkg/settingscheck"
-	"github.com/flant/shell-operator/pkg/executor"
 	"github.com/google/uuid"
 
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/shell-operator/pkg/executor"
 )
 
 type SettingsCheck struct {
