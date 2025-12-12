@@ -303,6 +303,10 @@ func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) (*BatchHookConfig, e
 			cfg.Readiness = input.Readiness
 			cfg.Hooks[BatchHookReadyKey] = input.Readiness
 		}
+
+		if input.HasSettingsCheck {
+			cfg.HasSettingsCheck = true
+		}
 	default:
 		return nil, fmt.Errorf("unknown version '%s'", input.Version)
 	}
