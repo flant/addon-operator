@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.1.0
 	github.com/deckhouse/deckhouse/pkg/metrics-storage v0.3.0
-	github.com/deckhouse/module-sdk v0.5.0
+	github.com/deckhouse/module-sdk v0.5.1-0.20251212125257-4a30b394802c
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.5.0
@@ -140,7 +140,7 @@ require (
 	github.com/google/go-containerregistry v0.20.6 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/google/uuid v1.6.0 // indirect
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
