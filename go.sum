@@ -104,6 +104,8 @@ github.com/deckhouse/deckhouse/pkg/metrics-storage v0.3.0 h1:xZvbKuexrSQGEw6CB4n
 github.com/deckhouse/deckhouse/pkg/metrics-storage v0.3.0/go.mod h1:Rz++SzCLkFW03WGgftnn91TimGU2shiKb5S/YuxcBuE=
 github.com/deckhouse/module-sdk v0.5.1-0.20251212125257-4a30b394802c h1:8KUxtE8Ubb9vAjvE+A3JFCLdUMfVm4KgyBWSNIhspLI=
 github.com/deckhouse/module-sdk v0.5.1-0.20251212125257-4a30b394802c/go.mod h1:+EbBnP8z+poIihgL4l1oxHng5ePqDUK44c39u7sEBss=
+github.com/deckhouse/module-sdk v0.5.1-0.20251216123127-c45654f3e547 h1:EDFoe9mEb2wECXdVYrUQ3GUYPYWRrBWKQBDvEBytyFQ=
+github.com/deckhouse/module-sdk v0.5.1-0.20251216123127-c45654f3e547/go.mod h1:+EbBnP8z+poIihgL4l1oxHng5ePqDUK44c39u7sEBss=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
