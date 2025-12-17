@@ -47,11 +47,11 @@ func NewSettingsCheck(path, tmpPath string, logger *log.Logger) *SettingsCheck {
 }
 
 // Check runs the setting check via the OS interpreter and returns the result of the execution
-func (c *SettingsCheck) Check(ctx context.Context, settings utils.Values) (*settingscheck.Result, error) {
+func (c *SettingsCheck) Check(ctx context.Context, settings utils.Values) (settingscheck.Result, error) {
 	// tmp files has uuid in name and create only in tmp folder (because of RO filesystem)
 	tmp, err := c.prepareTmpFile(settings)
 	if err != nil {
-		return nil, err
+		return settingscheck.Result{}, err
 	}
 
 	// Remove tmp files after execution
@@ -64,16 +64,16 @@ func (c *SettingsCheck) Check(ctx context.Context, settings utils.Values) (*sett
 	envs := os.Environ()
 	envs = append(envs, fmt.Sprintf("%s=%s", settingscheck.EnvSettingsPath, tmp))
 
-	result := &settingscheck.Result{
-		Allow: true,
+	result := settingscheck.Result{
+		Valid: true,
 	}
 
 	cmd := executor.NewExecutor("", c.path, []string{"hook", "check"}, envs).WithLogger(c.logger.Named("executor"))
 	if _, err = cmd.RunAndLogLines(ctx, make(map[string]string)); err != nil {
 		trimmed := bytes.NewBufferString(strings.TrimPrefix(err.Error(), "stderr:"))
 
-		if err = json.NewDecoder(trimmed).Decode(result); err != nil {
-			return nil, fmt.Errorf("parse output: %s", err)
+		if err = json.NewDecoder(trimmed).Decode(&result); err != nil {
+			return settingscheck.Result{}, fmt.Errorf("parse output: %s", err)
 		}
 	}
 

@@ -106,6 +106,8 @@ github.com/deckhouse/module-sdk v0.5.1-0.20251212125257-4a30b394802c h1:8KUxtE8U
 github.com/deckhouse/module-sdk v0.5.1-0.20251212125257-4a30b394802c/go.mod h1:+EbBnP8z+poIihgL4l1oxHng5ePqDUK44c39u7sEBss=
 github.com/deckhouse/module-sdk v0.5.1-0.20251216123127-c45654f3e547 h1:EDFoe9mEb2wECXdVYrUQ3GUYPYWRrBWKQBDvEBytyFQ=
 github.com/deckhouse/module-sdk v0.5.1-0.20251216123127-c45654f3e547/go.mod h1:+EbBnP8z+poIihgL4l1oxHng5ePqDUK44c39u7sEBss=
+github.com/deckhouse/module-sdk v0.5.1-0.20251217123610-0575dd4d736c h1:kzaKVef2TdCnNnN3M0ZtiJWx/htlqrtgCa2djbOBGgk=
+github.com/deckhouse/module-sdk v0.5.1-0.20251217123610-0575dd4d736c/go.mod h1:+EbBnP8z+poIihgL4l1oxHng5ePqDUK44c39u7sEBss=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
