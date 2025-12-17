@@ -20,7 +20,7 @@ var (
 	DefaultPrometheusMetricsPrefix = "addon_operator_"
 
 	Helm3HistoryMax   int32 = 10
-	Helm3Timeout            = 5 * time.Minute
+	Helm3Timeout            = 20 * time.Minute // previous was 5 minutes
 	HelmIgnoreRelease       = ""
 
 	HelmMonitorKubeClientQpsDefault   = "5" // DefaultQPS from k8s.io/client-go/rest/config.go
