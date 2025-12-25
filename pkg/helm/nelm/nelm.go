@@ -190,7 +190,7 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 		maps.Copy(clientLabels, labels)
 	}
 
-	featgate.FeatCleanNullFields.Enable()
+	featgate.FeatGateCleanNullFields.Enable()
 
 	nelmLogger := logger.With("operator.component", "nelm")
 
