@@ -33,6 +33,10 @@ const (
 	helmModuleServiceName                    = "helm-module"
 )
 
+type globalValuesGetter interface {
+	GetValues(bool) utils.Values
+}
+
 // HelmModule representation of the module, which has Helm Chart and could be installed with the helm lib
 type HelmModule struct {
 	// Name of the module
@@ -48,6 +52,8 @@ type HelmModule struct {
 
 	dependencies *HelmModuleDependencies
 	validator    HelmValuesValidator
+
+	globalValuesGetter globalValuesGetter
 
 	logger *log.Logger
 
@@ -93,14 +99,15 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	hm := &HelmModule{
-		name:             bm.GetName(),
-		defaultNamespace: namespace,
-		path:             bm.Path,
-		values:           chartValues,
-		tmpDir:           tmpDir,
-		dependencies:     deps,
-		validator:        validator,
-		additionalLabels: additionalLabels,
+		name:               bm.GetName(),
+		defaultNamespace:   namespace,
+		path:               bm.Path,
+		values:             chartValues,
+		tmpDir:             tmpDir,
+		dependencies:       deps,
+		validator:          validator,
+		globalValuesGetter: bm.dc.GlobalValuesGetter,
+		additionalLabels:   additionalLabels,
 	}
 
 	for _, opt := range opts {
@@ -396,7 +403,13 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 }
 
 func (hm *HelmModule) PrepareValuesYamlFile() (string, error) {
-	data, err := hm.values.YamlBytes()
+	chartValues := map[string]interface{}{
+		"global":                             hm.globalValuesGetter.GetValues(false),
+		utils.ModuleNameToValuesKey(hm.name): hm.values[utils.ModuleNameToValuesKey(hm.name)],
+	}
+	values := utils.Values(chartValues)
+
+	data, err := values.YamlBytes()
 	if err != nil {
 		return "", err
 	}
@@ -409,7 +422,7 @@ func (hm *HelmModule) PrepareValuesYamlFile() (string, error) {
 
 	hm.logger.Debug("Prepared module helm values info",
 		slog.String("moduleName", hm.name),
-		slog.String("values", hm.values.DebugString()))
+		slog.String("values", values.DebugString()))
 
 	return path, nil
 }
