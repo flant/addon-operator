@@ -37,7 +37,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.23
 ARG TARGETPLATFORM
 # kubectl url has no variant (v7)
 # helm url has dashes and no variant (v7)
-RUN apk --no-cache add ca-certificates bash sed tini && \
+RUN apk --no-cache add ca-certificates bash sed tini wget && \
     kubectlArch=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\/v7//') && \
     echo "Download kubectl for ${kubectlArch}" && \
     wget https://dl.k8s.io/release/v1.32.10/bin/${kubectlArch}/kubectl -O /bin/kubectl && \
