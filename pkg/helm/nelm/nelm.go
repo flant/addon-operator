@@ -469,6 +469,7 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 			KubeContextCurrent: c.opts.KubeContext,
 		},
 		OutputNoPrint:        true,
+		ReleaseNamespace:     *c.opts.Namespace,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
