@@ -1,6 +1,6 @@
 module github.com/flant/addon-operator
 
-go 1.24.0
+go 1.24.11
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -10,8 +10,8 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.5.0
-	github.com/flant/shell-operator v1.12.3
-	github.com/go-chi/chi/v5 v5.2.2
+	github.com/flant/shell-operator v1.13.0
+	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-openapi/loads v0.23.1
 	github.com/go-openapi/spec v0.22.0
 	github.com/go-openapi/strfmt v0.24.0
