@@ -20,7 +20,7 @@ ADD . /app
 # Clone shell-operator to get frameworks
 RUN git clone https://github.com/flant/shell-operator shell-operator-clone && \
     cd shell-operator-clone && \
-    git checkout v1.7.2
+    git checkout v1.13.1
 
 RUN shellOpVer=$(go list -m all | grep shell-operator | cut -d' ' -f 2-) \
     GOOS=linux \
@@ -46,7 +46,7 @@ RUN apk --no-cache add ca-certificates bash sed tini && \
     wget https://get.helm.sh/helm-v3.15.4-${helmArch}.tar.gz -O /helm.tgz && \
     tar -z -x -C /bin -f /helm.tgz --strip-components=1 ${helmArch}/helm && \
     rm -f /helm.tgz
-    
+
 COPY --from=libjq /bin/jq /usr/bin
 COPY --from=builder /app/addon-operator /
 COPY --from=builder /app/post-renderer /
