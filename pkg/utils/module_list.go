@@ -25,7 +25,7 @@ func SortReverseByReference(in []string, ref []string) []string {
 
 // SortReverse creates a copy of 'in' array and sort it in a reverse order.
 func SortReverse(in []string) []string {
-	res := make([]string, 0)
+	res := make([]string, 0, len(in))
 	res = append(res, in...)
 	sort.Sort(sort.Reverse(sort.StringSlice(res)))
 

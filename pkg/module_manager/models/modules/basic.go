@@ -813,8 +813,11 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 		slog.String("path", enabledScriptPath),
 		slog.Any("modules", precedingEnabledModules))
 
-	envs := make([]string, 0)
-	envs = append(envs, os.Environ()...)
+	environ := os.Environ()
+
+	envs := make([]string, 0, len(environ))
+	envs = append(envs, environ...)
+
 	envs = append(envs, fmt.Sprintf("CONFIG_VALUES_PATH=%s", configValuesPath))
 	envs = append(envs, fmt.Sprintf("VALUES_PATH=%s", valuesPath))
 	envs = append(envs, fmt.Sprintf("MODULE_ENABLED_RESULT=%s", enabledResultFilePath))
