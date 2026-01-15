@@ -35,12 +35,14 @@ RUN GOOS=linux \
 # Final image
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.23
 ARG TARGETPLATFORM
-# kubectl url has no variant (v7)
+ARG kubectlVersion=v1.32.10
+
+    # kubectl url has no variant (v7)
 # helm url has dashes and no variant (v7)
 RUN apk --no-cache add ca-certificates bash sed tini && \
     kubectlArch=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\/v7//') && \
-    echo "Download kubectl for ${kubectlArch}" && \
-    wget https://dl.k8s.io/release/v1.32.10/bin/${kubectlArch}/kubectl -O /bin/kubectl && \
+    echo "Download kubectl version ${kubectlVersion} for ${kubectlArch}" && \
+    wget https://dl.k8s.io/release/${kubectlVersion}/bin/${kubectlArch}/kubectl -O /bin/kubectl && \
     chmod +x /bin/kubectl && \
     helmArch=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g;s/-v7//') && \
     wget https://get.helm.sh/helm-v3.15.4-${helmArch}.tar.gz -O /helm.tgz && \

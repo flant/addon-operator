@@ -24,6 +24,11 @@ jobs:
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod', 'go.sum') }}
           restore-keys: |
             ${{ runner.os }}-gomod-
+      - name: Check generated code is up to date
+        run: |
+          make generate
+
+          git diff --exit-code || (echo 'Regenerated code does not match source, please run "make generate"' && exit 1)
       - name: Download Go modules
         if: steps.go-modules-cache.outputs.cache-hit != 'true'
         run: |
