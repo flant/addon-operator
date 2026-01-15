@@ -141,7 +141,7 @@ jobs:
               echo "  ${image}"
               echo "====================================="
               docker run --rm --platform ${platform} --entrypoint sh ${image} -c \
-                'apk add file > /dev/null; file /bin/kubectl; file /bin/busybox; file /shell-operator'
+                'apk add file > /dev/null; file /bin/kubectl; file /bin/busybox; file /addon-operator'
             done
           else
             echo Not a multi-arhitecture image.
