@@ -4,21 +4,18 @@ name: Unit tests
 on:
   pull_request:
     types: [opened, synchronize]
-
 jobs:
   run_unit_tests:
     name: Run unit tests
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.25
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.25.5'
         id: go
-
       - name: Check out addon-operator code
         uses: actions/checkout@v4
-
       - name: Restore Go modules
         id: go-modules-cache
         uses: actions/cache@v4
@@ -28,15 +25,13 @@ jobs:
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod', 'go.sum') }}
           restore-keys: |
             ${{ runner.os }}-gomod-
-
       - name: Download Go modules
         if: steps.go-modules-cache.outputs.cache-hit != 'true'
         run: |
           go mod download
           echo -n "Go modules unpacked size is: " && du -sh $HOME/go/pkg/mod
-
       - name: Run unit tests
-        run: |
+        run: |-
           export GOOS=linux
 
           go test \

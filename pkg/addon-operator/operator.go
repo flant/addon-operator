@@ -473,11 +473,13 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 
 func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_task.Task {
 	const eventDescription = "Operator-Startup"
-	tasks := make([]sh_task.Task, 0)
 	queuedAt := time.Now()
 
 	// 'OnStartup' global hooks.
 	onStartupHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.OnStartup)
+
+	tasks := make([]sh_task.Task, 0, len(onStartupHooks))
+
 	for _, hookName := range onStartupHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			pkg.LogKeyHook:    hookName,

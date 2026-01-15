@@ -146,12 +146,15 @@ func (gm *GlobalModule) RunHookByName(ctx context.Context, hookName string, bind
 
 	if binding == types.BeforeAll || binding == types.AfterAll {
 		snapshots := globalHook.GetHookController().KubernetesSnapshots()
-		newBindingContext := make([]bindingcontext.BindingContext, 0)
+
+		newBindingContext := make([]bindingcontext.BindingContext, 0, len(bindingContext))
+
 		for _, bc := range bindingContext {
 			bc.Snapshots = snapshots
 			bc.Metadata.IncludeAllSnapshots = true
 			newBindingContext = append(newBindingContext, bc)
 		}
+
 		bindingContext = newBindingContext
 	}
 

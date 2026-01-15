@@ -3,21 +3,18 @@ name: Build
 on:
   pull_request:
     types: [opened, synchronize]
-
 jobs:
   build_binary:
     name: Build addon-operator binary
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.25
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.25.5'
         id: go
-
       - name: Check out addon-operator code
         uses: actions/checkout@v4
-
       - name: Restore Go modules
         id: go-modules-cache
         uses: actions/cache@v4
@@ -27,15 +24,18 @@ jobs:
           key: ${{ runner.os }}-gomod-${{ hashFiles('go.mod', 'go.sum') }}
           restore-keys: |
             ${{ runner.os }}-gomod-
+      - name: Check generated code is up to date
+        run: |
+          make generate
 
+          git diff --exit-code || (echo 'Regenerated code does not match source, please run "make generate"' && exit 1)
       - name: Download Go modules
         if: steps.go-modules-cache.outputs.cache-hit != 'true'
         run: |
           go mod download
           echo -n "Go modules unpacked size is: " && du -sh $HOME/go/pkg/mod
-
       - name: Build binary
-        run: |
+        run: |-
           export GOOS=linux
 
           go build ./cmd/addon-operator

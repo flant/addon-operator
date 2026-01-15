@@ -5,6 +5,8 @@
 *.so
 *.dylib
 
+bin/
+
 # Graph images
 *.gv
 *gv.svg
