@@ -35,7 +35,7 @@ RUN GOOS=linux \
 # Final image
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.23
 ARG TARGETPLATFORM
-ARG kubectlVersion=v1.32.10
+ARG kubectlVersion=v1.33.7
 
     # kubectl url has no variant (v7)
 # helm url has dashes and no variant (v7)
