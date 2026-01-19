@@ -45,9 +45,9 @@ type BatchHook struct {
 }
 
 // NewApplicationBatchHook new hook for application, which runs via the OS interpreter like bash/python/etc
-func NewApplicationBatchHook(name, path, packageName, appNamespace, appName, id string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+func NewApplicationBatchHook(name, path, appNamespace, appName, id string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
 	return &BatchHook{
-		moduleName:           packageName,
+		moduleName:           fmt.Sprintf("%s.%s", appNamespace, appName),
 		applicationName:      appName,
 		applicationNamespace: appNamespace,
 		Hook: sh_hook.Hook{
