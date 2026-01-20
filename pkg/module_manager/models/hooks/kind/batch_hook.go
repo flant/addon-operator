@@ -216,8 +216,10 @@ func (h *BatchHook) getConfig() (*BatchHookConfig, error) {
 func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 	args := []string{"hook", "config"}
 
-	envs := make([]string, 0)
-	envs = append(envs, os.Environ()...)
+	environ := os.Environ()
+
+	envs := make([]string, 0, len(environ))
+	envs = append(envs, environ...)
 
 	cmd := executor.NewExecutor(
 		"",

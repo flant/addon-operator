@@ -188,7 +188,7 @@ func AppendValuesPatch(valuesPatches []ValuesPatch, newValuesPatch ValuesPatch) 
 }
 
 func CompactValuesPatches(valuesPatches []ValuesPatch, newValuesPatch ValuesPatch) []ValuesPatch {
-	operations := []*sdkutils.ValuesPatchOperation{}
+	operations := make([]*sdkutils.ValuesPatchOperation, 0, len(valuesPatches))
 
 	for _, patch := range valuesPatches {
 		operations = append(operations, patch.Operations...)
@@ -248,13 +248,13 @@ func CompactPatches(existedOperations []*sdkutils.ValuesPatchOperation, newOpera
 	}
 
 	// Sort paths for proper 'add' sequence
-	paths := []string{}
+	paths := make([]string, 0, len(patchesTree))
 	for path := range patchesTree {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
 
-	newOps := []*sdkutils.ValuesPatchOperation{}
+	newOps := make([]*sdkutils.ValuesPatchOperation, 0, len(paths))
 	for _, path := range paths {
 		newOps = append(newOps, patchesTree[path]...)
 	}

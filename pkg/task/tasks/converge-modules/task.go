@@ -252,12 +252,12 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 // CreateBeforeAllTasks returns tasks to run BeforeAll global hooks.
 func (s *Task) CreateBeforeAllTasks(logLabels map[string]string, eventDescription string) []sh_task.Task {
-	tasks := make([]sh_task.Task, 0)
 	queuedAt := time.Now()
 
 	// Get 'beforeAll' global hooks.
 	beforeAllHooks := s.moduleManager.GetGlobalHooksInOrder(hookTypes.BeforeAll)
 
+	tasks := make([]sh_task.Task, 0, len(beforeAllHooks))
 	for _, hookName := range beforeAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			pkg.LogKeyHook:    hookName,
@@ -296,12 +296,12 @@ func (s *Task) CreateBeforeAllTasks(logLabels map[string]string, eventDescriptio
 
 // CreateAfterAllTasks returns tasks to run AfterAll global hooks.
 func (s *Task) CreateAfterAllTasks(logLabels map[string]string, eventDescription string) ([]sh_task.Task, error) {
-	tasks := make([]sh_task.Task, 0)
 	queuedAt := time.Now()
 
 	// Get 'afterAll' global hooks.
 	afterAllHooks := s.moduleManager.GetGlobalHooksInOrder(hookTypes.AfterAll)
 
+	tasks := make([]sh_task.Task, 0, len(afterAllHooks))
 	for i, hookName := range afterAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			pkg.LogKeyHook:    hookName,

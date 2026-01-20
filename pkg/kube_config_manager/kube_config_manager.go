@@ -259,8 +259,10 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 }
 
 func (kcm *KubeConfigManager) handleDeleteEvent(moduleName string, cfg *config.ModuleKubeConfig) {
-	var modulesChanged []string
+	modulesChanged := make([]string, 0, 1)
+
 	var modulesStateChanged []string
+
 	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
 
 	kcm.logger.Info("module section deleted", slog.String("name", moduleName))

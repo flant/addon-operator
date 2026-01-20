@@ -125,11 +125,13 @@ func HookMetadataAccessor(t task.Task) HookMetadata {
 
 func (hm HookMetadata) GetDescription() string {
 	bindingsMap := make(map[string]struct{})
-	bindings := make([]string, 0)
 
 	for _, bc := range hm.BindingContext {
 		bindingsMap[bc.Binding] = struct{}{}
 	}
+
+	bindings := make([]string, 0, len(bindingsMap))
+
 	for bindingName := range bindingsMap {
 		bindings = append(bindings, bindingName)
 	}

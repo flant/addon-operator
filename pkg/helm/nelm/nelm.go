@@ -339,8 +339,9 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 			ValuesSet:   setValues,
 		},
 		TrackingOptions: common.TrackingOptions{
-			NoPodLogs:       true,
-			NoFinalTracking: true,
+			NoPodLogs:                    true,
+			NoFinalTracking:              true,
+			LegacyHelmCompatibleTracking: true,
 		},
 		Chart:                    modulePath,
 		DefaultChartName:         releaseName,
@@ -436,8 +437,9 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 			KubeContextCurrent: c.opts.KubeContext,
 		},
 		TrackingOptions: common.TrackingOptions{
-			NoPodLogs:       true,
-			NoFinalTracking: true,
+			NoPodLogs:                    true,
+			NoFinalTracking:              true,
+			LegacyHelmCompatibleTracking: true,
 		},
 		ReleaseHistoryLimit:      int(c.opts.HistoryMax),
 		DefaultDeletePropagation: "Background",
@@ -469,6 +471,7 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 			KubeContextCurrent: c.opts.KubeContext,
 		},
 		OutputNoPrint:        true,
+		ReleaseNamespace:     *c.opts.Namespace,
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
