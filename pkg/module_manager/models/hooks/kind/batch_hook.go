@@ -38,6 +38,27 @@ type BatchHook struct {
 	// hook ID in batch
 	ID     string
 	config *sdkhook.HookConfig
+
+	// TODO(ipaqsa): its temp solution, better to have separate Package/Application hook
+	applicationName      string
+	applicationNamespace string
+}
+
+// NewApplicationBatchHook new hook for application, which runs via the OS interpreter like bash/python/etc
+func NewApplicationBatchHook(name, path, appNamespace, appName, id string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+	return &BatchHook{
+		moduleName:           fmt.Sprintf("%s.%s", appNamespace, appName),
+		applicationName:      appName,
+		applicationNamespace: appNamespace,
+		Hook: sh_hook.Hook{
+			Name:                   name,
+			Path:                   path,
+			KeepTemporaryHookFiles: keepTemporaryHookFiles,
+			LogProxyHookJSON:       logProxyHookJSON,
+			Logger:                 logger,
+		},
+		ID: id,
+	}
 }
 
 // NewBatchHook new hook, which runs via the OS interpreter like bash/python/etc
@@ -150,6 +171,8 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 
 	// transfer information about parent module to hook
 	envs = append(envs, "MODULE_NAME="+h.moduleName)
+	envs = append(envs, "APPLICATION_NAME="+h.applicationName)
+	envs = append(envs, "APPLICATION_NAMESPACE="+h.applicationNamespace)
 
 	cmd := executor.NewExecutor(
 		"",
