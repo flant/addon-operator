@@ -12,7 +12,7 @@ import (
 
 var _ nelmlog.Logger = (*NelmLogger)(nil)
 
-func NewNelmLogger(logger *log.Logger) *NelmLogger {
+func newNelmLogger(logger *log.Logger) *NelmLogger {
 	return &NelmLogger{
 		logger: logger,
 	}
