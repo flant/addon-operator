@@ -292,7 +292,7 @@ func (bm *BasicModule) searchModuleHooks() (*searchModuleHooksResult, error) {
 
 	if len(shellHooks)+len(batchHooksResult.Hooks) > 0 {
 		if err := bm.AssembleEnvironmentForModule(environmentmanager.ShellHookEnvironment); err != nil {
-			return nil, fmt.Errorf("Assemble %q module's environment: %w", bm.GetName(), err)
+			return nil, fmt.Errorf("assemble %q module's environment: %w", bm.GetName(), err)
 		}
 	}
 

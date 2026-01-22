@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -28,7 +29,10 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
-var _ client.HelmClient = (*NelmClient)(nil)
+var (
+	_   client.HelmClient = (*NelmClient)(nil)
+	one sync.Once
+)
 
 type CommonOptions struct {
 	genericclioptions.ConfigFlags
@@ -165,7 +169,10 @@ func (s *SafeNelmActions) ChartRender(ctx context.Context, opts action.ChartRend
 }
 
 func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]string) *NelmClient {
-	nelmLog.Default = NewNelmLogger(logger)
+	// singleton
+	one.Do(func() {
+		nelmLog.Default = newNelmLogger(logger)
+	})
 
 	if opts == nil {
 		opts = &CommonOptions{}
