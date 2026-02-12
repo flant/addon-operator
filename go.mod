@@ -27,7 +27,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.18.0
-	github.com/werf/nelm v1.20.1-0.20251224161218-99a823a50307
+	github.com/werf/nelm v1.21.0
 	google.golang.org/protobuf v1.36.7
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v3 v3.0.1
@@ -49,6 +49,9 @@ require (
 	cel.dev/expr v0.18.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/dop251/goja v0.0.0-20251121114222-56b1242a5f86 // indirect
+	github.com/dop251/goja_nodejs v0.0.0-20251015164255-5e94316bedaf // indirect
+	github.com/evanw/esbuild v0.27.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-openapi/swag/conv v0.25.1 // indirect
 	github.com/go-openapi/swag/fileutils v0.25.1 // indirect
@@ -58,10 +61,17 @@ require (
 	github.com/go-openapi/swag/stringutils v0.25.1 // indirect
 	github.com/go-openapi/swag/typeutils v0.25.1 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.1 // indirect
+	github.com/go-resty/resty/v2 v2.17.1 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/ohler55/ojg v1.26.7 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/yannh/kubeconform v0.6.7 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/metric v1.36.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
@@ -206,9 +216,9 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wI2L/jsondiff v0.5.0 // indirect
-	github.com/werf/3p-helm v0.0.0-20251223091030-77130d200f5c // indirect
+	github.com/werf/3p-helm v0.0.0-20260204140535-11a50c572ad8 // indirect
 	github.com/werf/common-go v0.0.0-20251113140850-a1a98e909e9b // indirect
-	github.com/werf/kubedog v0.13.1-0.20251224155629-4ae22b4494ba // indirect
+	github.com/werf/kubedog v0.13.1-0.20260115171811-304218f24308 // indirect
 	github.com/werf/lockgate v0.1.1 // indirect
 	github.com/werf/logboek v0.6.1 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
