@@ -13,10 +13,10 @@ import (
 // TODO pass queue name from handler, not from task
 func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 	metricLabels := map[string]string{
-		"module":             "",
+		pkg.MetricKeyModule:  "",
 		pkg.MetricKeyHook:    "",
 		pkg.MetricKeyBinding: string(t.GetType()),
-		"queue":              t.GetQueueName(),
+		pkg.MetricKeyQueue:   t.GetQueueName(),
 	}
 
 	hm := task.HookMetadataAccessor(t)
@@ -32,7 +32,7 @@ func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 		task.ModuleDelete,
 		task.ModuleHookRun,
 		task.ModulePurge:
-		metricLabels["module"] = hm.ModuleName
+		metricLabels[pkg.MetricKeyModule] = hm.ModuleName
 
 	case task.ConvergeModules,
 		task.DiscoverHelmReleases:

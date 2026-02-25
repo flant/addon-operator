@@ -16,8 +16,11 @@ const (
 const (
 	MetricKeyActivation = "activation"
 	MetricKeyBinding    = "binding"
+	MetricKeyComponent  = "component"
 	MetricKeyHook       = "hook"
-	MetricKeyModule     = "module"
-	MetricKeyQueue      = "queue"
 	MetricKeyKind       = "kind"
+	MetricKeyModule     = "module"
+	MetricKeyOperation  = "operation"
+	MetricKeyQueue      = "queue"
+	MetricKeyResource   = "resource"
 )

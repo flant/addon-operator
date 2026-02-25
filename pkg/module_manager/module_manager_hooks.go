@@ -130,8 +130,8 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 			metrics.BindingCount,
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
-				pkg.MetricKeyHook: hk.GetName(),
-				"module":          "", // empty "module" label for label set consistency with module hooks
+				pkg.MetricKeyHook:   hk.GetName(),
+				pkg.MetricKeyModule: "", // empty "module" label for label set consistency with module hooks
 			})
 	}
 
@@ -158,8 +158,8 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 			metrics.BindingCount,
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
-				"module":          ml.GetName(),
-				pkg.MetricKeyHook: hk.GetName(),
+				pkg.MetricKeyModule: ml.GetName(),
+				pkg.MetricKeyHook:   hk.GetName(),
 			})
 	}
 

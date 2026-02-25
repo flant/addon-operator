@@ -172,7 +172,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	defer span.End()
 
 	metricLabels := map[string]string{
-		"module":                hm.name,
+		pkg.MetricKeyModule:     hm.name,
 		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 	}
 
@@ -237,9 +237,9 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	var renderedManifests string
 	func() {
 		metricLabels := map[string]string{
-			"module":                hm.name,
+			pkg.MetricKeyModule:     hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
-			"operation":             "template",
+			pkg.MetricKeyOperation:  "template",
 		}
 
 		defer measure.Duration(func(d time.Duration) {
@@ -277,9 +277,9 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	var runUpgradeRelease bool
 	func() {
 		metricLabels := map[string]string{
-			"module":                hm.name,
+			pkg.MetricKeyModule:     hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
-			"operation":             "check-upgrade",
+			pkg.MetricKeyOperation:  "check-upgrade",
 		}
 		defer measure.Duration(func(d time.Duration) {
 			hm.dependencies.MetricsStorage.HistogramObserve(metrics.HelmOperationSeconds, d.Seconds(), metricLabels, nil)
@@ -304,9 +304,9 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	// Run helm upgrade. Trace and measure its time.
 	func() {
 		metricLabels := map[string]string{
-			"module":                hm.name,
+			pkg.MetricKeyModule:     hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
-			"operation":             "upgrade",
+			pkg.MetricKeyOperation:  "upgrade",
 		}
 
 		defer measure.Duration(func(d time.Duration) {
