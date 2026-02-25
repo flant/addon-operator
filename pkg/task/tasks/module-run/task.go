@@ -141,7 +141,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 				slog.Int("count", s.shellTask.GetFailureCount()+1),
 				log.Err(moduleRunErr))
 
-			s.metricStorage.CounterAdd(metrics.ModuleRunErrorsTotal, 1.0, map[string]string{"module": hm.ModuleName})
+			s.metricStorage.CounterAdd(metrics.ModuleRunErrorsTotal, 1.0, map[string]string{pkg.MetricKeyModule: hm.ModuleName})
 			s.shellTask.UpdateFailureMessage(moduleRunErr.Error())
 			s.shellTask.WithQueuedAt(time.Now())
 		}

@@ -7,6 +7,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	klient "github.com/flant/kube-client/client"
@@ -16,7 +17,7 @@ import (
 
 // DefaultHelmMonitorKubeClientMetricLabels are labels that indicates go client metrics producer.
 // Important! These labels should be consistent with similar labels in ShellOperator!
-var DefaultHelmMonitorKubeClientMetricLabels = map[string]string{"component": "helm_monitor"}
+var DefaultHelmMonitorKubeClientMetricLabels = map[string]string{pkg.MetricKeyComponent: "helm_monitor"}
 
 // defaultKubeClient initializes a Kubernetes client
 func defaultKubeClient(metricStorage metricsstorage.Storage, metricLabels map[string]string, logger *log.Logger) *klient.Client {

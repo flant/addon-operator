@@ -250,7 +250,7 @@ func RegisterHookMetrics(metricStorage metricsstorage.Storage) error {
 func registerConfigurationMetrics(metricStorage metricsstorage.Storage) error {
 	_, err := metricStorage.RegisterGauge(
 		BindingCount,
-		[]string{"module", pkg.MetricKeyHook},
+		[]string{pkg.MetricKeyModule, pkg.MetricKeyHook},
 		options.WithHelp("Number of bindings per module and hook"),
 	)
 	if err != nil {
@@ -282,7 +282,7 @@ func registerModuleMetrics(metricStorage metricsstorage.Storage) error {
 
 	_, err = metricStorage.RegisterCounter(
 		ModuleDeleteErrorsTotal,
-		[]string{"module"},
+		[]string{pkg.MetricKeyModule},
 		options.WithHelp("Counter of errors during module deletion"),
 	)
 	if err != nil {
@@ -291,7 +291,7 @@ func registerModuleMetrics(metricStorage metricsstorage.Storage) error {
 
 	_, err = metricStorage.RegisterHistogram(
 		ModuleRunSeconds,
-		[]string{"module", pkg.MetricKeyActivation},
+		[]string{pkg.MetricKeyModule, pkg.MetricKeyActivation},
 		buckets_1msTo10s,
 		options.WithHelp("Histogram of module execution times in seconds"),
 	)
@@ -301,7 +301,7 @@ func registerModuleMetrics(metricStorage metricsstorage.Storage) error {
 
 	_, err = metricStorage.RegisterCounter(
 		ModuleRunErrorsTotal,
-		[]string{"module"},
+		[]string{pkg.MetricKeyModule},
 		options.WithHelp("Counter of module execution errors"),
 	)
 	if err != nil {
@@ -310,7 +310,7 @@ func registerModuleMetrics(metricStorage metricsstorage.Storage) error {
 
 	_, err = metricStorage.RegisterCounter(
 		ModulesHelmReleaseRedeployedTotal,
-		[]string{"module"},
+		[]string{pkg.MetricKeyModule},
 		options.WithHelp("Counter of Helm release redeployments per module"),
 	)
 	if err != nil {
@@ -319,7 +319,7 @@ func registerModuleMetrics(metricStorage metricsstorage.Storage) error {
 
 	_, err = metricStorage.RegisterCounter(
 		ModulesAbsentResourcesTotal,
-		[]string{"module", "resource"},
+		[]string{pkg.MetricKeyModule, pkg.MetricKeyResource},
 		options.WithHelp("Counter of absent resources per module and resource"),
 	)
 	if err != nil {
@@ -332,10 +332,10 @@ func registerModuleMetrics(metricStorage metricsstorage.Storage) error {
 // registerModuleHookMetrics registers metrics related to module hook execution
 func registerModuleHookMetrics(metricStorage metricsstorage.Storage) error {
 	moduleHookLabels := []string{
-		"module",
+		pkg.MetricKeyModule,
 		pkg.MetricKeyHook,
 		pkg.MetricKeyBinding,
-		"queue",
+		pkg.MetricKeyQueue,
 		pkg.MetricKeyActivation,
 	}
 
@@ -413,7 +413,7 @@ func registerGlobalHookMetrics(metricStorage metricsstorage.Storage) error {
 	globalHookLabels := []string{
 		pkg.MetricKeyHook,
 		pkg.MetricKeyBinding,
-		"queue",
+		pkg.MetricKeyQueue,
 		pkg.MetricKeyActivation,
 	}
 
@@ -513,7 +513,7 @@ func registerConvergenceMetrics(metricStorage metricsstorage.Storage) error {
 func registerHelmMetrics(metricStorage metricsstorage.Storage) error {
 	_, err := metricStorage.RegisterHistogram(
 		ModuleHelmSeconds,
-		[]string{"module", pkg.MetricKeyActivation},
+		[]string{pkg.MetricKeyModule, pkg.MetricKeyActivation},
 		buckets_1msTo10s,
 		options.WithHelp("Histogram of Helm operation times for modules in seconds"),
 	)
@@ -523,7 +523,7 @@ func registerHelmMetrics(metricStorage metricsstorage.Storage) error {
 
 	_, err = metricStorage.RegisterHistogram(
 		HelmOperationSeconds,
-		[]string{"module", pkg.MetricKeyActivation, "operation"},
+		[]string{pkg.MetricKeyModule, pkg.MetricKeyActivation, pkg.MetricKeyOperation},
 		buckets_1msTo10s,
 		options.WithHelp("Histogram of specific Helm operation durations in seconds"),
 	)
@@ -538,7 +538,7 @@ func registerHelmMetrics(metricStorage metricsstorage.Storage) error {
 func registerTaskQueueMetrics(metricStorage metricsstorage.Storage) error {
 	_, err := metricStorage.RegisterCounter(
 		TaskWaitInQueueSecondsTotal,
-		[]string{"module", pkg.MetricKeyHook, pkg.MetricKeyBinding, "queue"},
+		[]string{pkg.MetricKeyModule, pkg.MetricKeyHook, pkg.MetricKeyBinding, pkg.MetricKeyQueue},
 		options.WithHelp("Counter of seconds that tasks waited in queue before execution"),
 	)
 	if err != nil {
@@ -580,7 +580,7 @@ func StartTasksQueueLengthUpdater(metricStorage metricsstorage.Storage, tqs *que
 	// Register the tasks queue length gauge
 	_, _ = metricStorage.RegisterGauge(
 		TasksQueueLength,
-		[]string{"queue"},
+		[]string{pkg.MetricKeyQueue},
 		options.WithHelp("Gauge showing the length of the task queue"),
 	)
 
@@ -590,7 +590,7 @@ func StartTasksQueueLengthUpdater(metricStorage metricsstorage.Storage, tqs *que
 			// Gather task queues lengths.
 			tqs.IterateSnapshot(context.TODO(), func(_ context.Context, queue *queue.TaskQueue) {
 				queueLen := float64(queue.Length())
-				metricStorage.GaugeSet(TasksQueueLength, queueLen, map[string]string{"queue": queue.Name})
+				metricStorage.GaugeSet(TasksQueueLength, queueLen, map[string]string{pkg.MetricKeyQueue: queue.Name})
 			})
 
 			time.Sleep(5 * time.Second)
