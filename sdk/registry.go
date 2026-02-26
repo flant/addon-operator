@@ -60,7 +60,8 @@ func (h *HookRegistry) GetGlobalHooks() []*kind.GoHook {
 }
 
 // Hooks returns all (module and global) hooks
-// Deprecated: method exists for backward compatibility, use GetGlobalHooks or GetModuleHooks instead
+// Deprecated:
+// method exists for backward compatibility, use GetGlobalHooks or GetModuleHooks instead
 func (h *HookRegistry) Hooks() []*kind.GoHook {
 	res := make([]*kind.GoHook, 0, len(h.globalHooks)+len(h.embeddedModuleHooks))
 

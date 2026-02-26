@@ -16,6 +16,7 @@ type ConfigHandler interface {
 	LoadConfig(ctx context.Context, modulesNames ...string) (*config.KubeConfig, error)
 
 	// SaveConfigValues saves patches for modules in backend (if supported), overriding the configuration
-	// Deprecated: saving values in the values source is not recommended and shouldn't be used anymore
+	// Deprecated:
+	// saving values in the values source is not recommended and shouldn't be used anymore
 	SaveConfigValues(ctx context.Context, key string, values utils.Values) ( /*checksum*/ string, error)
 }

@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -20,6 +21,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage"
@@ -66,10 +68,15 @@ var (
 	_            client.HelmClient = &LibClient{}
 	options      *Options
 	actionConfig *action.Configuration
+	once         sync.Once
 )
 
 func NewClient(logger *log.Logger, labels map[string]string) client.HelmClient {
 	logEntry := logger.With("operator.component", "helm3lib")
+
+	once.Do(func() {
+		kube.ManagedFieldsManager = "helm"
+	})
 
 	return &LibClient{
 		Logger:            logEntry,
