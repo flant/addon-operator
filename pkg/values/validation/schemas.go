@@ -122,6 +122,12 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 
 	validator := validate.NewSchemaValidator(s, nil, rootName, strfmt.Default) // , validate.DisableObjectArrayTypeCheck(true)
 
+	marshalled, _ := json.Marshal(dataObj)
+	unmarshalled := make(map[string]interface{})
+	if err := json.Unmarshal(marshalled, &unmarshalled); err != nil {
+		return err
+	}
+
 	switch v := dataObj.(type) {
 	case utils.Values:
 		dataObj = map[string]interface{}(v)
