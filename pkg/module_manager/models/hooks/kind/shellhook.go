@@ -12,7 +12,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/metrics-storage/operation"
 	"github.com/go-openapi/spec"
 	"github.com/gofrs/uuid/v5"
-	"gopkg.in/yaml.v3"
+	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
@@ -320,7 +320,7 @@ func (sh *ShellHook) GetConfigForModule(moduleKind string) (*config.HookConfig, 
 
 	sh.Config = cfg
 	sh.ScheduleConfig = &HookScheduleConfig{}
-	err = yaml.Unmarshal(cfgData, sh.ScheduleConfig)
+	err = k8syaml.Unmarshal(cfgData, sh.ScheduleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal schedule yaml hook config: %s", err)
 	}

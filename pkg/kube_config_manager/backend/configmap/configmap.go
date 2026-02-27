@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	corev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
+	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	kcmcontext "github.com/flant/addon-operator/pkg/kube_config_manager/context"
@@ -243,7 +243,7 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 	if hasKey {
 		var moduleValues interface{}
 
-		err := yaml.Unmarshal([]byte(valuesYaml), &moduleValues)
+		err := k8syaml.Unmarshal([]byte(valuesYaml), &moduleValues)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal yaml data in a module config key '%s': %v", mc.ModuleConfigKey(), err)
 		}
@@ -293,7 +293,7 @@ func fromConfigMapData(moduleName string, configData map[string]string) (*utils.
 
 func (b Backend) mergeValues(ctx context.Context, moduleName string, values utils.Values) error {
 	return b.updateConfigMap(ctx, func(obj *v1.ConfigMap) error {
-		data, err := yaml.Marshal(values)
+		data, err := k8syaml.Marshal(values)
 		if err != nil {
 			return err
 		}
@@ -383,7 +383,7 @@ func (b Backend) logConfigMapEvent(ctx context.Context, obj interface{}, eventNa
 		return
 	}
 
-	objYaml, err := yaml.Marshal(obj)
+	objYaml, err := k8syaml.Marshal(obj)
 	if err != nil {
 		b.logger.Info("Dump ConfigMap error",
 			slog.String("configMapName", b.name),

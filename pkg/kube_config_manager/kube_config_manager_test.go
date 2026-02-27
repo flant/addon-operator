@@ -7,10 +7,10 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
@@ -33,7 +33,7 @@ func initKubeConfigManager(t *testing.T, kubeClient *klient.Client, cmData map[s
 		cm.Data = cmData
 	} else {
 		cmData := map[string]string{}
-		_ = yaml.Unmarshal([]byte(cmContent), cmData)
+		_ = k8syaml.Unmarshal([]byte(cmContent), cmData)
 		cm.Data = cmData
 	}
 
