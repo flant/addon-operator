@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -187,22 +186,6 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	usage, err := cmd.RunAndLogLines(ctx, logLabels)
 	result.Usage = usage
 	if err != nil {
-		outputError := &sdkhook.Error{}
-		trimmed := strings.TrimPrefix(err.Error(), "stderr:")
-
-		// Try to parse stderr as a JSON error from the SDK.
-		// If stderr contains non-JSON content (e.g. log lines before the JSON error),
-		// fall back to returning the raw stderr content as the error message.
-		jsonErr := json.NewDecoder(bytes.NewBufferString(trimmed)).Decode(outputError)
-		if jsonErr != nil {
-			h.Logger.Warn("json decode", slog.String("original", trimmed), log.Err(err))
-			return result, fmt.Errorf("json decode: %w", jsonErr)
-		}
-
-		if outputError.Message != "" {
-			return result, errors.New(outputError.Message)
-		}
-
 		return result, fmt.Errorf("run and log lines: %w", err)
 	}
 
