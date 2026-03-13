@@ -110,6 +110,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	if hm.logger == nil {
 		hm.logger = log.NewLogger().Named("helm-module")
 	}
+	hm.logger = hm.logger.With(slog.String(pkg.LogKeyModule, hm.name))
 
 	isHelm, err := hm.isHelmChart()
 	if err != nil {
@@ -126,7 +127,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 }
 
 func (hm *HelmModule) WithLogger(logger *log.Logger) {
-	hm.logger = logger
+	hm.logger = logger.With(slog.String(pkg.LogKeyModule, hm.name))
 }
 
 // isHelmChart check, could it be considered as helm chart or not

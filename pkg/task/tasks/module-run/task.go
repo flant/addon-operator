@@ -137,6 +137,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			res.Status = queue.Fail
 
 			s.logger.Error("ModuleRun failed. Requeue task to retry after delay.",
+				slog.String(pkg.LogKeyModule, hm.ModuleName),
 				slog.String("phase", string(baseModule.GetPhase())),
 				slog.Int("count", s.shellTask.GetFailureCount()+1),
 				log.Err(moduleRunErr))
