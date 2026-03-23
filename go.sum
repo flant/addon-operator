@@ -167,6 +167,8 @@ github.com/flant/shell-operator v1.14.3-0.20260323085429-8c4f478190f0 h1:ksRRihq
 github.com/flant/shell-operator v1.14.3-0.20260323085429-8c4f478190f0/go.mod h1:9tUfaWsJ8lzT04L/nUEvpqjOtOrzFgK4RPylSkZPMmo=
 github.com/flant/shell-operator v1.14.3-0.20260323104810-f349da54e672 h1:L1p64sBr7f+WPZ/Ng5HG3M22U/+5szPDB8xsYx7bGCc=
 github.com/flant/shell-operator v1.14.3-0.20260323104810-f349da54e672/go.mod h1:9tUfaWsJ8lzT04L/nUEvpqjOtOrzFgK4RPylSkZPMmo=
+github.com/flant/shell-operator v1.14.3-0.20260323105618-65188f0eba63 h1:9J02xFEgsLptTZzyVL5kMZZBlrtTPb8HDypHFNiGRfY=
+github.com/flant/shell-operator v1.14.3-0.20260323105618-65188f0eba63/go.mod h1:9tUfaWsJ8lzT04L/nUEvpqjOtOrzFgK4RPylSkZPMmo=
 github.com/flopp/go-findfont v0.1.0 h1:lPn0BymDUtJo+ZkV01VS3661HL6F4qFlkhcJN55u6mU=
 github.com/flopp/go-findfont v0.1.0/go.mod h1:wKKxRDjD024Rh7VMwoU90i6ikQRCr+JTHB5n4Ejkqvw=
 github.com/fluxcd/flagger v1.36.1 h1:X2PumtNwZz9YSGaOtZLFm2zAKLgHhFkbNv8beg7ifyc=
