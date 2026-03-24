@@ -15,14 +15,11 @@
 package kind
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/module-sdk/pkg/settingscheck"
@@ -70,11 +67,7 @@ func (c *SettingsCheck) Check(ctx context.Context, settings utils.Values) (setti
 
 	cmd := executor.NewExecutor("", c.path, []string{"hook", "check"}, envs).WithLogger(c.logger.Named("executor"))
 	if _, err = cmd.RunAndLogLines(ctx, make(map[string]string)); err != nil {
-		trimmed := bytes.NewBufferString(strings.TrimPrefix(err.Error(), "stderr:"))
-
-		if err = json.NewDecoder(trimmed).Decode(&result); err != nil {
-			return settingscheck.Result{}, fmt.Errorf("parse output: %s", err)
-		}
+		return settingscheck.Result{}, fmt.Errorf("run and log lines: %w", err)
 	}
 
 	return result, nil
