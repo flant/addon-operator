@@ -12,6 +12,8 @@ import (
 	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	lazynode "github.com/deckhouse/module-sdk/pkg/utils/lazy-node"
 	"github.com/deckhouse/module-sdk/pkg/utils/patch"
+
+	"github.com/flant/addon-operator/pkg/values/validation/schema"
 )
 
 type ValuesPatchType string
@@ -20,6 +22,11 @@ const (
 	ConfigMapPatch    ValuesPatchType = "CONFIG_MAP_PATCH"
 	MemoryValuesPatch ValuesPatchType = "MEMORY_VALUES_PATCH"
 )
+
+type DefaultsOverride struct {
+	Name     string
+	Override []schema.DefaultOverride
+}
 
 type ValuesPatch struct {
 	Operations []*sdkutils.ValuesPatchOperation
@@ -374,6 +381,26 @@ func EnabledFromValuesPatch(valuesPatch ValuesPatch) ValuesPatch {
 
 	newValuesPatch := ValuesPatch{Operations: resOps}
 	return newValuesPatch
+}
+
+func DefaultsOverrideFromValuesPatch(valuesPatch ValuesPatch) DefaultsOverride {
+	override := DefaultsOverride{}
+	for _, op := range valuesPatch.Operations {
+		pathParts := strings.Split(op.Path, "/")
+		if len(pathParts) > 2 {
+			if pathParts[1] == "override" {
+				override.Name = pathParts[2]
+
+				var overrides []schema.DefaultOverride
+				if err := json.Unmarshal(op.Value, &overrides); err != nil {
+					continue
+				}
+				override.Override = append(override.Override, overrides...)
+			}
+		}
+	}
+
+	return override
 }
 
 // Error messages to distinguish non-typed errors from the 'json-patch' library.

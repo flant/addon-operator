@@ -106,6 +106,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 	}
 	// catch dynamin Enabled patches from global hooks
 	go mm.runDynamicEnabledLoop(dynamicExtender)
+	go mm.runDynamicDefaultsOverrideLoop()
 
 	return mm.registerGlobalHooks(gm)
 }

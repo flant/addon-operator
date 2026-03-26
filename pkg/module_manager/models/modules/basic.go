@@ -30,6 +30,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	"github.com/flant/addon-operator/pkg/values/validation/schema"
 	"github.com/flant/addon-operator/sdk"
 	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -1342,6 +1343,11 @@ func (bm *BasicModule) GetValuesStorage() *ValuesStorage {
 // GetSchemaStorage returns current schema storage of the basic module
 func (bm *BasicModule) GetSchemaStorage() *validation.SchemaStorage {
 	return bm.valuesStorage.schemaStorage
+}
+
+// OverrideSchemaDefaults overrides values schema openAPI spec defaults
+func (bm *BasicModule) OverrideSchemaDefaults(override ...schema.DefaultOverride) {
+	bm.valuesStorage.OverrideDefaults(override...)
 }
 
 // ApplyNewSchemaStorage updates schema storage of the basic module

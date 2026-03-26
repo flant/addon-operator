@@ -6,6 +6,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	"github.com/flant/addon-operator/pkg/values/validation/schema"
 )
 
 /*
@@ -267,4 +268,11 @@ func (vs *ValuesStorage) getValuesPatches() []utils.ValuesPatch {
 
 func (vs *ValuesStorage) GetSchemaStorage() *validation.SchemaStorage {
 	return vs.schemaStorage
+}
+
+func (vs *ValuesStorage) OverrideDefaults(override ...schema.DefaultOverride) {
+	vs.lock.Lock()
+	defer vs.lock.Unlock()
+
+	vs.schemaStorage.OverrideDefaults(validation.ValuesSchema, override...)
 }

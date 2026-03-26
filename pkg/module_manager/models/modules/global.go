@@ -37,8 +37,9 @@ type GlobalModule struct {
 
 	valuesStorage *ValuesStorage
 
-	enabledByHookC chan *EnabledPatchReport
-	hasReadiness   bool
+	enabledByHookC  chan *EnabledPatchReport
+	overrideByHookC chan *OverridePatchReport
+	hasReadiness    bool
 
 	// dependency
 	dc *hooks.HookExecutionDependencyContainer
@@ -51,6 +52,11 @@ type GlobalModule struct {
 // EnabledReportChannel returns channel with dynamic modules enabling by global hooks
 func (gm *GlobalModule) EnabledReportChannel() chan *EnabledPatchReport {
 	return gm.enabledByHookC
+}
+
+// OverrideReportChannel returns channel with dynamic openAPI override by global hooks
+func (gm *GlobalModule) OverrideReportChannel() chan *OverridePatchReport {
+	return gm.overrideByHookC
 }
 
 // NewGlobalModule build ephemeral global container for global hooks and values
@@ -69,6 +75,7 @@ func NewGlobalModule(hooksDir string, staticValues utils.Values, dc *hooks.HookE
 		valuesStorage:          valuesStorage,
 		dc:                     dc,
 		enabledByHookC:         make(chan *EnabledPatchReport, 10),
+		overrideByHookC:        make(chan *OverridePatchReport, 10),
 		keepTemporaryHookFiles: keepTemporaryHookFiles,
 	}
 
@@ -306,6 +313,8 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 		if err != nil {
 			return fmt.Errorf("apply enabled patches from global values patch: %v", err)
 		}
+
+		gm.applyDefaultsOverride(*valuesPatch)
 	}
 
 	return nil
@@ -333,6 +342,27 @@ func (gm *GlobalModule) applyEnabledPatches(valuesPatch utils.ValuesPatch) error
 	err := <-report.Done
 
 	return err
+}
+
+type OverridePatchReport struct {
+	Override utils.DefaultsOverride
+	Done     chan struct{}
+}
+
+func (gm *GlobalModule) applyDefaultsOverride(valuesPatch utils.ValuesPatch) {
+	override := utils.DefaultsOverrideFromValuesPatch(valuesPatch)
+	if len(override.Override) == 0 {
+		return
+	}
+
+	report := &OverridePatchReport{
+		Override: override,
+		Done:     make(chan struct{}),
+	}
+
+	<-report.Done
+
+	return
 }
 
 func (gm *GlobalModule) GetValues(withPrefix bool) utils.Values {
