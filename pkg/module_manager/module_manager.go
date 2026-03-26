@@ -531,6 +531,7 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 		}
 		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{pkg.MetricKeyModule: module, "enabled": enabled})
 	}
+	mm.RefreshModuleTelemetry()
 }
 
 func (mm *ModuleManager) SetModuleMaintenanceState(moduleName string, state utils.Maintenance) {
