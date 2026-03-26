@@ -39,7 +39,6 @@ import (
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation/schema"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -1031,18 +1030,14 @@ func (mm *ModuleManager) createTasksFromModuleHooks(binding BindingType, createT
 
 func (mm *ModuleManager) runDynamicDefaultsOverrideLoop() {
 	for report := range mm.global.OverrideReportChannel() {
-		mm.applyDefaultsOverride(report.Override.Name, report.Override.Override)
+		basic := mm.GetModule(report.Override.Name)
+		if basic == nil {
+			return
+		}
+
+		basic.OverrideSchemaDefaults(report.Override.Override...)
 		report.Done <- struct{}{}
 	}
-}
-
-func (mm *ModuleManager) applyDefaultsOverride(name string, override []schema.DefaultOverride) {
-	basic := mm.GetModule(name)
-	if basic == nil {
-		return
-	}
-
-	basic.OverrideSchemaDefaults(override...)
 }
 
 func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamic_extender.Extender) {
