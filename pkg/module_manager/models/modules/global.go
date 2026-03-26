@@ -361,8 +361,6 @@ func (gm *GlobalModule) applyDefaultsOverride(valuesPatch utils.ValuesPatch) {
 	}
 
 	<-report.Done
-
-	return
 }
 
 func (gm *GlobalModule) GetValues(withPrefix bool) utils.Values {
