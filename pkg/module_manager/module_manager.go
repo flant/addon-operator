@@ -208,23 +208,21 @@ func (mm *ModuleManager) SetModuleLoader(ld loader.ModuleLoader) {
 }
 
 // RefreshModuleTelemetry expires and re-populates the mm_module_enabled
-// metric group. For each module whose version is known via the loader, a gauge
-// of 1 is emitted only when the module is currently enabled. The loader must
-// implement loader.ModuleTelemetryProvider; otherwise the call is a no-op.
+// metric group. For each enabled module with a known version, a gauge of 1
+// is emitted with module name and version labels.
 func (mm *ModuleManager) RefreshModuleTelemetry() {
-	tp, ok := mm.moduleLoader.(loader.ModuleTelemetryProvider)
-	if !ok {
-		return
-	}
-	versions := tp.ModuleTelemetry()
 	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetrics(moduleVersionEnabledMetricGroup)
-	for _, v := range versions {
-		if !mm.IsModuleEnabled(v.Name) {
+	for _, name := range mm.GetModuleNames() {
+		if !mm.IsModuleEnabled(name) {
+			continue
+		}
+		mod := mm.GetModule(name)
+		if mod == nil || mod.GetVersion() == "" {
 			continue
 		}
 		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleVersionEnabledMetricGroup, metrics.ModuleVersionEnabledMetricName, 1, map[string]string{
-			pkg.MetricKeyModule:  v.Name,
-			pkg.MetricKeyVersion: v.Version,
+			pkg.MetricKeyModule:  name,
+			pkg.MetricKeyVersion: mod.GetVersion(),
 		})
 	}
 }
