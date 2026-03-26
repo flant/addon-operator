@@ -55,7 +55,6 @@ var (
 	moduleInfoMetricName  = metrics.ModuleInfoMetricName
 
 	moduleVersionEnabledMetricGroup = "mm_module_enabled"
-	moduleVersionEnabledMetricName  = metrics.ModuleVersionEnabledMetricName
 
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
 	moduleMaintenanceMetricName  = metrics.ModuleMaintenanceMetricName
@@ -223,7 +222,7 @@ func (mm *ModuleManager) RefreshModuleTelemetry() {
 		if !mm.IsModuleEnabled(v.Name) {
 			continue
 		}
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleVersionEnabledMetricGroup, moduleVersionEnabledMetricName, 1, map[string]string{
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleVersionEnabledMetricGroup, metrics.ModuleVersionEnabledMetricName, 1, map[string]string{
 			pkg.MetricKeyModule:  v.Name,
 			pkg.MetricKeyVersion: v.Version,
 		})
