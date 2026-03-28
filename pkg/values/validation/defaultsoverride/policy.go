@@ -114,6 +114,10 @@ func PolicyByContracts(contracts ...Contract) *Policy {
 	return p
 }
 
+// OverridesByValuesPatch extracts Override entries from a ValuesPatch.
+// It scans each operation for a JSON-Patch path whose second segment is
+// "override" (e.g. "/override/something") and unmarshals the operation's
+// value as a list of Override structs.
 func OverridesByValuesPatch(valuesPatch utils.ValuesPatch) []Override {
 	var overrides []Override
 

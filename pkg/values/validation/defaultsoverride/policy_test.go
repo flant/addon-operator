@@ -1,12 +1,15 @@
 package defaultsoverride_test
 
 import (
+	"encoding/json"
 	"testing"
 
+	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
 	"github.com/go-openapi/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation/defaultsoverride"
 )
 
@@ -228,6 +231,89 @@ func TestApplyOverride(t *testing.T) {
 		})
 
 		assert.Equal(t, "2", s.Properties["replicas"].Default)
+	})
+}
+
+func TestOverridesByValuesPatch(t *testing.T) {
+	t.Run("extracts overrides from operations with /override/ path", func(t *testing.T) {
+		overrideValue := []defaultsoverride.Override{
+			{
+				Source: "cloud-provider-aws",
+				Target: "global",
+				Patches: []defaultsoverride.Patch{
+					{Path: "network.podSubnet", Value: "10.244.0.0/16"},
+				},
+			},
+		}
+		raw, err := json.Marshal(overrideValue)
+		require.NoError(t, err)
+
+		vp := utils.ValuesPatch{
+			Operations: []*sdkutils.ValuesPatchOperation{
+				{
+					Op:    "add",
+					Path:  "/override/cloud-provider-aws",
+					Value: raw,
+				},
+			},
+		}
+
+		result := defaultsoverride.OverridesByValuesPatch(vp)
+		require.NotEmpty(t, result)
+		assert.Equal(t, "cloud-provider-aws", result[0].Source)
+		assert.Equal(t, "global", result[0].Target)
+		assert.Equal(t, "network.podSubnet", result[0].Patches[0].Path)
+	})
+
+	t.Run("skips operations without override path segment", func(t *testing.T) {
+		vp := utils.ValuesPatch{
+			Operations: []*sdkutils.ValuesPatchOperation{
+				{
+					Op:    "add",
+					Path:  "/global/someKey",
+					Value: json.RawMessage(`"value"`),
+				},
+			},
+		}
+
+		result := defaultsoverride.OverridesByValuesPatch(vp)
+		assert.Empty(t, result)
+	})
+
+	t.Run("skips operations with too short path", func(t *testing.T) {
+		vp := utils.ValuesPatch{
+			Operations: []*sdkutils.ValuesPatchOperation{
+				{
+					Op:    "add",
+					Path:  "/override",
+					Value: json.RawMessage(`[]`),
+				},
+			},
+		}
+
+		result := defaultsoverride.OverridesByValuesPatch(vp)
+		assert.Empty(t, result)
+	})
+
+	t.Run("skips operations with invalid yaml value", func(t *testing.T) {
+		vp := utils.ValuesPatch{
+			Operations: []*sdkutils.ValuesPatchOperation{
+				{
+					Op:    "add",
+					Path:  "/override/something",
+					Value: json.RawMessage(`{invalid`),
+				},
+			},
+		}
+
+		result := defaultsoverride.OverridesByValuesPatch(vp)
+		assert.Empty(t, result)
+	})
+
+	t.Run("returns empty for empty values patch", func(t *testing.T) {
+		vp := utils.ValuesPatch{}
+		result := defaultsoverride.OverridesByValuesPatch(vp)
+		assert.Empty(t, result)
 	})
 }
 

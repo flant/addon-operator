@@ -1030,12 +1030,15 @@ func (mm *ModuleManager) createTasksFromModuleHooks(binding BindingType, createT
 
 func (mm *ModuleManager) runDynamicDefaultsOverrideLoop() {
 	for report := range mm.global.OverrideReportChannel() {
-		basic := mm.GetModule(report.Override.Name)
-		if basic == nil {
-			return
+		for _, override := range report.Override {
+			basic := mm.GetModule(override.Target)
+			if basic == nil {
+				return
+			}
+
+			basic.ApplyDefaultsOverride(override)
 		}
 
-		basic.OverrideSchemaDefaults(report.Override.Override...)
 		report.Done <- struct{}{}
 	}
 }

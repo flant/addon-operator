@@ -12,6 +12,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation/defaultsoverride"
 	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
@@ -345,18 +346,18 @@ func (gm *GlobalModule) applyEnabledPatches(valuesPatch utils.ValuesPatch) error
 }
 
 type OverridePatchReport struct {
-	Override utils.DefaultsOverride
+	Override []defaultsoverride.Override
 	Done     chan struct{}
 }
 
 func (gm *GlobalModule) applyDefaultsOverride(valuesPatch utils.ValuesPatch) {
-	override := utils.DefaultsOverrideFromValuesPatch(valuesPatch)
-	if len(override.Override) == 0 {
+	overrides := defaultsoverride.OverridesByValuesPatch(valuesPatch)
+	if len(overrides) == 0 {
 		return
 	}
 
 	report := &OverridePatchReport{
-		Override: override,
+		Override: overrides,
 		Done:     make(chan struct{}),
 	}
 

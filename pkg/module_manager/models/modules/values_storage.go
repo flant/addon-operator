@@ -58,17 +58,16 @@ type Registry struct {
 // NewValuesStorage build a new storage for module values
 //
 //	staticValues - values from /modules/<module-name>/values.yaml, which couldn't be reloaded during the runtime
-func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes, valuesBytes []byte, contracts []defaultsoverride.Contract) (*ValuesStorage, error) {
+func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes, valuesBytes []byte) (*ValuesStorage, error) {
 	schemaStorage, err := validation.NewSchemaStorage(configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new schema storage: %w", err)
 	}
 
 	vs := &ValuesStorage{
-		staticValues:   staticValues,
-		schemaStorage:  schemaStorage,
-		moduleName:     moduleName,
-		overridePolicy: defaultsoverride.PolicyByContracts(contracts...),
+		staticValues:  staticValues,
+		schemaStorage: schemaStorage,
+		moduleName:    moduleName,
 	}
 
 	if err = vs.calculateResultValues(); err != nil {
@@ -76,6 +75,10 @@ func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes,
 	}
 
 	return vs, nil
+}
+
+func (vs *ValuesStorage) SetDefaultsOverrideContracts(contracts []defaultsoverride.Contract) {
+	vs.overridePolicy = defaultsoverride.PolicyByContracts(contracts...)
 }
 
 func (vs *ValuesStorage) openapiDefaultsTransformer(schemaType validation.SchemaType) transformer {
