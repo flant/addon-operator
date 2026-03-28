@@ -12,7 +12,6 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	sdkutils "github.com/deckhouse/module-sdk/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation/defaultsoverride"
 	"go.opentelemetry.io/otel"
 
 	"github.com/flant/addon-operator/pkg"
@@ -22,6 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	"github.com/flant/addon-operator/pkg/values/validation/defaultsoverride"
 	"github.com/flant/addon-operator/sdk"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
