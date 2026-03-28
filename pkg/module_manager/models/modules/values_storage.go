@@ -6,7 +6,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
-	"github.com/flant/addon-operator/pkg/values/validation/schema"
+	"github.com/flant/addon-operator/pkg/values/validation/defaultsoverride"
 )
 
 /*
@@ -27,6 +27,8 @@ type ValuesStorage struct {
 
 	schemaStorage *validation.SchemaStorage
 	moduleName    string
+
+	overridePolicy *defaultsoverride.Policy
 
 	// we are locking the whole storage on any concurrent operation
 	// because it could be called from concurrent hooks (goroutines) and we will have a deadlock on RW mutex
@@ -56,19 +58,20 @@ type Registry struct {
 // NewValuesStorage build a new storage for module values
 //
 //	staticValues - values from /modules/<module-name>/values.yaml, which couldn't be reloaded during the runtime
-func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes, valuesBytes []byte) (*ValuesStorage, error) {
+func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes, valuesBytes []byte, contracts []defaultsoverride.Contract) (*ValuesStorage, error) {
 	schemaStorage, err := validation.NewSchemaStorage(configBytes, valuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("new schema storage: %w", err)
 	}
 
 	vs := &ValuesStorage{
-		staticValues:  staticValues,
-		schemaStorage: schemaStorage,
-		moduleName:    moduleName,
+		staticValues:   staticValues,
+		schemaStorage:  schemaStorage,
+		moduleName:     moduleName,
+		overridePolicy: defaultsoverride.PolicyByContracts(contracts...),
 	}
-	err = vs.calculateResultValues()
-	if err != nil {
+
+	if err = vs.calculateResultValues(); err != nil {
 		return nil, fmt.Errorf("critical error occurred with calculating values for %q: %w", moduleName, err)
 	}
 
@@ -270,9 +273,13 @@ func (vs *ValuesStorage) GetSchemaStorage() *validation.SchemaStorage {
 	return vs.schemaStorage
 }
 
-func (vs *ValuesStorage) OverrideDefaults(override ...schema.DefaultOverride) {
+func (vs *ValuesStorage) ApplyDefaultsOverride(override defaultsoverride.Override) {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 
-	vs.schemaStorage.OverrideDefaults(validation.ValuesSchema, override...)
+	scheme := vs.schemaStorage.Schemas[validation.ValuesSchema]
+	vs.overridePolicy.ApplyOverride(scheme, override)
+
+	// error could be only if values patch fails to apply
+	_ = vs.calculateResultValues()
 }

@@ -305,22 +305,3 @@ func PrepareSchemas(configBytes, valuesBytes []byte) (map[SchemaType]*spec.Schem
 
 	return res, nil
 }
-
-// OverrideDefaults overrides default values on stored schema at runtime.
-func (st *SchemaStorage) OverrideDefaults(schemaType SchemaType, overrides ...schema.DefaultOverride) {
-	if len(overrides) == 0 {
-		return
-	}
-
-	scheme := st.Schemas[schemaType]
-	if scheme == nil {
-		return
-	}
-
-	if len(scheme.Properties) == 0 {
-		scheme.Properties = make(map[string]spec.Schema)
-	}
-
-	defaults := &schema.DefaultsTransformer{Overrides: overrides}
-	defaults.Transform(scheme)
-}
