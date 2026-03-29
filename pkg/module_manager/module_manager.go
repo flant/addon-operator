@@ -13,6 +13,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 	"github.com/hashicorp/go-multierror"
 	"go.opentelemetry.io/otel"
 
@@ -980,7 +981,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 }
 
 func (mm *ModuleManager) CreateTasksByBinding(binding BindingType, createTasksFunc func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task) []sh_task.Task {
-	var allTasks []sh_task.Task //nolint: prealloc
+	var allTasks []sh_task.Task // nolint: prealloc
 
 	// Process global hooks
 	allTasks = append(allTasks, mm.createTasksFromGlobalHooks(binding, createTasksFunc)...)
@@ -1026,21 +1027,6 @@ func (mm *ModuleManager) createTasksFromModuleHooks(binding BindingType, createT
 	}
 
 	return tasks
-}
-
-func (mm *ModuleManager) runDynamicDefaultsOverrideLoop() {
-	for report := range mm.global.OverrideReportChannel() {
-		for _, override := range report.Override {
-			basic := mm.GetModule(override.Target)
-			if basic == nil {
-				return
-			}
-
-			basic.ApplyDefaultsOverride(override)
-		}
-
-		report.Done <- struct{}{}
-	}
 }
 
 func (mm *ModuleManager) runDynamicEnabledLoop(extender *dynamic_extender.Extender) {
@@ -1538,6 +1524,17 @@ func (mm *ModuleManager) ModuleHasCRDs(moduleName string) bool {
 
 func (mm *ModuleManager) EnvironmentManagerEnabled() bool {
 	return mm.environmentManager != nil
+}
+
+func (mm *ModuleManager) ApplyDefaultsOverride(overrides []defaults.Override) {
+	for _, override := range overrides {
+		basic := mm.GetModule(override.Target)
+		if basic == nil {
+			return
+		}
+
+		basic.ApplyDefaultsOverride(override)
+	}
 }
 
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks

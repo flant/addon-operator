@@ -10,6 +10,7 @@ import (
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
@@ -32,6 +33,10 @@ type kubeObjectPatcher interface {
 	ExecuteOperations([]sdkpkg.PatchCollectorOperation) error
 }
 
+type defaultsOverrideApplier interface {
+	ApplyDefaultsOverride(overrides []defaults.Override)
+}
+
 type globalValuesGetter interface {
 	GetValues(bool) utils.Values
 	GetConfigValues(bool) utils.Values
@@ -39,12 +44,13 @@ type globalValuesGetter interface {
 
 // HookExecutionDependencyContainer container for all hook execution dependencies
 type HookExecutionDependencyContainer struct {
-	HookMetricsStorage hooksMetricsStorage
-	KubeConfigManager  kubeConfigManager
-	KubeObjectPatcher  kubeObjectPatcher
-	MetricStorage      metricStorage
-	GlobalValuesGetter globalValuesGetter
-	EnvironmentManager *environmentmanager.Manager
+	HookMetricsStorage      hooksMetricsStorage
+	KubeConfigManager       kubeConfigManager
+	KubeObjectPatcher       kubeObjectPatcher
+	MetricStorage           metricStorage
+	GlobalValuesGetter      globalValuesGetter
+	DefaultsOverrideApplier defaultsOverrideApplier
+	EnvironmentManager      *environmentmanager.Manager
 }
 
 type executableHook interface {
