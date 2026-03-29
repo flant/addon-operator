@@ -30,7 +30,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
-	"github.com/flant/addon-operator/pkg/values/validation/defaultsoverride"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 	"github.com/flant/addon-operator/sdk"
 	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
@@ -118,7 +118,7 @@ func (bm *BasicModule) WithLogger(logger *log.Logger) {
 	bm.logger = logger
 }
 
-func (bm *BasicModule) SetDefaultsOverrideContracts(contracts []defaultsoverride.Contract) {
+func (bm *BasicModule) SetDefaultsOverrideContracts(contracts []defaults.OverrideContract) {
 	bm.valuesStorage.SetDefaultsOverrideContracts(contracts)
 }
 
@@ -1350,7 +1350,7 @@ func (bm *BasicModule) GetSchemaStorage() *validation.SchemaStorage {
 }
 
 // ApplyDefaultsOverride overrides values schema openAPI spec defaults
-func (bm *BasicModule) ApplyDefaultsOverride(override defaultsoverride.Override) {
+func (bm *BasicModule) ApplyDefaultsOverride(override defaults.Override) {
 	bm.valuesStorage.ApplyDefaultsOverride(override)
 }
 

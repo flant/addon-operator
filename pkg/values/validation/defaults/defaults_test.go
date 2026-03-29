@@ -1,4 +1,4 @@
-package validation_test
+package defaults_test
 
 import (
 	"testing"
@@ -11,6 +11,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 )
 
 func Test_ApplyDefaults(t *testing.T) {
@@ -72,7 +73,7 @@ properties:
 
 	s := valueStorage.GetSchemaStorage().Schemas[validation.ConfigValuesSchema]
 
-	changed := validation.ApplyDefaults(moduleValues["moduleName"], s)
+	changed := defaults.ApplyDefaults(moduleValues["moduleName"], s)
 
 	g.Expect(changed).Should(BeTrue())
 	g.Expect(moduleValues["moduleName"]).Should(HaveKey("param2"))
@@ -162,7 +163,7 @@ properties:
 
 	s := valueStorage.GetSchemaStorage().Schemas[validation.ConfigValuesSchema]
 
-	changed := validation.ApplyDefaults(moduleValues["moduleName"], s)
+	changed := defaults.ApplyDefaults(moduleValues["moduleName"], s)
 
 	validator := validate.NewSchemaValidator(s, nil, "", strfmt.Default)
 

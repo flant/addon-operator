@@ -6,7 +6,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
-	"github.com/flant/addon-operator/pkg/values/validation/defaultsoverride"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 )
 
 /*
@@ -28,7 +28,7 @@ type ValuesStorage struct {
 	schemaStorage *validation.SchemaStorage
 	moduleName    string
 
-	overridePolicy *defaultsoverride.Policy
+	overridePolicy *defaults.OverridePolicy
 
 	// we are locking the whole storage on any concurrent operation
 	// because it could be called from concurrent hooks (goroutines) and we will have a deadlock on RW mutex
@@ -77,8 +77,8 @@ func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes,
 	return vs, nil
 }
 
-func (vs *ValuesStorage) SetDefaultsOverrideContracts(contracts []defaultsoverride.Contract) {
-	vs.overridePolicy = defaultsoverride.PolicyByContracts(contracts...)
+func (vs *ValuesStorage) SetDefaultsOverrideContracts(contracts []defaults.OverrideContract) {
+	vs.overridePolicy = defaults.BuildOverridePolicy(contracts...)
 }
 
 func (vs *ValuesStorage) openapiDefaultsTransformer(schemaType validation.SchemaType) transformer {
@@ -276,7 +276,7 @@ func (vs *ValuesStorage) GetSchemaStorage() *validation.SchemaStorage {
 	return vs.schemaStorage
 }
 
-func (vs *ValuesStorage) ApplyDefaultsOverride(override defaultsoverride.Override) {
+func (vs *ValuesStorage) ApplyDefaultsOverride(override defaults.Override) {
 	vs.lock.Lock()
 	defer vs.lock.Unlock()
 

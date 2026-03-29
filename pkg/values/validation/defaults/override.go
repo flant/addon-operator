@@ -1,8 +1,4 @@
-// Package defaultsoverride provides mechanisms for overriding default values
-// in OpenAPI schemas used by addon-operator modules.
-// It reads an override contract from a YAML file, validates patches
-// against the contract's allowed fields, and applies them to the schema.
-package defaultsoverride
+package defaults
 
 import (
 	"fmt"
@@ -20,7 +16,7 @@ import (
 // contractsFile is the default filename for override contracts.
 const contractsFile = "override.yaml"
 
-// Contract defines the rules governing which schema fields may be overridden.
+// OverrideContract defines the rules governing which schema fields may be overridden.
 // It is loaded from a YAML file and acts as a guard: only patches targeting
 // paths listed in Paths are permitted.
 //
@@ -33,7 +29,7 @@ const contractsFile = "override.yaml"
 //	paths:
 //	  - network.podSubnet
 //	  - network.serviceSubnet
-type Contract struct {
+type OverrideContract struct {
 	// Purpose describes the intent of this override contract.
 	Purpose string `json:"purpose"`
 	// Allowed lists the module names that may use this contract.
@@ -43,10 +39,10 @@ type Contract struct {
 	Paths []string `json:"paths"`
 }
 
-// Policy is the resolved, flattened representation of all contracts.
+// OverridePolicy is the resolved, flattened representation of all contracts.
 // It maps each property path to its access policy, used at runtime
 // to decide which patches are permitted.
-type Policy struct {
+type OverridePolicy struct {
 	// paths maps dot-separated property paths to their access policies.
 	paths map[string][]string
 }
@@ -63,13 +59,13 @@ type Policy struct {
 //	  - path: network.serviceSubnet
 //	    value: "10.96.0.0/12"
 type Override struct {
+	// Source is the module name that schema should be overridden
+	Target string
+	// Patches is an ordered list of default-value overrides to apply.
+	Patches []Patch `json:"patches"`
 	// Source is the module name requesting the overrides.
 	// It is checked against PathPolicy.allowed to determine permission.
 	Source string `json:"source"`
-	// Source is the module name that schema should be overridden
-	Target string `json:"target"`
-	// Patches is an ordered list of default-value overrides to apply.
-	Patches []Patch `json:"patches"`
 }
 
 // Patch defines a single default value override for a schema property.
@@ -81,15 +77,15 @@ type Patch struct {
 	Value string `json:"value"`
 }
 
-// ParseContractsFromDir reads the contracts file (override.yaml) from the given
+// ParseOverrideContractsFromDir reads the contracts file (override.yaml) from the given
 // directory and unmarshals it into contracts.
-func ParseContractsFromDir(dirPath string) ([]Contract, error) {
+func ParseOverrideContractsFromDir(dirPath string) ([]OverrideContract, error) {
 	raw, err := os.ReadFile(filepath.Join(dirPath, contractsFile))
 	if err != nil {
 		return nil, fmt.Errorf("read contracts file: %w", err)
 	}
 
-	var c []Contract
+	var c []OverrideContract
 	if err = yaml.Unmarshal(raw, &c); err != nil {
 		return nil, fmt.Errorf("unmarshal contracts file: %w", err)
 	}
@@ -97,11 +93,11 @@ func ParseContractsFromDir(dirPath string) ([]Contract, error) {
 	return c, nil
 }
 
-// PolicyByContracts flattens the given contracts into a single Policy.
+// BuildOverridePolicy flattens the given contracts into a single OverridePolicy.
 // Each contract's Allowed modules are associated with every path it declares,
 // and multiple contracts contributing the same path merge their allowed lists.
-func PolicyByContracts(contracts ...Contract) *Policy {
-	p := &Policy{
+func BuildOverridePolicy(contracts ...OverrideContract) *OverridePolicy {
+	p := &OverridePolicy{
 		paths: make(map[string][]string),
 	}
 
@@ -114,21 +110,23 @@ func PolicyByContracts(contracts ...Contract) *Policy {
 	return p
 }
 
-// OverridesByValuesPatch extracts Override entries from a ValuesPatch.
+// GetOverridesByPatch extracts Override entries from a ValuesPatch.
 // It scans each operation for a JSON-Patch path whose second segment is
-// "override" (e.g. "/override/something") and unmarshals the operation's
+// "override" (e.g. "/override/target") and unmarshals the operation's
 // value as a list of Override structs.
-func OverridesByValuesPatch(valuesPatch utils.ValuesPatch) []Override {
+func GetOverridesByPatch(valuesPatch utils.ValuesPatch) []Override {
 	var overrides []Override
 
 	for _, op := range valuesPatch.Operations {
 		pathParts := strings.Split(op.Path, "/")
-		if len(pathParts) > 2 {
+		if len(pathParts) == 3 {
 			if pathParts[1] == "override" {
 				var override Override
-				if err := yaml.Unmarshal(op.Value, &overrides); err != nil {
+				if err := yaml.Unmarshal(op.Value, &override.Patches); err != nil {
 					continue
 				}
+
+				override.Target = pathParts[2]
 
 				overrides = append(overrides, override)
 			}
@@ -142,7 +140,7 @@ func OverridesByValuesPatch(valuesPatch utils.ValuesPatch) []Override {
 // Each patch is checked against the policy: only patches whose paths exist
 // in the policy and whose source module is in the path's allowed list are
 // applied. Non-matching patches are silently skipped.
-func (p *Policy) ApplyOverride(s *spec.Schema, override Override) {
+func (p *OverridePolicy) ApplyOverride(s *spec.Schema, override Override) {
 	if p == nil {
 		return
 	}

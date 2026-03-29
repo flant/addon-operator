@@ -21,7 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
-	"github.com/flant/addon-operator/pkg/values/validation/defaultsoverride"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 	"github.com/flant/addon-operator/sdk"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
@@ -346,19 +346,19 @@ func (gm *GlobalModule) applyEnabledPatches(valuesPatch utils.ValuesPatch) error
 }
 
 type OverridePatchReport struct {
-	Override []defaultsoverride.Override
-	Done     chan struct{}
+	Overrides []defaults.Override
+	Done      chan struct{}
 }
 
 func (gm *GlobalModule) applyDefaultsOverride(valuesPatch utils.ValuesPatch) {
-	overrides := defaultsoverride.OverridesByValuesPatch(valuesPatch)
+	overrides := defaults.GetOverridesByPatch(valuesPatch)
 	if len(overrides) == 0 {
 		return
 	}
 
 	report := &OverridePatchReport{
-		Override: overrides,
-		Done:     make(chan struct{}),
+		Overrides: overrides,
+		Done:      make(chan struct{}),
 	}
 
 	<-report.Done

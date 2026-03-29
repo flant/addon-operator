@@ -1,4 +1,4 @@
-package defaultsoverride_test
+package defaults_test
 
 import (
 	"encoding/json"
@@ -10,68 +10,68 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation/defaultsoverride"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 )
 
 func TestParsePolicyByContracts(t *testing.T) {
 	t.Run("single contract", func(t *testing.T) {
-		c := defaultsoverride.Contract{
+		c := defaults.OverrideContract{
 			Purpose: "cloud-provider",
 			Allowed: []string{"cloud-provider-aws"},
 			Paths:   []string{"network.podSubnet", "network.serviceSubnet"},
 		}
 
-		p := defaultsoverride.PolicyByContracts(c)
+		p := defaults.BuildOverridePolicy(c)
 		require.NotNil(t, p)
 	})
 
 	t.Run("no contracts produces valid policy", func(t *testing.T) {
-		p := defaultsoverride.PolicyByContracts()
+		p := defaults.BuildOverridePolicy()
 		require.NotNil(t, p)
 	})
 }
 
 func TestApplyOverride(t *testing.T) {
 	t.Run("applies permitted patch", func(t *testing.T) {
-		p := buildPolicy(t, defaultsoverride.Contract{
+		p := buildPolicy(t, defaults.OverrideContract{
 			Allowed: []string{"my-module"},
 			Paths:   []string{"replicas"},
 		})
 		s := schemaWithProps("replicas")
 
-		p.ApplyOverride(s, defaultsoverride.Override{
+		p.ApplyOverride(s, defaults.Override{
 			Source:  "my-module",
-			Patches: []defaultsoverride.Patch{{Path: "replicas", Value: "3"}},
+			Patches: []defaults.Patch{{Path: "replicas", Value: "3"}},
 		})
 
 		assert.Equal(t, "3", s.Properties["replicas"].Default)
 	})
 
 	t.Run("skips patch for disallowed source", func(t *testing.T) {
-		p := buildPolicy(t, defaultsoverride.Contract{
+		p := buildPolicy(t, defaults.OverrideContract{
 			Allowed: []string{"allowed-module"},
 			Paths:   []string{"replicas"},
 		})
 		s := schemaWithProps("replicas")
 
-		p.ApplyOverride(s, defaultsoverride.Override{
+		p.ApplyOverride(s, defaults.Override{
 			Source:  "other-module",
-			Patches: []defaultsoverride.Patch{{Path: "replicas", Value: "3"}},
+			Patches: []defaults.Patch{{Path: "replicas", Value: "3"}},
 		})
 
 		assert.Nil(t, s.Properties["replicas"].Default)
 	})
 
 	t.Run("skips patch for path not in policy", func(t *testing.T) {
-		p := buildPolicy(t, defaultsoverride.Contract{
+		p := buildPolicy(t, defaults.OverrideContract{
 			Allowed: []string{"my-module"},
 			Paths:   []string{"replicas"},
 		})
 		s := schemaWithProps("replicas", "image")
 
-		p.ApplyOverride(s, defaultsoverride.Override{
+		p.ApplyOverride(s, defaults.Override{
 			Source:  "my-module",
-			Patches: []defaultsoverride.Patch{{Path: "image", Value: "nginx"}},
+			Patches: []defaults.Patch{{Path: "image", Value: "nginx"}},
 		})
 
 		assert.Nil(t, s.Properties["image"].Default)
@@ -81,37 +81,37 @@ func TestApplyOverride(t *testing.T) {
 		p := buildPolicy(t)
 		s := &spec.Schema{}
 
-		p.ApplyOverride(s, defaultsoverride.Override{Source: "m"})
+		p.ApplyOverride(s, defaults.Override{Source: "m"})
 	})
 
 	t.Run("no-op on nil schema", func(t *testing.T) {
-		p := buildPolicy(t, defaultsoverride.Contract{
+		p := buildPolicy(t, defaults.OverrideContract{
 			Allowed: []string{"m"},
 			Paths:   []string{"replicas"},
 		})
 
-		p.ApplyOverride(nil, defaultsoverride.Override{
+		p.ApplyOverride(nil, defaults.Override{
 			Source:  "m",
-			Patches: []defaultsoverride.Patch{{Path: "replicas", Value: "1"}},
+			Patches: []defaults.Patch{{Path: "replicas", Value: "1"}},
 		})
 	})
 
 	t.Run("mixed allowed and disallowed patches", func(t *testing.T) {
 		p := buildPolicy(t,
-			defaultsoverride.Contract{
+			defaults.OverrideContract{
 				Allowed: []string{"my-module"},
 				Paths:   []string{"replicas"},
 			},
-			defaultsoverride.Contract{
+			defaults.OverrideContract{
 				Allowed: []string{"other-module"},
 				Paths:   []string{"image"},
 			},
 		)
 		s := schemaWithProps("replicas", "image")
 
-		p.ApplyOverride(s, defaultsoverride.Override{
+		p.ApplyOverride(s, defaults.Override{
 			Source: "my-module",
-			Patches: []defaultsoverride.Patch{
+			Patches: []defaults.Patch{
 				{Path: "replicas", Value: "5"},
 				{Path: "image", Value: "nginx"},
 			},
@@ -123,27 +123,27 @@ func TestApplyOverride(t *testing.T) {
 
 	t.Run("multiple contracts merge permissions for same path", func(t *testing.T) {
 		p := buildPolicy(t,
-			defaultsoverride.Contract{
+			defaults.OverrideContract{
 				Allowed: []string{"module-a"},
 				Paths:   []string{"replicas"},
 			},
-			defaultsoverride.Contract{
+			defaults.OverrideContract{
 				Allowed: []string{"module-b"},
 				Paths:   []string{"replicas"},
 			},
 		)
 		s := schemaWithProps("replicas")
 
-		p.ApplyOverride(s, defaultsoverride.Override{
+		p.ApplyOverride(s, defaults.Override{
 			Source:  "module-b",
-			Patches: []defaultsoverride.Patch{{Path: "replicas", Value: "7"}},
+			Patches: []defaults.Patch{{Path: "replicas", Value: "7"}},
 		})
 
 		assert.Equal(t, "7", s.Properties["replicas"].Default)
 	})
 
 	t.Run("applies nested property path", func(t *testing.T) {
-		p := buildPolicy(t, defaultsoverride.Contract{
+		p := buildPolicy(t, defaults.OverrideContract{
 			Allowed: []string{"my-module"},
 			Paths:   []string{"network.podSubnet"},
 		})
@@ -161,16 +161,16 @@ func TestApplyOverride(t *testing.T) {
 			},
 		}
 
-		p.ApplyOverride(s, defaultsoverride.Override{
+		p.ApplyOverride(s, defaults.Override{
 			Source:  "my-module",
-			Patches: []defaultsoverride.Patch{{Path: "network.podSubnet", Value: "10.244.0.0/16"}},
+			Patches: []defaults.Patch{{Path: "network.podSubnet", Value: "10.244.0.0/16"}},
 		})
 
 		assert.Equal(t, "10.244.0.0/16", s.Properties["network"].Properties["podSubnet"].Default)
 	})
 
 	t.Run("applies deeply nested property path", func(t *testing.T) {
-		p := buildPolicy(t, defaultsoverride.Contract{
+		p := buildPolicy(t, defaults.OverrideContract{
 			Allowed: []string{"m"},
 			Paths:   []string{"a.b.c"},
 		})
@@ -194,24 +194,24 @@ func TestApplyOverride(t *testing.T) {
 			},
 		}
 
-		p.ApplyOverride(s, defaultsoverride.Override{
+		p.ApplyOverride(s, defaults.Override{
 			Source:  "m",
-			Patches: []defaultsoverride.Patch{{Path: "a.b.c", Value: "deep"}},
+			Patches: []defaults.Patch{{Path: "a.b.c", Value: "deep"}},
 		})
 
 		assert.Equal(t, "deep", s.Properties["a"].Properties["b"].Properties["c"].Default)
 	})
 
 	t.Run("skips patch when schema property does not exist", func(t *testing.T) {
-		p := buildPolicy(t, defaultsoverride.Contract{
+		p := buildPolicy(t, defaults.OverrideContract{
 			Allowed: []string{"m"},
 			Paths:   []string{"missing"},
 		})
 		s := schemaWithProps("replicas")
 
-		p.ApplyOverride(s, defaultsoverride.Override{
+		p.ApplyOverride(s, defaults.Override{
 			Source:  "m",
-			Patches: []defaultsoverride.Patch{{Path: "missing", Value: "val"}},
+			Patches: []defaults.Patch{{Path: "missing", Value: "val"}},
 		})
 
 		_, exists := s.Properties["missing"]
@@ -219,15 +219,15 @@ func TestApplyOverride(t *testing.T) {
 	})
 
 	t.Run("contract with multiple allowed modules", func(t *testing.T) {
-		p := buildPolicy(t, defaultsoverride.Contract{
+		p := buildPolicy(t, defaults.OverrideContract{
 			Allowed: []string{"module-a", "module-b"},
 			Paths:   []string{"replicas"},
 		})
 		s := schemaWithProps("replicas")
 
-		p.ApplyOverride(s, defaultsoverride.Override{
+		p.ApplyOverride(s, defaults.Override{
 			Source:  "module-b",
-			Patches: []defaultsoverride.Patch{{Path: "replicas", Value: "2"}},
+			Patches: []defaults.Patch{{Path: "replicas", Value: "2"}},
 		})
 
 		assert.Equal(t, "2", s.Properties["replicas"].Default)
@@ -235,34 +235,30 @@ func TestApplyOverride(t *testing.T) {
 }
 
 func TestOverridesByValuesPatch(t *testing.T) {
-	t.Run("extracts overrides from operations with /override/ path", func(t *testing.T) {
-		overrideValue := []defaultsoverride.Override{
-			{
-				Source: "cloud-provider-aws",
-				Target: "global",
-				Patches: []defaultsoverride.Patch{
-					{Path: "network.podSubnet", Value: "10.244.0.0/16"},
-				},
-			},
+	t.Run("extracts overrides from operations with /override/target path", func(t *testing.T) {
+		patches := []defaults.Patch{
+			{Path: "network.podSubnet", Value: "10.244.0.0/16"},
 		}
-		raw, err := json.Marshal(overrideValue)
+		raw, err := json.Marshal(patches)
 		require.NoError(t, err)
 
 		vp := utils.ValuesPatch{
 			Operations: []*sdkutils.ValuesPatchOperation{
 				{
 					Op:    "add",
-					Path:  "/override/cloud-provider-aws",
+					Path:  "/override/global",
 					Value: raw,
 				},
 			},
 		}
 
-		result := defaultsoverride.OverridesByValuesPatch(vp)
-		require.NotEmpty(t, result)
+		result := defaults.GetOverridesByPatch(vp)
+		require.Len(t, result, 1)
 		assert.Equal(t, "cloud-provider-aws", result[0].Source)
 		assert.Equal(t, "global", result[0].Target)
+		require.Len(t, result[0].Patches, 1)
 		assert.Equal(t, "network.podSubnet", result[0].Patches[0].Path)
+		assert.Equal(t, "10.244.0.0/16", result[0].Patches[0].Value)
 	})
 
 	t.Run("skips operations without override path segment", func(t *testing.T) {
@@ -276,7 +272,7 @@ func TestOverridesByValuesPatch(t *testing.T) {
 			},
 		}
 
-		result := defaultsoverride.OverridesByValuesPatch(vp)
+		result := defaults.GetOverridesByPatch(vp)
 		assert.Empty(t, result)
 	})
 
@@ -291,7 +287,22 @@ func TestOverridesByValuesPatch(t *testing.T) {
 			},
 		}
 
-		result := defaultsoverride.OverridesByValuesPatch(vp)
+		result := defaults.GetOverridesByPatch(vp)
+		assert.Empty(t, result)
+	})
+
+	t.Run("skips operations with too long path", func(t *testing.T) {
+		vp := utils.ValuesPatch{
+			Operations: []*sdkutils.ValuesPatchOperation{
+				{
+					Op:    "add",
+					Path:  "/override/target/extra",
+					Value: json.RawMessage(`[]`),
+				},
+			},
+		}
+
+		result := defaults.GetOverridesByPatch(vp)
 		assert.Empty(t, result)
 	})
 
@@ -300,27 +311,27 @@ func TestOverridesByValuesPatch(t *testing.T) {
 			Operations: []*sdkutils.ValuesPatchOperation{
 				{
 					Op:    "add",
-					Path:  "/override/something",
+					Path:  "/override/target",
 					Value: json.RawMessage(`{invalid`),
 				},
 			},
 		}
 
-		result := defaultsoverride.OverridesByValuesPatch(vp)
+		result := defaults.GetOverridesByPatch(vp)
 		assert.Empty(t, result)
 	})
 
 	t.Run("returns empty for empty values patch", func(t *testing.T) {
 		vp := utils.ValuesPatch{}
-		result := defaultsoverride.OverridesByValuesPatch(vp)
+		result := defaults.GetOverridesByPatch(vp)
 		assert.Empty(t, result)
 	})
 }
 
-// buildPolicy is a test helper that creates a Policy from the given contracts.
-func buildPolicy(t *testing.T, contracts ...defaultsoverride.Contract) *defaultsoverride.Policy {
+// buildPolicy is a test helper that creates a OverridePolicy from the given contracts.
+func buildPolicy(t *testing.T, contracts ...defaults.OverrideContract) *defaults.OverridePolicy {
 	t.Helper()
-	return defaultsoverride.PolicyByContracts(contracts...)
+	return defaults.BuildOverridePolicy(contracts...)
 }
 
 // schemaWithProps creates a schema with the given top-level property names.
