@@ -981,7 +981,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 }
 
 func (mm *ModuleManager) CreateTasksByBinding(binding BindingType, createTasksFunc func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task) []sh_task.Task {
-	var allTasks []sh_task.Task // nolint: prealloc
+	var allTasks []sh_task.Task //nolint: prealloc
 
 	// Process global hooks
 	allTasks = append(allTasks, mm.createTasksFromGlobalHooks(binding, createTasksFunc)...)
