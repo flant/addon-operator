@@ -45,8 +45,6 @@ var (
 	ModulesAbsentResourcesTotal = "{PREFIX}modules_absent_resources_total"
 	// ModuleInfoMetricName tracks module information
 	ModuleInfoMetricName = "{PREFIX}mm_module_info"
-	// ModuleInfoTelemetryMetricName is a d8_telemetry-prefixed copy of ModuleInfoMetricName
-	ModuleInfoTelemetryMetricName = "d8_telemetry_mm_module_info"
 	// ModuleVersionEnabledMetricName tracks enabled modules with their deployed version
 	ModuleVersionEnabledMetricName = "{PREFIX}mm_module_enabled"
 	// ModuleMaintenanceMetricName tracks module maintenance state
