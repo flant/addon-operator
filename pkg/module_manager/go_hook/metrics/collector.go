@@ -37,7 +37,7 @@ func (dms *MemoryMetricsCollector) Add(name string, value float64, labels map[st
 		Group:  options.group,
 		Action: operation.ActionCounterAdd,
 		Value:  pointer.To(value),
-		Labels: labels,
+		Labels: copyLabels(labels),
 	})
 }
 
@@ -54,8 +54,19 @@ func (dms *MemoryMetricsCollector) Set(name string, value float64, labels map[st
 		Group:  options.group,
 		Action: operation.ActionGaugeSet,
 		Value:  pointer.To(value),
-		Labels: labels,
+		Labels: copyLabels(labels),
 	})
+}
+
+func copyLabels(labels map[string]string) map[string]string {
+	if labels == nil {
+		return nil
+	}
+	copied := make(map[string]string, len(labels))
+	for k, v := range labels {
+		copied[k] = v
+	}
+	return copied
 }
 
 // Expire marks metric's group as expired
