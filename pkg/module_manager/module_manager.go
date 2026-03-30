@@ -54,6 +54,9 @@ var (
 	moduleInfoMetricGroup = "mm_module_info"
 	moduleInfoMetricName  = metrics.ModuleInfoMetricName
 
+	moduleInfoTelemetryMetricGroup = "mm_module_info_telemetry"
+	moduleInfoTelemetryMetricName  = metrics.ModuleInfoTelemetryMetricName
+
 	moduleVersionEnabledMetricGroup = "mm_module_enabled"
 
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
@@ -521,12 +524,19 @@ func (mm *ModuleManager) SetGlobalDiscoveryAPIVersions(apiVersions []string) {
 // UpdateModulesMetrics updates modules' states metrics
 func (mm *ModuleManager) UpdateModulesMetrics() {
 	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoMetricGroup, moduleInfoMetricName)
+	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoTelemetryMetricGroup, moduleInfoTelemetryMetricName)
 	for _, module := range mm.GetModuleNames() {
 		enabled := "false"
 		if mm.IsModuleEnabled(module) {
 			enabled = "true"
 		}
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{pkg.MetricKeyModule: module, "enabled": enabled})
+		version := ""
+		if mod := mm.GetModule(module); mod != nil {
+			version = mod.GetVersion()
+		}
+		labels := map[string]string{pkg.MetricKeyModule: module, "enabled": enabled, pkg.MetricKeyVersion: version}
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, labels)
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoTelemetryMetricGroup, moduleInfoTelemetryMetricName, 1, labels)
 	}
 	mm.RefreshModuleTelemetry()
 }
