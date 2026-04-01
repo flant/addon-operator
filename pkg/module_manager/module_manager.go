@@ -885,7 +885,7 @@ func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(ctx context.Contex
 			}
 		})
 		if err != nil {
-			return fmt.Errorf("handle enable kubernetes bindings: %w", err)
+			return fmt.Errorf("handle enable kubernetes bindings for '%s': %w", mh.GetName(), err)
 		}
 	}
 
