@@ -16,6 +16,8 @@ package kind
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -67,6 +69,15 @@ func (c *SettingsCheck) Check(ctx context.Context, settings utils.Values) (setti
 
 	cmd := executor.NewExecutor("", c.path, []string{"hook", "check"}, envs).WithLogger(c.logger.Named("executor"))
 	if _, err = cmd.RunAndLogLines(ctx, make(map[string]string)); err != nil {
+		var stderrErr *executor.StderrError
+		if errors.As(err, &stderrErr) {
+			if jsonErr := json.Unmarshal([]byte(stderrErr.Stderr), &result); jsonErr != nil {
+				return settingscheck.Result{}, fmt.Errorf("parse check result from stderr: %w (raw: %s)", jsonErr, stderrErr.Stderr)
+			}
+
+			return result, nil
+		}
+
 		return settingscheck.Result{}, fmt.Errorf("run and log lines: %w", err)
 	}
 
