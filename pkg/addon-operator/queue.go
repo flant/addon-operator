@@ -1,11 +1,11 @@
 package addon_operator
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"

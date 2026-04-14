@@ -1,7 +1,6 @@
 package environment_manager
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 

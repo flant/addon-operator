@@ -5,13 +5,14 @@ package utils
 // (which make the behavior of the ApplyIgnoreNonExistentPaths method as much effective as ApplyStrict).
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	lazynode "github.com/deckhouse/module-sdk/pkg/utils/lazy-node"
 	"github.com/pkg/errors"
+
+	"github.com/flant/addon-operator/pkg"
 )
 
 const (

@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"fmt"
 	"log/slog"
 	"os"
@@ -9,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
+	"github.com/flant/addon-operator/pkg"
 )
 
 const (

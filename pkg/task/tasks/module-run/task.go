@@ -247,11 +247,11 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			}
 
 			taskLogLabels := utils.MergeLabels(s.shellTask.GetLogLabels(), map[string]string{
-				pkg.LogKeyBinding:      string(htypes.OnKubernetesEvent) + "Synchronization",
-				pkg.LogKeyModule:       hm.ModuleName,
-				pkg.LogKeyHook: hook.GetName(),
-				pkg.LogKeyHookType:    "module",
-				pkg.LogKeyQueue:        queueName,
+				pkg.LogKeyBinding:  string(htypes.OnKubernetesEvent) + "Synchronization",
+				pkg.LogKeyModule:   hm.ModuleName,
+				pkg.LogKeyHook:     hook.GetName(),
+				pkg.LogKeyHookType: "module",
+				pkg.LogKeyQueue:    queueName,
 			})
 
 			if len(info.BindingContext) > 0 {

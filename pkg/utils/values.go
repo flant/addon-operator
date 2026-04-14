@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -13,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 
+	"github.com/flant/addon-operator/pkg"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 

@@ -1,7 +1,6 @@
 package script_enabled
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	pointer "k8s.io/utils/ptr"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"

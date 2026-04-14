@@ -21,7 +21,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	// Register handler for schedule events
 	op.engine.ManagerEventsHandler.WithScheduleEventHandler(func(ctx context.Context, crontab string) []sh_task.Task {
 		logLabels := map[string]string{
-			pkg.LogKeyEventID:        uuid.Must(uuid.NewV4()).String(),
+			pkg.LogKeyEventID: uuid.Must(uuid.NewV4()).String(),
 			pkg.LogKeyBinding: string(htypes.Schedule),
 		}
 		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
@@ -40,7 +40,7 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	// Register handler for kubernetes events
 	op.engine.ManagerEventsHandler.WithKubeEventHandler(func(ctx context.Context, kubeEvent types.KubeEvent) []sh_task.Task {
 		logLabels := map[string]string{
-			pkg.LogKeyEventID:        uuid.Must(uuid.NewV4()).String(),
+			pkg.LogKeyEventID: uuid.Must(uuid.NewV4()).String(),
 			pkg.LogKeyBinding: string(htypes.OnKubernetesEvent),
 		}
 		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
@@ -73,9 +73,9 @@ func (op *AddonOperator) createGlobalHookTaskFactory(
 		}
 
 		hookLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook: globalHook.GetName(),
-			pkg.LogKeyHookType:    "global",
-			pkg.LogKeyQueue:        info.QueueName,
+			pkg.LogKeyHook:     globalHook.GetName(),
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    info.QueueName,
 		})
 
 		if len(info.BindingContext) > 0 {
@@ -118,10 +118,10 @@ func (op *AddonOperator) createModuleHookTaskFactory(
 		}
 
 		hookLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyModule:       module.GetName(),
-			pkg.LogKeyHook: moduleHook.GetName(),
-			pkg.LogKeyHookType:    "module",
-			pkg.LogKeyQueue:        info.QueueName,
+			pkg.LogKeyModule:   module.GetName(),
+			pkg.LogKeyHook:     moduleHook.GetName(),
+			pkg.LogKeyHookType: "module",
+			pkg.LogKeyQueue:    info.QueueName,
 		})
 
 		if len(info.BindingContext) > 0 {

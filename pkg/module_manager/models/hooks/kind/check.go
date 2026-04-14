@@ -15,7 +15,6 @@
 package kind
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"context"
 	"fmt"
 	"log/slog"
@@ -26,6 +25,7 @@ import (
 	"github.com/deckhouse/module-sdk/pkg/settingscheck"
 	"github.com/google/uuid"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
 )

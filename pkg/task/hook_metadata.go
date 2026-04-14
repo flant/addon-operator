@@ -1,7 +1,6 @@
 package task
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"context"
 	"fmt"
 	"log/slog"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"

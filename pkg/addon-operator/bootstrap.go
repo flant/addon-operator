@@ -1,12 +1,12 @@
 package addon_operator
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"fmt"
 	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"

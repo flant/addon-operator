@@ -29,7 +29,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				case dynamic_extender.DynamicExtenderEvent:
 					logLabels := map[string]string{
 						pkg.LogKeyEventID:     uuid.Must(uuid.NewV4()).String(),
-						pkg.LogKeyType:         "ModuleScheduler event",
+						pkg.LogKeyType:        "ModuleScheduler event",
 						pkg.LogKeyEventSource: "DymicallyEnabledExtenderChanged",
 					}
 					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
@@ -66,7 +66,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				case config.KubeConfigEvent:
 					logLabels := map[string]string{
 						pkg.LogKeyEventID:     uuid.Must(uuid.NewV4()).String(),
-						pkg.LogKeyType:         "ModuleScheduler event",
+						pkg.LogKeyType:        "ModuleScheduler event",
 						pkg.LogKeyEventSource: "KubeConfigExtenderChanged",
 					}
 					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
@@ -188,7 +188,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 			case HelmReleaseStatusEvent := <-op.HelmResourcesManager.Ch():
 				logLabels := map[string]string{
 					pkg.LogKeyEventID: uuid.Must(uuid.NewV4()).String(),
-					pkg.LogKeyModule:   HelmReleaseStatusEvent.ModuleName,
+					pkg.LogKeyModule:  HelmReleaseStatusEvent.ModuleName,
 				}
 				eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 

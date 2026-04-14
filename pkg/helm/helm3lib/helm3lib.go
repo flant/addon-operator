@@ -1,7 +1,6 @@
 package helm3lib
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"context"
 	"errors"
 	"fmt"
@@ -32,6 +31,7 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/post_renderer"
 	"github.com/flant/addon-operator/pkg/utils"

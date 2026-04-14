@@ -457,7 +457,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 		// Add "DiscoverHelmReleases" task to detect unknown releases and purge them.
 		// this task will run only after the first converge, to keep all modules
 		discoverLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyQueue:           "main",
+			pkg.LogKeyQueue:   "main",
 			pkg.LogKeyBinding: string(task.DiscoverHelmReleases),
 		})
 		discoverTask := sh_task.NewTask(task.DiscoverHelmReleases).
@@ -482,10 +482,10 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 
 	for _, hookName := range onStartupHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook:    hookName,
-			pkg.LogKeyHookType:       "global",
-			pkg.LogKeyQueue:           "main",
-			pkg.LogKeyBinding: string(htypes.OnStartup),
+			pkg.LogKeyHook:     hookName,
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    "main",
+			pkg.LogKeyBinding:  string(htypes.OnStartup),
 		})
 
 		onStartupBindingContext := bc.BindingContext{Binding: string(htypes.OnStartup)}
@@ -509,10 +509,10 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	schedHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.Schedule)
 	for _, hookName := range schedHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook:    hookName,
-			pkg.LogKeyHookType:       "global",
-			pkg.LogKeyQueue:           "main",
-			pkg.LogKeyBinding: string(task.GlobalHookEnableScheduleBindings),
+			pkg.LogKeyHook:     hookName,
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    "main",
+			pkg.LogKeyBinding:  string(task.GlobalHookEnableScheduleBindings),
 		})
 
 		newTask := sh_task.NewTask(task.GlobalHookEnableScheduleBindings).
@@ -529,10 +529,10 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	kubeHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.OnKubernetesEvent)
 	for _, hookName := range kubeHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook:    hookName,
-			pkg.LogKeyHookType:       "global",
-			pkg.LogKeyQueue:           "main",
-			pkg.LogKeyBinding: string(task.GlobalHookEnableKubernetesBindings),
+			pkg.LogKeyHook:     hookName,
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    "main",
+			pkg.LogKeyBinding:  string(task.GlobalHookEnableKubernetesBindings),
 		})
 
 		newTask := sh_task.NewTask(task.GlobalHookEnableKubernetesBindings).
@@ -547,7 +547,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 
 	// Task to wait for kubernetes.Synchronization.
 	waitLogLabels := utils.MergeLabels(logLabels, map[string]string{
-		pkg.LogKeyQueue:           "main",
+		pkg.LogKeyQueue:   "main",
 		pkg.LogKeyBinding: string(task.GlobalHookWaitKubernetesSynchronization),
 	})
 	waitTask := sh_task.NewTask(task.GlobalHookWaitKubernetesSynchronization).
@@ -560,7 +560,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 
 	// Add "ConvergeModules" task to run modules converge sequence for the first time.
 	convergeLabels := utils.MergeLabels(logLabels, map[string]string{
-		pkg.LogKeyQueue:           "main",
+		pkg.LogKeyQueue:   "main",
 		pkg.LogKeyBinding: string(task.ConvergeModules),
 	})
 	convergeTask := converge.NewConvergeModulesTask(eventDescription, converge.OperatorStartup, convergeLabels)

@@ -2,13 +2,14 @@
 package nelm
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"context"
 	"fmt"
 	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	nelmlog "github.com/werf/nelm/pkg/log"
+
+	"github.com/flant/addon-operator/pkg"
 )
 
 var _ nelmlog.Logger = (*NelmLogger)(nil)

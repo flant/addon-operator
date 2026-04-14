@@ -1,7 +1,6 @@
 package helm_resources_manager
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"context"
 	"fmt"
 	"log/slog"
@@ -11,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 	klient "github.com/flant/kube-client/client"

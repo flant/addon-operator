@@ -1,7 +1,6 @@
 package validation
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +18,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/yaml"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation/cel"
 	"github.com/flant/addon-operator/pkg/values/validation/schema"

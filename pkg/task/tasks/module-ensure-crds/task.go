@@ -1,7 +1,6 @@
 package moduleensurecrds
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"context"
 	"log/slog"
 	"time"
@@ -10,6 +9,7 @@ import (
 	crdinstaller "github.com/deckhouse/module-sdk/pkg/crd-installer"
 	"go.opentelemetry.io/otel"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"

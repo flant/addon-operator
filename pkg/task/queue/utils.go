@@ -1,11 +1,11 @@
 package queue
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"

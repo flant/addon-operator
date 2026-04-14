@@ -1,7 +1,6 @@
 package static
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"github.com/ettle/strcase"
 	"gopkg.in/yaml.v3"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/utils"
 )

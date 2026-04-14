@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"bufio"
 	"bytes"
 	"context"
@@ -19,6 +18,7 @@ import (
 	"github.com/goccy/go-graphviz"
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"

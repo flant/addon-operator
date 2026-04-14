@@ -179,11 +179,11 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 	defer span.End()
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		pkg.LogKeyHook:    h.GetName(),
-		pkg.LogKeyHookType:       "module",
-		pkg.LogKeyModule:  gm.GetName(),
-		pkg.LogKeyBinding: string(bindingType),
-		pkg.LogKeyPath:            h.GetPath(),
+		pkg.LogKeyHook:     h.GetName(),
+		pkg.LogKeyHookType: "module",
+		pkg.LogKeyModule:   gm.GetName(),
+		pkg.LogKeyBinding:  string(bindingType),
+		pkg.LogKeyPath:     h.GetPath(),
 	})
 
 	// Convert bindingContext for version
@@ -202,7 +202,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 		metricLabels := map[string]string{
 			pkg.MetricKeyHook:       h.GetName(),
 			pkg.MetricKeyBinding:    string(bindingType),
-			pkg.LogKeyQueue:                 logLabels[pkg.LogKeyQueue],
+			pkg.LogKeyQueue:         logLabels[pkg.LogKeyQueue],
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 		// usage metrics
@@ -475,9 +475,9 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
 				pkg.MetricKeyHook:    globalHook.GetName(),
 				pkg.MetricKeyBinding: kubeCfg.BindingName,
-				pkg.LogKeyModule:             "", // empty "module" label for label set consistency with module hooks
-				pkg.LogKeyQueue:              kubeCfg.Queue,
-				pkg.LogKeyKind:               kubeCfg.Monitor.Kind,
+				pkg.LogKeyModule:     "", // empty "module" label for label set consistency with module hooks
+				pkg.LogKeyQueue:      kubeCfg.Queue,
+				pkg.LogKeyKind:       kubeCfg.Monitor.Kind,
 			}
 		}
 

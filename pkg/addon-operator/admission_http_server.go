@@ -1,7 +1,6 @@
 package addon_operator
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
+	"github.com/flant/addon-operator/pkg"
 )
 
 type AdmissionServer struct {

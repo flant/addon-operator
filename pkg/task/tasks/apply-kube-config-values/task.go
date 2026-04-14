@@ -1,7 +1,6 @@
 package applykubeconfigvalues
 
 import (
-	"github.com/flant/addon-operator/pkg"
 	"context"
 	"log/slog"
 	"time"
@@ -10,6 +9,7 @@ import (
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"go.opentelemetry.io/otel"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/metrics"

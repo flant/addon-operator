@@ -669,10 +669,10 @@ func (bm *BasicModule) RunHooksByBinding(ctx context.Context, binding sh_op_type
 		bc.Metadata.BindingType = binding
 
 		metricLabels := map[string]string{
-			pkg.LogKeyModule:                bm.GetName(),
+			pkg.LogKeyModule:        bm.GetName(),
 			pkg.MetricKeyHook:       moduleHook.GetName(),
 			pkg.MetricKeyBinding:    string(binding),
-			pkg.LogKeyQueue:                 "main", // AfterHelm,BeforeHelm hooks always handle in main queue
+			pkg.LogKeyQueue:         "main", // AfterHelm,BeforeHelm hooks always handle in main queue
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 
@@ -704,10 +704,10 @@ func (bm *BasicModule) RunHookByName(ctx context.Context, hookName string, bindi
 	}
 
 	metricLabels := map[string]string{
-		pkg.LogKeyModule:                bm.GetName(),
+		pkg.LogKeyModule:        bm.GetName(),
 		pkg.MetricKeyHook:       hookName,
 		pkg.MetricKeyBinding:    string(binding),
-		pkg.LogKeyQueue:                 logLabels[pkg.LogKeyQueue],
+		pkg.LogKeyQueue:         logLabels[pkg.LogKeyQueue],
 		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 	}
 
@@ -840,10 +840,10 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 	if usage != nil {
 		// usage metrics
 		metricLabels := map[string]string{
-			pkg.LogKeyModule:                bm.GetName(),
+			pkg.LogKeyModule:        bm.GetName(),
 			pkg.MetricKeyHook:       "enabled",
 			pkg.MetricKeyBinding:    "enabled",
-			pkg.LogKeyQueue:                 logLabels[pkg.LogKeyQueue],
+			pkg.LogKeyQueue:         logLabels[pkg.LogKeyQueue],
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 		bm.dc.MetricStorage.HistogramObserve(metrics.ModuleHookRunSysCPUSeconds, usage.Sys.Seconds(), metricLabels, nil)
@@ -1016,11 +1016,11 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 	)
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		pkg.LogKeyHook:    h.GetName(),
-		pkg.LogKeyHookType:       "module",
-		pkg.LogKeyModule:  bm.GetName(),
-		pkg.LogKeyBinding: string(bindingType),
-		pkg.LogKeyPath:            h.GetPath(),
+		pkg.LogKeyHook:     h.GetName(),
+		pkg.LogKeyHookType: "module",
+		pkg.LogKeyModule:   bm.GetName(),
+		pkg.LogKeyBinding:  string(bindingType),
+		pkg.LogKeyPath:     h.GetPath(),
 	})
 
 	logEntry := utils.EnrichLoggerWithLabels(bm.logger, logLabels)
@@ -1066,7 +1066,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 		// Apply metric operations
 		metricsErr := bm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
 			pkg.MetricKeyHook: h.GetName(),
-			pkg.LogKeyModule:          bm.GetName(),
+			pkg.LogKeyModule:  bm.GetName(),
 		})
 		if metricsErr != nil {
 			return metricsErr

@@ -260,10 +260,10 @@ func (s *Task) CreateBeforeAllTasks(logLabels map[string]string, eventDescriptio
 	tasks := make([]sh_task.Task, 0, len(beforeAllHooks))
 	for _, hookName := range beforeAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook:    hookName,
-			pkg.LogKeyHookType:       "global",
-			pkg.LogKeyQueue:           "main",
-			pkg.LogKeyBinding: string(hookTypes.BeforeAll),
+			pkg.LogKeyHook:     hookName,
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    "main",
+			pkg.LogKeyBinding:  string(hookTypes.BeforeAll),
 		})
 		// remove task.id — it is set by NewTask
 		delete(hookLogLabels, pkg.LogKeyTaskID)
@@ -304,10 +304,10 @@ func (s *Task) CreateAfterAllTasks(logLabels map[string]string, eventDescription
 	tasks := make([]sh_task.Task, 0, len(afterAllHooks))
 	for i, hookName := range afterAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook:    hookName,
-			pkg.LogKeyHookType:       "global",
-			pkg.LogKeyQueue:           "main",
-			pkg.LogKeyBinding: string(hookTypes.AfterAll),
+			pkg.LogKeyHook:     hookName,
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    "main",
+			pkg.LogKeyBinding:  string(hookTypes.AfterAll),
 		})
 		delete(hookLogLabels, pkg.LogKeyTaskID)
 
