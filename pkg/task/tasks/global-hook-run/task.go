@@ -143,9 +143,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			// Task 'tsk' will be combined, so remove it from the GlobalSynchronizationState.
 			if thm.IsSynchronization() {
 				s.logger.Debug("Synchronization task is combined, mark it as Done",
-					slog.String("name", thm.HookName),
+					slog.String(pkg.LogKeyName, thm.HookName),
 					slog.String(pkg.LogKeyBinding, thm.Binding),
-					slog.String("id", thm.KubernetesBindingId))
+					slog.String(pkg.LogKeyID, thm.KubernetesBindingId))
 
 				s.moduleManager.GlobalSynchronizationState().DoneForBinding(thm.KubernetesBindingId)
 			}
@@ -158,14 +158,14 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			// Extra monitor IDs can be returned if several Synchronization binding contexts are combined.
 			if len(combineResult.MonitorIDs) > 0 {
 				s.logger.Debug("Task monitorID. Combined monitorIDs.",
-					slog.Any("monitorIDs", hm.MonitorIDs),
-					slog.Any("combinedMonitorIDs", combineResult.MonitorIDs))
+					slog.Any(pkg.LogKeyMonitorIDs, hm.MonitorIDs),
+					slog.Any(pkg.LogKeyCombinedMonitorIDs, combineResult.MonitorIDs))
 
 				hm.MonitorIDs = combineResult.MonitorIDs
 			}
 
 			s.logger.Debug("Got monitorIDs",
-				slog.Any("monitorIDs", hm.MonitorIDs))
+				slog.Any(pkg.LogKeyMonitorIDs, hm.MonitorIDs))
 
 			s.shellTask.UpdateMetadata(hm)
 		}
@@ -195,7 +195,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				errors = 1.0
 
 				s.logger.Error("Global hook failed, requeue task to retry after delay.",
-					slog.Int("count", s.shellTask.GetFailureCount()+1),
+					slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 					log.Err(err))
 
 				s.shellTask.UpdateFailureMessage(err.Error())
@@ -208,9 +208,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			success = 1.0
 
 			s.logger.Debug("GlobalHookRun success",
-				slog.String("beforeChecksum", beforeChecksum),
-				slog.String("afterChecksum", afterChecksum),
-				slog.String("savedChecksum", hm.ValuesChecksum))
+				slog.String(pkg.LogKeyBeforeChecksum, beforeChecksum),
+				slog.String(pkg.LogKeyAfterChecksum, afterChecksum),
+				slog.String(pkg.LogKeySavedChecksum, hm.ValuesChecksum))
 
 			res.Status = queue.Success
 
@@ -271,10 +271,10 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 				// Save event source info to add it as props to the task and use in logger later.
 				triggeredBy := []slog.Attr{
-					slog.String("event.triggered-by.hook", logLabels[pkg.LogKeyHook]),
-					slog.String("event.triggered-by.binding", logLabels[pkg.LogKeyBinding]),
-					slog.String("event.triggered-by.binding.name", logLabels[pkg.LogKeyBindingName]),
-					slog.String("event.triggered-by.watchEvent", logLabels[pkg.LogKeyWatchEvent]),
+					slog.String(pkg.LogKeyEventTriggeredByHook, logLabels[pkg.LogKeyHook]),
+					slog.String(pkg.LogKeyEventTriggeredByBinding, logLabels[pkg.LogKeyBinding]),
+					slog.String(pkg.LogKeyEventTriggeredByBindingName, logLabels[pkg.LogKeyBindingName]),
+					slog.String(pkg.LogKeyEventTriggeredByWatchEvent, logLabels[pkg.LogKeyWatchEvent]),
 				}
 
 				delete(logLabels, pkg.LogKeyHook)

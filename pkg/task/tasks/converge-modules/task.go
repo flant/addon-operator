@@ -103,7 +103,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	taskEvent, ok := s.shellTask.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent)
 	if !ok {
 		s.logger.Error("Possible bug! Wrong prop type in ConvergeModules: got another type instead string.",
-			slog.String("type", fmt.Sprintf("%T(%#[1]v)", s.shellTask.GetProp("event"))))
+			slog.String(pkg.LogKeyType, fmt.Sprintf("%T(%#[1]v)", s.shellTask.GetProp("event"))))
 
 		res.Status = queue.Fail
 
@@ -235,8 +235,8 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	if handleErr != nil {
 		res.Status = queue.Fail
 		s.logger.Error("ConvergeModules failed, requeue task to retry after delay.",
-			slog.String("phase", string(s.convergeState.GetPhase())),
-			slog.Int("count", s.shellTask.GetFailureCount()+1),
+			slog.String(pkg.LogKeyPhase, string(s.convergeState.GetPhase())),
+			slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 			log.Err(handleErr))
 		s.metricStorage.CounterAdd(metrics.ModulesDiscoverErrorsTotal, 1.0, map[string]string{})
 		s.shellTask.UpdateFailureMessage(handleErr.Error())
@@ -261,12 +261,12 @@ func (s *Task) CreateBeforeAllTasks(logLabels map[string]string, eventDescriptio
 	for _, hookName := range beforeAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			pkg.LogKeyHook:    hookName,
-			"hook.type":       "global",
-			"queue":           "main",
+			pkg.LogKeyHookType:       "global",
+			pkg.LogKeyQueue:           "main",
 			pkg.LogKeyBinding: string(hookTypes.BeforeAll),
 		})
 		// remove task.id — it is set by NewTask
-		delete(hookLogLabels, "task.id")
+		delete(hookLogLabels, pkg.LogKeyTaskID)
 
 		// bc := module_manager.BindingContext{BindingContext: hook.BindingContext{Binding: stringmodule_manager.BeforeAll)}}
 		// bc.KubernetesSnapshots := ModuleManager.GetGlobalHook(hookName).HookController.KubernetesSnapshots()
@@ -305,11 +305,11 @@ func (s *Task) CreateAfterAllTasks(logLabels map[string]string, eventDescription
 	for i, hookName := range afterAllHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			pkg.LogKeyHook:    hookName,
-			"hook.type":       "global",
-			"queue":           "main",
+			pkg.LogKeyHookType:       "global",
+			pkg.LogKeyQueue:           "main",
 			pkg.LogKeyBinding: string(hookTypes.AfterAll),
 		})
-		delete(hookLogLabels, "task.id")
+		delete(hookLogLabels, pkg.LogKeyTaskID)
 
 		afterAllBc := bc.BindingContext{
 			Binding: string(hookTypes.AfterAll),
@@ -354,7 +354,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 
 	// Add ModuleDelete tasks to delete helm releases of disabled modules.
 	log.Debug("The following modules are going to be disabled",
-		slog.Any("modules", state.ModulesToDisable))
+		slog.Any(pkg.LogKeyModules, state.ModulesToDisable))
 	for _, moduleName := range state.ModulesToDisable {
 		ev := events.ModuleEvent{
 			ModuleName: moduleName,
@@ -362,8 +362,8 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 		}
 		s.moduleManager.SendModuleEvent(ev)
 		newLogLabels := utils.MergeLabels(logLabels)
-		newLogLabels["module"] = moduleName
-		delete(newLogLabels, "task.id")
+		newLogLabels[pkg.LogKeyModule] = moduleName
+		delete(newLogLabels, pkg.LogKeyTaskID)
 
 		newTask := sh_task.NewTask(task.ModuleDelete).
 			WithLogLabels(newLogLabels).
@@ -381,7 +381,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 	// Add ModuleRun tasks to install or reload enabled modules.
 	newlyEnabled := utils.ListToMapStringStruct(state.ModulesToEnable)
 	log.Debug("The following modules are going to be enabled/rerun",
-		slog.String("modules", fmt.Sprintf("%v", state.AllEnabledModulesByOrder)))
+		slog.String(pkg.LogKeyModules, fmt.Sprintf("%v", state.AllEnabledModulesByOrder)))
 
 	var functionalModules []string
 	for _, modules := range state.AllEnabledModulesByOrder {
@@ -396,12 +396,12 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 		}
 
 		newLogLabels := utils.MergeLabels(logLabels)
-		delete(newLogLabels, "task.id")
+		delete(newLogLabels, pkg.LogKeyTaskID)
 		switch {
 		// create parallel moduleRun task
 		case len(modules) > 1:
 			parallelRunMetadata := task.ParallelRunMetadata{}
-			newLogLabels["modules"] = strings.Join(modules, ",")
+			newLogLabels[pkg.LogKeyModules] = strings.Join(modules, ",")
 			for _, moduleName := range modules {
 				ev := events.ModuleEvent{
 					ModuleName: moduleName,
@@ -447,7 +447,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 				EventType:  events.ModuleEnabled,
 			}
 			s.moduleManager.SendModuleEvent(ev)
-			newLogLabels["module"] = modules[0]
+			newLogLabels[pkg.LogKeyModule] = modules[0]
 			doModuleStartup := false
 			if _, has := newlyEnabled[modules[0]]; has {
 				// add EnsureCRDs task if module is about to be enabled
@@ -477,7 +477,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 
 		default:
 			log.Error("Invalid ModulesState",
-				slog.String("state", fmt.Sprintf("%v", state)))
+				slog.String(pkg.LogKeyState, fmt.Sprintf("%v", state)))
 		}
 	}
 
@@ -494,8 +494,8 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 		s.moduleManager.SendModuleEvent(ev)
 
 		newLogLabels := utils.MergeLabels(logLabels)
-		delete(newLogLabels, "task.id")
-		newLogLabels["module"] = module
+		delete(newLogLabels, pkg.LogKeyTaskID)
+		newLogLabels[pkg.LogKeyModule] = module
 
 		doModuleStartup := false
 		// add EnsureCRDs task if module is about to be enabled

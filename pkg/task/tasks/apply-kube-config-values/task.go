@@ -1,6 +1,7 @@
 package applykubeconfigvalues
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"context"
 	"log/slog"
 	"time"
@@ -86,7 +87,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		res.Status = queue.Fail
 
 		s.logger.Error("HandleApplyKubeConfigValues failed, requeue task to retry after delay.",
-			slog.Int("count", s.shellTask.GetFailureCount()+1),
+			slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 			log.Err(handleErr))
 
 		s.metricStorage.CounterAdd(metrics.ModulesDiscoverErrorsTotal, 1.0, map[string]string{})

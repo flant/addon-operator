@@ -1,6 +1,7 @@
 package functional
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"context"
 	"fmt"
 	"log/slog"
@@ -107,7 +108,7 @@ func (s *Scheduler) Add(reqs ...*Request) {
 	defer s.mtx.Unlock()
 
 	for _, req := range reqs {
-		s.logger.Debug("add request", slog.Any("request", req))
+		s.logger.Debug("add request", slog.Any(pkg.LogKeyRequest, req))
 		// update module
 		s.requests[req.Name] = req
 		// undone module
@@ -178,7 +179,7 @@ func (s *Scheduler) reschedule(done string) {
 
 		// schedule module if ready
 		if ready {
-			s.logger.Debug("trigger scheduling", slog.String("scheduled", req.Name), slog.Any("done", done))
+			s.logger.Debug("trigger scheduling", slog.String(pkg.LogKeyScheduled, req.Name), slog.Any(pkg.LogKeyDone, done))
 			s.scheduled[req.Name] = struct{}{}
 			s.processCh <- req
 		}
@@ -200,7 +201,7 @@ func (s *Scheduler) handleRequest(idx int, req *Request) {
 		})
 
 	if err := s.queueService.AddLastTaskToQueue(queueName, moduleTask); err != nil {
-		s.logger.Error("add last task to queue", slog.String("queue", queueName), slog.Any("error", err))
+		s.logger.Error("add last task to queue", slog.String(pkg.LogKeyQueue, queueName), slog.Any(pkg.LogKeyError, err))
 	}
 }
 

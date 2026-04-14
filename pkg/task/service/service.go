@@ -128,7 +128,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 
 	transformTask, ok := s.taskFactory[t.GetType()]
 	if !ok {
-		s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+		s.logger.Error("TaskHandlerService: unknown task type", slog.String(pkg.LogKeyTaskType, string(t.GetType())))
 
 		return queue.TaskResult{}
 	}
@@ -167,7 +167,7 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 
 		transformTask, ok = s.taskFactory[t.GetType()]
 		if !ok {
-			s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+			s.logger.Error("TaskHandlerService: unknown task type", slog.String(pkg.LogKeyTaskType, string(t.GetType())))
 
 			return queue.TaskResult{}
 		}
@@ -184,10 +184,10 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 	hm := task.HookMetadataAccessor(t)
 
 	s.logger.Debug("parallel task done",
-		slog.String("task_type", string(t.GetType())),
-		slog.String("module", hm.ModuleName),
-		slog.Bool("critical", hm.Critical),
-		slog.String("result", string(res.Status)))
+		slog.String(pkg.LogKeyTaskType, string(t.GetType())),
+		slog.String(pkg.LogKeyModule, hm.ModuleName),
+		slog.Bool(pkg.LogKeyCritical, hm.Critical),
+		slog.String(pkg.LogKeyResult, string(res.Status)))
 
 	if !hm.Critical {
 		if t.GetType() == task.ModuleRun {

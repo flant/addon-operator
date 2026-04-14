@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -196,7 +197,7 @@ func resolveDirEntry(dirPath string, entry os.DirEntry) (string, string, error) 
 		if errors.As(err, &e) {
 			if e.Err.Error() == "no such file or directory" {
 				log.Warn("Symlink target does not exist. Ignoring module",
-					slog.String("dir", dirPath))
+					slog.String(pkg.LogKeyDir, dirPath))
 				return "", "", nil
 			}
 		}
@@ -210,7 +211,7 @@ func resolveDirEntry(dirPath string, entry os.DirEntry) (string, string, error) 
 
 	if name != utils.ValuesFileName {
 		log.Warn("Ignore dir while searching for modules",
-			slog.String("dir", absPath))
+			slog.String(pkg.LogKeyDir, absPath))
 	}
 	return "", "", nil
 }

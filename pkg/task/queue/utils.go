@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
@@ -25,9 +26,9 @@ func CompactionCallback(moduleManager ModuleManager, logger *log.Logger) Callbac
 			thm := task.HookMetadataAccessor(compactedTask)
 			if thm.IsSynchronization() {
 				logger.Debug("Compacted synchronization task, marking as Done",
-					slog.String("hook", thm.HookName),
-					slog.String("binding", thm.Binding),
-					slog.String("id", thm.KubernetesBindingId))
+					slog.String(pkg.LogKeyHook, thm.HookName),
+					slog.String(pkg.LogKeyBinding, thm.Binding),
+					slog.String(pkg.LogKeyID, thm.KubernetesBindingId))
 
 				if thm.ModuleName == "" {
 					if moduleManager != nil && moduleManager.GlobalSynchronizationState() != nil {

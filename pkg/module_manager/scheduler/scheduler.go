@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"bufio"
 	"bytes"
 	"context"
@@ -343,7 +344,7 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	appliedExtenders := []extenders.ExtenderName{}
 	if len(extendersEnv) == 0 {
 		log.Warn("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS variable isn't set - default list will be applied",
-			slog.Any("values", defaultAppliedExtenders))
+			slog.Any(pkg.LogKeyValues, defaultAppliedExtenders))
 		appliedExtenders = defaultAppliedExtenders
 	} else {
 		availableExtenders := make(map[extenders.ExtenderName]bool, len(s.extenders))
@@ -400,7 +401,7 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	}
 
 	log.Info("The list of applied module extenders",
-		slog.Any("finalList", finalList))
+		slog.Any(pkg.LogKeyFinalList, finalList))
 	return nil
 }
 
@@ -640,7 +641,7 @@ func (s *Scheduler) getModuleNamesByOrder(onlyEnabled bool, logLabels map[string
 
 	if err := s.customBFS(s.root.GetName(), func(name, prevName string, prevDepth int) (bool, int) {
 		logEntry.Debug("Module Scheduler: traversing the graph",
-			slog.String("vertex", name))
+			slog.String(pkg.LogKeyVertex, name))
 
 		var depth int
 		vertex, props, err := s.dag.VertexWithProperties(name)
@@ -727,7 +728,7 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 
 	if s.err != nil {
 		logEntry.Warn("Module Scheduler: graph in a faulty state and will be recalculated",
-			slog.String("error", s.err.Error()))
+			slog.String(pkg.LogKeyError, s.err.Error()))
 		recalculateGraph = true
 	}
 
@@ -892,7 +893,7 @@ outerCycle:
 	// reset any previous errors
 	s.err = nil
 	logEntry.Debug("Graph was successfully updated",
-		slog.String("diff", fmt.Sprintf("%v", s.diff)))
+		slog.String(pkg.LogKeyDiff, fmt.Sprintf("%v", s.diff)))
 
 	metaDiffSlice := make([]string, 0, len(metaDiff))
 	for moduleName := range metaDiff {

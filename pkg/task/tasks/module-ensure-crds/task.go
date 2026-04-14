@@ -1,6 +1,7 @@
 package moduleensurecrds
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"context"
 	"log/slog"
 	"time"
@@ -102,7 +103,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
 
-	s.logger.Debug("Module ensureCRDs", slog.String("name", hm.ModuleName))
+	s.logger.Debug("Module ensureCRDs", slog.String(pkg.LogKeyName, hm.ModuleName))
 
 	if appliedGVKs, err := s.EnsureCRDs(baseModule); err != nil {
 		s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, err)

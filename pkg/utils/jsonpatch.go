@@ -5,6 +5,7 @@ package utils
 // (which make the behavior of the ApplyIgnoreNonExistentPaths method as much effective as ApplyStrict).
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -55,7 +56,7 @@ func (o Operation) Kind() string {
 
 // Path reads the "path" field of the Operation.
 func (o Operation) Path() (string, error) {
-	if obj, ok := o["path"]; ok && obj != nil {
+	if obj, ok := o[pkg.LogKeyPath]; ok && obj != nil {
 		var op string
 
 		err := json.Unmarshal(*obj, &op)
@@ -86,7 +87,7 @@ func (o Operation) From() (string, error) {
 }
 
 func (o Operation) value() *lazynode.LazyNode {
-	if obj, ok := o["value"]; ok {
+	if obj, ok := o[pkg.LogKeyValue]; ok {
 		return lazynode.NewLazyNode(obj)
 	}
 
@@ -95,7 +96,7 @@ func (o Operation) value() *lazynode.LazyNode {
 
 // ValueInterface decodes the operation value into an interface.
 func (o Operation) ValueInterface() (any, error) {
-	if obj, ok := o["value"]; ok && obj != nil {
+	if obj, ok := o[pkg.LogKeyValue]; ok && obj != nil {
 		var v any
 
 		err := json.Unmarshal(*obj, &v)

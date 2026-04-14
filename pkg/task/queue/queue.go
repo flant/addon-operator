@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"context"
 	"errors"
 	"fmt"
@@ -49,7 +50,7 @@ func (s *Service) startQueue(queueName string, handler func(ctx context.Context,
 	s.engine.TaskQueues.NewNamedQueue(queueName, handler,
 		queue.WithCompactionCallback(callback),
 		queue.WithCompactableTypes(MergeTasks...),
-		queue.WithLogger(s.logger.With("operator.component", "queue", "queue", queueName)),
+		queue.WithLogger(s.logger.With(pkg.LogKeyOperatorComponent, "queue", "queue", queueName)),
 	)
 	s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)
 }
@@ -175,8 +176,8 @@ func (s *Service) RemoveAdjacentConvergeModules(queueName string, afterId string
 			hm := task.HookMetadataAccessor(t)
 
 			s.logger.Debug("Drained adjacent ConvergeModules task",
-				slog.String("type", string(t.GetType())),
-				slog.String("description", hm.EventDescription))
+				slog.String(pkg.LogKeyType, string(t.GetType())),
+				slog.String(pkg.LogKeyDescription, hm.EventDescription))
 
 			return false
 		}

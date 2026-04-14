@@ -1,6 +1,7 @@
 package script_enabled
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"context"
 	"errors"
 	"fmt"
@@ -69,7 +70,7 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 		if os.IsNotExist(err) {
 			moduleD.scriptState = noEnabledScript
 			log.Debug("MODULE is ENABLED. Enabled script doesn't exist!",
-				slog.String("module", module.GetName()))
+				slog.String(pkg.LogKeyModule, module.GetName()))
 		} else {
 			moduleD.scriptState = statError
 			moduleD.stateDescription = fmt.Sprintf("Cannot stat enabled script for '%s' module: %v", module.GetName(), err)
@@ -79,7 +80,7 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 		if utils_file.CheckExecutablePermissions(f) != nil {
 			moduleD.scriptState = nonExecutableScript
 			log.Warn("Found non-executable enabled script for module - assuming enabled state",
-				slog.String("module", module.GetName()))
+				slog.String(pkg.LogKeyModule, module.GetName()))
 		}
 	}
 
@@ -99,7 +100,7 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 		case "":
 			var isEnabled bool
 			refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
-				"extender": "ScriptEnabled",
+				pkg.LogKeyExtender: "ScriptEnabled",
 			})
 			isEnabled, err = moduleDescriptor.module.RunEnabledScript(context.Background(), e.tmpDir, e.GetEnabledModules(), refreshLogLabels)
 			if err != nil {
@@ -114,11 +115,11 @@ func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool
 
 		case nonExecutableScript:
 			log.Warn("Found non-executable enabled script for module - assuming enabled state",
-				slog.String("module", moduleDescriptor.module.GetName()))
+				slog.String(pkg.LogKeyModule, moduleDescriptor.module.GetName()))
 
 		case noEnabledScript:
 			log.Debug("MODULE is ENABLED. Enabled script doesn't exist!",
-				slog.String("module", moduleDescriptor.module.GetName()))
+				slog.String(pkg.LogKeyModule, moduleDescriptor.module.GetName()))
 		}
 
 		if err != nil {

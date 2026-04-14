@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"fmt"
 	"strings"
 
@@ -112,11 +113,11 @@ func (mh *ModuleHook) ApplyBindingActions(bindingActions []gohook.BindingAction)
 			// Empty kind - "null" monitor.
 			monitorCfg.Kind = ""
 			monitorCfg.ApiVersion = ""
-			monitorCfg.Metadata.MetricLabels["kind"] = ""
+			monitorCfg.Metadata.MetricLabels[pkg.LogKeyKind] = ""
 		case "updatekind":
 			monitorCfg.Kind = action.Kind
 			monitorCfg.ApiVersion = action.ApiVersion
-			monitorCfg.Metadata.MetricLabels["kind"] = action.Kind
+			monitorCfg.Metadata.MetricLabels[pkg.LogKeyKind] = action.Kind
 		default:
 			continue
 		}

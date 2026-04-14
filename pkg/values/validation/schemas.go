@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -91,8 +92,8 @@ func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, valu
 	schema := st.Schemas[valuesType]
 	if schema == nil {
 		log.Warn("schema is not found",
-			slog.String("module", moduleName),
-			slog.String("valuesType", string(valuesType)))
+			slog.String(pkg.LogKeyModule, moduleName),
+			slog.String(pkg.LogKeyValuesType, string(valuesType)))
 		return nil
 	}
 
@@ -104,10 +105,10 @@ func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, valu
 	validationErr := validateObject(obj, schema, moduleName)
 	if validationErr == nil {
 		log.Debug("values are valid",
-			slog.String("valuesType", string(valuesType)))
+			slog.String(pkg.LogKeyValuesType, string(valuesType)))
 	} else {
 		log.Debug("values are NOT valid",
-			slog.String("valuesType", string(valuesType)),
+			slog.String(pkg.LogKeyValuesType, string(valuesType)),
 			log.Err(validationErr))
 	}
 	return validationErr

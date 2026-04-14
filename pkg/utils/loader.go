@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"fmt"
 	"log/slog"
 	"os"
@@ -35,7 +36,7 @@ func LoadValuesFileFromDir(dir string, strictModeEnabled bool) (Values, error) {
 	valuesYaml, err := os.ReadFile(valuesFilePath)
 	if err != nil && os.IsNotExist(err) && !strictModeEnabled {
 		log.Debug("No static values file",
-			slog.String("path", valuesFilePath),
+			slog.String(pkg.LogKeyPath, valuesFilePath),
 			log.Err(err))
 		return nil, nil
 	}

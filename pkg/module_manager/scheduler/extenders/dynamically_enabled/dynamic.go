@@ -1,6 +1,7 @@
 package dynamically_enabled
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"context"
 	"log/slog"
 	"sync"
@@ -45,7 +46,7 @@ func (e *Extender) UpdateStatus(moduleName, operation string, value bool) {
 		}
 	default:
 		log.Warn("Unknown patch operation",
-			slog.String("operation", operation))
+			slog.String(pkg.LogKeyOperation, operation))
 	}
 	e.l.Unlock()
 }

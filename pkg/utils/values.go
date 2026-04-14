@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -143,7 +144,7 @@ func (v Values) SectionByKey(key string) Values {
 		newV, err := NewValues(data)
 		if err != nil {
 			log.Error("get section Values",
-				slog.String("key", key),
+				slog.String(pkg.LogKeyKey, key),
 				log.Err(err))
 		}
 		return newV

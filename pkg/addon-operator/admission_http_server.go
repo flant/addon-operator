@@ -1,6 +1,7 @@
 package addon_operator
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"context"
 	"errors"
 	"fmt"
@@ -30,7 +31,7 @@ func NewAdmissionServer(listenPort, certsDir string) *AdmissionServer {
 func (as *AdmissionServer) RegisterHandler(route string, handler http.Handler) {
 	if _, ok := as.routes[route]; ok {
 		log.Fatal("Route is already registered",
-			slog.String("route", route))
+			slog.String(pkg.LogKeyRoute, route))
 	}
 
 	as.routes[route] = handler
@@ -45,7 +46,7 @@ func (as *AdmissionServer) start(ctx context.Context) {
 	}
 
 	log.Debug("Registered admission routes",
-		slog.String("routes", fmt.Sprintf("%v", as.routes)))
+		slog.String(pkg.LogKeyRoutes, fmt.Sprintf("%v", as.routes)))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", as.listenPort),

@@ -1,6 +1,7 @@
 package task
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"context"
 	"fmt"
 	"log/slog"
@@ -115,8 +116,8 @@ func HookMetadataAccessor(t task.Task) HookMetadata {
 	meta, ok := taskMeta.(HookMetadata)
 	if !ok {
 		log.Error("Possible Bug! task metadata is not of type ModuleHookMetadata",
-			slog.String("type", string(t.GetType())),
-			slog.String("got", fmt.Sprintf("%T", meta)))
+			slog.String(pkg.LogKeyType, string(t.GetType())),
+			slog.String(pkg.LogKeyGot, fmt.Sprintf("%T", meta)))
 		return HookMetadata{}
 	}
 

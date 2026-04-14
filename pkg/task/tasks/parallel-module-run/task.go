@@ -85,7 +85,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	if hm.ParallelRunMetadata == nil {
 		s.logger.Error("Possible bug! Couldn't get task ParallelRunMetadata for a parallel task.",
-			slog.String("description", hm.EventDescription))
+			slog.String(pkg.LogKeyDescription, hm.EventDescription))
 		res.Status = queue.Fail
 		return res
 	}
@@ -96,7 +96,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	s.parallelTaskChannels.Set(s.shellTask.GetId(), parallelChannel)
 
 	s.logger.Debug("ParallelModuleRun available parallel event channels",
-		slog.String("channels", fmt.Sprintf("%v", s.parallelTaskChannels.Channels())))
+		slog.String(pkg.LogKeyChannels, fmt.Sprintf("%v", s.parallelTaskChannels.Channels())))
 
 	for moduleName, moduleMetadata := range hm.ParallelRunMetadata.GetModulesMetadata() {
 		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i%(app.NumberOfParallelQueues-1))
@@ -131,7 +131,7 @@ L:
 		select {
 		case parallelEvent := <-parallelChannel:
 			s.logger.Debug("ParallelModuleRun event received",
-				slog.String("event", fmt.Sprintf("%v", parallelEvent)))
+				slog.String(pkg.LogKeyEvent, fmt.Sprintf("%v", parallelEvent)))
 
 			if len(parallelEvent.ErrorMessage()) != 0 {
 				if tasksErrors[parallelEvent.ModuleName()] != parallelEvent.ErrorMessage() {
@@ -211,7 +211,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 				s.queueService.CreateAndStartQueue(hookBinding.Queue, taskqueue.CompactionCallback(s.moduleManager, s.logger))
 
 				log.Debug("Queue started for module 'schedule'",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
@@ -224,7 +224,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 				s.queueService.CreateAndStartQueue(hookBinding.Queue, taskqueue.CompactionCallback(s.moduleManager, s.logger))
 
 				log.Debug("Queue started for module 'kubernetes'",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}

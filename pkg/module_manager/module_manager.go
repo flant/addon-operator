@@ -242,7 +242,7 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 	if ok {
 		if globalValuesChanged {
 			mm.logger.Debug("Applying global values",
-				slog.String("values", fmt.Sprintf("%v", newGlobalValues)))
+				slog.String(pkg.LogKeyValues, fmt.Sprintf("%v", newGlobalValues)))
 			mm.global.SaveConfigValues(newGlobalValues)
 		}
 		delete(valuesMap, mm.global.GetName())
@@ -257,9 +257,9 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 
 		if mod.GetConfigValues(false).Checksum() != values.Checksum() {
 			mm.logger.Debug("Applying values to module",
-				slog.String("moduleName", moduleName),
-				slog.String("values", fmt.Sprintf("%v", values)),
-				slog.String("oldValues", fmt.Sprintf("%v", mod.GetConfigValues(false))))
+				slog.String(pkg.LogKeyModuleName, moduleName),
+				slog.String(pkg.LogKeyValues, fmt.Sprintf("%v", values)),
+				slog.String(pkg.LogKeyOldValues, fmt.Sprintf("%v", mod.GetConfigValues(false))))
 			mod.SaveConfigValues(values)
 		}
 	}
@@ -337,7 +337,7 @@ func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *config.KubeConfig) 
 	}
 	if len(unknownNames) > 0 {
 		mm.logger.Warn("KubeConfigManager has values for unknown modules",
-			slog.Any("modules", unknownNames))
+			slog.Any(pkg.LogKeyModules, unknownNames))
 	}
 }
 
@@ -449,7 +449,7 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	}
 
 	mm.logger.Debug("Following releases found",
-		slog.Any("modules", releasedModules))
+		slog.Any(pkg.LogKeyModules, releasedModules))
 
 	return mm.stateFromHelmReleases(releasedModules), nil
 }
@@ -468,7 +468,7 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 
 	if len(purge) > 0 {
 		mm.logger.Info("Modules to purge found",
-			slog.Any("modules", purge))
+			slog.Any(pkg.LogKeyModules, purge))
 	}
 
 	return &ModulesState{
@@ -512,8 +512,8 @@ func (mm *ModuleManager) SetModuleMaintenanceState(moduleName string, state util
 	if bm := mm.GetModule(moduleName); bm != nil {
 		bm.SetMaintenanceState(state)
 		mm.logger.Info("set module management state",
-			slog.String("module", moduleName),
-			slog.String("state", state.String()))
+			slog.String(pkg.LogKeyModule, moduleName),
+			slog.String(pkg.LogKeyState, state.String()))
 		if state == utils.NoResourceReconciliation {
 			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, moduleMaintenanceMetricName, 1, map[string]string{pkg.MetricKeyModule: moduleName, "state": utils.NoResourceReconciliation.String()})
 		} else {
@@ -526,7 +526,7 @@ func (mm *ModuleManager) SetModuleMaintenanceState(moduleName string, state util
 // - mm.enabledModules
 func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*ModulesState, error) {
 	refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
-		"operator.component": "ModuleManager.RefreshEnabledState",
+		pkg.LogKeyOperatorComponent: "ModuleManager.RefreshEnabledState",
 	})
 	logEntry := utils.EnrichLoggerWithLabels(mm.logger, refreshLogLabels)
 
@@ -536,7 +536,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	}
 
 	logEntry.Info("Enabled modules",
-		slog.Any("modules", enabledModules))
+		slog.Any(pkg.LogKeyModules, enabledModules))
 	once.Do(mm.modules.SetInited)
 
 	var (
@@ -558,9 +558,9 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	modulesToEnable = utils.SortByReference(modulesToEnable, mm.modules.NamesInOrder())
 
 	logEntry.Debug("Refresh state results",
-		slog.Any("enabledModules", enabledModules),
-		slog.Any("modulesToDisable", modulesToDisable),
-		slog.Any("modulesToEnable", modulesToEnable))
+		slog.Any(pkg.LogKeyEnabledModules, enabledModules),
+		slog.Any(pkg.LogKeyModulesToDisable, modulesToDisable),
+		slog.Any(pkg.LogKeyModulesToEnable, modulesToEnable))
 
 	// We've to ignore enabledModules patch in case default moduleLoader is in use, otherwise it breaks applying global hooks patches with default moduleLoader
 	switch mm.moduleLoader.(type) {
@@ -668,8 +668,8 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 
 		deleteLogLabels := utils.MergeLabels(logLabels,
 			map[string]string{
-				"module": ml.GetName(),
-				"queue":  "main",
+				pkg.LogKeyModule: ml.GetName(),
+				pkg.LogKeyQueue:  "main",
 			})
 		logEntry := utils.EnrichLoggerWithLabels(mm.logger, deleteLogLabels)
 
@@ -695,11 +695,11 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 			if !releaseExists {
 				if err != nil {
 					logEntry.Warn("Cannot find helm release for module",
-						slog.String("module", ml.GetName()),
+						slog.String(pkg.LogKeyModule, ml.GetName()),
 						log.Err(err))
 				} else {
 					logEntry.Warn("Cannot find helm release for module.",
-						slog.String("module", ml.GetName()))
+						slog.String(pkg.LogKeyModule, ml.GetName()))
 				}
 			} else {
 				helmClientOptions := []helm.ClientOption{
@@ -742,8 +742,8 @@ func (mm *ModuleManager) RunModule(ctx context.Context, moduleName string, logLa
 	span.AddEvent("ModuleRun-HelmPhase")
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		"module": bm.GetName(),
-		"queue":  "main",
+		pkg.LogKeyModule: bm.GetName(),
+		pkg.LogKeyQueue:  "main",
 	})
 
 	// Hooks can delete release resources, so pause resources monitor before run hooks.
@@ -1050,17 +1050,17 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 		switch op.Op {
 		case "add":
 			mm.logger.Debug("apply dynamic enable",
-				slog.String("module", modName),
-				slog.Bool("value", *v))
+				slog.String(pkg.LogKeyModule, modName),
+				slog.Bool(pkg.LogKeyValue, *v))
 		case "remove":
 			mm.logger.Debug("apply dynamic enable: module removed from dynamic enable",
-				slog.String("module", modName))
+				slog.String(pkg.LogKeyModule, modName))
 		}
 		extender.UpdateStatus(modName, op.Op, *v)
 		mm.logger.Info("dynamically enabled module status change",
-			slog.String("module", modName),
-			slog.String("operation", op.Op),
-			slog.Bool("state", *v))
+			slog.String(pkg.LogKeyModule, modName),
+			slog.String(pkg.LogKeyOperation, op.Op),
+			slog.Bool(pkg.LogKeyState, *v))
 	}
 
 	return nil
@@ -1114,11 +1114,11 @@ func (mm *ModuleManager) ApplyBindingActions(moduleHook *hooks.ModuleHook, bindi
 			// Empty kind - "null" monitor.
 			monitorCfg.Kind = ""
 			monitorCfg.ApiVersion = ""
-			monitorCfg.Metadata.MetricLabels["kind"] = ""
+			monitorCfg.Metadata.MetricLabels[pkg.LogKeyKind] = ""
 		case "updatekind":
 			monitorCfg.Kind = action.Kind
 			monitorCfg.ApiVersion = action.ApiVersion
-			monitorCfg.Metadata.MetricLabels["kind"] = action.Kind
+			monitorCfg.Metadata.MetricLabels[pkg.LogKeyKind] = action.Kind
 		default:
 			continue
 		}
@@ -1463,8 +1463,8 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 	for _, mod := range mods {
 		if set.Has(mod.GetName()) {
 			mm.logger.Warn("module is not registered, because it has a duplicate",
-				slog.String("module", mod.GetName()),
-				slog.String("path", mod.GetPath()))
+				slog.String(pkg.LogKeyModule, mod.GetName()),
+				slog.String(pkg.LogKeyPath, mod.GetPath()))
 			continue
 		}
 
@@ -1487,7 +1487,7 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		return fmt.Errorf("initialize scheduler: %w", err)
 	}
 
-	mm.logger.Debug("Found modules", slog.Any("modules", set.NamesInOrder()))
+	mm.logger.Debug("Found modules", slog.Any(pkg.LogKeyModules, set.NamesInOrder()))
 
 	mm.l.Lock()
 	mm.modules = set

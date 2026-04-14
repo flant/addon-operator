@@ -1,6 +1,7 @@
 package addon_operator
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"fmt"
 	"log/slog"
 
@@ -25,11 +26,11 @@ func (op *AddonOperator) bootstrap() error {
 
 	// Log the path where modules will be searched
 	log.Info("Search modules",
-		slog.String("path", app.ModulesDir))
+		slog.String(pkg.LogKeyPath, app.ModulesDir))
 
 	// Log the namespace in which the operator will work
 	log.Info("Addon-operator namespace",
-		slog.String("namespace", op.DefaultNamespace))
+		slog.String(pkg.LogKeyNamespace, op.DefaultNamespace))
 
 	// Initialize the debug server for troubleshooting and monitoring
 	// TODO: rewrite shapp global variables to the addon-operator one

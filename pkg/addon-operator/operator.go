@@ -234,7 +234,7 @@ func (op *AddonOperator) Setup() error {
 		return fmt.Errorf("global hooks directory: %s", err)
 	}
 	log.Info("global hooks directory",
-		slog.String("dir", globalHooksDir))
+		slog.String(pkg.LogKeyDir, globalHooksDir))
 
 	tempDir, err := ensureTempDirectory(shapp.TempDir)
 	if err != nil {
@@ -443,7 +443,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 	tqs.NewNamedQueue("main", op.TaskService.Handle,
 		queue.WithCompactionCallback(queueutils.CompactionCallback(op.ModuleManager, op.Logger)),
 		queue.WithCompactableTypes(queueutils.MergeTasks...),
-		queue.WithLogger(op.Logger.With("operator.component", "mainQueue")),
+		queue.WithLogger(op.Logger.With(pkg.LogKeyOperatorComponent, "mainQueue")),
 	)
 
 	tasks := op.CreateBootstrapTasks(logLabels)
@@ -457,7 +457,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 		// Add "DiscoverHelmReleases" task to detect unknown releases and purge them.
 		// this task will run only after the first converge, to keep all modules
 		discoverLabels := utils.MergeLabels(logLabels, map[string]string{
-			"queue":           "main",
+			pkg.LogKeyQueue:           "main",
 			pkg.LogKeyBinding: string(task.DiscoverHelmReleases),
 		})
 		discoverTask := sh_task.NewTask(task.DiscoverHelmReleases).
@@ -483,8 +483,8 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	for _, hookName := range onStartupHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			pkg.LogKeyHook:    hookName,
-			"hook.type":       "global",
-			"queue":           "main",
+			pkg.LogKeyHookType:       "global",
+			pkg.LogKeyQueue:           "main",
 			pkg.LogKeyBinding: string(htypes.OnStartup),
 		})
 
@@ -510,8 +510,8 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	for _, hookName := range schedHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			pkg.LogKeyHook:    hookName,
-			"hook.type":       "global",
-			"queue":           "main",
+			pkg.LogKeyHookType:       "global",
+			pkg.LogKeyQueue:           "main",
 			pkg.LogKeyBinding: string(task.GlobalHookEnableScheduleBindings),
 		})
 
@@ -530,8 +530,8 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	for _, hookName := range kubeHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
 			pkg.LogKeyHook:    hookName,
-			"hook.type":       "global",
-			"queue":           "main",
+			pkg.LogKeyHookType:       "global",
+			pkg.LogKeyQueue:           "main",
 			pkg.LogKeyBinding: string(task.GlobalHookEnableKubernetesBindings),
 		})
 
@@ -547,7 +547,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 
 	// Task to wait for kubernetes.Synchronization.
 	waitLogLabels := utils.MergeLabels(logLabels, map[string]string{
-		"queue":           "main",
+		pkg.LogKeyQueue:           "main",
 		pkg.LogKeyBinding: string(task.GlobalHookWaitKubernetesSynchronization),
 	})
 	waitTask := sh_task.NewTask(task.GlobalHookWaitKubernetesSynchronization).
@@ -560,7 +560,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 
 	// Add "ConvergeModules" task to run modules converge sequence for the first time.
 	convergeLabels := utils.MergeLabels(logLabels, map[string]string{
-		"queue":           "main",
+		pkg.LogKeyQueue:           "main",
 		pkg.LogKeyBinding: string(task.ConvergeModules),
 	})
 	convergeTask := converge.NewConvergeModulesTask(eventDescription, converge.OperatorStartup, convergeLabels)
@@ -574,13 +574,13 @@ func (op *AddonOperator) CreateAndStartParallelQueues() {
 	for i := range app.NumberOfParallelQueues {
 		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i)
 		if op.IsQueueExists(queueName) {
-			log.Warn("Parallel queue already exists", slog.String("queue", queueName))
+			log.Warn("Parallel queue already exists", slog.String(pkg.LogKeyQueue, queueName))
 			continue
 		}
 
 		op.startQueue(queueName, op.TaskService.ParallelHandle)
 		log.Debug("Parallel queue started",
-			slog.String("queue", queueName))
+			slog.String(pkg.LogKeyQueue, queueName))
 	}
 }
 
@@ -594,7 +594,7 @@ func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.C
 	op.engine.TaskQueues.NewNamedQueue(queueName, handler,
 		queue.WithCompactionCallback(queueutils.CompactionCallback(op.ModuleManager, op.Logger)),
 		queue.WithCompactableTypes(queueutils.MergeTasks...),
-		queue.WithLogger(op.Logger.With("operator.component", "queue", "queue", queueName)),
+		queue.WithLogger(op.Logger.With(pkg.LogKeyOperatorComponent, "queue", "queue", queueName)),
 	)
 	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
 }
@@ -615,7 +615,7 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 				op.CreateAndStartQueue(hookBinding.Queue)
 
 				log.Debug("Queue started for global 'schedule' hook",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hookName))
 			}
 		}
@@ -624,7 +624,7 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 				op.CreateAndStartQueue(hookBinding.Queue)
 
 				log.Debug("Queue started for global 'kubernetes' hook",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hookName))
 			}
 		}
@@ -647,7 +647,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 				op.CreateAndStartQueue(hookBinding.Queue)
 
 				log.Debug("Queue started for module 'schedule'",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
@@ -660,7 +660,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 				op.CreateAndStartQueue(hookBinding.Queue)
 
 				log.Debug("Queue started for module 'kubernetes'",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
@@ -697,8 +697,8 @@ func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabel
 		}
 
 		newLogLabels := utils.MergeLabels(logLabels)
-		newLogLabels["module"] = moduleName
-		delete(newLogLabels, "task.id")
+		newLogLabels[pkg.LogKeyModule] = moduleName
+		delete(newLogLabels, pkg.LogKeyTaskID)
 
 		newTask := sh_task.NewTask(task.ModuleRun).
 			WithLogLabels(newLogLabels).

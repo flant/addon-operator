@@ -79,7 +79,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
 
-	s.logger.Debug("Module delete", slog.String("name", hm.ModuleName))
+	s.logger.Debug("Module delete", slog.String(pkg.LogKeyName, hm.ModuleName))
 
 	// Register module hooks to run afterHelmDelete hooks on startup.
 	// It's a noop if registration is done before.
@@ -101,7 +101,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.metricStorage.CounterAdd(metrics.ModuleDeleteErrorsTotal, 1.0, map[string]string{pkg.MetricKeyModule: hm.ModuleName})
 
 		s.logger.Error("Module delete failed, requeue task to retry after delay.",
-			slog.Int("count", s.shellTask.GetFailureCount()+1),
+			slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 			log.Err(err))
 
 		s.shellTask.UpdateFailureMessage(err.Error())
@@ -109,7 +109,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 		res.Status = queue.Fail
 	} else {
-		s.logger.Debug("Module delete success", slog.String("name", hm.ModuleName))
+		s.logger.Debug("Module delete success", slog.String(pkg.LogKeyName, hm.ModuleName))
 
 		res.Status = queue.Success
 	}
@@ -120,7 +120,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 func (s *Task) drainModuleQueues(modName string) {
 	m := s.moduleManager.GetModule(modName)
 	if m == nil {
-		s.logger.Warn("Module is absent when we try to drain its queue", slog.String("module", modName))
+		s.logger.Warn("Module is absent when we try to drain its queue", slog.String(pkg.LogKeyModule, modName))
 		return
 	}
 

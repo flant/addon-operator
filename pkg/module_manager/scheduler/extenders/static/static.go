@@ -1,6 +1,7 @@
 package static
 
 import (
+	"github.com/flant/addon-operator/pkg"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -30,13 +31,13 @@ func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 		fileInfo, err := os.Stat(valuesFile)
 		if err != nil {
 			log.Warn("Couldn't stat file",
-				slog.String("file", valuesFile))
+				slog.String(pkg.LogKeyFile, valuesFile))
 			continue
 		}
 
 		if fileInfo.IsDir() {
 			log.Error("File is a directory",
-				slog.String("file", valuesFile))
+				slog.String(pkg.LogKeyFile, valuesFile))
 			continue
 		}
 
@@ -44,7 +45,7 @@ func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Debug("File doesn't exist",
-					slog.String("file", valuesFile))
+					slog.String(pkg.LogKeyFile, valuesFile))
 				continue
 			}
 			return nil, err
