@@ -11,6 +11,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
@@ -74,7 +75,7 @@ func makedev(majorNumber int64, minorNumber int64) int {
 
 func (m *Manager) DisassembleEnvironmentForModule(moduleName, modulePath string, targetEnvironment Environment) error {
 	logEntry := utils.EnrichLoggerWithLabels(m.logger, map[string]string{
-		"operator.component": "EnvironmentManager.DisassembleEnvironmentForModule",
+		pkg.LogKeyOperatorComponent: "EnvironmentManager.DisassembleEnvironmentForModule",
 	})
 	m.l.Lock()
 	defer m.l.Unlock()
@@ -85,9 +86,9 @@ func (m *Manager) DisassembleEnvironmentForModule(moduleName, modulePath string,
 	}
 
 	logEntry.Debug("Disassembling environment",
-		slog.String("module", moduleName),
-		slog.Any("currentEnvironment", currentEnvironment),
-		slog.Any("targetEnvironment", targetEnvironment))
+		slog.String(pkg.LogKeyModule, moduleName),
+		slog.Any(pkg.LogKeyCurrentEnvironment, currentEnvironment),
+		slog.Any(pkg.LogKeyTargetEnvironment, targetEnvironment))
 
 	chrootedModuleEnvPath := filepath.Join(m.chroot, moduleName)
 	for _, properties := range m.objects {
@@ -131,7 +132,7 @@ func (m *Manager) DisassembleEnvironmentForModule(moduleName, modulePath string,
 
 func (m *Manager) AssembleEnvironmentForModule(moduleName, modulePath string, targetEnvironment Environment) error {
 	logEntry := utils.EnrichLoggerWithLabels(m.logger, map[string]string{
-		"operator.component": "EnvironmentManager.AssembleEnvironmentForModule",
+		pkg.LogKeyOperatorComponent: "EnvironmentManager.AssembleEnvironmentForModule",
 	})
 
 	m.l.Lock()
@@ -143,17 +144,17 @@ func (m *Manager) AssembleEnvironmentForModule(moduleName, modulePath string, ta
 	}
 
 	logEntry.Debug("Preparing environment",
-		slog.String("module", moduleName),
-		slog.Any("currentEnvironment", currentEnvironment),
-		slog.Any("targetEnvironment", targetEnvironment))
+		slog.String(pkg.LogKeyModule, moduleName),
+		slog.Any(pkg.LogKeyCurrentEnvironment, currentEnvironment),
+		slog.Any(pkg.LogKeyTargetEnvironment, targetEnvironment))
 
 	chrootedModuleEnvPath := filepath.Join(m.chroot, moduleName)
 
 	if currentEnvironment == NoEnvironment {
 		logEntry.Debug("Preparing environment - creating the module's directory",
-			slog.String("module", moduleName),
-			slog.Any("currentEnvironment", currentEnvironment),
-			slog.Any("targetEnvironment", targetEnvironment))
+			slog.String(pkg.LogKeyModule, moduleName),
+			slog.Any(pkg.LogKeyCurrentEnvironment, currentEnvironment),
+			slog.Any(pkg.LogKeyTargetEnvironment, targetEnvironment))
 
 		chrootedModuleDir := filepath.Join(chrootedModuleEnvPath, modulePath)
 		if err := os.MkdirAll(chrootedModuleDir, 0o755); err != nil {

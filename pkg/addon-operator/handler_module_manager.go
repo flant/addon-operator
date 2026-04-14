@@ -20,7 +20,7 @@ import (
 
 func (op *AddonOperator) StartModuleManagerEventHandler() {
 	go func() {
-		logEntry := op.Logger.With("operator.component", "handleManagerEvents")
+		logEntry := op.Logger.With(pkg.LogKeyOperatorComponent, "handleManagerEvents")
 		for {
 			select {
 			case schedulerEvent := <-op.ModuleManager.SchedulerEventCh():
@@ -28,9 +28,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				// dynamically_enabled_extender
 				case dynamic_extender.DynamicExtenderEvent:
 					logLabels := map[string]string{
-						"event.id":     uuid.Must(uuid.NewV4()).String(),
-						"type":         "ModuleScheduler event",
-						"event_source": "DymicallyEnabledExtenderChanged",
+						pkg.LogKeyEventID:     uuid.Must(uuid.NewV4()).String(),
+						pkg.LogKeyType:        "ModuleScheduler event",
+						pkg.LogKeyEventSource: "DymicallyEnabledExtenderChanged",
 					}
 					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 					// if global hooks haven't been run yet, script enabled extender fails due to missing global values
@@ -50,7 +50,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						// if converge has already begun - restart it immediately
 						if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) && op.ConvergeState.GetPhase() != converge.StandBy {
 							logEntry.Info("ConvergeModules: global hook dynamic modification detected, restart current converge process",
-								slog.String("phase", string(op.ConvergeState.GetPhase())))
+								slog.String(pkg.LogKeyPhase, string(op.ConvergeState.GetPhase())))
 							op.engine.TaskQueues.GetMain().AddFirst(convergeTask)
 							op.logTaskAdd(eventLogEntry, "DynamicExtender is updated, put first", convergeTask)
 						} else {
@@ -65,9 +65,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				// kube_config_extender
 				case config.KubeConfigEvent:
 					logLabels := map[string]string{
-						"event.id":     uuid.Must(uuid.NewV4()).String(),
-						"type":         "ModuleScheduler event",
-						"event_source": "KubeConfigExtenderChanged",
+						pkg.LogKeyEventID:     uuid.Must(uuid.NewV4()).String(),
+						pkg.LogKeyType:        "ModuleScheduler event",
+						pkg.LogKeyEventSource: "KubeConfigExtenderChanged",
 					}
 					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 					switch event.Type {
@@ -77,10 +77,10 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 
 					case config.KubeConfigChanged:
 						eventLogEntry.Debug("ModuleManagerEventHandler-KubeConfigChanged",
-							slog.Bool("globalSectionChanged", event.GlobalSectionChanged),
-							slog.Any("moduleValuesChanged", event.ModuleValuesChanged),
-							slog.Any("moduleEnabledStateChanged", event.ModuleEnabledStateChanged),
-							slog.Any("ModuleMaintenanceChanged", event.ModuleMaintenanceChanged))
+							slog.Bool(pkg.LogKeyGlobalSectionChanged, event.GlobalSectionChanged),
+							slog.Any(pkg.LogKeyModuleValuesChanged, event.ModuleValuesChanged),
+							slog.Any(pkg.LogKeyModuleEnabledStateChanged, event.ModuleEnabledStateChanged),
+							slog.Any(pkg.LogKeyModuleMaintenanceChanged, event.ModuleMaintenanceChanged))
 						if !op.ModuleManager.GetKubeConfigValid() {
 							eventLogEntry.Info("KubeConfig become valid")
 						}
@@ -129,7 +129,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							// if main queue isn't empty and there was another convergeModules task:
 							if op.engine.TaskQueues.GetMain().Length() > 0 && RemoveCurrentConvergeTasks(op.getConvergeQueues(), logLabels, op.Logger) {
 								logEntry.Info("ConvergeModules: kube config modification detected,  restart current converge process",
-									slog.String("phase", string(op.ConvergeState.GetPhase())))
+									slog.String(pkg.LogKeyPhase, string(op.ConvergeState.GetPhase())))
 								// put ApplyKubeConfig->NewConvergeModulesTask sequence in the beginning of the main queue
 								if kubeConfigTask != nil {
 									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
@@ -174,8 +174,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 										op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), reloadTasks[i])
 									}
 									logEntry.Info("ConvergeModules: kube config modification detected, append tasks to rerun modules",
-										slog.Int("count", len(reloadTasks)),
-										slog.Any("modules", modulesToRerun))
+										slog.Int(pkg.LogKeyCount, len(reloadTasks)),
+										slog.Any(pkg.LogKeyModules, modulesToRerun))
 									op.logTaskAdd(logEntry, "tail", reloadTasks...)
 								}
 							}
@@ -187,8 +187,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 
 			case HelmReleaseStatusEvent := <-op.HelmResourcesManager.Ch():
 				logLabels := map[string]string{
-					"event.id": uuid.Must(uuid.NewV4()).String(),
-					"module":   HelmReleaseStatusEvent.ModuleName,
+					pkg.LogKeyEventID: uuid.Must(uuid.NewV4()).String(),
+					pkg.LogKeyModule:  HelmReleaseStatusEvent.ModuleName,
 				}
 				eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
 
@@ -219,8 +219,8 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 					op.engine.TaskQueues.GetMain().AddLast(newTask.WithQueuedAt(time.Now()))
 					op.logTaskAdd(logEntry, fmt.Sprintf("detected %s, append", additionalDescription), newTask)
 				} else {
-					eventLogEntry.With("task.flow", "noop").Info("Detected event, ModuleRun task already queued",
-						slog.String("description", additionalDescription))
+					eventLogEntry.With(pkg.LogKeyTaskFlow, "noop").Info("Detected event, ModuleRun task already queued",
+						slog.String(pkg.LogKeyDescription, additionalDescription))
 				}
 			}
 		}

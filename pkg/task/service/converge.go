@@ -85,7 +85,7 @@ func (s *TaskHandlerService) logConvergeProgress(convergeTasks int, t sh_task.Ta
 		moduleTasks := s.queueService.GetNumberOfConvergeTasks()
 
 		if moduleTasks > 0 {
-			log.Info("Converge modules in progress", slog.Int("count", moduleTasks))
+			log.Info("Converge modules in progress", slog.Int(pkg.LogKeyCount, moduleTasks))
 		}
 	}
 }

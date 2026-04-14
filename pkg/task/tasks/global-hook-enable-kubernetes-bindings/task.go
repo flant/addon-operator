@@ -148,7 +148,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			pkg.MetricKeyActivation: converge.OperatorStartup.String(),
 		})
 		s.logger.Error("Global hook enable kubernetes bindings failed, requeue task to retry after delay.",
-			slog.Int("count", s.shellTask.GetFailureCount()+1),
+			slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 			log.Err(err))
 		s.shellTask.UpdateFailureMessage(err.Error())
 		s.shellTask.WithQueuedAt(queuedAt)
@@ -164,7 +164,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	for _, tsk := range parallelSyncTasksToWait {
 		if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
 			s.logger.Error("Queue is not created while run GlobalHookEnableKubernetesBindings parallel wait task!",
-				slog.String("queue", tsk.GetQueueName()))
+				slog.String(pkg.LogKeyQueue, tsk.GetQueueName()))
 
 			continue
 		}
@@ -179,7 +179,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	for _, tsk := range parallelSyncTasks {
 		if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
 			s.logger.Error("Queue is not created while run GlobalHookEnableKubernetesBindings parallel sync task!",
-				slog.String("queue", tsk.GetQueueName()))
+				slog.String(pkg.LogKeyQueue, tsk.GetQueueName()))
 		}
 	}
 

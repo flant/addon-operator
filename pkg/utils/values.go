@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 
+	"github.com/flant/addon-operator/pkg"
 	utils_checksum "github.com/flant/shell-operator/pkg/utils/checksum"
 )
 
@@ -143,7 +144,7 @@ func (v Values) SectionByKey(key string) Values {
 		newV, err := NewValues(data)
 		if err != nil {
 			log.Error("get section Values",
-				slog.String("key", key),
+				slog.String(pkg.LogKeyKey, key),
 				log.Err(err))
 		}
 		return newV

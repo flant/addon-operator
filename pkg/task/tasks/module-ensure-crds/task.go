@@ -9,6 +9,7 @@ import (
 	crdinstaller "github.com/deckhouse/module-sdk/pkg/crd-installer"
 	"go.opentelemetry.io/otel"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
@@ -102,7 +103,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
 
-	s.logger.Debug("Module ensureCRDs", slog.String("name", hm.ModuleName))
+	s.logger.Debug("Module ensureCRDs", slog.String(pkg.LogKeyName, hm.ModuleName))
 
 	if appliedGVKs, err := s.EnsureCRDs(baseModule); err != nil {
 		s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, err)

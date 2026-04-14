@@ -10,6 +10,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
@@ -115,8 +116,8 @@ func HookMetadataAccessor(t task.Task) HookMetadata {
 	meta, ok := taskMeta.(HookMetadata)
 	if !ok {
 		log.Error("Possible Bug! task metadata is not of type ModuleHookMetadata",
-			slog.String("type", string(t.GetType())),
-			slog.String("got", fmt.Sprintf("%T", meta)))
+			slog.String(pkg.LogKeyType, string(t.GetType())),
+			slog.String(pkg.LogKeyGot, fmt.Sprintf("%T", meta)))
 		return HookMetadata{}
 	}
 
