@@ -71,8 +71,8 @@ func (c *SettingsCheck) Check(ctx context.Context, settings utils.Values) (setti
 	if _, err = cmd.RunAndLogLines(ctx, make(map[string]string)); err != nil {
 		var stderrErr *executor.StderrError
 		if errors.As(err, &stderrErr) {
-			if jsonErr := json.Unmarshal([]byte(stderrErr.Stderr), &result); jsonErr != nil {
-				return settingscheck.Result{}, fmt.Errorf("parse check result from stderr: %w (raw: %s)", jsonErr, stderrErr.Stderr)
+			if jsonErr := json.Unmarshal([]byte(stderrErr.Message), &result); jsonErr != nil {
+				return settingscheck.Result{}, fmt.Errorf("parse check result from stderr: %w (raw: %s)", jsonErr, stderrErr.Message)
 			}
 
 			return result, nil
