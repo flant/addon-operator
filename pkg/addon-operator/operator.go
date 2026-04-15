@@ -147,16 +147,29 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
-	shapp.SetupLogging(rc, ao.Logger)
+	shapp.SetupLogging(app.LogLevel, rc, ao.Logger)
 
 	// Have to initialize common operator to have all common dependencies below
+	mainKubeCfg := shell_operator.KubeClientConfig{
+		Context: app.KubeContext,
+		Config:  app.KubeConfig,
+		QPS:     app.KubeClientQPS,
+		Burst:   app.KubeClientBurst,
+	}
+	patcherKubeCfg := shell_operator.KubeClientConfig{
+		Context: app.KubeContext,
+		Config:  app.KubeConfig,
+		QPS:     app.ObjectPatcherKubeClientQPS,
+		Burst:   app.ObjectPatcherKubeClientBurst,
+		Timeout: app.ObjectPatcherKubeClientTimeout,
+	}
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, []string{
 		"module",
 		pkg.MetricKeyHook,
 		pkg.MetricKeyBinding,
 		"queue",
 		"kind",
-	})
+	}, mainKubeCfg, patcherKubeCfg)
 	if err != nil {
 		panic(err)
 	}
@@ -236,7 +249,7 @@ func (op *AddonOperator) Setup() error {
 	log.Info("global hooks directory",
 		slog.String(pkg.LogKeyDir, globalHooksDir))
 
-	tempDir, err := ensureTempDirectory(shapp.TempDir)
+	tempDir, err := ensureTempDirectory(app.TempDir)
 	if err != nil {
 		return fmt.Errorf("temp directory: %s", err)
 	}

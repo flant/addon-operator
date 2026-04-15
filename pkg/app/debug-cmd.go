@@ -3,7 +3,7 @@ package app
 import (
 	"fmt"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/spf13/cobra"
 
 	shapp "github.com/flant/shell-operator/pkg/app"
 	sh_debug "github.com/flant/shell-operator/pkg/debug"
@@ -11,16 +11,16 @@ import (
 
 var outputFormat = "text"
 
-func DefineDebugCommands(kpApp *kingpin.Application) {
-	globalCmd := shapp.CommandWithDefaultUsageTemplate(kpApp, "global", "manage global values")
-	globalCmd.Flag("output", "Output format: json|yaml.").Short('o').
-		Default("yaml").
-		EnumVar(&outputFormat, "json", "yaml", "text")
+func DefineDebugCommands(rootCmd *cobra.Command) {
+	globalCmd := &cobra.Command{Use: "global", Short: "Manage global values."}
+	globalCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "yaml", "Output format: json|yaml|text.")
 	shapp.DefineDebugUnixSocketFlag(globalCmd)
-	// -o json|yaml|text
+	rootCmd.AddCommand(globalCmd)
 
-	globalCmd.Command("list", "List global hooks.").
-		Action(func(_ *kingpin.ParseContext) error {
+	globalCmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List global hooks.",
+		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -31,10 +31,13 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(dump))
 			return nil
-		})
+		},
+	})
 
-	globalCmd.Command("values", "Dump current global values.").
-		Action(func(_ *kingpin.ParseContext) error {
+	globalCmd.AddCommand(&cobra.Command{
+		Use:   "values",
+		Short: "Dump current global values.",
+		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -45,10 +48,13 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(dump))
 			return nil
-		})
+		},
+	})
 
-	globalCmd.Command("config", "Dump global config values.").
-		Action(func(_ *kingpin.ParseContext) error {
+	globalCmd.AddCommand(&cobra.Command{
+		Use:   "config",
+		Short: "Dump global config values.",
+		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -59,10 +65,13 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(dump))
 			return nil
-		})
+		},
+	})
 
-	globalCmd.Command("patches", "Dump global value patches.").
-		Action(func(_ *kingpin.ParseContext) error {
+	globalCmd.AddCommand(&cobra.Command{
+		Use:   "patches",
+		Short: "Dump global value patches.",
+		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -73,10 +82,13 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(dump))
 			return nil
-		})
+		},
+	})
 
-	globalCmd.Command("snapshots", "Dump snapshots for all global hooks.").
-		Action(func(_ *kingpin.ParseContext) error {
+	globalCmd.AddCommand(&cobra.Command{
+		Use:   "snapshots",
+		Short: "Dump snapshots for all global hooks.",
+		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -87,16 +99,18 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(out))
 			return nil
-		})
+		},
+	})
 
-	moduleCmd := shapp.CommandWithDefaultUsageTemplate(kpApp, "module", "List modules and dump their values")
-	moduleCmd.Flag("output", "Output format: json|yaml.").Short('o').
-		Default("yaml").
-		EnumVar(&outputFormat, "json", "yaml", "text")
+	moduleCmd := &cobra.Command{Use: "module", Short: "List modules and dump their values."}
+	moduleCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "yaml", "Output format: json|yaml|text.")
 	shapp.DefineDebugUnixSocketFlag(moduleCmd)
+	rootCmd.AddCommand(moduleCmd)
 
-	moduleCmd.Command("list", "List available modules and their enabled status.").
-		Action(func(_ *kingpin.ParseContext) error {
+	moduleCmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List available modules and their enabled status.",
+		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -107,15 +121,20 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(modules))
 			return nil
-		})
+		},
+	})
 
 	var (
 		moduleName string
 		showGlobal bool
 	)
 
-	moduleValuesCmd := moduleCmd.Command("values", "Dump module values by name.").
-		Action(func(_ *kingpin.ParseContext) error {
+	moduleValuesCmd := &cobra.Command{
+		Use:   "values <module_name>",
+		Short: "Dump module values by name.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			moduleName = args[0]
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -126,17 +145,22 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(dump))
 			return nil
-		})
-	moduleValuesCmd.Arg("module_name", "").Required().StringVar(&moduleName)
-	moduleValuesCmd.Flag("global", "Also show global values").Short('g').BoolVar(&showGlobal)
+		},
+	}
+	moduleValuesCmd.Flags().BoolVarP(&showGlobal, "global", "g", false, "Also show global values.")
+	moduleCmd.AddCommand(moduleValuesCmd)
 
 	var (
 		debug bool
 		diff  bool
 	)
 
-	moduleRenderCmd := moduleCmd.Command("render", "Render module manifests.").
-		Action(func(_ *kingpin.ParseContext) error {
+	moduleRenderCmd := &cobra.Command{
+		Use:   "render <module_name>",
+		Short: "Render module manifests.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			moduleName = args[0]
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -147,13 +171,18 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(dump))
 			return nil
-		})
-	moduleRenderCmd.Arg("module_name", "").Required().StringVar(&moduleName)
-	moduleRenderCmd.Flag("debug", "enable debug mode").Default("false").BoolVar(&debug)
-	moduleRenderCmd.Flag("diff", "enable diff mode (experimental, prints module resources drifted from the chart.)").Default("false").BoolVar(&diff)
+		},
+	}
+	moduleRenderCmd.Flags().BoolVar(&debug, "debug", false, "Enable debug mode.")
+	moduleRenderCmd.Flags().BoolVar(&diff, "diff", false, "Enable diff mode (experimental, prints module resources drifted from the chart).")
+	moduleCmd.AddCommand(moduleRenderCmd)
 
-	moduleConfigCmd := moduleCmd.Command("config", "Dump module config values by name.").
-		Action(func(_ *kingpin.ParseContext) error {
+	moduleConfigCmd := &cobra.Command{
+		Use:   "config <module_name>",
+		Short: "Dump module config values by name.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			moduleName = args[0]
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -164,12 +193,17 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(dump))
 			return nil
-		})
-	moduleConfigCmd.Arg("module_name", "").Required().StringVar(&moduleName)
-	moduleConfigCmd.Flag("global", "Also show global config").Short('g').BoolVar(&showGlobal)
+		},
+	}
+	moduleConfigCmd.Flags().BoolVarP(&showGlobal, "global", "g", false, "Also show global config.")
+	moduleCmd.AddCommand(moduleConfigCmd)
 
-	modulePatchesCmd := moduleCmd.Command("patches", "Dump module value patches by name.").
-		Action(func(_ *kingpin.ParseContext) error {
+	modulePatchesCmd := &cobra.Command{
+		Use:   "patches <module_name>",
+		Short: "Dump module value patches by name.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			moduleName = args[0]
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -180,11 +214,18 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(dump))
 			return nil
-		})
-	modulePatchesCmd.Arg("module_name", "").Required().StringVar(&moduleName)
+		},
+	}
+	moduleCmd.AddCommand(modulePatchesCmd)
 
-	moduleResourceMonitorCmd := moduleCmd.Command("resource-monitor", "Dump resource monitors.").
-		Action(func(_ *kingpin.ParseContext) error {
+	moduleResourceMonitorCmd := &cobra.Command{
+		Use:   "resource-monitor [module_name]",
+		Short: "Dump resource monitors.",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				moduleName = args[0]
+			}
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -195,11 +236,16 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(out))
 			return nil
-		})
-	moduleResourceMonitorCmd.Arg("module_name", "").StringVar(&moduleName)
+		},
+	}
+	moduleCmd.AddCommand(moduleResourceMonitorCmd)
 
-	moduleSnapshotsCmd := moduleCmd.Command("snapshots", "Dump snapshots for all hooks.").
-		Action(func(_ *kingpin.ParseContext) error {
+	moduleSnapshotsCmd := &cobra.Command{
+		Use:   "snapshots <module_name>",
+		Short: "Dump snapshots for all hooks.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			moduleName = args[0]
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -210,8 +256,9 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			}
 			fmt.Println(string(out))
 			return nil
-		})
-	moduleSnapshotsCmd.Arg("module_name", "").Required().StringVar(&moduleName)
+		},
+	}
+	moduleCmd.AddCommand(moduleSnapshotsCmd)
 }
 
 type cliGlobalSectionRequest struct {

@@ -925,7 +925,7 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 
 	kubeHooks := ml.GetHooks(OnKubernetesEvent)
 	for _, mh := range kubeHooks {
-		mh.GetHookController().StopMonitors()
+		mh.GetHookController().DisableKubernetesBindings()
 	}
 
 	schHooks := ml.GetHooks(Schedule)

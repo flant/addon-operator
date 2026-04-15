@@ -1,10 +1,14 @@
 package app
 
 import (
+	"fmt"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	shapp "github.com/flant/shell-operator/pkg/app"
 )
@@ -18,14 +22,15 @@ var (
 	ListenPort    = "9650"
 
 	DefaultPrometheusMetricsPrefix = "addon_operator_"
+	PrometheusMetricsPrefix        = DefaultPrometheusMetricsPrefix
 
 	Helm3HistoryMax   int32 = 10
-	Helm3Timeout            = 20 * time.Minute // previous was 5 minutes
+	Helm3Timeout            = 20 * time.Minute
 	HelmIgnoreRelease       = ""
 
-	HelmMonitorKubeClientQpsDefault   = "5" // DefaultQPS from k8s.io/client-go/rest/config.go
+	HelmMonitorKubeClientQpsDefault   = "5"
 	HelmMonitorKubeClientQps          float32
-	HelmMonitorKubeClientBurstDefault = "10" // DefaultBurst from k8s.io/client-go/rest/config.go
+	HelmMonitorKubeClientBurstDefault = "10"
 	HelmMonitorKubeClientBurst        int
 
 	Namespace     = ""
@@ -33,6 +38,7 @@ var (
 
 	GlobalHooksDir = "global-hooks"
 	ModulesDir     = "modules"
+	TempDir        = ""
 	ShellChrootDir = ""
 
 	UnnumberedModuleOrder = 1
@@ -56,6 +62,29 @@ var (
 	NumberOfParallelQueues   = 20
 	ParallelQueuePrefix      = "parallel_queue"
 	ParallelQueueNamePattern = ParallelQueuePrefix + "_%d"
+
+	// Kube client settings (previously from shell-operator globals)
+	KubeContext     string
+	KubeConfig      string
+	KubeServer      string
+	KubeClientQPS   float32
+	KubeClientBurst int
+
+	ObjectPatcherKubeClientQPS     float32
+	ObjectPatcherKubeClientBurst   int
+	ObjectPatcherKubeClientTimeout time.Duration
+
+	// Debug settings (previously from shell-operator globals)
+	DebugUnixSocket     string
+	DebugHTTPServerAddr string
+	DebugKeepTmpFiles   bool
+	DebugKubernetesAPI  bool
+
+	// Log settings (previously from shell-operator globals)
+	LogLevel         string
+	LogType          string
+	LogNoTime        bool
+	LogProxyHookJSON bool
 )
 
 const (
@@ -63,118 +92,109 @@ const (
 	DefaultDebugUnixSocket = "/var/run/addon-operator/debug.socket"
 )
 
-// DefineStartCommandFlags init global flags with default values
-func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause) {
-	cmd.Flag("modules-dir", "paths where to search for module directories").
-		Envar("MODULES_DIR").
-		Default(ModulesDir).
-		StringVar(&ModulesDir)
+// BindFlags registers all operator CLI flags on cmd, using the current cfg
+// values (already merged with env vars and hardcoded defaults) as flag defaults.
+// An explicit CLI flag always wins.
+func BindFlags(cfg *Config, rootCmd *cobra.Command, cmd *cobra.Command) {
+	bindAppFlags(cfg, cmd)
+	bindHelmFlags(cfg, cmd)
+	bindAdmissionFlags(cfg, cmd)
+	bindKubeFlags(cfg, cmd)
+	bindLogFlags(cfg, cmd)
+	bindDebugFlags(cfg, rootCmd, cmd)
+}
 
-	// TODO Delete this setting after refactoring module dependencies machinery.
-	cmd.Flag("unnumbered-modules-order", "default order for modules without numbered prefix in name").
-		Envar("UNNUMBERED_MODULES_ORDER").
-		Default(strconv.Itoa(UnnumberedModuleOrder)).
-		IntVar(&UnnumberedModuleOrder)
+func bindAppFlags(cfg *Config, cmd *cobra.Command) {
+	f := cmd.Flags()
+	f.StringVar(&cfg.App.ModulesDir, "modules-dir", cfg.App.ModulesDir, "Paths where to search for module directories. Can be set with $MODULES_DIR.")
+	f.IntVar(&cfg.App.UnnumberedModuleOrder, "unnumbered-modules-order", cfg.App.UnnumberedModuleOrder, "Default order for modules without numbered prefix in name. Can be set with $UNNUMBERED_MODULES_ORDER.")
+	f.StringVar(&cfg.App.GlobalHooksDir, "global-hooks-dir", cfg.App.GlobalHooksDir, "A path where to search for global hook files (and OpenAPI schemas). Can be set with $GLOBAL_HOOKS_DIR.")
+	f.StringVar(&cfg.App.TempDir, "tmp-dir", cfg.App.TempDir, "A path to store temporary files with data for hooks. Can be set with $ADDON_OPERATOR_TMP_DIR.")
+	f.StringVar(&cfg.App.Namespace, "namespace", cfg.App.Namespace, "Namespace of addon-operator. Can be set with $ADDON_OPERATOR_NAMESPACE.")
+	f.StringVar(&cfg.App.ListenAddress, "prometheus-listen-address", cfg.App.ListenAddress, "Address to use to serve metrics to Prometheus. Can be set with $ADDON_OPERATOR_LISTEN_ADDRESS.")
+	f.StringVar(&cfg.App.ListenPort, "prometheus-listen-port", cfg.App.ListenPort, "Port to use to serve metrics to Prometheus. Can be set with $ADDON_OPERATOR_LISTEN_PORT.")
+	f.StringVar(&cfg.App.PrometheusMetricsPrefix, "prometheus-metrics-prefix", cfg.App.PrometheusMetricsPrefix, "Prefix for Prometheus metrics. Can be set with $ADDON_OPERATOR_PROMETHEUS_METRICS_PREFIX.")
+	f.StringVar(&cfg.App.ConfigMapName, "config-map", cfg.App.ConfigMapName, "Name of a ConfigMap to store values. Can be set with $ADDON_OPERATOR_CONFIG_MAP.")
+	f.StringVar(&cfg.App.ShellChrootDir, "shell-chroot-dir", cfg.App.ShellChrootDir, "Defines the path where shell scripts (shell hooks and enabled scripts) will be chrooted to. Can be set with $ADDON_OPERATOR_SHELL_CHROOT_DIR.")
+	f.BoolVar(&cfg.App.StrictModeEnabled, "strict-check-values-mode-enabled", cfg.App.StrictModeEnabled, "Flag to enable strict-check-values mode. Can be set with $STRICT_CHECK_VALUES_MODE_ENABLED.")
+	f.StringVar(&cfg.App.AppliedExtenders, "applied-module-extenders", cfg.App.AppliedExtenders, "Flag to define which module extenders to apply. Can be set with $ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS.")
+	f.StringVar(&cfg.App.ExtraLabels, "crd-extra-labels", cfg.App.ExtraLabels, "String with CRDs label selectors, like `heritage=addon-operator`. Can be set with $ADDON_OPERATOR_CRD_EXTRA_LABELS.")
+	f.StringVar(&cfg.App.CRDsFilters, "crd-filters", cfg.App.CRDsFilters, "String of filters for the CRD, separated by commas. Can be set with $ADDON_OPERATOR_CRD_FILTER_PREFIXES.")
+}
 
-	cmd.Flag("global-hooks-dir", "a path where to search for global hook files (and OpenAPI schemas)").
-		Envar("GLOBAL_HOOKS_DIR").
-		Default(GlobalHooksDir).
-		StringVar(&GlobalHooksDir)
+func bindHelmFlags(cfg *Config, cmd *cobra.Command) {
+	f := cmd.Flags()
+	f.Int32Var(&cfg.Helm.HistoryMax, "helm-history-max", cfg.Helm.HistoryMax, "Helm: limit the maximum number of revisions saved per release. Use 0 for no limit. Can be set with $HELM_HISTORY_MAX.")
+	f.DurationVar(&cfg.Helm.Timeout, "helm-timeout", cfg.Helm.Timeout, "Helm: time to wait for any individual Kubernetes operation (like Jobs for hooks). Can be set with $HELM_TIMEOUT.")
+	f.StringVar(&cfg.Helm.IgnoreRelease, "helm-ignore-release", cfg.Helm.IgnoreRelease, "Do not treat Helm release in the addon-operator namespace as a part of module releases, save it from auto-deletion at start. Can be set with $HELM_IGNORE_RELEASE.")
+	f.Float32Var(&cfg.Helm.MonitorKubeClientQps, "helm-monitor-kube-client-qps", cfg.Helm.MonitorKubeClientQps, "QPS for a rate limiter of a kubernetes client for Helm resources monitor. Can be set with $HELM_MONITOR_KUBE_CLIENT_QPS.")
+	f.IntVar(&cfg.Helm.MonitorKubeClientBurst, "helm-monitor-kube-client-burst", cfg.Helm.MonitorKubeClientBurst, "Burst for a rate limiter of a kubernetes client for Helm resources monitor. Can be set with $HELM_MONITOR_KUBE_CLIENT_BURST.")
+}
 
-	cmd.Flag("tmp-dir", "a path to store temporary files with data for hooks").
-		Envar("ADDON_OPERATOR_TMP_DIR").
-		Default(DefaultTempDir).
-		StringVar(&shapp.TempDir)
+func bindAdmissionFlags(cfg *Config, cmd *cobra.Command) {
+	f := cmd.Flags()
+	f.StringVar(&cfg.Admission.ListenPort, "admission-server-listen-port", cfg.Admission.ListenPort, "Port to use to serve admission webhooks. Can be set with $ADDON_OPERATOR_ADMISSION_SERVER_LISTEN_PORT.")
+	f.StringVar(&cfg.Admission.CertsDir, "admission-server-certs-dir", cfg.Admission.CertsDir, "Path to the directory with tls certificates. Can be set with $ADDON_OPERATOR_ADMISSION_SERVER_CERTS_DIR.")
+	f.BoolVar(&cfg.Admission.Enabled, "admission-server-enabled", cfg.Admission.Enabled, "Flag to enable admission http server. Can be set with $ADDON_OPERATOR_ADMISSION_SERVER_ENABLED.")
+}
 
-	cmd.Flag("namespace", "Namespace of addon-operator.").
-		Envar("ADDON_OPERATOR_NAMESPACE").
-		Required().
-		StringVar(&Namespace)
+func bindKubeFlags(cfg *Config, cmd *cobra.Command) {
+	f := cmd.Flags()
+	f.StringVar(&cfg.Kube.Context, "kube-context", cfg.Kube.Context, "The name of the kubeconfig context to use. Can be set with $KUBE_CONTEXT.")
+	f.StringVar(&cfg.Kube.Config, "kube-config", cfg.Kube.Config, "Path to the kubeconfig file. Can be set with $KUBE_CONFIG.")
+	f.StringVar(&cfg.Kube.Server, "kube-server", cfg.Kube.Server, "The address and port of the Kubernetes API server. Can be set with $KUBE_SERVER.")
+	f.Float32Var(&cfg.Kube.ClientQPS, "kube-client-qps", cfg.Kube.ClientQPS, "QPS for a rate limiter of a Kubernetes client. Can be set with $KUBE_CLIENT_QPS.")
+	f.IntVar(&cfg.Kube.ClientBurst, "kube-client-burst", cfg.Kube.ClientBurst, "Burst for a rate limiter of a Kubernetes client. Can be set with $KUBE_CLIENT_BURST.")
+	f.Float32Var(&cfg.ObjectPatcher.KubeClientQPS, "object-patcher-kube-client-qps", cfg.ObjectPatcher.KubeClientQPS, "QPS for a rate limiter of a Kubernetes client for Object patcher. Can be set with $OBJECT_PATCHER_KUBE_CLIENT_QPS.")
+	f.IntVar(&cfg.ObjectPatcher.KubeClientBurst, "object-patcher-kube-client-burst", cfg.ObjectPatcher.KubeClientBurst, "Burst for a rate limiter of a Kubernetes client for Object patcher. Can be set with $OBJECT_PATCHER_KUBE_CLIENT_BURST.")
+	f.DurationVar(&cfg.ObjectPatcher.KubeClientTimeout, "object-patcher-kube-client-timeout", cfg.ObjectPatcher.KubeClientTimeout, "Timeout for object patcher requests to the Kubernetes API server. Can be set with $OBJECT_PATCHER_KUBE_CLIENT_TIMEOUT.")
+}
 
-	cmd.Flag("prometheus-listen-address", "Address to use to serve metrics to Prometheus.").
-		Envar("ADDON_OPERATOR_LISTEN_ADDRESS").
-		Default(ListenAddress).
-		StringVar(&ListenAddress)
-	cmd.Flag("prometheus-listen-port", "Port to use to serve metrics to Prometheus.").
-		Envar("ADDON_OPERATOR_LISTEN_PORT").
-		Default(ListenPort).
-		StringVar(&ListenPort)
-	cmd.Flag("prometheus-metrics-prefix", "Prefix for Prometheus metrics.").
-		Envar("ADDON_OPERATOR_PROMETHEUS_METRICS_PREFIX").
-		Default(DefaultPrometheusMetricsPrefix).
-		StringVar(&shapp.PrometheusMetricsPrefix)
-	cmd.Flag("helm-history-max", "Helm: limit the maximum number of revisions saved per release. Use 0 for no limit.").
-		Envar("HELM_HISTORY_MAX").
-		Default(strconv.Itoa(int(Helm3HistoryMax))).
-		Int32Var(&Helm3HistoryMax)
+func bindLogFlags(cfg *Config, cmd *cobra.Command) {
+	f := cmd.Flags()
+	f.StringVar(&cfg.Log.Level, "log-level", cfg.Log.Level, "Logging level: debug, info, error. Can be set with $LOG_LEVEL.")
+	f.StringVar(&cfg.Log.Type, "log-type", cfg.Log.Type, "Logging formatter type: json, text or color. Can be set with $LOG_TYPE.")
+	f.BoolVar(&cfg.Log.NoTime, "log-no-time", cfg.Log.NoTime, "Disable timestamp logging. Can be set with $LOG_NO_TIME.")
+	f.BoolVar(&cfg.Log.ProxyHookJSON, "log-proxy-hook-json", cfg.Log.ProxyHookJSON, "Proxy hook stdout/stderr JSON logging. Can be set with $LOG_PROXY_HOOK_JSON.")
+}
 
-	cmd.Flag("helm-timeout", "Helm: time to wait for any individual Kubernetes operation (like Jobs for hooks).").
-		Envar("HELM_TIMEOUT").
-		Default(Helm3Timeout.String()).
-		DurationVar(&Helm3Timeout)
+func bindDebugFlags(cfg *Config, rootCmd *cobra.Command, cmd *cobra.Command) {
+	shapp.DebugUnixSocket = cfg.Debug.UnixSocket
 
-	cmd.Flag("helm-ignore-release", "Do not treat Helm release in the addon-operator namespace as a part of module releases, save it from auto-deletion at start.").
-		Envar("HELM_IGNORE_RELEASE").
-		StringVar(&HelmIgnoreRelease)
+	f := cmd.Flags()
+	f.StringVar(&cfg.Debug.UnixSocket, "debug-unix-socket", cfg.Debug.UnixSocket, "A path to a unix socket for a debug endpoint. Can be set with $DEBUG_UNIX_SOCKET.")
+	_ = f.MarkHidden("debug-unix-socket")
 
-	// Rate limit settings for kube client used by Helm resources monitor.
-	cmd.Flag("helm-monitor-kube-client-qps", "QPS for a rate limiter of a kubernetes client for Helm resources monitor. Can be set with $HELM_MONITOR_KUBE_CLIENT_QPS.").
-		Envar("HELM_MONITOR_KUBE_CLIENT_QPS").
-		Default(HelmMonitorKubeClientQpsDefault).
-		Float32Var(&HelmMonitorKubeClientQps)
-	cmd.Flag("helm-monitor-kube-client-burst", "Burst for a rate limiter of a kubernetes client for Helm resources monitor. Can be set with $HELM_MONITOR_KUBE_CLIENT_BURST.").
-		Envar("HELM_MONITOR_KUBE_CLIENT_BURST").
-		Default(HelmMonitorKubeClientBurstDefault).
-		IntVar(&HelmMonitorKubeClientBurst)
+	f.StringVar(&cfg.Debug.HTTPServerAddr, "debug-http-addr", cfg.Debug.HTTPServerAddr, "HTTP address for a debug endpoint. Can be set with $DEBUG_HTTP_SERVER_ADDR.")
+	_ = f.MarkHidden("debug-http-addr")
 
-	cmd.Flag("config-map", "Name of a ConfigMap to store values.").
-		Envar("ADDON_OPERATOR_CONFIG_MAP").
-		Default(ConfigMapName).
-		StringVar(&ConfigMapName)
+	f.BoolVar(&cfg.Debug.KeepTmpFiles, "debug-keep-tmp-files", cfg.Debug.KeepTmpFiles, "Set to true to disable cleanup of temporary files. Can be set with $DEBUG_KEEP_TMP_FILES.")
+	_ = f.MarkHidden("debug-keep-tmp-files")
 
-	cmd.Flag("admission-server-listen-port", "Port to use to serve admission webhooks.").
-		Envar("ADDON_OPERATOR_ADMISSION_SERVER_LISTEN_PORT").
-		Default(AdmissionServerListenPort).
-		StringVar(&AdmissionServerListenPort)
+	f.BoolVar(&cfg.Debug.KubernetesAPI, "debug-kubernetes-api", cfg.Debug.KubernetesAPI, "Enable client-go debug messages. Can be set with $DEBUG_KUBERNETES_API.")
+	_ = f.MarkHidden("debug-kubernetes-api")
 
-	cmd.Flag("admission-server-certs-dir", "Path to the directory with tls certificates.").
-		Envar("ADDON_OPERATOR_ADMISSION_SERVER_CERTS_DIR").
-		Default("").
-		StringVar(&AdmissionServerCertsDir)
+	startCmd := cmd
+	debugOptionsCmd := &cobra.Command{
+		Use:    "debug-options",
+		Short:  "Show help for debug flags of the start command.",
+		Hidden: true,
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Fprintf(os.Stdout, "usage: %s start [flags]\n\nDebug flags:\n", rootCmd.Use)
+			startCmd.Flags().VisitAll(func(fl *pflag.Flag) {
+				if fl.Hidden && strings.HasPrefix(fl.Name, "debug-") {
+					fmt.Fprintf(os.Stdout, "  --%s\n        %s\n", fl.Name, fl.Usage)
+				}
+			})
+			os.Exit(0)
+		},
+	}
+	rootCmd.AddCommand(debugOptionsCmd)
+}
 
-	cmd.Flag("admission-server-enabled", "Flag to enable admission http server.").
-		Envar("ADDON_OPERATOR_ADMISSION_SERVER_ENABLED").
-		Default("false").
-		BoolVar(&AdmissionServerEnabled)
-
-	cmd.Flag("strict-check-values-mode-enabled", "Flag to enable strict-check-values mode.").
-		Envar("STRICT_CHECK_VALUES_MODE_ENABLED").
-		Default("false").
-		BoolVar(&StrictModeEnabled)
-
-	cmd.Flag("applied-module-extenders", "Flag to define which module extenders to apply").
-		Envar("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS").
-		Default(AppliedExtenders).
-		StringVar(&AppliedExtenders)
-
-	cmd.Flag("crd-extra-labels", "String with CRDs label selectors, like `heritage=addon-operator`").
-		Envar("ADDON_OPERATOR_CRD_EXTRA_LABELS").
-		Default(ExtraLabels).
-		StringVar(&ExtraLabels)
-
-	cmd.Flag("crd-filters", "String of filters for the CRD, separated by commas`").
-		Envar("ADDON_OPERATOR_CRD_FILTER_PREFIXES").
-		Default(CRDsFilters).
-		StringVar(&CRDsFilters)
-
-	cmd.Flag("shell-chroot-dir", "Defines the path where shell scripts (shell hooks and enabled scripts) will be chrooted to.").
-		Envar("ADDON_OPERATOR_SHELL_CHROOT_DIR").
-		Default("").
-		StringVar(&ShellChrootDir)
-
-	shapp.DefineKubeClientFlags(cmd)
-	shapp.DefineLoggingFlags(cmd)
-
-	shapp.DebugUnixSocket = DefaultDebugUnixSocket
-	shapp.DefineDebugFlags(kpApp, cmd)
+func init() {
+	helmMonitorQPS, _ := strconv.ParseFloat(HelmMonitorKubeClientQpsDefault, 32)
+	HelmMonitorKubeClientQps = float32(helmMonitorQPS)
+	helmMonitorBurst, _ := strconv.Atoi(HelmMonitorKubeClientBurstDefault)
+	HelmMonitorKubeClientBurst = helmMonitorBurst
 }

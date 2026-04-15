@@ -31,7 +31,6 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/flant/addon-operator/sdk"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
@@ -99,7 +98,7 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 			synchronizationState: NewSynchronizationState(),
 		},
 		hooks:                  newHooksStorage(),
-		keepTemporaryHookFiles: shapp.DebugKeepTmpFiles,
+		keepTemporaryHookFiles: app.DebugKeepTmpFiles,
 	}
 
 	for _, opt := range opts {
@@ -374,7 +373,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 			bm.logger.Warn("get batch hook config", slog.String(pkg.LogKeyHookFilePath, hookPath), log.Err(err))
 		}
 
-		shHook := kind.NewShellHook(hookName, hookPath, bm.safeName(), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"), options...)
+		shHook := kind.NewShellHook(hookName, hookPath, bm.safeName(), bm.keepTemporaryHookFiles, app.LogProxyHookJSON, bm.logger.Named("shell-hook"), options...)
 
 		hks = append(hks, shHook)
 	}
@@ -429,13 +428,13 @@ func (bm *BasicModule) searchModuleBatchHooks() (*searchModuleBatchHooksResult, 
 
 			// add readiness hook
 			nestedHookName := fmt.Sprintf("%s-readiness", hookName)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), kind.BatchHookReadyKey, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), kind.BatchHookReadyKey, bm.keepTemporaryHookFiles, app.LogProxyHookJSON, bm.logger.Named("batch-hook"))
 			result.Hooks = append(result.Hooks, shHook)
 		}
 
 		for key, cfg := range sdkcfgs.Hooks {
 			nestedHookName := fmt.Sprintf("%s:%s:%s", hookName, cfg.Metadata.Name, key)
-			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), key, bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("batch-hook"))
+			shHook := kind.NewBatchHook(nestedHookName, hookPath, bm.safeName(), key, bm.keepTemporaryHookFiles, app.LogProxyHookJSON, bm.logger.Named("batch-hook"))
 
 			result.Hooks = append(result.Hooks, shHook)
 		}
