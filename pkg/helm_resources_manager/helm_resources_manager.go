@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
 	klient "github.com/flant/kube-client/client"
@@ -113,7 +114,7 @@ func (hm *helmResourcesManager) Ch() chan ReleaseStatusEvent {
 
 func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []manifest.Manifest, defaultNamespace string, lastReleaseStatus func(releaseName string) (revision string, status string, err error)) {
 	log.Debug("Start helm resources monitor for module",
-		slog.String("module", moduleName))
+		slog.String(pkg.LogKeyModule, moduleName))
 	hm.StopMonitor(moduleName)
 
 	cfg := &ResourceMonitorConfig{
@@ -138,12 +139,12 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 
 func (hm *helmResourcesManager) absentResourcesCallback(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string) {
 	log.Debug("Detect absent resources for module",
-		slog.String("module", moduleName))
+		slog.String(pkg.LogKeyModule, moduleName))
 	for _, m := range absent {
 		log.Debug("absent module",
-			slog.String("namespace", m.Namespace(defaultNs)),
-			slog.String("kind", m.Kind()),
-			slog.String("module", m.Name()))
+			slog.String(pkg.LogKeyNamespace, m.Namespace(defaultNs)),
+			slog.String(pkg.LogKeyKind, m.Kind()),
+			slog.String(pkg.LogKeyModule, m.Name()))
 	}
 	hm.eventCh <- ReleaseStatusEvent{
 		ModuleName:       moduleName,

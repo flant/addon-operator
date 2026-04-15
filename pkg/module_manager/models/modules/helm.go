@@ -119,7 +119,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 
 	if !isHelm {
 		hm.logger.Info("module has neither Chart.yaml nor templates/ dir, is't not a helm chart",
-			slog.String("name", bm.GetName()))
+			slog.String(pkg.LogKeyName, bm.GetName()))
 		return nil, ErrModuleIsNotHelm
 	}
 
@@ -210,14 +210,14 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 			// Also check for nelm ReleaseNotFoundError
 			var releaseNotFoundErr *action.ReleaseNotFoundError
 			if !errors.As(err, &releaseNotFoundErr) {
-				logEntry.Warn("get release label failed", log.Err(err), slog.String("release", helmReleaseName))
+				logEntry.Warn("get release label failed", log.Err(err), slog.String(pkg.LogKeyRelease, helmReleaseName))
 				return fmt.Errorf("get release label failed: %w", err)
 			}
-			logEntry.Debug("release not found when checking unmanaged state", slog.String("release", helmReleaseName))
+			logEntry.Debug("release not found when checking unmanaged state", slog.String(pkg.LogKeyRelease, helmReleaseName))
 		}
 
 		if isUnmanaged == "true" {
-			logEntry.Info("helm release is Unmanaged, skip helm upgrade", slog.String("release", helmReleaseName))
+			logEntry.Info("helm release is Unmanaged, skip helm upgrade", slog.String(pkg.LogKeyRelease, helmReleaseName))
 
 			return ErrReleaseIsUnmanaged
 		}
@@ -271,7 +271,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 		return err
 	}
 
-	logEntry.Debug("chart has resources", slog.Int("count", len(manifests)))
+	logEntry.Debug("chart has resources", slog.Int(pkg.LogKeyCount, len(manifests)))
 
 	span.AddEvent("ModuleRun-HelmPhase-helm-check-upgrade")
 	// Skip upgrades if nothing is changed
@@ -341,7 +341,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	revision, status, err := helmClient.LastReleaseStatus(releaseName)
 
 	if revision == "0" {
-		logEntry.Debug("helm release not exists: should run upgrade", slog.String("release", releaseName))
+		logEntry.Debug("helm release not exists: should run upgrade", slog.String(pkg.LogKeyRelease, releaseName))
 		return true, nil
 	}
 
@@ -352,8 +352,8 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	// Run helm upgrade if last release isn't `deployed`
 	if strings.ToLower(status) != "deployed" {
 		logEntry.Debug("helm release: should run upgrade",
-			slog.String("release", releaseName),
-			slog.String("status", strings.ToLower(status)))
+			slog.String(pkg.LogKeyRelease, releaseName),
+			slog.String(pkg.LogKeyStatus, strings.ToLower(status)))
 		return true, nil
 	}
 
@@ -361,7 +361,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	recordedChecksum, err := helmClient.GetReleaseChecksum(releaseName)
 	if err != nil {
 		logEntry.Debug("helm release get values error, no upgrade",
-			slog.String("release", releaseName),
+			slog.String(pkg.LogKeyRelease, releaseName),
 			log.Err(err))
 		return false, err
 	}
@@ -370,9 +370,9 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	// Run helm upgrade if checksum is changed.
 	if recordedChecksum != checksum {
 		logEntry.Debug("helm release checksum is changed: should run upgrade",
-			slog.String("release", releaseName),
-			slog.String("checksum", recordedChecksum),
-			slog.String("newChecksum", checksum))
+			slog.String(pkg.LogKeyRelease, releaseName),
+			slog.String(pkg.LogKeyChecksum, recordedChecksum),
+			slog.String(pkg.LogKeyNewChecksum, checksum))
 		return true, nil
 	}
 
@@ -385,14 +385,14 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	// Run helm upgrade if there are absent resources
 	if len(absent) > 0 {
 		logEntry.Debug("helm release has absent resources: should run upgrade",
-			slog.String("release", releaseName),
-			slog.Int("count", len(absent)),
+			slog.String(pkg.LogKeyRelease, releaseName),
+			slog.Int(pkg.LogKeyCount, len(absent)),
 		)
 		return true, nil
 	}
 
 	logEntry.Debug("helm release is unchanged: skip release upgrade",
-		slog.String("release", releaseName))
+		slog.String(pkg.LogKeyRelease, releaseName))
 	return false, nil
 }
 
@@ -409,8 +409,8 @@ func (hm *HelmModule) PrepareValuesYamlFile() (string, error) {
 	}
 
 	hm.logger.Debug("Prepared module helm values info",
-		slog.String("moduleName", hm.name),
-		slog.String("values", hm.values.DebugString()))
+		slog.String(pkg.LogKeyModuleName, hm.name),
+		slog.String(pkg.LogKeyValues, hm.values.DebugString()))
 
 	return path, nil
 }

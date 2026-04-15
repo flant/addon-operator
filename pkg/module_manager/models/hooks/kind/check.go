@@ -27,6 +27,7 @@ import (
 	"github.com/deckhouse/module-sdk/pkg/settingscheck"
 	"github.com/google/uuid"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
 )
@@ -56,7 +57,7 @@ func (c *SettingsCheck) Check(ctx context.Context, settings utils.Values) (setti
 	// Remove tmp files after execution
 	defer func() {
 		if err = os.Remove(tmp); err != nil {
-			c.logger.Error("remove tmp file", slog.String("file", tmp), log.Err(err))
+			c.logger.Error("remove tmp file", slog.String(pkg.LogKeyFile, tmp), log.Err(err))
 		}
 	}()
 

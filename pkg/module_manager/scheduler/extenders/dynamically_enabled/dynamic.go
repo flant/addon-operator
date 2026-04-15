@@ -7,6 +7,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 )
 
@@ -45,7 +46,7 @@ func (e *Extender) UpdateStatus(moduleName, operation string, value bool) {
 		}
 	default:
 		log.Warn("Unknown patch operation",
-			slog.String("operation", operation))
+			slog.String(pkg.LogKeyOperation, operation))
 	}
 	e.l.Unlock()
 }
