@@ -10,7 +10,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.6.0
-	github.com/flant/shell-operator v1.15.3
+	github.com/flant/shell-operator v1.16.4-0.20260415085203-4264b752fe70
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-openapi/loads v0.23.1
 	github.com/go-openapi/spec v0.22.0
@@ -49,6 +49,7 @@ require (
 	cel.dev/expr v0.25.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/caarlos0/env/v11 v11.3.1 // indirect
 	github.com/dop251/goja v0.0.0-20251121114222-56b1242a5f86 // indirect
 	github.com/dop251/goja_nodejs v0.0.0-20251015164255-5e94316bedaf // indirect
 	github.com/evanw/esbuild v0.27.0 // indirect
@@ -74,6 +75,7 @@ require (
 	github.com/yannh/kubeconform v0.6.7 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	k8s.io/component-helpers v0.33.8 // indirect
@@ -207,8 +209,8 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/spf13/cobra v1.9.1 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/spf13/cobra v1.10.2 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/tetratelabs/wazero v1.8.1 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
