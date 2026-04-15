@@ -35,7 +35,7 @@ func (op *AddonOperator) bootstrap() error {
 	// Initialize the debug server for troubleshooting and monitoring
 	// TODO: rewrite shapp global variables to the addon-operator one
 	var err error
-	op.DebugServer, err = shell_operator.RunDefaultDebugServer(shapp.DebugUnixSocket, shapp.DebugHttpServerAddr, op.Logger.Named("debug-server"))
+	op.DebugServer, err = shell_operator.RunDefaultDebugServer(app.DebugUnixSocket, app.DebugHTTPServerAddr, op.Logger.Named("debug-server"))
 	if err != nil {
 		log.Error("Fatal: start Debug server", log.Err(err))
 		return fmt.Errorf("start Debug server: %w", err)

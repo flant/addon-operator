@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -34,49 +34,62 @@ const (
 )
 
 func main() {
-	kpApp := kingpin.New(app.AppName, fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription))
+	cfg := app.NewConfig()
+	if err := app.ParseEnv(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
+		os.Exit(1)
+	}
 
 	logger := log.NewLogger()
 	log.SetDefault(logger)
 
-	// override usage template to reveal additional commands with information about start command
-	kpApp.UsageTemplate(shapp.OperatorUsageTemplate(app.AppName))
+	rootCmd := &cobra.Command{
+		Use:   app.AppName,
+		Short: fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			klogtolog.InitAdapter(cfg.Debug.KubernetesAPI, logger.Named("klog"))
+			stdliblogtolog.InitAdapter(logger)
+			return nil
+		},
+	}
 
-	kpApp.Action(func(_ *kingpin.ParseContext) error {
-		klogtolog.InitAdapter(shapp.DebugKubernetesAPI, logger.Named("klog"))
-		stdliblogtolog.InitAdapter(logger)
-		return nil
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Show version.",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("%s %s\n", app.AppName, app.Version)
+		},
 	})
 
-	// print version
-	kpApp.Command("version", "Show version.").Action(func(_ *kingpin.ParseContext) error {
-		fmt.Printf("%s %s\n", app.AppName, app.Version)
-		return nil
-	})
+	startCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start events processing.",
+		RunE:  start(logger, cfg),
+	}
+	app.BindFlags(cfg, rootCmd, startCmd)
+	rootCmd.AddCommand(startCmd)
 
-	// start main loop
-	startCmd := kpApp.Command("start", "Start events processing.").
-		Default().
-		Action(start(logger))
+	debug.DefineDebugCommands(rootCmd)
+	app.DefineDebugCommands(rootCmd)
 
-	app.DefineStartCommandFlags(kpApp, startCmd)
+	// Make start the default command when no subcommand is given.
+	rootCmd.RunE = start(logger, cfg)
 
-	debug.DefineDebugCommands(kpApp)
-	app.DefineDebugCommands(kpApp)
-
-	kingpin.MustParse(kpApp.Parse(os.Args[1:]))
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
 
-func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
-	return func(_ *kingpin.ParseContext) error {
+func start(logger *log.Logger, cfg *app.Config) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		app.ApplyConfig(cfg)
+
 		shapp.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, shapp.Version)
 
 		ctx := context.Background()
 
-		// Initialize metric names with the configured prefix
-		shmetrics.InitMetrics(shapp.PrometheusMetricsPrefix)
-		// Initialize addon-operator specific metrics
-		metrics.InitMetrics(shapp.PrometheusMetricsPrefix)
+		shmetrics.InitMetrics(cfg.App.PrometheusMetricsPrefix)
+		metrics.InitMetrics(cfg.App.PrometheusMetricsPrefix)
 
 		operator := addon_operator.NewAddonOperator(ctx, nil, nil, addon_operator.WithLogger(logger.Named("addon-operator")))
 
@@ -161,7 +174,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 			OnStartedLeading: func(ctx context.Context) {
 				err := run(ctx, operator)
 				if err != nil {
-					operator.Logger.Fatal("run on stardet leading", log.Err(err))
+					operator.Logger.Fatal("run on started leading", log.Err(err))
 				}
 			},
 			OnStoppedLeading: func() {

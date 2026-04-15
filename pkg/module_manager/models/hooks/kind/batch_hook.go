@@ -17,9 +17,9 @@ import (
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/addon-operator/pkg/app"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -135,7 +135,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if shapp.DebugKeepTmpFilesVar == "yes" {
+		if app.DebugKeepTmpFiles {
 			return
 		}
 		for _, f := range tmpFiles {
@@ -178,7 +178,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 		h.GetPath(),
 		args,
 		envs).
-		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
+		WithLogProxyHookJSON(app.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(h.LogProxyHookJSONKey).
 		WithLogger(h.Logger.Named("executor")).
 		WithChroot(utils.GetModuleChrootPath(h.moduleName))
