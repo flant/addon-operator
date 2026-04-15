@@ -46,7 +46,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   app.AppName,
 		Short: fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription),
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			klogtolog.InitAdapter(cfg.Debug.KubernetesAPI, logger.Named("klog"))
 			stdliblogtolog.InitAdapter(logger)
 			return nil
@@ -56,7 +56,7 @@ func main() {
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Show version.",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Printf("%s %s\n", app.AppName, app.Version)
 		},
 	})
@@ -81,7 +81,7 @@ func main() {
 }
 
 func start(logger *log.Logger, cfg *app.Config) func(cmd *cobra.Command, args []string) error {
-	return func(cmd *cobra.Command, args []string) error {
+	return func(_ *cobra.Command, _ []string) error {
 		app.ApplyConfig(cfg)
 
 		shapp.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, shapp.Version)

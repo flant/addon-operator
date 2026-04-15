@@ -78,13 +78,13 @@ type LogSettings struct {
 // whose defaults are the current cfg values so that an explicit flag always wins.
 // Priority: CLI flags > env vars > hardcoded defaults.
 type Config struct {
-	App           AppSettings       `envPrefix:"ADDON_OPERATOR_"`
-	Helm          HelmSettings      `envPrefix:"HELM_"`
-	Admission     AdmissionSettings `envPrefix:"ADDON_OPERATOR_"`
-	Kube          KubeSettings      `envPrefix:"KUBE_"`
+	App           AppSettings           `envPrefix:"ADDON_OPERATOR_"`
+	Helm          HelmSettings          `envPrefix:"HELM_"`
+	Admission     AdmissionSettings     `envPrefix:"ADDON_OPERATOR_"`
+	Kube          KubeSettings          `envPrefix:"KUBE_"`
 	ObjectPatcher ObjectPatcherSettings `envPrefix:"OBJECT_PATCHER_"`
-	Debug         DebugSettings     `envPrefix:"DEBUG_"`
-	Log           LogSettings       `envPrefix:"LOG_"`
+	Debug         DebugSettings         `envPrefix:"DEBUG_"`
+	Log           LogSettings           `envPrefix:"LOG_"`
 }
 
 func NewConfig() *Config {
