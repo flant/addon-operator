@@ -138,7 +138,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if shapp.DebugKeepTmpFilesVar == "yes" {
+		if shapp.DebugKeepTmpFiles {
 			return
 		}
 		for _, f := range tmpFiles {
