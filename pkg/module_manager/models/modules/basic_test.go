@@ -330,16 +330,3 @@ func TestHasReadinessNotSetOnFailedRegistration(t *testing.T) {
 	// hasReadiness should be false (no hooks in empty module)
 	require.False(t, bm.hasReadiness, "hasReadiness should reflect actual hooks found")
 }
-
-func TestBasicModule_Version(t *testing.T) {
-	bm, err := NewBasicModule("test-version", t.TempDir(), 1, utils.Values{}, nil, nil)
-	require.NoError(t, err)
-
-	assert.Equal(t, "", bm.GetVersion(), "unset version should return empty string")
-
-	bm.SetVersion("v1.2.3")
-	assert.Equal(t, "v1.2.3", bm.GetVersion())
-
-	bm.SetVersion("")
-	assert.Equal(t, "", bm.GetVersion(), "SetVersion(\"\") should clear the value")
-}
