@@ -64,10 +64,10 @@ func NewShellHook(name, path, moduleName string, keepTemporaryHookFiles bool, lo
 	}
 
 	logger.Debug("Created a new shell hook",
-		slog.String("module", sh.moduleName),
-		slog.String("hookName", sh.Name),
-		slog.String("path", sh.Path),
-		slog.String("pythonVenv", sh.pythonVenv),
+		slog.String(pkg.LogKeyModule, sh.moduleName),
+		slog.String(pkg.LogKeyHookName, sh.Name),
+		slog.String(pkg.LogKeyPath, sh.Path),
+		slog.String(pkg.LogKeyPythonVenv, sh.pythonVenv),
 	)
 
 	return sh
@@ -138,7 +138,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if shapp.DebugKeepTmpFilesVar == "yes" {
+		if shapp.DebugKeepTmpFiles {
 			return
 		}
 		for _, f := range tmpFiles {
@@ -146,7 +146,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 			if err != nil {
 				sh.Hook.Logger.With(pkg.LogKeyHook, sh.GetName()).
 					Error("Remove tmp file",
-						slog.String("file", f),
+						slog.String(pkg.LogKeyFile, f),
 						log.Err(err))
 			}
 		}
@@ -218,8 +218,8 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 // version and a warning is thrown.
 func (sh *ShellHook) updateExecutorParamsForPython(command *string, envs, args *[]string) {
 	sh.Hook.Logger.Debug("Updating hook's exec parameters",
-		slog.String("module", sh.moduleName),
-		slog.String("hookName", sh.Name),
+		slog.String(pkg.LogKeyModule, sh.moduleName),
+		slog.String(pkg.LogKeyHookName, sh.Name),
 	)
 
 	if len(sh.pythonVenv) != 0 {
@@ -230,8 +230,8 @@ func (sh *ShellHook) updateExecutorParamsForPython(command *string, envs, args *
 		*args = append(newArgs, *args...)
 	} else {
 		sh.Hook.Logger.Warn("Module executes python hooks, but has no python virtual environment",
-			slog.String("module", sh.moduleName),
-			slog.String("hookName", sh.Name),
+			slog.String(pkg.LogKeyModule, sh.moduleName),
+			slog.String(pkg.LogKeyHookName, sh.Name),
 		)
 	}
 }
@@ -257,20 +257,20 @@ func (sh *ShellHook) getConfig() ([]byte, error) {
 		WithChroot(utils.GetModuleChrootPath(sh.moduleName))
 
 	sh.Hook.Logger.Debug("Executing hook",
-		slog.String("args", strings.Join(args, " ")))
+		slog.String(pkg.LogKeyArgs, strings.Join(args, " ")))
 
 	output, err := cmd.Output()
 	if err != nil {
 		sh.Hook.Logger.Debug("Hook config failed",
 			slog.String(pkg.LogKeyHook, sh.Name),
 			log.Err(err),
-			slog.String("output", string(output)))
+			slog.String(pkg.LogKeyOutput, string(output)))
 		return nil, err
 	}
 
 	sh.Hook.Logger.Debug("Hook config output",
 		slog.String(pkg.LogKeyHook, sh.Name),
-		slog.String("output", string(output)))
+		slog.String(pkg.LogKeyOutput, string(output)))
 
 	return output, nil
 }
@@ -569,8 +569,8 @@ func (sh *ShellHook) prepareConfigValuesJsonFile(moduleSafeName string, configVa
 	}
 
 	sh.Hook.Logger.Debug("Prepared module hook config values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", configValues.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, configValues.DebugString()))
 
 	return path, nil
 }
@@ -588,8 +588,8 @@ func (sh *ShellHook) prepareValuesJsonFile(moduleSafeName string, values utils.V
 	}
 
 	sh.Hook.Logger.Debug("Prepared module hook values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", values.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, values.DebugString()))
 
 	return path, nil
 }

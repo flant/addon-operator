@@ -135,7 +135,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if shapp.DebugKeepTmpFilesVar == "yes" {
+		if shapp.DebugKeepTmpFiles {
 			return
 		}
 		for _, f := range tmpFiles {
@@ -143,7 +143,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 			if err != nil {
 				h.Hook.Logger.With(pkg.LogKeyHook, h.GetName()).
 					Error("Remove tmp file",
-						slog.String("file", f),
+						slog.String(pkg.LogKeyFile, f),
 						log.Err(err))
 			}
 		}
@@ -503,8 +503,8 @@ func (h *BatchHook) prepareConfigValuesJsonFile(moduleSafeName string, configVal
 	}
 
 	h.Hook.Logger.Debug("Prepared module hook config values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", configValues.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, configValues.DebugString()))
 
 	return path, nil
 }
@@ -522,8 +522,8 @@ func (h *BatchHook) prepareValuesJsonFile(moduleSafeName string, values utils.Va
 	}
 
 	h.Hook.Logger.Debug("Prepared module hook values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", values.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, values.DebugString()))
 
 	return path, nil
 }

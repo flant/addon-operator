@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/yaml"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm/client"
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -84,11 +85,11 @@ func (s *SafeNelmActions) ReleaseGet(ctx context.Context, name, namespace string
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("panic in ReleaseGet",
-				slog.Any("panic", r),
-				slog.String("release", name),
-				slog.String("namespace", namespace),
-				slog.Int("revision", opts.Revision),
-				slog.String("stack", string(debug.Stack())),
+				slog.Any(pkg.LogKeyPanic, r),
+				slog.String(pkg.LogKeyRelease, name),
+				slog.String(pkg.LogKeyNamespace, namespace),
+				slog.Int(pkg.LogKeyRevision, opts.Revision),
+				slog.String(pkg.LogKeyStack, string(debug.Stack())),
 			)
 			err = fmt.Errorf("panic in ReleaseGet: %v", r)
 		}
@@ -100,16 +101,16 @@ func (s *SafeNelmActions) ReleaseInstall(ctx context.Context, name, namespace st
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("panic in ReleaseInstall",
-				slog.Any("panic", r),
-				slog.String("release", name),
-				slog.String("namespace", namespace),
-				slog.String("chart", opts.Chart),
-				slog.String("default_chart_name", opts.DefaultChartName),
-				slog.Bool("force_adoption", opts.ForceAdoption),
-				slog.Bool("auto_rollback", opts.AutoRollback),
-				slog.Int("values_files_count", len(opts.ValuesFiles)),
-				slog.Int("extra_labels_count", len(opts.ExtraLabels)),
-				slog.String("stack", string(debug.Stack())),
+				slog.Any(pkg.LogKeyPanic, r),
+				slog.String(pkg.LogKeyRelease, name),
+				slog.String(pkg.LogKeyNamespace, namespace),
+				slog.String(pkg.LogKeyChart, opts.Chart),
+				slog.String(pkg.LogKeyDefaultChartName, opts.DefaultChartName),
+				slog.Bool(pkg.LogKeyForceAdoption, opts.ForceAdoption),
+				slog.Bool(pkg.LogKeyAutoRollback, opts.AutoRollback),
+				slog.Int(pkg.LogKeyValuesFilesCount, len(opts.ValuesFiles)),
+				slog.Int(pkg.LogKeyExtraLabelsCount, len(opts.ExtraLabels)),
+				slog.String(pkg.LogKeyStack, string(debug.Stack())),
 			)
 			err = fmt.Errorf("panic in ReleaseInstall: %v", r)
 		}
@@ -121,12 +122,12 @@ func (s *SafeNelmActions) ReleaseUninstall(ctx context.Context, name, namespace 
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("panic in ReleaseUninstall",
-				slog.Any("panic", r),
-				slog.String("release", name),
-				slog.String("namespace", namespace),
-				slog.String("delete_propagation", opts.DefaultDeletePropagation),
-				slog.Bool("delete_release_namespace", opts.DeleteReleaseNamespace),
-				slog.String("stack", string(debug.Stack())),
+				slog.Any(pkg.LogKeyPanic, r),
+				slog.String(pkg.LogKeyRelease, name),
+				slog.String(pkg.LogKeyNamespace, namespace),
+				slog.String(pkg.LogKeyDeletePropagation, opts.DefaultDeletePropagation),
+				slog.Bool(pkg.LogKeyDeleteReleaseNamespace, opts.DeleteReleaseNamespace),
+				slog.String(pkg.LogKeyStack, string(debug.Stack())),
 			)
 			err = fmt.Errorf("panic in ReleaseUninstall: %v", r)
 		}
@@ -139,9 +140,9 @@ func (s *SafeNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseLi
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("panic in ReleaseList",
-				slog.Any("panic", r),
-				slog.String("namespace", opts.ReleaseNamespace),
-				slog.String("stack", string(debug.Stack())),
+				slog.Any(pkg.LogKeyPanic, r),
+				slog.String(pkg.LogKeyNamespace, opts.ReleaseNamespace),
+				slog.String(pkg.LogKeyStack, string(debug.Stack())),
 			)
 			err = fmt.Errorf("panic in ReleaseList: %v", r)
 		}
@@ -154,13 +155,13 @@ func (s *SafeNelmActions) ChartRender(ctx context.Context, opts action.ChartRend
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("panic in ChartRender",
-				slog.Any("panic", r),
-				slog.String("chart", opts.Chart),
-				slog.String("release", opts.ReleaseName),
-				slog.String("namespace", opts.ReleaseNamespace),
-				slog.Bool("remote", opts.Remote),
-				slog.Int("values_files_count", len(opts.ValuesFiles)),
-				slog.String("stack", string(debug.Stack())),
+				slog.Any(pkg.LogKeyPanic, r),
+				slog.String(pkg.LogKeyChart, opts.Chart),
+				slog.String(pkg.LogKeyRelease, opts.ReleaseName),
+				slog.String(pkg.LogKeyNamespace, opts.ReleaseNamespace),
+				slog.Bool(pkg.LogKeyRemote, opts.Remote),
+				slog.Int(pkg.LogKeyValuesFilesCount, len(opts.ValuesFiles)),
+				slog.String(pkg.LogKeyStack, string(debug.Stack())),
 			)
 			err = fmt.Errorf("panic in ChartRender: %v", r)
 		}
@@ -199,7 +200,7 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 
 	featgate.FeatGateCleanNullFields.Enable()
 
-	nelmLogger := logger.With("operator.component", "nelm")
+	nelmLogger := logger.With(pkg.LogKeyOperatorComponent, "nelm")
 
 	return &NelmClient{
 		logger: nelmLogger,
@@ -231,11 +232,11 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 		ReleaseStorageDriver: c.opts.HelmDriver,
 	})
 	if err != nil {
-		c.logger.Debug("Failed to get nelm release", log.Err(err), slog.String("release", releaseName))
+		c.logger.Debug("Failed to get nelm release", log.Err(err), slog.String(pkg.LogKeyRelease, releaseName))
 
 		var releaseNotFoundErr *action.ReleaseNotFoundError
 		if errors.As(err, &releaseNotFoundErr) {
-			c.logger.Debug("Release not found when getting labels", slog.String("release", releaseName))
+			c.logger.Debug("Release not found when getting labels", slog.String(pkg.LogKeyRelease, releaseName))
 			// Return the original ReleaseNotFoundError so it can be checked upstream
 			return "", err
 		}
@@ -299,9 +300,9 @@ func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, erro
 
 func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths []string, setValues []string, releaseLabels map[string]string, namespace string) error {
 	logger := c.logger.With(
-		slog.String("release_name", releaseName),
-		slog.String("chart", modulePath),
-		slog.String("namespace", namespace),
+		slog.String(pkg.LogKeyReleaseName, releaseName),
+		slog.String(pkg.LogKeyChart, modulePath),
+		slog.String(pkg.LogKeyNamespace, namespace),
 	)
 
 	logger.Info("Running nelm upgrade for release")
@@ -370,9 +371,9 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 	}
 
 	logger.Info("Nelm upgrade successful",
-		slog.String("release", releaseName),
-		slog.String("chart", modulePath),
-		slog.String("namespace", namespace))
+		slog.String(pkg.LogKeyRelease, releaseName),
+		slog.String(pkg.LogKeyChart, modulePath),
+		slog.String(pkg.LogKeyNamespace, namespace))
 
 	return nil
 }
@@ -406,7 +407,7 @@ func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) 
 }
 
 func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
-	logger := c.logger.With(slog.String("release_name", releaseName))
+	logger := c.logger.With(slog.String(pkg.LogKeyReleaseName, releaseName))
 
 	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
@@ -439,7 +440,7 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 }
 
 func (c *NelmClient) DeleteRelease(releaseName string) error {
-	c.logger.Debug("nelm release: execute nelm uninstall", slog.String("release", releaseName))
+	c.logger.Debug("nelm release: execute nelm uninstall", slog.String(pkg.LogKeyRelease, releaseName))
 
 	if err := c.actions.ReleaseUninstall(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseUninstallOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
@@ -458,7 +459,7 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
 
-	c.logger.Debug("nelm release deleted", slog.String("release", releaseName))
+	c.logger.Debug("nelm release deleted", slog.String(pkg.LogKeyRelease, releaseName))
 
 	return nil
 }
@@ -494,7 +495,7 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 			chartName = release.Chart.Name
 		}
 		if release.Name == "" {
-			c.logger.Warn("release name is empty, skipped", slog.String("chart", chartName))
+			c.logger.Warn("release name is empty, skipped", slog.String(pkg.LogKeyChart, chartName))
 			continue
 		}
 
@@ -508,8 +509,8 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 
 func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string, debug bool) (string, error) {
 	c.logger.Debug("Render nelm templates for chart ...",
-		slog.String("chart", modulePath),
-		slog.String("namespace", namespace))
+		slog.String(pkg.LogKeyChart, modulePath),
+		slog.String(pkg.LogKeyNamespace, namespace))
 
 	// Add client annotations
 	extraAnnotations := make(map[string]string)
@@ -551,7 +552,7 @@ func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValu
 		return "", fmt.Errorf("render nelm chart %q: %w", modulePath, err)
 	}
 
-	c.logger.Info("Render nelm templates for chart was successful", slog.String("chart", modulePath))
+	c.logger.Info("Render nelm templates for chart was successful", slog.String(pkg.LogKeyChart, modulePath))
 
 	var result strings.Builder
 	for _, resource := range chartRenderResult.Resources {

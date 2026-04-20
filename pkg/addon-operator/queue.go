@@ -5,6 +5,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -118,20 +119,20 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 				case task.ParallelModuleRun:
 					if hm.ParallelRunMetadata == nil || hm.ParallelRunMetadata.CancelF == nil {
 						logEntry.Warn("Couldn't get parallelRun metadata for the parallel task",
-							slog.String("type", string(t.GetType())),
-							slog.String("module", hm.ModuleName),
-							slog.String("description", hm.EventDescription),
-							slog.String("queue", queue.Name))
+							slog.String(pkg.LogKeyType, string(t.GetType())),
+							slog.String(pkg.LogKeyModule, hm.ModuleName),
+							slog.String(pkg.LogKeyDescription, hm.EventDescription),
+							slog.String(pkg.LogKeyQueue, queue.Name))
 					} else {
 						// cancel parallel task context
 						hm.ParallelRunMetadata.CancelF()
 					}
 				}
 				logEntry.Debug("Drained converge task",
-					slog.String("type", string(t.GetType())),
-					slog.String("module", hm.ModuleName),
-					slog.String("description", hm.EventDescription),
-					slog.String("queue", queue.Name))
+					slog.String(pkg.LogKeyType, string(t.GetType())),
+					slog.String(pkg.LogKeyModule, hm.ModuleName),
+					slog.String(pkg.LogKeyDescription, hm.EventDescription),
+					slog.String(pkg.LogKeyQueue, queue.Name))
 				return false
 			}
 			return true
@@ -176,9 +177,9 @@ func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLab
 			}
 			hm := task.HookMetadataAccessor(t)
 			logEntry.Debug("Drained converge task",
-				slog.String("type", string(t.GetType())),
-				slog.String("module", hm.ModuleName),
-				slog.String("description", hm.EventDescription))
+				slog.String(pkg.LogKeyType, string(t.GetType())),
+				slog.String(pkg.LogKeyModule, hm.ModuleName),
+				slog.String(pkg.LogKeyDescription, hm.EventDescription))
 			return false
 		}
 		return true
@@ -213,8 +214,8 @@ func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels
 		if t.GetType() == task.ConvergeModules {
 			hm := task.HookMetadataAccessor(t)
 			logEntry.Debug("Drained adjacent ConvergeModules task",
-				slog.String("type", string(t.GetType())),
-				slog.String("description", hm.EventDescription))
+				slog.String(pkg.LogKeyType, string(t.GetType())),
+				slog.String(pkg.LogKeyDescription, hm.EventDescription))
 			return false
 		}
 

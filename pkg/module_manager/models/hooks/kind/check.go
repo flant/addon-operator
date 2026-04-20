@@ -16,6 +16,8 @@ package kind
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -25,6 +27,7 @@ import (
 	"github.com/deckhouse/module-sdk/pkg/settingscheck"
 	"github.com/google/uuid"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/shell-operator/pkg/executor"
 )
@@ -54,7 +57,7 @@ func (c *SettingsCheck) Check(ctx context.Context, settings utils.Values) (setti
 	// Remove tmp files after execution
 	defer func() {
 		if err = os.Remove(tmp); err != nil {
-			c.logger.Error("remove tmp file", slog.String("file", tmp), log.Err(err))
+			c.logger.Error("remove tmp file", slog.String(pkg.LogKeyFile, tmp), log.Err(err))
 		}
 	}()
 
@@ -67,6 +70,15 @@ func (c *SettingsCheck) Check(ctx context.Context, settings utils.Values) (setti
 
 	cmd := executor.NewExecutor("", c.path, []string{"hook", "check"}, envs).WithLogger(c.logger.Named("executor"))
 	if _, err = cmd.RunAndLogLines(ctx, make(map[string]string)); err != nil {
+		var stderrErr *executor.StderrError
+		if errors.As(err, &stderrErr) {
+			if jsonErr := json.Unmarshal([]byte(stderrErr.Message), &result); jsonErr != nil {
+				return settingscheck.Result{}, fmt.Errorf("parse check result from stderr: %w (raw: %s)", jsonErr, stderrErr.Message)
+			}
+
+			return result, nil
+		}
+
 		return settingscheck.Result{}, fmt.Errorf("run and log lines: %w", err)
 	}
 

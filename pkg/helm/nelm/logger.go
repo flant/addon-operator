@@ -8,6 +8,8 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	nelmlog "github.com/werf/nelm/pkg/log"
+
+	"github.com/flant/addon-operator/pkg"
 )
 
 var _ nelmlog.Logger = (*NelmLogger)(nil)
@@ -27,7 +29,7 @@ func (n *NelmLogger) Trace(ctx context.Context, format string, a ...interface{})
 }
 
 func (n *NelmLogger) TraceStruct(ctx context.Context, obj interface{}, format string, a ...interface{}) {
-	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...), slog.Any("obj", obj))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...), slog.Any(pkg.LogKeyObj, obj))
 }
 
 func (n *NelmLogger) TracePush(ctx context.Context, _, format string, a ...interface{}) {

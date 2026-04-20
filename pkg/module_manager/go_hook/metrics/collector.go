@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"maps"
+
 	"github.com/deckhouse/deckhouse/pkg/metrics-storage/operation"
 	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	pointer "k8s.io/utils/ptr"
@@ -37,7 +39,7 @@ func (dms *MemoryMetricsCollector) Add(name string, value float64, labels map[st
 		Group:  options.group,
 		Action: operation.ActionCounterAdd,
 		Value:  pointer.To(value),
-		Labels: labels,
+		Labels: maps.Clone(labels),
 	})
 }
 
@@ -54,7 +56,7 @@ func (dms *MemoryMetricsCollector) Set(name string, value float64, labels map[st
 		Group:  options.group,
 		Action: operation.ActionGaugeSet,
 		Value:  pointer.To(value),
-		Labels: labels,
+		Labels: maps.Clone(labels),
 	})
 }
 

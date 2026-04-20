@@ -261,12 +261,12 @@ func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, e
 		return nil, fmt.Errorf("search module hooks failed: %w", err)
 	}
 
-	logger.Debug("Found hooks", slog.Int("count", len(searchModuleHooksResult.Hooks)))
+	logger.Debug("Found hooks", slog.Int(pkg.LogKeyCount, len(searchModuleHooksResult.Hooks)))
 	if logger.GetLevel() == log.LevelDebug {
 		for _, h := range searchModuleHooksResult.Hooks {
 			logger.Debug("ModuleHook",
-				slog.String("name", h.GetName()),
-				slog.String("path", h.GetPath()))
+				slog.String(pkg.LogKeyName, h.GetName()),
+				slog.String(pkg.LogKeyPath, h.GetPath()))
 		}
 	}
 
@@ -349,7 +349,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
 	bm.logger.Debug("Hook paths",
-		slog.Any("paths", hooksRelativePaths))
+		slog.Any(pkg.LogKeyPaths, hooksRelativePaths))
 
 	var (
 		checkPythonEnv           sync.Once
@@ -381,7 +381,7 @@ func (bm *BasicModule) searchModuleShellHooks() ([]*kind.ShellHook, error) {
 				continue
 			}
 
-			bm.logger.Warn("get batch hook config", slog.String("hook_file_path", hookPath), log.Err(err))
+			bm.logger.Warn("get batch hook config", slog.String(pkg.LogKeyHookFilePath, hookPath), log.Err(err))
 		}
 
 		shHook := kind.NewShellHook(hookName, hookPath, bm.safeName(), bm.keepTemporaryHookFiles, shapp.LogProxyHookJSON, bm.logger.Named("shell-hook"), options...)
@@ -417,7 +417,7 @@ func (bm *BasicModule) searchModuleBatchHooks() (*searchModuleBatchHooksResult, 
 
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
-	bm.logger.Debug("sorted paths", slog.Any("paths", hooksRelativePaths))
+	bm.logger.Debug("sorted paths", slog.Any(pkg.LogKeyPaths, hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := normalizeHookPath(filepath.Dir(bm.Path), hookPath)
@@ -473,12 +473,12 @@ func RecursiveGetBatchHookExecutablePaths(moduleName, dir string, logger *log.Lo
 
 		if err := isExecutableBatchHookFile(moduleName, path, f); err != nil {
 			if errors.Is(err, ErrFileNoExecutablePermissions) {
-				logger.Warn("file is skipped", slog.String("path", path), log.Err(err))
+				logger.Warn("file is skipped", slog.String(pkg.LogKeyPath, path), log.Err(err))
 
 				return nil
 			}
 
-			logger.Debug("file is skipped", slog.String("path", path), log.Err(err))
+			logger.Debug("file is skipped", slog.String(pkg.LogKeyPath, path), log.Err(err))
 
 			return nil
 		}
@@ -559,13 +559,13 @@ func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger
 			return fmt.Errorf("`%s` module hook `%s` --config invalid: %w", bm.GetName(), moduleHook.GetName(), err)
 		}
 
-		bm.logger.Debug("module hook config print", slog.String("module_name", bm.GetName()), slog.String("hook_name", moduleHook.GetName()), slog.Any("config", moduleHook.GetHookConfig().V1))
+		bm.logger.Debug("module hook config print", slog.String(pkg.LogKeyModuleNameSnake, bm.GetName()), slog.String(pkg.LogKeyHookNameSnake, moduleHook.GetName()), slog.Any(pkg.LogKeyConfig, moduleHook.GetHookConfig().V1))
 
 		// Add hook info as log labels
 		for _, kubeCfg := range moduleHook.GetHookConfig().OnKubernetesEvents {
-			kubeCfg.Monitor.Metadata.LogLabels["module"] = bm.GetName()
+			kubeCfg.Monitor.Metadata.LogLabels[pkg.LogKeyModule] = bm.GetName()
 			kubeCfg.Monitor.Metadata.LogLabels[pkg.LogKeyHook] = moduleHook.GetName()
-			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "module"
+			kubeCfg.Monitor.Metadata.LogLabels[pkg.LogKeyHookType] = "module"
 
 			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
 				pkg.MetricKeyHook:    moduleHook.GetName(),
@@ -580,8 +580,8 @@ func (bm *BasicModule) registerHooks(hks []*hooks.ModuleHook, logger *log.Logger
 		bm.hooks.AddHook(moduleHook)
 
 		hookLogEntry.Debug("Module hook",
-			slog.String("path", moduleHook.GetPath()),
-			slog.String("bindings", moduleHook.GetConfigDescription()))
+			slog.String(pkg.LogKeyPath, moduleHook.GetPath()),
+			slog.String(pkg.LogKeyBindings, moduleHook.GetConfigDescription()))
 	}
 
 	return nil
@@ -679,10 +679,10 @@ func (bm *BasicModule) RunHooksByBinding(ctx context.Context, binding sh_op_type
 		bc.Metadata.BindingType = binding
 
 		metricLabels := map[string]string{
-			"module":                bm.GetName(),
+			pkg.LogKeyModule:        bm.GetName(),
 			pkg.MetricKeyHook:       moduleHook.GetName(),
 			pkg.MetricKeyBinding:    string(binding),
-			"queue":                 "main", // AfterHelm,BeforeHelm hooks always handle in main queue
+			pkg.LogKeyQueue:         "main", // AfterHelm,BeforeHelm hooks always handle in main queue
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 
@@ -714,10 +714,10 @@ func (bm *BasicModule) RunHookByName(ctx context.Context, hookName string, bindi
 	}
 
 	metricLabels := map[string]string{
-		"module":                bm.GetName(),
+		pkg.LogKeyModule:        bm.GetName(),
 		pkg.MetricKeyHook:       hookName,
 		pkg.MetricKeyBinding:    string(binding),
-		"queue":                 logLabels["queue"],
+		pkg.LogKeyQueue:         logLabels[pkg.LogKeyQueue],
 		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 	}
 
@@ -735,14 +735,14 @@ func (bm *BasicModule) RunHookByName(ctx context.Context, hookName string, bindi
 func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, precedingEnabledModules []string, logLabels map[string]string) (bool, error) {
 	// Copy labels and set 'module' label.
 	logLabels = utils.MergeLabels(logLabels)
-	logLabels["module"] = bm.GetName()
+	logLabels[pkg.LogKeyModule] = bm.GetName()
 
 	logEntry := utils.EnrichLoggerWithLabels(bm.logger, logLabels)
 	enabledScriptPath := filepath.Join(bm.Path, "enabled")
 	configValuesPath, err := bm.prepareConfigValuesJsonFile(tmpDir)
 	if err != nil {
 		logEntry.Error("Prepare CONFIG_VALUES_PATH file",
-			slog.String("path", enabledScriptPath),
+			slog.String(pkg.LogKeyPath, enabledScriptPath),
 			log.Err(err))
 		return false, err
 	}
@@ -752,9 +752,9 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 		}
 		err := os.Remove(configValuesPath)
 		if err != nil {
-			bm.logger.With("module", bm.GetName()).
+			bm.logger.With(pkg.LogKeyModule, bm.GetName()).
 				Error("Remove tmp file",
-					slog.String("path", enabledScriptPath),
+					slog.String(pkg.LogKeyPath, enabledScriptPath),
 					log.Err(err))
 		}
 	}()
@@ -762,7 +762,7 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 	valuesPath, err := bm.prepareValuesJsonFileForEnabledScript(tmpDir, precedingEnabledModules)
 	if err != nil {
 		logEntry.Error("Prepare VALUES_PATH file",
-			slog.String("path", enabledScriptPath),
+			slog.String(pkg.LogKeyPath, enabledScriptPath),
 			log.Err(err))
 		return false, err
 	}
@@ -772,9 +772,9 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 		}
 		err := os.Remove(valuesPath)
 		if err != nil {
-			bm.logger.With("module", bm.GetName()).
+			bm.logger.With(pkg.LogKeyModule, bm.GetName()).
 				Error("Remove tmp file",
-					slog.String("path", configValuesPath),
+					slog.String(pkg.LogKeyPath, configValuesPath),
 					log.Err(err))
 		}
 	}()
@@ -782,7 +782,7 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 	enabledResultFilePath, err := bm.prepareModuleEnabledResultFile(tmpDir)
 	if err != nil {
 		logEntry.Error("Prepare MODULE_ENABLED_RESULT file",
-			slog.String("path", enabledScriptPath),
+			slog.String(pkg.LogKeyPath, enabledScriptPath),
 			log.Err(err))
 		return false, err
 	}
@@ -792,9 +792,9 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 		}
 		err := os.Remove(enabledResultFilePath)
 		if err != nil {
-			bm.logger.With("module", bm.GetName()).
+			bm.logger.With(pkg.LogKeyModule, bm.GetName()).
 				Error("Remove tmp file",
-					slog.String("path", configValuesPath),
+					slog.String(pkg.LogKeyPath, configValuesPath),
 					log.Err(err))
 		}
 	}()
@@ -802,7 +802,7 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 	reasonFilePath, err := bm.prepareModuleEnabledReasonFile(tmpDir)
 	if err != nil {
 		logEntry.Error("Prepare MODULE_ENABLED_REASON file",
-			slog.String("path", reasonFilePath),
+			slog.String(pkg.LogKeyPath, reasonFilePath),
 			log.Err(err))
 		return false, err
 	}
@@ -812,16 +812,16 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 		}
 		err := os.Remove(reasonFilePath)
 		if err != nil {
-			bm.logger.With("module", bm.GetName()).
+			bm.logger.With(pkg.LogKeyModule, bm.GetName()).
 				Error("Remove tmp file",
-					slog.String("path", enabledResultFilePath),
+					slog.String(pkg.LogKeyPath, enabledResultFilePath),
 					log.Err(err))
 		}
 	}()
 
 	logEntry.Debug("Execute enabled script",
-		slog.String("path", enabledScriptPath),
-		slog.Any("modules", precedingEnabledModules))
+		slog.String(pkg.LogKeyPath, enabledScriptPath),
+		slog.Any(pkg.LogKeyModules, precedingEnabledModules))
 
 	environ := os.Environ()
 
@@ -850,10 +850,10 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 	if usage != nil {
 		// usage metrics
 		metricLabels := map[string]string{
-			"module":                bm.GetName(),
+			pkg.LogKeyModule:        bm.GetName(),
 			pkg.MetricKeyHook:       "enabled",
 			pkg.MetricKeyBinding:    "enabled",
-			"queue":                 logLabels["queue"],
+			pkg.LogKeyQueue:         logLabels[pkg.LogKeyQueue],
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 		bm.dc.MetricStorage.HistogramObserve(metrics.ModuleHookRunSysCPUSeconds, usage.Sys.Seconds(), metricLabels, nil)
@@ -862,7 +862,7 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 	}
 	if err != nil {
 		logEntry.Error("Fail to run enabled script",
-			slog.String("path", enabledScriptPath),
+			slog.String(pkg.LogKeyPath, enabledScriptPath),
 			log.Err(err))
 		return false, err
 	}
@@ -870,7 +870,7 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 	moduleEnabled, err := bm.readModuleEnabledResult(enabledResultFilePath)
 	if err != nil {
 		logEntry.Error("Read enabled result",
-			slog.String("path", enabledScriptPath),
+			slog.String(pkg.LogKeyPath, enabledScriptPath),
 			log.Err(err))
 		return false, fmt.Errorf("bad enabled result")
 	}
@@ -880,14 +880,14 @@ func (bm *BasicModule) RunEnabledScript(ctx context.Context, tmpDir string, prec
 		result = "Enabled"
 	}
 	logEntry.Info("Enabled script run successful",
-		slog.Bool("result", moduleEnabled),
-		slog.String("status", result))
+		slog.Bool(pkg.LogKeyResult, moduleEnabled),
+		slog.String(pkg.LogKeyStatus, result))
 	var reason string
 	if !moduleEnabled {
 		reason, err = bm.readModuleEnabledReason(reasonFilePath)
 		if err != nil {
 			logEntry.Error("Read enabled result",
-				slog.String("path", enabledScriptPath),
+				slog.String(pkg.LogKeyPath, enabledScriptPath),
 				log.Err(err))
 			return false, fmt.Errorf("bad enabled result")
 		}
@@ -962,8 +962,8 @@ func (bm *BasicModule) prepareValuesJsonFileWith(tmpdir string, values utils.Val
 	}
 
 	bm.logger.Debug("Prepared module hook values",
-		slog.String("module", bm.GetName()),
-		slog.String("values", values.DebugString()))
+		slog.String(pkg.LogKeyModule, bm.GetName()),
+		slog.String(pkg.LogKeyValues, values.DebugString()))
 
 	return path, nil
 }
@@ -979,7 +979,7 @@ func (bm *BasicModule) valuesForEnabledScript(precedingEnabledModules []string) 
 		bm.dc.GlobalValuesGetter.GetValues(true),
 		utils.Values{
 			"global": map[string]interface{}{
-				"enabledModules": precedingEnabledModules,
+				pkg.LogKeyEnabledModules: precedingEnabledModules,
 			},
 		},
 	)
@@ -1009,8 +1009,8 @@ func (bm *BasicModule) prepareConfigValuesJsonFile(tmpDir string) (string, error
 	}
 
 	bm.logger.Debug("Prepared module hook config values",
-		slog.String("module", bm.GetName()),
-		slog.String("values", v.DebugString()))
+		slog.String(pkg.LogKeyModule, bm.GetName()),
+		slog.String(pkg.LogKeyValues, v.DebugString()))
 
 	return path, nil
 }
@@ -1026,11 +1026,11 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 	)
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		pkg.LogKeyHook:    h.GetName(),
-		"hook.type":       "module",
-		pkg.LogKeyModule:  bm.GetName(),
-		pkg.LogKeyBinding: string(bindingType),
-		"path":            h.GetPath(),
+		pkg.LogKeyHook:     h.GetName(),
+		pkg.LogKeyHookType: "module",
+		pkg.LogKeyModule:   bm.GetName(),
+		pkg.LogKeyBinding:  string(bindingType),
+		pkg.LogKeyPath:     h.GetPath(),
 	})
 
 	logEntry := utils.EnrichLoggerWithLabels(bm.logger, logLabels)
@@ -1045,7 +1045,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 
 	for _, info := range h.GetHookController().SnapshotsInfo() {
 		logEntry.Debug("snapshot info",
-			slog.String("value", info))
+			slog.String(pkg.LogKeyValue, info))
 	}
 
 	prefixedConfigValues := bm.valuesStorage.GetConfigValues(true)
@@ -1076,7 +1076,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 		// Apply metric operations
 		metricsErr := bm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
 			pkg.MetricKeyHook: h.GetName(),
-			"module":          bm.GetName(),
+			pkg.LogKeyModule:  bm.GetName(),
 		})
 		if metricsErr != nil {
 			return metricsErr
@@ -1120,7 +1120,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 
 		if configValuesPatchResult.ValuesChanged {
 			logEntry.Debug("Module hook: validate module config values before update",
-				slog.String("module", h.GetName()))
+				slog.String(pkg.LogKeyModule, h.GetName()))
 			// Validate merged static and new values.
 			newValues, validationErr := bm.valuesStorage.GenerateNewConfigValues(configValuesPatchResult.Values, true)
 			if validationErr != nil {
@@ -1133,8 +1133,8 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 			err := bm.dc.KubeConfigManager.SaveConfigValues(bm.GetName(), configValuesPatchResult.Values)
 			if err != nil {
 				logEntry.Debug("Module hook kube module config values stay unchanged",
-					slog.String("module", h.GetName()),
-					slog.String("values", bm.valuesStorage.GetConfigValues(false).DebugString()))
+					slog.String(pkg.LogKeyModule, h.GetName()),
+					slog.String(pkg.LogKeyValues, bm.valuesStorage.GetConfigValues(false).DebugString()))
 				return fmt.Errorf("module hook '%s': set kube module config failed: %s", h.GetName(), err)
 			}
 
@@ -1142,8 +1142,8 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 
 			logEntry.Debug("Module hook: kube module config values updated",
 				slog.String(pkg.LogKeyHook, h.GetName()),
-				slog.String("module", bm.GetName()),
-				slog.String("values", bm.valuesStorage.GetConfigValues(false).DebugString()))
+				slog.String(pkg.LogKeyModule, bm.GetName()),
+				slog.String(pkg.LogKeyValues, bm.valuesStorage.GetConfigValues(false).DebugString()))
 		}
 	}
 
@@ -1156,7 +1156,7 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 		}
 		if valuesPatchResult.ValuesChanged {
 			logEntry.Debug("Module hook: validate module values before update",
-				slog.String("module", h.GetName()))
+				slog.String(pkg.LogKeyModule, h.GetName()))
 
 			// Validate schema for updated module values
 			validationErr := bm.valuesStorage.validateValues(valuesPatchResult.Values)
@@ -1176,13 +1176,13 @@ func (bm *BasicModule) executeHook(ctx context.Context, h *hooks.ModuleHook, bin
 
 			logEntry.Debug("Module hook: dynamic module values updated",
 				slog.String(pkg.LogKeyHook, h.GetName()),
-				slog.String("module", bm.GetName()),
-				slog.String("values", bm.valuesStorage.GetValues(false).DebugString()))
+				slog.String(pkg.LogKeyModule, bm.GetName()),
+				slog.String(pkg.LogKeyValues, bm.valuesStorage.GetValues(false).DebugString()))
 		}
 	}
 
 	logEntry.Debug("Module hook success",
-		slog.String("module", bm.GetName()),
+		slog.String(pkg.LogKeyModule, bm.GetName()),
 		slog.String(pkg.LogKeyHook, h.GetName()))
 
 	return nil
@@ -1364,8 +1364,8 @@ func (bm *BasicModule) Validate() error {
 	restoredName := utils.ModuleNameFromValuesKey(valuesKey)
 
 	bm.logger.Info("Validating module",
-		slog.String("module", bm.GetName()),
-		slog.String("path", bm.GetPath()))
+		slog.String(pkg.LogKeyModule, bm.GetName()),
+		slog.String(pkg.LogKeyPath, bm.GetPath()))
 
 	if bm.GetName() != restoredName {
 		return fmt.Errorf("'%s' name should be in kebab-case and be restorable from camelCase: consider renaming to '%s'", bm.GetName(), restoredName)
