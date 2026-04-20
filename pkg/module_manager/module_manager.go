@@ -54,8 +54,9 @@ var (
 	moduleInfoMetricGroup = "mm_module_info"
 	moduleInfoMetricName  = metrics.ModuleInfoMetricName
 
-	moduleEnabledMetricGroup = "mm_module_enabled"
-	moduleEnabledMetricName  = metrics.ModuleEnabledMetricName
+	moduleEnabledMetricGroup         = "mm_module_enabled"
+	moduleEnabledMetricName          = metrics.ModuleEnabledMetricName
+	moduleEnabledTelemetryMetricName = metrics.ModuleEnabledTelemetryMetricName
 
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
 	moduleMaintenanceMetricName  = metrics.ModuleMaintenanceMetricName
@@ -526,15 +527,15 @@ func (mm *ModuleManager) refreshModuleEnabledMetric() {
 		if version == "" {
 			continue
 		}
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(
-			moduleEnabledMetricGroup,
-			moduleEnabledMetricName,
-			1,
-			map[string]string{
-				pkg.MetricKeyModule:  name,
-				pkg.MetricKeyVersion: version,
-			},
-		)
+		labels := map[string]string{
+			pkg.MetricKeyModule:  name,
+			pkg.MetricKeyVersion: version,
+		}
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleEnabledMetricGroup, moduleEnabledMetricName, 1, labels)
+		// Telemetry twin: same gauge under the d8_telemetry_ prefix so
+		// flant-integration ships it to DOP. Kept in the same group so
+		// ExpireGroupMetrics above wipes both copies in lockstep.
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleEnabledMetricGroup, moduleEnabledTelemetryMetricName, 1, labels)
 	}
 }
 
@@ -1010,7 +1011,7 @@ func (mm *ModuleManager) HandleScheduleEvent(
 }
 
 func (mm *ModuleManager) CreateTasksByBinding(binding BindingType, createTasksFunc func(gh *hooks.GlobalHook, m *modules.BasicModule, mh *hooks.ModuleHook) []sh_task.Task) []sh_task.Task {
-	var allTasks []sh_task.Task //nolint: prealloc
+	var allTasks []sh_task.Task
 
 	// Process global hooks
 	allTasks = append(allTasks, mm.createTasksFromGlobalHooks(binding, createTasksFunc)...)

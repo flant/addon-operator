@@ -47,6 +47,10 @@ var (
 	ModuleInfoMetricName = "{PREFIX}mm_module_info"
 	// ModuleEnabledMetricName tracks enabled modules with their deployed version
 	ModuleEnabledMetricName = "{PREFIX}mm_module_enabled"
+	// ModuleEnabledTelemetryMetricName mirrors ModuleEnabledMetricName under the
+	// d8_telemetry_ prefix so flant-integration ships the metric to DOP.
+	// The prefix is literal here (no {PREFIX} placeholder) and must stay that way.
+	ModuleEnabledTelemetryMetricName = "d8_telemetry_module_enabled"
 	// ModuleMaintenanceMetricName tracks module maintenance state
 	ModuleMaintenanceMetricName = "{PREFIX}mm_module_maintenance"
 
@@ -327,6 +331,25 @@ func registerModuleMetrics(metricStorage metricsstorage.Storage) error {
 	)
 	if err != nil {
 		return fmt.Errorf("can not register %s: %w", ModulesAbsentResourcesTotal, err)
+	}
+
+	enabledLabels := []string{pkg.MetricKeyModule, pkg.MetricKeyVersion}
+	_, err = metricStorage.RegisterGauge(
+		ModuleEnabledMetricName,
+		enabledLabels,
+		options.WithHelp("Gauge of enabled modules with their deployed version"),
+	)
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleEnabledMetricName, err)
+	}
+
+	_, err = metricStorage.RegisterGauge(
+		ModuleEnabledTelemetryMetricName,
+		enabledLabels,
+		options.WithHelp("Telemetry twin of "+ModuleEnabledMetricName+" exported to DOP via flant-integration"),
+	)
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", ModuleEnabledTelemetryMetricName, err)
 	}
 
 	return nil
