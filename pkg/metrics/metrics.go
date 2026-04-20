@@ -333,25 +333,6 @@ func registerModuleMetrics(metricStorage metricsstorage.Storage) error {
 		return fmt.Errorf("can not register %s: %w", ModulesAbsentResourcesTotal, err)
 	}
 
-	enabledLabels := []string{pkg.MetricKeyModule, pkg.MetricKeyVersion}
-	_, err = metricStorage.RegisterGauge(
-		ModuleEnabledMetricName,
-		enabledLabels,
-		options.WithHelp("Gauge of enabled modules with their deployed version"),
-	)
-	if err != nil {
-		return fmt.Errorf("can not register %s: %w", ModuleEnabledMetricName, err)
-	}
-
-	_, err = metricStorage.RegisterGauge(
-		ModuleEnabledTelemetryMetricName,
-		enabledLabels,
-		options.WithHelp("Telemetry twin of "+ModuleEnabledMetricName+" exported to DOP via flant-integration"),
-	)
-	if err != nil {
-		return fmt.Errorf("can not register %s: %w", ModuleEnabledTelemetryMetricName, err)
-	}
-
 	return nil
 }
 
