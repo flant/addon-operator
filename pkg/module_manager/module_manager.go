@@ -54,9 +54,7 @@ var (
 	moduleInfoMetricGroup = "mm_module_info"
 	moduleInfoMetricName  = metrics.ModuleInfoMetricName
 
-	moduleEnabledMetricGroup         = "mm_module_enabled"
-	moduleEnabledMetricName          = metrics.ModuleEnabledMetricName
-	moduleEnabledTelemetryMetricName = metrics.ModuleEnabledTelemetryMetricName
+	moduleEnabledMetricGroup = "mm_module_enabled"
 
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
 	moduleMaintenanceMetricName  = metrics.ModuleMaintenanceMetricName
@@ -531,11 +529,11 @@ func (mm *ModuleManager) refreshModuleEnabledMetric() {
 			pkg.MetricKeyModule:  name,
 			pkg.MetricKeyVersion: version,
 		}
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleEnabledMetricGroup, moduleEnabledMetricName, 1, labels)
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleEnabledMetricGroup, metrics.ModuleEnabledMetricName, 1, labels)
 		// Telemetry twin: same gauge under the d8_telemetry_ prefix so
 		// flant-integration ships it to DOP. Kept in the same group so
 		// ExpireGroupMetrics above wipes both copies in lockstep.
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleEnabledMetricGroup, moduleEnabledTelemetryMetricName, 1, labels)
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleEnabledMetricGroup, metrics.ModuleEnabledTelemetryMetricName, 1, labels)
 	}
 }
 
