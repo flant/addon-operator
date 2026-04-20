@@ -125,4 +125,5 @@ const (
 	MetricKeyOperation  = "operation"
 	MetricKeyQueue      = "queue"
 	MetricKeyResource   = "resource"
+	MetricKeyVersion    = "version"
 )

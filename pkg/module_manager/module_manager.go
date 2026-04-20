@@ -54,6 +54,9 @@ var (
 	moduleInfoMetricGroup = "mm_module_info"
 	moduleInfoMetricName  = metrics.ModuleInfoMetricName
 
+	moduleEnabledMetricGroup = "mm_module_enabled"
+	moduleEnabledMetricName  = metrics.ModuleEnabledMetricName
+
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
 	moduleMaintenanceMetricName  = metrics.ModuleMaintenanceMetricName
 
@@ -505,6 +508,37 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 			enabled = "true"
 		}
 		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{pkg.MetricKeyModule: module, "enabled": enabled})
+	}
+	mm.refreshModuleEnabledMetric()
+}
+
+// refreshModuleEnabledMetric re-populates the mm_module_enabled metric group.
+// Emits gauge=1 with {module, version} labels for every enabled module that
+// has a non-empty version set via BasicModule.SetVersion. Modules without a
+// version (e.g. before first convergence) or disabled modules are skipped.
+func (mm *ModuleManager) refreshModuleEnabledMetric() {
+	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetrics(moduleEnabledMetricGroup)
+	for _, name := range mm.GetModuleNames() {
+		if !mm.IsModuleEnabled(name) {
+			continue
+		}
+		mod := mm.GetModule(name)
+		if mod == nil {
+			continue
+		}
+		version := mod.GetVersion()
+		if version == "" {
+			continue
+		}
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(
+			moduleEnabledMetricGroup,
+			moduleEnabledMetricName,
+			1,
+			map[string]string{
+				pkg.MetricKeyModule:  name,
+				pkg.MetricKeyVersion: version,
+			},
+		)
 	}
 }
 

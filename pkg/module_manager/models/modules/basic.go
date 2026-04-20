@@ -55,6 +55,8 @@ type BasicModule struct {
 	// required
 	Path string
 
+	version string
+
 	critical bool
 
 	crdsExist     bool
@@ -119,6 +121,18 @@ func (bm *BasicModule) WithLogger(logger *log.Logger) {
 
 func (bm *BasicModule) SetCritical(value bool) {
 	bm.critical = value
+}
+
+// SetVersion records the deployed version of the module, which is later
+// exported as a label on the mm_module_enabled metric. Deckhouse populates
+// it from v1alpha1.Module.Properties.Version.
+func (bm *BasicModule) SetVersion(v string) {
+	bm.version = v
+}
+
+// GetVersion returns the deployed version of the module, or "" if none was set.
+func (bm *BasicModule) GetVersion() string {
+	return bm.version
 }
 
 // getCRDsFromPath scan path/crds directory and store yaml file in slice

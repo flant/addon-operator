@@ -45,6 +45,8 @@ var (
 	ModulesAbsentResourcesTotal = "{PREFIX}modules_absent_resources_total"
 	// ModuleInfoMetricName tracks module information
 	ModuleInfoMetricName = "{PREFIX}mm_module_info"
+	// ModuleEnabledMetricName tracks enabled modules with their deployed version
+	ModuleEnabledMetricName = "{PREFIX}mm_module_enabled"
 	// ModuleMaintenanceMetricName tracks module maintenance state
 	ModuleMaintenanceMetricName = "{PREFIX}mm_module_maintenance"
 
@@ -152,6 +154,7 @@ func InitMetrics(prefix string) {
 	ModulesHelmReleaseRedeployedTotal = ReplacePrefix(ModulesHelmReleaseRedeployedTotal, prefix)
 	ModulesAbsentResourcesTotal = ReplacePrefix(ModulesAbsentResourcesTotal, prefix)
 	ModuleInfoMetricName = ReplacePrefix(ModuleInfoMetricName, prefix)
+	ModuleEnabledMetricName = ReplacePrefix(ModuleEnabledMetricName, prefix)
 	ModuleMaintenanceMetricName = ReplacePrefix(ModuleMaintenanceMetricName, prefix)
 
 	// ============================================================================
