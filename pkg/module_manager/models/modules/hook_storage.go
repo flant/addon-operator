@@ -47,7 +47,12 @@ func (hs *HooksStorage) getHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleH
 			return []*hooks.ModuleHook{}
 		}
 		sort.Slice(res, func(i, j int) bool {
-			return res[i].Order(t) < res[j].Order(t)
+			oi, oj := res[i].Order(t), res[j].Order(t)
+			if oi != oj {
+				return oi < oj
+			}
+
+			return res[i].GetName() < res[j].GetName()
 		})
 
 		return res
