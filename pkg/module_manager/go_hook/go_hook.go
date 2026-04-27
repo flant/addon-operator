@@ -22,6 +22,7 @@ type HookConfigLoader interface {
 	GetOnStartup() *float64
 	GetBeforeAll() *float64
 	GetAfterAll() *float64
+	GetBeforeDeleteHelm() *float64
 	GetAfterDeleteHelm() *float64
 }
 
@@ -65,16 +66,17 @@ type HookConfig struct {
 	// OnStartup runs hook on module/global startup
 	// Attention! During the startup you don't have snapshots available
 	// use native KubeClient to fetch resources
-	OnStartup         *OrderedConfig
-	OnBeforeHelm      *OrderedConfig
-	OnAfterHelm       *OrderedConfig
-	OnAfterDeleteHelm *OrderedConfig
-	OnBeforeAll       *OrderedConfig
-	OnAfterAll        *OrderedConfig
-	AllowFailure      bool
-	Queue             string
-	Settings          *HookConfigSettings
-	Logger            *log.Logger
+	OnStartup          *OrderedConfig
+	OnBeforeHelm       *OrderedConfig
+	OnAfterHelm        *OrderedConfig
+	OnBeforeDeleteHelm *OrderedConfig
+	OnAfterDeleteHelm  *OrderedConfig
+	OnBeforeAll        *OrderedConfig
+	OnAfterAll         *OrderedConfig
+	AllowFailure       bool
+	Queue              string
+	Settings           *HookConfigSettings
+	Logger             *log.Logger
 }
 
 type HookConfigSettings struct {

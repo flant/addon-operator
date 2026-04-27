@@ -653,6 +653,10 @@ func (mm *ModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []string
 	return names
 }
 
+// DeleteModule runs beforeDeleteHelm hooks (only when a Helm release actually exists),
+// helm uninstall, and afterDeleteHelm hooks. If beforeDeleteHelm fails, helm uninstall and
+// afterDeleteHelm are skipped — converge retries with backoff. Symmetric to RunModule's
+// beforeHelm / helm install / afterHelm flow.
 func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, logLabels map[string]string) error {
 	ctx, span := otel.Tracer(moduleManagerServiceName).Start(ctx, "DeleteModule")
 	defer span.End()
@@ -660,7 +664,8 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 	ml := mm.GetModule(moduleName)
 
 	// Note: keep kubernetes monitors alive until afterDeleteHelm runs,
-	// so hooks can access snapshots. We'll disable hooks after running them.
+	// so beforeDeleteHelm and afterDeleteHelm hooks can access snapshots.
+	// We'll disable hooks after running them.
 
 	// DELETE
 	{
@@ -702,6 +707,13 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 						slog.String(pkg.LogKeyModule, ml.GetName()))
 				}
 			} else {
+				// Run beforeDeleteHelm hooks just before helm uninstall.
+				// On hook failure: helm uninstall and afterDeleteHelm are NOT executed,
+				// kubernetes informers stay alive, converge will retry with backoff.
+				if err := ml.RunHooksByBinding(ctx, BeforeDeleteHelm, deleteLogLabels); err != nil {
+					return fmt.Errorf("run beforeDeleteHelm hooks: %w", err)
+				}
+
 				helmClientOptions := []helm.ClientOption{
 					helm.WithLogLabels(deleteLogLabels),
 				}

@@ -220,10 +220,52 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 }
 
 func (h *BatchHook) getConfig() (*BatchHookConfig, error) {
-	return GetBatchHookConfig(h.moduleName, h.Path)
+	cfg, raw, err := getBatchHookConfigWithRaw(h.moduleName, h.Path)
+	if err != nil {
+		return nil, err
+	}
+	// Forward-compat: scan the raw JSON for top-level keys we don't know,
+	// so that hooks built with newer module-sdk against older addon-operator
+	// don't silently lose bindings.
+	h.warnUnknownKeysFromBatchRaw(raw)
+	return cfg, nil
+}
+
+// warnUnknownKeysFromBatchRaw decodes the batch-hook config JSON loosely and
+// emits warnings for unknown top-level keys per individual hook config.
+func (h *BatchHook) warnUnknownKeysFromBatchRaw(o []byte) {
+	if h.Hook.Logger == nil || len(o) == 0 {
+		return
+	}
+	// New format: {version, hooks: [...]}
+	var env struct {
+		Hooks     []map[string]interface{} `json:"hooks"`
+		Readiness map[string]interface{}   `json:"readiness"`
+	}
+	if err := json.Unmarshal(o, &env); err == nil && (len(env.Hooks) > 0 || env.Readiness != nil) {
+		for i, raw := range env.Hooks {
+			warnUnknownHookKeys(h.Hook.Logger, raw, fmt.Sprintf("%s[%d]", h.Path, i))
+		}
+		if env.Readiness != nil {
+			warnUnknownHookKeys(h.Hook.Logger, env.Readiness, h.Path+"[readiness]")
+		}
+		return
+	}
+	// Legacy format: [...]
+	var arr []map[string]interface{}
+	if err := json.Unmarshal(o, &arr); err == nil {
+		for i, raw := range arr {
+			warnUnknownHookKeys(h.Hook.Logger, raw, fmt.Sprintf("%s[%d]", h.Path, i))
+		}
+	}
 }
 
 func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
+	cfg, _, err := getBatchHookConfigWithRaw(moduleName, hookPath)
+	return cfg, err
+}
+
+func getBatchHookConfigWithRaw(moduleName, hookPath string) (*BatchHookConfig, []byte, error) {
 	args := []string{"hook", "config"}
 
 	environ := os.Environ()
@@ -240,7 +282,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 
 	o, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
+		return nil, nil, fmt.Errorf("exec file '%s': %w", hookPath, err)
 	}
 
 	// Deprecated: old batch hook config format
@@ -252,7 +294,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		buf := bytes.NewReader(o)
 		err = json.NewDecoder(buf).Decode(&hooks)
 		if err != nil {
-			return nil, fmt.Errorf("decode: %w", err)
+			return nil, nil, fmt.Errorf("decode: %w", err)
 		}
 
 		cfg := &BatchHookConfig{}
@@ -262,7 +304,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 			cfg.Hooks[strconv.Itoa(idx)] = &h
 		}
 
-		return cfg, nil
+		return cfg, o, nil
 	}
 
 	cfgs := &sdkhook.BatchHookConfig{}
@@ -270,7 +312,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 	buf := bytes.NewReader(o)
 	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
+		return nil, nil, fmt.Errorf("decode: %w", err)
 	}
 
 	cfg, err := remapSDKConfigToConfig(cfgs)
@@ -280,17 +322,17 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		buf := bytes.NewReader(o)
 		err = json.NewDecoder(buf).Decode(&cfgs)
 		if err != nil {
-			return nil, fmt.Errorf("decode: %w", err)
+			return nil, nil, fmt.Errorf("decode: %w", err)
 		}
 
 		if outputLog.Level != "" {
-			return nil, fmt.Errorf("got log except config: %s", string(o))
+			return nil, nil, fmt.Errorf("got log except config: %s", string(o))
 		}
 
-		return nil, fmt.Errorf("remapSDKConfigToConfig: %w", err)
+		return nil, nil, fmt.Errorf("remapSDKConfigToConfig: %w", err)
 	}
 
-	return cfg, nil
+	return cfg, o, nil
 }
 
 type BatchHookLog struct {
@@ -385,6 +427,16 @@ func (h *BatchHook) GetAfterAll() *float64 {
 	}
 
 	res := float64(*h.config.OnAfterHelm)
+
+	return &res
+}
+
+func (h *BatchHook) GetBeforeDeleteHelm() *float64 {
+	if h.config == nil || h.config.OnBeforeDeleteHelm == nil {
+		return nil
+	}
+
+	res := float64(*h.config.OnBeforeDeleteHelm)
 
 	return &res
 }

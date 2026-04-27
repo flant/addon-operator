@@ -51,6 +51,8 @@ func (mh *ModuleHook) Order(binding shell_op_types.BindingType) float64 {
 			return mh.config.BeforeHelm.Order
 		case addon_op_types.AfterHelm:
 			return mh.config.AfterHelm.Order
+		case addon_op_types.BeforeDeleteHelm:
+			return mh.config.BeforeDeleteHelm.Order
 		case addon_op_types.AfterDeleteHelm:
 			return mh.config.AfterDeleteHelm.Order
 		}
@@ -140,6 +142,9 @@ func (mh *ModuleHook) GetConfigDescription() string {
 	}
 	if mh.config.AfterHelm != nil {
 		bd = append(bd, fmt.Sprintf("afterHelm:%d", int64(mh.config.AfterHelm.Order)))
+	}
+	if mh.config.BeforeDeleteHelm != nil {
+		bd = append(bd, fmt.Sprintf("beforeDeleteHelm:%d", int64(mh.config.BeforeDeleteHelm.Order)))
 	}
 	if mh.config.AfterDeleteHelm != nil {
 		bd = append(bd, fmt.Sprintf("afterDeleteHelm:%d", int64(mh.config.AfterDeleteHelm.Order)))

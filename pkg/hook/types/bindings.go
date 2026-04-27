@@ -7,9 +7,10 @@ import (
 
 // Additional binding types, specific to addon-operator
 const (
-	BeforeHelm      BindingType = "beforeHelm"
-	AfterHelm       BindingType = "afterHelm"
-	AfterDeleteHelm BindingType = "afterDeleteHelm"
-	BeforeAll       BindingType = "beforeAll"
-	AfterAll        BindingType = "afterAll"
+	BeforeHelm       BindingType = "beforeHelm"
+	AfterHelm        BindingType = "afterHelm"
+	BeforeDeleteHelm BindingType = "beforeDeleteHelm"
+	AfterDeleteHelm  BindingType = "afterDeleteHelm"
+	BeforeAll        BindingType = "beforeAll"
+	AfterAll         BindingType = "afterAll"
 )

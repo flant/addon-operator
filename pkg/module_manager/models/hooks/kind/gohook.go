@@ -247,6 +247,14 @@ func (h *GoHook) GetAfterAll() *float64 {
 	return nil
 }
 
+func (h *GoHook) GetBeforeDeleteHelm() *float64 {
+	if h.config == nil || h.config.OnBeforeDeleteHelm == nil {
+		return nil
+	}
+
+	return &h.config.OnBeforeDeleteHelm.Order
+}
+
 func (h *GoHook) GetAfterDeleteHelm() *float64 {
 	if h.config == nil || h.config.OnAfterDeleteHelm == nil {
 		return nil
