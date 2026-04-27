@@ -325,14 +325,6 @@ func (sh *ShellHook) GetConfigForModule(moduleKind string) (*config.HookConfig, 
 		return nil, fmt.Errorf("unmarshal schedule yaml hook config: %s", err)
 	}
 
-	// Forward-compat: warn about top-level keys we don't recognize so that
-	// hooks built with newer module-sdk against older addon-operator don't
-	// fail silently when they declare unknown bindings.
-	rawTop := map[string]interface{}{}
-	if err := yaml.Unmarshal(cfgData, &rawTop); err == nil {
-		warnUnknownHookKeys(sh.Hook.Logger, rawTop, sh.Name)
-	}
-
 	return cfg, nil
 }
 
