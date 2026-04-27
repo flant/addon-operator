@@ -25,6 +25,7 @@ echo '[{"configVersion":"v1",
 "onStartup":10,
 "beforeHelm":5,
 "afterHelm":15,
+"beforeDeleteHelm":20,
 "afterDeleteHelm":25,
 "metadata":{
 "name":"main",
@@ -63,6 +64,7 @@ fi
 	assert.Equal(t, ptr.To(uint(10)), hook.OnStartup)
 	assert.Equal(t, ptr.To(uint(5)), hook.OnBeforeHelm)
 	assert.Equal(t, ptr.To(uint(15)), hook.OnAfterHelm)
+	assert.Equal(t, ptr.To(uint(20)), hook.OnBeforeDeleteHelm)
 	assert.Equal(t, ptr.To(uint(25)), hook.OnAfterDeleteHelm)
 }
 
@@ -81,11 +83,12 @@ func Test_BatchHook_Config(t *testing.T) {
 	}
 
 	type wants struct {
-		err             error
-		onStartup       *float64
-		beforeHelm      *float64
-		afterHelm       *float64
-		afterDeleteHelm *float64
+		err              error
+		onStartup        *float64
+		beforeHelm       *float64
+		afterHelm        *float64
+		beforeDeleteHelm *float64
+		afterDeleteHelm  *float64
 	}
 
 	tests := []struct {
@@ -105,6 +108,7 @@ func Test_BatchHook_Config(t *testing.T) {
 				"onStartup":10,
 				"beforeHelm":5,
 				"afterHelm":15,
+				"beforeDeleteHelm":20,
 				"afterDeleteHelm":25,
 				"metadata":{
 				"name":"main",
@@ -122,11 +126,12 @@ func Test_BatchHook_Config(t *testing.T) {
 				"jqFilter":".metadata.name"}]}]`,
 			},
 			wants: wants{
-				err:             nil,
-				onStartup:       ptr.To(10.0),
-				beforeHelm:      ptr.To(5.0),
-				afterHelm:       ptr.To(15.0),
-				afterDeleteHelm: ptr.To(25.0),
+				err:              nil,
+				onStartup:        ptr.To(10.0),
+				beforeHelm:       ptr.To(5.0),
+				afterHelm:        ptr.To(15.0),
+				beforeDeleteHelm: ptr.To(20.0),
+				afterDeleteHelm:  ptr.To(25.0),
 			},
 		},
 	}
@@ -170,6 +175,7 @@ fi
 			assert.Equal(t, tt.wants.onStartup, bHook.GetOnStartup())
 			assert.Equal(t, tt.wants.beforeHelm, bHook.GetBeforeAll())
 			assert.Equal(t, tt.wants.afterHelm, bHook.GetAfterAll())
+			assert.Equal(t, tt.wants.beforeDeleteHelm, bHook.GetBeforeDeleteHelm())
 			assert.Equal(t, tt.wants.afterDeleteHelm, bHook.GetAfterDeleteHelm())
 		})
 	}
