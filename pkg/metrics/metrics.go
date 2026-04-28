@@ -45,6 +45,12 @@ var (
 	ModulesAbsentResourcesTotal = "{PREFIX}modules_absent_resources_total"
 	// ModuleInfoMetricName tracks module information
 	ModuleInfoMetricName = "{PREFIX}mm_module_info"
+	// ModuleEnabledMetricName tracks enabled modules with their deployed version
+	ModuleEnabledMetricName = "{PREFIX}mm_module_enabled"
+	// ModuleEnabledTelemetryMetricName mirrors ModuleEnabledMetricName under the
+	// d8_telemetry_ prefix so flant-integration ships the metric to DOP.
+	// The prefix is literal here (no {PREFIX} placeholder) and must stay that way.
+	ModuleEnabledTelemetryMetricName = "d8_telemetry_module_enabled"
 	// ModuleMaintenanceMetricName tracks module maintenance state
 	ModuleMaintenanceMetricName = "{PREFIX}mm_module_maintenance"
 
@@ -152,6 +158,7 @@ func InitMetrics(prefix string) {
 	ModulesHelmReleaseRedeployedTotal = ReplacePrefix(ModulesHelmReleaseRedeployedTotal, prefix)
 	ModulesAbsentResourcesTotal = ReplacePrefix(ModulesAbsentResourcesTotal, prefix)
 	ModuleInfoMetricName = ReplacePrefix(ModuleInfoMetricName, prefix)
+	ModuleEnabledMetricName = ReplacePrefix(ModuleEnabledMetricName, prefix)
 	ModuleMaintenanceMetricName = ReplacePrefix(ModuleMaintenanceMetricName, prefix)
 
 	// ============================================================================

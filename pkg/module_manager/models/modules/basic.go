@@ -55,6 +55,8 @@ type BasicModule struct {
 	// required
 	Path string
 
+	version string
+
 	critical bool
 
 	crdsExist     bool
@@ -119,6 +121,14 @@ func (bm *BasicModule) WithLogger(logger *log.Logger) {
 
 func (bm *BasicModule) SetCritical(value bool) {
 	bm.critical = value
+}
+
+func (bm *BasicModule) SetVersion(v string) {
+	bm.version = v
+}
+
+func (bm *BasicModule) GetVersion() string {
+	return bm.version
 }
 
 // getCRDsFromPath scan path/crds directory and store yaml file in slice
