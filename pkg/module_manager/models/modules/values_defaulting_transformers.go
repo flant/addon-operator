@@ -5,6 +5,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 )
 
 type transformer interface {
@@ -27,7 +28,7 @@ func (a *applyDefaults) Transform(values utils.Values) utils.Values {
 	}
 
 	res := values.Copy()
-	validation.ApplyDefaults(res, s)
+	defaults.ApplyDefaults(res, s)
 
 	return res
 }

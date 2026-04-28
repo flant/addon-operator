@@ -85,10 +85,11 @@ func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
 func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configBytes, valuesBytes []byte) error {
 	// load and registry global hooks
 	dep := hooks.HookExecutionDependencyContainer{
-		HookMetricsStorage: mm.dependencies.HookMetricStorage,
-		KubeConfigManager:  mm.dependencies.KubeConfigManager,
-		KubeObjectPatcher:  mm.dependencies.KubeObjectPatcher,
-		MetricStorage:      mm.dependencies.MetricStorage,
+		HookMetricsStorage:      mm.dependencies.HookMetricStorage,
+		KubeConfigManager:       mm.dependencies.KubeConfigManager,
+		KubeObjectPatcher:       mm.dependencies.KubeObjectPatcher,
+		MetricStorage:           mm.dependencies.MetricStorage,
+		DefaultsOverrideApplier: mm,
 	}
 
 	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, shapp.DebugKeepTmpFiles, modules.WithLogger(mm.logger.Named("global-module")))

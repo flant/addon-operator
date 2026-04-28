@@ -6,6 +6,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 )
 
 /*
@@ -26,6 +27,8 @@ type ValuesStorage struct {
 
 	schemaStorage *validation.SchemaStorage
 	moduleName    string
+
+	overridePolicy *defaults.OverridePolicy
 
 	// we are locking the whole storage on any concurrent operation
 	// because it could be called from concurrent hooks (goroutines) and we will have a deadlock on RW mutex
@@ -66,12 +69,16 @@ func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes,
 		schemaStorage: schemaStorage,
 		moduleName:    moduleName,
 	}
-	err = vs.calculateResultValues()
-	if err != nil {
+
+	if err = vs.calculateResultValues(); err != nil {
 		return nil, fmt.Errorf("critical error occurred with calculating values for %q: %w", moduleName, err)
 	}
 
 	return vs, nil
+}
+
+func (vs *ValuesStorage) SetDefaultsOverrideContracts(contracts []defaults.OverrideContract) {
+	vs.overridePolicy = defaults.BuildOverridePolicy(contracts...)
 }
 
 func (vs *ValuesStorage) openapiDefaultsTransformer(schemaType validation.SchemaType) transformer {
@@ -267,4 +274,15 @@ func (vs *ValuesStorage) getValuesPatches() []utils.ValuesPatch {
 
 func (vs *ValuesStorage) GetSchemaStorage() *validation.SchemaStorage {
 	return vs.schemaStorage
+}
+
+func (vs *ValuesStorage) ApplyDefaultsOverride(override defaults.Override) {
+	vs.lock.Lock()
+	defer vs.lock.Unlock()
+
+	scheme := vs.schemaStorage.Schemas[validation.ValuesSchema]
+	vs.overridePolicy.ApplyOverride(scheme, override)
+
+	// error could be only if values patch fails to apply
+	_ = vs.calculateResultValues()
 }

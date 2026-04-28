@@ -13,6 +13,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 	"github.com/hashicorp/go-multierror"
 	"go.opentelemetry.io/otel"
 
@@ -1523,6 +1524,17 @@ func (mm *ModuleManager) ModuleHasCRDs(moduleName string) bool {
 
 func (mm *ModuleManager) EnvironmentManagerEnabled() bool {
 	return mm.environmentManager != nil
+}
+
+func (mm *ModuleManager) ApplyDefaultsOverride(overrides []defaults.Override) {
+	for _, override := range overrides {
+		basic := mm.GetModule(override.Target)
+		if basic == nil {
+			return
+		}
+
+		basic.ApplyDefaultsOverride(override)
+	}
 }
 
 // queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks

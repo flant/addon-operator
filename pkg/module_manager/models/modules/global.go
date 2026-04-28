@@ -21,6 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
+	"github.com/flant/addon-operator/pkg/values/validation/defaults"
 	"github.com/flant/addon-operator/sdk"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
@@ -306,6 +307,8 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 		if err != nil {
 			return fmt.Errorf("apply enabled patches from global values patch: %v", err)
 		}
+
+		gm.dc.DefaultsOverrideApplier.ApplyDefaultsOverride(defaults.GetOverridesByPatch(*valuesPatch))
 	}
 
 	return nil
