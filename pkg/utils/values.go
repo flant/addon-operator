@@ -9,7 +9,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/ettle/strcase"
-	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg"
@@ -159,7 +158,7 @@ func (v Values) AsBytes(format string) ([]byte, error) {
 	case "yaml":
 		fallthrough
 	default:
-		return yaml.Marshal(v)
+		return k8syaml.Marshal(v)
 	}
 }
 
