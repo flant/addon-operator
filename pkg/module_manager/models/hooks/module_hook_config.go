@@ -18,9 +18,10 @@ type ModuleHookConfig struct {
 	ModuleV1 *ModuleHookConfigV0
 
 	// effective config values
-	BeforeHelm      *BeforeHelmConfig
-	AfterHelm       *AfterHelmConfig
-	AfterDeleteHelm *AfterDeleteHelmConfig
+	BeforeHelm       *BeforeHelmConfig
+	AfterHelm        *AfterHelmConfig
+	BeforeDeleteHelm *BeforeDeleteHelmConfig
+	AfterDeleteHelm  *AfterDeleteHelmConfig
 }
 
 type BeforeHelmConfig struct {
@@ -33,21 +34,27 @@ type AfterHelmConfig struct {
 	Order float64
 }
 
+type BeforeDeleteHelmConfig struct {
+	CommonBindingConfig
+	Order float64
+}
+
 type AfterDeleteHelmConfig struct {
 	CommonBindingConfig
 	Order float64
 }
 
 type ModuleHookConfigV0 struct {
-	BeforeHelm      interface{} `json:"beforeHelm"`
-	AfterHelm       interface{} `json:"afterHelm"`
-	AfterDeleteHelm interface{} `json:"afterDeleteHelm"`
+	BeforeHelm       interface{} `json:"beforeHelm"`
+	AfterHelm        interface{} `json:"afterHelm"`
+	BeforeDeleteHelm interface{} `json:"beforeDeleteHelm"`
+	AfterDeleteHelm  interface{} `json:"afterDeleteHelm"`
 }
 
 func (c *ModuleHookConfig) Bindings() []BindingType {
 	res := make([]BindingType, 0)
 
-	for _, binding := range []BindingType{OnStartup, Schedule, OnKubernetesEvent, BeforeHelm, AfterHelm, AfterDeleteHelm} {
+	for _, binding := range []BindingType{OnStartup, Schedule, OnKubernetesEvent, BeforeHelm, AfterHelm, BeforeDeleteHelm, AfterDeleteHelm} {
 		if c.HasBinding(binding) {
 			res = append(res, binding)
 		}
@@ -66,6 +73,8 @@ func (c *ModuleHookConfig) HasBinding(binding BindingType) bool {
 		return c.BeforeHelm != nil
 	case AfterHelm:
 		return c.AfterHelm != nil
+	case BeforeDeleteHelm:
+		return c.BeforeDeleteHelm != nil
 	case AfterDeleteHelm:
 		return c.AfterDeleteHelm != nil
 	default:
@@ -76,7 +85,7 @@ func (c *ModuleHookConfig) HasBinding(binding BindingType) bool {
 func (c *ModuleHookConfig) BindingsCount() int {
 	res := 0
 
-	for _, binding := range []BindingType{OnStartup, BeforeHelm, AfterHelm, AfterDeleteHelm} {
+	for _, binding := range []BindingType{OnStartup, BeforeHelm, AfterHelm, BeforeDeleteHelm, AfterDeleteHelm} {
 		if c.HasBinding(binding) {
 			res++
 		}
@@ -119,6 +128,13 @@ func (c *ModuleHookConfig) LoadHookConfig(configLoader gohook.HookConfigLoader) 
 		c.AfterHelm = &AfterHelmConfig{}
 		c.AfterHelm.BindingName = string(AfterHelm)
 		c.AfterHelm.Order = *afterAll
+	}
+
+	beforeDelete := configLoader.GetBeforeDeleteHelm()
+	if beforeDelete != nil {
+		c.BeforeDeleteHelm = &BeforeDeleteHelmConfig{}
+		c.BeforeDeleteHelm.BindingName = string(BeforeDeleteHelm)
+		c.BeforeDeleteHelm.Order = *beforeDelete
 	}
 
 	afterDelete := configLoader.GetAfterDeleteHelm()

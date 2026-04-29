@@ -146,11 +146,12 @@ func Test_ShellHook_Embedded_Config_v0_v1(t *testing.T) {
 	}
 
 	type wants struct {
-		err             error
-		onStartup       *float64
-		beforeHelm      *float64
-		afterHelm       *float64
-		afterDeleteHelm *float64
+		err              error
+		onStartup        *float64
+		beforeHelm       *float64
+		afterHelm        *float64
+		beforeDeleteHelm *float64
+		afterDeleteHelm  *float64
 	}
 
 	tests := []struct {
@@ -169,15 +170,17 @@ func Test_ShellHook_Embedded_Config_v0_v1(t *testing.T) {
                "schedule":[{"crontab":"*/5 * * * * *"}],
                "beforeHelm": 5,
                "afterHelm": 15,
+               "beforeDeleteHelm": 20,
                "afterDeleteHelm": 25
              }`,
 			},
 			wants: wants{
-				err:             nil,
-				onStartup:       ptr.To(10.0),
-				beforeHelm:      ptr.To(5.0),
-				afterHelm:       ptr.To(15.0),
-				afterDeleteHelm: ptr.To(25.0),
+				err:              nil,
+				onStartup:        ptr.To(10.0),
+				beforeHelm:       ptr.To(5.0),
+				afterHelm:        ptr.To(15.0),
+				beforeDeleteHelm: ptr.To(20.0),
+				afterDeleteHelm:  ptr.To(25.0),
 			},
 			// func() {
 			// 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -222,14 +225,16 @@ func Test_ShellHook_Embedded_Config_v0_v1(t *testing.T) {
 				"kubernetes":[{"kind":"Pod", "watchEvent":["Added"]}],
 				"beforeHelm": 98,
 				"afterHelm": 58,
+				"beforeDeleteHelm": 33,
 				"afterDeleteHelm": 18}`,
 			},
 			wants: wants{
-				err:             nil,
-				onStartup:       ptr.To(10.0),
-				beforeHelm:      ptr.To(98.0),
-				afterHelm:       ptr.To(58.0),
-				afterDeleteHelm: ptr.To(18.0),
+				err:              nil,
+				onStartup:        ptr.To(10.0),
+				beforeHelm:       ptr.To(98.0),
+				afterHelm:        ptr.To(58.0),
+				beforeDeleteHelm: ptr.To(33.0),
+				afterDeleteHelm:  ptr.To(18.0),
 			},
 			// func() {
 			// 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -260,15 +265,17 @@ kubernetes:
   watchEvent: ["Added"]
 beforeHelm: 98
 afterHelm: 58
+beforeDeleteHelm: 33
 afterDeleteHelm: 18
 `,
 			},
 			wants: wants{
-				err:             nil,
-				onStartup:       ptr.To(10.0),
-				beforeHelm:      ptr.To(98.0),
-				afterHelm:       ptr.To(58.0),
-				afterDeleteHelm: ptr.To(18.0),
+				err:              nil,
+				onStartup:        ptr.To(10.0),
+				beforeHelm:       ptr.To(98.0),
+				afterHelm:        ptr.To(58.0),
+				beforeDeleteHelm: ptr.To(33.0),
+				afterDeleteHelm:  ptr.To(18.0),
 			},
 			// func() {
 			// 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -339,6 +346,7 @@ fi
 			assert.Equal(t, tt.wants.onStartup, shHook.GetOnStartup())
 			assert.Equal(t, tt.wants.beforeHelm, shHook.GetBeforeAll())
 			assert.Equal(t, tt.wants.afterHelm, shHook.GetAfterAll())
+			assert.Equal(t, tt.wants.beforeDeleteHelm, shHook.GetBeforeDeleteHelm())
 			assert.Equal(t, tt.wants.afterDeleteHelm, shHook.GetAfterDeleteHelm())
 		})
 	}

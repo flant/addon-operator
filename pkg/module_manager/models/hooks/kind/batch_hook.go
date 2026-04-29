@@ -389,6 +389,16 @@ func (h *BatchHook) GetAfterAll() *float64 {
 	return &res
 }
 
+func (h *BatchHook) GetBeforeDeleteHelm() *float64 {
+	if h.config == nil || h.config.OnBeforeDeleteHelm == nil {
+		return nil
+	}
+
+	res := float64(*h.config.OnBeforeDeleteHelm)
+
+	return &res
+}
+
 func (h *BatchHook) GetAfterDeleteHelm() *float64 {
 	if h.config == nil || h.config.OnAfterDeleteHelm == nil {
 		return nil

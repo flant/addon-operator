@@ -662,7 +662,8 @@ func (bm *BasicModule) RunHooksByBinding(ctx context.Context, binding sh_op_type
 			Binding: string(binding),
 		}
 		// Update kubernetes snapshots just before execute a hook
-		if binding == types.BeforeHelm || binding == types.AfterHelm || binding == types.AfterDeleteHelm {
+		if binding == types.BeforeHelm || binding == types.AfterHelm ||
+			binding == types.BeforeDeleteHelm || binding == types.AfterDeleteHelm {
 			bc.Snapshots = moduleHook.GetHookController().KubernetesSnapshots()
 			bc.Metadata.IncludeAllSnapshots = true
 		}

@@ -366,6 +366,15 @@ func (sh *ShellHook) GetAfterAll() *float64 {
 	return nil
 }
 
+func (sh *ShellHook) GetBeforeDeleteHelm() *float64 {
+	res := ConvertFloatForBinding(sh.ScheduleConfig.BeforeDeleteHelm)
+	if res != nil {
+		return res
+	}
+
+	return nil
+}
+
 func (sh *ShellHook) GetAfterDeleteHelm() *float64 {
 	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterDeleteHelm)
 	if res != nil {
@@ -380,9 +389,10 @@ type HookScheduleConfig struct {
 	BeforeAll *uint `json:"beforeAll" yaml:"beforeAll"`
 	AfterAll  *uint `json:"afterAll" yaml:"afterAll"`
 	// embedded module
-	BeforeHelm      *uint `json:"beforeHelm" yaml:"beforeHelm"`
-	AfterHelm       *uint `json:"afterHelm" yaml:"afterHelm"`
-	AfterDeleteHelm *uint `json:"afterDeleteHelm" yaml:"afterDeleteHelm"`
+	BeforeHelm       *uint `json:"beforeHelm" yaml:"beforeHelm"`
+	AfterHelm        *uint `json:"afterHelm" yaml:"afterHelm"`
+	BeforeDeleteHelm *uint `json:"beforeDeleteHelm" yaml:"beforeDeleteHelm"`
+	AfterDeleteHelm  *uint `json:"afterDeleteHelm" yaml:"afterDeleteHelm"`
 }
 
 func ConvertFloatForBinding(value *uint) *float64 {
@@ -433,30 +443,36 @@ func getModuleHookConfigSchema(version string) *spec.Schema {
 		schema := config.Schemas[version]
 		switch version {
 		case "v1":
-			// add beforeHelm, afterHelm and afterDeleteHelm properties
+			// add beforeHelm, afterHelm, beforeDeleteHelm and afterDeleteHelm properties
 			schema += `
   beforeHelm:
     type: integer
-    example: 10    
+    example: 10
   afterHelm:
     type: integer
-    example: 10    
+    example: 10
+  beforeDeleteHelm:
+    type: integer
+    example: 10
   afterDeleteHelm:
     type: integer
-    example: 10   
+    example: 10
 `
 		case "v0":
-			// add beforeHelm, afterHelm and afterDeleteHelm properties
+			// add beforeHelm, afterHelm, beforeDeleteHelm and afterDeleteHelm properties
 			schema += `
   beforeHelm:
     type: integer
-    example: 10    
+    example: 10
   afterHelm:
     type: integer
-    example: 10    
+    example: 10
+  beforeDeleteHelm:
+    type: integer
+    example: 10
   afterDeleteHelm:
     type: integer
-    example: 10    
+    example: 10
 `
 		}
 		config.Schemas[globalHookVersion] = schema
