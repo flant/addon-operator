@@ -156,6 +156,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 					if hm.WaitForSynchronization != thm.WaitForSynchronization {
 						return true
 					}
+
 					if hm.ExecuteOnSynchronization != thm.ExecuteOnSynchronization {
 						return true
 					}
@@ -169,6 +170,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 					baseModule.Synchronization().DoneForBinding(thm.KubernetesBindingId)
 				}
+
 				return false // do not stop combine process on this task
 			})
 
@@ -202,6 +204,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		if err != nil {
 			if hm.AllowFailure {
 				allowed = 1.0
+
 				s.logger.Info("Module hook failed, but allowed to fail.", log.Err(err))
 
 				res.Status = queue.Success
@@ -227,11 +230,13 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			s.logger.Debug("Module hook success", slog.String(pkg.LogKeyName, hm.HookName))
 
 			res.Status = queue.Success
+
 			s.moduleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, nil)
 
 			// Handle module values change.
 			reloadModule := false
 			eventDescription := ""
+
 			switch hm.BindingType {
 			case htypes.Schedule:
 				if beforeChecksum != afterChecksum {
@@ -253,6 +258,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 					}
 				}
 			}
+
 			if reloadModule {
 				// relabel
 				logLabels := s.shellTask.GetLogLabels()

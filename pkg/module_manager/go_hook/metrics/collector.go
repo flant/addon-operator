@@ -65,6 +65,7 @@ func (dms *MemoryMetricsCollector) Expire(group string) {
 	if group == "" {
 		group = dms.defaultGroup
 	}
+
 	dms.metrics = append(dms.metrics, operation.MetricOperation{
 		Group:  group,
 		Action: operation.ActionExpireMetrics,

@@ -123,6 +123,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	}
 
 	versionedContextList := bindingcontext.ConvertBindingContextList(configVersion, bContext)
+
 	bindingContextBytes, err := versionedContextList.Json()
 	if err != nil {
 		return nil, err
@@ -138,6 +139,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 		if shapp.DebugKeepTmpFiles {
 			return
 		}
+
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
@@ -148,6 +150,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 			}
 		}
 	}()
+
 	configValuesPatchPath := tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
 	valuesPatchPath := tmpFiles["VALUES_JSON_PATCH_PATH"]
 	metricsPath := tmpFiles["METRICS_PATH"]
@@ -184,6 +187,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 		WithChroot(utils.GetModuleChrootPath(h.moduleName))
 
 	usage, err := cmd.RunAndLogLines(ctx, logLabels)
+
 	result.Usage = usage
 	if err != nil {
 		return result, fmt.Errorf("run and log lines: %w", err)
@@ -250,6 +254,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		hooks := make([]sdkhook.HookConfig, 0)
 
 		buf := bytes.NewReader(o)
+
 		err = json.NewDecoder(buf).Decode(&hooks)
 		if err != nil {
 			return nil, fmt.Errorf("decode: %w", err)
@@ -268,6 +273,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 	cfgs := &sdkhook.BatchHookConfig{}
 
 	buf := bytes.NewReader(o)
+
 	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
@@ -278,6 +284,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		outputLog := &BatchHookLog{}
 
 		buf := bytes.NewReader(o)
+
 		err = json.NewDecoder(buf).Decode(&cfgs)
 		if err != nil {
 			return nil, fmt.Errorf("decode: %w", err)
@@ -402,6 +409,7 @@ func (h *BatchHook) GetAfterDeleteHelm() *float64 {
 // PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
 func (h *BatchHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafeName string, configValues, values utils.Values) (map[string]string, error) {
 	var err error
+
 	tmpFiles := make(map[string]string)
 
 	tmpFiles["CONFIG_VALUES_PATH"], err = h.prepareConfigValuesJsonFile(moduleSafeName, configValues)
@@ -448,12 +456,14 @@ func (h *BatchHook) prepareMetricsFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
 // BINDING_CONTEXT_PATH
 func (h *BatchHook) prepareBindingContextJsonFile(moduleSafeName string, bindingContext []byte) (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-%s-binding-context-%s.json", moduleSafeName, h.SafeName(), uuid.Must(uuid.NewV4()).String()))
+
 	err := utils.DumpData(path, bindingContext)
 	if err != nil {
 		return "", err
@@ -468,6 +478,7 @@ func (h *BatchHook) prepareConfigValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -477,6 +488,7 @@ func (h *BatchHook) prepareValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -486,6 +498,7 @@ func (h *BatchHook) prepareKubernetesPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -497,6 +510,7 @@ func (h *BatchHook) prepareConfigValuesJsonFile(moduleSafeName string, configVal
 	}
 
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-config-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
@@ -516,6 +530,7 @@ func (h *BatchHook) prepareValuesJsonFile(moduleSafeName string, values utils.Va
 	}
 
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err

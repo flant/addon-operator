@@ -7,6 +7,7 @@ func DumpData(filePath string, data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -17,5 +18,6 @@ func CreateEmptyWritableFile(filePath string) error {
 	}
 
 	_ = file.Close()
+
 	return nil
 }

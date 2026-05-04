@@ -94,6 +94,7 @@ func (s *SafeNelmActions) ReleaseGet(ctx context.Context, name, namespace string
 			err = fmt.Errorf("panic in ReleaseGet: %v", r)
 		}
 	}()
+
 	return s.wrapped.ReleaseGet(ctx, name, namespace, opts)
 }
 
@@ -115,6 +116,7 @@ func (s *SafeNelmActions) ReleaseInstall(ctx context.Context, name, namespace st
 			err = fmt.Errorf("panic in ReleaseInstall: %v", r)
 		}
 	}()
+
 	return s.wrapped.ReleaseInstall(ctx, name, namespace, opts)
 }
 
@@ -132,6 +134,7 @@ func (s *SafeNelmActions) ReleaseUninstall(ctx context.Context, name, namespace 
 			err = fmt.Errorf("panic in ReleaseUninstall: %v", r)
 		}
 	}()
+
 	return s.wrapped.ReleaseUninstall(ctx, name, namespace, opts)
 }
 
@@ -147,6 +150,7 @@ func (s *SafeNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseLi
 			err = fmt.Errorf("panic in ReleaseList: %v", r)
 		}
 	}()
+
 	return s.wrapped.ReleaseList(ctx, opts)
 }
 
@@ -166,6 +170,7 @@ func (s *SafeNelmActions) ChartRender(ctx context.Context, opts action.ChartRend
 			err = fmt.Errorf("panic in ChartRender: %v", r)
 		}
 	}()
+
 	return s.wrapped.ChartRender(ctx, opts)
 }
 
@@ -260,6 +265,7 @@ func (c *NelmClient) WithExtraLabels(labels map[string]string) {
 		if c.labels == nil {
 			c.labels = make(map[string]string)
 		}
+
 		maps.Copy(c.labels, labels)
 	}
 }
@@ -269,6 +275,7 @@ func (c *NelmClient) WithExtraAnnotations(annotations map[string]string) {
 		if c.annotations == nil {
 			c.annotations = make(map[string]string)
 		}
+
 		maps.Copy(c.annotations, annotations)
 	}
 }
@@ -389,6 +396,7 @@ func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) 
 	if err != nil {
 		return nil, fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
+
 	if releaseGetResult == nil || releaseGetResult.Values == nil {
 		return nil, fmt.Errorf("no values found for release %q", releaseName)
 	}
@@ -469,9 +477,11 @@ func (c *NelmClient) IsReleaseExists(releaseName string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
+
 	if revision == "0" {
 		return false, nil
 	}
+
 	return false, err
 }
 
@@ -489,11 +499,13 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 	}
 
 	releaseNames := make([]string, 0)
+
 	for _, release := range releaseListResult.Releases {
 		chartName := "unknown"
 		if release.Chart != nil {
 			chartName = release.Chart.Name
 		}
+
 		if release.Name == "" {
 			c.logger.Warn("release name is empty, skipped", slog.String(pkg.LogKeyChart, chartName))
 			continue
@@ -549,20 +561,24 @@ func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValu
 		if !debug {
 			return "", fmt.Errorf("render nelm chart %q: %w\n\nUse --debug flag to render out invalid YAML", modulePath, err)
 		}
+
 		return "", fmt.Errorf("render nelm chart %q: %w", modulePath, err)
 	}
 
 	c.logger.Info("Render nelm templates for chart was successful", slog.String(pkg.LogKeyChart, modulePath))
 
 	var result strings.Builder
+
 	for _, resource := range chartRenderResult.Resources {
 		b, err := yaml.Marshal(resource.Unstruct)
 		if err != nil {
 			return "", fmt.Errorf("marshal resource: %w", err)
 		}
+
 		if result.Len() > 0 {
 			result.WriteString("---\n")
 		}
+
 		result.Write(b)
 	}
 

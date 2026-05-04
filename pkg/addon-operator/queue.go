@@ -19,8 +19,10 @@ func QueueHasPendingModuleRunTask(q *queue.TaskQueue, moduleName string) bool {
 	if q == nil {
 		return false
 	}
+
 	modules := ModulesWithPendingModuleRun(q)
 	_, has := modules[moduleName]
+
 	return has
 }
 
@@ -64,6 +66,7 @@ func ConvergeTasksInQueue(q *queue.TaskQueue) int {
 	}
 
 	convergeTasks := 0
+
 	q.IterateSnapshot(func(t sh_task.Task) {
 		if converge.IsConvergeTask(t) || converge.IsFirstConvergeTask(t) {
 			convergeTasks++
@@ -79,6 +82,7 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 	}
 
 	tasks := 0
+
 	q.IterateSnapshot(func(t sh_task.Task) {
 		taskType := t.GetType()
 		if converge.IsConvergeTask(t) && (taskType == task.ModuleRun || taskType == task.ModuleDelete) {
@@ -128,16 +132,20 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 						hm.ParallelRunMetadata.CancelF()
 					}
 				}
+
 				logEntry.Debug("Drained converge task",
 					slog.String(pkg.LogKeyType, string(t.GetType())),
 					slog.String(pkg.LogKeyModule, hm.ModuleName),
 					slog.String(pkg.LogKeyDescription, hm.EventDescription),
 					slog.String(pkg.LogKeyQueue, queue.Name))
+
 				return false
 			}
+
 			return true
 		})
 	}
+
 	return convergeDrained
 }
 
@@ -154,6 +162,7 @@ func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLab
 	IDFound := false
 	convergeDrained := false
 	stop := false
+
 	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
@@ -175,13 +184,16 @@ func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLab
 			if t.GetType() == task.ConvergeModules {
 				stop = true
 			}
+
 			hm := task.HookMetadataAccessor(t)
 			logEntry.Debug("Drained converge task",
 				slog.String(pkg.LogKeyType, string(t.GetType())),
 				slog.String(pkg.LogKeyModule, hm.ModuleName),
 				slog.String(pkg.LogKeyDescription, hm.EventDescription))
+
 			return false
 		}
+
 		return true
 	})
 
@@ -199,14 +211,17 @@ func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels
 
 	IDFound := false
 	stop := false
+
 	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
+
 		if !IDFound {
 			if t.GetId() == afterId {
 				IDFound = true
 			}
+
 			return true
 		}
 
@@ -216,10 +231,12 @@ func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels
 			logEntry.Debug("Drained adjacent ConvergeModules task",
 				slog.String(pkg.LogKeyType, string(t.GetType())),
 				slog.String(pkg.LogKeyDescription, hm.EventDescription))
+
 			return false
 		}
 
 		stop = true
+
 		return true
 	})
 }
@@ -228,13 +245,16 @@ func ModuleEnsureCRDsTasksInQueueAfterId(q *queue.TaskQueue, afterId string) boo
 	if q == nil {
 		return false
 	}
+
 	IDFound := false
 	taskFound := false
 	stop := false
+
 	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
+
 		if !IDFound {
 			if t.GetId() == afterId {
 				IDFound = true

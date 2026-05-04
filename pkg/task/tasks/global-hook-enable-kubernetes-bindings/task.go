@@ -81,6 +81,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	defer span.End()
 
 	var res queue.TaskResult
+
 	s.logger.Debug("Global hook enable kubernetes bindings")
 
 	hm := task.HookMetadataAccessor(s.shellTask)
@@ -104,6 +105,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		if len(info.BindingContext) > 0 {
 			taskLogLabels[pkg.LogKeyBindingName] = info.BindingContext[0].Binding
 		}
+
 		delete(taskLogLabels, pkg.LogKeyTaskID)
 
 		kubernetesBindingID := uuid.Must(uuid.NewV4()).String()
@@ -152,7 +154,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			log.Err(err))
 		s.shellTask.UpdateFailureMessage(err.Error())
 		s.shellTask.WithQueuedAt(queuedAt)
+
 		res.Status = queue.Fail
+
 		return res
 	}
 	// Substitute current task with Synchronization tasks for the main queue.

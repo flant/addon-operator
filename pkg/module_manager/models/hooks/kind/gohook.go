@@ -289,10 +289,13 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		monitor.WithFieldSelector(kubeCfg.FieldSelector)
 		monitor.WithNamespaceSelector(kubeCfg.NamespaceSelector)
 		monitor.WithLabelSelector(kubeCfg.LabelSelector)
+
 		if kubeCfg.FilterFunc == nil {
 			return config.HookConfig{}, errors.New(`"FilterFunc" in KubernetesConfig cannot be nil`)
 		}
+
 		filterFunc := kubeCfg.FilterFunc
+
 		monitor.FilterFunc = func(obj *unstructured.Unstructured) (interface{}, error) {
 			return filterFunc(obj)
 		}
@@ -305,15 +308,18 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		kubeConfig := htypes.OnKubernetesEventConfig{}
 		kubeConfig.Monitor = monitor
 		kubeConfig.AllowFailure = input.AllowFailure
+
 		if kubeCfg.Name == "" {
 			return c, spew.Errorf(`"name" is a required field in binding: %v`, kubeCfg)
 		}
+
 		kubeConfig.BindingName = kubeCfg.Name
 		if input.Queue == "" {
 			kubeConfig.Queue = defaultHookQueueName
 		} else {
 			kubeConfig.Queue = input.Queue
 		}
+
 		kubeConfig.Group = defaultHookGroupName
 
 		kubeConfig.ExecuteHookOnSynchronization = gohook.BoolDeref(kubeCfg.ExecuteHookOnSynchronization, true)
@@ -328,6 +334,7 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 	// schedule bindings with includeSnapshotsFrom
 	// are depend on kubernetes bindings.
 	c.Schedules = []htypes.ScheduleConfig{}
+
 	for _, inSch := range input.Schedule {
 		res := htypes.ScheduleConfig{}
 
@@ -353,6 +360,7 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		} else {
 			res.Queue = input.Queue
 		}
+
 		res.Group = "main"
 
 		c.Schedules = append(c.Schedules, res)
@@ -361,30 +369,40 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 	// Update IncludeSnapshotsFrom for every binding with a group.
 	// Merge binding's IncludeSnapshotsFrom with snapshots list calculated for group.
 	groupSnapshots := make(map[string][]string)
+
 	for _, kubeCfg := range c.OnKubernetesEvents {
 		if kubeCfg.Group == "" {
 			continue
 		}
+
 		if _, ok := groupSnapshots[kubeCfg.Group]; !ok {
 			groupSnapshots[kubeCfg.Group] = make([]string, 0)
 		}
+
 		groupSnapshots[kubeCfg.Group] = append(groupSnapshots[kubeCfg.Group], kubeCfg.BindingName)
 	}
+
 	newKubeEvents := make([]htypes.OnKubernetesEventConfig, 0)
+
 	for _, cfg := range c.OnKubernetesEvents {
 		if snapshots, ok := groupSnapshots[cfg.Group]; ok {
 			cfg.IncludeSnapshotsFrom = config.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
 		}
+
 		newKubeEvents = append(newKubeEvents, cfg)
 	}
+
 	c.OnKubernetesEvents = newKubeEvents
 	newSchedules := make([]htypes.ScheduleConfig, 0)
+
 	for _, cfg := range c.Schedules {
 		if snapshots, ok := groupSnapshots[cfg.Group]; ok {
 			cfg.IncludeSnapshotsFrom = config.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
 		}
+
 		newSchedules = append(newSchedules, cfg)
 	}
+
 	c.Schedules = newSchedules
 
 	/*** END Copy Paste ***/

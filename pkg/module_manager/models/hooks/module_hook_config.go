@@ -85,9 +85,11 @@ func (c *ModuleHookConfig) BindingsCount() int {
 	if c.HasBinding(Schedule) {
 		res += len(c.Schedules)
 	}
+
 	if c.HasBinding(OnKubernetesEvent) {
 		res += len(c.OnKubernetesEvents)
 	}
+
 	return res
 }
 

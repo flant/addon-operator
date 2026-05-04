@@ -69,6 +69,7 @@ func formatTaskDetails(tsk sh_task.Task, hm task.HookMetadata, phase string) str
 		if hm.DoModuleStartup {
 			details += " with doModuleStartup"
 		}
+
 		return details
 
 	case task.ParallelModuleRun:
@@ -139,5 +140,6 @@ func formatConvergeTaskDetails(tsk sh_task.Task, phase string) string {
 	if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
 		return fmt.Sprintf(" for %s in phase '%s'", string(taskEvent), phase)
 	}
+
 	return ""
 }

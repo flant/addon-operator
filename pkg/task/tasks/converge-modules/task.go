@@ -162,6 +162,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				}
 
 				s.logger.Debug("ConvergeModules: send module disabled events")
+
 				go func() {
 					for _, moduleName := range s.moduleManager.GetModuleNames() {
 						if _, enabled := enabledModules[moduleName]; !enabled {
@@ -173,12 +174,15 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 					}
 				}()
 			}
+
 			tasks := s.CreateConvergeModulesTasks(state, s.shellTask.GetLogLabels(), string(taskEvent))
 
 			s.convergeState.SetPhase(converge.WaitDeleteAndRunModules)
+
 			if len(tasks) > 0 {
 				res.AddHeadTasks(tasks...)
 				res.Status = queue.Keep
+
 				s.logTaskAdd("head", tasks...)
 
 				return res
@@ -193,14 +197,17 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		// wait until functional converge done
 		if !s.functionalScheduler.Finished() {
 			s.logger.Warn("ConvergeModules: functional scheduler not finished")
+
 			res.Status = queue.Keep
 			res.DelayBeforeNextTask = repeatInterval
 
 			if s.queueService.GetQueueLength(queue.MainQueueName) > 1 {
 				s.logger.Debug("ConvergeModules: main queue has pending tasks, pass them")
+
 				res.DelayBeforeNextTask = 0
 				res.AddTailTasks(s.shellTask.DeepCopyWithNewUUID())
 				res.Status = queue.Success
+
 				s.logTaskAdd("tail", s.shellTask)
 			}
 
@@ -212,10 +219,13 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		tasks, handleErr := s.CreateAfterAllTasks(s.shellTask.GetLogLabels(), hm.EventDescription)
 		if handleErr == nil {
 			s.convergeState.SetPhase(converge.WaitAfterAll)
+
 			if len(tasks) > 0 {
 				res.AddHeadTasks(tasks...)
 				res.Status = queue.Keep
+
 				s.logTaskAdd("head", tasks...)
+
 				return res
 			}
 		}
@@ -234,6 +244,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	if handleErr != nil {
 		res.Status = queue.Fail
+
 		s.logger.Error("ConvergeModules failed, requeue task to retry after delay.",
 			slog.String(pkg.LogKeyPhase, string(s.convergeState.GetPhase())),
 			slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
@@ -241,10 +252,12 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		s.metricStorage.CounterAdd(metrics.ModulesDiscoverErrorsTotal, 1.0, map[string]string{})
 		s.shellTask.UpdateFailureMessage(handleErr.Error())
 		s.shellTask.WithQueuedAt(time.Now())
+
 		return res
 	}
 
 	s.logger.Debug("ConvergeModules success")
+
 	res.Status = queue.Success
 
 	return res
@@ -355,12 +368,14 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 	// Add ModuleDelete tasks to delete helm releases of disabled modules.
 	log.Debug("The following modules are going to be disabled",
 		slog.Any(pkg.LogKeyModules, state.ModulesToDisable))
+
 	for _, moduleName := range state.ModulesToDisable {
 		ev := events.ModuleEvent{
 			ModuleName: moduleName,
 			EventType:  events.ModuleDisabled,
 		}
 		s.moduleManager.SendModuleEvent(ev)
+
 		newLogLabels := utils.MergeLabels(logLabels)
 		newLogLabels[pkg.LogKeyModule] = moduleName
 		delete(newLogLabels, pkg.LogKeyTaskID)
@@ -384,6 +399,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 		slog.String(pkg.LogKeyModules, fmt.Sprintf("%v", state.AllEnabledModulesByOrder)))
 
 	var functionalModules []string
+
 	for _, modules := range state.AllEnabledModulesByOrder {
 		if len(modules) == 0 {
 			continue
@@ -397,10 +413,12 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 
 		newLogLabels := utils.MergeLabels(logLabels)
 		delete(newLogLabels, pkg.LogKeyTaskID)
+
 		switch {
 		// create parallel moduleRun task
 		case len(modules) > 1:
 			parallelRunMetadata := task.ParallelRunMetadata{}
+
 			newLogLabels[pkg.LogKeyModules] = strings.Join(modules, ",")
 			for _, moduleName := range modules {
 				ev := events.ModuleEvent{
@@ -408,7 +426,9 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 					EventType:  events.ModuleEnabled,
 				}
 				s.moduleManager.SendModuleEvent(ev)
+
 				doModuleStartup := false
+
 				if _, has := newlyEnabled[moduleName]; has {
 					// add EnsureCRDs task if module is about to be enabled
 					if s.moduleManager.ModuleHasCRDs(moduleName) {
@@ -421,12 +441,15 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 								IsReloadAll:      true,
 							}).WithQueuedAt(queuedAt))
 					}
+
 					doModuleStartup = true
 				}
+
 				parallelRunMetadata.SetModuleMetadata(moduleName, task.ParallelRunModuleMetadata{
 					DoModuleStartup: doModuleStartup,
 				})
 			}
+
 			parallelRunMetadata.Context, parallelRunMetadata.CancelF = context.WithCancel(context.Background())
 			newTask := sh_task.NewTask(task.ParallelModuleRun).
 				WithLogLabels(newLogLabels).
@@ -447,8 +470,10 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 				EventType:  events.ModuleEnabled,
 			}
 			s.moduleManager.SendModuleEvent(ev)
+
 			newLogLabels[pkg.LogKeyModule] = modules[0]
 			doModuleStartup := false
+
 			if _, has := newlyEnabled[modules[0]]; has {
 				// add EnsureCRDs task if module is about to be enabled
 				if s.moduleManager.ModuleHasCRDs(modules[0]) {
@@ -461,8 +486,10 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 							IsReloadAll:      true,
 						}).WithQueuedAt(queuedAt))
 				}
+
 				doModuleStartup = true
 			}
+
 			newTask := sh_task.NewTask(task.ModuleRun).
 				WithLogLabels(newLogLabels).
 				WithQueueName("main").
@@ -510,6 +537,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 						IsReloadAll:      true,
 					}).WithQueuedAt(queuedAt))
 			}
+
 			doModuleStartup = true
 		}
 
@@ -532,6 +560,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 	// ConvregeState.CRDsEnsured if there are new ensureCRDsTasks to execute
 	if s.convergeState.CRDsEnsured && len(resultingTasks) > 0 {
 		log.Debug("CheckCRDsEnsured: set to false")
+
 		s.convergeState.CRDsEnsured = false
 	}
 

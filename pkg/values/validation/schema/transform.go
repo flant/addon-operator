@@ -10,5 +10,6 @@ func TransformSchema(s *spec.Schema, transformers ...SchemaTransformer) *spec.Sc
 	for _, transformer := range transformers {
 		s = transformer.Transform(s)
 	}
+
 	return s
 }

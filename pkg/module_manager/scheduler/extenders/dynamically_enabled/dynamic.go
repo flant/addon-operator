@@ -27,6 +27,7 @@ func NewExtender() *Extender {
 	e := &Extender{
 		modulesStatus: make(map[string]bool),
 	}
+
 	return e
 }
 

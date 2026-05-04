@@ -140,6 +140,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 
 		res.AfterHandle = func() {
 			s.CheckConvergeStatus(t)
+
 			if origAfterHandle != nil {
 				origAfterHandle()
 			}

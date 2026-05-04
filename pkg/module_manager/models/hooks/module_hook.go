@@ -55,6 +55,7 @@ func (mh *ModuleHook) Order(binding shell_op_types.BindingType) float64 {
 			return mh.config.AfterDeleteHelm.Order
 		}
 	}
+
 	return 0.0
 }
 
@@ -81,6 +82,7 @@ func (mh *ModuleHook) SynchronizationNeeded() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -98,16 +100,19 @@ func (mh *ModuleHook) WithTmpDir(tmpDir string) {
 func (mh *ModuleHook) ApplyBindingActions(bindingActions []gohook.BindingAction) error {
 	for _, action := range bindingActions {
 		bindingIdx := -1
+
 		for i, binding := range mh.config.OnKubernetesEvents {
 			if binding.BindingName == action.Name {
 				bindingIdx = i
 			}
 		}
+
 		if bindingIdx == -1 {
 			continue
 		}
 
 		monitorCfg := mh.config.OnKubernetesEvents[bindingIdx].Monitor
+
 		switch strings.ToLower(action.Action) {
 		case "disable":
 			// Empty kind - "null" monitor.
@@ -128,6 +133,7 @@ func (mh *ModuleHook) ApplyBindingActions(bindingActions []gohook.BindingAction)
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -138,12 +144,15 @@ func (mh *ModuleHook) GetConfigDescription() string {
 	if mh.config.BeforeHelm != nil {
 		bd = append(bd, fmt.Sprintf("beforeHelm:%d", int64(mh.config.BeforeHelm.Order)))
 	}
+
 	if mh.config.AfterHelm != nil {
 		bd = append(bd, fmt.Sprintf("afterHelm:%d", int64(mh.config.AfterHelm.Order)))
 	}
+
 	if mh.config.AfterDeleteHelm != nil {
 		bd = append(bd, fmt.Sprintf("afterDeleteHelm:%d", int64(mh.config.AfterDeleteHelm.Order)))
 	}
+
 	bd = append(bd, mh.executableHook.GetHookConfigDescription())
 
 	return strings.Join(bd, ", ")
@@ -156,5 +165,6 @@ func (mh *ModuleHook) GetGoHookInputSettings() *gohook.HookConfigSettings {
 	}
 
 	gohook := mh.executableHook.(*kind.GoHook)
+
 	return gohook.GetConfig().Settings
 }

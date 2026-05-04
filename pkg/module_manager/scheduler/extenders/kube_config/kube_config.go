@@ -52,6 +52,7 @@ func (e *Extender) sendNotify(kubeConfigEvent config.KubeConfigEvent) {
 
 func (e *Extender) SetNotifyChannel(ctx context.Context, ch chan extenders.ExtenderEvent) {
 	e.notifyCh = ch
+
 	go func() {
 		for {
 			select {

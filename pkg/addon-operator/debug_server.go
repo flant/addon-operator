@@ -51,6 +51,7 @@ func (op *AddonOperator) RegisterDebugGlobalRoutes(dbgSrv *debug.Server) {
 		func(_ *http.Request) (any, error) {
 			kubeHookNames := op.ModuleManager.GetGlobalHooksInOrder(types.OnKubernetesEvent)
 			snapshots := make(map[string]any)
+
 			for _, hName := range kubeHookNames {
 				h := op.ModuleManager.GetGlobalHook(hName)
 				snapshots[hName] = h.GetHookController().SnapshotsDump()
@@ -68,12 +69,14 @@ func (op *AddonOperator) RegisterDebugGraphRoutes(dbgSrv *debug.Server) {
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				_, _ = w.Write([]byte(err.Error()))
+
 				return
 			}
 
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(dotDesc)
+
 			return
 		}
 
@@ -81,6 +84,7 @@ func (op *AddonOperator) RegisterDebugGraphRoutes(dbgSrv *debug.Server) {
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = fmt.Fprintf(w, "couldn't get graph's image: %s", err)
+
 			return
 		}
 
@@ -88,6 +92,7 @@ func (op *AddonOperator) RegisterDebugGraphRoutes(dbgSrv *debug.Server) {
 		if err = png.Encode(buf, image); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(fmt.Errorf("couldn't encode png graph's image").Error()))
+
 			return
 		}
 
@@ -101,6 +106,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/list.{format:(json|yaml|text)}", func(_ *http.Request) (any, error) {
 		mods := op.ModuleManager.GetEnabledModuleNames()
 		sort.Strings(mods)
+
 		return map[string][]string{"enabledModules": mods}, nil
 	})
 
@@ -110,6 +116,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 		withGlobal := false
 		withGlobalStr := r.URL.Query().Get("global")
+
 		v, err := strconv.ParseBool(withGlobalStr)
 		if err == nil {
 			withGlobal = v
@@ -149,11 +156,13 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 
 	dbgSrv.RegisterHandler(http.MethodGet, "/module/{name}/render", func(r *http.Request) (any, error) {
 		modName := chi.URLParam(r, "name")
+
 		debugMode, err := strconv.ParseBool(r.URL.Query().Get("debug"))
 		if err != nil {
 			// if empty or unparsable - set false
 			debugMode = false
 		}
+
 		diffMode, err := strconv.ParseBool(r.URL.Query().Get("diff"))
 		if err != nil {
 			// if empty or unparsable - set false
@@ -228,6 +237,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		defer differ.TearDown()
 
 		const maxRetries = 4
+
 		buffer := new(bytes.Buffer)
 		printer := diff.Printer{}
 		diffProgram := &diff.DiffProgram{
@@ -250,6 +260,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 					if !apierrors.IsNotFound(err) {
 						return err
 					}
+
 					info.Object = nil
 				}
 
@@ -325,6 +336,7 @@ func (op *AddonOperator) RegisterDebugModuleRoutes(dbgSrv *debug.Server) {
 		}
 
 		mHooks := m.GetHooks()
+
 		snapshots := make(map[string]any)
 		for _, h := range mHooks {
 			snapshots[h.GetName()] = h.GetHookController().SnapshotsDump()
@@ -347,6 +359,7 @@ func (op *AddonOperator) RegisterDiscoveryRoute(dbgSrv *debug.Server) {
 				_, _ = fmt.Fprintf(buf, "%s %s\n", method, route)
 				return nil
 			}
+
 			return nil
 		}
 

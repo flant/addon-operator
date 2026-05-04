@@ -201,6 +201,7 @@ func (m *Manager) AssembleEnvironmentForModule(moduleName, modulePath string, ta
 					if errors.Is(err, os.ErrExist) {
 						continue
 					}
+
 					return fmt.Errorf("create null file: %w", err)
 				}
 

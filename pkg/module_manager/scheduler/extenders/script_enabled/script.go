@@ -65,10 +65,12 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 	}
 
 	enabledScriptPath := filepath.Join(module.GetPath(), "enabled")
+
 	f, err := os.Stat(enabledScriptPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			moduleD.scriptState = noEnabledScript
+
 			log.Debug("MODULE is ENABLED. Enabled script doesn't exist!",
 				slog.String(pkg.LogKeyModule, module.GetName()))
 		} else {
@@ -79,6 +81,7 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 	} else {
 		if utils_file.CheckExecutablePermissions(f) != nil {
 			moduleD.scriptState = nonExecutableScript
+
 			log.Warn("Found non-executable enabled script for module - assuming enabled state",
 				slog.String(pkg.LogKeyModule, module.GetName()))
 		}
@@ -93,23 +96,29 @@ func (e *Extender) Name() extenders.ExtenderName {
 
 func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool, error) {
 	if moduleDescriptor, found := e.basicModuleDescriptors[moduleName]; found {
-		var err error
-		var enabled *bool
+		var (
+			err     error
+			enabled *bool
+		)
 
 		switch moduleDescriptor.scriptState {
 		case "":
 			var isEnabled bool
+
 			refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
 				pkg.LogKeyExtender: "ScriptEnabled",
 			})
+
 			isEnabled, err = moduleDescriptor.module.RunEnabledScript(context.Background(), e.tmpDir, e.GetEnabledModules(), refreshLogLabels)
 			if err != nil {
 				err = fmt.Errorf("failed to execute '%s' module's enabled script: %v", moduleDescriptor.module.GetName(), err)
 			}
+
 			enabled = &isEnabled
 
 		case statError:
 			log.Error(moduleDescriptor.stateDescription)
+
 			enabled = pointer.To(false)
 			err = errors.New(moduleDescriptor.stateDescription)
 

@@ -25,11 +25,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := globalRequest(client).List(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		})
 
@@ -39,11 +42,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := globalRequest(client).Values(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		})
 
@@ -53,11 +59,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := globalRequest(client).Config(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		})
 
@@ -67,11 +76,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := globalRequest(client).Patches()
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		})
 
@@ -81,11 +93,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			out, err := globalRequest(client).Snapshots(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(out))
+
 			return nil
 		})
 
@@ -101,11 +116,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			modules, err := moduleRequest(client).List(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(modules))
+
 			return nil
 		})
 
@@ -120,11 +138,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := moduleRequest(client).Name(moduleName).Values(outputFormat, showGlobal)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		})
 	moduleValuesCmd.Arg("module_name", "").Required().StringVar(&moduleName)
@@ -141,11 +162,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := moduleRequest(client).Name(moduleName).Render(debug, diff)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		})
 	moduleRenderCmd.Arg("module_name", "").Required().StringVar(&moduleName)
@@ -158,11 +182,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := moduleRequest(client).Name(moduleName).Config(outputFormat, showGlobal)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		})
 	moduleConfigCmd.Arg("module_name", "").Required().StringVar(&moduleName)
@@ -174,11 +201,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := moduleRequest(client).Name(moduleName).Patches()
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		})
 	modulePatchesCmd.Arg("module_name", "").Required().StringVar(&moduleName)
@@ -189,11 +219,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			out, err := moduleRequest(client).Name(moduleName).ResourceMonitor(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(out))
+
 			return nil
 		})
 	moduleResourceMonitorCmd.Arg("module_name", "").StringVar(&moduleName)
@@ -204,11 +237,14 @@ func DefineDebugCommands(kpApp *kingpin.Application) {
 			if err != nil {
 				return err
 			}
+
 			out, err := moduleRequest(client).Name(moduleName).Snapshots(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(out))
+
 			return nil
 		})
 	moduleSnapshotsCmd.Arg("module_name", "").Required().StringVar(&moduleName)

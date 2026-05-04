@@ -91,6 +91,7 @@ func (s *Scheduler) runScheduleLoop(ctx context.Context) {
 // runProcessLoop waits for requests to be processed
 func (s *Scheduler) runProcessLoop(ctx context.Context) {
 	var idx int
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -163,6 +164,7 @@ func (s *Scheduler) reschedule(done string) {
 
 		// check if all dependencies done
 		ready := true
+
 		for _, dep := range req.Dependencies {
 			//  - if optional and not present in requests -> ignore
 			//  - if optional and present but not done -> not ready
@@ -171,6 +173,7 @@ func (s *Scheduler) reschedule(done string) {
 					continue
 				}
 			}
+
 			if _, ok := s.done[dep.Name]; !ok {
 				ready = false
 				break
@@ -180,6 +183,7 @@ func (s *Scheduler) reschedule(done string) {
 		// schedule module if ready
 		if ready {
 			s.logger.Debug("trigger scheduling", slog.String(pkg.LogKeyScheduled, req.Name), slog.Any(pkg.LogKeyDone, done))
+
 			s.scheduled[req.Name] = struct{}{}
 			s.processCh <- req
 		}

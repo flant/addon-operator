@@ -21,6 +21,7 @@ import (
 func (op *AddonOperator) StartModuleManagerEventHandler() {
 	go func() {
 		logEntry := op.Logger.With(pkg.LogKeyOperatorComponent, "handleManagerEvents")
+
 		for {
 			select {
 			case schedulerEvent := <-op.ModuleManager.SchedulerEventCh():
@@ -70,6 +71,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 						pkg.LogKeyEventSource: "KubeConfigExtenderChanged",
 					}
 					eventLogEntry := utils.EnrichLoggerWithLabels(logEntry, logLabels)
+
 					switch event.Type {
 					case config.KubeConfigInvalid:
 						op.ModuleManager.SetKubeConfigValid(false)
@@ -81,6 +83,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							slog.Any(pkg.LogKeyModuleValuesChanged, event.ModuleValuesChanged),
 							slog.Any(pkg.LogKeyModuleEnabledStateChanged, event.ModuleEnabledStateChanged),
 							slog.Any(pkg.LogKeyModuleMaintenanceChanged, event.ModuleMaintenanceChanged))
+
 						if !op.ModuleManager.GetKubeConfigValid() {
 							eventLogEntry.Info("KubeConfig become valid")
 						}
@@ -113,7 +116,9 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								op.engine.TaskQueues.GetMain().CancelTaskDelay()
 								op.logTaskAdd(eventLogEntry, "KubeConfigExtender is updated, put first", kubeConfigTask)
 							}
+
 							eventLogEntry.Info("Kube config modification detected, ignore until starting first converge")
+
 							break
 						}
 
@@ -146,6 +151,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 								if kubeConfigTask != nil {
 									op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
 								}
+
 								logEntry.Info("ConvergeModules: kube config modification detected, rerun all modules required")
 								op.engine.TaskQueues.GetMain().AddLast(convergeTask)
 							}
@@ -169,10 +175,12 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 							if kubeConfigTask != nil {
 								reloadTasks := op.CreateReloadModulesTasks(modulesToRerun, kubeConfigTask.GetLogLabels(), "KubeConfig-Changed-Modules")
 								op.engine.TaskQueues.GetMain().AddFirst(kubeConfigTask)
+
 								if len(reloadTasks) > 0 {
 									for i := len(reloadTasks) - 1; i >= 0; i-- {
 										op.engine.TaskQueues.GetMain().AddAfter(kubeConfigTask.GetId(), reloadTasks[i])
 									}
+
 									logEntry.Info("ConvergeModules: kube config modification detected, append tasks to rerun modules",
 										slog.Int(pkg.LogKeyCount, len(reloadTasks)),
 										slog.Any(pkg.LogKeyModules, modulesToRerun))
@@ -199,6 +207,7 @@ func (op *AddonOperator) StartModuleManagerEventHandler() {
 				// helm reslease in unexpected state event
 				if HelmReleaseStatusEvent.UnexpectedStatus {
 					op.engine.MetricStorage.CounterAdd(metrics.ModulesHelmReleaseRedeployedTotal, 1.0, map[string]string{pkg.MetricKeyModule: HelmReleaseStatusEvent.ModuleName})
+
 					eventDescription = "HelmReleaseUnexpectedStatus"
 					additionalDescription = "unexpected helm release status"
 				} else {

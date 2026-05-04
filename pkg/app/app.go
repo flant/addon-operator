@@ -176,5 +176,6 @@ func DefineStartCommandFlags(kpApp *kingpin.Application, cmd *kingpin.CmdClause)
 	shapp.DefineLoggingFlags(cmd)
 
 	shapp.DebugUnixSocket = DefaultDebugUnixSocket
+
 	shapp.DefineDebugFlags(kpApp, cmd)
 }
