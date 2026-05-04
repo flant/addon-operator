@@ -88,6 +88,7 @@ func (v Values) DebugString() string {
 	if err != nil {
 		return "bad values: " + err.Error()
 	}
+
 	return string(b)
 }
 
@@ -107,6 +108,7 @@ func (v Values) GetKeySection(key string) Values {
 	if !has {
 		return Values{}
 	}
+
 	switch sec := section.(type) {
 	case map[string]interface{}:
 		return sec
@@ -127,12 +129,15 @@ func (v Values) Global() Values {
 	globalValues, has := v[GlobalValuesKey]
 	if has {
 		data := map[string]interface{}{GlobalValuesKey: globalValues}
+
 		newV, err := NewValues(data)
 		if err != nil {
 			log.Error("get global Values", log.Err(err))
 		}
+
 		return newV
 	}
+
 	return make(Values)
 }
 
@@ -141,14 +146,17 @@ func (v Values) SectionByKey(key string) Values {
 	sectionValues, has := v[key]
 	if has {
 		data := map[string]interface{}{key: sectionValues}
+
 		newV, err := NewValues(data)
 		if err != nil {
 			log.Error("get section Values",
 				slog.String(pkg.LogKeyKey, key),
 				log.Err(err))
 		}
+
 		return newV
 	}
+
 	return make(Values)
 }
 
@@ -199,6 +207,7 @@ func deepCopyMap(originalMap map[string]interface{}) map[string]interface{} {
 	for key, value := range originalMap {
 		copiedMap[key] = valueDeepCopy(value)
 	}
+
 	return copiedMap
 }
 
@@ -214,6 +223,7 @@ func valueDeepCopy(item interface{}) interface{} {
 	case reflect.Ptr:
 		newVal := reflect.New(typ.Elem())
 		newVal.Elem().Set(reflect.ValueOf(valueDeepCopy(val.Elem().Interface())))
+
 		return newVal.Interface()
 
 	case reflect.Map:
@@ -221,6 +231,7 @@ func valueDeepCopy(item interface{}) interface{} {
 		for _, k := range val.MapKeys() {
 			newMap.SetMapIndex(k, reflect.ValueOf(valueDeepCopy(val.MapIndex(k).Interface())))
 		}
+
 		return newMap.Interface()
 
 	case reflect.Slice:
@@ -228,6 +239,7 @@ func valueDeepCopy(item interface{}) interface{} {
 		for i := 0; i < val.Len(); i++ {
 			newSlice.Index(i).Set(reflect.ValueOf(valueDeepCopy(val.Index(i).Interface())))
 		}
+
 		return newSlice.Interface()
 	}
 

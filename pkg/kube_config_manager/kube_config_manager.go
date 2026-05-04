@@ -156,6 +156,7 @@ func (kcm *KubeConfigManager) loadConfig() error {
 	}
 
 	kcm.currentConfig = newConfig
+
 	return nil
 }
 
@@ -165,6 +166,7 @@ func (kcm *KubeConfigManager) currentModuleNames() map[string]struct{} {
 	for name := range kcm.currentConfig.Modules {
 		names[name] = struct{}{}
 	}
+
 	return names
 }
 
@@ -177,7 +179,9 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 			kcm.logger.Info("Global section deleted")
 			return true
 		}
+
 		kcm.logger.Debug("Global section is empty")
+
 		return false
 	}
 
@@ -187,6 +191,7 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 		// Remove known checksum, do not fire event on self-update.
 		kcm.knownChecksums.Remove(utils.GlobalValuesKey, newChecksum)
 		kcm.logger.Debug("Global section self-update")
+
 		return false
 	}
 
@@ -212,9 +217,11 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigInvalid,
 		}
+
 		kcm.logger.Error("Config invalid",
 			slog.String(pkg.LogKeyName, obj.Key),
 			log.Err(obj.Err))
+
 		return
 	}
 
@@ -224,18 +231,19 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		kcm.m.Lock()
 		kcm.currentConfig = config.NewConfig()
 		kcm.m.Unlock()
+
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
 		}
 
 	case utils.GlobalValuesKey:
 		// global values
-
 		kcm.m.Lock()
 		globalChanged := kcm.isGlobalChanged(obj.Config)
 		// Update state after successful parsing.
 		kcm.currentConfig.Global = obj.Config.Global
 		kcm.m.Unlock()
+
 		if globalChanged {
 			kcm.configEventCh <- config.KubeConfigEvent{
 				Type:                 config.KubeConfigChanged,
@@ -267,6 +275,7 @@ func (kcm *KubeConfigManager) handleDeleteEvent(moduleName string, cfg *config.M
 	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
 
 	kcm.logger.Info("module section deleted", slog.String(pkg.LogKeyName, moduleName))
+
 	modulesChanged = append(modulesChanged, moduleName)
 	if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
 		modulesStateChanged = append(modulesStateChanged, moduleName)
@@ -289,8 +298,11 @@ func (kcm *KubeConfigManager) handleDeleteEvent(moduleName string, cfg *config.M
 }
 
 func (kcm *KubeConfigManager) handleUpdateEvent(moduleName string, cfg *config.ModuleKubeConfig) {
-	var modulesChanged []string
-	var modulesStateChanged []string
+	var (
+		modulesChanged      []string
+		modulesStateChanged []string
+	)
+
 	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
 
 	var changed bool
@@ -298,11 +310,13 @@ func (kcm *KubeConfigManager) handleUpdateEvent(moduleName string, cfg *config.M
 	if currentCfg, has := kcm.currentConfig.Modules[moduleName]; has {
 		if currentCfg.Checksum != cfg.Checksum {
 			changed = true
+
 			modulesChanged = append(modulesChanged, moduleName)
 		}
 
 		if currentCfg.GetEnabled() != cfg.GetEnabled() {
 			changed = true
+
 			modulesStateChanged = append(modulesStateChanged, moduleName)
 		}
 
@@ -340,7 +354,9 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigInvalid,
 		}
+
 		kcm.logger.Error("Batch Config invalid", log.Err(obj.Err))
+
 		return
 	}
 
@@ -349,6 +365,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		kcm.m.Lock()
 		kcm.currentConfig = config.NewConfig()
 		kcm.m.Unlock()
+
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
 		}
@@ -421,6 +438,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 				modulesStateChanged = append(modulesStateChanged, moduleName)
 			}
 		}
+
 		kcm.logger.Info("Module sections deleted",
 			slog.String(pkg.LogKeyModules, fmt.Sprintf("%+v", currentModuleNames)))
 	}
@@ -479,6 +497,7 @@ func (kcm *KubeConfigManager) SafeReadConfig(handler func(config *config.KubeCon
 	if handler == nil {
 		return
 	}
+
 	kcm.withLock(func() {
 		handler(kcm.currentConfig)
 	})
@@ -488,6 +507,7 @@ func (kcm *KubeConfigManager) withLock(fn func()) {
 	if fn == nil {
 		return
 	}
+
 	kcm.m.Lock()
 	fn()
 	kcm.m.Unlock()

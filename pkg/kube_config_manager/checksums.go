@@ -15,6 +15,7 @@ func (c *Checksums) Add(name string, checksum string) {
 	if !c.HasChecksum(name) {
 		c.RemoveAll(name)
 	}
+
 	c.sums[name][checksum] = struct{}{}
 }
 
@@ -52,6 +53,7 @@ func (c *Checksums) HasEqualChecksum(name string, checksum string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -60,6 +62,7 @@ func (c *Checksums) Names() map[string]struct{} {
 	for name := range c.sums {
 		names[name] = struct{}{}
 	}
+
 	return names
 }
 
@@ -67,5 +70,6 @@ func (c *Checksums) Dump(moduleName string) map[string]struct{} {
 	if checksums, has := c.sums[moduleName]; has {
 		return checksums
 	}
+
 	return nil
 }

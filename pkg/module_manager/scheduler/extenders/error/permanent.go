@@ -18,6 +18,7 @@ func Permanent(err error) *PermanentError {
 	if err == nil {
 		return nil
 	}
+
 	return &PermanentError{
 		Err: err,
 	}

@@ -110,6 +110,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	if hm.logger == nil {
 		hm.logger = log.NewLogger().Named("helm-module")
 	}
+
 	hm.logger = hm.logger.With(slog.String(pkg.LogKeyModule, hm.name))
 
 	isHelm, err := hm.isHelmChart()
@@ -120,6 +121,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	if !isHelm {
 		hm.logger.Info("module has neither Chart.yaml nor templates/ dir, is't not a helm chart",
 			slog.String(pkg.LogKeyName, bm.GetName()))
+
 		return nil, ErrModuleIsNotHelm
 	}
 
@@ -147,6 +149,7 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 		if err == nil {
 			return true, nil
 		}
+
 		if os.IsNotExist(err) {
 			// if templates not exists - it's not a helm module
 			return false, nil
@@ -213,6 +216,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 				logEntry.Warn("get release label failed", log.Err(err), slog.String(pkg.LogKeyRelease, helmReleaseName))
 				return fmt.Errorf("get release label failed: %w", err)
 			}
+
 			logEntry.Debug("release not found when checking unmanaged state", slog.String(pkg.LogKeyRelease, helmReleaseName))
 		}
 
@@ -236,6 +240,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
+
 	func() {
 		metricLabels := map[string]string{
 			pkg.MetricKeyModule:     hm.name,
@@ -257,6 +262,7 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 			false,
 		)
 	}()
+
 	if err != nil {
 		return err
 	}
@@ -276,18 +282,21 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	span.AddEvent("ModuleRun-HelmPhase-helm-check-upgrade")
 	// Skip upgrades if nothing is changed
 	var runUpgradeRelease bool
+
 	func() {
 		metricLabels := map[string]string{
 			pkg.MetricKeyModule:     hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 			pkg.MetricKeyOperation:  "check-upgrade",
 		}
+
 		defer measure.Duration(func(d time.Duration) {
 			hm.dependencies.MetricsStorage.HistogramObserve(metrics.HelmOperationSeconds, d.Seconds(), metricLabels, nil)
 		})()
 
 		runUpgradeRelease, err = hm.shouldRunHelmUpgrade(helmClient, helmReleaseName, checksum, manifests, logLabels)
 	}()
+
 	if err != nil {
 		return err
 	}
@@ -354,6 +363,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 		logEntry.Debug("helm release: should run upgrade",
 			slog.String(pkg.LogKeyRelease, releaseName),
 			slog.String(pkg.LogKeyStatus, strings.ToLower(status)))
+
 		return true, nil
 	}
 
@@ -363,6 +373,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 		logEntry.Debug("helm release get values error, no upgrade",
 			slog.String(pkg.LogKeyRelease, releaseName),
 			log.Err(err))
+
 		return false, err
 	}
 
@@ -373,6 +384,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 			slog.String(pkg.LogKeyRelease, releaseName),
 			slog.String(pkg.LogKeyChecksum, recordedChecksum),
 			slog.String(pkg.LogKeyNewChecksum, checksum))
+
 		return true, nil
 	}
 
@@ -388,11 +400,13 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 			slog.String(pkg.LogKeyRelease, releaseName),
 			slog.Int(pkg.LogKeyCount, len(absent)),
 		)
+
 		return true, nil
 	}
 
 	logEntry.Debug("helm release is unchanged: skip release upgrade",
 		slog.String(pkg.LogKeyRelease, releaseName))
+
 	return false, nil
 }
 
@@ -403,6 +417,7 @@ func (hm *HelmModule) PrepareValuesYamlFile() (string, error) {
 	}
 
 	path := filepath.Join(hm.tmpDir, fmt.Sprintf("%s.module-values.yaml-%s", hm.safeName(), uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err

@@ -129,6 +129,7 @@ func (fl *FileSystemLoader) LoadModules() ([]*modules.BasicModule, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			result = append(result, bm)
 		}
 	}
@@ -148,6 +149,7 @@ func readDir(modulesDir string) ([]os.DirEntry, error) {
 	if err != nil && os.IsNotExist(err) {
 		return nil, fmt.Errorf("path '%s' does not exist", modulesDir)
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("listing modules directory '%s': %s", modulesDir, err)
 	}
@@ -162,6 +164,7 @@ func (fl *FileSystemLoader) findModulesInDir(modulesDir string) ([]moduleDefinit
 	}
 
 	mods := make([]moduleDefinition, 0)
+
 	for _, dirEntry := range dirEntries {
 		name, absPath, err := resolveDirEntry(modulesDir, dirEntry)
 		if err != nil {
@@ -198,6 +201,7 @@ func resolveDirEntry(dirPath string, entry os.DirEntry) (string, string, error) 
 			if e.Err.Error() == "no such file or directory" {
 				log.Warn("Symlink target does not exist. Ignoring module",
 					slog.String(pkg.LogKeyDir, dirPath))
+
 				return "", "", nil
 			}
 		}
@@ -213,6 +217,7 @@ func resolveDirEntry(dirPath string, entry os.DirEntry) (string, string, error) 
 		log.Warn("Ignore dir while searching for modules",
 			slog.String(pkg.LogKeyDir, absPath))
 	}
+
 	return "", "", nil
 }
 
@@ -221,6 +226,7 @@ func resolveSymlinkToDir(dirPath string, entry os.DirEntry) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	targetDirPath, isTargetDir, err := utils.SymlinkInfo(filepath.Join(dirPath, info.Name()), info)
 	if err != nil {
 		return "", err
@@ -273,6 +279,7 @@ func parseUintOrDefault(num string, defaultValue uint32) uint32 {
 	if err != nil {
 		return defaultValue
 	}
+
 	return uint32(val)
 }
 

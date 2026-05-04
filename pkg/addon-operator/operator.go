@@ -170,6 +170,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	if err != nil {
 		panic(err)
 	}
+
 	crdExtraLabels := labelSelector.MatchLabels
 
 	// use `heritage=addon-operator` by default if not set
@@ -189,6 +190,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 
 func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElectionConfig) error {
 	var err error
+
 	op.LeaderElector, err = leaderelection.NewLeaderElector(*config)
 	if err != nil {
 		return err
@@ -233,6 +235,7 @@ func (op *AddonOperator) Setup() error {
 	if err != nil {
 		return fmt.Errorf("global hooks directory: %s", err)
 	}
+
 	log.Info("global hooks directory",
 		slog.String(pkg.LogKeyDir, globalHooksDir))
 
@@ -254,10 +257,12 @@ func ensureTempDirectory(inDir string) (string, error) {
 	// No path to temporary dir, use default temporary dir.
 	if inDir == "" {
 		tmpPath := app.AppName + "-*"
+
 		dir, err := os.MkdirTemp("", tmpPath)
 		if err != nil {
 			return "", fmt.Errorf("create tmp dir in '%s': %s", tmpPath, err)
 		}
+
 		return dir, nil
 	}
 
@@ -273,6 +278,7 @@ func ensureTempDirectory(inDir string) (string, error) {
 			return "", fmt.Errorf("create tmp dir '%s': %s", dir, err)
 		}
 	}
+
 	return dir, nil
 }
 
@@ -364,6 +370,7 @@ func (op *AddonOperator) InitModuleManager() error {
 		op.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
 			err = op.ModuleManager.ApplyNewKubeConfigValues(config, true)
 		})
+
 		if err != nil {
 			return fmt.Errorf("init module manager: load initial config for KubeConfigManager: %s", err)
 		}
@@ -448,6 +455,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 
 	tasks := op.CreateBootstrapTasks(logLabels)
 	op.logTaskAdd(logEntry, "append", tasks...)
+
 	for _, tsk := range tasks {
 		op.engine.TaskQueues.GetMain().AddLast(tsk)
 	}
@@ -473,6 +481,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 
 func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_task.Task {
 	const eventDescription = "Operator-Startup"
+
 	queuedAt := time.Now()
 
 	// 'OnStartup' global hooks.
@@ -619,6 +628,7 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 					slog.String(pkg.LogKeyHook, hookName))
 			}
 		}
+
 		for _, hookBinding := range h.GetHookConfig().OnKubernetesEvents {
 			if !op.IsQueueExists(hookBinding.Queue) {
 				op.CreateAndStartQueue(hookBinding.Queue)
@@ -709,6 +719,7 @@ func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabel
 			})
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}
+
 	return newTasks
 }
 
@@ -759,6 +770,7 @@ func formatTaskDetails(tsk sh_task.Task, hm task.HookMetadata, phase string) str
 		if hm.DoModuleStartup {
 			details += " with doModuleStartup"
 		}
+
 		return details
 
 	case task.ParallelModuleRun:
@@ -829,6 +841,7 @@ func formatConvergeTaskDetails(tsk sh_task.Task, phase string) string {
 	if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
 		return fmt.Sprintf(" for %s in phase '%s'", string(taskEvent), phase)
 	}
+
 	return ""
 }
 
@@ -846,6 +859,8 @@ func (op *AddonOperator) getConvergeQueues() []*queue.TaskQueue {
 	for i := 0; i < app.NumberOfParallelQueues; i++ {
 		convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetByName(fmt.Sprintf(app.ParallelQueueNamePattern, i)))
 	}
+
 	convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetMain())
+
 	return convergeQueues
 }

@@ -65,6 +65,7 @@ type ParallelRunModuleMetadata struct {
 func (pm *ParallelRunMetadata) GetModulesMetadata() map[string]ParallelRunModuleMetadata {
 	pm.l.Lock()
 	defer pm.l.Unlock()
+
 	return pm.modules
 }
 
@@ -72,6 +73,7 @@ func (pm *ParallelRunMetadata) SetModuleMetadata(moduleName string, metadata Par
 	if pm.modules == nil {
 		pm.modules = make(map[string]ParallelRunModuleMetadata)
 	}
+
 	pm.l.Lock()
 	pm.modules[moduleName] = metadata
 	pm.l.Unlock()
@@ -81,6 +83,7 @@ func (pm *ParallelRunMetadata) DeleteModuleMetadata(moduleName string) {
 	if pm.modules == nil {
 		return
 	}
+
 	pm.l.Lock()
 	delete(pm.modules, moduleName)
 	pm.l.Unlock()
@@ -89,10 +92,12 @@ func (pm *ParallelRunMetadata) DeleteModuleMetadata(moduleName string) {
 func (pm *ParallelRunMetadata) ListModules() []string {
 	pm.l.Lock()
 	defer pm.l.Unlock()
+
 	result := make([]string, 0, len(pm.modules))
 	for module := range pm.modules {
 		result = append(result, module)
 	}
+
 	return result
 }
 
@@ -118,6 +123,7 @@ func HookMetadataAccessor(t task.Task) HookMetadata {
 		log.Error("Possible Bug! task metadata is not of type ModuleHookMetadata",
 			slog.String(pkg.LogKeyType, string(t.GetType())),
 			slog.String(pkg.LogKeyGot, fmt.Sprintf("%T", meta)))
+
 		return HookMetadata{}
 	}
 
@@ -136,11 +142,14 @@ func (hm HookMetadata) GetDescription() string {
 	for bindingName := range bindingsMap {
 		bindings = append(bindings, bindingName)
 	}
+
 	sort.Strings(bindings)
+
 	bindingNames := ""
 	if len(bindings) > 0 {
 		bindingNames = ":" + strings.Join(bindings, ",")
 	}
+
 	if len(hm.BindingContext) > 1 {
 		bindingNames = fmt.Sprintf("%s in %d contexts", bindingNames, len(hm.BindingContext))
 	}
@@ -156,6 +165,7 @@ func (hm HookMetadata) GetDescription() string {
 		if hm.DoModuleStartup {
 			osh = ":doStartup"
 		}
+
 		return fmt.Sprintf("%s%s%s:%s", hm.ModuleName, osh, bindingNames, hm.EventDescription)
 	}
 

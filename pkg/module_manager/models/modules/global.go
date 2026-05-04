@@ -108,10 +108,12 @@ func (gm *GlobalModule) GetHookByName(name string) *hooks.GlobalHook {
 func (gm *GlobalModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.GlobalHook {
 	if len(bt) > 0 {
 		t := bt[0]
+
 		res, ok := gm.byBinding[t]
 		if !ok {
 			return []*hooks.GlobalHook{}
 		}
+
 		sort.Slice(res, func(i, j int) bool {
 			return res[i].Order(t) < res[j].Order(t)
 		})
@@ -255,6 +257,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 				logEntry.Debug("Global hook kube config global values stay unchanged",
 					slog.String(pkg.LogKeyHook, h.GetName()),
 					slog.String(pkg.LogKeyValue, gm.valuesStorage.GetConfigValues(false).DebugString()))
+
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.GetName(), err)
 			}
 
@@ -285,12 +288,14 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
 			logEntry.Debug("Global hook: validate global values before update",
 				slog.String(pkg.LogKeyHook, h.GetName()))
+
 			validationErr := gm.valuesStorage.validateValues(valuesPatchResult.Values)
 			if validationErr != nil {
 				return fmt.Errorf("cannot apply values patch for global values: %w", validationErr)
 			}
 
 			gm.valuesStorage.appendValuesPatch(valuesPatchResult.ValuesPatch)
+
 			err = gm.valuesStorage.CommitValues()
 			if err != nil {
 				return fmt.Errorf("error on commit values: %w", err)
@@ -450,6 +455,7 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 	}
 
 	gm.logger.Debug("Found global hooks", slog.Int(pkg.LogKeyCount, len(hks)))
+
 	if gm.logger.GetLevel() == log.LevelDebug {
 		for _, h := range hks {
 			gm.logger.Debug("GlobalHook",
@@ -546,6 +552,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 	if _, err := os.Stat(hooksSubDir); !os.IsNotExist(err) {
 		hooksDir = hooksSubDir
 	}
+
 	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir)
 	if err != nil {
 		return nil, err
@@ -580,6 +587,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 	if len(hks) > 0 {
 		count = strconv.Itoa(len(hks))
 	}
+
 	gm.logger.Info("Found global shell hooks in dir",
 		slog.String(pkg.LogKeyCount, count),
 		slog.String(pkg.LogKeyDir, hooksDir))

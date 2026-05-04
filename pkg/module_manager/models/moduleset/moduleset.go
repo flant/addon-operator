@@ -20,12 +20,14 @@ type ModulesSet struct {
 func (s *ModulesSet) SetInited() {
 	s.lck.Lock()
 	defer s.lck.Unlock()
+
 	s.inited = true
 }
 
 func (s *ModulesSet) IsInited() bool {
 	s.lck.RLock()
 	defer s.lck.RUnlock()
+
 	return s.inited
 }
 
@@ -47,6 +49,7 @@ func (s *ModulesSet) Add(mods ...*modules.BasicModule) {
 		if _, ok := s.modules[module.GetName()]; !ok {
 			s.orderedNames = nil
 		}
+
 		s.modules[module.GetName()] = module
 	}
 }
@@ -54,16 +57,19 @@ func (s *ModulesSet) Add(mods ...*modules.BasicModule) {
 func (s *ModulesSet) Get(name string) *modules.BasicModule {
 	s.lck.RLock()
 	defer s.lck.RUnlock()
+
 	return s.modules[name]
 }
 
 func (s *ModulesSet) List() []*modules.BasicModule {
 	s.lck.Lock()
 	defer s.lck.Unlock()
+
 	list := make([]*modules.BasicModule, 0, len(s.modules))
 	for _, name := range s.namesInOrder() {
 		list = append(list, s.modules[name])
 	}
+
 	return list
 }
 
@@ -77,6 +83,7 @@ func (s *ModulesSet) Len() int {
 func (s *ModulesSet) NamesInOrder() []string {
 	s.lck.Lock()
 	defer s.lck.Unlock()
+
 	return s.namesInOrder()
 }
 
@@ -84,13 +91,16 @@ func (s *ModulesSet) namesInOrder() []string {
 	if s.orderedNames == nil {
 		s.orderedNames = s.sortModuleNames()
 	}
+
 	return s.orderedNames
 }
 
 func (s *ModulesSet) Has(name string) bool {
 	s.lck.RLock()
 	defer s.lck.RUnlock()
+
 	_, ok := s.modules[name]
+
 	return ok
 }
 
@@ -105,6 +115,7 @@ func (s *ModulesSet) sortModuleNames() []string {
 		if mods[i].GetOrder() != mods[j].GetOrder() {
 			return mods[i].GetOrder() < mods[j].GetOrder()
 		}
+
 		return mods[i].GetName() < mods[j].GetName()
 	})
 	// return names array.
@@ -112,5 +123,6 @@ func (s *ModulesSet) sortModuleNames() []string {
 	for _, mod := range mods {
 		names = append(names, mod.GetName())
 	}
+
 	return names
 }

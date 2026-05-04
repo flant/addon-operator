@@ -44,6 +44,7 @@ func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
 			if key == utils.GlobalValuesKey {
 				section := commonStaticValues.GetKeySection(utils.GlobalValuesKey)
 				resultGlobalValues = utils.MergeValues(resultGlobalValues, section)
+
 				continue
 			}
 

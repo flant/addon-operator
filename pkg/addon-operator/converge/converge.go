@@ -61,6 +61,7 @@ func (cs *ConvergeState) SetOnConvergeFinish(callback func()) {
 func (cs *ConvergeState) SetFirstRunPhase(ph FirstConvergePhase) {
 	cs.phaseMu.Lock()
 	defer cs.phaseMu.Unlock()
+
 	cs.firstRunPhase = ph
 	if ph == FirstDone {
 		close(cs.FirstRunDoneC)
@@ -70,12 +71,14 @@ func (cs *ConvergeState) SetFirstRunPhase(ph FirstConvergePhase) {
 func (cs *ConvergeState) GetFirstRunPhase() FirstConvergePhase {
 	cs.phaseMu.RLock()
 	defer cs.phaseMu.RUnlock()
+
 	return cs.firstRunPhase
 }
 
 func (cs *ConvergeState) SetPhase(ph ConvergePhase) {
 	cs.phaseMu.Lock()
 	defer cs.phaseMu.Unlock()
+
 	cs.phase = ph
 
 	if ph == RunBeforeAll && cs.onConvergeStart != nil {
@@ -90,6 +93,7 @@ func (cs *ConvergeState) SetPhase(ph ConvergePhase) {
 func (cs *ConvergeState) GetPhase() ConvergePhase {
 	cs.phaseMu.RLock()
 	defer cs.phaseMu.RUnlock()
+
 	return cs.phase
 }
 
@@ -131,6 +135,7 @@ func IsConvergeTask(t sh_task.Task) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -140,6 +145,7 @@ func IsFirstConvergeTask(t sh_task.Task) bool {
 	case task.ModulePurge, task.DiscoverHelmReleases, task.GlobalHookEnableKubernetesBindings, task.GlobalHookEnableScheduleBindings:
 		return true
 	}
+
 	return false
 }
 
@@ -152,6 +158,7 @@ func NewConvergeModulesTask(description string, convergeEvent ConvergeEvent, log
 		}).
 		WithQueuedAt(time.Now())
 	convergeTask.SetProp(ConvergeEventProp, convergeEvent)
+
 	return convergeTask
 }
 
@@ -164,5 +171,6 @@ func NewApplyKubeConfigValuesTask(description string, logLabels map[string]strin
 			GlobalValuesChanged: globalValuesChanged,
 		}).
 		WithQueuedAt(time.Now())
+
 	return convergeTask
 }

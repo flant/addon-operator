@@ -86,7 +86,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	if hm.ParallelRunMetadata == nil {
 		s.logger.Error("Possible bug! Couldn't get task ParallelRunMetadata for a parallel task.",
 			slog.String(pkg.LogKeyDescription, hm.EventDescription))
+
 		res.Status = queue.Fail
+
 		return res
 	}
 
@@ -126,6 +128,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	// map to hold modules' errors
 	tasksErrors := make(map[string]string)
+
 L:
 	for {
 		select {
@@ -143,6 +146,7 @@ L:
 
 				continue L
 			}
+
 			if parallelEvent.Succeeded() {
 				hm.ParallelRunMetadata.DeleteModuleMetadata(parallelEvent.ModuleName())
 
@@ -171,6 +175,7 @@ L:
 			s.parallelTaskChannels.Delete(s.shellTask.GetId())
 
 			t := time.NewTimer(time.Second * 3)
+
 			for {
 				select {
 				// wait for several seconds if any ModuleRun task wants to send an event
