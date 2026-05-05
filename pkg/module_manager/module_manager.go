@@ -51,13 +51,9 @@ import (
 )
 
 var (
-	moduleInfoMetricGroup = "mm_module_info"
-	moduleInfoMetricName  = metrics.ModuleInfoMetricName
-
+	moduleInfoMetricGroup        = "mm_module_info"
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
-	moduleMaintenanceMetricName  = metrics.ModuleMaintenanceMetricName
-
-	moduleManagerServiceName = "module-manager"
+	moduleManagerServiceName     = "module-manager"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -294,7 +290,7 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 		if moduleConfig.GetMaintenanceState() == utils.NoResourceReconciliation {
 			mm.dependencies.MetricStorage.Grouped().GaugeSet(
 				moduleMaintenanceMetricGroup,
-				moduleMaintenanceMetricName,
+				metrics.ModuleMaintenanceMetricName,
 				1,
 				map[string]string{pkg.MetricKeyModule: moduleName, "state": utils.NoResourceReconciliation.String()},
 			)
@@ -507,7 +503,7 @@ func (mm *ModuleManager) SetGlobalDiscoveryAPIVersions(apiVersions []string) {
 
 // UpdateModulesMetrics updates modules' states metrics
 func (mm *ModuleManager) UpdateModulesMetrics() {
-	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoMetricGroup, moduleInfoMetricName)
+	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoMetricGroup, metrics.ModuleInfoMetricName)
 
 	for _, module := range mm.GetModuleNames() {
 		enabled := "false"
@@ -515,7 +511,7 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 			enabled = "true"
 		}
 
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{pkg.MetricKeyModule: module, "enabled": enabled})
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, metrics.ModuleInfoMetricName, 1, map[string]string{pkg.MetricKeyModule: module, "enabled": enabled})
 	}
 }
 
@@ -527,9 +523,9 @@ func (mm *ModuleManager) SetModuleMaintenanceState(moduleName string, state util
 			slog.String(pkg.LogKeyState, state.String()))
 
 		if state == utils.NoResourceReconciliation {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, moduleMaintenanceMetricName, 1, map[string]string{pkg.MetricKeyModule: moduleName, "state": utils.NoResourceReconciliation.String()})
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, metrics.ModuleMaintenanceMetricName, 1, map[string]string{pkg.MetricKeyModule: moduleName, "state": utils.NoResourceReconciliation.String()})
 		} else {
-			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleMaintenanceMetricGroup, moduleMaintenanceMetricName)
+			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleMaintenanceMetricGroup, metrics.ModuleMaintenanceMetricName)
 		}
 	}
 }
