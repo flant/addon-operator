@@ -51,9 +51,9 @@ import (
 )
 
 var (
-	moduleInfoMetricGroup          = "mm_module_info"
-	moduleMaintenanceMetricGroup   = "mm_module_maintenance"
-	moduleManagerServiceName       = "module-manager"
+	moduleInfoMetricGroup        = "mm_module_info"
+	moduleMaintenanceMetricGroup = "mm_module_maintenance"
+	moduleManagerServiceName     = "module-manager"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
