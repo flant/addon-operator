@@ -163,6 +163,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		Burst:   app.ObjectPatcherKubeClientBurst,
 		Timeout: app.ObjectPatcherKubeClientTimeout,
 	}
+
 	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, []string{
 		"module",
 		pkg.MetricKeyHook,

@@ -139,6 +139,7 @@ func ParseEnv(cfg *Config) error {
 	if err := env.ParseWithOptions(cfg, env.Options{}); err != nil {
 		return fmt.Errorf("parse config from environment: %w", err)
 	}
+
 	return nil
 }
 

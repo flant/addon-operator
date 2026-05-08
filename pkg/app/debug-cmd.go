@@ -153,6 +153,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
+
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -182,6 +183,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
+
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -207,6 +209,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
+
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -231,6 +234,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
+
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -256,6 +260,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if len(args) > 0 {
 				moduleName = args[0]
 			}
+
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err
@@ -279,6 +284,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
+
 			client, err := sh_debug.DefaultClient()
 			if err != nil {
 				return err

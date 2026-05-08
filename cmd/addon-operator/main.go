@@ -49,6 +49,7 @@ func main() {
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			klogtolog.InitAdapter(cfg.Debug.KubernetesAPI, logger.Named("klog"))
 			stdliblogtolog.InitAdapter(logger)
+
 			return nil
 		},
 	}
