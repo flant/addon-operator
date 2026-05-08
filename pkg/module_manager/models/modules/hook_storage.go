@@ -30,6 +30,7 @@ func (hs *HooksStorage) AddHook(hk *hooks.ModuleHook) {
 	defer hs.lock.Unlock()
 
 	hName := hk.GetName()
+
 	hs.byName[hName] = hk
 	for _, binding := range hk.GetHookConfig().Bindings() {
 		hs.byBinding[binding] = append(hs.byBinding[binding], hk)
@@ -42,12 +43,19 @@ func (hs *HooksStorage) getHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleH
 
 	if len(bt) > 0 {
 		t := bt[0]
+
 		res, ok := hs.byBinding[t]
 		if !ok {
 			return []*hooks.ModuleHook{}
 		}
+
 		sort.Slice(res, func(i, j int) bool {
-			return res[i].Order(t) < res[j].Order(t)
+			oi, oj := res[i].Order(t), res[j].Order(t)
+			if oi != oj {
+				return oi < oj
+			}
+
+			return res[i].GetName() < res[j].GetName()
 		})
 
 		return res

@@ -21,26 +21,32 @@ const (
 // SplitToPaths split concatenated dirs to the array
 func SplitToPaths(dir string) []string {
 	res := make([]string, 0)
+
 	paths := strings.Split(dir, PathsSeparator)
 	for _, path := range paths {
 		if path == "" {
 			continue
 		}
+
 		res = append(res, path)
 	}
+
 	return res
 }
 
 // LoadValuesFileFromDir finds and parses values.yaml files in the specified directory.
 func LoadValuesFileFromDir(dir string, strictModeEnabled bool) (Values, error) {
 	valuesFilePath := filepath.Join(dir, ValuesFileName)
+
 	valuesYaml, err := os.ReadFile(valuesFilePath)
 	if err != nil && os.IsNotExist(err) && !strictModeEnabled {
 		log.Debug("No static values file",
 			slog.String(pkg.LogKeyPath, valuesFilePath),
 			log.Err(err))
+
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("load values file '%s': %s", valuesFilePath, err)
 	}
@@ -67,11 +73,13 @@ func ReadOpenAPIFiles(openApiDir string) ([]byte /*configValuesBytes*/, []byte /
 	if openApiDir == "" {
 		return nil, nil, nil
 	}
+
 	if _, err := os.Stat(openApiDir); os.IsNotExist(err) {
 		return nil, nil, nil
 	}
 
 	configValuesBytes := make([]byte, 0)
+
 	configPath := filepath.Join(openApiDir, ConfigValuesFileName)
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		configValuesBytes, err = os.ReadFile(configPath)
@@ -81,6 +89,7 @@ func ReadOpenAPIFiles(openApiDir string) ([]byte /*configValuesBytes*/, []byte /
 	}
 
 	valuesBytes := make([]byte, 0)
+
 	valuesPath := filepath.Join(openApiDir, ValuesFileName)
 	if _, err := os.Stat(valuesPath); !os.IsNotExist(err) {
 		valuesBytes, err = os.ReadFile(valuesPath)

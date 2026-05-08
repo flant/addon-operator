@@ -108,16 +108,19 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	isSynchronization := hm.IsSynchronization()
 	shouldRunHook := true
+
 	if isSynchronization {
 		// Synchronization is not a part of v0 contract, skip hook execution.
 		if taskHook.GetHookConfig().Version == "v0" {
 			s.logger.Info("Execute on Synchronization ignored for v0 hooks")
+
 			shouldRunHook = false
 			res.Status = queue.Success
 		}
 		// Check for "executeOnSynchronization: false".
 		if !hm.ExecuteOnSynchronization {
 			s.logger.Info("Execute on Synchronization disabled in hook config: ExecuteOnSynchronization=false")
+
 			shouldRunHook = false
 			res.Status = queue.Success
 		}
@@ -310,6 +313,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 		// Unlock Kubernetes events for all monitors when Synchronization task is done.
 		s.logger.Debug("Synchronization done, unlock Kubernetes events")
+
 		for _, monitorID := range hm.MonitorIDs {
 			taskHook.GetHookController().UnlockKubernetesEventsFor(monitorID)
 		}

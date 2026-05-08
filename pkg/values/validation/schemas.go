@@ -94,6 +94,7 @@ func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, valu
 		log.Warn("schema is not found",
 			slog.String(pkg.LogKeyModule, moduleName),
 			slog.String(pkg.LogKeyValuesType, string(valuesType)))
+
 		return nil
 	}
 
@@ -111,6 +112,7 @@ func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, valu
 			slog.String(pkg.LogKeyValuesType, string(valuesType)),
 			log.Err(validationErr))
 	}
+
 	return validationErr
 }
 
@@ -140,6 +142,7 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 		if err != nil {
 			return err
 		}
+
 		if len(validationErrs) > 0 {
 			return errors.Join(validationErrs...)
 		}
@@ -202,6 +205,7 @@ func (st *SchemaStorage) ModuleSchemasDescription() string {
 	if len(types) == 0 {
 		return "No OpenAPI schemas"
 	}
+
 	return fmt.Sprintf("OpenAPI schemas: %s.", strings.Join(types, ", "))
 }
 
@@ -211,6 +215,7 @@ func (st *SchemaStorage) GlobalSchemasDescription() string {
 	if len(types) == 0 {
 		return "No Global OpenAPI schemas"
 	}
+
 	return fmt.Sprintf("Global OpenAPI schemas: %s.", strings.Join(types, ", "))
 }
 
@@ -223,12 +228,15 @@ func availableSchemaTypes(schemas map[SchemaType]*spec.Schema) []string {
 	if _, has := schemas[ConfigValuesSchema]; has {
 		types = append(types, "config values")
 	}
+
 	if _, has := schemas[ValuesSchema]; has {
 		types = append(types, "values")
 	}
+
 	if _, has := schemas[HelmValuesSchema]; has {
 		types = append(types, "helm values")
 	}
+
 	return types
 }
 
@@ -236,6 +244,7 @@ func availableSchemaTypes(schemas map[SchemaType]*spec.Schema) []string {
 // swag.BytesToYAML uses yaml.MapSlice to unmarshal YAML. This type doesn't support map merge of YAML anchors.
 func YAMLBytesToJSONDoc(data []byte) (json.RawMessage, error) {
 	var yamlObj interface{}
+
 	err := yaml.Unmarshal(data, &yamlObj)
 	if err != nil {
 		return nil, fmt.Errorf("yaml unmarshal: %v", err)
@@ -272,11 +281,13 @@ func LoadSchemaFromBytes(openApiContent []byte) (*spec.Schema, error) {
 // PrepareSchemas loads schemas for config values, values and helm values.
 func PrepareSchemas(configBytes, valuesBytes []byte) (map[SchemaType]*spec.Schema, error) {
 	res := make(map[SchemaType]*spec.Schema)
+
 	if len(configBytes) > 0 {
 		schemaObj, err := LoadSchemaFromBytes(configBytes)
 		if err != nil {
 			return nil, fmt.Errorf("load '%s' schema: %w", ConfigValuesSchema, err)
 		}
+
 		res[ConfigValuesSchema] = schema.TransformSchema(
 			schemaObj,
 			&schema.AdditionalPropertiesTransformer{},

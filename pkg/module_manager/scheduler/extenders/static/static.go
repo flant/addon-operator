@@ -25,19 +25,23 @@ type Extender struct {
 
 func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 	result := make(map[string]bool)
+
 	dirs := utils.SplitToPaths(staticValuesFilePaths)
 	for _, dir := range dirs {
 		valuesFile := filepath.Join(dir, "values.yaml")
+
 		fileInfo, err := os.Stat(valuesFile)
 		if err != nil {
 			log.Warn("Couldn't stat file",
 				slog.String(pkg.LogKeyFile, valuesFile))
+
 			continue
 		}
 
 		if fileInfo.IsDir() {
 			log.Error("File is a directory",
 				slog.String(pkg.LogKeyFile, valuesFile))
+
 			continue
 		}
 
@@ -46,8 +50,10 @@ func NewExtender(staticValuesFilePaths string) (*Extender, error) {
 			if os.IsNotExist(err) {
 				log.Debug("File doesn't exist",
 					slog.String(pkg.LogKeyFile, valuesFile))
+
 				continue
 			}
+
 			return nil, err
 		}
 		defer f.Close()

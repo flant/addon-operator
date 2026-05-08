@@ -127,6 +127,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 	}
 
 	versionedContextList := bindingcontext.ConvertBindingContextList(configVersion, bContext)
+
 	bindingContextBytes, err := versionedContextList.Json()
 	if err != nil {
 		return nil, err
@@ -141,6 +142,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 		if app.DebugKeepTmpFiles {
 			return
 		}
+
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
@@ -151,6 +153,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 			}
 		}
 	}()
+
 	configValuesPatchPath := tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
 	valuesPatchPath := tmpFiles["VALUES_JSON_PATCH_PATH"]
 	metricsPath := tmpFiles["METRICS_PATH"]
@@ -160,6 +163,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
+
 	command := sh.GetPath()
 	args := make([]string, 0)
 
@@ -178,6 +182,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 		WithChroot(utils.GetModuleChrootPath(sh.moduleName))
 
 	usage, err := cmd.RunAndLogLines(ctx, logLabels)
+
 	result.Usage = usage
 	if err != nil {
 		return result, err
@@ -265,6 +270,7 @@ func (sh *ShellHook) getConfig() ([]byte, error) {
 			slog.String(pkg.LogKeyHook, sh.Name),
 			log.Err(err),
 			slog.String(pkg.LogKeyOutput, string(output)))
+
 		return nil, err
 	}
 
@@ -288,12 +294,14 @@ func (sh *ShellHook) GetConfigForModule(moduleKind string) (*config.HookConfig, 
 	}
 
 	vu := config.NewDefaultVersionedUntyped()
+
 	err = vu.Load(cfgData)
 	if err != nil {
 		return nil, err
 	}
 
 	var validationFunc func(version string) *spec.Schema
+
 	switch moduleKind {
 	case "global":
 		{
@@ -320,6 +328,7 @@ func (sh *ShellHook) GetConfigForModule(moduleKind string) (*config.HookConfig, 
 
 	sh.Config = cfg
 	sh.ScheduleConfig = &HookScheduleConfig{}
+
 	err = yaml.Unmarshal(cfgData, sh.ScheduleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal schedule yaml hook config: %s", err)
@@ -421,6 +430,7 @@ func getGlobalHookConfigSchema(version string) *spec.Schema {
     example: 10    
 `
 		}
+
 		config.Schemas[globalHookVersion] = schema
 	}
 
@@ -459,6 +469,7 @@ func getModuleHookConfigSchema(version string) *spec.Schema {
     example: 10    
 `
 		}
+
 		config.Schemas[globalHookVersion] = schema
 	}
 
@@ -468,6 +479,7 @@ func getModuleHookConfigSchema(version string) *spec.Schema {
 // PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
 func (sh *ShellHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafeName string, configValues, values utils.Values) (map[string]string, error) {
 	var err error
+
 	tmpFiles := make(map[string]string)
 
 	tmpFiles["CONFIG_VALUES_PATH"], err = sh.prepareConfigValuesJsonFile(moduleSafeName, configValues)
@@ -514,12 +526,14 @@ func (sh *ShellHook) prepareMetricsFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
 // BINDING_CONTEXT_PATH
 func (sh *ShellHook) prepareBindingContextJsonFile(moduleSafeName string, bindingContext []byte) (string, error) {
 	path := filepath.Join(sh.TmpDir, fmt.Sprintf("%s.module-hook-%s-binding-context-%s.json", moduleSafeName, sh.SafeName(), uuid.Must(uuid.NewV4()).String()))
+
 	err := utils.DumpData(path, bindingContext)
 	if err != nil {
 		return "", err
@@ -534,6 +548,7 @@ func (sh *ShellHook) prepareConfigValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -543,6 +558,7 @@ func (sh *ShellHook) prepareValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -552,6 +568,7 @@ func (sh *ShellHook) prepareKubernetesPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -563,6 +580,7 @@ func (sh *ShellHook) prepareConfigValuesJsonFile(moduleSafeName string, configVa
 	}
 
 	path := filepath.Join(sh.TmpDir, fmt.Sprintf("%s.module-config-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
@@ -582,6 +600,7 @@ func (sh *ShellHook) prepareValuesJsonFile(moduleSafeName string, values utils.V
 	}
 
 	path := filepath.Join(sh.TmpDir, fmt.Sprintf("%s.module-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err

@@ -98,6 +98,7 @@ func start(logger *log.Logger, cfg *app.Config) func(cmd *cobra.Command, args []
 		if os.Getenv("ADDON_OPERATOR_HA") == "true" {
 			operator.Logger.Info("Addon-operator is starting in HA mode")
 			runHAMode(ctx, operator)
+
 			return nil
 		}
 
@@ -192,6 +193,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 	go func() {
 		<-ctx.Done()
 		log.Info("Context canceled received")
+
 		if err := syscall.Kill(1, syscall.SIGUSR2); err != nil {
 			operator.Logger.Fatal("Couldn't shutdown addon-operator", log.Err(err))
 		}

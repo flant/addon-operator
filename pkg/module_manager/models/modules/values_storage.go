@@ -66,6 +66,7 @@ func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes,
 		schemaStorage: schemaStorage,
 		moduleName:    moduleName,
 	}
+
 	err = vs.calculateResultValues()
 	if err != nil {
 		return nil, fmt.Errorf("critical error occurred with calculating values for %q: %w", moduleName, err)
@@ -217,6 +218,7 @@ func (vs *ValuesStorage) SaveConfigValues(configV utils.Values) {
 	defer vs.lock.Unlock()
 
 	vs.configValues = configV
+
 	err := vs.calculateResultValues()
 	if err != nil {
 		panic(err)

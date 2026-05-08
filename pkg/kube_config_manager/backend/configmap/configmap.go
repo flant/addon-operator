@@ -60,6 +60,7 @@ func (b Backend) LoadConfig(ctx context.Context, _ ...string) (*config.KubeConfi
 	if obj == nil {
 		b.logger.Info("Initial config from ConfigMap: resource is not found",
 			slog.String(pkg.LogKeyName, b.name))
+
 		return nil, nil
 	}
 
@@ -130,6 +131,7 @@ func (b Backend) getConfigMap(ctx context.Context) (*v1.ConfigMap, error) {
 	if errors.IsNotFound(err) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -139,6 +141,7 @@ func (b Backend) getConfigMap(ctx context.Context) (*v1.ConfigMap, error) {
 
 func parseConfigMapData(data map[string]string) (*config.KubeConfig, error) {
 	var err error
+
 	cfg := config.NewConfig()
 
 	// Parse values in global section.
@@ -201,6 +204,7 @@ func getModulesNamesFromConfigData(configData map[string]string) (map[string]boo
 		if utils.ModuleNameToValuesKey(modName) != key {
 			return nil, fmt.Errorf("bad module name '%s': should be camelCased", key)
 		}
+
 		res[modName] = true
 	}
 
@@ -300,6 +304,7 @@ func (b Backend) mergeValues(ctx context.Context, moduleName string, values util
 		}
 
 		obj.Data[moduleName] = string(data)
+
 		return nil
 	})
 }
@@ -313,6 +318,7 @@ func (b Backend) updateConfigMap(ctx context.Context, transformFn func(*v1.Confi
 	}
 
 	isUpdate := true
+
 	if obj == nil {
 		obj = &v1.ConfigMap{}
 		obj.Name = b.name
@@ -333,6 +339,7 @@ func (b Backend) updateConfigMap(ctx context.Context, transformFn func(*v1.Confi
 	} else {
 		_, err = b.client.CoreV1().ConfigMaps(b.namespace).Create(ctx, obj, metav1.CreateOptions{})
 	}
+
 	return err
 }
 
@@ -352,6 +359,7 @@ func (b Backend) StartInformer(ctx context.Context, eventC chan config.Event) {
 	_, _ = cmInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			b.logConfigMapEvent(ctx, obj, "add")
+
 			err := b.handleConfigMapEvent(obj.(*v1.ConfigMap), eventC)
 			if err != nil {
 				b.logger.Error("Handle ConfigMap 'add' error",
@@ -361,6 +369,7 @@ func (b Backend) StartInformer(ctx context.Context, eventC chan config.Event) {
 		},
 		UpdateFunc: func(_ interface{}, obj interface{}) {
 			b.logConfigMapEvent(ctx, obj, "update")
+
 			err := b.handleConfigMapEvent(obj.(*v1.ConfigMap), eventC)
 			if err != nil {
 				b.logger.Error("Handle ConfigMap 'update' error",
@@ -390,8 +399,10 @@ func (b Backend) logConfigMapEvent(ctx context.Context, obj interface{}, eventNa
 			slog.String(pkg.LogKeyConfigMapName, b.name),
 			slog.String(pkg.LogKeyEventName, eventName),
 			log.Err(err))
+
 		return
 	}
+
 	b.logger.Info("Dump ConfigMap",
 		slog.String(pkg.LogKeyConfigMapName, b.name),
 		slog.String(pkg.LogKeyEventName, eventName),
@@ -412,6 +423,7 @@ func (b Backend) handleConfigMapEvent(obj *v1.ConfigMap, eventC chan config.Even
 		b.logger.Error("ConfigMap invalid",
 			slog.String(pkg.LogKeyConfigMapName, b.name),
 			log.Err(err))
+
 		return err
 	}
 

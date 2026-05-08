@@ -25,19 +25,24 @@ func defaultKubeClient(metricStorage metricsstorage.Storage, metricLabels map[st
 	client.WithConfigPath(app.KubeConfig)
 	client.WithMetricStorage(metric.NewMetricsAdapter(metricStorage, logger.Named("kube-client-metrics-adapter")))
 	client.WithMetricLabels(metricLabels)
+
 	return client
 }
 
 func InitDefaultHelmResourcesManager(ctx context.Context, namespace string, metricStorage metricsstorage.Storage, logger *log.Logger) (helm_resources_manager.HelmResourcesManager, error) {
 	kubeClient := defaultKubeClient(metricStorage, DefaultHelmMonitorKubeClientMetricLabels, logger.Named("helm-monitor-kube-client"))
 	kubeClient.WithRateLimiterSettings(app.HelmMonitorKubeClientQps, app.HelmMonitorKubeClientBurst)
+
 	if err := kubeClient.Init(); err != nil {
 		return nil, fmt.Errorf("initialize Kubernetes client for Helm resources manager: %s\n", err)
 	}
+
 	mgr, err := helm_resources_manager.NewHelmResourcesManager(ctx, kubeClient, logger.Named("helm-resource-manager"))
 	if err != nil {
 		return nil, fmt.Errorf("initialize Helm resources manager: %s\n", err)
 	}
+
 	mgr.WithDefaultNamespace(namespace)
+
 	return mgr, nil
 }

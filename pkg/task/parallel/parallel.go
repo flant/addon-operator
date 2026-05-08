@@ -74,7 +74,9 @@ func (pq *TaskChannels) Set(id string, c TaskChannel) {
 func (pq *TaskChannels) Get(id string) (TaskChannel, bool) {
 	pq.l.Lock()
 	defer pq.l.Unlock()
+
 	c, ok := pq.channels[id]
+
 	return c, ok
 }
 

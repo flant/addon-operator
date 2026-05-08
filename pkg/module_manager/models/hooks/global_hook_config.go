@@ -53,12 +53,14 @@ func (c *GlobalHookConfig) HasBinding(binding BindingType) bool {
 	if c.HookConfig.HasBinding(binding) {
 		return true
 	}
+
 	switch binding {
 	case BeforeAll:
 		return c.BeforeAll != nil
 	case AfterAll:
 		return c.AfterAll != nil
 	}
+
 	return false
 }
 
@@ -74,9 +76,11 @@ func (c *GlobalHookConfig) BindingsCount() int {
 	if c.HasBinding(Schedule) {
 		res += len(c.Schedules)
 	}
+
 	if c.HasBinding(OnKubernetesEvent) {
 		res += len(c.OnKubernetesEvents)
 	}
+
 	return res
 }
 

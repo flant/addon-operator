@@ -11,10 +11,13 @@ import (
 
 func CalculateStringsChecksum(stringArr ...string) string {
 	hasher := md5.New()
+
 	sort.Strings(stringArr)
+
 	for _, value := range stringArr {
 		_, _ = hasher.Write([]byte(value))
 	}
+
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
@@ -23,6 +26,7 @@ func CalculateChecksumOfFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return CalculateStringsChecksum(string(content)), nil
 }
 
@@ -30,14 +34,17 @@ func CalculateChecksumOfDirectory(dir string) (string, error) {
 	res := ""
 
 	var checkErr error
+
 	files, err := FilesFromRoot(dir, func(dir string, name string, _ os.FileInfo) bool {
 		fPath := path.Join(dir, name)
+
 		checksum, err := CalculateChecksumOfFile(fPath)
 		if err != nil {
 			// return only bad files for logging
 			checkErr = err
 			return true
 		}
+
 		res = CalculateStringsChecksum(res, checksum)
 		// good files are skipped
 		return false
@@ -45,6 +52,7 @@ func CalculateChecksumOfDirectory(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if checkErr != nil {
 		return "", fmt.Errorf("calculate checksum of %+v: %v", files, err)
 	}
@@ -71,6 +79,7 @@ func CalculateChecksumOfPaths(paths ...string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		res = CalculateStringsChecksum(res, checksum)
 	}
 

@@ -18,6 +18,7 @@ func (op *AddonOperator) EnsureCRDs(module *modules.BasicModule) ([]string, erro
 	if cp == nil {
 		return nil, nil
 	}
+
 	if err := cp.Run(context.TODO()); err != nil {
 		return nil, err
 	}

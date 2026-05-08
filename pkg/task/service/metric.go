@@ -43,6 +43,7 @@ func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 		// set binding name instead of type
 		metricLabels[pkg.MetricKeyBinding] = hm.Binding
 	}
+
 	if t.GetType() == task.ModuleHookRun {
 		// set binding name instead of type
 		metricLabels[pkg.MetricKeyHook] = hm.HookName

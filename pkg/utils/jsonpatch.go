@@ -386,6 +386,7 @@ func (p Patch) test(doc *container, op Operation) error {
 		if op.value().IsRawEmpty() {
 			return nil
 		}
+
 		return errors.Wrapf(ErrTestFailed, "testing value %s failed", path)
 	} else if op.value() == nil {
 		return errors.Wrapf(ErrTestFailed, "testing value %s failed", path)

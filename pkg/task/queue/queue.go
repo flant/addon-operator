@@ -120,6 +120,7 @@ func convergeTasksInQueue(q *queue.TaskQueue) int {
 	}
 
 	convergeTasks := 0
+
 	q.IterateSnapshot(func(t sh_task.Task) {
 		if converge.IsConvergeTask(t) || converge.IsFirstConvergeTask(t) {
 			convergeTasks++
@@ -245,10 +246,12 @@ func (s *Service) ModuleEnsureCRDsTasksInMainQueueAfterId(afterId string) bool {
 	IDFound := false
 	taskFound := false
 	stop := false
+
 	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
+
 		if !IDFound {
 			if t.GetId() == afterId {
 				IDFound = true

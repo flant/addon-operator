@@ -43,6 +43,7 @@ func (f *ClientFactory) NewClient(logger *log.Logger, options ...ClientOption) c
 
 		return c
 	}
+
 	return nil
 }
 
@@ -67,6 +68,7 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 	switch clientType {
 	case Helm3Lib:
 		factory.NewClientFn = helm3lib.NewClient
+
 		err = helm3lib.Init(&helm3lib.Options{
 			Namespace:         helmopts.Namespace,
 			HistoryMax:        helmopts.HistoryMax,
@@ -87,6 +89,7 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 			if helmopts.Namespace != "" {
 				opts.Namespace = &helmopts.Namespace
 			}
+
 			return nelm.NewNelmClient(opts, logger.Named("nelm"), labels)
 		}
 	}

@@ -129,10 +129,12 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	})()
 
 	var moduleRunErr error
+
 	valuesChanged := false
 
 	defer func(res *queue.TaskResult, valuesChanged *bool) {
 		s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
+
 		if moduleRunErr != nil {
 			res.Status = queue.Fail
 
@@ -198,6 +200,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 				if moduleRunErr == nil {
 					s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 				}
+
 				treg.End()
 			} else {
 				s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
@@ -213,6 +216,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 		span.AddEvent("module on startup done")
 
 		s.logger.Debug("ModuleRun phase", slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
+
 		if baseModule.HasKubernetesHooks() {
 			s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.QueueSynchronizationTasks)
 		} else {
@@ -261,6 +265,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			delete(taskLogLabels, pkg.LogKeyTaskID)
 
 			kubernetesBindingID := uuid.Must(uuid.NewV4()).String()
+
 			parallelRunMetadata := &task.ParallelRunMetadata{}
 			if hm.ParallelRunMetadata != nil && len(hm.ParallelRunMetadata.ChannelId) != 0 {
 				parallelRunMetadata.ChannelId = hm.ParallelRunMetadata.ChannelId
@@ -344,7 +349,9 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			if len(mainSyncTasks) > 0 {
 				res.AddHeadTasks(mainSyncTasks...)
 				res.Status = queue.Keep
+
 				s.logTaskAdd("head", mainSyncTasks...)
+
 				return res
 			}
 		}
@@ -372,6 +379,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 					slog.Bool(pkg.LogKeySyncDone, baseModule.Synchronization().IsCompleted()))
 				baseModule.Synchronization().DebugDumpState(s.logger)
 			}
+
 			s.logger.Debug("Synchronization not completed, keep ModuleRun task in repeat mode")
 			s.shellTask.WithQueuedAt(time.Now())
 		}

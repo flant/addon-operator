@@ -25,11 +25,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := globalRequest(client).List(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		},
 	})
@@ -42,11 +45,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := globalRequest(client).Values(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		},
 	})
@@ -59,11 +65,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := globalRequest(client).Config(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		},
 	})
@@ -76,11 +85,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := globalRequest(client).Patches()
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		},
 	})
@@ -93,11 +105,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			out, err := globalRequest(client).Snapshots(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(out))
+
 			return nil
 		},
 	})
@@ -115,11 +130,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			modules, err := moduleRequest(client).List(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(modules))
+
 			return nil
 		},
 	})
@@ -139,11 +157,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := moduleRequest(client).Name(moduleName).Values(outputFormat, showGlobal)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		},
 	}
@@ -165,11 +186,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := moduleRequest(client).Name(moduleName).Render(debug, diff)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		},
 	}
@@ -187,11 +211,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := moduleRequest(client).Name(moduleName).Config(outputFormat, showGlobal)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		},
 	}
@@ -208,11 +235,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			dump, err := moduleRequest(client).Name(moduleName).Patches()
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(dump))
+
 			return nil
 		},
 	}
@@ -230,11 +260,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			out, err := moduleRequest(client).Name(moduleName).ResourceMonitor(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(out))
+
 			return nil
 		},
 	}
@@ -250,11 +283,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
+
 			out, err := moduleRequest(client).Name(moduleName).Snapshots(outputFormat)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(out))
+
 			return nil
 		},
 	}

@@ -141,5 +141,6 @@ func BoolDeref(ptr *bool, def bool) bool {
 	if ptr != nil {
 		return *ptr
 	}
+
 	return def
 }

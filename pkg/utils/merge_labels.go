@@ -11,11 +11,13 @@ import (
 // Can be used to copy a map if just one argument is used.
 func MergeLabels(labelsMaps ...map[string]string) map[string]string {
 	labels := make(map[string]string)
+
 	for _, labelsMap := range labelsMaps {
 		for k, v := range labelsMap {
 			labels[k] = v
 		}
 	}
+
 	return labels
 }
 

@@ -63,11 +63,13 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 	}
 
 	cfg := kclient.RestConfig()
+
 	defaultLabelSelector, err := labels.Parse(app.ExtraLabels)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
+
 	cache, err := cr_cache.New(cfg, cr_cache.Options{
 		DefaultLabelSelector: defaultLabelSelector,
 	})
@@ -81,10 +83,12 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 	}()
 
 	log.Debug("Helm resource manager: cache's been started")
+
 	if synced := cache.WaitForCacheSync(cctx); !synced {
 		cancel()
 		return nil, fmt.Errorf("Couldn't sync helm resource informer cache")
 	}
+
 	log.Debug("Helm resourcer manager: cache has been synced")
 
 	return &helmResourcesManager{
@@ -140,12 +144,14 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 func (hm *helmResourcesManager) absentResourcesCallback(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string) {
 	log.Debug("Detect absent resources for module",
 		slog.String(pkg.LogKeyModule, moduleName))
+
 	for _, m := range absent {
 		log.Debug("absent module",
 			slog.String(pkg.LogKeyNamespace, m.Namespace(defaultNs)),
 			slog.String(pkg.LogKeyKind, m.Kind()),
 			slog.String(pkg.LogKeyModule, m.Name()))
 	}
+
 	hm.eventCh <- ReleaseStatusEvent{
 		ModuleName:       moduleName,
 		Absent:           absent,
@@ -164,17 +170,21 @@ func (hm *helmResourcesManager) StopMonitors() {
 
 func (hm *helmResourcesManager) PauseMonitors() {
 	hm.l.RLock()
+
 	for _, monitor := range hm.monitors {
 		monitor.Pause()
 	}
+
 	hm.l.RUnlock()
 }
 
 func (hm *helmResourcesManager) ResumeMonitors() {
 	hm.l.RLock()
+
 	for _, monitor := range hm.monitors {
 		monitor.Resume()
 	}
+
 	hm.l.RUnlock()
 }
 
@@ -189,17 +199,21 @@ func (hm *helmResourcesManager) StopMonitor(moduleName string) {
 
 func (hm *helmResourcesManager) PauseMonitor(moduleName string) {
 	hm.l.RLock()
+
 	if monitor, ok := hm.monitors[moduleName]; ok {
 		monitor.Pause()
 	}
+
 	hm.l.RUnlock()
 }
 
 func (hm *helmResourcesManager) ResumeMonitor(moduleName string) {
 	hm.l.RLock()
+
 	if monitor, ok := hm.monitors[moduleName]; ok {
 		monitor.Resume()
 	}
+
 	hm.l.RUnlock()
 }
 
@@ -207,21 +221,25 @@ func (hm *helmResourcesManager) HasMonitor(moduleName string) bool {
 	hm.l.RLock()
 	_, ok := hm.monitors[moduleName]
 	hm.l.RUnlock()
+
 	return ok
 }
 
 func (hm *helmResourcesManager) AbsentResources(moduleName string) ([]manifest.Manifest, error) {
 	hm.l.RLock()
 	defer hm.l.RUnlock()
+
 	if monitor, ok := hm.monitors[moduleName]; ok {
 		return monitor.AbsentResources()
 	}
+
 	return nil, nil
 }
 
 func (hm *helmResourcesManager) GetMonitor(moduleName string) *ResourcesMonitor {
 	hm.l.RLock()
 	defer hm.l.RUnlock()
+
 	return hm.monitors[moduleName]
 }
 

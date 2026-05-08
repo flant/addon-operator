@@ -121,6 +121,7 @@ func buildConfigFlagsFromEnv(ns *string, env *cli.EnvSettings) *genericclioption
 		config.Burst = env.BurstLimit
 		return config
 	}
+
 	return flags
 }
 
@@ -154,6 +155,7 @@ func initAndVersion(logger *log.Logger) error {
 	}
 
 	logger.Info("Helm 3 version", slog.String(pkg.LogKeyVersion, chartutil.DefaultCapabilities.HelmVersion.Version))
+
 	return nil
 }
 
@@ -169,6 +171,7 @@ func (h *LibClient) LastReleaseStatus(releaseName string) (string /*revision*/, 
 		if errors.Is(err, driver.ErrReleaseNotFound) || strings.HasPrefix(err.Error(), "no revision for release") {
 			return "0", "", fmt.Errorf("release '%s' not found\n", releaseName)
 		}
+
 		return "", "", err
 	}
 
@@ -183,9 +186,12 @@ func (h *LibClient) UpgradeRelease(releaseName, modulePath string, valuesPaths [
 		if err := actionConfigInit(h.Logger); err != nil {
 			return err
 		}
+
 		return h.upgradeRelease(releaseName, modulePath, valuesPaths, setValues, labels, namespace)
 	}
+
 	h.Logger.Debug("helm release upgraded", slog.String(pkg.LogKeyVersion, releaseName))
+
 	return nil
 }
 
@@ -198,6 +204,7 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 	if namespace != "" {
 		upg.Namespace = namespace
 	}
+
 	if h.hasLabelsToApply() {
 		upg.PostRenderer = post_renderer.NewPostRenderer(h.labels)
 	}
@@ -221,12 +228,14 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 
 	if len(setValues) > 0 {
 		m := make(map[string]interface{})
+
 		for _, sv := range setValues {
 			arr := strings.Split(sv, "=")
 			if len(arr) == 2 {
 				m[arr[0]] = arr[1]
 			}
 		}
+
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
@@ -239,6 +248,7 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 		slog.String(pkg.LogKeyRelease, releaseName),
 		slog.String(pkg.LogKeyChart, modulePath),
 		slog.String(pkg.LogKeyNamespace, namespace))
+
 	histClient := action.NewHistory(actionConfig)
 	// Max is not working!!! Sort the final of releases by your own
 	// histClient.Max = 1
@@ -248,6 +258,7 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 		if namespace != "" {
 			instClient.Namespace = namespace
 		}
+
 		if h.hasLabelsToApply() {
 			instClient.PostRenderer = post_renderer.NewPostRenderer(h.labels)
 		}
@@ -259,9 +270,12 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 		instClient.Labels = labels
 
 		_, err = instClient.Run(loaded, resultValues)
+
 		return err
 	}
+
 	h.Logger.Debug("old releases found", slog.Int(pkg.LogKeyCount, len(releases)))
+
 	if len(releases) > 0 {
 		// https://github.com/fluxcd/helm-controller/issues/149
 		// looking through this issue you can find the common error: another operation (install/upgrade/rollback) is in progress
@@ -273,8 +287,10 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 			slog.String(pkg.LogKeyRelease, nsReleaseName),
 			slog.Int(pkg.LogKeyVersion, latestRelease.Version),
 			slog.String(pkg.LogKeyStatus, string(latestRelease.Info.Status)))
+
 		if latestRelease.Info.Status.IsPending() {
 			objectName := fmt.Sprintf("%s.%s.v%d", storage.HelmStorageType, latestRelease.Name, latestRelease.Version)
+
 			kubeClient, err := actionConfig.KubernetesClientSet()
 			if err != nil {
 				return fmt.Errorf("couldn't get kubernetes client set: %w", err)
@@ -287,10 +303,12 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 					slog.String(pkg.LogKeyRelease, nsReleaseName),
 					slog.String(pkg.LogKeyStatus, string(latestRelease.Info.Status)),
 					slog.String(pkg.LogKeyDriver, driver.ConfigMapsDriverName))
+
 				err := kubeClient.CoreV1().ConfigMaps(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
 				if err != nil && !apierrors.IsNotFound(err) {
 					return fmt.Errorf("couldn't delete configmap %s of release %s: %w", objectName, nsReleaseName, err)
 				}
+
 				h.Logger.Debug("ConfigMap was deleted", slog.String(pkg.LogKeyName, objectName))
 
 			case driver.SecretsDriverName:
@@ -299,10 +317,12 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 					slog.String(pkg.LogKeyRelease, nsReleaseName),
 					slog.String(pkg.LogKeyStatus, string(latestRelease.Info.Status)),
 					slog.String(pkg.LogKeyDriver, driver.ConfigMapsDriverName))
+
 				err := kubeClient.CoreV1().Secrets(latestRelease.Namespace).Delete(context.TODO(), objectName, metav1.DeleteOptions{})
 				if err != nil && !apierrors.IsNotFound(err) {
 					return fmt.Errorf("couldn't delete secret %s of release %s: %w", objectName, nsReleaseName, err)
 				}
+
 				h.Logger.Debug("Secret was deleted", slog.String(pkg.LogKeyName, objectName))
 
 			default:
@@ -321,6 +341,7 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 	if err != nil {
 		return fmt.Errorf("helm upgrade failed: %s\n", err)
 	}
+
 	h.Logger.Info("Helm upgrade successful",
 		slog.String(pkg.LogKeyRelease, releaseName),
 		slog.String(pkg.LogKeyChart, modulePath),
@@ -338,29 +359,35 @@ func (h *LibClient) rollbackLatestRelease(releases []*release.Release) {
 	if latestRelease.Version == 1 || options.HistoryMax == 1 || len(releases) == 1 {
 		rb := action.NewUninstall(actionConfig)
 		rb.KeepHistory = false
+
 		_, err := rb.Run(latestRelease.Name)
 		if err != nil {
 			h.Logger.Warn("Failed to uninstall pending release",
 				slog.String(pkg.LogKeyRelease, nsReleaseName),
 				log.Err(err))
+
 			return
 		}
 	} else {
 		previousVersion := latestRelease.Version - 1
+
 		for i := 1; i < len(releases); i++ {
 			if !releases[i].Info.Status.IsPending() {
 				previousVersion = releases[i].Version
 				break
 			}
 		}
+
 		rb := action.NewRollback(actionConfig)
 		rb.Version = previousVersion
 		rb.CleanupOnFail = true
+
 		err := rb.Run(latestRelease.Name)
 		if err != nil {
 			h.Logger.Warn("Failed to rollback pending release",
 				slog.String(pkg.LogKeyRelease, nsReleaseName),
 				log.Err(err))
+
 			return
 		}
 	}
@@ -377,6 +404,7 @@ var ErrLabelIsNotFound = errors.New("label is not found")
 
 func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
 	gv := action.NewGet(actionConfig)
+
 	rel, err := gv.Run(releaseName)
 	if err != nil {
 		return "", fmt.Errorf("helm get failed: %w", err)
@@ -392,10 +420,12 @@ func (h *LibClient) GetReleaseLabels(releaseName, labelName string) (string, err
 // Deprecated: use GetReleaseLabels instead
 func (h *LibClient) GetReleaseChecksum(releaseName string) (string, error) {
 	gv := action.NewGet(actionConfig)
+
 	rel, err := gv.Run(releaseName)
 	if err != nil {
 		return "", fmt.Errorf("helm get failed: %s", err)
 	}
+
 	if checksum, ok := rel.Labels["moduleChecksum"]; ok {
 		return checksum, nil
 	}
@@ -405,6 +435,7 @@ func (h *LibClient) GetReleaseChecksum(releaseName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("helm get failed: %s", err)
 	}
+
 	if recordedChecksum, hasKey := releaseValues["_addonOperatorModuleChecksum"]; hasKey {
 		if recordedChecksumStr, ok := recordedChecksum.(string); ok {
 			return recordedChecksumStr, nil
@@ -418,12 +449,14 @@ func (h *LibClient) DeleteRelease(releaseName string) error {
 	h.Logger.Debug("helm release: execute helm uninstall", slog.String(pkg.LogKeyRelease, releaseName))
 
 	un := action.NewUninstall(actionConfig)
+
 	_, err := un.Run(releaseName)
 	if err != nil {
 		return fmt.Errorf("helm uninstall %s invocation error: %v\n", releaseName, err)
 	}
 
 	h.Logger.Debug("helm release deleted", slog.String(pkg.LogKeyRelease, releaseName))
+
 	return nil
 }
 
@@ -432,9 +465,11 @@ func (h *LibClient) IsReleaseExists(releaseName string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
+
 	if revision == "0" {
 		return false, nil
 	}
+
 	return false, err
 }
 
@@ -443,6 +478,7 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	l := action.NewList(actionConfig)
 	// list all releases regardless of their state
 	l.StateMask = action.ListAll
+
 	list, err := l.Run()
 	if err != nil {
 		return nil, fmt.Errorf("helm list failed: %s", err)
@@ -459,6 +495,7 @@ func (h *LibClient) ListReleasesNames() ([]string, error) {
 	}
 
 	sort.Strings(releases)
+
 	return releases, nil
 }
 
@@ -476,12 +513,14 @@ func (h *LibClient) Render(releaseName, modulePath string, valuesPaths, setValue
 
 	if len(setValues) > 0 {
 		m := make(map[string]interface{})
+
 		for _, sv := range setValues {
 			arr := strings.Split(sv, "=")
 			if len(arr) == 2 {
 				m[arr[0]] = arr[1]
 			}
 		}
+
 		resultValues = chartutil.CoalesceTables(resultValues, m)
 	}
 
@@ -510,6 +549,7 @@ func (h *LibClient) Render(releaseName, modulePath string, valuesPaths, setValue
 		if !debug {
 			return "", fmt.Errorf("%w\n\nUse --debug flag to render out invalid YAML", err)
 		}
+
 		if rs == nil {
 			return "", err
 		}
@@ -533,6 +573,7 @@ func (h *LibClient) newDryRunInstAction(namespace, releaseName string) *action.I
 	if h.hasLabelsToApply() {
 		inst.PostRenderer = post_renderer.NewPostRenderer(h.labels)
 	}
+
 	inst.ReleaseName = releaseName
 	inst.UseReleaseName = true
 	inst.Replace = true // Skip the name check
@@ -547,6 +588,7 @@ func (h *LibClient) ListReleases() ([]*release.Release, error) {
 	l := action.NewList(actionConfig)
 	// list all releases regardless of their state
 	l.StateMask = action.ListAll
+
 	list, err := l.Run()
 	if err != nil {
 		return nil, fmt.Errorf("helm list failed: %w", err)

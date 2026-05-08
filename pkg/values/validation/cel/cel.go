@@ -28,6 +28,7 @@ func Validate(schema *spec.Schema, values any) ([]error, error) {
 				if err != nil {
 					return nil, err
 				}
+
 				validationErrs = append(validationErrs, subErrs...)
 			}
 		}
@@ -38,10 +39,12 @@ func Validate(schema *spec.Schema, values any) ([]error, error) {
 		if len(validationErrs) > 0 {
 			return validationErrs, nil
 		}
+
 		return nil, nil
 	}
 
 	var rules []rule
+
 	switch v := raw.(type) {
 	case []any:
 		for _, entry := range v {
@@ -53,6 +56,7 @@ func Validate(schema *spec.Schema, values any) ([]error, error) {
 			if val, ok := mapEntry["expression"]; !ok || len(val.(string)) == 0 {
 				return nil, fmt.Errorf("x-deckhouse-validations invalid: missing expression")
 			}
+
 			if val, ok := mapEntry["message"]; !ok || len(val.(string)) == 0 {
 				return nil, fmt.Errorf("x-deckhouse-validations invalid: missing message")
 			}
@@ -75,6 +79,7 @@ func Validate(schema *spec.Schema, values any) ([]error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create CEL env: %w", err)
 	}
+
 	for _, r := range rules {
 		ast, issues := env.Compile(r.Expression)
 		if issues.Err() != nil {
@@ -91,6 +96,7 @@ func Validate(schema *spec.Schema, values any) ([]error, error) {
 			if strings.Contains(err.Error(), "no such key:") {
 				continue
 			}
+
 			return nil, fmt.Errorf("evaluate the '%s' rule: %w", r.Expression, err)
 		}
 
@@ -98,6 +104,7 @@ func Validate(schema *spec.Schema, values any) ([]error, error) {
 		if !ok {
 			return nil, errors.New("rule should return boolean")
 		}
+
 		if !pass {
 			validationErrs = append(validationErrs, errors.New(r.Message))
 		}
@@ -113,18 +120,21 @@ func buildCELValueAndType(value any) (*cel.Type, any, error) {
 		if err != nil {
 			return nil, nil, fmt.Errorf("convert values to struct: %w", err)
 		}
+
 		return cel.MapType(cel.StringType, cel.DynType), obj, nil
 	case []any:
 		list, err := structpb.NewList(v)
 		if err != nil {
 			return nil, nil, fmt.Errorf("convert array to list: %w", err)
 		}
+
 		return cel.ListType(cel.DynType), list, nil
 	default:
 		val, err := structpb.NewValue(v)
 		if err != nil {
 			return nil, nil, fmt.Errorf("convert dyn to value: %w", err)
 		}
+
 		return cel.DynType, val, nil
 	}
 }
