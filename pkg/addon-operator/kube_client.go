@@ -25,6 +25,7 @@ func defaultKubeClient(metricStorage metricsstorage.Storage, metricLabels map[st
 	client.WithConfigPath(app.KubeConfig)
 	client.WithMetricStorage(metric.NewMetricsAdapter(metricStorage, logger.Named("kube-client-metrics-adapter")))
 	client.WithMetricLabels(metricLabels)
+	client.WithMetricPrefix("nelm_resource_manager_")
 
 	return client
 }
