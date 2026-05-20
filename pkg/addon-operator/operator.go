@@ -63,6 +63,13 @@ type AddonOperator struct {
 	// globals in pkg/app that legacy code still reads from.
 	config *app.Config
 
+	// config is the merged operator configuration (defaults + env + flags or
+	// values supplied by a library caller via WithConfig). It is the source of
+	// truth for everything the operator needs to start. For backward
+	// compatibility, NewAddonOperator also applies it to the package-level
+	// globals in pkg/app that legacy code still reads from.
+	config *app.Config
+
 	runtimeConfig *runtimeConfig.Config
 
 	// a map of channels to communicate with parallel queues and its lock
@@ -281,6 +288,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
 	app.SetupLogging(app.LogLevel, rc, ao.Logger)
+	app.SetupLogging(app.LogLevel, rc, ao.Logger)
 
 	// Hand the engine a fully-built *shapp.Config so it can derive both
 	// KubeClientConfigs (main + object-patcher), the HTTP listen address/port
@@ -293,6 +301,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		pkg.MetricKeyBinding,
 		"queue",
 		"kind",
+	})
 	})
 	if err != nil {
 		panic(err)
@@ -323,6 +332,13 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
 
 	return ao
+}
+
+// Config returns the merged operator configuration. Library callers can use
+// this to introspect the values the operator started with after WithConfig (or
+// the default env-based init) has been applied.
+func (op *AddonOperator) Config() *app.Config {
+	return op.config
 }
 
 // Config returns the merged operator configuration. Library callers can use

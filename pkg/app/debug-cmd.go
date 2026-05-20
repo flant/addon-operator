@@ -28,12 +28,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 	globalCmd := &cobra.Command{Use: "global", Short: "Manage global values."}
 	globalCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "yaml", "Output format: json|yaml|text.")
 	DefineDebugUnixSocketFlag(globalCmd)
+	DefineDebugUnixSocketFlag(globalCmd)
 	rootCmd.AddCommand(globalCmd)
 
 	globalCmd.AddCommand(&cobra.Command{
 		Use:   "list",
 		Short: "List global hooks.",
 		RunE: func(_ *cobra.Command, _ []string) error {
+			client, err := debugClient()
 			client, err := debugClient()
 			if err != nil {
 				return err
@@ -55,6 +57,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Short: "Dump current global values.",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := debugClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -74,6 +77,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Use:   "config",
 		Short: "Dump global config values.",
 		RunE: func(_ *cobra.Command, _ []string) error {
+			client, err := debugClient()
 			client, err := debugClient()
 			if err != nil {
 				return err
@@ -95,6 +99,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Short: "Dump global value patches.",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := debugClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -115,6 +120,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Short: "Dump snapshots for all global hooks.",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := debugClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -133,12 +139,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 	moduleCmd := &cobra.Command{Use: "module", Short: "List modules and dump their values."}
 	moduleCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "yaml", "Output format: json|yaml|text.")
 	DefineDebugUnixSocketFlag(moduleCmd)
+	DefineDebugUnixSocketFlag(moduleCmd)
 	rootCmd.AddCommand(moduleCmd)
 
 	moduleCmd.AddCommand(&cobra.Command{
 		Use:   "list",
 		Short: "List available modules and their enabled status.",
 		RunE: func(_ *cobra.Command, _ []string) error {
+			client, err := debugClient()
 			client, err := debugClient()
 			if err != nil {
 				return err
@@ -167,6 +175,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
 
+			client, err := debugClient()
 			client, err := debugClient()
 			if err != nil {
 				return err
@@ -198,6 +207,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			moduleName = args[0]
 
 			client, err := debugClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -224,6 +234,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			moduleName = args[0]
 
 			client, err := debugClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -248,6 +259,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
 
+			client, err := debugClient()
 			client, err := debugClient()
 			if err != nil {
 				return err
@@ -275,6 +287,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 			}
 
 			client, err := debugClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -298,6 +311,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
 
+			client, err := debugClient()
 			client, err := debugClient()
 			if err != nil {
 				return err
