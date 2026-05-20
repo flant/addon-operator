@@ -143,10 +143,12 @@ func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
 	if cfg != nil {
 		return cfg
 	}
+
 	out := app.NewConfig()
 	if err := app.ParseEnv(out); err != nil {
 		logger.Error("parse addon-operator config from environment", log.Err(err))
 	}
+
 	return out
 }
 
@@ -175,6 +177,7 @@ func shellOperatorConfig(c *app.Config) *shapp.Config {
 	if c == nil {
 		return nil
 	}
+
 	return &shapp.Config{
 		App: shapp.AppSettings{
 			HooksDir:                c.App.GlobalHooksDir,

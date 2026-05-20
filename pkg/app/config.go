@@ -170,18 +170,23 @@ func applyShellOperatorEnv(cfg *Config) {
 	if v, ok := os.LookupEnv("SHELL_OPERATOR_HOOKS_DIR"); ok {
 		cfg.App.GlobalHooksDir = v
 	}
+
 	if v, ok := os.LookupEnv("SHELL_OPERATOR_TMP_DIR"); ok {
 		cfg.App.TempDir = v
 	}
+
 	if v, ok := os.LookupEnv("SHELL_OPERATOR_LISTEN_ADDRESS"); ok {
 		cfg.App.ListenAddress = v
 	}
+
 	if v, ok := os.LookupEnv("SHELL_OPERATOR_LISTEN_PORT"); ok {
 		cfg.App.ListenPort = v
 	}
+
 	if v, ok := os.LookupEnv("SHELL_OPERATOR_PROMETHEUS_METRICS_PREFIX"); ok {
 		cfg.App.PrometheusMetricsPrefix = v
 	}
+
 	if v, ok := os.LookupEnv("SHELL_OPERATOR_NAMESPACE"); ok {
 		cfg.App.Namespace = v
 	}

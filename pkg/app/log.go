@@ -37,11 +37,13 @@ func SetupLogging(level string, runtimeConfig Registerer, logger *log.Logger) {
 		func(_ string, newValue string) error {
 			logger.Info("Change log level", slog.String("value", newValue))
 			log.SetDefaultLevel(log.LogLevelFromStr(newValue))
+
 			return nil
 		}, func(_ string, newValue string) time.Duration {
 			if strings.ToLower(newValue) == "debug" {
 				return ForcedDurationForDebugLevel
 			}
+
 			return 0
 		})
 }
