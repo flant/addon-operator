@@ -150,18 +150,35 @@ func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
 	return out
 }
 
-// shellOperatorConfig projects the addon-operator *app.Config onto the subset
-// of shell-operator's *shapp.Config that AssembleCommonOperatorFromConfig
-// actually reads (the HTTP server address, main kube client, object-patcher
-// kube client, and metric prefix). It is the single place where the two
-// config shapes meet, keeping the rest of the operator free of manual
-// per-field unpacking.
+// shellOperatorConfig projects the addon-operator *app.Config onto a fully
+// populated shell-operator *shapp.Config. It is the single place where the
+// two config shapes meet, so the addon-operator config remains the only
+// source of truth that drives shell-operator too.
+//
+// Mappings:
+//   - App.HooksDir            ← App.GlobalHooksDir (addon-operator's global
+//     hooks directory plays the role of shell-operator's hooks directory).
+//   - App.TempDir, ListenAddress, ListenPort, PrometheusMetricsPrefix,
+//     Namespace ← App.*.
+//   - Kube.{Context, Config, Server, ClientQPS, ClientBurst} ← Kube.*.
+//   - ObjectPatcher.* ← ObjectPatcher.*.
+//   - Debug.{UnixSocket, HTTPServerAddr, KeepTempFiles, KubernetesAPI}
+//     ← Debug.{UnixSocket, HTTPServerAddr, KeepTmpFiles, KubernetesAPI}.
+//   - Log.{Level, Type, NoTime, ProxyHookJSON} ← Log.*.
+//
+// shell-operator's Admission/Conversion settings are intentionally not
+// mapped: addon-operator runs its own admission server (see
+// pkg/addon-operator/admission_http_server.go) and does not delegate webhook
+// configuration to shell-operator. Adding mappings here would silently
+// activate shell-operator paths we do not use.
 func shellOperatorConfig(c *app.Config) *shapp.Config {
 	if c == nil {
 		return nil
 	}
 	return &shapp.Config{
 		App: shapp.AppSettings{
+			HooksDir:                c.App.GlobalHooksDir,
+			TempDir:                 c.App.TempDir,
 			ListenAddress:           c.App.ListenAddress,
 			ListenPort:              c.App.ListenPort,
 			PrometheusMetricsPrefix: c.App.PrometheusMetricsPrefix,
@@ -178,6 +195,18 @@ func shellOperatorConfig(c *app.Config) *shapp.Config {
 			KubeClientQPS:     c.ObjectPatcher.KubeClientQPS,
 			KubeClientBurst:   c.ObjectPatcher.KubeClientBurst,
 			KubeClientTimeout: c.ObjectPatcher.KubeClientTimeout,
+		},
+		Debug: shapp.DebugSettings{
+			UnixSocket:     c.Debug.UnixSocket,
+			HTTPServerAddr: c.Debug.HTTPServerAddr,
+			KeepTempFiles:  c.Debug.KeepTmpFiles,
+			KubernetesAPI:  c.Debug.KubernetesAPI,
+		},
+		Log: shapp.LogSettings{
+			Level:         c.Log.Level,
+			Type:          c.Log.Type,
+			NoTime:        c.Log.NoTime,
+			ProxyHookJSON: c.Log.ProxyHookJSON,
 		},
 	}
 }
