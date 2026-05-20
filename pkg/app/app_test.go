@@ -366,6 +366,55 @@ func TestBindFlags_LogFlags(t *testing.T) {
 	}
 }
 
+// TestDebugUnixSocket_DefaultIsBakedIn pins the package-level default so
+// debug sub-commands that bind to &DebugUnixSocket get a sensible value
+// even before any ApplyConfig call.
+func TestDebugUnixSocket_DefaultIsBakedIn(t *testing.T) {
+	if DebugUnixSocket != DefaultDebugUnixSocket {
+		t.Errorf("DebugUnixSocket default: got %q, want %q", DebugUnixSocket, DefaultDebugUnixSocket)
+	}
+}
+
+// TestApplyConfig_NilIsNoop documents that ApplyConfig tolerates a nil cfg
+// so callers don't need to guard at every call site. Mirrors the shell-operator
+// app.ApplyConfig contract.
+func TestApplyConfig_NilIsNoop(t *testing.T) {
+	prev := DebugUnixSocket
+	t.Cleanup(func() { DebugUnixSocket = prev })
+
+	DebugUnixSocket = "/run/sentinel.socket"
+	ApplyConfig(nil)
+
+	if DebugUnixSocket != "/run/sentinel.socket" {
+		t.Errorf("ApplyConfig(nil) altered globals: DebugUnixSocket=%q", DebugUnixSocket)
+	}
+}
+
+// TestBindDebugFlags_SyncsDebugUnixSocketGlobal guarantees that registering
+// debug flags propagates cfg.Debug.UnixSocket to the package-level
+// DebugUnixSocket global. Debug sub-commands (global, module, ...) bind their
+// own --debug-unix-socket flag to that global via DefineDebugUnixSocketFlag,
+// so this is what makes them pick up env/default-merged values without going
+// through the start command path.
+func TestBindDebugFlags_SyncsDebugUnixSocketGlobal(t *testing.T) {
+	prev := DebugUnixSocket
+	t.Cleanup(func() { DebugUnixSocket = prev })
+
+	DebugUnixSocket = "/stale/value.socket"
+
+	cfg := NewConfig()
+	cfg.Debug.UnixSocket = "/synced/from/cfg.socket"
+
+	root := &cobra.Command{Use: "addon-operator"}
+	start := &cobra.Command{Use: "start"}
+	BindFlags(cfg, root, start)
+
+	if DebugUnixSocket != "/synced/from/cfg.socket" {
+		t.Errorf("BindFlags should sync DebugUnixSocket global from cfg: got %q, want %q",
+			DebugUnixSocket, "/synced/from/cfg.socket")
+	}
+}
+
 func TestBindFlags_DebugFlags(t *testing.T) {
 	cfg := NewConfig()
 	parseFlags(t, cfg,

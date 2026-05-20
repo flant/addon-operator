@@ -78,8 +78,9 @@ var (
 	ObjectPatcherKubeClientBurst   int
 	ObjectPatcherKubeClientTimeout time.Duration
 
-	// Debug settings (previously from shell-operator globals)
-	DebugUnixSocket     string
+	// Debug settings (previously from shell-operator globals).
+	// DebugUnixSocket lives in debug_flag.go so its default and binding
+	// helpers sit next to each other, mirroring shell-operator's layout.
 	DebugHTTPServerAddr string
 	DebugKeepTmpFiles   bool
 	DebugKubernetesAPI  bool
@@ -163,6 +164,12 @@ func bindLogFlags(cfg *Config, cmd *cobra.Command) {
 }
 
 func bindDebugFlags(cfg *Config, rootCmd *cobra.Command, cmd *cobra.Command) {
+	// Sync the package-level DebugUnixSocket global so debug sub-commands
+	// (global, module, etc.) that bind their --debug-unix-socket flag to it
+	// pick up the env/default-merged value. Mirrors shell-operator's
+	// bindDebugFlags, which performs the same call for the same reason.
+	ApplyConfig(cfg)
+
 	f := cmd.Flags()
 	f.StringVar(&cfg.Debug.UnixSocket, "debug-unix-socket", cfg.Debug.UnixSocket, "A path to a unix socket for a debug endpoint. Can be set with $DEBUG_UNIX_SOCKET.")
 	_ = f.MarkHidden("debug-unix-socket")
