@@ -9,10 +9,15 @@ import (
 )
 
 // debugClient returns a debug HTTP client connected to the addon-operator's
-// unix socket. We deliberately avoid sh_debug.DefaultClient() because that
-// reads shell-operator's app.DebugUnixSocket global, which we no longer
-// mirror into. Using our own socket path keeps debug commands working without
-// depending on shell-operator globals.
+// unix socket. We use our own DebugUnixSocket (rather than
+// sh_debug.DefaultClient(), which reads shell-operator's app.DebugUnixSocket
+// global) so the addon-operator-side sub-commands defined in
+// DefineDebugCommands stay self-contained.
+//
+// Note that shapp.DebugUnixSocket is also kept in sync with this value by
+// cmd/addon-operator/main.go (via shapp.ApplyConfig(ShellOperatorConfig(cfg)))
+// so that shell-operator's own debug sub-commands (queue, config, hook, raw)
+// — wired in by debug.DefineDebugCommands — dial the same path.
 func debugClient() (*sh_debug.Client, error) {
 	return sh_debug.NewClient(DebugUnixSocket)
 }

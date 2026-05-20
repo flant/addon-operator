@@ -152,10 +152,15 @@ func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
 	return out
 }
 
-// shellOperatorConfig projects the addon-operator *app.Config onto a fully
+// ShellOperatorConfig projects the addon-operator *app.Config onto a fully
 // populated shell-operator *shapp.Config. It is the single place where the
 // two config shapes meet, so the addon-operator config remains the only
 // source of truth that drives shell-operator too.
+//
+// Exported so binaries / library consumers can hand the projection to
+// shapp.ApplyConfig before registering shell-operator's debug sub-commands
+// (debug.DefineDebugCommands), making the legacy shapp.DebugUnixSocket global
+// observe the addon-operator socket path.
 //
 // Mappings:
 //   - App.HooksDir            ← App.GlobalHooksDir (addon-operator's global
@@ -173,7 +178,7 @@ func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
 // pkg/addon-operator/admission_http_server.go) and does not delegate webhook
 // configuration to shell-operator. Adding mappings here would silently
 // activate shell-operator paths we do not use.
-func shellOperatorConfig(c *app.Config) *shapp.Config {
+func ShellOperatorConfig(c *app.Config) *shapp.Config {
 	if c == nil {
 		return nil
 	}
@@ -239,6 +244,18 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	// bridges the typed Config to the legacy globals.
 	app.ApplyConfig(ao.config)
 
+	// Library consumers reach this constructor with their own *app.Config
+	// (via WithConfig) and never run cmd/addon-operator/main.go, so the
+	// shapp.ApplyConfig bridge in main.go does not fire for them. Replicate
+	// it here so that any shell-operator code path that still reads its
+	// package-level globals (e.g. shapp.DebugUnixSocket consulted by
+	// shell-operator's debug.DefineDebugCommands or debug.DefaultClient())
+	// observes the addon-operator-supplied values, not shell-operator's
+	// hardcoded defaults. The function is nil-safe and idempotent, so it is
+	// also harmless to call from the binary path where main.go already
+	// invoked it once.
+	shapp.ApplyConfig(ShellOperatorConfig(ao.config))
+
 	ao.DefaultNamespace = app.Namespace
 
 	if metricsStorage == nil {
@@ -270,7 +287,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	// and the metric prefix in one place. This uses shell-operator v1.17.2's
 	// AssembleCommonOperatorFromConfig entrypoint, which removes the need for
 	// us to unpack fields by hand.
-	err := so.AssembleCommonOperatorFromConfig(shellOperatorConfig(ao.config), []string{
+	err := so.AssembleCommonOperatorFromConfig(ShellOperatorConfig(ao.config), []string{
 		"module",
 		pkg.MetricKeyHook,
 		pkg.MetricKeyBinding,

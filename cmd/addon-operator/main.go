@@ -20,6 +20,7 @@ import (
 	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/utils/stdliblogtolog"
 	"github.com/flant/kube-client/klogtolog"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	shmetrics "github.com/flant/shell-operator/pkg/metrics"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
@@ -68,6 +69,24 @@ func main() {
 	}
 	app.BindFlags(cfg, rootCmd, startCmd)
 	rootCmd.AddCommand(startCmd)
+
+	// Propagate addon-operator's cfg.Debug.UnixSocket into shell-operator's
+	// package-level globals before registering shell-operator's debug
+	// sub-commands (queue, config, hook, raw). Those sub-commands bind their
+	// --debug-unix-socket flag to shapp.DebugUnixSocket and dial it via
+	// debug.DefaultClient(); without this bridge they would default to
+	// /var/run/shell-operator/debug.socket while the addon-operator debug
+	// server actually listens on cfg.Debug.UnixSocket. This is the modern
+	// equivalent of the `shapp.DebugUnixSocket = DefaultDebugUnixSocket` line
+	// addon-operator v1.20.9 carried under a "TODO: rewrite shapp global
+	// variables to the addon-operator one" comment.
+	//
+	// NewAddonOperator runs an equivalent shapp.ApplyConfig call so library
+	// consumers (who skip this main.go path) also get the propagation. This
+	// one stays because shell-operator's debug.DefineDebugCommands binds
+	// flag defaults BEFORE rootCmd.Execute, i.e. before any start RunE
+	// invokes NewAddonOperator.
+	shapp.ApplyConfig(addon_operator.ShellOperatorConfig(cfg))
 
 	debug.DefineDebugCommands(rootCmd)
 	app.DefineDebugCommands(rootCmd)
