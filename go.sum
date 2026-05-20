@@ -153,8 +153,8 @@ github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/flant/kube-client v1.7.0 h1:+B0yZfQuVKnsyf51+pQckxeKA7SR9YOdhyR3GeQi57s=
 github.com/flant/kube-client v1.7.0/go.mod h1:16bcsXO8C7i0rtKmrpbgmJpnQgqlUzfIOZs521WmKcE=
-github.com/flant/shell-operator v1.17.3 h1:74dX7p4/a1auf9o5oFtaHZCyDO8SkLNHQ1QlmKXF5Rc=
-github.com/flant/shell-operator v1.17.3/go.mod h1:hgNK2THlMMh8tdFE+pTLhdI8iHxCJZ2ZvMQ3ZGSv72c=
+github.com/flant/shell-operator v1.17.4 h1:nPXLWJ+8MUaPWUaQY5n+pLqCE5zonvhnZGWreMICtfw=
+github.com/flant/shell-operator v1.17.4/go.mod h1:hgNK2THlMMh8tdFE+pTLhdI8iHxCJZ2ZvMQ3ZGSv72c=
 github.com/flopp/go-findfont v0.1.0 h1:lPn0BymDUtJo+ZkV01VS3661HL6F4qFlkhcJN55u6mU=
 github.com/flopp/go-findfont v0.1.0/go.mod h1:wKKxRDjD024Rh7VMwoU90i6ikQRCr+JTHB5n4Ejkqvw=
 github.com/fluxcd/flagger v1.36.1 h1:X2PumtNwZz9YSGaOtZLFm2zAKLgHhFkbNv8beg7ifyc=

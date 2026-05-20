@@ -193,8 +193,23 @@ func applyShellOperatorEnv(cfg *Config) {
 }
 
 // ApplyConfig copies Config values into package-level variables for backward
-// compatibility with code that reads them directly (e.g. module_manager).
+// compatibility with code that reads them directly (e.g. module_manager) and
+// for debug sub-commands that bind their --debug-unix-socket flag to the
+// package-level DebugUnixSocket global (see pkg/app/debug_flag.go).
+//
+// A nil cfg is a no-op so callers don't need to guard. The function is
+// idempotent and safe to call multiple times — bindDebugFlags invokes it so
+// debug sub-commands see env/default-merged values, and NewAddonOperator
+// re-invokes it once flags have been parsed so an explicit --flag wins.
+//
+// This mirrors shell-operator's app.ApplyConfig contract (nil-safe,
+// idempotent, called from bindDebugFlags) so addon-operator's outer programs
+// and debug sub-commands behave the same way.
 func ApplyConfig(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+
 	ModulesDir = cfg.App.ModulesDir
 	GlobalHooksDir = cfg.App.GlobalHooksDir
 	TempDir = cfg.App.TempDir

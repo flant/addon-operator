@@ -1,6 +1,7 @@
 package addon_operator
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -131,8 +132,71 @@ func TestWithConfig_StoresConfigPointer(t *testing.T) {
 // TestShellOperatorConfig_NilIn returns nil for a nil input so the engine
 // can fall back to its in-cluster defaults.
 func TestShellOperatorConfig_NilIn(t *testing.T) {
-	if got := shellOperatorConfig(nil); got != nil {
-		t.Errorf("shellOperatorConfig(nil) = %+v, want nil", got)
+	if got := ShellOperatorConfig(nil); got != nil {
+		t.Errorf("ShellOperatorConfig(nil) = %+v, want nil", got)
+	}
+}
+
+// TestShellOperatorConfig_DrivesShappDebugUnixSocket pins the contract that
+// makes addon-operator's debug socket reach shell-operator's package-level
+// global. cmd/addon-operator/main.go relies on this chain
+// (ShellOperatorConfig → shapp.ApplyConfig) to give shell-operator's debug
+// sub-commands (queue, config, hook, raw — wired via
+// debug.DefineDebugCommands) the correct --debug-unix-socket default and
+// DefaultClient() socket path.
+func TestShellOperatorConfig_DrivesShappDebugUnixSocket(t *testing.T) {
+	prev := shapp.DebugUnixSocket
+	t.Cleanup(func() { shapp.DebugUnixSocket = prev })
+
+	shapp.DebugUnixSocket = "/stale/shell-op/default.socket"
+
+	cfg := app.NewConfig()
+	cfg.Debug.UnixSocket = "/run/addon-operator/debug.socket"
+
+	shapp.ApplyConfig(ShellOperatorConfig(cfg))
+
+	if shapp.DebugUnixSocket != "/run/addon-operator/debug.socket" {
+		t.Errorf("shapp.DebugUnixSocket: got %q, want %q (must be driven by addon-operator cfg)",
+			shapp.DebugUnixSocket, "/run/addon-operator/debug.socket")
+	}
+}
+
+// TestNewAddonOperator_SyncsShappDebugUnixSocketFromConfig pins the
+// library-mode contract: a consumer that hands NewAddonOperator its own
+// *app.Config via WithConfig — and therefore never runs
+// cmd/addon-operator/main.go — must still get shell-operator's
+// package-level DebugUnixSocket aligned with cfg.Debug.UnixSocket.
+//
+// This is what lets a library consumer expose, for example,
+// shell-operator's debug.DefineDebugCommands on its own root command and
+// have those sub-commands dial the addon-operator socket instead of
+// /var/run/shell-operator/debug.socket.
+func TestNewAddonOperator_SyncsShappDebugUnixSocketFromConfig(t *testing.T) {
+	prevShapp := shapp.DebugUnixSocket
+	prevApp := app.DebugUnixSocket
+	t.Cleanup(func() {
+		shapp.DebugUnixSocket = prevShapp
+		app.DebugUnixSocket = prevApp
+	})
+
+	shapp.DebugUnixSocket = "/stale/shell-op/default.socket"
+	app.DebugUnixSocket = "/stale/addon-op/default.socket"
+
+	cfg := app.NewConfig()
+	cfg.Debug.UnixSocket = "/lib-consumer/debug.socket"
+
+	_ = NewAddonOperator(context.Background(), nil, nil,
+		WithConfig(cfg),
+		WithLogger(log.NewNop()),
+	)
+
+	if app.DebugUnixSocket != "/lib-consumer/debug.socket" {
+		t.Errorf("app.DebugUnixSocket: got %q, want %q (library consumer's cfg must reach addon-operator global)",
+			app.DebugUnixSocket, "/lib-consumer/debug.socket")
+	}
+	if shapp.DebugUnixSocket != "/lib-consumer/debug.socket" {
+		t.Errorf("shapp.DebugUnixSocket: got %q, want %q (library consumer's cfg must reach shell-operator global too)",
+			shapp.DebugUnixSocket, "/lib-consumer/debug.socket")
 	}
 }
 
@@ -170,9 +234,9 @@ func TestShellOperatorConfig_MapsAllRelevantFields(t *testing.T) {
 	in.Log.NoTime = true
 	in.Log.ProxyHookJSON = true
 
-	out := shellOperatorConfig(in)
+	out := ShellOperatorConfig(in)
 	if out == nil {
-		t.Fatal("shellOperatorConfig returned nil for a non-nil input")
+		t.Fatal("ShellOperatorConfig returned nil for a non-nil input")
 	}
 
 	// App
