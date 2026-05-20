@@ -22,12 +22,6 @@ var (
 	// no longer have to write into shell-operator globals.
 	AppStartMessage = AppName
 
-	// AppStartMessage is the line logged at the start of the operator. The
-	// binary entrypoint can override it (e.g. to embed the version).
-	// Mirrors what shell-operator exposes as app.AppStartMessage so callers
-	// no longer have to write into shell-operator globals.
-	AppStartMessage = AppName
-
 	ListenAddress = "0.0.0.0"
 	ListenPort    = "9650"
 

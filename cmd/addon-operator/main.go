@@ -20,6 +20,7 @@ import (
 	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/utils/stdliblogtolog"
 	"github.com/flant/kube-client/klogtolog"
+	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	shmetrics "github.com/flant/shell-operator/pkg/metrics"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
