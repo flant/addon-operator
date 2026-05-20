@@ -9,14 +9,18 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-
-	shapp "github.com/flant/shell-operator/pkg/app"
 )
 
 var (
 	AppName        = "addon-operator"
 	AppDescription = ""
 	Version        = "dev"
+
+	// AppStartMessage is the line logged at the start of the operator. The
+	// binary entrypoint can override it (e.g. to embed the version).
+	// Mirrors what shell-operator exposes as app.AppStartMessage so callers
+	// no longer have to write into shell-operator globals.
+	AppStartMessage = AppName
 
 	ListenAddress = "0.0.0.0"
 	ListenPort    = "9650"
@@ -159,8 +163,6 @@ func bindLogFlags(cfg *Config, cmd *cobra.Command) {
 }
 
 func bindDebugFlags(cfg *Config, rootCmd *cobra.Command, cmd *cobra.Command) {
-	shapp.DebugUnixSocket = cfg.Debug.UnixSocket
-
 	f := cmd.Flags()
 	f.StringVar(&cfg.Debug.UnixSocket, "debug-unix-socket", cfg.Debug.UnixSocket, "A path to a unix socket for a debug endpoint. Can be set with $DEBUG_UNIX_SOCKET.")
 	_ = f.MarkHidden("debug-unix-socket")

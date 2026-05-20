@@ -20,7 +20,6 @@ import (
 	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/utils/stdliblogtolog"
 	"github.com/flant/kube-client/klogtolog"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	shmetrics "github.com/flant/shell-operator/pkg/metrics"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
@@ -83,16 +82,17 @@ func main() {
 
 func start(logger *log.Logger, cfg *app.Config) func(cmd *cobra.Command, args []string) error {
 	return func(_ *cobra.Command, _ []string) error {
-		app.ApplyConfig(cfg)
-
-		shapp.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, shapp.Version)
+		app.AppStartMessage = fmt.Sprintf("%s %s", app.AppName, app.Version)
 
 		ctx := context.Background()
 
 		shmetrics.InitMetrics(cfg.App.PrometheusMetricsPrefix)
 		metrics.InitMetrics(cfg.App.PrometheusMetricsPrefix)
 
-		operator := addon_operator.NewAddonOperator(ctx, nil, nil, addon_operator.WithLogger(logger.Named("addon-operator")))
+		operator := addon_operator.NewAddonOperator(ctx, nil, nil,
+			addon_operator.WithConfig(cfg),
+			addon_operator.WithLogger(logger.Named("addon-operator")),
+		)
 
 		operator.StartAPIServer()
 
