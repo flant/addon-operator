@@ -127,6 +127,29 @@ func WithConfig(cfg *app.Config) Option {
 	}
 }
 
+// resolveConfig returns the *app.Config the operator should use.
+//
+// Contract:
+//   - If cfg is non-nil (i.e. the caller supplied WithConfig), it is returned
+//     as-is. Environment variables are NOT parsed; they cannot override values
+//     the caller has explicitly set. This is the guarantee library users rely
+//     on.
+//   - If cfg is nil (binary path with no WithConfig), a fresh config is built
+//     from hardcoded defaults and then overlaid with environment variables.
+//
+// The function is exported through NewAddonOperator only; keeping it private
+// here makes the resolution rule a single, testable piece of logic.
+func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
+	if cfg != nil {
+		return cfg
+	}
+	out := app.NewConfig()
+	if err := app.ParseEnv(out); err != nil {
+		logger.Error("parse addon-operator config from environment", log.Err(err))
+	}
+	return out
+}
+
 // shellOperatorConfig projects the addon-operator *app.Config onto the subset
 // of shell-operator's *shapp.Config that AssembleCommonOperatorFromConfig
 // actually reads (the HTTP server address, main kube client, object-patcher
@@ -177,15 +200,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		ao.Logger = log.NewLogger().Named("addon-operator")
 	}
 
-	// If the caller did not supply a Config, build one from defaults and the
-	// process environment so the binary entrypoint keeps working as-is.
-	// Library callers should pass WithConfig to bypass env parsing entirely.
-	if ao.config == nil {
-		ao.config = app.NewConfig()
-		if err := app.ParseEnv(ao.config); err != nil {
-			ao.Logger.Error("parse addon-operator config from environment", log.Err(err))
-		}
-	}
+	ao.config = resolveConfig(ao.config, ao.Logger)
 
 	// Apply the config into the package-level globals in pkg/app that the
 	// rest of the codebase still reads from. This is the single point that
