@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -135,12 +136,60 @@ func NewConfig() *Config {
 // ParseEnv overrides cfg fields with values from environment variables.
 // Fields whose env var is not set retain their current values, so hardcoded
 // defaults from NewConfig are preserved when no env var is present.
+//
+// Both addon-operator's own variables (ADDON_OPERATOR_*, HELM_*, shared
+// KUBE_*, OBJECT_PATCHER_*, DEBUG_*, LOG_*) and the shell-operator-side
+// variables that have no ADDON_OPERATOR_* counterpart (SHELL_OPERATOR_*
+// HOOKS_DIR / TMP_DIR / LISTEN_ADDRESS / LISTEN_PORT / PROMETHEUS_METRICS_PREFIX
+// / NAMESPACE) are recognized. ADDON_OPERATOR_* wins when both are set
+// because it is applied last and overlays whatever shell-operator envs put
+// in cfg.
+//
+// IMPORTANT: ParseEnv must only be invoked on the binary/CLI path, never on a
+// caller-supplied *Config (see addon_operator.resolveConfig). Library users
+// who pass WithConfig rely on env vars being ignored.
 func ParseEnv(cfg *Config) error {
+	applyShellOperatorEnv(cfg)
+
 	if err := env.ParseWithOptions(cfg, env.Options{}); err != nil {
 		return fmt.Errorf("parse config from environment: %w", err)
 	}
 
 	return nil
+}
+
+// applyShellOperatorEnv copies the six SHELL_OPERATOR_* variables that
+// shell-operator's own *shapp.Config would otherwise read but addon-operator
+// silently dropped, into the corresponding addon-operator fields. The mapping
+// is intentionally explicit (no struct-tag magic) so reviewers can see
+// exactly which shell-operator envs are honored.
+//
+// Precedence is achieved by call order in ParseEnv: this runs first, the
+// ADDON_OPERATOR_* / shared-env overlay runs second and wins on conflict.
+func applyShellOperatorEnv(cfg *Config) {
+	if v, ok := os.LookupEnv("SHELL_OPERATOR_HOOKS_DIR"); ok {
+		cfg.App.GlobalHooksDir = v
+	}
+
+	if v, ok := os.LookupEnv("SHELL_OPERATOR_TMP_DIR"); ok {
+		cfg.App.TempDir = v
+	}
+
+	if v, ok := os.LookupEnv("SHELL_OPERATOR_LISTEN_ADDRESS"); ok {
+		cfg.App.ListenAddress = v
+	}
+
+	if v, ok := os.LookupEnv("SHELL_OPERATOR_LISTEN_PORT"); ok {
+		cfg.App.ListenPort = v
+	}
+
+	if v, ok := os.LookupEnv("SHELL_OPERATOR_PROMETHEUS_METRICS_PREFIX"); ok {
+		cfg.App.PrometheusMetricsPrefix = v
+	}
+
+	if v, ok := os.LookupEnv("SHELL_OPERATOR_NAMESPACE"); ok {
+		cfg.App.Namespace = v
+	}
 }
 
 // ApplyConfig copies Config values into package-level variables for backward

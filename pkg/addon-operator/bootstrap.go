@@ -13,7 +13,6 @@ import (
 	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 )
@@ -22,7 +21,7 @@ import (
 // It initializes the debug server and assembles all components needed for operation.
 func (op *AddonOperator) bootstrap() error {
 	// Log application startup message
-	log.Info(shapp.AppStartMessage)
+	log.Info(app.AppStartMessage)
 
 	// Log the path where modules will be searched
 	log.Info("Search modules",
@@ -33,7 +32,6 @@ func (op *AddonOperator) bootstrap() error {
 		slog.String(pkg.LogKeyNamespace, op.DefaultNamespace))
 
 	// Initialize the debug server for troubleshooting and monitoring
-	// TODO: rewrite shapp global variables to the addon-operator one
 	var err error
 
 	op.DebugServer, err = shell_operator.RunDefaultDebugServer(app.DebugUnixSocket, app.DebugHTTPServerAddr, op.Logger.Named("debug-server"))

@@ -5,23 +5,31 @@ import (
 
 	"github.com/spf13/cobra"
 
-	shapp "github.com/flant/shell-operator/pkg/app"
 	sh_debug "github.com/flant/shell-operator/pkg/debug"
 )
+
+// debugClient returns a debug HTTP client connected to the addon-operator's
+// unix socket. We deliberately avoid sh_debug.DefaultClient() because that
+// reads shell-operator's app.DebugUnixSocket global, which we no longer
+// mirror into. Using our own socket path keeps debug commands working without
+// depending on shell-operator globals.
+func debugClient() (*sh_debug.Client, error) {
+	return sh_debug.NewClient(DebugUnixSocket)
+}
 
 var outputFormat = "text"
 
 func DefineDebugCommands(rootCmd *cobra.Command) {
 	globalCmd := &cobra.Command{Use: "global", Short: "Manage global values."}
 	globalCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "yaml", "Output format: json|yaml|text.")
-	shapp.DefineDebugUnixSocketFlag(globalCmd)
+	DefineDebugUnixSocketFlag(globalCmd)
 	rootCmd.AddCommand(globalCmd)
 
 	globalCmd.AddCommand(&cobra.Command{
 		Use:   "list",
 		Short: "List global hooks.",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -41,7 +49,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Use:   "values",
 		Short: "Dump current global values.",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -61,7 +69,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Use:   "config",
 		Short: "Dump global config values.",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -81,7 +89,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Use:   "patches",
 		Short: "Dump global value patches.",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -101,7 +109,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		Use:   "snapshots",
 		Short: "Dump snapshots for all global hooks.",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -119,14 +127,14 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 
 	moduleCmd := &cobra.Command{Use: "module", Short: "List modules and dump their values."}
 	moduleCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "yaml", "Output format: json|yaml|text.")
-	shapp.DefineDebugUnixSocketFlag(moduleCmd)
+	DefineDebugUnixSocketFlag(moduleCmd)
 	rootCmd.AddCommand(moduleCmd)
 
 	moduleCmd.AddCommand(&cobra.Command{
 		Use:   "list",
 		Short: "List available modules and their enabled status.",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -154,7 +162,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
 
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -184,7 +192,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
 
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -210,7 +218,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
 
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -235,7 +243,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
 
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -261,7 +269,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 				moduleName = args[0]
 			}
 
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}
@@ -285,7 +293,7 @@ func DefineDebugCommands(rootCmd *cobra.Command) {
 		RunE: func(_ *cobra.Command, args []string) error {
 			moduleName = args[0]
 
-			client, err := sh_debug.DefaultClient()
+			client, err := debugClient()
 			if err != nil {
 				return err
 			}

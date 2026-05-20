@@ -117,6 +117,84 @@ func TestParseEnv_OverridesDefaults(t *testing.T) {
 	}
 }
 
+// TestParseEnv_AppliesShellOperatorEnv ensures the six SHELL_OPERATOR_*
+// variables that shell-operator's own *app.Config would parse but used to be
+// silently dropped by addon-operator are now folded into the addon-operator
+// config (and therefore also flow into the *shapp.Config sent to the
+// embedded engine).
+func TestParseEnv_AppliesShellOperatorEnv(t *testing.T) {
+	t.Setenv("SHELL_OPERATOR_HOOKS_DIR", "/from/shell-op/hooks")
+	t.Setenv("SHELL_OPERATOR_TMP_DIR", "/from/shell-op/tmp")
+	t.Setenv("SHELL_OPERATOR_LISTEN_ADDRESS", "10.0.0.1")
+	t.Setenv("SHELL_OPERATOR_LISTEN_PORT", "9700")
+	t.Setenv("SHELL_OPERATOR_PROMETHEUS_METRICS_PREFIX", "shop_")
+	t.Setenv("SHELL_OPERATOR_NAMESPACE", "shop-ns")
+
+	cfg := NewConfig()
+	if err := ParseEnv(cfg); err != nil {
+		t.Fatalf("ParseEnv: %v", err)
+	}
+
+	if cfg.App.GlobalHooksDir != "/from/shell-op/hooks" {
+		t.Errorf("GlobalHooksDir: got %q, want /from/shell-op/hooks", cfg.App.GlobalHooksDir)
+	}
+	if cfg.App.TempDir != "/from/shell-op/tmp" {
+		t.Errorf("TempDir: got %q, want /from/shell-op/tmp", cfg.App.TempDir)
+	}
+	if cfg.App.ListenAddress != "10.0.0.1" {
+		t.Errorf("ListenAddress: got %q, want 10.0.0.1", cfg.App.ListenAddress)
+	}
+	if cfg.App.ListenPort != "9700" {
+		t.Errorf("ListenPort: got %q, want 9700", cfg.App.ListenPort)
+	}
+	if cfg.App.PrometheusMetricsPrefix != "shop_" {
+		t.Errorf("PrometheusMetricsPrefix: got %q, want shop_", cfg.App.PrometheusMetricsPrefix)
+	}
+	if cfg.App.Namespace != "shop-ns" {
+		t.Errorf("Namespace: got %q, want shop-ns", cfg.App.Namespace)
+	}
+}
+
+// TestParseEnv_AddonOperatorEnvBeatsShellOperatorEnv pins the precedence
+// rule: when both ADDON_OPERATOR_* (or shared) and SHELL_OPERATOR_* are set,
+// the addon-operator-side variable wins.
+func TestParseEnv_AddonOperatorEnvBeatsShellOperatorEnv(t *testing.T) {
+	// SHELL_OPERATOR_* — should be overridden by the addon-operator equivalents below.
+	t.Setenv("SHELL_OPERATOR_HOOKS_DIR", "/shop/hooks")
+	t.Setenv("SHELL_OPERATOR_TMP_DIR", "/shop/tmp")
+	t.Setenv("SHELL_OPERATOR_LISTEN_ADDRESS", "10.0.0.1")
+	t.Setenv("SHELL_OPERATOR_LISTEN_PORT", "9700")
+	t.Setenv("SHELL_OPERATOR_PROMETHEUS_METRICS_PREFIX", "shop_")
+	t.Setenv("SHELL_OPERATOR_NAMESPACE", "shop-ns")
+
+	// ADDON_OPERATOR_* / shared — must win.
+	t.Setenv("ADDON_OPERATOR_GLOBAL_HOOKS_DIR", "/addon/hooks")
+	t.Setenv("ADDON_OPERATOR_TMP_DIR", "/addon/tmp")
+	t.Setenv("ADDON_OPERATOR_LISTEN_ADDRESS", "127.0.0.1")
+	t.Setenv("ADDON_OPERATOR_LISTEN_PORT", "9650")
+	t.Setenv("ADDON_OPERATOR_PROMETHEUS_METRICS_PREFIX", "ao_")
+	t.Setenv("ADDON_OPERATOR_NAMESPACE", "ao-ns")
+
+	cfg := NewConfig()
+	if err := ParseEnv(cfg); err != nil {
+		t.Fatalf("ParseEnv: %v", err)
+	}
+
+	checks := map[string]struct{ got, want string }{
+		"GlobalHooksDir":          {cfg.App.GlobalHooksDir, "/addon/hooks"},
+		"TempDir":                 {cfg.App.TempDir, "/addon/tmp"},
+		"ListenAddress":           {cfg.App.ListenAddress, "127.0.0.1"},
+		"ListenPort":              {cfg.App.ListenPort, "9650"},
+		"PrometheusMetricsPrefix": {cfg.App.PrometheusMetricsPrefix, "ao_"},
+		"Namespace":               {cfg.App.Namespace, "ao-ns"},
+	}
+	for name, c := range checks {
+		if c.got != c.want {
+			t.Errorf("%s: got %q, want %q (ADDON_OPERATOR_* must beat SHELL_OPERATOR_*)", name, c.got, c.want)
+		}
+	}
+}
+
 func TestBindFlags_AppFlags(t *testing.T) {
 	cfg := NewConfig()
 	parseFlags(t, cfg,

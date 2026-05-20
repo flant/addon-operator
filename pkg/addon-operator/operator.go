@@ -56,6 +56,13 @@ type AddonOperator struct {
 
 	DefaultNamespace string
 
+	// config is the merged operator configuration (defaults + env + flags or
+	// values supplied by a library caller via WithConfig). It is the source of
+	// truth for everything the operator needs to start. For backward
+	// compatibility, NewAddonOperator also applies it to the package-level
+	// globals in pkg/app that legacy code still reads from.
+	config *app.Config
+
 	runtimeConfig *runtimeConfig.Config
 
 	// a map of channels to communicate with parallel queues and its lock
@@ -106,13 +113,113 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
+// WithConfig wires an externally-built *app.Config into the operator. This is
+// the recommended entrypoint for library users: build a Config programmatically
+// (or via app.NewConfig + your own overrides), pass it here, and the operator
+// will skip parsing environment variables.
+//
+// When this option is not used, NewAddonOperator falls back to building a
+// Config from defaults and process environment variables, preserving the
+// existing CLI/binary behavior.
+func WithConfig(cfg *app.Config) Option {
+	return func(operator *AddonOperator) {
+		operator.config = cfg
+	}
+}
+
+// resolveConfig returns the *app.Config the operator should use.
+//
+// Contract:
+//   - If cfg is non-nil (i.e. the caller supplied WithConfig), it is returned
+//     as-is. Environment variables are NOT parsed; they cannot override values
+//     the caller has explicitly set. This is the guarantee library users rely
+//     on.
+//   - If cfg is nil (binary path with no WithConfig), a fresh config is built
+//     from hardcoded defaults and then overlaid with environment variables.
+//
+// The function is exported through NewAddonOperator only; keeping it private
+// here makes the resolution rule a single, testable piece of logic.
+func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
+	if cfg != nil {
+		return cfg
+	}
+
+	out := app.NewConfig()
+	if err := app.ParseEnv(out); err != nil {
+		logger.Error("parse addon-operator config from environment", log.Err(err))
+	}
+
+	return out
+}
+
+// shellOperatorConfig projects the addon-operator *app.Config onto a fully
+// populated shell-operator *shapp.Config. It is the single place where the
+// two config shapes meet, so the addon-operator config remains the only
+// source of truth that drives shell-operator too.
+//
+// Mappings:
+//   - App.HooksDir            ← App.GlobalHooksDir (addon-operator's global
+//     hooks directory plays the role of shell-operator's hooks directory).
+//   - App.TempDir, ListenAddress, ListenPort, PrometheusMetricsPrefix,
+//     Namespace ← App.*.
+//   - Kube.{Context, Config, Server, ClientQPS, ClientBurst} ← Kube.*.
+//   - ObjectPatcher.* ← ObjectPatcher.*.
+//   - Debug.{UnixSocket, HTTPServerAddr, KeepTempFiles, KubernetesAPI}
+//     ← Debug.{UnixSocket, HTTPServerAddr, KeepTmpFiles, KubernetesAPI}.
+//   - Log.{Level, Type, NoTime, ProxyHookJSON} ← Log.*.
+//
+// shell-operator's Admission/Conversion settings are intentionally not
+// mapped: addon-operator runs its own admission server (see
+// pkg/addon-operator/admission_http_server.go) and does not delegate webhook
+// configuration to shell-operator. Adding mappings here would silently
+// activate shell-operator paths we do not use.
+func shellOperatorConfig(c *app.Config) *shapp.Config {
+	if c == nil {
+		return nil
+	}
+
+	return &shapp.Config{
+		App: shapp.AppSettings{
+			HooksDir:                c.App.GlobalHooksDir,
+			TempDir:                 c.App.TempDir,
+			ListenAddress:           c.App.ListenAddress,
+			ListenPort:              c.App.ListenPort,
+			PrometheusMetricsPrefix: c.App.PrometheusMetricsPrefix,
+			Namespace:               c.App.Namespace,
+		},
+		Kube: shapp.KubeSettings{
+			Context:     c.Kube.Context,
+			Config:      c.Kube.Config,
+			Server:      c.Kube.Server,
+			ClientQPS:   c.Kube.ClientQPS,
+			ClientBurst: c.Kube.ClientBurst,
+		},
+		ObjectPatcher: shapp.ObjectPatcherSettings{
+			KubeClientQPS:     c.ObjectPatcher.KubeClientQPS,
+			KubeClientBurst:   c.ObjectPatcher.KubeClientBurst,
+			KubeClientTimeout: c.ObjectPatcher.KubeClientTimeout,
+		},
+		Debug: shapp.DebugSettings{
+			UnixSocket:     c.Debug.UnixSocket,
+			HTTPServerAddr: c.Debug.HTTPServerAddr,
+			KeepTempFiles:  c.Debug.KeepTmpFiles,
+			KubernetesAPI:  c.Debug.KubernetesAPI,
+		},
+		Log: shapp.LogSettings{
+			Level:         c.Log.Level,
+			Type:          c.Log.Type,
+			NoTime:        c.Log.NoTime,
+			ProxyHookJSON: c.Log.ProxyHookJSON,
+		},
+	}
+}
+
 func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage metricsstorage.Storage, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
 	ao := &AddonOperator{
 		ctx:                  cctx,
 		cancel:               cancel,
-		DefaultNamespace:     app.Namespace,
 		ConvergeState:        converge.NewConvergeState(),
 		parallelTaskChannels: paralleltask.NewTaskChannels(),
 	}
@@ -124,6 +231,15 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	if ao.Logger == nil {
 		ao.Logger = log.NewLogger().Named("addon-operator")
 	}
+
+	ao.config = resolveConfig(ao.config, ao.Logger)
+
+	// Apply the config into the package-level globals in pkg/app that the
+	// rest of the codebase still reads from. This is the single point that
+	// bridges the typed Config to the legacy globals.
+	app.ApplyConfig(ao.config)
+
+	ao.DefaultNamespace = app.Namespace
 
 	if metricsStorage == nil {
 		ao.Logger.Warn("MetricStorage is not provided, creating a new one")
@@ -147,30 +263,20 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
-	shapp.SetupLogging(app.LogLevel, rc, ao.Logger)
+	app.SetupLogging(app.LogLevel, rc, ao.Logger)
 
-	// Have to initialize common operator to have all common dependencies below
-	mainKubeCfg := shell_operator.KubeClientConfig{
-		Context: app.KubeContext,
-		Config:  app.KubeConfig,
-		QPS:     app.KubeClientQPS,
-		Burst:   app.KubeClientBurst,
-	}
-	patcherKubeCfg := shell_operator.KubeClientConfig{
-		Context: app.KubeContext,
-		Config:  app.KubeConfig,
-		QPS:     app.ObjectPatcherKubeClientQPS,
-		Burst:   app.ObjectPatcherKubeClientBurst,
-		Timeout: app.ObjectPatcherKubeClientTimeout,
-	}
-
-	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, []string{
+	// Hand the engine a fully-built *shapp.Config so it can derive both
+	// KubeClientConfigs (main + object-patcher), the HTTP listen address/port
+	// and the metric prefix in one place. This uses shell-operator v1.17.2's
+	// AssembleCommonOperatorFromConfig entrypoint, which removes the need for
+	// us to unpack fields by hand.
+	err := so.AssembleCommonOperatorFromConfig(shellOperatorConfig(ao.config), []string{
 		"module",
 		pkg.MetricKeyHook,
 		pkg.MetricKeyBinding,
 		"queue",
 		"kind",
-	}, mainKubeCfg, patcherKubeCfg)
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -200,6 +306,13 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	ao.AdmissionServer = NewAdmissionServer(app.AdmissionServerListenPort, app.AdmissionServerCertsDir)
 
 	return ao
+}
+
+// Config returns the merged operator configuration. Library callers can use
+// this to introspect the values the operator started with after WithConfig (or
+// the default env-based init) has been applied.
+func (op *AddonOperator) Config() *app.Config {
+	return op.config
 }
 
 func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElectionConfig) error {
