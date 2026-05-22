@@ -118,18 +118,36 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	return nil
 }
 
+// validateConfigValues validates values against the config OpenAPI schema.
+// Previously stored user settings are passed as the old state so that
+// x-deckhouse-validations transition rules (rules referencing oldSelf) can
+// implement immutability and other update-time invariants on ModuleConfig.
 func (vs *ValuesStorage) validateConfigValues(values utils.Values) error {
 	valuesModuleName := utils.ModuleNameToValuesKey(vs.moduleName)
 	validatableValues := utils.Values{valuesModuleName: values}
 
-	return vs.schemaStorage.ValidateConfigValues(valuesModuleName, validatableValues)
+	var oldValidatable utils.Values
+	if vs.configValues != nil {
+		oldValidatable = utils.Values{valuesModuleName: utils.Values(vs.configValues)}
+	}
+
+	return vs.schemaStorage.ValidateConfigValuesTransition(valuesModuleName, validatableValues, oldValidatable)
 }
 
+// validateValues validates values against the values OpenAPI schema.
+// Previously merged result values are passed as the old state so that
+// x-deckhouse-validations transition rules (rules referencing oldSelf) can
+// catch attempts to mutate immutable fields via values patches.
 func (vs *ValuesStorage) validateValues(values utils.Values) error {
 	valuesModuleName := utils.ModuleNameToValuesKey(vs.moduleName)
 	validatableValues := utils.Values{valuesModuleName: values}
 
-	return vs.schemaStorage.ValidateValues(valuesModuleName, validatableValues)
+	var oldValidatable utils.Values
+	if vs.resultValues != nil {
+		oldValidatable = utils.Values{valuesModuleName: utils.Values(vs.resultValues)}
+	}
+
+	return vs.schemaStorage.ValidateValuesTransition(valuesModuleName, validatableValues, oldValidatable)
 }
 
 // applyNewSchemaStorage sets new schema storage
