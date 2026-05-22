@@ -84,7 +84,7 @@ func main() {
 	// NewAddonOperator runs an equivalent shapp.ApplyConfig call so library
 	// consumers (who skip this main.go path) also get the propagation. This
 	// one stays because shell-operator's debug.DefineDebugCommands binds
-	// flag defaults BEFORE rootCmd.Execute, i.e. before any start RunE
+	// flag defaults BEFORE rootCmd.Execute, i.e. before any start  RunE
 	// invokes NewAddonOperator.
 	shapp.ApplyConfig(addon_operator.ShellOperatorConfig(cfg))
 
