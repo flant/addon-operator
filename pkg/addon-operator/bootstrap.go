@@ -40,6 +40,14 @@ func (op *AddonOperator) bootstrap() error {
 		return fmt.Errorf("start Debug server: %w", err)
 	}
 
+	// Bring the addon-operator-owned dedup shared store online before
+	// Assemble runs InitDefaultHelmResourcesManager. The latter pulls a
+	// per-component DedupClient out of this manager when
+	// DedupClient.HelmResourcesCache is on; if the run loop is not yet
+	// active the first cache.List would block on EnsureInformer waiting
+	// for the factory to start. No-op when no consumer opted in.
+	op.startDedupSharedStoreManager(op.ctx)
+
 	// Assemble all operator components including routes, admission server, metrics updaters, and module management
 	err = op.Assemble(op.DebugServer)
 	if err != nil {

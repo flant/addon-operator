@@ -1,8 +1,12 @@
 package addon_operator
 
 import (
+	"context"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 )
 
 // TestParseHelmResourcesLabelSelector_Defaults pins the contract that the
@@ -73,5 +77,34 @@ func TestParseHelmResourcesLabelSelector_Empty(t *testing.T) {
 func TestParseHelmResourcesLabelSelector_RejectsMalformed(t *testing.T) {
 	if _, err := parseHelmResourcesLabelSelector("===nope==="); err == nil {
 		t.Error("expected error for malformed selector, got nil")
+	}
+}
+
+// TestNewHelmResourcesManager_DedupCacheRequiresSharedManager pins the
+// "loud-on-bug" contract introduced when option (b) decoupled
+// HelmResourcesCache from --dedup-client-enabled. Until this change a
+// useDedupCache=true caller could silently fall back to the cr_cache path
+// when the dedup client was not initialised; that masked configuration
+// errors and made memory diagnostics ambiguous (the operator was running
+// the legacy cache while logs/flags suggested the dedup one). The new
+// contract is: when the operator declares it wants the dedup cache but
+// addon-operator failed to construct its SharedStoreManager, we surface
+// the failure as an error from newHelmResourcesManager so it can never be
+// confused for a successfully wired dedup cache. A nil kubeClient is fine
+// here — the function fails fast on the manager check before touching it.
+func TestNewHelmResourcesManager_DedupCacheRequiresSharedManager(t *testing.T) {
+	_, err := newHelmResourcesManager(
+		context.Background(),
+		nil,
+		nil,
+		true,
+		0,
+		log.NewNop(),
+	)
+	if err == nil {
+		t.Fatal("expected error when useDedupCache=true and sharedMgr=nil, got nil")
+	}
+	if !strings.Contains(err.Error(), "SharedStoreManager") {
+		t.Errorf("error must mention SharedStoreManager (so on-call can grep it), got: %v", err)
 	}
 }

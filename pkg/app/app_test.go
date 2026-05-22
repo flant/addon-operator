@@ -707,11 +707,12 @@ func TestBindFlags_DedupClient_SnapshotStoreIndependent(t *testing.T) {
 
 // TestBindFlags_DedupClient_HelmResourcesCacheIndependent pins the contract
 // that HelmResourcesCache is a standalone toggle: enabling it via env or CLI
-// must NOT flip Enabled (and vice versa). The runtime DedupClient still has
-// to be turned on for the helm-resources cache wiring to take effect, but
-// that gating happens at construction time (see newHelmResourcesManager) —
-// the config layer keeps the two toggles orthogonal so users can configure
-// the operator without coupling unrelated knobs.
+// must NOT flip Enabled (and vice versa). The two are also INDEPENDENT at
+// runtime — Enabled controls shell-operator's hook-side DedupClient,
+// HelmResourcesCache asks addon-operator to build its own
+// kubeclient.SharedStoreManager. Either, both, or neither flag may be
+// active; the helm-resources wiring takes effect whenever HelmResourcesCache
+// is true, regardless of Enabled.
 func TestBindFlags_DedupClient_HelmResourcesCacheIndependent(t *testing.T) {
 	t.Run("env-only", func(t *testing.T) {
 		t.Setenv("DEDUP_CLIENT_HELM_RESOURCES_CACHE", "true")

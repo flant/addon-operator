@@ -39,6 +39,7 @@ import (
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
+	"github.com/ldmonster/kubeclient"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	fileUtils "github.com/flant/shell-operator/pkg/utils/file"
@@ -104,6 +105,30 @@ type AddonOperator struct {
 	ConvergeState *converge.ConvergeState
 
 	TaskService *taskservice.TaskHandlerService
+
+	// dedupSharedStoreMgr is the addon-operator-owned dedup-store manager
+	// that backs internal cache-using components (today: helm-resources
+	// monitor; possibly more in the future). nil unless at least one such
+	// component opted in via app.Config — typically
+	// DedupClient.HelmResourcesCache.
+	//
+	// Lifecycle:
+	//   - Constructed in NewAddonOperator after the engine is assembled so
+	//     it can borrow the main kube client's rest.Config and RESTMapper.
+	//   - Started in op.bootstrap (run loop in a dedicated goroutine) so the
+	//     cache is live before any monitor calls List.
+	//   - Stopped implicitly via op.cancel: SharedStoreManager has no
+	//     explicit Shutdown — the run loop returns when its parent ctx
+	//     is cancelled, which is op.ctx, which Stop() cancels.
+	//
+	// The manager is intentionally addon-operator-private (NOT exposed
+	// through op.engine.DedupClient) because shell-operator's hook DedupClient
+	// is constructed via kubeclient.New rather than via SharedStoreManager
+	// at the time of writing — meaning the two stores are physically
+	// separate. Once shell-operator switches to SharedStoreManager too, the
+	// two can be unified by passing this manager into
+	// AssembleCommonOperatorFromConfig.
+	dedupSharedStoreMgr *kubeclient.SharedStoreManager
 }
 
 type Option func(operator *AddonOperator)
@@ -314,6 +339,19 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		panic(err)
 	}
 
+	// Bring up the addon-operator-owned dedup-store manager once the engine
+	// is assembled so it can reuse the main kube client's rest.Config and
+	// RESTMapper. Only constructed when at least one consumer opted in via
+	// config — keeping zero overhead for deployments that do not flip any
+	// dedup-cache toggle.
+	if dedupConsumersOptedIn(ao.config) {
+		mgr, err := newDedupSharedStoreManager(so.KubeClient, ao.config, ao.Logger.Named("dedup-shared-store"))
+		if err != nil {
+			panic(fmt.Errorf("dedup shared store manager: %w", err))
+		}
+		ao.dedupSharedStoreMgr = mgr
+	}
+
 	// Register addon-operator specific metrics
 	if err := metrics.RegisterHookMetrics(so.HookMetricStorage); err != nil {
 		panic(fmt.Errorf("register hook metrics: %w", err))
@@ -383,16 +421,22 @@ func (op *AddonOperator) Setup() error {
 
 	// Helm resources monitor.
 	// It uses a separate client-go instance. (Metrics are registered when 'main' client is initialized).
-	// When the operator opted into --dedup-client-helm-resources-cache (and
-	// --dedup-client-enabled is also on), the manager is wired to share
-	// op.engine.DedupClient's cache instead of building its own. See
-	// newHelmResourcesManager for the selection logic and trade-offs.
+	// When --dedup-client-helm-resources-cache is on, the manager pulls a
+	// per-consumer *kubeclient.DedupClient out of op.dedupSharedStoreMgr
+	// (constructed in NewAddonOperator and started in bootstrap()). The
+	// per-consumer client gets its own LRU sized by
+	// DedupClient.ReconstructLRUSize but shares the underlying DedupStore
+	// + informer map with any other addon-operator consumer of the
+	// shared manager, so adding more dedup-cache callers later does not
+	// duplicate watches. See newHelmResourcesManager for the selection
+	// logic and trade-offs.
 	helmResourcesManager, err := InitDefaultHelmResourcesManager(
 		op.ctx,
 		op.DefaultNamespace,
 		op.MetricStorage,
-		op.engine.DedupClient,
+		op.dedupSharedStoreMgr,
 		op.config.DedupClient.HelmResourcesCache,
+		op.config.DedupClient.ReconstructLRUSize,
 		op.Logger,
 	)
 	if err != nil {

@@ -94,9 +94,18 @@ type DedupClientSettings struct {
 	SnapshotStore bool `env:"SNAPSHOT_STORE"`
 
 	// HelmResourcesCache routes pkg/helm_resources_manager's per-module
-	// resource list-watch through the runtime DedupClient's cache instead
-	// of its own dedicated controller-runtime cache. Requires Enabled=true;
-	// when Enabled is false this toggle is silently ignored at runtime.
+	// resource list-watch through an addon-operator-owned shared
+	// kubeclient.SharedStoreManager instead of its dedicated
+	// controller-runtime cache.Cache.
+	//
+	// Self-sufficient: this toggle is INDEPENDENT of Enabled. Enabled
+	// constructs shell-operator's hook-side runtime DedupClient (used by
+	// hooks/extensions); HelmResourcesCache instead asks addon-operator to
+	// build its own SharedStoreManager and pull a per-consumer DedupClient
+	// out of it for the helm-resources monitor. Either, both, or neither
+	// flag may be active. ReconstructLRUSize is shared between the two —
+	// it sizes the per-client LRU on whichever DedupClient(s) are
+	// constructed.
 	//
 	// Trade-offs (please benchmark before flipping in production):
 	//   1. The dedicated cache uses a watch-level label-selector
@@ -116,6 +125,12 @@ type DedupClientSettings struct {
 	//          may break even or win;
 	//        * majority of in-cluster objects of those GVKs are NOT managed
 	//          by addon-operator → expect an RSS regression.
+	//   4. The shared store manager is process-private to addon-operator;
+	//      it does not currently share with shell-operator's hook
+	//      DedupClient (shell-operator's wrapper builds its client via
+	//      kubeclient.New, not via SharedStoreManager). The two stores
+	//      can be unified once shell-operator switches to the shared
+	//      manager API.
 	//
 	// Default false keeps the existing behaviour intact for every deployment
 	// that does not explicitly opt in.

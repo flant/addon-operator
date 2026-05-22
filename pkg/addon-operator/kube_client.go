@@ -7,14 +7,14 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
-	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"github.com/ldmonster/kubeclient"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	klient "github.com/flant/kube-client/client"
-	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 	"github.com/flant/shell-operator/pkg/metric"
 )
 
@@ -35,20 +35,26 @@ func defaultKubeClient(metricStorage metricsstorage.Storage, metricLabels map[st
 }
 
 // InitDefaultHelmResourcesManager constructs the helm-resources manager.
-// dedupClient is optional: when non-nil AND app.Config.DedupClient.HelmResourcesCache
-// is true, the manager skips its own cr_cache.Cache and reads through the
-// shared dedup client instead. Otherwise the legacy label-filtered cache is
-// kept.
 //
-// The cache choice is intentionally made here (the binary entry point) so
-// library consumers that build their own AddonOperator can pass a different
-// dedupClient (or nil) without touching helm_resources_manager internals.
+// sharedMgr is the addon-operator-owned *kubeclient.SharedStoreManager
+// (created in NewAddonOperator when at least one dedup-cache consumer
+// opted in). It is optional: when nil, the manager falls back to its
+// own cr_cache.Cache regardless of useDedupCache, so library consumers
+// who never set up a SharedStoreManager get the legacy behaviour without
+// extra wiring.
+//
+// useDedupCache is the user-facing toggle (--dedup-client-helm-resources-cache).
+// The cache path is only chosen when both useDedupCache=true AND a
+// SharedStoreManager is available; this matches the semantics documented
+// on app.Config.DedupClient.HelmResourcesCache and keeps the selection
+// logic in one place.
 func InitDefaultHelmResourcesManager(
 	ctx context.Context,
 	namespace string,
 	metricStorage metricsstorage.Storage,
-	dedupClient *dedupclient.Client,
+	sharedMgr *kubeclient.SharedStoreManager,
 	useDedupCache bool,
+	dedupReconstructLRUSize int,
 	logger *log.Logger,
 ) (helm_resources_manager.HelmResourcesManager, error) {
 	kubeClient := defaultKubeClient(metricStorage, DefaultHelmMonitorKubeClientMetricLabels, logger.Named("helm-monitor-kube-client"))
@@ -60,7 +66,7 @@ func InitDefaultHelmResourcesManager(
 
 	managerLogger := logger.Named("helm-resource-manager")
 
-	mgr, err := newHelmResourcesManager(ctx, kubeClient, dedupClient, useDedupCache, managerLogger)
+	mgr, err := newHelmResourcesManager(ctx, kubeClient, sharedMgr, useDedupCache, dedupReconstructLRUSize, managerLogger)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Helm resources manager: %s\n", err)
 	}
@@ -70,13 +76,17 @@ func InitDefaultHelmResourcesManager(
 	return mgr, nil
 }
 
-// newHelmResourcesManager picks between the legacy and the dedup-backed
-// constructor. Extracted so the selection logic is testable in isolation
-// and the call site reads top-down. The dedup path is only taken when:
+// newHelmResourcesManager picks between the legacy cr_cache path and the
+// shared-dedup-store path. Extracted so the selection logic is testable in
+// isolation and the call site reads top-down.
 //
-//  1. the runtime DedupClient was actually constructed (Enabled=true);
-//  2. the operator opted in to swap the helm-resources cache via
-//     --dedup-client-helm-resources-cache (app.Config.DedupClient.HelmResourcesCache).
+// The dedup path is taken iff useDedupCache is true AND the operator
+// successfully constructed its SharedStoreManager (sharedMgr != nil).
+// A `useDedupCache=true && sharedMgr=nil` combination is treated as a
+// programmer error in addon-operator's own setup (NewAddonOperator should
+// have constructed the manager when dedupConsumersOptedIn returned true)
+// and surfaces as an explicit error rather than a silent fallback — that
+// way the failure mode is loud and stays loud across binary restarts.
 //
 // The label match for the dedup-backed list path is parsed from
 // app.ExtraLabels — same source the legacy cache uses for its watch-level
@@ -85,21 +95,17 @@ func InitDefaultHelmResourcesManager(
 func newHelmResourcesManager(
 	ctx context.Context,
 	kubeClient *klient.Client,
-	dedupClient *dedupclient.Client,
+	sharedMgr *kubeclient.SharedStoreManager,
 	useDedupCache bool,
+	dedupReconstructLRUSize int,
 	logger *log.Logger,
 ) (helm_resources_manager.HelmResourcesManager, error) {
-	if !useDedupCache || dedupClient == nil {
-		if useDedupCache && dedupClient == nil {
-			// Operator asked for the dedup cache but the dedup client
-			// was not constructed (--dedup-client-enabled=false). Log
-			// loudly and fall through to the legacy cache so the
-			// operator still boots; otherwise we'd convert a cache-tier
-			// misconfiguration into a hard startup failure.
-			logger.Warn("dedup-client-helm-resources-cache requested but dedup client not initialised; falling back to dedicated cr_cache",
-				slog.String("hint", "set --dedup-client-enabled=true to take the dedup path"))
-		}
+	if !useDedupCache {
 		return helm_resources_manager.NewHelmResourcesManager(ctx, kubeClient, logger)
+	}
+	if sharedMgr == nil {
+		return nil, fmt.Errorf("dedup-client-helm-resources-cache=true but no SharedStoreManager was constructed; " +
+			"this is an addon-operator bootstrap bug — NewAddonOperator must build the manager before Setup()")
 	}
 
 	labelMatch, err := parseHelmResourcesLabelSelector(app.ExtraLabels)
@@ -107,8 +113,21 @@ func newHelmResourcesManager(
 		return nil, fmt.Errorf("parse helm resources label selector: %w", err)
 	}
 
-	logger.Info("helm resources manager: using shared DedupClient cache",
-		slog.Any("label_match", labelMatch))
+	// Per-consumer DedupClient: shares the SharedStoreManager's underlying
+	// DedupStore + informer map with any other addon-operator consumer
+	// that will be added later, but keeps an independent LRU here so hot
+	// reads don't evict each other. ReconstructLRUSize is reused from the
+	// existing DedupClient settings — when zero, the LRU is disabled and
+	// reads go through the dedup store directly on every Get.
+	clientOpts := []kubeclient.Option{}
+	if dedupReconstructLRUSize > 0 {
+		clientOpts = append(clientOpts, kubeclient.WithReconstructionCache(dedupReconstructLRUSize))
+	}
+	dedupClient := sharedMgr.NewClient(clientOpts...)
+
+	logger.Info("helm resources manager: using shared dedup store via SharedStoreManager.NewClient",
+		slog.Any("label_match", labelMatch),
+		slog.Int("reconstruct_lru_size", dedupReconstructLRUSize))
 
 	lister := helm_resources_manager.NewDedupClientLister(dedupClient, labelMatch)
 	return helm_resources_manager.NewHelmResourcesManagerWithLister(ctx, kubeClient, lister, logger)

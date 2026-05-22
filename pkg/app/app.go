@@ -215,13 +215,14 @@ func bindDedupClientFlags(cfg *Config, cmd *cobra.Command) func() {
 			"monitors observe similar objects. Independent of --dedup-client-enabled. "+
 			"Can be set with $DEDUP_CLIENT_SNAPSHOT_STORE.")
 	f.BoolVar(&cfg.DedupClient.HelmResourcesCache, "dedup-client-helm-resources-cache", cfg.DedupClient.HelmResourcesCache,
-		"Route pkg/helm_resources_manager's resource list-watch through the runtime "+
-			"DedupClient cache instead of a dedicated controller-runtime cache. "+
-			"Requires --dedup-client-enabled=true. Drops the watch-level "+
-			"heritage=addon-operator label filter and the metadata-only informer "+
-			"optimisation in exchange for shared, value-deduplicated storage. May "+
-			"reduce or increase RSS depending on cluster topology — benchmark before "+
-			"flipping. Can be set with $DEDUP_CLIENT_HELM_RESOURCES_CACHE.")
+		"Route pkg/helm_resources_manager's resource list-watch through an "+
+			"addon-operator-owned kubeclient.SharedStoreManager instead of a "+
+			"dedicated controller-runtime cache. Independent of --dedup-client-enabled. "+
+			"Drops the watch-level heritage=addon-operator label filter and the "+
+			"metadata-only informer optimisation in exchange for value-deduplicated "+
+			"storage shared with any other addon-operator consumer of the manager. "+
+			"May reduce or increase RSS depending on cluster topology — benchmark "+
+			"before flipping. Can be set with $DEDUP_CLIENT_HELM_RESOURCES_CACHE.")
 	f.IntVar(&cfg.DedupClient.ReconstructLRUSize, "dedup-client-reconstruct-lru-size",
 		cfg.DedupClient.ReconstructLRUSize,
 		"Size of the LRU that memoises reconstructed Unstructured objects in the dedup cache. "+
