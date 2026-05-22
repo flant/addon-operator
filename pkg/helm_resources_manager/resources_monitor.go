@@ -10,10 +10,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
-	cr_client "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/flant/addon-operator/pkg"
 	klient "github.com/flant/kube-client/client"
@@ -28,7 +25,11 @@ type ResourceMonitorConfig struct {
 	DefaultNamespace string
 
 	KubeClient *klient.Client
-	Cache      cr_cache.Cache
+	// Lister returns the names of operator-scoped objects for a given
+	// (gvk, namespace). Implementations encode whether the underlying
+	// store is the dedicated label-filtered controller-runtime cache or
+	// the runtime DedupClient cache; the monitor itself stays oblivious.
+	Lister ResourceNameLister
 
 	AbsentCb func(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string)
 
@@ -47,7 +48,7 @@ type ResourcesMonitor struct {
 	defaultNamespace string
 
 	kubeClient *klient.Client
-	cache      cr_cache.Cache
+	lister     ResourceNameLister
 
 	absentCb func(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string)
 
@@ -69,7 +70,7 @@ func NewResourcesMonitor(ctx context.Context, cfg *ResourceMonitorConfig) *Resou
 		cancel: cancel,
 
 		kubeClient: cfg.KubeClient,
-		cache:      cfg.Cache,
+		lister:     cfg.Lister,
 
 		moduleName:       cfg.ModuleName,
 		defaultNamespace: cfg.DefaultNamespace,
@@ -290,28 +291,26 @@ func (r *ResourcesMonitor) checkGVKManifests(ctx context.Context, wg *sync.WaitG
 	}
 }
 
-// list all objects in ns and return names of all existent objects
+// listResources delegates to the configured ResourceNameLister, which
+// hides whether the underlying store is the legacy label-filtered
+// cr_cache.Cache (using metadata-only informers) or the DedupClient cache
+// (full Unstructured bodies + list-time label match). The monitor only
+// needs the name set for membership checks against the rendered manifest,
+// so the lister returns it directly.
 func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvk namespacedGVK) (map[string]struct{}, error) {
-	objList := &v1.PartialObjectMetadataList{}
-	objList.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   nsgvk.GVK.Group,
-		Version: nsgvk.GVK.Version,
-		Kind:    nsgvk.GVK.Kind + "List",
-	})
-	log.Debug("List objects from cache",
+	log.Debug("List objects via resource lister",
 		slog.String(pkg.LogKeyNsgvk, fmt.Sprintf("%v", nsgvk)))
 
-	err := r.cache.List(ctx, objList, cr_client.InNamespace(nsgvk.Namespace))
+	gvk := schema.GroupVersionKind{
+		Group:   nsgvk.GVK.Group,
+		Version: nsgvk.GVK.Version,
+		Kind:    nsgvk.GVK.Kind,
+	}
+	existing, err := r.lister.ListNames(ctx, gvk, nsgvk.Namespace)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't list objects from cache: %v", err)
+		return nil, fmt.Errorf("couldn't list objects: %w", err)
 	}
-
-	existingObjs := make(map[string]struct{}, len(objList.Items))
-	for _, eo := range objList.Items {
-		existingObjs[eo.GetName()] = struct{}{}
-	}
-
-	return existingObjs, nil
+	return existing, nil
 }
 
 func (r *ResourcesMonitor) ResourceIds() []string {

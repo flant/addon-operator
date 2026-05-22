@@ -41,7 +41,11 @@ type helmResourcesManager struct {
 
 	Namespace string
 
-	cache cr_cache.Cache
+	// lister is the cache-shape adapter consumed by every spawned
+	// ResourcesMonitor. NewHelmResourcesManager wraps a dedicated
+	// label-filtered cr_cache.Cache; NewHelmResourcesManagerWithLister lets
+	// callers inject an alternative (e.g. a DedupClient-backed lister).
+	lister ResourceNameLister
 
 	kubeClient *klient.Client
 
@@ -55,6 +59,12 @@ type helmResourcesManager struct {
 
 var _ HelmResourcesManager = &helmResourcesManager{}
 
+// NewHelmResourcesManager constructs the legacy helm resources manager: it
+// stands up its own controller-runtime cache.Cache with a watch-level label
+// selector parsed from app.ExtraLabels (typically heritage=addon-operator)
+// and uses metadata-only informers via *PartialObjectMetadataList. This is
+// the smallest-footprint mode and remains the default whenever the
+// DedupClient.HelmResourcesCache toggle is off.
 func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger *log.Logger) (HelmResourcesManager, error) {
 	cctx, cancel := context.WithCancel(ctx)
 	if kclient == nil {
@@ -97,7 +107,39 @@ func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger
 		ctx:        cctx,
 		cancel:     cancel,
 		kubeClient: kclient,
-		cache:      cache,
+		lister:     NewCRCacheLister(cache),
+		logger:     logger,
+	}, nil
+}
+
+// NewHelmResourcesManagerWithLister constructs a helm resources manager
+// whose monitors read through the supplied ResourceNameLister instead of
+// building a dedicated cr_cache. The lister's lifecycle (cache startup,
+// sync, shutdown) is the caller's responsibility — for the dedup-client
+// path the *dedupclient.Client returned by shell-operator already runs its
+// own Start/Shutdown, so this manager simply piggybacks on it.
+//
+// Library consumers that want a non-default lister (e.g. an in-memory
+// fake for tests, or a user-supplied controller-runtime client) reach this
+// constructor directly. addon-operator itself routes through
+// InitDefaultHelmResourcesManager, which selects the constructor based on
+// app.Config.DedupClient.{Enabled, HelmResourcesCache}.
+func NewHelmResourcesManagerWithLister(ctx context.Context, kclient *klient.Client, lister ResourceNameLister, logger *log.Logger) (HelmResourcesManager, error) {
+	if kclient == nil {
+		return nil, fmt.Errorf("kube client not set")
+	}
+	if lister == nil {
+		return nil, fmt.Errorf("resource name lister not set")
+	}
+
+	cctx, cancel := context.WithCancel(ctx)
+	return &helmResourcesManager{
+		eventCh:    make(chan ReleaseStatusEvent),
+		monitors:   make(map[string]*ResourcesMonitor),
+		ctx:        cctx,
+		cancel:     cancel,
+		kubeClient: kclient,
+		lister:     lister,
 		logger:     logger,
 	}, nil
 }
@@ -128,7 +170,7 @@ func (hm *helmResourcesManager) StartMonitor(moduleName string, manifests []mani
 		HelmStatusGetter: lastReleaseStatus,
 		AbsentCb:         hm.absentResourcesCallback,
 		KubeClient:       hm.kubeClient,
-		Cache:            hm.cache,
+		Lister:           hm.lister,
 
 		Logger: hm.logger.Named("resource-monitor"),
 	}
@@ -248,7 +290,7 @@ func (hm *helmResourcesManager) GetAbsentResources(manifests []manifest.Manifest
 		Manifests:        manifests,
 		DefaultNamespace: defaultNamespace,
 		KubeClient:       hm.kubeClient,
-		Cache:            hm.cache,
+		Lister:           hm.lister,
 
 		Logger: hm.logger.Named("resource-monitor"),
 	}

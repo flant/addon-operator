@@ -383,7 +383,18 @@ func (op *AddonOperator) Setup() error {
 
 	// Helm resources monitor.
 	// It uses a separate client-go instance. (Metrics are registered when 'main' client is initialized).
-	helmResourcesManager, err := InitDefaultHelmResourcesManager(op.ctx, op.DefaultNamespace, op.MetricStorage, op.Logger)
+	// When the operator opted into --dedup-client-helm-resources-cache (and
+	// --dedup-client-enabled is also on), the manager is wired to share
+	// op.engine.DedupClient's cache instead of building its own. See
+	// newHelmResourcesManager for the selection logic and trade-offs.
+	helmResourcesManager, err := InitDefaultHelmResourcesManager(
+		op.ctx,
+		op.DefaultNamespace,
+		op.MetricStorage,
+		op.engine.DedupClient,
+		op.config.DedupClient.HelmResourcesCache,
+		op.Logger,
+	)
 	if err != nil {
 		return fmt.Errorf("initialize Helm resources manager: %s", err)
 	}

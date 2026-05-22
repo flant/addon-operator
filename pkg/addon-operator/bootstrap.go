@@ -82,6 +82,17 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) error {
 	// Register debug HTTP endpoints to inspect internal state
 	op.engine.RegisterDebugQueueRoutes(debugServer)
 	op.engine.RegisterDebugConfigRoutes(debugServer, op.runtimeConfig)
+	// Expose shell-operator's /dedup-client/status.{json|yaml|text} route so
+	// operators can verify both the runtime DedupClient and the
+	// kube-events-manager SnapshotStore states (LiveObjects, TotalAcquires,
+	// …) without rebuilding the binary. Mirrors what shell-operator's own
+	// assembleShellOperator does — addon-operator goes through
+	// AssembleCommonOperatorFromConfig instead, which intentionally skips
+	// shell-operator-only debug routes, so we re-register the dedup one
+	// here. Safe to call even when the dedup features are disabled: the
+	// handler returns a "disabled" payload so probes can distinguish "not
+	// configured" from "errored".
+	op.engine.RegisterDebugDedupClientRoutes(debugServer)
 	op.RegisterDebugGlobalRoutes(debugServer)
 	op.RegisterDebugModuleRoutes(debugServer)
 	op.RegisterDiscoveryRoute(debugServer)
