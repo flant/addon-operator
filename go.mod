@@ -10,7 +10,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.7.0
-	github.com/flant/shell-operator v1.17.4
+	github.com/flant/shell-operator v1.17.5-0.20260522085053-6de9eb5c6d59
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-openapi/loads v0.23.1
 	github.com/go-openapi/spec v0.22.0
@@ -47,6 +47,7 @@ require github.com/go-openapi/swag/loading v0.25.1
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/ldmonster/kubeclient v0.0.0-20260522082709-ed73652c723f // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 )
 

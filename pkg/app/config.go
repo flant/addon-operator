@@ -59,6 +59,26 @@ type ObjectPatcherSettings struct {
 	KubeClientTimeout time.Duration `env:"KUBE_CLIENT_TIMEOUT"`
 }
 
+// DedupClientSettings configures the deduplicated kubeclient cache provided by
+// github.com/ldmonster/kubeclient and integrated by shell-operator's
+// pkg/kube/dedupclient. The cache stores a single canonical copy of each
+// repeated value and subtree across watched objects, dramatically lowering
+// in-memory footprint for clusters with many similar resources (e.g.
+// templated Deployments). All fields are optional; when Enabled is false the
+// client is not constructed at all and addon-operator runs as before.
+//
+// Field shape mirrors shell-operator's app.DedupClientSettings 1:1 so the
+// projection in ShellOperatorConfig stays trivial. List-typed env vars use a
+// comma separator: GVK strings follow the form "<group>/<version>/<kind>"
+// (the group may be empty for core resources, e.g. "/v1/Pod").
+type DedupClientSettings struct {
+	Enabled            bool          `env:"ENABLED"`
+	Namespaces         []string      `env:"NAMESPACES" envSeparator:","`
+	WatchGVKs          []string      `env:"WATCH_GVKS" envSeparator:","`
+	ReconstructLRUSize int           `env:"RECONSTRUCT_LRU_SIZE"`
+	GCInterval         time.Duration `env:"GC_INTERVAL"`
+}
+
 type DebugSettings struct {
 	UnixSocket     string `env:"UNIX_SOCKET"`
 	HTTPServerAddr string `env:"HTTP_SERVER_ADDR"`
@@ -84,6 +104,7 @@ type Config struct {
 	Admission     AdmissionSettings     `envPrefix:"ADDON_OPERATOR_"`
 	Kube          KubeSettings          `envPrefix:"KUBE_"`
 	ObjectPatcher ObjectPatcherSettings `envPrefix:"OBJECT_PATCHER_"`
+	DedupClient   DedupClientSettings   `envPrefix:"DEDUP_CLIENT_"`
 	Debug         DebugSettings         `envPrefix:"DEBUG_"`
 	Log           LogSettings           `envPrefix:"LOG_"`
 }

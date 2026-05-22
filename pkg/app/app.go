@@ -100,13 +100,50 @@ const (
 // BindFlags registers all operator CLI flags on cmd, using the current cfg
 // values (already merged with env vars and hardcoded defaults) as flag defaults.
 // An explicit CLI flag always wins.
-func BindFlags(cfg *Config, rootCmd *cobra.Command, cmd *cobra.Command) {
+//
+// The returned function applies any "late-merge" flag overrides — these are
+// flags whose semantics require deciding between the env-derived value and an
+// explicit CLI value AFTER pflag has parsed the command line (e.g.
+// repeatable []string flags such as --dedup-client-namespace, where an empty
+// CLI slice must NOT clobber an env-populated default). Callers that drive
+// the cobra command lifecycle (rootCmd.Execute) get this for free via the
+// PreRunE hook BindFlags installs on cmd; the returned func is exposed for
+// tests and library consumers that want explicit control.
+//
+// Existing callers can safely ignore the return value: BindFlags always
+// installs the same logic on cmd.PreRunE so the merge runs automatically
+// during cobra-driven execution.
+func BindFlags(cfg *Config, rootCmd *cobra.Command, cmd *cobra.Command) func() {
 	bindAppFlags(cfg, cmd)
 	bindHelmFlags(cfg, cmd)
 	bindAdmissionFlags(cfg, cmd)
 	bindKubeFlags(cfg, cmd)
 	bindLogFlags(cfg, cmd)
+	applyDedup := bindDedupClientFlags(cfg, cmd)
 	bindDebugFlags(cfg, rootCmd, cmd)
+
+	apply := func() {
+		applyDedup()
+	}
+
+	// Chain into cmd.PreRunE so cobra-driven execution applies the merge
+	// automatically. We preserve any pre-existing PreRunE (none today, but
+	// keeps the helper composable).
+	//
+	// Note: cobra only invokes PreRunE on commands that are Runnable
+	// (Run/RunE set). main.go sets startCmd.RunE before BindFlags so this
+	// fires for `addon-operator start ...`. Tests that drive Execute()
+	// must ensure RunE is set on the bound command (see parseFlags helper).
+	prev := cmd.PreRunE
+	cmd.PreRunE = func(c *cobra.Command, args []string) error {
+		apply()
+		if prev != nil {
+			return prev(c, args)
+		}
+		return nil
+	}
+
+	return apply
 }
 
 func bindAppFlags(cfg *Config, cmd *cobra.Command) {
@@ -153,6 +190,56 @@ func bindKubeFlags(cfg *Config, cmd *cobra.Command) {
 	f.Float32Var(&cfg.ObjectPatcher.KubeClientQPS, "object-patcher-kube-client-qps", cfg.ObjectPatcher.KubeClientQPS, "QPS for a rate limiter of a Kubernetes client for Object patcher. Can be set with $OBJECT_PATCHER_KUBE_CLIENT_QPS.")
 	f.IntVar(&cfg.ObjectPatcher.KubeClientBurst, "object-patcher-kube-client-burst", cfg.ObjectPatcher.KubeClientBurst, "Burst for a rate limiter of a Kubernetes client for Object patcher. Can be set with $OBJECT_PATCHER_KUBE_CLIENT_BURST.")
 	f.DurationVar(&cfg.ObjectPatcher.KubeClientTimeout, "object-patcher-kube-client-timeout", cfg.ObjectPatcher.KubeClientTimeout, "Timeout for object patcher requests to the Kubernetes API server. Can be set with $OBJECT_PATCHER_KUBE_CLIENT_TIMEOUT.")
+}
+
+// bindDedupClientFlags registers flags for the deduplicated kubeclient cache
+// integrated by shell-operator's pkg/kube/dedupclient package.
+//
+// The two []string fields (Namespaces and WatchGVKs) follow the
+// "env-default + CLI replaces" pattern, mirroring shell-operator's own
+// bindDedupClientFlags: any explicit CLI invocation fully replaces the
+// env-var derived slice; otherwise the env value is kept. The returned
+// closure performs that merge after pflag has parsed the command line and
+// must therefore run between flag parsing and cfg consumption (BindFlags
+// wires it into cmd.PreRunE for the cobra-driven path).
+func bindDedupClientFlags(cfg *Config, cmd *cobra.Command) func() {
+	f := cmd.Flags()
+	f.BoolVar(&cfg.DedupClient.Enabled, "dedup-client-enabled", cfg.DedupClient.Enabled,
+		"Enable the deduplicated kubeclient cache (github.com/ldmonster/kubeclient). "+
+			"When set, addon-operator builds a controller-runtime compatible client backed "+
+			"by a deduplicated store via shell-operator. Can be set with $DEDUP_CLIENT_ENABLED.")
+	f.IntVar(&cfg.DedupClient.ReconstructLRUSize, "dedup-client-reconstruct-lru-size",
+		cfg.DedupClient.ReconstructLRUSize,
+		"Size of the LRU that memoises reconstructed Unstructured objects in the dedup cache. "+
+			"Zero disables reconstruction caching. Can be set with $DEDUP_CLIENT_RECONSTRUCT_LRU_SIZE.")
+	f.DurationVar(&cfg.DedupClient.GCInterval, "dedup-client-gc-interval",
+		cfg.DedupClient.GCInterval,
+		"How often the deduplicated store reclaims unused interned values and subtrees. "+
+			"Zero leaves the kubeclient default in place. Can be set with $DEDUP_CLIENT_GC_INTERVAL.")
+
+	envNamespaces := cfg.DedupClient.Namespaces
+	envGVKs := cfg.DedupClient.WatchGVKs
+	var cliNamespaces, cliGVKs []string
+	f.StringArrayVar(&cliNamespaces, "dedup-client-namespace", nil,
+		"Namespace to restrict the dedup cache to. Repeat the flag to add more, or pass a "+
+			"comma-separated list via $DEDUP_CLIENT_NAMESPACES. Empty means all namespaces.")
+	f.StringArrayVar(&cliGVKs, "dedup-client-watch-gvk", nil,
+		"GroupVersionKind to pre-register with the dedup cache, formatted as "+
+			"\"<group>/<version>/<kind>\" (the group is empty for core resources, e.g. \"/v1/Pod\"). "+
+			"Repeat the flag to add more, or pass a comma-separated list via $DEDUP_CLIENT_WATCH_GVKS.")
+
+	return func() {
+		if len(cliNamespaces) > 0 {
+			cfg.DedupClient.Namespaces = cliNamespaces
+		} else {
+			cfg.DedupClient.Namespaces = envNamespaces
+		}
+		if len(cliGVKs) > 0 {
+			cfg.DedupClient.WatchGVKs = cliGVKs
+		} else {
+			cfg.DedupClient.WatchGVKs = envGVKs
+		}
+	}
 }
 
 func bindLogFlags(cfg *Config, cmd *cobra.Command) {

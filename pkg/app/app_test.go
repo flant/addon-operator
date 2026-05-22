@@ -1,6 +1,7 @@
 package app
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -17,12 +18,18 @@ func newTestCmd(cfg *Config) (*cobra.Command, *cobra.Command) {
 }
 
 // parseFlags parses args against the start sub-command.
+//
+// We must set RunE on the start command (not root.Commands()[0]) because
+// bindDebugFlags adds a "debug-options" sub-command to root inside BindFlags
+// — so root.Commands() actually contains [debug-options, start]. Setting
+// RunE on the right command is also what makes start "Runnable", which is a
+// precondition for cobra to invoke PreRunE (used by bindDedupClientFlags to
+// apply its late-merge of CLI vs env-derived []string values).
 func parseFlags(t *testing.T, cfg *Config, args ...string) {
 	t.Helper()
-	root, _ := newTestCmd(cfg)
+	root, start := newTestCmd(cfg)
 	root.SetArgs(append([]string{"start"}, args...))
-	// Prevent RunE from actually running by providing a no-op.
-	root.Commands()[0].RunE = func(_ *cobra.Command, _ []string) error { return nil }
+	start.RunE = func(_ *cobra.Command, _ []string) error { return nil }
 	if err := root.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -559,6 +566,8 @@ func TestBindFlags_AllFlagsRegistered(t *testing.T) {
 		"kube-client-qps", "kube-client-burst",
 		"object-patcher-kube-client-qps", "object-patcher-kube-client-burst",
 		"object-patcher-kube-client-timeout",
+		"dedup-client-enabled", "dedup-client-namespace", "dedup-client-watch-gvk",
+		"dedup-client-reconstruct-lru-size", "dedup-client-gc-interval",
 		"log-level", "log-type", "log-no-time", "log-proxy-hook-json",
 		"debug-unix-socket", "debug-http-addr", "debug-keep-tmp-files", "debug-kubernetes-api",
 	}
@@ -570,6 +579,102 @@ func TestBindFlags_AllFlagsRegistered(t *testing.T) {
 		if start.Flags().Lookup(name) == nil {
 			t.Errorf("flag --%s not registered on start command", name)
 		}
+	}
+}
+
+// TestBindFlags_DedupClient_Defaults verifies that with no env vars and no
+// CLI flags, the DedupClient block is fully zero-valued — i.e. the feature
+// is opt-in and addon-operator's existing in-cluster behavior is unchanged
+// for users who never touch the new knobs.
+func TestBindFlags_DedupClient_Defaults(t *testing.T) {
+	cfg := NewConfig()
+	parseFlags(t, cfg)
+
+	if cfg.DedupClient.Enabled {
+		t.Error("DedupClient.Enabled: must default to false (opt-in feature)")
+	}
+	if len(cfg.DedupClient.Namespaces) != 0 {
+		t.Errorf("DedupClient.Namespaces: got %v, want empty by default", cfg.DedupClient.Namespaces)
+	}
+	if len(cfg.DedupClient.WatchGVKs) != 0 {
+		t.Errorf("DedupClient.WatchGVKs: got %v, want empty by default", cfg.DedupClient.WatchGVKs)
+	}
+	if cfg.DedupClient.ReconstructLRUSize != 0 {
+		t.Errorf("DedupClient.ReconstructLRUSize: got %d, want 0", cfg.DedupClient.ReconstructLRUSize)
+	}
+	if cfg.DedupClient.GCInterval != 0 {
+		t.Errorf("DedupClient.GCInterval: got %v, want 0", cfg.DedupClient.GCInterval)
+	}
+}
+
+// TestBindFlags_DedupClient_FlagOverridesEnv pins the precedence rule: an
+// explicit --dedup-client-* flag invocation always replaces the env-derived
+// default, even for repeatable []string fields. This mirrors shell-operator's
+// own bindDedupClientFlags semantics so both operators behave identically.
+func TestBindFlags_DedupClient_FlagOverridesEnv(t *testing.T) {
+	t.Setenv("DEDUP_CLIENT_ENABLED", "true")
+	t.Setenv("DEDUP_CLIENT_NAMESPACES", "from-env-1,from-env-2")
+	t.Setenv("DEDUP_CLIENT_WATCH_GVKS", "/v1/Pod,apps/v1/Deployment")
+	t.Setenv("DEDUP_CLIENT_RECONSTRUCT_LRU_SIZE", "1024")
+	t.Setenv("DEDUP_CLIENT_GC_INTERVAL", "1m")
+
+	cfg := NewConfig()
+	if err := ParseEnv(cfg); err != nil {
+		t.Fatalf("ParseEnv: %v", err)
+	}
+
+	parseFlags(t, cfg,
+		"--dedup-client-enabled=false",
+		"--dedup-client-namespace=cli-ns-1",
+		"--dedup-client-namespace=cli-ns-2",
+		"--dedup-client-watch-gvk=/v1/ConfigMap",
+		"--dedup-client-reconstruct-lru-size=2048",
+		"--dedup-client-gc-interval=30s",
+	)
+
+	if cfg.DedupClient.Enabled {
+		t.Error("Enabled: --dedup-client-enabled=false must override env value true")
+	}
+	wantNS := []string{"cli-ns-1", "cli-ns-2"}
+	if !reflect.DeepEqual(cfg.DedupClient.Namespaces, wantNS) {
+		t.Errorf("Namespaces: got %v, want %v (CLI must replace env)", cfg.DedupClient.Namespaces, wantNS)
+	}
+	wantGVKs := []string{"/v1/ConfigMap"}
+	if !reflect.DeepEqual(cfg.DedupClient.WatchGVKs, wantGVKs) {
+		t.Errorf("WatchGVKs: got %v, want %v (CLI must replace env)", cfg.DedupClient.WatchGVKs, wantGVKs)
+	}
+	if cfg.DedupClient.ReconstructLRUSize != 2048 {
+		t.Errorf("ReconstructLRUSize: got %d, want 2048", cfg.DedupClient.ReconstructLRUSize)
+	}
+	if cfg.DedupClient.GCInterval != 30*time.Second {
+		t.Errorf("GCInterval: got %v, want 30s", cfg.DedupClient.GCInterval)
+	}
+}
+
+// TestBindFlags_DedupClient_EnvKeptWhenNoCLI ensures the env-derived []string
+// values survive when the user does not pass the corresponding CLI flag.
+// Without the late-merge in bindDedupClientFlags, pflag's default would
+// silently set Namespaces/WatchGVKs to nil because their CLI default is nil.
+func TestBindFlags_DedupClient_EnvKeptWhenNoCLI(t *testing.T) {
+	t.Setenv("DEDUP_CLIENT_NAMESPACES", "kube-system,default")
+	t.Setenv("DEDUP_CLIENT_WATCH_GVKS", "/v1/Pod,apps/v1/Deployment")
+
+	cfg := NewConfig()
+	if err := ParseEnv(cfg); err != nil {
+		t.Fatalf("ParseEnv: %v", err)
+	}
+
+	parseFlags(t, cfg)
+
+	wantNS := []string{"kube-system", "default"}
+	if !reflect.DeepEqual(cfg.DedupClient.Namespaces, wantNS) {
+		t.Errorf("Namespaces: got %v, want %v (env must be kept when no CLI override)",
+			cfg.DedupClient.Namespaces, wantNS)
+	}
+	wantGVKs := []string{"/v1/Pod", "apps/v1/Deployment"}
+	if !reflect.DeepEqual(cfg.DedupClient.WatchGVKs, wantGVKs) {
+		t.Errorf("WatchGVKs: got %v, want %v (env must be kept when no CLI override)",
+			cfg.DedupClient.WatchGVKs, wantGVKs)
 	}
 }
 

@@ -229,6 +229,12 @@ func TestShellOperatorConfig_MapsAllRelevantFields(t *testing.T) {
 	in.Debug.KeepTmpFiles = true
 	in.Debug.KubernetesAPI = true
 
+	in.DedupClient.Enabled = true
+	in.DedupClient.Namespaces = []string{"kube-system", "default"}
+	in.DedupClient.WatchGVKs = []string{"/v1/Pod", "apps/v1/Deployment"}
+	in.DedupClient.ReconstructLRUSize = 4096
+	in.DedupClient.GCInterval = 30 * time.Second
+
 	in.Log.Level = "error"
 	in.Log.Type = "color"
 	in.Log.NoTime = true
@@ -299,6 +305,23 @@ func TestShellOperatorConfig_MapsAllRelevantFields(t *testing.T) {
 	}
 	if !out.Debug.KubernetesAPI {
 		t.Error("Debug.KubernetesAPI: expected true")
+	}
+
+	// DedupClient — drives shell-operator's pkg/kube/dedupclient cache.
+	if !out.DedupClient.Enabled {
+		t.Error("DedupClient.Enabled: expected true")
+	}
+	if !reflect.DeepEqual(out.DedupClient.Namespaces, []string{"kube-system", "default"}) {
+		t.Errorf("DedupClient.Namespaces: got %v", out.DedupClient.Namespaces)
+	}
+	if !reflect.DeepEqual(out.DedupClient.WatchGVKs, []string{"/v1/Pod", "apps/v1/Deployment"}) {
+		t.Errorf("DedupClient.WatchGVKs: got %v", out.DedupClient.WatchGVKs)
+	}
+	if out.DedupClient.ReconstructLRUSize != 4096 {
+		t.Errorf("DedupClient.ReconstructLRUSize: got %d", out.DedupClient.ReconstructLRUSize)
+	}
+	if out.DedupClient.GCInterval != 30*time.Second {
+		t.Errorf("DedupClient.GCInterval: got %v", out.DedupClient.GCInterval)
 	}
 
 	// Log

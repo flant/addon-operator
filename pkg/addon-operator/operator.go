@@ -37,6 +37,7 @@ import (
 	"github.com/flant/shell-operator/pkg/debug"
 	bc "github.com/flant/shell-operator/pkg/hook/binding_context"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
+	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -169,6 +170,9 @@ func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
 //     Namespace ← App.*.
 //   - Kube.{Context, Config, Server, ClientQPS, ClientBurst} ← Kube.*.
 //   - ObjectPatcher.* ← ObjectPatcher.*.
+//   - DedupClient.{Enabled, Namespaces, WatchGVKs, ReconstructLRUSize, GCInterval}
+//     ← DedupClient.* (drives shell-operator's pkg/kube/dedupclient cache via
+//     AssembleCommonOperatorFromConfig → dedupClientConfigFromAppConfig).
 //   - Debug.{UnixSocket, HTTPServerAddr, KeepTempFiles, KubernetesAPI}
 //     ← Debug.{UnixSocket, HTTPServerAddr, KeepTmpFiles, KubernetesAPI}.
 //   - Log.{Level, Type, NoTime, ProxyHookJSON} ← Log.*.
@@ -203,6 +207,13 @@ func ShellOperatorConfig(c *app.Config) *shapp.Config {
 			KubeClientQPS:     c.ObjectPatcher.KubeClientQPS,
 			KubeClientBurst:   c.ObjectPatcher.KubeClientBurst,
 			KubeClientTimeout: c.ObjectPatcher.KubeClientTimeout,
+		},
+		DedupClient: shapp.DedupClientSettings{
+			Enabled:            c.DedupClient.Enabled,
+			Namespaces:         c.DedupClient.Namespaces,
+			WatchGVKs:          c.DedupClient.WatchGVKs,
+			ReconstructLRUSize: c.DedupClient.ReconstructLRUSize,
+			GCInterval:         c.DedupClient.GCInterval,
 		},
 		Debug: shapp.DebugSettings{
 			UnixSocket:     c.Debug.UnixSocket,
@@ -479,6 +490,21 @@ func (op *AddonOperator) StartAPIServer() {
 // KubeClient returns default common kubernetes client initialized by shell-operator
 func (op *AddonOperator) KubeClient() *client.Client {
 	return op.engine.KubeClient
+}
+
+// DedupClient returns the optional deduplicated kubeclient cache constructed
+// by shell-operator. It is non-nil only when the feature is enabled via
+// app.Config.DedupClient.Enabled (or the equivalent --dedup-client-enabled /
+// $DEDUP_CLIENT_ENABLED settings). Callers must nil-check before use.
+//
+// The returned *dedupclient.Client embeds a controller-runtime
+// sigs.k8s.io/controller-runtime/pkg/client.Client, so it can be used as a
+// drop-in for typed/Unstructured Get/List/Create/Update/Delete calls.
+func (op *AddonOperator) DedupClient() *dedupclient.Client {
+	if op.engine == nil {
+		return nil
+	}
+	return op.engine.DedupClient
 }
 
 func (op *AddonOperator) IsStartupConvergeDone() bool {
