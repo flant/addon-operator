@@ -566,7 +566,8 @@ func TestBindFlags_AllFlagsRegistered(t *testing.T) {
 		"kube-client-qps", "kube-client-burst",
 		"object-patcher-kube-client-qps", "object-patcher-kube-client-burst",
 		"object-patcher-kube-client-timeout",
-		"dedup-client-enabled", "dedup-client-namespace", "dedup-client-watch-gvk",
+		"dedup-client-enabled", "dedup-client-snapshot-store",
+		"dedup-client-namespace", "dedup-client-watch-gvk",
 		"dedup-client-reconstruct-lru-size", "dedup-client-gc-interval",
 		"log-level", "log-type", "log-no-time", "log-proxy-hook-json",
 		"debug-unix-socket", "debug-http-addr", "debug-keep-tmp-files", "debug-kubernetes-api",
@@ -593,6 +594,9 @@ func TestBindFlags_DedupClient_Defaults(t *testing.T) {
 	if cfg.DedupClient.Enabled {
 		t.Error("DedupClient.Enabled: must default to false (opt-in feature)")
 	}
+	if cfg.DedupClient.SnapshotStore {
+		t.Error("DedupClient.SnapshotStore: must default to false (opt-in feature)")
+	}
 	if len(cfg.DedupClient.Namespaces) != 0 {
 		t.Errorf("DedupClient.Namespaces: got %v, want empty by default", cfg.DedupClient.Namespaces)
 	}
@@ -613,6 +617,7 @@ func TestBindFlags_DedupClient_Defaults(t *testing.T) {
 // own bindDedupClientFlags semantics so both operators behave identically.
 func TestBindFlags_DedupClient_FlagOverridesEnv(t *testing.T) {
 	t.Setenv("DEDUP_CLIENT_ENABLED", "true")
+	t.Setenv("DEDUP_CLIENT_SNAPSHOT_STORE", "true")
 	t.Setenv("DEDUP_CLIENT_NAMESPACES", "from-env-1,from-env-2")
 	t.Setenv("DEDUP_CLIENT_WATCH_GVKS", "/v1/Pod,apps/v1/Deployment")
 	t.Setenv("DEDUP_CLIENT_RECONSTRUCT_LRU_SIZE", "1024")
@@ -625,6 +630,7 @@ func TestBindFlags_DedupClient_FlagOverridesEnv(t *testing.T) {
 
 	parseFlags(t, cfg,
 		"--dedup-client-enabled=false",
+		"--dedup-client-snapshot-store=false",
 		"--dedup-client-namespace=cli-ns-1",
 		"--dedup-client-namespace=cli-ns-2",
 		"--dedup-client-watch-gvk=/v1/ConfigMap",
@@ -634,6 +640,9 @@ func TestBindFlags_DedupClient_FlagOverridesEnv(t *testing.T) {
 
 	if cfg.DedupClient.Enabled {
 		t.Error("Enabled: --dedup-client-enabled=false must override env value true")
+	}
+	if cfg.DedupClient.SnapshotStore {
+		t.Error("SnapshotStore: --dedup-client-snapshot-store=false must override env value true")
 	}
 	wantNS := []string{"cli-ns-1", "cli-ns-2"}
 	if !reflect.DeepEqual(cfg.DedupClient.Namespaces, wantNS) {
@@ -649,6 +658,42 @@ func TestBindFlags_DedupClient_FlagOverridesEnv(t *testing.T) {
 	if cfg.DedupClient.GCInterval != 30*time.Second {
 		t.Errorf("GCInterval: got %v, want 30s", cfg.DedupClient.GCInterval)
 	}
+}
+
+// TestBindFlags_DedupClient_SnapshotStoreIndependent pins the contract that
+// SnapshotStore is a standalone toggle: enabling it via env or CLI must NOT
+// flip Enabled (and vice versa). Mirrors shell-operator's own contract — the
+// SnapshotStore powers the kube-events-manager monitor cache while Enabled
+// builds a separate kubeclient for hooks/extensions.
+func TestBindFlags_DedupClient_SnapshotStoreIndependent(t *testing.T) {
+	t.Run("env-only", func(t *testing.T) {
+		t.Setenv("DEDUP_CLIENT_SNAPSHOT_STORE", "true")
+
+		cfg := NewConfig()
+		if err := ParseEnv(cfg); err != nil {
+			t.Fatalf("ParseEnv: %v", err)
+		}
+		parseFlags(t, cfg)
+
+		if !cfg.DedupClient.SnapshotStore {
+			t.Error("SnapshotStore: expected true from $DEDUP_CLIENT_SNAPSHOT_STORE")
+		}
+		if cfg.DedupClient.Enabled {
+			t.Error("Enabled: must remain false when only SnapshotStore is toggled on")
+		}
+	})
+
+	t.Run("flag-only", func(t *testing.T) {
+		cfg := NewConfig()
+		parseFlags(t, cfg, "--dedup-client-snapshot-store=true")
+
+		if !cfg.DedupClient.SnapshotStore {
+			t.Error("SnapshotStore: expected true from --dedup-client-snapshot-store")
+		}
+		if cfg.DedupClient.Enabled {
+			t.Error("Enabled: must remain false when only SnapshotStore is toggled on")
+		}
+	})
 }
 
 // TestBindFlags_DedupClient_EnvKeptWhenNoCLI ensures the env-derived []string

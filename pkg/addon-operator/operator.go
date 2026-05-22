@@ -170,9 +170,13 @@ func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
 //     Namespace ← App.*.
 //   - Kube.{Context, Config, Server, ClientQPS, ClientBurst} ← Kube.*.
 //   - ObjectPatcher.* ← ObjectPatcher.*.
-//   - DedupClient.{Enabled, Namespaces, WatchGVKs, ReconstructLRUSize, GCInterval}
-//     ← DedupClient.* (drives shell-operator's pkg/kube/dedupclient cache via
-//     AssembleCommonOperatorFromConfig → dedupClientConfigFromAppConfig).
+//   - DedupClient.{Enabled, Namespaces, WatchGVKs, ReconstructLRUSize,
+//     GCInterval, SnapshotStore} ← DedupClient.* (drives shell-operator's
+//     pkg/kube/dedupclient cache and the kube-events-manager snapshot store
+//     via AssembleCommonOperatorFromConfig → dedupClientConfigFromAppConfig).
+//     Enabled and SnapshotStore are independent: Enabled spins up the runtime
+//     dedup kubeclient for hooks/extensions, SnapshotStore swaps every
+//     monitor's per-object cache for a process-wide deduplicated store.
 //   - Debug.{UnixSocket, HTTPServerAddr, KeepTempFiles, KubernetesAPI}
 //     ← Debug.{UnixSocket, HTTPServerAddr, KeepTmpFiles, KubernetesAPI}.
 //   - Log.{Level, Type, NoTime, ProxyHookJSON} ← Log.*.
@@ -214,6 +218,7 @@ func ShellOperatorConfig(c *app.Config) *shapp.Config {
 			WatchGVKs:          c.DedupClient.WatchGVKs,
 			ReconstructLRUSize: c.DedupClient.ReconstructLRUSize,
 			GCInterval:         c.DedupClient.GCInterval,
+			SnapshotStore:      c.DedupClient.SnapshotStore,
 		},
 		Debug: shapp.DebugSettings{
 			UnixSocket:     c.Debug.UnixSocket,
@@ -505,6 +510,24 @@ func (op *AddonOperator) DedupClient() *dedupclient.Client {
 		return nil
 	}
 	return op.engine.DedupClient
+}
+
+// SnapshotStore returns the optional process-wide deduplicated snapshot
+// store constructed by shell-operator. It is non-nil only when the feature
+// is enabled via app.Config.DedupClient.SnapshotStore (or the equivalent
+// --dedup-client-snapshot-store / $DEDUP_CLIENT_SNAPSHOT_STORE settings).
+// Callers must nil-check before use.
+//
+// The store is automatically wired into shell-operator's KubeEventsManager
+// so every kubernetes-binding monitor reuses it transparently; this accessor
+// is exposed mainly for diagnostics (e.g. snapshot store statistics) and for
+// library consumers that want to share the same store with non-shell-operator
+// code paths.
+func (op *AddonOperator) SnapshotStore() *dedupclient.SnapshotStore {
+	if op.engine == nil {
+		return nil
+	}
+	return op.engine.SnapshotStore
 }
 
 func (op *AddonOperator) IsStartupConvergeDone() bool {

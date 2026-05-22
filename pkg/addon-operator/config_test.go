@@ -234,6 +234,7 @@ func TestShellOperatorConfig_MapsAllRelevantFields(t *testing.T) {
 	in.DedupClient.WatchGVKs = []string{"/v1/Pod", "apps/v1/Deployment"}
 	in.DedupClient.ReconstructLRUSize = 4096
 	in.DedupClient.GCInterval = 30 * time.Second
+	in.DedupClient.SnapshotStore = true
 
 	in.Log.Level = "error"
 	in.Log.Type = "color"
@@ -322,6 +323,9 @@ func TestShellOperatorConfig_MapsAllRelevantFields(t *testing.T) {
 	}
 	if out.DedupClient.GCInterval != 30*time.Second {
 		t.Errorf("DedupClient.GCInterval: got %v", out.DedupClient.GCInterval)
+	}
+	if !out.DedupClient.SnapshotStore {
+		t.Error("DedupClient.SnapshotStore: expected true (must propagate to shell-operator config)")
 	}
 
 	// Log

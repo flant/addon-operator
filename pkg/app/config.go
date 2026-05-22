@@ -71,12 +71,27 @@ type ObjectPatcherSettings struct {
 // projection in ShellOperatorConfig stays trivial. List-typed env vars use a
 // comma separator: GVK strings follow the form "<group>/<version>/<kind>"
 // (the group may be empty for core resources, e.g. "/v1/Pod").
+//
+// Enabled and SnapshotStore are independent toggles: Enabled spins up the
+// runtime dedup kubeclient for hooks/extensions, while SnapshotStore swaps
+// the per-monitor object cache for a process-wide deduplicated store. Either,
+// both, or neither may be active.
 type DedupClientSettings struct {
 	Enabled            bool          `env:"ENABLED"`
 	Namespaces         []string      `env:"NAMESPACES" envSeparator:","`
 	WatchGVKs          []string      `env:"WATCH_GVKS" envSeparator:","`
 	ReconstructLRUSize int           `env:"RECONSTRUCT_LRU_SIZE"`
 	GCInterval         time.Duration `env:"GC_INTERVAL"`
+
+	// SnapshotStore enables a process-wide deduplicated SnapshotStore that
+	// backs every kubernetes-binding monitor's per-object cache. When on,
+	// `*Unstructured` bodies live exactly once in memory across all
+	// resourceInformers (refcounted), trading a small per-snapshot-read CPU
+	// cost for a substantial drop in RSS for workloads with many similar
+	// objects. Independent of the runtime DedupClient (Enabled flag): the
+	// snapshot store can be turned on without spinning up any kubeclient
+	// informers.
+	SnapshotStore bool `env:"SNAPSHOT_STORE"`
 }
 
 type DebugSettings struct {
