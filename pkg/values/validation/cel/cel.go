@@ -64,21 +64,26 @@ func ValidateTransition(schema *spec.Schema, values, oldValues any) ([]error, er
 	// corresponding old value (if any) so transition rules can fire at any depth.
 	if m, ok := values.(map[string]any); ok {
 		oldMap, _ := oldValues.(map[string]any)
+
 		for propName, propSchema := range schema.Properties {
 			propValue, ok := m[propName]
 			if !ok {
 				continue
 			}
+
 			var oldPropValue any
+
 			if oldMap != nil {
 				if v, found := oldMap[propName]; found {
 					oldPropValue = v
 				}
 			}
+
 			subErrs, err := ValidateTransition(&propSchema, propValue, oldPropValue)
 			if err != nil {
 				return nil, err
 			}
+
 			validationErrs = append(validationErrs, subErrs...)
 		}
 	}
@@ -129,6 +134,7 @@ func ValidateTransition(schema *spec.Schema, values, oldValues any) ([]error, er
 	// oldSelf are skipped instead of being evaluated against an undefined value.
 	haveOld := oldValues != nil
 	celOldSelfType := cel.DynType
+
 	var celOldSelfValue any
 	if haveOld {
 		celOldSelfType, celOldSelfValue, err = buildCELValueAndType(oldValues)
@@ -194,13 +200,16 @@ func expressionUsesOldSelf(ast *cel.Ast) bool {
 	if ast == nil {
 		return false
 	}
+
 	rep := ast.NativeRep()
 	if rep == nil {
 		return false
 	}
+
 	matches := celast.MatchDescendants(celast.NavigateAST(rep), func(e celast.NavigableExpr) bool {
 		return e.Kind() == celast.IdentKind && e.AsIdent() == oldSelfVar
 	})
+
 	return len(matches) > 0
 }
 
