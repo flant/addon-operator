@@ -128,7 +128,7 @@ func (vs *ValuesStorage) validateConfigValues(values utils.Values) error {
 
 	var oldValidatable utils.Values
 	if vs.configValues != nil {
-		oldValidatable = utils.Values{valuesModuleName: utils.Values(vs.configValues)}
+		oldValidatable = utils.Values{valuesModuleName: vs.configValues}
 	}
 
 	return vs.schemaStorage.ValidateConfigValuesTransition(valuesModuleName, validatableValues, oldValidatable)
@@ -144,7 +144,7 @@ func (vs *ValuesStorage) validateValues(values utils.Values) error {
 
 	var oldValidatable utils.Values
 	if vs.resultValues != nil {
-		oldValidatable = utils.Values{valuesModuleName: utils.Values(vs.resultValues)}
+		oldValidatable = utils.Values{valuesModuleName: vs.resultValues}
 	}
 
 	return vs.schemaStorage.ValidateValuesTransition(valuesModuleName, validatableValues, oldValidatable)

@@ -137,6 +137,7 @@ func (st *SchemaStorage) ValidateTransition(valuesType SchemaType, moduleName st
 	}
 
 	var oldObj interface{}
+
 	if oldValues != nil {
 		if v, found := oldValues[moduleName]; found {
 			oldObj = v
