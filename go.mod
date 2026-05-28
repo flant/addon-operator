@@ -259,3 +259,9 @@ require (
 
 // swag v0.22 breaks schemas_test.go:TestMapMergeAnchor, seems it doesn't support anchoring. Have to figure out that.
 replace github.com/go-openapi/swag => github.com/go-openapi/swag v0.21.1
+
+// docker/cli v29 removed the Email field from AuthConfig, making it structurally
+// incompatible with docker/docker v28's registry.AuthConfig. oras.land/oras-go v1.2.6
+// (used by helm.sh/helm/v3 v3.15.x) performs a direct type conversion between the two
+// structs; pinning docker/cli to v28 keeps the structs identical and the build valid.
+replace github.com/docker/cli => github.com/docker/cli v28.2.2+incompatible
