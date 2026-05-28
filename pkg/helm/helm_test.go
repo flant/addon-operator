@@ -8,7 +8,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
-	"github.com/flant/addon-operator/pkg/helm/nelm"
 )
 
 func TestHelmFactory(t *testing.T) {
@@ -80,7 +79,7 @@ func TestHelmFactory(t *testing.T) {
 	})
 
 	t.Run("init with nelm client", func(t *testing.T) {
-		testCLient(t, "nelm", new(nelm.NelmClient), map[string]string{"USE_NELM": "true"})
+		testCLient(t, "nelm", new(FallbackClient), map[string]string{"USE_NELM": "true"})
 	})
 }
 
