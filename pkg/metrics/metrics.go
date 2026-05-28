@@ -99,6 +99,8 @@ var (
 	ModuleHelmSeconds = "{PREFIX}module_helm_seconds"
 	// HelmOperationSeconds measures specific Helm operation durations
 	HelmOperationSeconds = "{PREFIX}helm_operation_seconds"
+	// HelmFallbackTotal counts how many times nelm operations had to fall back to helm3lib
+	HelmFallbackTotal = "{PREFIX}helm_fallback_total"
 
 	// ============================================================================
 	// Task Queue Metrics
@@ -187,6 +189,7 @@ func InitMetrics(prefix string) {
 	// ============================================================================
 	ModuleHelmSeconds = ReplacePrefix(ModuleHelmSeconds, prefix)
 	HelmOperationSeconds = ReplacePrefix(HelmOperationSeconds, prefix)
+	HelmFallbackTotal = ReplacePrefix(HelmFallbackTotal, prefix)
 
 	// ============================================================================
 	// Task Queue Metrics
@@ -529,6 +532,15 @@ func registerHelmMetrics(metricStorage metricsstorage.Storage) error {
 	)
 	if err != nil {
 		return fmt.Errorf("can not register %s: %w", HelmOperationSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(
+		HelmFallbackTotal,
+		[]string{pkg.MetricKeyModule, pkg.MetricKeyOperation, pkg.MetricKeyErrorType},
+		options.WithHelp("Counter of nelm Helm operations that fell back to helm3lib, labeled by module, operation and error type"),
+	)
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", HelmFallbackTotal, err)
 	}
 
 	return nil

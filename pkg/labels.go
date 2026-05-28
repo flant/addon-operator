@@ -119,6 +119,7 @@ const (
 	MetricKeyActivation = "activation"
 	MetricKeyBinding    = "binding"
 	MetricKeyComponent  = "component"
+	MetricKeyErrorType  = "error_type"
 	MetricKeyHook       = "hook"
 	MetricKeyKind       = "kind"
 	MetricKeyModule     = "module"

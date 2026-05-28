@@ -356,10 +356,11 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
 	helmClient, err := helm.InitHelmClientFactory(&helm.Options{
-		Namespace:  op.DefaultNamespace,
-		HistoryMax: app.Helm3HistoryMax,
-		Timeout:    app.Helm3Timeout,
-		Logger:     op.Logger.Named("helm"),
+		Namespace:     op.DefaultNamespace,
+		HistoryMax:    app.Helm3HistoryMax,
+		Timeout:       app.Helm3Timeout,
+		Logger:        op.Logger.Named("helm"),
+		MetricStorage: op.MetricStorage,
 	}, op.CRDExtraLabels)
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
