@@ -7,14 +7,14 @@ import (
 	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"k8s.io/apimachinery/pkg/labels"
-	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
-	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
+	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 )
 
 type HelmResourcesManager interface {
@@ -32,7 +32,7 @@ type HelmResourcesManager interface {
 	GetMonitor(moduleName string) *ResourcesMonitor
 	GetAbsentResources(templates []manifest.Manifest, defaultNamespace string) ([]manifest.Manifest, error)
 	Ch() chan ReleaseStatusEvent
-	KubeClient() *klient.Client
+	KubeClient() *dedupclient.Client
 }
 
 type helmResourcesManager struct {
@@ -47,7 +47,7 @@ type helmResourcesManager struct {
 	// callers inject an alternative (e.g. a DedupClient-backed lister).
 	lister ResourceNameLister
 
-	kubeClient *klient.Client
+	kubeClient *dedupclient.Client
 
 	eventCh chan ReleaseStatusEvent
 
@@ -59,72 +59,38 @@ type helmResourcesManager struct {
 
 var _ HelmResourcesManager = &helmResourcesManager{}
 
-// NewHelmResourcesManager constructs the legacy helm resources manager: it
-// stands up its own controller-runtime cache.Cache with a watch-level label
-// selector parsed from app.ExtraLabels (typically heritage=addon-operator)
-// and uses metadata-only informers via *PartialObjectMetadataList. This is
-// the smallest-footprint mode and remains the default whenever the
-// DedupClient.HelmResourcesCache toggle is off.
-func NewHelmResourcesManager(ctx context.Context, kclient *klient.Client, logger *log.Logger) (HelmResourcesManager, error) {
-	cctx, cancel := context.WithCancel(ctx)
+// NewHelmResourcesManager constructs a helm resources manager that lists
+// module resources through the supplied singleton deduplicated kube client.
+// No separate cache/connection is created: the manager reads through the
+// dedup client's controller-runtime cache, re-applying the heritage label
+// parsed from app.ExtraLabels (typically heritage=addon-operator) at List
+// time so absent-resource detection only considers operator-managed objects.
+func NewHelmResourcesManager(ctx context.Context, kclient *dedupclient.Client, logger *log.Logger) (HelmResourcesManager, error) {
 	if kclient == nil {
-		cancel()
 		return nil, fmt.Errorf("kube client not set")
 	}
 
-	cfg := kclient.RestConfig()
-
-	defaultLabelSelector, err := labels.Parse(app.ExtraLabels)
+	labelMatch, err := ParseExtraLabels(app.ExtraLabels)
 	if err != nil {
-		cancel()
 		return nil, err
 	}
 
-	cache, err := cr_cache.New(cfg, cr_cache.Options{
-		DefaultLabelSelector: defaultLabelSelector,
-	})
-	if err != nil {
-		cancel()
-		return nil, err
-	}
+	lister := NewDedupClientLister(kclient, labelMatch)
 
-	go func() {
-		_ = cache.Start(cctx)
-	}()
-
-	log.Debug("Helm resource manager: cache's been started")
-
-	if synced := cache.WaitForCacheSync(cctx); !synced {
-		cancel()
-		return nil, fmt.Errorf("Couldn't sync helm resource informer cache")
-	}
-
-	log.Debug("Helm resourcer manager: cache has been synced")
-
-	return &helmResourcesManager{
-		eventCh:    make(chan ReleaseStatusEvent),
-		monitors:   make(map[string]*ResourcesMonitor),
-		ctx:        cctx,
-		cancel:     cancel,
-		kubeClient: kclient,
-		lister:     NewCRCacheLister(cache),
-		logger:     logger,
-	}, nil
+	return NewHelmResourcesManagerWithLister(ctx, kclient, lister, logger)
 }
 
 // NewHelmResourcesManagerWithLister constructs a helm resources manager
-// whose monitors read through the supplied ResourceNameLister instead of
-// building a dedicated cr_cache. The lister's lifecycle (cache startup,
-// sync, shutdown) is the caller's responsibility — for the dedup-client
-// path the *dedupclient.Client returned by shell-operator already runs its
-// own Start/Shutdown, so this manager simply piggybacks on it.
+// whose monitors read through the supplied ResourceNameLister. The lister's
+// lifecycle (cache startup, sync, shutdown) is the caller's responsibility —
+// for the dedup-client path the *dedupclient.Client already runs its own
+// Start/Shutdown, so this manager simply piggybacks on it.
 //
 // Library consumers that want a non-default lister (e.g. an in-memory
 // fake for tests, or a user-supplied controller-runtime client) reach this
 // constructor directly. addon-operator itself routes through
-// InitDefaultHelmResourcesManager, which selects the constructor based on
-// app.Config.DedupClient.{Enabled, HelmResourcesCache}.
-func NewHelmResourcesManagerWithLister(ctx context.Context, kclient *klient.Client, lister ResourceNameLister, logger *log.Logger) (HelmResourcesManager, error) {
+// InitDefaultHelmResourcesManager.
+func NewHelmResourcesManagerWithLister(ctx context.Context, kclient *dedupclient.Client, lister ResourceNameLister, logger *log.Logger) (HelmResourcesManager, error) {
 	if kclient == nil {
 		return nil, fmt.Errorf("kube client not set")
 	}
@@ -300,6 +266,33 @@ func (hm *helmResourcesManager) GetAbsentResources(manifests []manifest.Manifest
 	return rm.AbsentResources()
 }
 
-func (hm *helmResourcesManager) KubeClient() *klient.Client {
+func (hm *helmResourcesManager) KubeClient() *dedupclient.Client {
 	return hm.kubeClient
+}
+
+// ParseExtraLabels turns app.ExtraLabels (a comma-separated "k=v,k=v"
+// string, default "heritage=addon-operator") into the equality-only
+// map[string]string the dedup-backed lister applies at List time.
+// Set-based requirements are rejected: the dedup-cache list path can only
+// honour MatchingLabels-style equality, and silently dropping requirements
+// would mask false-positive absent-resource detections.
+func ParseExtraLabels(raw string) (map[string]string, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	sel, err := metav1.ParseToLabelSelector(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse %q: %w", raw, err)
+	}
+	if len(sel.MatchExpressions) > 0 {
+		return nil, fmt.Errorf("helm resources cache does not support set-based requirements in %q", raw)
+	}
+	out := make(map[string]string, len(sel.MatchLabels))
+	for k, v := range sel.MatchLabels {
+		out[k] = v
+	}
+	if _, err := k8slabels.Parse(raw); err != nil {
+		return nil, fmt.Errorf("validate %q as labels.Selector: %w", raw, err)
+	}
+	return out, nil
 }

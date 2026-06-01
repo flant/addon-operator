@@ -20,7 +20,7 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	kcmcontext "github.com/flant/addon-operator/pkg/kube_config_manager/context"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/kube-client/client"
+	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 )
 
 // Backend implements ConfigMap backend for kube_config_manager
@@ -29,11 +29,11 @@ type Backend struct {
 	name      string
 
 	logger *log.Logger
-	client *client.Client
+	client *dedupclient.Client
 }
 
 // New initializes backend for kube_config_manager based on ConfigMap with modules values
-func New(kubeClient *client.Client, namespace, name string, logger *log.Logger) *Backend {
+func New(kubeClient *dedupclient.Client, namespace, name string, logger *log.Logger) *Backend {
 	if logger == nil {
 		logger = log.NewLogger()
 	}

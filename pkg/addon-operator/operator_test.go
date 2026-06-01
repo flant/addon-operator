@@ -29,6 +29,7 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
 	"github.com/flant/kube-client/fake"
+	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 	. "github.com/flant/shell-operator/pkg/hook/types"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -100,8 +101,11 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	result.cmName = cmObj.Name
 	result.cmNamespace = cmObj.Namespace
 
-	// Create ConfigMap.
-	kubeClient := fake.NewFakeCluster(fake.ClusterVersionV119).Client
+	// Create ConfigMap. Build the singleton dedup client on top of the
+	// flant fake cluster so it keeps a populated discovery/RESTMapper
+	// (server version + API resources) that the converge flow relies on.
+	fc := fake.NewFakeCluster(fake.ClusterVersionV119)
+	kubeClient := dedupclient.NewFromClients(fc.Client, fc.Client.Dynamic(), nil, nil)
 	_, err := kubeClient.CoreV1().ConfigMaps(result.cmNamespace).Create(context.TODO(), cmObj, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should create ConfigMap/%s", result.cmName)
 

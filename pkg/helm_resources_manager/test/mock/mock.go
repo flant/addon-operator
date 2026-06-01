@@ -5,8 +5,8 @@ import (
 
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager"
 	. "github.com/flant/addon-operator/pkg/helm_resources_manager/types"
-	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
+	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 )
 
 type MockHelmResourcesManager struct {
@@ -15,7 +15,7 @@ type MockHelmResourcesManager struct {
 
 func (h *MockHelmResourcesManager) WithContext(_ context.Context) {}
 
-func (h *MockHelmResourcesManager) WithKubeClient(_ *klient.Client) {}
+func (h *MockHelmResourcesManager) WithKubeClient(_ *dedupclient.Client) {}
 
 func (h *MockHelmResourcesManager) WithDefaultNamespace(_ string) {}
 
@@ -53,6 +53,6 @@ func (h *MockHelmResourcesManager) Ch() chan ReleaseStatusEvent {
 	return nil
 }
 
-func (h *MockHelmResourcesManager) KubeClient() *klient.Client {
+func (h *MockHelmResourcesManager) KubeClient() *dedupclient.Client {
 	return nil
 }

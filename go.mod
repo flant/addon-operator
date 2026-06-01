@@ -42,15 +42,13 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
-require (
-	github.com/go-openapi/swag/loading v0.26.0
-	github.com/ldmonster/kubeclient v0.0.0-20260522082709-ed73652c723f
-)
+require github.com/go-openapi/swag/loading v0.26.0
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/ldmonster/kubeclient v0.0.0-20260522082709-ed73652c723f // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 )

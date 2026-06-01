@@ -15,14 +15,14 @@ import (
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	"github.com/flant/addon-operator/pkg/utils"
-	klient "github.com/flant/kube-client/client"
+	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 )
 
 const testConfigMapName = "test-addon-operator"
 
 // initKubeConfigManager returns an initialized KubeConfigManager instance.
 // Pass string or map to prefill ConfigMap.
-func initKubeConfigManager(t *testing.T, kubeClient *klient.Client, cmData map[string]string, cmContent string) *KubeConfigManager {
+func initKubeConfigManager(t *testing.T, kubeClient *dedupclient.Client, cmData map[string]string, cmContent string) *KubeConfigManager {
 	g := NewWithT(t)
 
 	cm := &v1.ConfigMap{}
@@ -80,7 +80,7 @@ kubeDnsEnabled: "true"
 kubeDnsMaintenance: "NoResourceReconciliation"
 `
 
-	kubeClient := klient.NewFake(nil)
+	kubeClient := dedupclient.NewFake(nil)
 
 	kcm := initKubeConfigManager(t, kubeClient, nil, cmDataText)
 
@@ -174,7 +174,7 @@ kubeDnsMaintenance: "NoResourceReconciliation"
 }
 
 func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
-	kubeClient := klient.NewFake(nil)
+	kubeClient := dedupclient.NewFake(nil)
 
 	kcm := initKubeConfigManager(t, kubeClient, nil, "")
 
@@ -308,7 +308,7 @@ func Test_KubeConfigManager_SaveValuesToConfigMap(t *testing.T) {
 func Test_KubeConfigManager_event_after_adding_module_section(t *testing.T) {
 	g := NewWithT(t)
 
-	kubeClient := klient.NewFake(nil)
+	kubeClient := dedupclient.NewFake(nil)
 
 	kcm := initKubeConfigManager(t, kubeClient, map[string]string{
 		"global": `
@@ -370,7 +370,7 @@ param2: val2
 // SaveModuleConfigValues should update ConfigMap's data
 func Test_KubeConfigManager_SaveModuleConfigValues(t *testing.T) {
 	g := NewWithT(t)
-	kubeClient := klient.NewFake(nil)
+	kubeClient := dedupclient.NewFake(nil)
 
 	kcm := initKubeConfigManager(t, kubeClient, map[string]string{
 		"global": `
@@ -406,7 +406,7 @@ moduleLongName:
 func Test_KubeConfigManager_error_on_Init(t *testing.T) {
 	g := NewWithT(t)
 
-	kubeClient := klient.NewFake(nil)
+	kubeClient := dedupclient.NewFake(nil)
 	kcm := initKubeConfigManager(t, kubeClient, nil, "global: ''")
 	defer kcm.Stop()
 

@@ -31,7 +31,6 @@ import (
 	queueutils "github.com/flant/addon-operator/pkg/task/queue"
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/kube-client/client"
 	shapp "github.com/flant/shell-operator/pkg/app"
 	runtimeConfig "github.com/flant/shell-operator/pkg/config"
 	"github.com/flant/shell-operator/pkg/debug"
@@ -39,7 +38,6 @@ import (
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
 	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
-	"github.com/ldmonster/kubeclient"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	fileUtils "github.com/flant/shell-operator/pkg/utils/file"
@@ -106,29 +104,15 @@ type AddonOperator struct {
 
 	TaskService *taskservice.TaskHandlerService
 
-	// dedupSharedStoreMgr is the addon-operator-owned dedup-store manager
-	// that backs internal cache-using components (today: helm-resources
-	// monitor; possibly more in the future). nil unless at least one such
-	// component opted in via app.Config — typically
-	// DedupClient.HelmResourcesCache.
-	//
-	// Lifecycle:
-	//   - Constructed in NewAddonOperator after the engine is assembled so
-	//     it can borrow the main kube client's rest.Config and RESTMapper.
-	//   - Started in op.bootstrap (run loop in a dedicated goroutine) so the
-	//     cache is live before any monitor calls List.
-	//   - Stopped implicitly via op.cancel: SharedStoreManager has no
-	//     explicit Shutdown — the run loop returns when its parent ctx
-	//     is cancelled, which is op.ctx, which Stop() cancels.
-	//
-	// The manager is intentionally addon-operator-private (NOT exposed
-	// through op.engine.DedupClient) because shell-operator's hook DedupClient
-	// is constructed via kubeclient.New rather than via SharedStoreManager
-	// at the time of writing — meaning the two stores are physically
-	// separate. Once shell-operator switches to SharedStoreManager too, the
-	// two can be unified by passing this manager into
-	// AssembleCommonOperatorFromConfig.
-	dedupSharedStoreMgr *kubeclient.SharedStoreManager
+	// kubeClient is an optional caller-supplied singleton deduplicated
+	// kube client. When set via WithKubeClient it is handed to
+	// shell-operator (shell_operator.WithKubeClient) so the entire operator
+	// — shell-operator's hooks/monitors AND every addon-operator component
+	// (helm-resources monitor, kube-config ConfigMap backend, CRD installer,
+	// leader election, …) — shares this one client. When nil, shell-operator
+	// builds the singleton itself in AssembleCommonOperatorFromConfig and
+	// addon-operator reuses that instance the same way.
+	kubeClient *dedupclient.Client
 }
 
 type Option func(operator *AddonOperator)
@@ -150,6 +134,25 @@ func WithLogger(logger *log.Logger) Option {
 func WithConfig(cfg *app.Config) Option {
 	return func(operator *AddonOperator) {
 		operator.config = cfg
+	}
+}
+
+// WithKubeClient lets a library caller inject its own singleton
+// deduplicated kube client (shell-operator's *dedupclient.Client). The
+// supplied client is passed straight through to shell-operator via
+// shell_operator.WithKubeClient, so it becomes THE one client used
+// everywhere under the hood: shell-operator's hooks and kube-events
+// monitors as well as every addon-operator component that talks to the
+// API server (helm-resources monitor, the ConfigMap config backend, the
+// CRD installer, leader election, …).
+//
+// Construct it with dedupclient.New (production) or dedupclient.NewFake /
+// dedupclient.NewFromClients (tests). When this option is omitted,
+// NewAddonOperator lets shell-operator build the singleton itself from the
+// resolved *app.Config, preserving the standalone-binary behaviour.
+func WithKubeClient(client *dedupclient.Client) Option {
+	return func(operator *AddonOperator) {
+		operator.kubeClient = client
 	}
 }
 
@@ -316,7 +319,17 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		)
 	}
 
-	so := shell_operator.NewShellOperator(cctx, metricsStorage, hookMetricStorage, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
+	// Build shell-operator with addon-operator's logger and, when the caller
+	// supplied one via WithKubeClient, the externally-provided singleton
+	// dedup client. Passing it here means AssembleCommonOperatorFromConfig
+	// will NOT construct its own client and every downstream consumer shares
+	// the caller's instance.
+	soOpts := []shell_operator.Option{shell_operator.WithLogger(ao.Logger.Named("shell-operator"))}
+	if ao.kubeClient != nil {
+		soOpts = append(soOpts, shell_operator.WithKubeClient(ao.kubeClient))
+	}
+
+	so := shell_operator.NewShellOperator(cctx, metricsStorage, hookMetricStorage, soOpts...)
 
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
@@ -339,18 +352,10 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		panic(err)
 	}
 
-	// Bring up the addon-operator-owned dedup-store manager once the engine
-	// is assembled so it can reuse the main kube client's rest.Config and
-	// RESTMapper. Only constructed when at least one consumer opted in via
-	// config — keeping zero overhead for deployments that do not flip any
-	// dedup-cache toggle.
-	if dedupConsumersOptedIn(ao.config) {
-		mgr, err := newDedupSharedStoreManager(so.KubeClient, ao.config, ao.Logger.Named("dedup-shared-store"))
-		if err != nil {
-			panic(fmt.Errorf("dedup shared store manager: %w", err))
-		}
-		ao.dedupSharedStoreMgr = mgr
-	}
+	// Keep a handle to the singleton dedup client shell-operator now owns
+	// (either the caller-supplied one or the instance Assemble just built),
+	// so addon-operator components reuse exactly the same client.
+	ao.kubeClient = so.KubeClient
 
 	// Register addon-operator specific metrics
 	if err := metrics.RegisterHookMetrics(so.HookMetricStorage); err != nil {
@@ -421,23 +426,14 @@ func (op *AddonOperator) Setup() error {
 	}
 
 	// Helm resources monitor.
-	// It uses a separate client-go instance. (Metrics are registered when 'main' client is initialized).
-	// When --dedup-client-helm-resources-cache is on, the manager pulls a
-	// per-consumer *kubeclient.DedupClient out of op.dedupSharedStoreMgr
-	// (constructed in NewAddonOperator and started in bootstrap()). The
-	// per-consumer client gets its own LRU sized by
-	// DedupClient.ReconstructLRUSize but shares the underlying DedupStore
-	// + informer map with any other addon-operator consumer of the
-	// shared manager, so adding more dedup-cache callers later does not
-	// duplicate watches. See newHelmResourcesManager for the selection
-	// logic and trade-offs.
+	// It reuses the operator's singleton dedup client (op.KubeClient()) for
+	// its per-module resource list-watch instead of standing up a separate
+	// client-go instance, so there is exactly one kube client + cache in the
+	// process.
 	helmResourcesManager, err := InitDefaultHelmResourcesManager(
 		op.ctx,
 		op.DefaultNamespace,
-		op.MetricStorage,
-		op.dedupSharedStoreMgr,
-		op.config.DedupClient.HelmResourcesCache,
-		op.config.DedupClient.ReconstructLRUSize,
+		op.KubeClient(),
 		op.Logger,
 	)
 	if err != nil {
@@ -548,24 +544,28 @@ func (op *AddonOperator) StartAPIServer() {
 	op.registerReadyzRoute()
 }
 
-// KubeClient returns default common kubernetes client initialized by shell-operator
-func (op *AddonOperator) KubeClient() *client.Client {
+// KubeClient returns the singleton deduplicated kube client used by the
+// whole operator. It is the same *dedupclient.Client shell-operator drives
+// for its hooks and kube-events monitors, so every addon-operator component
+// shares one client (and one cache) under the hood.
+//
+// The returned client embeds both a client-go kubernetes.Interface (typed
+// CoreV1()/CoordinationV1()/… access) and a controller-runtime
+// client.Client (Get/List/Create/Update/Delete on typed and Unstructured
+// objects), and exposes Dynamic(), RestConfig(), NewBuilder() and friends.
+func (op *AddonOperator) KubeClient() *dedupclient.Client {
+	if op.engine == nil {
+		return op.kubeClient
+	}
 	return op.engine.KubeClient
 }
 
-// DedupClient returns the optional deduplicated kubeclient cache constructed
-// by shell-operator. It is non-nil only when the feature is enabled via
-// app.Config.DedupClient.Enabled (or the equivalent --dedup-client-enabled /
-// $DEDUP_CLIENT_ENABLED settings). Callers must nil-check before use.
-//
-// The returned *dedupclient.Client embeds a controller-runtime
-// sigs.k8s.io/controller-runtime/pkg/client.Client, so it can be used as a
-// drop-in for typed/Unstructured Get/List/Create/Update/Delete calls.
+// DedupClient returns the singleton deduplicated kube client. It is an alias
+// of KubeClient kept for callers that want to be explicit about the dedup
+// nature of the client; both return the one instance shared across the
+// operator.
 func (op *AddonOperator) DedupClient() *dedupclient.Client {
-	if op.engine == nil {
-		return nil
-	}
-	return op.engine.DedupClient
+	return op.KubeClient()
 }
 
 // SnapshotStore returns the optional process-wide deduplicated snapshot

@@ -34,7 +34,7 @@ import (
 	modulerun "github.com/flant/addon-operator/pkg/task/tasks/module-run"
 	parallelmodulerun "github.com/flant/addon-operator/pkg/task/tasks/parallel-module-run"
 	"github.com/flant/addon-operator/pkg/utils"
-	klient "github.com/flant/kube-client/client"
+	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -55,7 +55,7 @@ type TaskHandlerServiceConfig struct {
 type TaskHandlerService struct {
 	ctx context.Context
 
-	kubeClient *klient.Client
+	kubeClient *dedupclient.Client
 
 	// a map of channels to communicate with parallel queues and its lock
 	parallelTaskChannels *paralleltask.TaskChannels
@@ -244,7 +244,7 @@ func (s *TaskHandlerService) initFactory() {
 	}
 }
 
-func (s *TaskHandlerService) GetKubeClient() *klient.Client {
+func (s *TaskHandlerService) GetKubeClient() *dedupclient.Client {
 	return s.kubeClient
 }
 

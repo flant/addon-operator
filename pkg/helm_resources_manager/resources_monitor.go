@@ -13,8 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/flant/addon-operator/pkg"
-	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
+	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 )
 
 const monitorDelayBase = time.Minute*4 + time.Second*30
@@ -24,7 +24,7 @@ type ResourceMonitorConfig struct {
 	Manifests        []manifest.Manifest
 	DefaultNamespace string
 
-	KubeClient *klient.Client
+	KubeClient *dedupclient.Client
 	// Lister returns the names of operator-scoped objects for a given
 	// (gvk, namespace). Implementations encode whether the underlying
 	// store is the dedicated label-filtered controller-runtime cache or
@@ -47,7 +47,7 @@ type ResourcesMonitor struct {
 	manifests        []manifest.Manifest
 	defaultNamespace string
 
-	kubeClient *klient.Client
+	kubeClient *dedupclient.Client
 	lister     ResourceNameLister
 
 	absentCb func(moduleName string, unexpectedStatus bool, absent []manifest.Manifest, defaultNs string)

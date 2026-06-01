@@ -16,7 +16,7 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	discovercrds "github.com/flant/addon-operator/pkg/task/discover-crds"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
-	klient "github.com/flant/kube-client/client"
+	"github.com/flant/shell-operator/pkg/kube/dedupclient"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
@@ -27,7 +27,7 @@ const (
 
 // TaskDependencies defines the interface for accessing necessary components
 type TaskDependencies interface {
-	GetKubeClient() *klient.Client
+	GetKubeClient() *dedupclient.Client
 	GetModuleManager() *module_manager.ModuleManager
 	GetConvergeState() *converge.ConvergeState
 	GetCRDExtraLabels() map[string]string
@@ -55,7 +55,7 @@ func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.
 type Task struct {
 	shellTask sh_task.Task
 
-	kubeClient     *klient.Client
+	kubeClient     *dedupclient.Client
 	moduleManager  *module_manager.ModuleManager
 	convergeState  *converge.ConvergeState
 	queueService   *taskqueue.Service
@@ -69,7 +69,7 @@ type Task struct {
 // NewTask creates a new task handler for ensuring module CRDs
 func NewTask(
 	shellTask sh_task.Task,
-	kubeClient *klient.Client,
+	kubeClient *dedupclient.Client,
 	moduleManager *module_manager.ModuleManager,
 	convergeState *converge.ConvergeState,
 	queueService *taskqueue.Service,
