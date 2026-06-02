@@ -511,7 +511,21 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 			enabled = "true"
 		}
 
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, metrics.ModuleInfoMetricName, 1, map[string]string{pkg.MetricKeyModule: module, "enabled": enabled})
+		critical := "false"
+		if bm := mm.GetModule(module); bm != nil && bm.GetCritical() {
+			critical = "true"
+		}
+
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(
+			moduleInfoMetricGroup,
+			metrics.ModuleInfoMetricName,
+			1,
+			map[string]string{
+				pkg.MetricKeyModule: module,
+				"enabled":           enabled,
+				"critical":          critical,
+			},
+		)
 	}
 }
 
