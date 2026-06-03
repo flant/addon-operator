@@ -78,11 +78,12 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) error {
 
 	// Start background updaters for metrics
 	metrics.StartLiveTicksUpdater(op.engine.MetricStorage)
-	metrics.StartTasksQueueLengthUpdater(op.engine.MetricStorage, op.engine.TaskQueues, func(metadata interface{}) (module, hook string) {
+	metrics.StartTasksQueueLengthUpdater(op.engine.MetricStorage, op.engine.TaskQueues, func(metadata interface{}) (string, string) {
 		hm, ok := metadata.(task.HookMetadata)
 		if !ok {
 			return "", ""
 		}
+
 		return hm.ModuleName, hm.HookName
 	})
 

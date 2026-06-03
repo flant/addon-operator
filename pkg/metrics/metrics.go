@@ -623,6 +623,7 @@ func updateTasksQueueHeadInfo(tqs *queue.TaskQueueSet, metricStorage metricsstor
 		if t == nil {
 			return
 		}
+
 		module, hook := headInfoExtractor(t.GetMetadata())
 
 		// Normalize ParallelModuleRun synthetic module names:
