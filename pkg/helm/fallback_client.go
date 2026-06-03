@@ -58,11 +58,7 @@ func NewFallbackClient(primary, fallback client.HelmClient, logger *log.Logger, 
 // shouldFallback reports whether err is a nelm error that should trigger
 // the helm3lib fallback path.
 func shouldFallback(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return errors.Is(err, action.ErrBuildPlan) || errors.Is(err, resource.ErrResourceDuplicatesFound)
+	return err != nil
 }
 
 // fallbackErrorType returns a low-cardinality label value describing which
