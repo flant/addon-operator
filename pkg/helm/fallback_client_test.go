@@ -124,7 +124,7 @@ func TestShouldFallback(t *testing.T) {
 	g := NewWithT(t)
 
 	g.Expect(shouldFallback(nil)).To(BeFalse())
-	g.Expect(shouldFallback(errors.New("random"))).To(BeFalse())
+	g.Expect(shouldFallback(errors.New("random"))).To(BeTrue())
 
 	g.Expect(shouldFallback(action.ErrBuildPlan)).To(BeTrue())
 	g.Expect(shouldFallback(resource.ErrResourceDuplicatesFound)).To(BeTrue())
@@ -148,7 +148,7 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		g.Expect(ms.calls()).To(BeEmpty())
 	})
 
-	t.Run("non-recoverable error is propagated", func(t *testing.T) {
+	t.Run("any primary error triggers fallback", func(t *testing.T) {
 		g := NewWithT(t)
 		primary := &fakeHelmClient{name: "primary", upgradeErr: errors.New("boom")}
 		fallback := &fakeHelmClient{name: "fallback"}
@@ -156,10 +156,10 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		c := NewFallbackClient(primary, fallback, log.NewNop(), ms)
 
 		err := c.UpgradeRelease("r", "c", nil, nil, nil, "ns")
-		g.Expect(err).Should(MatchError("boom"))
+		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(primary.upgradeCalls).To(Equal(1))
-		g.Expect(fallback.upgradeCalls).To(Equal(0))
-		g.Expect(ms.calls()).To(BeEmpty())
+		g.Expect(fallback.upgradeCalls).To(Equal(1))
+		g.Expect(ms.calls()).To(HaveLen(1))
 	})
 
 	t.Run("falls back on action.ErrBuildPlan", func(t *testing.T) {
