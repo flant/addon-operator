@@ -157,10 +157,9 @@ func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
 // two config shapes meet, so the addon-operator config remains the only
 // source of truth that drives shell-operator too.
 //
-// Exported so binaries / library consumers can hand the projection to
-// shapp.ApplyConfig before registering shell-operator's debug sub-commands
-// (debug.DefineDebugCommands), making the legacy shapp.DebugUnixSocket global
-// observe the addon-operator socket path.
+// Used by AddonOperator.AssembleCommonOperatorFromConfig to configure the
+// embedded shell-operator engine with the right listen address, kube client
+// settings, metric prefix, etc.
 //
 // Mappings:
 //   - App.HooksDir            ← App.GlobalHooksDir (addon-operator's global
@@ -244,17 +243,11 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 	// bridges the typed Config to the legacy globals.
 	app.ApplyConfig(ao.config)
 
-	// Library consumers reach this constructor with their own *app.Config
-	// (via WithConfig) and never run cmd/addon-operator/main.go, so the
-	// shapp.ApplyConfig bridge in main.go does not fire for them. Replicate
-	// it here so that any shell-operator code path that still reads its
-	// package-level globals (e.g. shapp.DebugUnixSocket consulted by
-	// shell-operator's debug.DefineDebugCommands or debug.DefaultClient())
-	// observes the addon-operator-supplied values, not shell-operator's
-	// hardcoded defaults. The function is nil-safe and idempotent, so it is
-	// also harmless to call from the binary path where main.go already
-	// invoked it once.
-	shapp.ApplyConfig(ShellOperatorConfig(ao.config))
+	// Propagate the addon-operator debug socket path to shell-operator's
+	// package-level DefaultSocketPath so that debug.DefineDebugCommands
+	// (queued by main.go before rootCmd.Execute) connects to the same
+	// socket that addon-operator's debug server listens on.
+	debug.DefaultSocketPath = ao.config.Debug.UnixSocket
 
 	ao.DefaultNamespace = app.Namespace
 
@@ -275,7 +268,11 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		)
 	}
 
-	so := shell_operator.NewShellOperator(cctx, metricsStorage, hookMetricStorage, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
+	so := shell_operator.NewBareShellOperator(cctx,
+		shell_operator.WithMetricStorage(metricsStorage),
+		shell_operator.WithHookMetricStorage(hookMetricStorage),
+		shell_operator.WithLogger(ao.Logger.Named("shell-operator")),
+	)
 
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
@@ -464,7 +461,13 @@ func (op *AddonOperator) Start(ctx context.Context) error {
 
 func (op *AddonOperator) Stop() {
 	op.KubeConfigManager.Stop()
-	op.engine.Shutdown()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := op.engine.Shutdown(shutdownCtx); err != nil {
+		op.Logger.Error("shutdown error", log.Err(err))
+	}
 
 	if op.cancel != nil {
 		op.cancel()
