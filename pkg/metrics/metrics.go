@@ -117,6 +117,9 @@ var (
 	LiveTicks = "{PREFIX}live_ticks"
 )
 
+// tasksQueueHeadInfoMetricGroup is the metric group name (without prefix) for tasks_queue_head_info.
+const tasksQueueHeadInfoMetricGroup = "tasks_queue_head_info"
+
 // Standard histogram buckets for timing metrics (1ms to 10s)
 var buckets_1msTo10s = []float64{
 	0.0,
@@ -616,7 +619,7 @@ func StartTasksQueueLengthUpdater(metricStorage metricsstorage.Storage, tqs *que
 // properly expiring old series before republishing to prevent phantom series
 // from persisting after a queue head changes.
 func updateTasksQueueHeadInfo(tqs *queue.TaskQueueSet, metricStorage metricsstorage.Storage, headInfoExtractor func(metadata interface{}) (module, hook string)) {
-	metricStorage.Grouped().ExpireGroupMetricByName("tasks_queue_head_info", TasksQueueHeadInfo)
+	metricStorage.Grouped().ExpireGroupMetricByName(tasksQueueHeadInfoMetricGroup, TasksQueueHeadInfo)
 
 	tqs.IterateSnapshot(context.TODO(), func(_ context.Context, q *queue.TaskQueue) {
 		t := q.GetFirst()
@@ -633,7 +636,7 @@ func updateTasksQueueHeadInfo(tqs *queue.TaskQueueSet, metricStorage metricsstor
 		}
 
 		metricStorage.Grouped().GaugeSet(
-			"tasks_queue_head_info",
+			tasksQueueHeadInfoMetricGroup,
 			TasksQueueHeadInfo,
 			1,
 			map[string]string{

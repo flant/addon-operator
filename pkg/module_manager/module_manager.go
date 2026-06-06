@@ -512,7 +512,7 @@ func (mm *ModuleManager) UpdateModulesMetrics() {
 		}
 
 		critical := "false"
-		if bm := mm.GetModule(module); bm != nil && bm.GetCritical() {
+		if mm.GetCritical(module) {
 			critical = "true"
 		}
 
