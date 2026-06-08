@@ -6,11 +6,11 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.2.1
 	github.com/deckhouse/deckhouse/pkg/metrics-storage v0.3.0
-	github.com/deckhouse/module-sdk v0.10.13-0.20260605113219-71bf3d2e5b26
+	github.com/deckhouse/module-sdk v0.11.0
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
-	github.com/flant/kube-client v1.7.1-0.20260605100710-8050d6e77be2
-	github.com/flant/shell-operator v1.18.1-0.20260605114525-79ec9d45550c
+	github.com/flant/kube-client v1.8.0
+	github.com/flant/shell-operator v1.19.1
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-openapi/loads v0.23.2
 	github.com/go-openapi/spec v0.22.1
