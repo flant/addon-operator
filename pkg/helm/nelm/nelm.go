@@ -32,6 +32,8 @@ import (
 	"github.com/flant/addon-operator/pkg/utils"
 )
 
+const nelmDependencyGraphEnabled = "NELM_DEPENDENCY_GRAPH_ENABLED"
+
 var (
 	_   client.HelmClient = (*NelmClient)(nil)
 	one sync.Once
@@ -348,7 +350,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 	}
 
 	var installGraphPath string
-	if os.Getenv("NELM_INSTALL_GRAPH_ENABLED") == "true" {
+	if os.Getenv(nelmDependencyGraphEnabled) == "true" {
 		graphDir := filepath.Join("/tmp/nelm-install-graph", releaseName)
 		if err := os.MkdirAll(graphDir, 0o755); err != nil {
 			return fmt.Errorf("unable to create install graph directory %q: %w", graphDir, err)
@@ -465,7 +467,7 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 	c.logger.Debug("nelm release: execute nelm uninstall", slog.String(pkg.LogKeyRelease, releaseName))
 
 	var installGraphPath string
-	if os.Getenv("NELM_INSTALL_GRAPH_ENABLED") == "true" {
+	if os.Getenv(nelmDependencyGraphEnabled) == "true" {
 		graphDir := filepath.Join("/tmp/nelm-uninstall-graph", releaseName)
 		if err := os.MkdirAll(graphDir, 0o755); err != nil {
 			return fmt.Errorf("unable to create uninstall graph directory %q: %w", graphDir, err)
