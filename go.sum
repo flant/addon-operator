@@ -101,8 +101,8 @@ github.com/deckhouse/deckhouse/pkg/log v0.2.1 h1:7SSD+QJPnziAO3l8ycgRwN5wlQeC312
 github.com/deckhouse/deckhouse/pkg/log v0.2.1/go.mod h1:pbAxTSDcPmwyl3wwKDcEB3qdxHnRxqTV+J0K+sha8bw=
 github.com/deckhouse/deckhouse/pkg/metrics-storage v0.3.0 h1:xZvbKuexrSQGEw6CB4n3UC7XbOb9QNLbm8UhcGZ2R1I=
 github.com/deckhouse/deckhouse/pkg/metrics-storage v0.3.0/go.mod h1:Rz++SzCLkFW03WGgftnn91TimGU2shiKb5S/YuxcBuE=
-github.com/deckhouse/module-sdk v0.10.12 h1:HS3Rrkm4je5v2L8eoSGOGugtUAEbhRltBclUY3SoGYg=
-github.com/deckhouse/module-sdk v0.10.12/go.mod h1:hkj3AK1lj84z1VT8zMZVkZNC6L1wTmp3BL2IW9eEYJE=
+github.com/deckhouse/module-sdk v0.10.13 h1:BDY0uui8mhAM0iSKRdWmBwtuSTF8p96wnvgegVspu70=
+github.com/deckhouse/module-sdk v0.10.13/go.mod h1:yuowe5M8qpsUQ2JjE9CjkgBjd0OP+XtO69y7k4Om97w=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
@@ -156,8 +156,8 @@ github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/flant/kube-client v1.7.0 h1:+B0yZfQuVKnsyf51+pQckxeKA7SR9YOdhyR3GeQi57s=
 github.com/flant/kube-client v1.7.0/go.mod h1:16bcsXO8C7i0rtKmrpbgmJpnQgqlUzfIOZs521WmKcE=
-github.com/flant/shell-operator v1.17.5 h1:Zqi/ufpDVBtAL/d+h0OLbfwa6axp56SKJZzIU3Admjw=
-github.com/flant/shell-operator v1.17.5/go.mod h1:0StUzFiEEqY60xEgIj7symIT8ePVFQKqnIy/vF0Mt4g=
+github.com/flant/shell-operator v1.17.6 h1:75JyR31JTfiJphuv21nmZh3h+/Dgo9O+A8tfDABrvCk=
+github.com/flant/shell-operator v1.17.6/go.mod h1:iAIo8qXxkNsMiabep4EwxWD2Q2b4fqIjXEVS/M9Bw9Q=
 github.com/flopp/go-findfont v0.1.0 h1:lPn0BymDUtJo+ZkV01VS3661HL6F4qFlkhcJN55u6mU=
 github.com/flopp/go-findfont v0.1.0/go.mod h1:wKKxRDjD024Rh7VMwoU90i6ikQRCr+JTHB5n4Ejkqvw=
 github.com/fluxcd/flagger v1.36.1 h1:X2PumtNwZz9YSGaOtZLFm2zAKLgHhFkbNv8beg7ifyc=
