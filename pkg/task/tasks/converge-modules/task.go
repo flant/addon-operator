@@ -42,6 +42,7 @@ type TaskDependencies interface {
 	GetConvergeState() *converge.ConvergeState
 	GetQueueService() *taskqueue.Service
 	GetFunctionalScheduler() *functional.Scheduler
+	GetFunctionalModulesChannel() chan []string
 }
 
 // RegisterTaskHandler creates a factory function that instantiates ConvergeModules tasks.
@@ -54,6 +55,7 @@ func RegisterTaskHandler(deps TaskDependencies) func(t sh_task.Task, logger *log
 			deps.GetConvergeState(),
 			deps.GetFunctionalScheduler(),
 			deps.GetQueueService(),
+			deps.GetFunctionalModulesChannel(),
 			logger.Named("converge-modules"),
 		)
 	}
@@ -69,6 +71,11 @@ type Task struct {
 	queueService        *taskqueue.Service
 	functionalScheduler *functional.Scheduler
 
+	// functionalModulesCh, when non-nil, enables functional-modules handoff:
+	// functional modules are not scheduled internally; their names are emitted
+	// on this channel once critical modules have finished converging.
+	functionalModulesCh chan []string
+
 	logger *log.Logger
 }
 
@@ -80,6 +87,7 @@ func NewTask(
 	convergeState *converge.ConvergeState,
 	functionalScheduler *functional.Scheduler,
 	queueService *taskqueue.Service,
+	functionalModulesCh chan []string,
 	logger *log.Logger,
 ) *Task {
 	return &Task{
@@ -89,7 +97,48 @@ func NewTask(
 		convergeState:       convergeState,
 		queueService:        queueService,
 		functionalScheduler: functionalScheduler,
+		functionalModulesCh: functionalModulesCh,
 		logger:              logger,
+	}
+}
+
+// handoffEnabled reports whether functional modules should be handed off to an
+// external controller instead of being processed by the internal functional
+// scheduler.
+func (s *Task) handoffEnabled() bool {
+	return s.functionalModulesCh != nil
+}
+
+// collectFunctionalModules returns the names of currently enabled functional
+// (non-critical) modules, in scheduler order.
+func (s *Task) collectFunctionalModules() []string {
+	enabled := s.moduleManager.GetEnabledModuleNames()
+
+	functionalModules := make([]string, 0, len(enabled))
+	for _, name := range enabled {
+		if !s.moduleManager.GetCritical(name) {
+			functionalModules = append(functionalModules, name)
+		}
+	}
+
+	return functionalModules
+}
+
+// emitFunctionalModules hands off the enabled functional modules to the external
+// controller. The send itself is the "critical modules done" signal. It is
+// non-blocking: if the channel buffer is full the signal is dropped and will be
+// re-sent on the next converge.
+func (s *Task) emitFunctionalModules() {
+	functionalModules := s.collectFunctionalModules()
+
+	s.logger.Info("ConvergeModules: hand off functional modules to external controller",
+		slog.Int(pkg.LogKeyCount, len(functionalModules)),
+		slog.Any(pkg.LogKeyModules, functionalModules))
+
+	select {
+	case s.functionalModulesCh <- functionalModules:
+	default:
+		s.logger.Warn("ConvergeModules: functional modules channel is full, handoff signal dropped (will retry on next converge)")
 	}
 }
 
@@ -191,27 +240,34 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	if s.convergeState.GetPhase() == converge.WaitDeleteAndRunModules {
-		// trigger functional converge
-		s.functionalScheduler.Done(functional.Root)
+		if s.handoffEnabled() {
+			// Critical modules have finished converging at this point. Hand off
+			// the functional modules to the external controller instead of
+			// running them through the internal functional scheduler.
+			s.emitFunctionalModules()
+		} else {
+			// trigger functional converge
+			s.functionalScheduler.Done(functional.Root)
 
-		// wait until functional converge done
-		if !s.functionalScheduler.Finished() {
-			s.logger.Warn("ConvergeModules: functional scheduler not finished")
+			// wait until functional converge done
+			if !s.functionalScheduler.Finished() {
+				s.logger.Warn("ConvergeModules: functional scheduler not finished")
 
-			res.Status = queue.Keep
-			res.DelayBeforeNextTask = repeatInterval
+				res.Status = queue.Keep
+				res.DelayBeforeNextTask = repeatInterval
 
-			if s.queueService.GetQueueLength(queue.MainQueueName) > 1 {
-				s.logger.Debug("ConvergeModules: main queue has pending tasks, pass them")
+				if s.queueService.GetQueueLength(queue.MainQueueName) > 1 {
+					s.logger.Debug("ConvergeModules: main queue has pending tasks, pass them")
 
-				res.DelayBeforeNextTask = 0
-				res.AddTailTasks(s.shellTask.DeepCopyWithNewUUID())
-				res.Status = queue.Success
+					res.DelayBeforeNextTask = 0
+					res.AddTailTasks(s.shellTask.DeepCopyWithNewUUID())
+					res.Status = queue.Success
 
-				s.logTaskAdd("tail", s.shellTask)
+					s.logTaskAdd("tail", s.shellTask)
+				}
+
+				return res
 			}
-
-			return res
 		}
 
 		s.logger.Info("ConvergeModules: ModuleRun tasks done, execute AfterAll global hooks")
@@ -508,52 +564,71 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 		}
 	}
 
-	deps := s.moduleManager.GetFunctionalDependencies()
-
-	// handle functional modules
-	schedulerRequests := make([]*functional.Request, len(functionalModules))
-	for idx, module := range functionalModules {
-		// notify about module enabling
-		ev := events.ModuleEvent{
-			ModuleName: module,
-			EventType:  events.ModuleEnabled,
+	if s.handoffEnabled() {
+		// Handoff mode: functional modules are processed by an external
+		// controller. Still notify status consumers that they are enabled, but
+		// do not ensure their CRDs or schedule them in the internal functional
+		// scheduler. The actual handoff signal is emitted from Handle once the
+		// critical modules have finished converging.
+		for _, module := range functionalModules {
+			s.moduleManager.SendModuleEvent(events.ModuleEvent{
+				ModuleName: module,
+				EventType:  events.ModuleEnabled,
+			})
 		}
-		s.moduleManager.SendModuleEvent(ev)
 
-		newLogLabels := utils.MergeLabels(logLabels)
-		delete(newLogLabels, pkg.LogKeyTaskID)
-		newLogLabels[pkg.LogKeyModule] = module
+		if len(functionalModules) > 0 {
+			log.Debug("The following functional modules are handed off to the external controller",
+				slog.Any(pkg.LogKeyModules, functionalModules))
+		}
+	} else {
+		deps := s.moduleManager.GetFunctionalDependencies()
 
-		doModuleStartup := false
-		// add EnsureCRDs task if module is about to be enabled
-		if _, has := newlyEnabled[module]; has {
-			if s.moduleManager.ModuleHasCRDs(module) {
-				resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
-					WithLogLabels(newLogLabels).
-					WithQueueName("main").
-					WithMetadata(task.HookMetadata{
-						EventDescription: "EnsureCRDs",
-						ModuleName:       module,
-						IsReloadAll:      true,
-					}).WithQueuedAt(queuedAt))
+		// handle functional modules
+		schedulerRequests := make([]*functional.Request, len(functionalModules))
+		for idx, module := range functionalModules {
+			// notify about module enabling
+			ev := events.ModuleEvent{
+				ModuleName: module,
+				EventType:  events.ModuleEnabled,
+			}
+			s.moduleManager.SendModuleEvent(ev)
+
+			newLogLabels := utils.MergeLabels(logLabels)
+			delete(newLogLabels, pkg.LogKeyTaskID)
+			newLogLabels[pkg.LogKeyModule] = module
+
+			doModuleStartup := false
+			// add EnsureCRDs task if module is about to be enabled
+			if _, has := newlyEnabled[module]; has {
+				if s.moduleManager.ModuleHasCRDs(module) {
+					resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+						WithLogLabels(newLogLabels).
+						WithQueueName("main").
+						WithMetadata(task.HookMetadata{
+							EventDescription: "EnsureCRDs",
+							ModuleName:       module,
+							IsReloadAll:      true,
+						}).WithQueuedAt(queuedAt))
+				}
+
+				doModuleStartup = true
 			}
 
-			doModuleStartup = true
+			schedulerRequests[idx] = &functional.Request{
+				Name:         module,
+				Dependencies: deps[module],
+				Description:  eventDescription,
+				IsReloadAll:  true,
+				DoStartup:    doModuleStartup,
+				Labels:       newLogLabels,
+			}
 		}
 
-		schedulerRequests[idx] = &functional.Request{
-			Name:         module,
-			Dependencies: deps[module],
-			Description:  eventDescription,
-			IsReloadAll:  true,
-			DoStartup:    doModuleStartup,
-			Labels:       newLogLabels,
+		// schedule functional modules in parallel queues
+		if len(schedulerRequests) > 0 {
+			s.functionalScheduler.Add(schedulerRequests...)
 		}
-	}
-
-	// schedule functional modules in parallel queues
-	if len(schedulerRequests) > 0 {
-		s.functionalScheduler.Add(schedulerRequests...)
 	}
 
 	// as resultingTasks contains new ensureCRDsTasks we invalidate

@@ -50,6 +50,11 @@ type TaskHandlerServiceConfig struct {
 	KubeConfigManager    *kube_config_manager.KubeConfigManager
 	ConvergeState        *converge.ConvergeState
 	CRDExtraLabels       map[string]string
+
+	// FunctionalModulesCh, when non-nil, enables functional-modules handoff:
+	// the converge-modules task emits functional module names here instead of
+	// scheduling them in the internal functional scheduler.
+	FunctionalModulesCh chan []string
 }
 
 type TaskHandlerService struct {
@@ -61,6 +66,10 @@ type TaskHandlerService struct {
 	parallelTaskChannels *paralleltask.TaskChannels
 
 	functionalScheduler *functional.Scheduler
+
+	// functionalModulesCh, when non-nil, switches the converge-modules task into
+	// handoff mode (see TaskHandlerServiceConfig.FunctionalModulesCh).
+	functionalModulesCh chan []string
 
 	helm *helm.ClientFactory
 
@@ -102,6 +111,7 @@ func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig
 		kubeConfigManager:    config.KubeConfigManager,
 		convergeState:        config.ConvergeState,
 		crdExtraLabels:       config.CRDExtraLabels,
+		functionalModulesCh:  config.FunctionalModulesCh,
 		discoveredCRDs:       discovercrds.NewDiscoveredGVKs(),
 		logger:               logger,
 	}
@@ -278,6 +288,12 @@ func (s *TaskHandlerService) GetQueueService() *taskqueue.Service {
 
 func (s *TaskHandlerService) GetFunctionalScheduler() *functional.Scheduler {
 	return s.functionalScheduler
+}
+
+// GetFunctionalModulesChannel returns the handoff channel for functional
+// modules, or nil when handoff mode is disabled.
+func (s *TaskHandlerService) GetFunctionalModulesChannel() chan []string {
+	return s.functionalModulesCh
 }
 
 func (s *TaskHandlerService) GetConvergeState() *converge.ConvergeState {

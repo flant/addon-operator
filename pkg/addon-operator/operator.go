@@ -103,6 +103,14 @@ type AddonOperator struct {
 	ConvergeState *converge.ConvergeState
 
 	TaskService *taskservice.TaskHandlerService
+
+	// functionalModulesCh, when set, switches addon-operator into handoff mode
+	// for functional (non-critical) modules: instead of scheduling them in its
+	// own functional scheduler, addon-operator emits the list of functional
+	// modules on this channel once all critical modules have finished
+	// converging, so an external controller can process them. When nil, the
+	// internal functional scheduler is used (default behavior).
+	functionalModulesCh chan []string
 }
 
 type Option func(operator *AddonOperator)
@@ -216,6 +224,21 @@ func ShellOperatorConfig(c *app.Config) *shapp.Config {
 			ProxyHookJSON: c.Log.ProxyHookJSON,
 		},
 	}
+}
+
+// SetFunctionalModulesChannel enables functional-modules handoff mode.
+//
+// When a non-nil channel is provided, addon-operator stops scheduling
+// functional (non-critical) modules in its own functional scheduler. Instead,
+// after all critical modules have finished converging, it sends the names of
+// the currently enabled functional modules on this channel so an external
+// controller can take over their processing.
+//
+// Must be called before Start (the channel is read during bootstrap). When not
+// called (channel stays nil), addon-operator keeps its default behavior and
+// processes functional modules itself.
+func (op *AddonOperator) SetFunctionalModulesChannel(ch chan []string) {
+	op.functionalModulesCh = ch
 }
 
 func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage metricsstorage.Storage, opts ...Option) *AddonOperator {
