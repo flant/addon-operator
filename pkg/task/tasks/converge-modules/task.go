@@ -125,15 +125,27 @@ func (s *Task) collectFunctionalModules() []string {
 }
 
 // emitFunctionalModules hands off the enabled functional modules to the external
-// controller. The send itself is the "critical modules done" signal. It is
-// non-blocking: if the channel buffer is full the signal is dropped and will be
-// re-sent on the next converge.
+// controller. The send itself is the "critical modules done" signal, and the
+// emitted list is authoritative: the consumer adopts new modules and removes any
+// previously handed-off module absent from it.
+//
+// The send is non-blocking and "latest wins": a stale buffered list is drained
+// first so the newest set always lands. This matters for disables — dropping the
+// update would leave a now-disabled module running in the external controller.
+// As the sole producer, after draining the buffer-1 channel has room, so the
+// fresh send succeeds.
 func (s *Task) emitFunctionalModules() {
 	functionalModules := s.collectFunctionalModules()
 
 	s.logger.Info("ConvergeModules: hand off functional modules to external controller",
 		slog.Int(pkg.LogKeyCount, len(functionalModules)),
 		slog.Any(pkg.LogKeyModules, functionalModules))
+
+	// Drain a possibly stale value so the consumer converges to the newest set.
+	select {
+	case <-s.functionalModulesCh:
+	default:
+	}
 
 	select {
 	case s.functionalModulesCh <- functionalModules:
