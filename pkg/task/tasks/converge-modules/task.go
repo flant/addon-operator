@@ -18,6 +18,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/task"
+	discovercrds "github.com/flant/addon-operator/pkg/task/discover-crds"
 	"github.com/flant/addon-operator/pkg/task/functional"
 	"github.com/flant/addon-operator/pkg/task/helpers"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
@@ -33,6 +34,11 @@ const (
 	// repeatInterval is the interval at which the convergence status is checked
 	// while waiting until the functional scheduler done
 	repeatInterval = 3 * time.Second
+
+	// ensureCRDsHandoffTimeout bounds how long the converge task blocks waiting
+	// for the external controller to install CRDs. On timeout addon-operator
+	// falls back to installing the CRDs itself so converge never stalls forever.
+	ensureCRDsHandoffTimeout = 10 * time.Minute
 )
 
 // TaskDependencies defines the external dependencies required by the ConvergeModules task.
@@ -43,6 +49,8 @@ type TaskDependencies interface {
 	GetQueueService() *taskqueue.Service
 	GetFunctionalScheduler() *functional.Scheduler
 	GetFunctionalModulesChannel() chan []string
+	GetEnsureCRDsChannel() chan converge.EnsureCRDsRequest
+	GetDiscoveredGVKs() *discovercrds.DiscoveredGVKs
 }
 
 // RegisterTaskHandler creates a factory function that instantiates ConvergeModules tasks.
@@ -56,6 +64,8 @@ func RegisterTaskHandler(deps TaskDependencies) func(t sh_task.Task, logger *log
 			deps.GetFunctionalScheduler(),
 			deps.GetQueueService(),
 			deps.GetFunctionalModulesChannel(),
+			deps.GetEnsureCRDsChannel(),
+			deps.GetDiscoveredGVKs(),
 			logger.Named("converge-modules"),
 		)
 	}
@@ -76,6 +86,17 @@ type Task struct {
 	// on this channel once critical modules have finished converging.
 	functionalModulesCh chan []string
 
+	// ensureCRDsCh, when non-nil, enables CRD-ensure handoff: module CRDs are
+	// installed by an external controller instead of internal ModuleEnsureCRDs
+	// tasks. The converge task blocks until the controller reports completion.
+	ensureCRDsCh chan converge.EnsureCRDsRequest
+
+	// discoveredGVKs accumulates the GVKs of every applied CRD across converges.
+	// In CRD-ensure handoff mode the GVKs reported by the external controller are
+	// merged here so global.discovery.apiVersions keeps its accumulate-only
+	// semantics (the same accumulator the internal ensureCRDs path feeds).
+	discoveredGVKs *discovercrds.DiscoveredGVKs
+
 	logger *log.Logger
 }
 
@@ -88,6 +109,8 @@ func NewTask(
 	functionalScheduler *functional.Scheduler,
 	queueService *taskqueue.Service,
 	functionalModulesCh chan []string,
+	ensureCRDsCh chan converge.EnsureCRDsRequest,
+	discoveredGVKs *discovercrds.DiscoveredGVKs,
 	logger *log.Logger,
 ) *Task {
 	return &Task{
@@ -98,6 +121,8 @@ func NewTask(
 		queueService:        queueService,
 		functionalScheduler: functionalScheduler,
 		functionalModulesCh: functionalModulesCh,
+		ensureCRDsCh:        ensureCRDsCh,
+		discoveredGVKs:      discoveredGVKs,
 		logger:              logger,
 	}
 }
@@ -107,6 +132,72 @@ func NewTask(
 // scheduler.
 func (s *Task) handoffEnabled() bool {
 	return s.functionalModulesCh != nil
+}
+
+// handoffCRDsEnabled reports whether module CRD installation should be delegated
+// to an external controller instead of being performed by internal
+// ModuleEnsureCRDs tasks.
+func (s *Task) handoffCRDsEnabled() bool {
+	return s.ensureCRDsCh != nil
+}
+
+// ensureCRDsHandoff delegates installation of the given modules' CRDs to the
+// external controller and blocks until it reports completion.
+//
+// The send and the wait are both bounded by ensureCRDsHandoffTimeout so a
+// missing or stuck consumer degrades to a handoff error (the caller then falls
+// back to internal ModuleEnsureCRDs tasks) rather than stalling converge.
+//
+// On success the result carries the GVKs of every applied CRD so the caller can
+// refresh global.discovery.apiVersions, exactly as the internal ensureCRDs path
+// did.
+func (s *Task) ensureCRDsHandoff(modules, enabledModules []string) converge.EnsureCRDsResult {
+	s.logger.Info("ConvergeModules: hand off CRD installation to external controller",
+		slog.Int(pkg.LogKeyCount, len(modules)),
+		slog.Any(pkg.LogKeyModules, modules))
+
+	// Buffered so the consumer never blocks delivering the result, even if this
+	// producer has already given up waiting (timeout below).
+	done := make(chan converge.EnsureCRDsResult, 1)
+	req := converge.EnsureCRDsRequest{
+		Modules:        modules,
+		EnabledModules: enabledModules,
+		Done:           done,
+	}
+
+	select {
+	case s.ensureCRDsCh <- req:
+	case <-time.After(ensureCRDsHandoffTimeout):
+		return converge.EnsureCRDsResult{
+			Err: fmt.Errorf("timeout after %s sending CRD ensure handoff", ensureCRDsHandoffTimeout),
+		}
+	}
+
+	select {
+	case res := <-done:
+		return res
+	case <-time.After(ensureCRDsHandoffTimeout):
+		return converge.EnsureCRDsResult{
+			Err: fmt.Errorf("timeout after %s waiting for CRD ensure handoff", ensureCRDsHandoffTimeout),
+		}
+	}
+}
+
+// collectEnabledCRDModules returns the names of all currently enabled modules
+// (critical and functional) that ship CRDs. The external controller uses this
+// set to prune its served-CRD registry, so platform capabilities reflect only
+// modules that are still enabled.
+func (s *Task) collectEnabledCRDModules() []string {
+	enabled := s.moduleManager.GetEnabledModuleNames()
+
+	crdModules := make([]string, 0, len(enabled))
+	for _, name := range enabled {
+		if s.moduleManager.ModuleHasCRDs(name) {
+			crdModules = append(crdModules, name)
+		}
+	}
+
+	return crdModules
 }
 
 // collectFunctionalModules returns the names of currently enabled functional
@@ -468,6 +559,12 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 
 	var functionalModules []string
 
+	// crdModules accumulates the modules whose CRDs must be ensured when
+	// CRD-ensure handoff is enabled. Their internal ModuleEnsureCRDs tasks are
+	// skipped; instead a single blocking handoff to the external controller is
+	// performed once the full set is known (see below).
+	var crdModules []string
+
 	for _, modules := range state.AllEnabledModulesByOrder {
 		if len(modules) == 0 {
 			continue
@@ -500,14 +597,18 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 				if _, has := newlyEnabled[moduleName]; has {
 					// add EnsureCRDs task if module is about to be enabled
 					if s.moduleManager.ModuleHasCRDs(moduleName) {
-						resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
-							WithLogLabels(newLogLabels).
-							WithQueueName("main").
-							WithMetadata(task.HookMetadata{
-								EventDescription: "EnsureCRDs",
-								ModuleName:       moduleName,
-								IsReloadAll:      true,
-							}).WithQueuedAt(queuedAt))
+						if s.handoffCRDsEnabled() {
+							crdModules = append(crdModules, moduleName)
+						} else {
+							resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+								WithLogLabels(newLogLabels).
+								WithQueueName("main").
+								WithMetadata(task.HookMetadata{
+									EventDescription: "EnsureCRDs",
+									ModuleName:       moduleName,
+									IsReloadAll:      true,
+								}).WithQueuedAt(queuedAt))
+						}
 					}
 
 					doModuleStartup = true
@@ -545,14 +646,18 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 			if _, has := newlyEnabled[modules[0]]; has {
 				// add EnsureCRDs task if module is about to be enabled
 				if s.moduleManager.ModuleHasCRDs(modules[0]) {
-					resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
-						WithLogLabels(newLogLabels).
-						WithQueueName("main").
-						WithMetadata(task.HookMetadata{
-							EventDescription: "EnsureCRDs",
-							ModuleName:       modules[0],
-							IsReloadAll:      true,
-						}).WithQueuedAt(queuedAt))
+					if s.handoffCRDsEnabled() {
+						crdModules = append(crdModules, modules[0])
+					} else {
+						resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+							WithLogLabels(newLogLabels).
+							WithQueueName("main").
+							WithMetadata(task.HookMetadata{
+								EventDescription: "EnsureCRDs",
+								ModuleName:       modules[0],
+								IsReloadAll:      true,
+							}).WithQueuedAt(queuedAt))
+					}
 				}
 
 				doModuleStartup = true
@@ -587,6 +692,15 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 				ModuleName: module,
 				EventType:  events.ModuleEnabled,
 			})
+
+			// When CRD-ensure handoff is enabled, the external controller also
+			// installs CRDs for the functional modules it is about to run, so
+			// add the newly enabled ones to the handoff set.
+			if s.handoffCRDsEnabled() {
+				if _, has := newlyEnabled[module]; has && s.moduleManager.ModuleHasCRDs(module) {
+					crdModules = append(crdModules, module)
+				}
+			}
 		}
 
 		if len(functionalModules) > 0 {
@@ -614,14 +728,18 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 			// add EnsureCRDs task if module is about to be enabled
 			if _, has := newlyEnabled[module]; has {
 				if s.moduleManager.ModuleHasCRDs(module) {
-					resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
-						WithLogLabels(newLogLabels).
-						WithQueueName("main").
-						WithMetadata(task.HookMetadata{
-							EventDescription: "EnsureCRDs",
-							ModuleName:       module,
-							IsReloadAll:      true,
-						}).WithQueuedAt(queuedAt))
+					if s.handoffCRDsEnabled() {
+						crdModules = append(crdModules, module)
+					} else {
+						resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+							WithLogLabels(newLogLabels).
+							WithQueueName("main").
+							WithMetadata(task.HookMetadata{
+								EventDescription: "EnsureCRDs",
+								ModuleName:       module,
+								IsReloadAll:      true,
+							}).WithQueuedAt(queuedAt))
+					}
 				}
 
 				doModuleStartup = true
@@ -649,6 +767,61 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 		log.Debug("CheckCRDsEnsured: set to false")
 
 		s.convergeState.CRDsEnsured = false
+	}
+
+	// CRD-ensure handoff: instead of the internal ModuleEnsureCRDs tasks (which
+	// were skipped above), delegate CRD installation for the whole set to the
+	// external controller and block until it finishes. This runs synchronously
+	// before the ModuleRun/ParallelModuleRun tasks are returned, so the ordering
+	// guarantee (CRDs exist before modules run) is preserved.
+	// Trigger the CRD-ensure handoff when there are new CRDs to install OR when
+	// modules are being disabled: the latter has no CRDs to install but must
+	// still reach the external controller so it can drop the disabled modules
+	// from the platform capabilities view (served-CRD pruning).
+	if s.handoffCRDsEnabled() && (len(crdModules) > 0 || len(state.ModulesToDisable) > 0) {
+		res := s.ensureCRDsHandoff(crdModules, s.collectEnabledCRDModules())
+		if res.Err != nil {
+			// Fall back to installing CRDs ourselves so converge never stalls on
+			// a failing external controller. The fallback tasks also perform GVK
+			// discovery and flip CRDsEnsured via their own CheckCRDsEnsured.
+			log.Error("ConvergeModules: CRD ensure handoff failed, falling back to internal ensureCRDs tasks",
+				slog.Any(pkg.LogKeyModules, crdModules), log.Err(res.Err))
+
+			for _, moduleName := range crdModules {
+				newLogLabels := utils.MergeLabels(logLabels)
+				delete(newLogLabels, pkg.LogKeyTaskID)
+				newLogLabels[pkg.LogKeyModule] = moduleName
+
+				resultingTasks = append(resultingTasks, sh_task.NewTask(task.ModuleEnsureCRDs).
+					WithLogLabels(newLogLabels).
+					WithQueueName("main").
+					WithMetadata(task.HookMetadata{
+						EventDescription: "EnsureCRDs",
+						ModuleName:       moduleName,
+						IsReloadAll:      true,
+					}).WithQueuedAt(queuedAt))
+			}
+		} else {
+			// CRDs are installed by the external controller. Mirror the
+			// bookkeeping the internal ensureCRDs path performed: accumulate the
+			// reported GVKs and publish the full accumulated set as
+			// global.discovery.apiVersions (accumulate-only semantics), then mark
+			// CRDs ensured for this converge so downstream module runs proceed.
+			if s.discoveredGVKs != nil {
+				s.discoveredGVKs.AddGVK(res.GVKs...)
+				s.discoveredGVKs.ProcessGVKs(func(gvks []string) {
+					s.moduleManager.SetGlobalDiscoveryAPIVersions(gvks)
+				})
+			} else {
+				s.moduleManager.SetGlobalDiscoveryAPIVersions(res.GVKs)
+			}
+
+			s.convergeState.CRDsEnsured = true
+
+			log.Info("ConvergeModules: CRDs ensured by external controller",
+				slog.Int(pkg.LogKeyCount, len(crdModules)),
+				slog.Int("gvks", len(res.GVKs)))
+		}
 	}
 
 	// append modulesTasks to resultingTasks

@@ -24,6 +24,44 @@ type ConvergeState struct {
 	firstRunPhase FirstConvergePhase
 }
 
+// EnsureCRDsRequest is a blocking CRD-ensure handoff from the converge-modules
+// task to an external controller.
+//
+// When the ensure-CRDs handoff channel is set, addon-operator stops installing
+// module CRDs through its own ModuleEnsureCRDs tasks. Instead, at the converge
+// CRD barrier it sends the set of modules whose CRDs must exist on the channel
+// and blocks on Done until the external controller reports completion. This
+// keeps CRD installation a single, externally owned step while preserving the
+// "CRDs exist before modules run" ordering converge relies on.
+type EnsureCRDsRequest struct {
+	// Modules is the set of newly enabled module names whose bundled CRDs must be
+	// applied during this converge.
+	Modules []string
+	// EnabledModules is the full set of currently enabled module names. The
+	// external controller uses it to prune its per-module served-CRD registry so
+	// that platform capabilities reflect only modules that are still enabled: a
+	// module absent from this set (i.e. just disabled) has its served CRDs
+	// dropped from the capabilities view.
+	EnabledModules []string
+	// Done receives the result once the external controller finishes. The
+	// producer (converge-modules) blocks on it. It is buffered (size 1) by the
+	// producer so the consumer never blocks delivering the result.
+	Done chan EnsureCRDsResult
+}
+
+// EnsureCRDsResult is the outcome of an EnsureCRDsRequest reported by the
+// external controller.
+type EnsureCRDsResult struct {
+	// GVKs are the GroupVersionKinds of every CRD applied across the requested
+	// modules (deduplicated). addon-operator feeds them into
+	// global.discovery.apiVersions, mirroring the discovery it performed when it
+	// installed CRDs itself.
+	GVKs []string
+	// Err is non-nil when the external controller failed to apply some CRDs. The
+	// producer then falls back to its own ModuleEnsureCRDs tasks.
+	Err error
+}
+
 type ConvergePhase string
 
 const (

@@ -111,6 +111,14 @@ type AddonOperator struct {
 	// converging, so an external controller can process them. When nil, the
 	// internal functional scheduler is used (default behavior).
 	functionalModulesCh chan []string
+
+	// ensureCRDsCh, when set, delegates module CRD installation to an external
+	// controller. At the converge CRD barrier addon-operator sends the modules
+	// whose CRDs must exist on this channel and blocks until the controller
+	// reports completion (along with the applied GVKs), instead of running its
+	// own ModuleEnsureCRDs tasks. When nil, addon-operator installs CRDs itself
+	// (default behavior).
+	ensureCRDsCh chan converge.EnsureCRDsRequest
 }
 
 type Option func(operator *AddonOperator)
@@ -239,6 +247,22 @@ func ShellOperatorConfig(c *app.Config) *shapp.Config {
 // processes functional modules itself.
 func (op *AddonOperator) SetFunctionalModulesChannel(ch chan []string) {
 	op.functionalModulesCh = ch
+}
+
+// SetEnsureCRDsChannel enables CRD-ensure handoff mode.
+//
+// When a non-nil channel is provided, addon-operator stops installing module
+// CRDs through its own ModuleEnsureCRDs tasks. Instead, during converge it sends
+// the set of enabled modules whose CRDs must exist on this channel and blocks
+// until the external controller reports completion, then applies the returned
+// GVKs to global.discovery.apiVersions and continues converging. If the external
+// controller reports an error, addon-operator falls back to installing the CRDs
+// itself.
+//
+// Must be called before Start (the channel is read during bootstrap). When not
+// called (channel stays nil), addon-operator keeps installing CRDs itself.
+func (op *AddonOperator) SetEnsureCRDsChannel(ch chan converge.EnsureCRDsRequest) {
+	op.ensureCRDsCh = ch
 }
 
 func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage metricsstorage.Storage, opts ...Option) *AddonOperator {

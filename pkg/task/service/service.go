@@ -55,6 +55,11 @@ type TaskHandlerServiceConfig struct {
 	// the converge-modules task emits functional module names here instead of
 	// scheduling them in the internal functional scheduler.
 	FunctionalModulesCh chan []string
+
+	// EnsureCRDsCh, when non-nil, enables CRD-ensure handoff: the converge-modules
+	// task delegates module CRD installation to an external controller via this
+	// channel instead of running its own ModuleEnsureCRDs tasks.
+	EnsureCRDsCh chan converge.EnsureCRDsRequest
 }
 
 type TaskHandlerService struct {
@@ -70,6 +75,10 @@ type TaskHandlerService struct {
 	// functionalModulesCh, when non-nil, switches the converge-modules task into
 	// handoff mode (see TaskHandlerServiceConfig.FunctionalModulesCh).
 	functionalModulesCh chan []string
+
+	// ensureCRDsCh, when non-nil, switches the converge-modules task into
+	// CRD-ensure handoff mode (see TaskHandlerServiceConfig.EnsureCRDsCh).
+	ensureCRDsCh chan converge.EnsureCRDsRequest
 
 	helm *helm.ClientFactory
 
@@ -112,6 +121,7 @@ func NewTaskHandlerService(ctx context.Context, config *TaskHandlerServiceConfig
 		convergeState:        config.ConvergeState,
 		crdExtraLabels:       config.CRDExtraLabels,
 		functionalModulesCh:  config.FunctionalModulesCh,
+		ensureCRDsCh:         config.EnsureCRDsCh,
 		discoveredCRDs:       discovercrds.NewDiscoveredGVKs(),
 		logger:               logger,
 	}
@@ -294,6 +304,12 @@ func (s *TaskHandlerService) GetFunctionalScheduler() *functional.Scheduler {
 // modules, or nil when handoff mode is disabled.
 func (s *TaskHandlerService) GetFunctionalModulesChannel() chan []string {
 	return s.functionalModulesCh
+}
+
+// GetEnsureCRDsChannel returns the CRD-ensure handoff channel, or nil when
+// CRD-ensure handoff mode is disabled.
+func (s *TaskHandlerService) GetEnsureCRDsChannel() chan converge.EnsureCRDsRequest {
+	return s.ensureCRDsCh
 }
 
 func (s *TaskHandlerService) GetConvergeState() *converge.ConvergeState {

@@ -58,6 +58,7 @@ func (op *AddonOperator) bootstrap() error {
 		ConvergeState:        op.ConvergeState,
 		CRDExtraLabels:       op.CRDExtraLabels,
 		FunctionalModulesCh:  op.functionalModulesCh,
+		EnsureCRDsCh:         op.ensureCRDsCh,
 	}
 
 	op.TaskService = taskservice.NewTaskHandlerService(op.ctx, cfg, op.Logger)
