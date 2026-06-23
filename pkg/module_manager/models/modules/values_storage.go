@@ -217,6 +217,18 @@ func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
 	_ = vs.calculateResultValues()
 }
 
+// GetRegistry returns the registry previously set via InjectRegistryValue, or
+// nil if none was injected. It reads the static values layer directly so the
+// concrete *Registry type is preserved: the merged result values may round-trip
+// it into a map.
+func (vs *ValuesStorage) GetRegistry() *Registry {
+	vs.lock.Lock()
+	defer vs.lock.Unlock()
+
+	reg, _ := vs.staticValues["registry"].(*Registry)
+	return reg
+}
+
 // GetConfigValues returns only user defined values
 func (vs *ValuesStorage) GetConfigValues(withPrefix bool) utils.Values {
 	vs.lock.Lock()

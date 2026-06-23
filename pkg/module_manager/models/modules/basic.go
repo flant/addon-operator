@@ -1400,6 +1400,12 @@ func (bm *BasicModule) GetValuesStorage() *ValuesStorage {
 	return bm.valuesStorage
 }
 
+// GetRegistry returns the registry injected into the module's values, or nil if
+// none was set.
+func (bm *BasicModule) GetRegistry() *Registry {
+	return bm.valuesStorage.GetRegistry()
+}
+
 // GetSchemaStorage returns current schema storage of the basic module
 func (bm *BasicModule) GetSchemaStorage() *validation.SchemaStorage {
 	return bm.valuesStorage.schemaStorage
