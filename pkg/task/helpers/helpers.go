@@ -75,7 +75,7 @@ func formatTaskDetails(tsk sh_task.Task, hm task.HookMetadata, phase string) str
 	case task.ParallelModuleRun:
 		return fmt.Sprintf(" for modules '%s'", hm.ModuleName)
 
-	case task.ModulePurge, task.ModuleDelete, task.ModuleEnsureCRDs:
+	case task.ModulePurge, task.ModuleDelete, task.ModuleEnsureCRDs, task.ModuleEnsureHooks:
 		return fmt.Sprintf(" for module '%s'", hm.ModuleName)
 
 	case task.GlobalHookEnableKubernetesBindings,
