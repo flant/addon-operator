@@ -115,6 +115,8 @@ var (
 	TaskWaitInQueueSecondsTotal = "{PREFIX}task_wait_in_queue_seconds_total"
 	// TasksQueueLength shows current length of task queues
 	TasksQueueLength = "{PREFIX}tasks_queue_length"
+	// TasksQueueHeadInfo shows the head element of each non-empty task queue (module, task_type, hook)
+	TasksQueueHeadInfo = "{PREFIX}tasks_queue_head_info"
 
 	// ============================================================================
 	// Live Ticks Metrics
@@ -122,6 +124,9 @@ var (
 	// LiveTicks is a counter that increases every 10 seconds to indicate addon-operator is alive
 	LiveTicks = "{PREFIX}live_ticks"
 )
+
+// tasksQueueHeadInfoMetricGroup is the metric group name (without prefix) for tasks_queue_head_info.
+const tasksQueueHeadInfoMetricGroup = "tasks_queue_head_info"
 
 // Standard histogram buckets for timing metrics (1ms to 10s)
 var buckets_1msTo10s = []float64{
@@ -203,6 +208,7 @@ func InitMetrics(prefix string) {
 	// ============================================================================
 	TaskWaitInQueueSecondsTotal = ReplacePrefix(TaskWaitInQueueSecondsTotal, prefix)
 	TasksQueueLength = ReplacePrefix(TasksQueueLength, prefix)
+	TasksQueueHeadInfo = ReplacePrefix(TasksQueueHeadInfo, prefix)
 
 	// ============================================================================
 	// Live Ticks Metrics
@@ -592,15 +598,23 @@ func StartLiveTicksUpdater(metricStorage metricsstorage.Storage) {
 }
 
 // StartTasksQueueLengthUpdater starts a goroutine that periodically updates
-// the tasks_queue_length metric every 5 seconds.
-// This metric shows the number of pending tasks in each queue, which can be useful
-// for monitoring system load and potential backlog issues.
-func StartTasksQueueLengthUpdater(metricStorage metricsstorage.Storage, tqs *queue.TaskQueueSet) {
+// the tasks_queue_length and tasks_queue_head_info metrics every 5 seconds.
+// These metrics show the number of pending tasks and the head element info
+// (module, task_type, hook) of each non-empty queue.
+// headInfoExtractor is a callback that extracts (module, hook) from a task's raw metadata.
+func StartTasksQueueLengthUpdater(metricStorage metricsstorage.Storage, tqs *queue.TaskQueueSet, headInfoExtractor func(metadata interface{}) (module, hook string)) {
 	// Register the tasks queue length gauge
 	_, _ = metricStorage.RegisterGauge(
 		TasksQueueLength,
 		[]string{pkg.MetricKeyQueue},
 		options.WithHelp("Gauge showing the length of the task queue"),
+	)
+
+	// Register the tasks queue head info gauge
+	_, _ = metricStorage.RegisterGauge(
+		TasksQueueHeadInfo,
+		[]string{pkg.MetricKeyQueue, "module", "task_type", "hook"},
+		options.WithHelp("Head info of each non-empty task queue (module, task_type, hook)"),
 	)
 
 	// Start the updater goroutine
@@ -612,7 +626,44 @@ func StartTasksQueueLengthUpdater(metricStorage metricsstorage.Storage, tqs *que
 				metricStorage.GaugeSet(TasksQueueLength, queueLen, map[string]string{pkg.MetricKeyQueue: queue.Name})
 			})
 
+			// Publish head_info for each non-empty queue, expiring old series first.
+			updateTasksQueueHeadInfo(tqs, metricStorage, headInfoExtractor)
+
 			time.Sleep(5 * time.Second)
 		}
 	}()
+}
+
+// updateTasksQueueHeadInfo publishes head_info metrics for all non-empty queues,
+// properly expiring old series before republishing to prevent phantom series
+// from persisting after a queue head changes.
+func updateTasksQueueHeadInfo(tqs *queue.TaskQueueSet, metricStorage metricsstorage.Storage, headInfoExtractor func(metadata interface{}) (module, hook string)) {
+	metricStorage.Grouped().ExpireGroupMetricByName(tasksQueueHeadInfoMetricGroup, TasksQueueHeadInfo)
+
+	tqs.IterateSnapshot(context.TODO(), func(_ context.Context, q *queue.TaskQueue) {
+		t := q.GetFirst()
+		if t == nil {
+			return
+		}
+
+		module, hook := headInfoExtractor(t.GetMetadata())
+
+		// Normalize ParallelModuleRun synthetic module names:
+		// "Parallel run for a, b, c" -> "" to avoid false joins with deckhouse_mm_module_info.
+		if strings.HasPrefix(module, "Parallel run for ") {
+			module = ""
+		}
+
+		metricStorage.Grouped().GaugeSet(
+			tasksQueueHeadInfoMetricGroup,
+			TasksQueueHeadInfo,
+			1,
+			map[string]string{
+				pkg.MetricKeyQueue: q.Name,
+				"module":           module,
+				"task_type":        string(t.GetType()),
+				"hook":             hook,
+			},
+		)
+	})
 }
