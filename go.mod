@@ -1,6 +1,6 @@
 module github.com/flant/addon-operator
 
-go 1.25.8
+go 1.26.4
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -9,8 +9,8 @@ require (
 	github.com/deckhouse/module-sdk v0.11.1
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
-	github.com/flant/kube-client v1.8.0
-	github.com/flant/shell-operator v1.19.2
+	github.com/flant/kube-client v1.9.0
+	github.com/flant/shell-operator v1.20.0
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-openapi/loads v0.23.2
 	github.com/go-openapi/spec v0.22.1
@@ -18,7 +18,7 @@ require (
 	github.com/go-openapi/swag v0.26.0
 	github.com/go-openapi/validate v0.25.1
 	github.com/goccy/go-graphviz v0.2.9
-	github.com/gofrs/uuid/v5 v5.3.2
+	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/google/cel-go v0.26.0
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/hashicorp/go-multierror v1.1.1
@@ -240,7 +240,7 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/term v0.43.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	golang.org/x/time v0.12.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
