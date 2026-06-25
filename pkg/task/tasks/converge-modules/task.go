@@ -16,6 +16,7 @@ import (
 	hookTypes "github.com/flant/addon-operator/pkg/hook/types"
 	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	modulesModel "github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules/events"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/functional"
@@ -443,6 +444,10 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 					}
 
 					doModuleStartup = true
+				} else if m := s.moduleManager.GetModule(moduleName); m != nil && m.GetPhase() == modulesModel.Startup {
+					// Module stayed enabled but its previous ModuleRun was interrupted
+					// before onStartup hooks completed. Re-run startup.
+					doModuleStartup = true
 				}
 
 				parallelRunMetadata.SetModuleMetadata(moduleName, task.ParallelRunModuleMetadata{
@@ -487,6 +492,10 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 						}).WithQueuedAt(queuedAt))
 				}
 
+				doModuleStartup = true
+			} else if m := s.moduleManager.GetModule(modules[0]); m != nil && m.GetPhase() == modulesModel.Startup {
+				// Module stayed enabled but its previous ModuleRun was interrupted
+				// before onStartup hooks completed. Re-run startup.
 				doModuleStartup = true
 			}
 
@@ -538,6 +547,10 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 					}).WithQueuedAt(queuedAt))
 			}
 
+			doModuleStartup = true
+		} else if m := s.moduleManager.GetModule(module); m != nil && m.GetPhase() == modulesModel.Startup {
+			// Module stayed enabled but its previous ModuleRun was interrupted
+			// before onStartup hooks completed. Re-run startup.
 			doModuleStartup = true
 		}
 
