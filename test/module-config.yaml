@@ -1,0 +1,51 @@
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  annotations:
+    argocd.argoproj.io/tracking-id: deckhouse-modules.customer-prod-cluster:deckhouse.io/ModuleConfig:lmru-devops-k8s-configuration/istio
+  creationTimestamp: "2022-12-14T16:00:45Z"
+  finalizers:
+  - modules.deckhouse.io/module-registered
+  generation: 10
+  name: istio
+  resourceVersion: "5430247986"
+  uid: 2a3e8e67-ebfe-47e6-8879-81ec9bf8c066
+spec:
+  enabled: true
+  settings:
+    additionalVersions:
+    - "1.25"
+    alliance:
+      ingressGateway:
+        inlet: LoadBalancer
+        nodeSelector:
+          node-role/loadbalancer: ""
+        tolerations:
+        - operator: Exists
+    dataPlane:
+      trafficRedirectionSetupMode: CNIPlugin
+    federation:
+      enabled: true
+    globalVersion: "1.25"
+    multicluster:
+      enabled: true
+    sidecar:
+      resourcesManagement:
+        mode: Static
+        static:
+          limits:
+            cpu: "10"
+            memory: 10Gi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+    tracing:
+      collector:
+        zipkin:
+          address: jaeger-collector.jaeger.svc.customer.p.mesh:9411
+      enabled: true
+      kiali:
+        jaegerGRPCEndpoint: http://jaeger-query.jaeger.svc.customer.p.mesh:16685
+        jaegerURLForUsers: https://jaeger-customer.apps.lmru.tech/
+      sampling: 100
+  version: 3
