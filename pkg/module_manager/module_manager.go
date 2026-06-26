@@ -13,6 +13,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
+	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	"github.com/hashicorp/go-multierror"
 	"go.opentelemetry.io/otel"
 
@@ -818,6 +819,70 @@ func (mm *ModuleManager) RunModule(ctx context.Context, moduleName string, logLa
 
 	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
 	return oldValuesChecksum != newValuesChecksum, nil
+}
+
+// EnsureConversionWebhooks renders the module's ConversionWebhook resources and
+// applies them to the cluster before the main helm install. The subsequent
+// release adopts the already-present resources. It is a no-op for non-helm
+// modules and for modules without ConversionWebhook templates.
+func (mm *ModuleManager) EnsureConversionWebhooks(moduleName string, logLabels map[string]string) error {
+	bm := mm.GetModule(moduleName)
+	if bm == nil {
+		return fmt.Errorf("module %q not found", moduleName)
+	}
+
+	schemaStorage := bm.GetValuesStorage().GetSchemaStorage()
+	deps := &modules.HelmModuleDependencies{
+		HelmClientFactory:   mm.dependencies.Helm,
+		HelmResourceManager: mm.dependencies.HelmResourcesManager,
+		MetricsStorage:      mm.dependencies.MetricStorage,
+		HelmValuesValidator: schemaStorage,
+	}
+
+	helmModule, err := modules.NewHelmModule(bm, mm.defaultNamespace, mm.TempDir, deps, schemaStorage, modules.WithLogger(mm.logger.Named("helm-module")))
+	if err != nil {
+		if errors.Is(err, modules.ErrModuleIsNotHelm) {
+			return nil
+		}
+
+		return fmt.Errorf("create helm module: %w", err)
+	}
+
+	webhooks, err := helmModule.RenderConversionWebhooks(mm.defaultNamespace, bm.GetMaintenanceState())
+	if err != nil {
+		return fmt.Errorf("render conversion webhooks: %w", err)
+	}
+
+	if len(webhooks) == 0 {
+		return nil
+	}
+
+	ops := make([]sdkpkg.PatchCollectorOperation, 0, len(webhooks))
+	for _, m := range webhooks {
+		ops = append(ops, objectpatch.NewCreateOrUpdateOperation(map[string]any(m)))
+	}
+
+	if err := mm.dependencies.KubeObjectPatcher.ExecuteOperations(ops); err != nil {
+		return fmt.Errorf("apply conversion webhooks: %w", err)
+	}
+
+	utils.EnrichLoggerWithLabels(mm.logger, logLabels).Debug("applied conversion webhooks",
+		slog.String(pkg.LogKeyModule, moduleName),
+		slog.Int(pkg.LogKeyCount, len(webhooks)))
+
+	return nil
+}
+
+// ModuleHasConversionWebhooks reports whether the module's templates contain at
+// least one ConversionWebhook resource. It is a cheap static check used to skip
+// rendering for modules that have no conversion webhooks.
+func (mm *ModuleManager) ModuleHasConversionWebhooks(moduleName string) bool {
+	bm := mm.GetModule(moduleName)
+	if bm == nil {
+		return false
+	}
+
+	return bm.ConversionWebhookExist()
 }
 
 func (mm *ModuleManager) RunGlobalHook(ctx context.Context, hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, string, error) {

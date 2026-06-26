@@ -455,3 +455,34 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 
 	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }
+
+// ConversionWebhookKind is the kind of the rendered resource that carries a CRD
+// conversion webhook configuration. Such resources must be applied to the cluster
+// before the main helm release, so the release can adopt them afterwards.
+const ConversionWebhookKind = "ConversionWebhook"
+
+// RenderConversionWebhooks renders the module templates and returns only the
+// manifests of kind ConversionWebhook. They are extracted from the chart so the
+// caller can apply them ahead of the main helm install, letting the subsequent
+// release adopt the already-present resources.
+func (hm *HelmModule) RenderConversionWebhooks(namespace string, state MaintenanceState) ([]manifest.Manifest, error) {
+	rendered, err := hm.Render(namespace, false, state)
+	if err != nil {
+		return nil, fmt.Errorf("render templates: %w", err)
+	}
+
+	all, err := manifest.ListFromYamlDocs(rendered)
+	if err != nil {
+		return nil, fmt.Errorf("split rendered manifests: %w", err)
+	}
+
+	webhooks := make([]manifest.Manifest, 0)
+
+	for _, m := range all {
+		if m.Kind() == ConversionWebhookKind {
+			webhooks = append(webhooks, m)
+		}
+	}
+
+	return webhooks, nil
+}
