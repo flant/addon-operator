@@ -399,11 +399,13 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 		slog.String(pkg.LogKeyChart, modulePath),
 		slog.String(pkg.LogKeyNamespace, namespace))
 
-	file, err := os.ReadFile(installGraphPath)
-	if err != nil {
-		logger.Error("failed to read install graph file", slog.String("path", installGraphPath), log.Err(err))
-	} else {
-		logger.Debug("nelm graph file", slog.Any("graph", string(file)))
+	if os.Getenv(nelmDependencyGraphEnabled) == "true" {
+		file, err := os.ReadFile(installGraphPath)
+		if err != nil {
+			logger.Error("failed to read install graph file", slog.String("path", installGraphPath), log.Err(err))
+		} else {
+			logger.Debug("nelm graph file", slog.Any("graph", string(file)))
+		}
 	}
 
 	return nil
@@ -506,11 +508,13 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 
 	c.logger.Debug("nelm release deleted", slog.String(pkg.LogKeyRelease, releaseName))
 
-	file, err := os.ReadFile(installGraphPath)
-	if err != nil {
-		c.logger.Error("failed to read install graph file", slog.String("path", installGraphPath), log.Err(err))
-	} else {
-		c.logger.Debug("nelm graph file", slog.Any("graph", string(file)))
+	if os.Getenv(nelmDependencyGraphEnabled) == "true" {
+		file, err := os.ReadFile(installGraphPath)
+		if err != nil {
+			c.logger.Error("failed to read install graph file", slog.String("path", installGraphPath), log.Err(err))
+		} else {
+			c.logger.Debug("nelm graph file", slog.Any("graph", string(file)))
+		}
 	}
 
 	return nil
