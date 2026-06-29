@@ -121,7 +121,7 @@ func IsConvergeTask(t sh_task.Task) bool {
 	hm := task.HookMetadataAccessor(t)
 
 	switch taskType {
-	case task.ModuleDelete, task.ConvergeModules, task.ModuleEnsureCRDs:
+	case task.ModuleDelete, task.ConvergeModules, task.ModuleEnsureCRDs, task.ModuleEnsureHooks:
 		return true
 	case task.ModuleRun, task.ParallelModuleRun:
 		return hm.IsReloadAll
