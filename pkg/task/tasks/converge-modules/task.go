@@ -445,6 +445,11 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 					doModuleStartup = true
 				}
 
+				// add EnsureHooks task for every enabled module, right after EnsureCRDs
+				if s.moduleManager.ModuleHasConversionWebhooks(moduleName) {
+					resultingTasks = append(resultingTasks, s.newEnsureHooksTask(moduleName, newLogLabels, queuedAt))
+				}
+
 				parallelRunMetadata.SetModuleMetadata(moduleName, task.ParallelRunModuleMetadata{
 					DoModuleStartup: doModuleStartup,
 				})
@@ -488,6 +493,11 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 				}
 
 				doModuleStartup = true
+			}
+
+			// add EnsureHooks task for every enabled module, right after EnsureCRDs
+			if s.moduleManager.ModuleHasConversionWebhooks(modules[0]) {
+				resultingTasks = append(resultingTasks, s.newEnsureHooksTask(modules[0], newLogLabels, queuedAt))
 			}
 
 			newTask := sh_task.NewTask(task.ModuleRun).
@@ -541,6 +551,11 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 			doModuleStartup = true
 		}
 
+		// add EnsureHooks task for every enabled module, right after EnsureCRDs
+		if s.moduleManager.ModuleHasConversionWebhooks(module) {
+			resultingTasks = append(resultingTasks, s.newEnsureHooksTask(module, newLogLabels, queuedAt))
+		}
+
 		schedulerRequests[idx] = &functional.Request{
 			Name:         module,
 			Dependencies: deps[module],
@@ -568,6 +583,19 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 	resultingTasks = append(resultingTasks, modulesTasks...)
 
 	return resultingTasks
+}
+
+// newEnsureHooksTask builds a ModuleEnsureHooks task that applies the module's
+// ConversionWebhook resources before its helm release.
+func (s *Task) newEnsureHooksTask(moduleName string, logLabels map[string]string, queuedAt time.Time) sh_task.Task {
+	return sh_task.NewTask(task.ModuleEnsureHooks).
+		WithLogLabels(logLabels).
+		WithQueueName("main").
+		WithMetadata(task.HookMetadata{
+			EventDescription: "EnsureHooks",
+			ModuleName:       moduleName,
+			IsReloadAll:      true,
+		}).WithQueuedAt(queuedAt)
 }
 
 func (s *Task) IsStartupConvergeDone() bool {

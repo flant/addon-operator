@@ -29,6 +29,7 @@ import (
 	globalhookwaitkubernetessynchronization "github.com/flant/addon-operator/pkg/task/tasks/global-hook-wait-kubernetes-synchronization"
 	moduledelete "github.com/flant/addon-operator/pkg/task/tasks/module-delete"
 	moduleensurecrds "github.com/flant/addon-operator/pkg/task/tasks/module-ensure-crds"
+	moduleensurehooks "github.com/flant/addon-operator/pkg/task/tasks/module-ensure-hooks"
 	modulehookrun "github.com/flant/addon-operator/pkg/task/tasks/module-hook-run"
 	modulepurge "github.com/flant/addon-operator/pkg/task/tasks/module-purge"
 	modulerun "github.com/flant/addon-operator/pkg/task/tasks/module-run"
@@ -238,6 +239,7 @@ func (s *TaskHandlerService) initFactory() {
 		task.ModuleHookRun:                           modulehookrun.RegisterTaskHandler(s),
 		task.ModulePurge:                             modulepurge.RegisterTaskHandler(s),
 		task.ModuleEnsureCRDs:                        moduleensurecrds.RegisterTaskHandler(s),
+		task.ModuleEnsureHooks:                       moduleensurehooks.RegisterTaskHandler(s),
 		task.ModuleRun:                               modulerun.RegisterTaskHandler(s),
 		task.ConvergeModules:                         convergemodules.RegisterTaskHandler(s),
 		task.ParallelModuleRun:                       parallelmodulerun.RegisterTaskHandler(s),
