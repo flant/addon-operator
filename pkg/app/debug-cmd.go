@@ -14,8 +14,10 @@ import (
 // global) so the addon-operator-side sub-commands defined in
 // DefineDebugCommands stay self-contained.
 //
-// Note that shapp.DebugUnixSocket is also kept in sync with this value by
-// cmd/addon-operator/main.go (via shapp.ApplyConfig(ShellOperatorConfig(cfg)))
+// Note that debug.DefaultSocketPath is also kept in sync with this value by
+// cmd/addon-operator/main.go so that shell-operator's own debug sub-commands
+// (queue, config, hook, raw — wired via debug.DefineDebugCommands) dial the
+// same path.
 // so that shell-operator's own debug sub-commands (queue, config, hook, raw)
 // — wired in by debug.DefineDebugCommands — dial the same path.
 func debugClient() (*sh_debug.Client, error) {

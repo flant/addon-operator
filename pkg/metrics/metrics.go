@@ -45,6 +45,12 @@ var (
 	ModulesAbsentResourcesTotal = "{PREFIX}modules_absent_resources_total"
 	// ModuleInfoMetricName tracks module information
 	ModuleInfoMetricName = "{PREFIX}mm_module_info"
+	// ModuleEnabledMetricName tracks enabled modules with their deployed version
+	ModuleEnabledMetricName = "{PREFIX}mm_module_enabled"
+	// ModuleEnabledTelemetryMetricName mirrors ModuleEnabledMetricName under the
+	// d8_telemetry_ prefix so flant-integration ships the metric to DOP.
+	// The prefix is literal here (no {PREFIX} placeholder) and must stay that way.
+	ModuleEnabledTelemetryMetricName = "d8_telemetry_module_enabled"
 	// ModuleMaintenanceMetricName tracks module maintenance state
 	ModuleMaintenanceMetricName = "{PREFIX}mm_module_maintenance"
 
@@ -99,6 +105,8 @@ var (
 	ModuleHelmSeconds = "{PREFIX}module_helm_seconds"
 	// HelmOperationSeconds measures specific Helm operation durations
 	HelmOperationSeconds = "{PREFIX}helm_operation_seconds"
+	// HelmFallbackTotal counts how many times nelm operations had to fall back to helm3lib
+	HelmFallbackTotal = "{PREFIX}helm_fallback_total"
 
 	// ============================================================================
 	// Task Queue Metrics
@@ -157,6 +165,7 @@ func InitMetrics(prefix string) {
 	ModulesHelmReleaseRedeployedTotal = ReplacePrefix(ModulesHelmReleaseRedeployedTotal, prefix)
 	ModulesAbsentResourcesTotal = ReplacePrefix(ModulesAbsentResourcesTotal, prefix)
 	ModuleInfoMetricName = ReplacePrefix(ModuleInfoMetricName, prefix)
+	ModuleEnabledMetricName = ReplacePrefix(ModuleEnabledMetricName, prefix)
 	ModuleMaintenanceMetricName = ReplacePrefix(ModuleMaintenanceMetricName, prefix)
 
 	// ============================================================================
@@ -192,6 +201,7 @@ func InitMetrics(prefix string) {
 	// ============================================================================
 	ModuleHelmSeconds = ReplacePrefix(ModuleHelmSeconds, prefix)
 	HelmOperationSeconds = ReplacePrefix(HelmOperationSeconds, prefix)
+	HelmFallbackTotal = ReplacePrefix(HelmFallbackTotal, prefix)
 
 	// ============================================================================
 	// Task Queue Metrics
@@ -535,6 +545,15 @@ func registerHelmMetrics(metricStorage metricsstorage.Storage) error {
 	)
 	if err != nil {
 		return fmt.Errorf("can not register %s: %w", HelmOperationSeconds, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(
+		HelmFallbackTotal,
+		[]string{pkg.MetricKeyModule, pkg.MetricKeyOperation, pkg.MetricKeyErrorType},
+		options.WithHelp("Counter of nelm Helm operations that fell back to helm3lib, labeled by module, operation and error type"),
+	)
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", HelmFallbackTotal, err)
 	}
 
 	return nil

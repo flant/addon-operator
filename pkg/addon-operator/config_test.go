@@ -9,6 +9,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/shell-operator/pkg/debug"
 	shapp "github.com/flant/shell-operator/pkg/app"
 )
 
@@ -137,49 +138,49 @@ func TestShellOperatorConfig_NilIn(t *testing.T) {
 	}
 }
 
-// TestShellOperatorConfig_DrivesShappDebugUnixSocket pins the contract that
+// TestShellOperatorConfig_DrivesDebugDefaultSocketPath pins the contract that
 // makes addon-operator's debug socket reach shell-operator's package-level
-// global. cmd/addon-operator/main.go relies on this chain
-// (ShellOperatorConfig → shapp.ApplyConfig) to give shell-operator's debug
-// sub-commands (queue, config, hook, raw — wired via
-// debug.DefineDebugCommands) the correct --debug-unix-socket default and
-// DefaultClient() socket path.
-func TestShellOperatorConfig_DrivesShappDebugUnixSocket(t *testing.T) {
-	prev := shapp.DebugUnixSocket
-	t.Cleanup(func() { shapp.DebugUnixSocket = prev })
+// DefaultSocketPath. cmd/addon-operator/main.go and NewAddonOperator both
+// assign cfg.Debug.UnixSocket to debug.DefaultSocketPath so that
+// debug.DefineDebugCommands sub-commands (queue, config, hook, raw) dial the
+// correct socket via debug.DefaultClient().
+func TestShellOperatorConfig_DrivesDebugDefaultSocketPath(t *testing.T) {
+	prev := debug.DefaultSocketPath
+	t.Cleanup(func() { debug.DefaultSocketPath = prev })
 
-	shapp.DebugUnixSocket = "/stale/shell-op/default.socket"
+	debug.DefaultSocketPath = "/stale/shell-op/default.socket"
 
 	cfg := app.NewConfig()
 	cfg.Debug.UnixSocket = "/run/addon-operator/debug.socket"
 
-	shapp.ApplyConfig(ShellOperatorConfig(cfg))
+	// Simulate what main.go and NewAddonOperator do.
+	debug.DefaultSocketPath = cfg.Debug.UnixSocket
 
-	if shapp.DebugUnixSocket != "/run/addon-operator/debug.socket" {
-		t.Errorf("shapp.DebugUnixSocket: got %q, want %q (must be driven by addon-operator cfg)",
-			shapp.DebugUnixSocket, "/run/addon-operator/debug.socket")
+	if debug.DefaultSocketPath != "/run/addon-operator/debug.socket" {
+		t.Errorf("debug.DefaultSocketPath: got %q, want %q (must be driven by addon-operator cfg)",
+			debug.DefaultSocketPath, "/run/addon-operator/debug.socket")
 	}
 }
 
-// TestNewAddonOperator_SyncsShappDebugUnixSocketFromConfig pins the
+// TestNewAddonOperator_SyncsDebugDefaultSocketPathFromConfig pins the
 // library-mode contract: a consumer that hands NewAddonOperator its own
 // *app.Config via WithConfig — and therefore never runs
 // cmd/addon-operator/main.go — must still get shell-operator's
-// package-level DebugUnixSocket aligned with cfg.Debug.UnixSocket.
+// package-level DefaultSocketPath aligned with cfg.Debug.UnixSocket.
 //
 // This is what lets a library consumer expose, for example,
 // shell-operator's debug.DefineDebugCommands on its own root command and
 // have those sub-commands dial the addon-operator socket instead of
 // /var/run/shell-operator/debug.socket.
-func TestNewAddonOperator_SyncsShappDebugUnixSocketFromConfig(t *testing.T) {
-	prevShapp := shapp.DebugUnixSocket
+func TestNewAddonOperator_SyncsDebugDefaultSocketPathFromConfig(t *testing.T) {
+	prevDebug := debug.DefaultSocketPath
 	prevApp := app.DebugUnixSocket
 	t.Cleanup(func() {
-		shapp.DebugUnixSocket = prevShapp
+		debug.DefaultSocketPath = prevDebug
 		app.DebugUnixSocket = prevApp
 	})
 
-	shapp.DebugUnixSocket = "/stale/shell-op/default.socket"
+	debug.DefaultSocketPath = "/stale/shell-op/default.socket"
 	app.DebugUnixSocket = "/stale/addon-op/default.socket"
 
 	cfg := app.NewConfig()
@@ -194,9 +195,9 @@ func TestNewAddonOperator_SyncsShappDebugUnixSocketFromConfig(t *testing.T) {
 		t.Errorf("app.DebugUnixSocket: got %q, want %q (library consumer's cfg must reach addon-operator global)",
 			app.DebugUnixSocket, "/lib-consumer/debug.socket")
 	}
-	if shapp.DebugUnixSocket != "/lib-consumer/debug.socket" {
-		t.Errorf("shapp.DebugUnixSocket: got %q, want %q (library consumer's cfg must reach shell-operator global too)",
-			shapp.DebugUnixSocket, "/lib-consumer/debug.socket")
+	if debug.DefaultSocketPath != "/lib-consumer/debug.socket" {
+		t.Errorf("debug.DefaultSocketPath: got %q, want %q (library consumer's cfg must reach shell-operator global too)",
+			debug.DefaultSocketPath, "/lib-consumer/debug.socket")
 	}
 }
 

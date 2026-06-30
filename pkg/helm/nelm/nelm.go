@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/google/uuid"
 	"github.com/werf/nelm/pkg/action"
 	"github.com/werf/nelm/pkg/common"
 	"github.com/werf/nelm/pkg/featgate"
@@ -29,6 +31,8 @@ import (
 	"github.com/flant/addon-operator/pkg/helm/helm3lib"
 	"github.com/flant/addon-operator/pkg/utils"
 )
+
+const nelmDependencyGraphEnabled = "NELM_DEPENDENCY_GRAPH_ENABLED"
 
 var (
 	_   client.HelmClient = (*NelmClient)(nil)
@@ -345,6 +349,18 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 		}
 	}
 
+	var installGraphPath string
+
+	if os.Getenv(nelmDependencyGraphEnabled) == "true" {
+		graphDir := filepath.Join("/tmp/nelm-install-graph", releaseName)
+		if err := os.MkdirAll(graphDir, 0o755); err != nil {
+			return fmt.Errorf("unable to create install graph directory %q: %w", graphDir, err)
+		}
+
+		graphFile := uuid.New().String() + ".dot"
+		installGraphPath = filepath.Join(graphDir, graphFile)
+	}
+
 	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
@@ -373,6 +389,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 		DefaultChartVersion:    "0.2.0",
 		DefaultChartAPIVersion: "v2",
 		Timeout:                c.opts.Timeout,
+		InstallGraphPath:       installGraphPath,
 	}); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
@@ -450,6 +467,18 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 func (c *NelmClient) DeleteRelease(releaseName string) error {
 	c.logger.Debug("nelm release: execute nelm uninstall", slog.String(pkg.LogKeyRelease, releaseName))
 
+	var installGraphPath string
+
+	if os.Getenv(nelmDependencyGraphEnabled) == "true" {
+		graphDir := filepath.Join("/tmp/nelm-uninstall-graph", releaseName)
+		if err := os.MkdirAll(graphDir, 0o755); err != nil {
+			return fmt.Errorf("unable to create uninstall graph directory %q: %w", graphDir, err)
+		}
+
+		graphFile := uuid.New().String() + ".dot"
+		installGraphPath = filepath.Join(graphDir, graphFile)
+	}
+
 	if err := c.actions.ReleaseUninstall(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseUninstallOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
@@ -463,6 +492,7 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 		DefaultDeletePropagation: "Background",
 		ReleaseStorageDriver:     c.opts.HelmDriver,
 		Timeout:                  c.opts.Timeout,
+		UninstallGraphPath:       installGraphPath,
 	}); err != nil {
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
