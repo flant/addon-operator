@@ -69,6 +69,12 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
+	if baseModule == nil {
+		// The module was removed between enqueue and execution; nothing to ensure.
+		s.logger.Debug("module not found, skipping ensureHooks", slog.String(pkg.LogKeyName, hm.ModuleName))
+
+		return res
+	}
 
 	s.logger.Debug("Module ensureHooks", slog.String(pkg.LogKeyName, hm.ModuleName))
 

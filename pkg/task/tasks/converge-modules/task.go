@@ -445,7 +445,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 					doModuleStartup = true
 				}
 
-				// add EnsureHooks task for every enabled module, right after EnsureCRDs
+				// add EnsureHooks after the optional EnsureCRDs, before ModuleRun
 				if s.moduleManager.ModuleHasConversionWebhooks(moduleName) {
 					resultingTasks = append(resultingTasks, s.newEnsureHooksTask(moduleName, newLogLabels, queuedAt))
 				}
@@ -495,7 +495,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 				doModuleStartup = true
 			}
 
-			// add EnsureHooks task for every enabled module, right after EnsureCRDs
+			// add EnsureHooks after the optional EnsureCRDs, before ModuleRun
 			if s.moduleManager.ModuleHasConversionWebhooks(modules[0]) {
 				resultingTasks = append(resultingTasks, s.newEnsureHooksTask(modules[0], newLogLabels, queuedAt))
 			}
@@ -551,7 +551,7 @@ func (s *Task) CreateConvergeModulesTasks(state *module_manager.ModulesState, lo
 			doModuleStartup = true
 		}
 
-		// add EnsureHooks task for every enabled module, right after EnsureCRDs
+		// add EnsureHooks after the optional EnsureCRDs, before ModuleRun
 		if s.moduleManager.ModuleHasConversionWebhooks(module) {
 			resultingTasks = append(resultingTasks, s.newEnsureHooksTask(module, newLogLabels, queuedAt))
 		}
