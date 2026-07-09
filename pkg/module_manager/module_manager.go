@@ -965,6 +965,7 @@ func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(ctx context.Contex
 	// starting their monitors and emitting their Synchronization contexts. Errors are
 	// aggregated so the caller still retries, and the failing hooks are named.
 	var errs []error
+
 	for _, mh := range kubeHooks {
 		err := mh.GetHookController().HandleEnableKubernetesBindings(ctx, func(info controller.BindingExecutionInfo) {
 			if createTaskFn != nil {
