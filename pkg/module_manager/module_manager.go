@@ -959,6 +959,12 @@ func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(ctx context.Contex
 
 	kubeHooks := ml.GetHooks(OnKubernetesEvent)
 
+	// Best-effort: try to enable bindings for every hook instead of aborting on the
+	// first failure. A single hook whose monitor cannot start (e.g. a transient
+	// apiserver/CRD error during startup) must not prevent the remaining hooks from
+	// starting their monitors and emitting their Synchronization contexts. Errors are
+	// aggregated so the caller still retries, and the failing hooks are named.
+	var errs []error
 	for _, mh := range kubeHooks {
 		err := mh.GetHookController().HandleEnableKubernetesBindings(ctx, func(info controller.BindingExecutionInfo) {
 			if createTaskFn != nil {
@@ -966,11 +972,11 @@ func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(ctx context.Contex
 			}
 		})
 		if err != nil {
-			return fmt.Errorf("handle enable kubernetes bindings for '%s': %w", mh.GetName(), err)
+			errs = append(errs, fmt.Errorf("handle enable kubernetes bindings for '%s': %w", mh.GetName(), err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func (mm *ModuleManager) EnableModuleScheduleBindings(moduleName string) {

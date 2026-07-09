@@ -12,9 +12,13 @@ import (
 type HooksStorage struct {
 	registered       bool
 	controllersReady bool
-	lock             sync.RWMutex
-	byBinding        map[sh_op_types.BindingType][]*hooks.ModuleHook
-	byName           map[string]*hooks.ModuleHook
+	// registrationMu serializes whole-module hook registration. Separate from
+	// lock: registration execs hook binaries and must not hold the index lock
+	// across that.
+	registrationMu sync.Mutex
+	lock           sync.RWMutex
+	byBinding      map[sh_op_types.BindingType][]*hooks.ModuleHook
+	byName         map[string]*hooks.ModuleHook
 }
 
 func newHooksStorage() *HooksStorage {
@@ -31,10 +35,64 @@ func (hs *HooksStorage) AddHook(hk *hooks.ModuleHook) {
 
 	hName := hk.GetName()
 
+	// Re-registration (e.g. ModuleRun retry after a transient failure) must
+	// replace the previous object, not accumulate duplicates: a stale entry
+	// keeps a nil HookController and crashes the kube-events dispatcher.
+	if old, ok := hs.byName[hName]; ok {
+		hs.removeHookFromBindings(old)
+	}
+
 	hs.byName[hName] = hk
 	for _, binding := range hk.GetHookConfig().Bindings() {
 		hs.byBinding[binding] = append(hs.byBinding[binding], hk)
 	}
+}
+
+// removeHookFromBindings deletes all byBinding entries pointing to the given
+// hook. Call under hs.lock.
+func (hs *HooksStorage) removeHookFromBindings(hk *hooks.ModuleHook) {
+	for binding, hks := range hs.byBinding {
+		filtered := make([]*hooks.ModuleHook, 0, len(hks))
+		for _, h := range hks {
+			if h != hk {
+				filtered = append(filtered, h)
+			}
+		}
+
+		if len(filtered) == 0 {
+			delete(hs.byBinding, binding)
+		} else {
+			hs.byBinding[binding] = filtered
+		}
+	}
+}
+
+func (hs *HooksStorage) isRegistered() bool {
+	hs.lock.RLock()
+	defer hs.lock.RUnlock()
+
+	return hs.registered
+}
+
+func (hs *HooksStorage) setRegistered() {
+	hs.lock.Lock()
+	defer hs.lock.Unlock()
+
+	hs.registered = true
+}
+
+func (hs *HooksStorage) isControllersReady() bool {
+	hs.lock.RLock()
+	defer hs.lock.RUnlock()
+
+	return hs.controllersReady
+}
+
+func (hs *HooksStorage) setControllersReady() {
+	hs.lock.Lock()
+	defer hs.lock.Unlock()
+
+	hs.controllersReady = true
 }
 
 func (hs *HooksStorage) getHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleHook {
@@ -49,16 +107,22 @@ func (hs *HooksStorage) getHooks(bt ...sh_op_types.BindingType) []*hooks.ModuleH
 			return []*hooks.ModuleHook{}
 		}
 
-		sort.Slice(res, func(i, j int) bool {
-			oi, oj := res[i].Order(t), res[j].Order(t)
+		// Sort a copy: the shared slice must not be mutated under RLock, and
+		// callers must not observe later index updates through the returned
+		// header.
+		out := make([]*hooks.ModuleHook, len(res))
+		copy(out, res)
+
+		sort.Slice(out, func(i, j int) bool {
+			oi, oj := out[i].Order(t), out[j].Order(t)
 			if oi != oj {
 				return oi < oj
 			}
 
-			return res[i].GetName() < res[j].GetName()
+			return out[i].GetName() < out[j].GetName()
 		})
 
-		return res
+		return out
 	}
 
 	// return all hooks
