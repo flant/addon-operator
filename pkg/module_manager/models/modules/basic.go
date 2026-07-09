@@ -247,14 +247,17 @@ func (bm *BasicModule) DeregisterHooks() {
 	bm.hasReadiness = false
 }
 
-// HooksControllersReady returns controllersReady status of the hook storage
+// HooksControllersReady returns controllersReady status of the hook storage.
+// Reading under the storage lock also gives a happens-before edge: a reader
+// that observed true sees all WithHookController writes made before the flag
+// was set.
 func (bm *BasicModule) HooksControllersReady() bool {
-	return bm.hooks.controllersReady
+	return bm.hooks.isControllersReady()
 }
 
 // SetHooksControllersReady sets controllersReady status of the hook storage to true
 func (bm *BasicModule) SetHooksControllersReady() {
-	bm.hooks.controllersReady = true
+	bm.hooks.setControllersReady()
 }
 
 // ResetState drops the module state
@@ -284,7 +287,13 @@ func (bm *BasicModule) ResetState() {
 
 // RegisterHooks searches and registers all module hooks from a filesystem or GoHook Registry
 func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, error) {
-	if bm.hooks.registered {
+	// Serialize whole-module registration: two concurrent ModuleRun tasks can
+	// both reach this point. The loser must wait and take the fast path below
+	// instead of re-publishing hooks with not-yet-set controllers.
+	bm.hooks.registrationMu.Lock()
+	defer bm.hooks.registrationMu.Unlock()
+
+	if bm.hooks.isRegistered() {
 		logger.Debug("Module hooks already registered")
 		return nil, nil
 	}
@@ -310,7 +319,7 @@ func (bm *BasicModule) RegisterHooks(logger *log.Logger) ([]*hooks.ModuleHook, e
 		return nil, fmt.Errorf("register hooks: %w", err)
 	}
 
-	bm.hooks.registered = true
+	bm.hooks.setRegistered()
 	bm.hasReadiness = searchModuleHooksResult.HasReadiness
 
 	return searchModuleHooksResult.Hooks, nil
