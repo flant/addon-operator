@@ -2,6 +2,8 @@ package modulerun
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"runtime/trace"
 	"strings"
@@ -235,6 +237,12 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 		s.logger.Debug("ModuleRun phase", slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
 
+		// Hook queues are normally created in the Startup phase, but only when
+		// DoModuleStartup is set, and a converge restart can displace that task.
+		// A missing queue would make every AddLastTaskToQueue below fail
+		// deterministically, so ensure the queues exist (the call is idempotent).
+		s.CreateAndStartQueuesForModuleHooks(hm.ModuleName)
+
 		// ModuleHookRun.Synchronization tasks for bindings with the "main" queue.
 		mainSyncTasks := make([]sh_task.Task, 0)
 		// ModuleHookRun.Synchronization tasks to add in parallel queues.
@@ -310,30 +318,52 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			// Fail to enable bindings: cannot start Kubernetes monitors.
 			moduleRunErr = err
 		} else {
+			// A Synchronization task that is built but never queued would leave its
+			// binding invisible to SynchronizationState.IsCompleted (vacuously
+			// completed) and its kubernetes events locked forever. Collect queueing
+			// errors and fail the phase instead of dropping tasks silently: the
+			// retry rebuilds every Synchronization context, EnableKubernetesBindings
+			// is idempotent.
+			var queueErrs []error
+
+			queued := make([]sh_task.Task, 0, len(parallelSyncTasksToWait)+len(parallelSyncTasks))
+
 			// Queue parallel tasks that should be waited.
 			for _, tsk := range parallelSyncTasksToWait {
 				if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
-					s.logger.Error("queue is not found while EnableKubernetesBindings task",
-						slog.String(pkg.LogKeyQueue, tsk.GetQueueName()))
+					queueErrs = append(queueErrs,
+						fmt.Errorf("queue Synchronization task to '%s': %w", tsk.GetQueueName(), err))
 
 					continue
 				}
+
+				queued = append(queued, tsk)
 
 				thm := task.HookMetadataAccessor(tsk)
 				baseModule.Synchronization().QueuedForBinding(thm)
 			}
 
-			s.logTaskAdd("append", parallelSyncTasksToWait...)
-
 			// Queue regular parallel tasks.
 			for _, tsk := range parallelSyncTasks {
 				if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
-					s.logger.Error("queue is not found while EnableKubernetesBindings task",
-						slog.String(pkg.LogKeyQueue, tsk.GetQueueName()))
+					queueErrs = append(queueErrs,
+						fmt.Errorf("queue Synchronization task to '%s': %w", tsk.GetQueueName(), err))
+
+					continue
 				}
+
+				queued = append(queued, tsk)
 			}
 
-			s.logTaskAdd("append", parallelSyncTasks...)
+			s.logTaskAdd("append", queued...)
+
+			if len(queueErrs) > 0 {
+				moduleRunErr = errors.Join(queueErrs...)
+
+				res.Status = queue.Repeat
+
+				return res
+			}
 
 			if len(parallelSyncTasksToWait) == 0 {
 				// Skip waiting tasks in parallel queues, proceed to schedule bindings.
