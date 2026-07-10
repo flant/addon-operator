@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/deckhouse/deckhouse/pkg/log v0.2.1
 	github.com/deckhouse/deckhouse/pkg/metrics-storage v0.3.0
-	github.com/deckhouse/module-sdk v0.11.1
+	github.com/deckhouse/module-sdk v0.11.2-0.20260710094941-9055735d87f9
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.9.1
@@ -197,7 +197,7 @@ require (
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2
-	github.com/prometheus/client_model v0.6.2 // indirect
+	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
