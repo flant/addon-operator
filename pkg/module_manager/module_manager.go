@@ -40,6 +40,7 @@ import (
 	static_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/static"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/flant/kube-client/manifest"
 	. "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	. "github.com/flant/shell-operator/pkg/hook/types"
@@ -859,6 +860,13 @@ func (mm *ModuleManager) EnsureConversionWebhooks(moduleName string, logLabels m
 
 	ops := make([]sdkpkg.PatchCollectorOperation, 0, len(webhooks))
 	for _, m := range webhooks {
+		// ConversionWebhook resources also live in the module's Helm chart
+		// (templates/), so they are rendered again and reconciled by the
+		// subsequent helm release. Stamp Helm's ownership metadata here so that
+		// helm can adopt the object we create instead of failing with
+		// "invalid ownership metadata" (missing app.kubernetes.io/managed-by and
+		// meta.helm.sh/release-* markers).
+		setHelmOwnershipMetadata(m, moduleName, mm.defaultNamespace)
 		ops = append(ops, objectpatch.NewCreateOrUpdateOperation(map[string]any(m)))
 	}
 
@@ -871,6 +879,46 @@ func (mm *ModuleManager) EnsureConversionWebhooks(moduleName string, logLabels m
 		slog.Int(pkg.LogKeyCount, len(webhooks)))
 
 	return nil
+}
+
+// Helm release ownership markers. Helm refuses to adopt a pre-existing object
+// unless it carries these exact label/annotations, see
+// https://helm.sh/docs/faq/#improved-upgrade-strategy-3-way-strategic-merge-patches.
+const (
+	helmManagedByLabel             = "app.kubernetes.io/managed-by"
+	helmManagedByValue             = "Helm"
+	helmReleaseNameAnnotation      = "meta.helm.sh/release-name"
+	helmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
+)
+
+// setHelmOwnershipMetadata stamps the Helm release ownership label and
+// annotations onto a rendered manifest. ConversionWebhook resources are applied
+// by EnsureConversionWebhooks (outside Helm) before the module's Helm release
+// runs, yet they are also part of the chart. Without these markers the following
+// helm upgrade refuses to adopt the object we just created and fails with
+// "invalid ownership metadata". For a module, the Helm release name equals the
+// module name and the release namespace is the module's default namespace.
+func setHelmOwnershipMetadata(m manifest.Manifest, releaseName, releaseNamespace string) {
+	meta, ok := m["metadata"].(map[string]interface{})
+	if !ok {
+		meta = map[string]interface{}{}
+		m["metadata"] = meta
+	}
+
+	labels, ok := meta["labels"].(map[string]interface{})
+	if !ok {
+		labels = map[string]interface{}{}
+		meta["labels"] = labels
+	}
+	labels[helmManagedByLabel] = helmManagedByValue
+
+	annotations, ok := meta["annotations"].(map[string]interface{})
+	if !ok {
+		annotations = map[string]interface{}{}
+		meta["annotations"] = annotations
+	}
+	annotations[helmReleaseNameAnnotation] = releaseName
+	annotations[helmReleaseNamespaceAnnotation] = releaseNamespace
 }
 
 // ModuleHasConversionWebhooks reports whether the module's templates contain at
