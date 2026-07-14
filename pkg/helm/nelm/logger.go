@@ -24,73 +24,81 @@ type NelmLogger struct {
 	logger *log.Logger
 }
 
+func (n *NelmLogger) moduleAttr(ctx context.Context) []any {
+	if m := moduleFromContext(ctx); m != "" {
+		return []any{slog.String(pkg.LogKeyModule, m)}
+	}
+
+	return nil
+}
+
 func (n *NelmLogger) Trace(ctx context.Context, format string, a ...interface{}) {
-	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) TraceStruct(ctx context.Context, obj interface{}, format string, a ...interface{}) {
-	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...), slog.Any(pkg.LogKeyObj, obj))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...), append(n.moduleAttr(ctx), slog.Any(pkg.LogKeyObj, obj))...)
 }
 
 func (n *NelmLogger) TracePush(ctx context.Context, _, format string, a ...interface{}) {
-	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...))
+	n.logger.Log(ctx, log.LevelTrace.Level(), fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) TracePop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) Debug(ctx context.Context, format string, a ...interface{}) {
-	n.logger.DebugContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.DebugContext(ctx, fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) DebugPush(ctx context.Context, _, format string, a ...interface{}) {
-	n.logger.DebugContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.DebugContext(ctx, fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) DebugPop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) Info(ctx context.Context, format string, a ...interface{}) {
-	n.logger.InfoContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.InfoContext(ctx, fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) InfoPush(ctx context.Context, _, format string, a ...interface{}) {
-	n.logger.InfoContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.InfoContext(ctx, fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) InfoPop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) Warn(ctx context.Context, format string, a ...interface{}) {
-	n.logger.WarnContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.WarnContext(ctx, fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) WarnPush(ctx context.Context, _, format string, a ...interface{}) {
-	n.logger.WarnContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.WarnContext(ctx, fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) WarnPop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) Error(ctx context.Context, format string, a ...interface{}) {
-	n.logger.ErrorContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.ErrorContext(ctx, fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) ErrorPush(ctx context.Context, _, format string, a ...interface{}) {
-	n.logger.ErrorContext(ctx, fmt.Sprintf(format, a...))
+	n.logger.ErrorContext(ctx, fmt.Sprintf(format, a...), n.moduleAttr(ctx)...)
 }
 
 func (n *NelmLogger) ErrorPop(_ context.Context, _ string) {
 }
 
 func (n *NelmLogger) InfoBlock(ctx context.Context, opts nelmlog.BlockOptions, fn func()) {
-	n.logger.InfoContext(ctx, opts.BlockTitle)
+	n.logger.InfoContext(ctx, opts.BlockTitle, n.moduleAttr(ctx)...)
 
 	fn()
 }
 
 func (n *NelmLogger) InfoBlockErr(ctx context.Context, opts nelmlog.BlockOptions, fn func() error) error {
-	n.logger.InfoContext(ctx, opts.BlockTitle)
+	n.logger.InfoContext(ctx, opts.BlockTitle, n.moduleAttr(ctx)...)
 
 	return fmt.Errorf("inner func err: %w", fn())
 }
