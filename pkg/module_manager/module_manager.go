@@ -910,6 +910,7 @@ func setHelmOwnershipMetadata(m manifest.Manifest, releaseName, releaseNamespace
 		labels = map[string]interface{}{}
 		meta["labels"] = labels
 	}
+
 	labels[helmManagedByLabel] = helmManagedByValue
 
 	annotations, ok := meta["annotations"].(map[string]interface{})
@@ -917,6 +918,7 @@ func setHelmOwnershipMetadata(m manifest.Manifest, releaseName, releaseNamespace
 		annotations = map[string]interface{}{}
 		meta["annotations"] = annotations
 	}
+
 	annotations[helmReleaseNameAnnotation] = releaseName
 	annotations[helmReleaseNamespaceAnnotation] = releaseNamespace
 }
