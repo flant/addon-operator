@@ -3,6 +3,8 @@ package helm
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -120,6 +122,39 @@ func (c *fakeHelmClient) WithExtraLabels(labels map[string]string) {
 	c.extraLabels = labels
 }
 
+// chartDir writes a single-template chart and returns its path. The fallback path scans
+// the chart on disk, so tests must point at a real directory.
+func chartDir(t *testing.T, template string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "templates.yaml"), []byte(template), 0o600); err != nil {
+		t.Fatalf("write chart template: %v", err)
+	}
+
+	return dir
+}
+
+const (
+	plainTemplate = "kind: Deployment\nmetadata:\n  name: test\n"
+	werfTemplate  = "kind: Deployment\nmetadata:\n  name: test\n  annotations:\n    werf.io/weight: \"-1\"\n"
+)
+
+func TestChartUsesWerfAnnotations(t *testing.T) {
+	g := NewWithT(t)
+
+	uses, err := chartUsesWerfAnnotations(chartDir(t, werfTemplate))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(uses).To(BeTrue())
+
+	uses, err = chartUsesWerfAnnotations(chartDir(t, plainTemplate))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(uses).To(BeFalse())
+
+	_, err = chartUsesWerfAnnotations(filepath.Join(t.TempDir(), "missing"))
+	g.Expect(err).Should(HaveOccurred())
+}
+
 func TestShouldFallback(t *testing.T) {
 	g := NewWithT(t)
 
@@ -141,7 +176,7 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		ms := &fakeMetricStorage{}
 		c := NewFallbackClient(primary, fallback, log.NewNop(), ms)
 
-		err := c.UpgradeRelease("r", "c", nil, nil, nil, "ns")
+		err := c.UpgradeRelease("r", chartDir(t, plainTemplate), nil, nil, nil, "ns")
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(primary.upgradeCalls).To(Equal(1))
 		g.Expect(fallback.upgradeCalls).To(Equal(0))
@@ -155,7 +190,7 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		ms := &fakeMetricStorage{}
 		c := NewFallbackClient(primary, fallback, log.NewNop(), ms)
 
-		err := c.UpgradeRelease("r", "c", nil, nil, nil, "ns")
+		err := c.UpgradeRelease("r", chartDir(t, plainTemplate), nil, nil, nil, "ns")
 		g.Expect(err).Should(MatchError("boom"))
 		g.Expect(primary.upgradeCalls).To(Equal(1))
 		g.Expect(fallback.upgradeCalls).To(Equal(0))
@@ -172,7 +207,7 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		ms := &fakeMetricStorage{}
 		c := NewFallbackClient(primary, fallback, log.NewNop(), ms)
 
-		err := c.UpgradeRelease("my-release", "c", nil, nil, nil, "ns")
+		err := c.UpgradeRelease("my-release", chartDir(t, plainTemplate), nil, nil, nil, "ns")
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(primary.upgradeCalls).To(Equal(1))
 		g.Expect(fallback.upgradeCalls).To(Equal(1))
@@ -196,7 +231,7 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		ms := &fakeMetricStorage{}
 		c := NewFallbackClient(primary, fallback, log.NewNop(), ms)
 
-		err := c.UpgradeRelease("my-release", "c", nil, nil, nil, "ns")
+		err := c.UpgradeRelease("my-release", chartDir(t, plainTemplate), nil, nil, nil, "ns")
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(primary.upgradeCalls).To(Equal(1))
 		g.Expect(fallback.upgradeCalls).To(Equal(1))
@@ -205,6 +240,39 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		g.Expect(calls).To(HaveLen(1))
 		g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyErrorType, "resource_duplicates"))
 		g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyOperation, "upgrade"))
+	})
+
+	t.Run("chart with werf annotations is never handed to helm", func(t *testing.T) {
+		g := NewWithT(t)
+		primary := &fakeHelmClient{
+			name:       "primary",
+			upgradeErr: fmt.Errorf("install: %w", action.ErrBuildPlan),
+		}
+		fallback := &fakeHelmClient{name: "fallback"}
+		ms := &fakeMetricStorage{}
+		c := NewFallbackClient(primary, fallback, log.NewNop(), ms)
+
+		err := c.UpgradeRelease("my-release", chartDir(t, werfTemplate), nil, nil, nil, "ns")
+		g.Expect(err).Should(MatchError(action.ErrBuildPlan))
+		g.Expect(primary.upgradeCalls).To(Equal(1))
+		g.Expect(fallback.upgradeCalls).To(Equal(0))
+		g.Expect(ms.calls()).To(BeEmpty())
+	})
+
+	t.Run("unscannable chart is never handed to helm", func(t *testing.T) {
+		g := NewWithT(t)
+		primary := &fakeHelmClient{
+			name:       "primary",
+			upgradeErr: fmt.Errorf("install: %w", action.ErrBuildPlan),
+		}
+		fallback := &fakeHelmClient{name: "fallback"}
+		ms := &fakeMetricStorage{}
+		c := NewFallbackClient(primary, fallback, log.NewNop(), ms)
+
+		err := c.UpgradeRelease("my-release", filepath.Join(t.TempDir(), "missing"), nil, nil, nil, "ns")
+		g.Expect(err).Should(MatchError(action.ErrBuildPlan))
+		g.Expect(fallback.upgradeCalls).To(Equal(0))
+		g.Expect(ms.calls()).To(BeEmpty())
 	})
 
 	t.Run("fallback error is propagated and still counted", func(t *testing.T) {
@@ -217,7 +285,7 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		ms := &fakeMetricStorage{}
 		c := NewFallbackClient(primary, fallback, log.NewNop(), ms)
 
-		err := c.UpgradeRelease("r", "c", nil, nil, nil, "ns")
+		err := c.UpgradeRelease("r", chartDir(t, plainTemplate), nil, nil, nil, "ns")
 		g.Expect(err).Should(MatchError("fallback failed"))
 		g.Expect(primary.upgradeCalls).To(Equal(1))
 		g.Expect(fallback.upgradeCalls).To(Equal(1))
@@ -233,7 +301,7 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		fallback := &fakeHelmClient{name: "fallback"}
 		c := NewFallbackClient(primary, fallback, log.NewNop(), nil)
 
-		err := c.UpgradeRelease("r", "c", nil, nil, nil, "ns")
+		err := c.UpgradeRelease("r", chartDir(t, plainTemplate), nil, nil, nil, "ns")
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(fallback.upgradeCalls).To(Equal(1))
 	})

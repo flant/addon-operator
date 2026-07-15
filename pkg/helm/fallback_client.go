@@ -1,8 +1,13 @@
 package helm
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
+	"io/fs"
 	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/werf/nelm/pkg/action"
@@ -29,6 +34,9 @@ const (
 // HelmClient (helm3lib) when the primary returns one of the well-known nelm errors
 // that helm3lib is able to recover from: action.ErrBuildPlan and
 // resource.ErrResourceDuplicatesFound.
+//
+// Upgrades of charts that use werf.io/* annotations are never handed to helm3lib: it does
+// not implement those semantics, so nelm's error is reported instead of a wrong deploy.
 //
 // Read-only methods are always served by the primary client, both clients receive
 // label/annotation updates so the fallback is ready to take over at any moment.
@@ -65,6 +73,48 @@ func shouldFallback(err error) bool {
 	return errors.Is(err, action.ErrBuildPlan) || errors.Is(err, resource.ErrResourceDuplicatesFound)
 }
 
+// werfAnnotationPrefix marks resources whose deploy semantics only nelm implements:
+// ordering (werf.io/weight, werf.io/deploy-dependency-*), tracking
+// (werf.io/track-termination-mode) and the like. helm3lib ignores such annotations.
+const werfAnnotationPrefix = "werf.io/"
+
+// chartUsesWerfAnnotations reports whether the chart references a werf.io/* annotation
+// anywhere in its sources. It scans the raw files rather than rendered manifests: the
+// check runs on the fallback path, where nelm has just failed, so it must not depend on
+// another render. A false positive only disables the fallback, which is the safe way to
+// be wrong.
+func chartUsesWerfAnnotations(chartPath string) (bool, error) {
+	found := false
+
+	err := filepath.WalkDir(chartPath, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		if bytes.Contains(data, []byte(werfAnnotationPrefix)) {
+			found = true
+
+			return fs.SkipAll
+		}
+
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("scan chart for werf annotations: %w", err)
+	}
+
+	return found, nil
+}
+
 // fallbackErrorType returns a low-cardinality label value describing which
 // recoverable nelm error triggered the fallback.
 func fallbackErrorType(err error) string {
@@ -96,6 +146,30 @@ func (c *FallbackClient) recordFallback(operation, releaseName string, err error
 func (c *FallbackClient) UpgradeRelease(releaseName, chart string, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string) error {
 	err := c.primary.UpgradeRelease(releaseName, chart, valuesPaths, setValues, releaseLabels, namespace)
 	if !shouldFallback(err) {
+		return err
+	}
+
+	// helm3lib does not implement werf.io/* semantics, so handing such a chart to it would
+	// deploy the release in a different order and track it differently. Report nelm's error
+	// instead of silently deploying the module wrong.
+	usesWerf, scanErr := chartUsesWerfAnnotations(chart)
+	if scanErr != nil {
+		c.logger.Warn("cannot check chart for werf.io annotations, not falling back to helm",
+			slog.String(pkg.LogKeyRelease, releaseName),
+			slog.String(pkg.LogKeyChart, chart),
+			log.Err(scanErr),
+		)
+
+		return err
+	}
+
+	if usesWerf {
+		c.logger.Warn("chart uses werf.io annotations unsupported by helm, not falling back to helm",
+			slog.String(pkg.LogKeyRelease, releaseName),
+			slog.String(pkg.LogKeyChart, chart),
+			log.Err(err),
+		)
+
 		return err
 	}
 
