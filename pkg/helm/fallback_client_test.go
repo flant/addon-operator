@@ -220,7 +220,8 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(primary.upgradeCalls).To(Equal(1))
 		g.Expect(fallback.upgradeCalls).To(Equal(1))
-		g.Expect(ms.calls()).To(HaveLen(1))
+		// the counter and its telemetry mirror
+		g.Expect(ms.calls()).To(HaveLen(2))
 	})
 
 	t.Run("falls back on action.ErrBuildPlan", func(t *testing.T) {
