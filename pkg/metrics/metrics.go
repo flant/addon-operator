@@ -99,8 +99,10 @@ var (
 	ModuleHelmSeconds = "{PREFIX}module_helm_seconds"
 	// HelmOperationSeconds measures specific Helm operation durations
 	HelmOperationSeconds = "{PREFIX}helm_operation_seconds"
-	// HelmFallbackTotal counts how many times nelm operations had to fall back to helm3lib
-	HelmFallbackTotal = "{PREFIX}helm_fallback_total"
+	// HelmFallbackTotal counts how many times nelm operations had to fall back to helm3lib.
+	// It deliberately carries the d8_telemetry_ prefix instead of the operator's own one:
+	// Flant telemetry collects metrics by that prefix, so InitMetrics must not rewrite it.
+	HelmFallbackTotal = "d8_telemetry_helm_fallback_total"
 
 	// ============================================================================
 	// Task Queue Metrics
@@ -189,7 +191,7 @@ func InitMetrics(prefix string) {
 	// ============================================================================
 	ModuleHelmSeconds = ReplacePrefix(ModuleHelmSeconds, prefix)
 	HelmOperationSeconds = ReplacePrefix(HelmOperationSeconds, prefix)
-	HelmFallbackTotal = ReplacePrefix(HelmFallbackTotal, prefix)
+	// HelmFallbackTotal is intentionally left alone: it keeps its d8_telemetry_ name.
 
 	// ============================================================================
 	// Task Queue Metrics
