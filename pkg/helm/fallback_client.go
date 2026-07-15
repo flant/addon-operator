@@ -74,20 +74,32 @@ func shouldFallback(err error) bool {
 // (werf.io/track-termination-mode) and the like. helm3lib ignores such annotations.
 const werfAnnotationPrefix = "werf.io/"
 
-// chartUsesWerfAnnotations reports whether the chart references a werf.io/* annotation
-// anywhere in its sources. It scans the raw files rather than rendered manifests: the
-// check runs on the fallback path, where nelm has just failed, so it must not depend on
-// another render. A false positive only disables the fallback, which is the safe way to
-// be wrong.
+// chartRenderSources are the parts of a chart helm renders manifests from, and therefore the
+// only places an annotation can reach the release from. Hooks and image sources are left out
+// on purpose: a module's hook is a compiled binary, so reading it would be slow and would
+// match werf.io/ inside compiled code, disabling the fallback for a chart that never asked
+// for werf semantics.
+var chartRenderSources = []string{"Chart.yaml", "values.yaml", "templates", "charts"}
+
+// chartUsesWerfAnnotations reports whether the chart declares a werf.io/* annotation. It
+// scans the raw sources rather than rendered manifests: the check runs on the fallback path,
+// where nelm has just failed, so it must not depend on another render. A false positive only
+// disables the fallback, which is the safe way to be wrong.
 func chartUsesWerfAnnotations(chartPath string) (bool, error) {
+	if _, err := os.Stat(chartPath); err != nil {
+		return false, fmt.Errorf("scan chart for werf annotations: %w", err)
+	}
+
 	found := false
 
-	err := filepath.WalkDir(chartPath, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
+	scan := func(path string, entry fs.DirEntry, err error) error {
+		switch {
+		case os.IsNotExist(err):
+			// this part of the chart is optional, nothing to scan
+			return fs.SkipDir
+		case err != nil:
 			return err
-		}
-
-		if entry.IsDir() {
+		case entry.IsDir():
 			return nil
 		}
 
@@ -103,12 +115,19 @@ func chartUsesWerfAnnotations(chartPath string) (bool, error) {
 		}
 
 		return nil
-	})
-	if err != nil {
-		return false, fmt.Errorf("scan chart for werf annotations: %w", err)
 	}
 
-	return found, nil
+	for _, source := range chartRenderSources {
+		if err := filepath.WalkDir(filepath.Join(chartPath, source), scan); err != nil {
+			return false, fmt.Errorf("scan chart for werf annotations: %w", err)
+		}
+
+		if found {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // fallbackErrorType returns a low-cardinality label value describing which
