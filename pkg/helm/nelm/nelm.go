@@ -39,6 +39,30 @@ var (
 	one sync.Once
 )
 
+type moduleCtxKey struct{}
+
+func contextWithModule(ctx context.Context, module string) context.Context {
+	if module == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, moduleCtxKey{}, module)
+}
+
+func moduleFromContext(ctx context.Context) string {
+	if m, ok := ctx.Value(moduleCtxKey{}).(string); ok {
+		return m
+	}
+
+	return ""
+}
+
+func InitDefaultLogger(logger *log.Logger) {
+	one.Do(func() {
+		nelmLog.Default = newNelmLogger(logger.Named("nelm").With(slog.String(pkg.LogKeyOperatorComponent, "nelm")))
+	})
+}
+
 type CommonOptions struct {
 	genericclioptions.ConfigFlags
 
@@ -179,11 +203,6 @@ func (s *SafeNelmActions) ChartRender(ctx context.Context, opts action.ChartRend
 }
 
 func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]string) *NelmClient {
-	// singleton
-	one.Do(func() {
-		nelmLog.Default = newNelmLogger(logger)
-	})
-
 	if opts == nil {
 		opts = &CommonOptions{}
 	}
@@ -233,7 +252,9 @@ type NelmClient struct {
 
 // GetReleaseLabels returns a specific label value from the release.
 func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, error) {
-	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+	ctx := contextWithModule(context.Background(), releaseName)
+
+	releaseGetResult, err := c.actions.ReleaseGet(ctx, releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
 		},
@@ -290,7 +311,9 @@ func (c *NelmClient) GetAnnotations() map[string]string {
 }
 
 func (c *NelmClient) LastReleaseStatus(releaseName string) (string, string, error) {
-	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+	ctx := contextWithModule(context.Background(), releaseName)
+
+	releaseGetResult, err := c.actions.ReleaseGet(ctx, releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
 		},
@@ -318,6 +341,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 
 	logger.Info("Running nelm upgrade for release")
 
+	ctx := contextWithModule(context.Background(), releaseName)
+
 	// Add client annotations
 	extraAnnotations := make(map[string]string)
 	if c.annotations != nil {
@@ -331,7 +356,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 	}
 
 	// First check if release exists
-	_, err := c.actions.ReleaseGet(context.Background(), releaseName, namespace, action.ReleaseGetOptions{
+	_, err := c.actions.ReleaseGet(ctx, releaseName, namespace, action.ReleaseGetOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
 		},
@@ -361,7 +386,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 		installGraphPath = filepath.Join(graphDir, graphFile)
 	}
 
-	if err := c.actions.ReleaseInstall(context.TODO(), releaseName, namespace, action.ReleaseInstallOptions{
+	if err := c.actions.ReleaseInstall(ctx, releaseName, namespace, action.ReleaseInstallOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
 		},
@@ -403,7 +428,9 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 }
 
 func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) {
-	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+	ctx := contextWithModule(context.Background(), releaseName)
+
+	releaseGetResult, err := c.actions.ReleaseGet(ctx, releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
 		},
@@ -434,7 +461,9 @@ func (c *NelmClient) GetReleaseValues(releaseName string) (utils.Values, error) 
 func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 	logger := c.logger.With(slog.String(pkg.LogKeyReleaseName, releaseName))
 
-	releaseGetResult, err := c.actions.ReleaseGet(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
+	ctx := contextWithModule(context.Background(), releaseName)
+
+	releaseGetResult, err := c.actions.ReleaseGet(ctx, releaseName, *c.opts.Namespace, action.ReleaseGetOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
 		},
@@ -479,7 +508,9 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 		installGraphPath = filepath.Join(graphDir, graphFile)
 	}
 
-	if err := c.actions.ReleaseUninstall(context.TODO(), releaseName, *c.opts.Namespace, action.ReleaseUninstallOptions{
+	ctx := contextWithModule(context.Background(), releaseName)
+
+	if err := c.actions.ReleaseUninstall(ctx, releaseName, *c.opts.Namespace, action.ReleaseUninstallOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
 		},
@@ -566,7 +597,9 @@ func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValu
 		extraAnnotations["maintenance.deckhouse.io/no-resource-reconciliation"] = ""
 	}
 
-	chartRenderResult, err := c.actions.ChartRender(context.TODO(), action.ChartRenderOptions{
+	ctx := contextWithModule(context.Background(), releaseName)
+
+	chartRenderResult, err := c.actions.ChartRender(ctx, action.ChartRenderOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
 		},
