@@ -143,19 +143,23 @@ func fallbackErrorType(err error) string {
 	}
 }
 
-// recordFallback emits the helm_fallback_total counter when metric storage is
-// configured. releaseName is used as the module label since within addon-operator
-// helm release name and module name are equivalent.
+// recordFallback emits the fallback counters when metric storage is configured. The
+// telemetry mirror carries the same value and labels, it only differs in the prefix
+// flant-integration collects by. releaseName is used as the module label since within
+// addon-operator helm release name and module name are equivalent.
 func (c *FallbackClient) recordFallback(operation, releaseName string, err error) {
 	if c.metricStorage == nil {
 		return
 	}
 
-	c.metricStorage.CounterAdd(metrics.HelmFallbackTotal, 1.0, map[string]string{
+	labels := map[string]string{
 		pkg.MetricKeyModule:    releaseName,
 		pkg.MetricKeyOperation: operation,
 		pkg.MetricKeyErrorType: fallbackErrorType(err),
-	})
+	}
+
+	c.metricStorage.CounterAdd(metrics.HelmFallbackTotal, 1.0, labels)
+	c.metricStorage.CounterAdd(metrics.HelmFallbackTelemetryTotal, 1.0, labels)
 }
 
 func (c *FallbackClient) UpgradeRelease(releaseName, chart string, valuesPaths, setValues []string, releaseLabels map[string]string, namespace string) error {

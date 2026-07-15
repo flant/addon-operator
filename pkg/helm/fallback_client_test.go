@@ -238,13 +238,18 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		g.Expect(primary.upgradeCalls).To(Equal(1))
 		g.Expect(fallback.upgradeCalls).To(Equal(1))
 
+		// the telemetry mirror is emitted alongside, with the same value and labels
 		calls := ms.calls()
-		g.Expect(calls).To(HaveLen(1))
-		g.Expect(calls[0].metric).To(Equal(metrics.HelmFallbackTotal))
-		g.Expect(calls[0].value).To(Equal(1.0))
-		g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyModule, "my-release"))
-		g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyOperation, "upgrade"))
-		g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyErrorType, "build_plan"))
+		g.Expect(calls).To(HaveLen(2))
+		g.Expect([]string{calls[0].metric, calls[1].metric}).To(ConsistOf(
+			metrics.HelmFallbackTotal, metrics.HelmFallbackTelemetryTotal))
+
+		for _, call := range calls {
+			g.Expect(call.value).To(Equal(1.0))
+			g.Expect(call.labels).To(HaveKeyWithValue(pkg.MetricKeyModule, "my-release"))
+			g.Expect(call.labels).To(HaveKeyWithValue(pkg.MetricKeyOperation, "upgrade"))
+			g.Expect(call.labels).To(HaveKeyWithValue(pkg.MetricKeyErrorType, "build_plan"))
+		}
 	})
 
 	t.Run("falls back on resource.ErrResourceDuplicatesFound", func(t *testing.T) {
@@ -263,9 +268,12 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		g.Expect(fallback.upgradeCalls).To(Equal(1))
 
 		calls := ms.calls()
-		g.Expect(calls).To(HaveLen(1))
-		g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyErrorType, "resource_duplicates"))
-		g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyOperation, "upgrade"))
+		g.Expect(calls).To(HaveLen(2))
+
+		for _, call := range calls {
+			g.Expect(call.labels).To(HaveKeyWithValue(pkg.MetricKeyErrorType, "resource_duplicates"))
+			g.Expect(call.labels).To(HaveKeyWithValue(pkg.MetricKeyOperation, "upgrade"))
+		}
 	})
 
 	t.Run("chart with werf annotations is never handed to helm", func(t *testing.T) {
@@ -315,7 +323,7 @@ func TestFallbackClient_UpgradeRelease(t *testing.T) {
 		g.Expect(err).Should(MatchError("fallback failed"))
 		g.Expect(primary.upgradeCalls).To(Equal(1))
 		g.Expect(fallback.upgradeCalls).To(Equal(1))
-		g.Expect(ms.calls()).To(HaveLen(1))
+		g.Expect(ms.calls()).To(HaveLen(2))
 	})
 
 	t.Run("nil metric storage is safe", func(t *testing.T) {
@@ -363,7 +371,7 @@ func TestFallbackClient_Render(t *testing.T) {
 		g.Expect(out).To(Equal("fallback"))
 
 		calls := ms.calls()
-		g.Expect(calls).To(HaveLen(1))
+		g.Expect(calls).To(HaveLen(2))
 		g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyOperation, "render"))
 		g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyErrorType, "resource_duplicates"))
 	})
@@ -385,7 +393,7 @@ func TestFallbackClient_DeleteRelease(t *testing.T) {
 	g.Expect(fallback.deleteCalls).To(Equal(1))
 
 	calls := ms.calls()
-	g.Expect(calls).To(HaveLen(1))
+	g.Expect(calls).To(HaveLen(2))
 	g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyOperation, "delete"))
 	g.Expect(calls[0].labels).To(HaveKeyWithValue(pkg.MetricKeyErrorType, "build_plan"))
 }
