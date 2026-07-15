@@ -41,8 +41,9 @@ const (
 // Read-only methods are always served by the primary client, both clients receive
 // label/annotation updates so the fallback is ready to take over at any moment.
 //
-// When MetricStorage is configured the client increments
-// metrics.HelmFallbackTotal{module, operation, error_type} on every fallback.
+// When MetricStorage is configured the client increments both
+// metrics.HelmFallbackTotal{module, operation, error_type} and its telemetry mirror on
+// every fallback.
 type FallbackClient struct {
 	primary       client.HelmClient
 	fallback      client.HelmClient
@@ -94,7 +95,7 @@ func chartUsesWerfAnnotations(chartPath string) (bool, error) {
 
 	scan := func(path string, entry fs.DirEntry, err error) error {
 		switch {
-		case os.IsNotExist(err):
+		case errors.Is(err, fs.ErrNotExist):
 			// this part of the chart is optional, nothing to scan
 			return fs.SkipDir
 		case err != nil:
