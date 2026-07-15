@@ -214,6 +214,11 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 	upg.MaxHistory = int(options.HistoryMax)
 	upg.Timeout = options.Timeout
 	upg.Labels = labels
+	// The operator applies some of a module's resources (e.g. a ConversionWebhook)
+	// before the release runs, so they pre-exist without Helm ownership metadata and
+	// helm would refuse to import them. Adopt them instead of failing — this mirrors
+	// ForceAdoption in the nelm client, so both helm clients behave the same.
+	upg.TakeOwnership = true
 
 	var resultValues chartutil.Values
 
@@ -268,6 +273,8 @@ func (h *LibClient) upgradeRelease(releaseName, modulePath string, valuesPaths [
 		instClient.ReleaseName = releaseName
 		instClient.UseReleaseName = true
 		instClient.Labels = labels
+		// Adopt pre-applied resources on a first install too, see upg.TakeOwnership above.
+		instClient.TakeOwnership = true
 
 		_, err = instClient.Run(loaded, resultValues)
 
