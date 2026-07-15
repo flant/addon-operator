@@ -105,10 +105,12 @@ var (
 	ModuleHelmSeconds = "{PREFIX}module_helm_seconds"
 	// HelmOperationSeconds measures specific Helm operation durations
 	HelmOperationSeconds = "{PREFIX}helm_operation_seconds"
-	// HelmFallbackTotal counts how many times nelm operations had to fall back to helm3lib.
-	// It deliberately carries the d8_telemetry_ prefix instead of the operator's own one:
-	// Flant telemetry collects metrics by that prefix, so InitMetrics must not rewrite it.
-	HelmFallbackTotal = "d8_telemetry_helm_fallback_total"
+	// HelmFallbackTotal counts how many times nelm operations had to fall back to helm3lib
+	HelmFallbackTotal = "{PREFIX}helm_fallback_total"
+	// HelmFallbackTelemetryTotal mirrors HelmFallbackTotal under the d8_telemetry_ prefix so
+	// flant-integration ships the metric to DOP.
+	// The prefix is literal here (no {PREFIX} placeholder) and must stay that way.
+	HelmFallbackTelemetryTotal = "d8_telemetry_helm_fallback_total"
 
 	// ============================================================================
 	// Task Queue Metrics
@@ -203,7 +205,8 @@ func InitMetrics(prefix string) {
 	// ============================================================================
 	ModuleHelmSeconds = ReplacePrefix(ModuleHelmSeconds, prefix)
 	HelmOperationSeconds = ReplacePrefix(HelmOperationSeconds, prefix)
-	// HelmFallbackTotal is intentionally left alone: it keeps its d8_telemetry_ name.
+	HelmFallbackTotal = ReplacePrefix(HelmFallbackTotal, prefix)
+	// HelmFallbackTelemetryTotal is intentionally left alone: it keeps its d8_telemetry_ name.
 
 	// ============================================================================
 	// Task Queue Metrics
@@ -556,6 +559,15 @@ func registerHelmMetrics(metricStorage metricsstorage.Storage) error {
 	)
 	if err != nil {
 		return fmt.Errorf("can not register %s: %w", HelmFallbackTotal, err)
+	}
+
+	_, err = metricStorage.RegisterCounter(
+		HelmFallbackTelemetryTotal,
+		[]string{pkg.MetricKeyModule, pkg.MetricKeyOperation, pkg.MetricKeyErrorType},
+		options.WithHelp("Counter of nelm Helm operations that fell back to helm3lib, labeled by module, operation and error type"),
+	)
+	if err != nil {
+		return fmt.Errorf("can not register %s: %w", HelmFallbackTelemetryTotal, err)
 	}
 
 	return nil
