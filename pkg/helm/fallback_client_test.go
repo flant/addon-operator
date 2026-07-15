@@ -122,17 +122,35 @@ func (c *fakeHelmClient) WithExtraLabels(labels map[string]string) {
 	c.extraLabels = labels
 }
 
-// chartDir writes a single-template chart and returns its path. The fallback path scans
-// the chart on disk, so tests must point at a real directory.
+// chartDir writes a single-template chart and returns its path. The fallback path scans the
+// chart on disk, so tests must point at a real directory laid out the way helm expects.
 func chartDir(t *testing.T, template string) string {
 	t.Helper()
 
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "templates.yaml"), []byte(template), 0o600); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "templates"), 0o700); err != nil {
+		t.Fatalf("create chart templates dir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "templates", "manifest.yaml"), []byte(template), 0o600); err != nil {
 		t.Fatalf("write chart template: %v", err)
 	}
 
 	return dir
+}
+
+// writeHook drops a file into the chart's hooks directory, standing in for a module's
+// compiled hook binary.
+func writeHook(t *testing.T, chartPath, content string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Join(chartPath, "hooks"), 0o700); err != nil {
+		t.Fatalf("create chart hooks dir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(chartPath, "hooks", "hook"), []byte(content), 0o700); err != nil {
+		t.Fatalf("write chart hook: %v", err)
+	}
 }
 
 const (
@@ -148,6 +166,14 @@ func TestChartUsesWerfAnnotations(t *testing.T) {
 	g.Expect(uses).To(BeTrue())
 
 	uses, err = chartUsesWerfAnnotations(chartDir(t, plainTemplate))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(uses).To(BeFalse())
+
+	// A hook binary can carry the annotation string in compiled code without the chart ever
+	// declaring it, so hooks must not be scanned.
+	withHook := chartDir(t, plainTemplate)
+	writeHook(t, withHook, "\x7fELF...werf.io/weight...")
+	uses, err = chartUsesWerfAnnotations(withHook)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(uses).To(BeFalse())
 
