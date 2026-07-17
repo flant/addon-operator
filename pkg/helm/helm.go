@@ -102,6 +102,8 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 			return nil, fmt.Errorf("init helm3lib for nelm fallback: %w", err)
 		}
 
+		nelm.InitDefaultLogger(helmopts.Logger)
+
 		factory.NewClientFn = func(logger *log.Logger, labels map[string]string) client.HelmClient {
 			opts := &nelm.CommonOptions{
 				HistoryMax:  helmopts.HistoryMax,
