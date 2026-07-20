@@ -322,7 +322,7 @@ func (kcm *KubeConfigManager) handleUpdateEvent(moduleName string, cfg *config.M
 
 		if currentCfg.GetMaintenanceState() != cfg.GetMaintenanceState() {
 			changed = true
-			moduleMaintenanceChanged[moduleName] = currentCfg.GetMaintenanceState()
+			moduleMaintenanceChanged[moduleName] = cfg.GetMaintenanceState()
 		}
 	} else {
 		changed = true
