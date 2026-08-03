@@ -633,6 +633,14 @@ func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValu
 	var result strings.Builder
 
 	for _, resource := range chartRenderResult.Resources {
+		// Keep only regular release resources to match helm3 Render output.
+		// Hooks and standalone CRDs may legitimately be absent from the
+		// cluster, so they must not reach the release checksum and the
+		// absent-resources monitor.
+		if resource.StoreAs != common.StoreAsRegular {
+			continue
+		}
+
 		b, err := yaml.Marshal(resource.Unstruct)
 		if err != nil {
 			return "", fmt.Errorf("marshal resource: %w", err)
