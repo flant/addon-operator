@@ -203,3 +203,77 @@ modulesImages:
     tags: {}
 `, v.AsString("yaml"))
 }
+
+func TestInjectRegistryValue(t *testing.T) {
+	// the rule sits at the root of the config schema: ExtendTransformer copies root
+	// extensions into the values schema, so it is evaluated against module values too
+	cfg := `
+type: object
+default: {}
+additionalProperties: false
+properties:
+  xxx:
+    type: string
+x-deckhouse-validations:
+  - expression: 'self.registry.base != ""'
+    message: registry.base must be set
+`
+
+	vcfg := `
+x-extend:
+  schema: config-values.yaml
+type: object
+default: {}
+properties:
+  internal:
+    type: object
+    default: {}
+`
+
+	tests := []struct {
+		name string
+		give *Registry
+		want string
+	}{
+		{
+			name: "empty CA is omitted",
+			give: &Registry{Base: "registry.example.com/d8", DockerCfg: "e30=", Scheme: "HTTPS"},
+			want: `
+xxx: yyy
+internal: {}
+registry:
+    base: registry.example.com/d8
+    dockercfg: e30=
+    scheme: HTTPS
+`,
+		},
+		{
+			name: "CA is kept",
+			give: &Registry{Base: "registry.example.com/d8", DockerCfg: "e30=", Scheme: "HTTPS", CA: "ca-content"},
+			want: `
+xxx: yyy
+internal: {}
+registry:
+    base: registry.example.com/d8
+    ca: ca-content
+    dockercfg: e30=
+    scheme: HTTPS
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			valuesStorage, err := NewValuesStorage("test-module", utils.Values{"xxx": "yyy"}, []byte(cfg), []byte(vcfg))
+			require.NoError(t, err)
+
+			valuesStorage.InjectRegistryValue(tt.give)
+
+			values := valuesStorage.GetValues(false)
+			// values must hold plain JSON types: CEL converts them with structpb and
+			// fails on a Go struct, both as the current and as the previous value
+			require.NoError(t, valuesStorage.validateValues(values))
+			assert.YAMLEq(t, tt.want, values.AsString("yaml"))
+		})
+	}
+}
