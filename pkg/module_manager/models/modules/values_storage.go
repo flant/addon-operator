@@ -52,6 +52,26 @@ type Registry struct {
 	CA        string `json:"ca,omitempty" yaml:"ca,omitempty"`
 }
 
+// toValues renders the registry as plain JSON types, keeping the struct's own JSON shape.
+// Values are walked natively by CEL (structpb) and OpenAPI validation, both fail on a Go struct.
+func (r *Registry) toValues() map[string]any {
+	if r == nil {
+		return nil
+	}
+
+	values := map[string]any{
+		"base":      r.Base,
+		"dockercfg": r.DockerCfg,
+		"scheme":    r.Scheme,
+	}
+
+	if r.CA != "" {
+		values["ca"] = r.CA
+	}
+
+	return values
+}
+
 // NewValuesStorage build a new storage for module values
 //
 //	staticValues - values from /modules/<module-name>/values.yaml, which couldn't be reloaded during the runtime
@@ -212,7 +232,7 @@ func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
 		vs.staticValues = utils.Values{}
 	}
 
-	vs.staticValues["registry"] = registry
+	vs.staticValues["registry"] = registry.toValues()
 
 	_ = vs.calculateResultValues()
 }
