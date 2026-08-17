@@ -415,6 +415,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 		DefaultChartAPIVersion: "v2",
 		Timeout:                c.opts.Timeout,
 		InstallGraphPath:       installGraphPath,
+		// Releases are serialized by the module task queue, so the cluster-wide release lock is redundant.
+		LegacyNoReleaseLock: true,
 	}); err != nil {
 		return fmt.Errorf("install nelm release %q: %w", releaseName, err)
 	}
@@ -524,6 +526,8 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 		ReleaseStorageDriver:     c.opts.HelmDriver,
 		Timeout:                  c.opts.Timeout,
 		UninstallGraphPath:       installGraphPath,
+		// Releases are serialized by the module task queue, so the cluster-wide release lock is redundant.
+		LegacyNoReleaseLock: true,
 	}); err != nil {
 		return fmt.Errorf("nelm uninstall release %q: %w", releaseName, err)
 	}
