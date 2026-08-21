@@ -188,27 +188,22 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 		// Register module hooks on every enable.
 		moduleRunErr = s.moduleManager.RegisterModuleHooks(baseModule, taskLogLabels)
 		if moduleRunErr == nil {
-			// Start queues for module hooks. Every phase below queues tasks into them,
-			// and the phases are reached with or without module startup, so the queues
-			// must not depend on DoModuleStartup (the call is idempotent).
+			s.logger.Debug("ModuleRun phase",
+				slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
+
+			treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
+
+			// Start queues for module hooks.
 			s.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
 
-			if hm.DoModuleStartup {
-				s.logger.Debug("ModuleRun phase",
-					slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
-
-				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
-
-				// Run onStartup hooks.
-				moduleRunErr = s.moduleManager.RunModuleHooks(ctx, baseModule, htypes.OnStartup, s.shellTask.GetLogLabels())
-				if moduleRunErr == nil {
-					s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
-				}
-
-				treg.End()
-			} else {
+			// Run onStartup hooks. The Startup phase already means they have not run, so this
+			// must not depend on DoModuleStartup, which each ModuleRun producer computes itself.
+			moduleRunErr = s.moduleManager.RunModuleHooks(ctx, baseModule, htypes.OnStartup, s.shellTask.GetLogLabels())
+			if moduleRunErr == nil {
 				s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 			}
+
+			treg.End()
 
 			res.Status = queue.Repeat
 
