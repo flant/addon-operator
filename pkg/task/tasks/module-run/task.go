@@ -2,6 +2,8 @@ package modulerun
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"runtime/trace"
 	"strings"
@@ -186,25 +188,22 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 		// Register module hooks on every enable.
 		moduleRunErr = s.moduleManager.RegisterModuleHooks(baseModule, taskLogLabels)
 		if moduleRunErr == nil {
-			if hm.DoModuleStartup {
-				s.logger.Debug("ModuleRun phase",
-					slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
+			s.logger.Debug("ModuleRun phase",
+				slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
 
-				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
+			treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
 
-				// Start queues for module hooks.
-				s.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
+			// Start queues for module hooks.
+			s.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
 
-				// Run onStartup hooks.
-				moduleRunErr = s.moduleManager.RunModuleHooks(ctx, baseModule, htypes.OnStartup, s.shellTask.GetLogLabels())
-				if moduleRunErr == nil {
-					s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
-				}
-
-				treg.End()
-			} else {
+			// Run onStartup hooks. The Startup phase already means they have not run, so this
+			// must not depend on DoModuleStartup, which each ModuleRun producer computes itself.
+			moduleRunErr = s.moduleManager.RunModuleHooks(ctx, baseModule, htypes.OnStartup, s.shellTask.GetLogLabels())
+			if moduleRunErr == nil {
 				s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 			}
+
+			treg.End()
 
 			res.Status = queue.Repeat
 
@@ -234,6 +233,10 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 		span.AddEvent("module queue synchronization tasks")
 
 		s.logger.Debug("ModuleRun phase", slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
+
+		// Queues are created in the Startup phase; ensure them again so that a hook
+		// registered later cannot lose its Synchronization task. Idempotent.
+		s.CreateAndStartQueuesForModuleHooks(hm.ModuleName)
 
 		// ModuleHookRun.Synchronization tasks for bindings with the "main" queue.
 		mainSyncTasks := make([]sh_task.Task, 0)
@@ -310,30 +313,52 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			// Fail to enable bindings: cannot start Kubernetes monitors.
 			moduleRunErr = err
 		} else {
+			// A Synchronization task that is built but never queued would leave its
+			// binding invisible to SynchronizationState.IsCompleted (vacuously
+			// completed) and its kubernetes events locked forever. Collect queueing
+			// errors and fail the phase instead of dropping tasks silently: the
+			// retry rebuilds every Synchronization context, EnableKubernetesBindings
+			// is idempotent.
+			var queueErrs []error
+
+			queued := make([]sh_task.Task, 0, len(parallelSyncTasksToWait)+len(parallelSyncTasks))
+
 			// Queue parallel tasks that should be waited.
 			for _, tsk := range parallelSyncTasksToWait {
 				if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
-					s.logger.Error("queue is not found while EnableKubernetesBindings task",
-						slog.String(pkg.LogKeyQueue, tsk.GetQueueName()))
+					queueErrs = append(queueErrs,
+						fmt.Errorf("queue Synchronization task to '%s': %w", tsk.GetQueueName(), err))
 
 					continue
 				}
+
+				queued = append(queued, tsk)
 
 				thm := task.HookMetadataAccessor(tsk)
 				baseModule.Synchronization().QueuedForBinding(thm)
 			}
 
-			s.logTaskAdd("append", parallelSyncTasksToWait...)
-
 			// Queue regular parallel tasks.
 			for _, tsk := range parallelSyncTasks {
 				if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
-					s.logger.Error("queue is not found while EnableKubernetesBindings task",
-						slog.String(pkg.LogKeyQueue, tsk.GetQueueName()))
+					queueErrs = append(queueErrs,
+						fmt.Errorf("queue Synchronization task to '%s': %w", tsk.GetQueueName(), err))
+
+					continue
 				}
+
+				queued = append(queued, tsk)
 			}
 
-			s.logTaskAdd("append", parallelSyncTasks...)
+			s.logTaskAdd("append", queued...)
+
+			if len(queueErrs) > 0 {
+				moduleRunErr = errors.Join(queueErrs...)
+
+				res.Status = queue.Repeat
+
+				return res
+			}
 
 			if len(parallelSyncTasksToWait) == 0 {
 				// Skip waiting tasks in parallel queues, proceed to schedule bindings.
