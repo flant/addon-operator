@@ -188,14 +188,16 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 		// Register module hooks on every enable.
 		moduleRunErr = s.moduleManager.RegisterModuleHooks(baseModule, taskLogLabels)
 		if moduleRunErr == nil {
+			// Start queues for module hooks. Every phase below queues tasks into them,
+			// and the phases are reached with or without module startup, so the queues
+			// must not depend on DoModuleStartup (the call is idempotent).
+			s.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
+
 			if hm.DoModuleStartup {
 				s.logger.Debug("ModuleRun phase",
 					slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
 
 				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
-
-				// Start queues for module hooks.
-				s.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
 
 				// Run onStartup hooks.
 				moduleRunErr = s.moduleManager.RunModuleHooks(ctx, baseModule, htypes.OnStartup, s.shellTask.GetLogLabels())
@@ -237,10 +239,8 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 
 		s.logger.Debug("ModuleRun phase", slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
 
-		// Hook queues are normally created in the Startup phase, but only when
-		// DoModuleStartup is set, and a converge restart can displace that task.
-		// A missing queue would make every AddLastTaskToQueue below fail
-		// deterministically, so ensure the queues exist (the call is idempotent).
+		// Queues are created in the Startup phase; ensure them again so that a hook
+		// registered later cannot lose its Synchronization task. Idempotent.
 		s.CreateAndStartQueuesForModuleHooks(hm.ModuleName)
 
 		// ModuleHookRun.Synchronization tasks for bindings with the "main" queue.
