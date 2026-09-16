@@ -1263,7 +1263,7 @@ func (mm *ModuleManager) UpdateModuleLastErrorAndNotify(module *modules.BasicMod
 // PushRunModuleTask pushes moduleRun task for a module into the main queue if there is no such a task for the module
 func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bool) error {
 	// check if there is already moduleRun task in the main queue for the module
-	if queueHasPendingModuleRunTaskWithStartup(mm.dependencies.TaskQueues.GetMain(), moduleName) {
+	if queueHasPendingModuleRunTask(mm.dependencies.TaskQueues.GetMain(), moduleName, doModuleStartup) {
 		return nil
 	}
 
@@ -1623,9 +1623,15 @@ func (mm *ModuleManager) EnvironmentManagerEnabled() bool {
 	return mm.environmentManager != nil
 }
 
-// queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
-// with the type "ModuleRun" related to the module "moduleName" and DoModuleStartup is set to true.
-func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName string) bool {
+// queueHasPendingModuleRunTask returns true if the queue already holds a pending task with the type
+// "ModuleRun" related to the module "moduleName" that covers a push made with doModuleStartup, so
+// that pushing another one would only duplicate work. A pending task that runs the startup sequence
+// covers one that does not; the reverse is not true, as the startup would then be dropped.
+//
+// Note that this must also hold for doModuleStartup=false on both sides, which is how every caller
+// pushes today: answering only for pending tasks with startup lets identical tasks pile up, and the
+// queue then reruns - and re-releases - the same module once per duplicate.
+func queueHasPendingModuleRunTask(q *queue.TaskQueue, moduleName string, doModuleStartup bool) bool {
 	if q == nil {
 		return false
 	}
@@ -1633,7 +1639,7 @@ func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName stri
 	modules := modulesWithPendingTasks(q, task.ModuleRun)
 	meta, has := modules[moduleName]
 
-	return has && meta.doStartup
+	return has && (meta.doStartup || !doModuleStartup)
 }
 
 func modulesWithPendingTasks(q *queue.TaskQueue, taskType sh_task.TaskType) map[string]struct{ doStartup bool } {
@@ -1654,7 +1660,11 @@ func modulesWithPendingTasks(q *queue.TaskQueue, taskType sh_task.TaskType) map[
 
 		if t.GetType() == taskType {
 			hm := task.HookMetadataAccessor(t)
-			modules[hm.ModuleName] = struct{ doStartup bool }{doStartup: hm.DoModuleStartup}
+			// a module may have several pending tasks: report the startup if any of them runs it,
+			// rather than letting the last task seen decide for all of them
+			meta := modules[hm.ModuleName]
+			meta.doStartup = meta.doStartup || hm.DoModuleStartup
+			modules[hm.ModuleName] = meta
 		}
 	})
 
