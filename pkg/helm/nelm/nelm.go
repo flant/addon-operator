@@ -87,7 +87,9 @@ func (d *DefaultNelmActions) ReleaseGet(ctx context.Context, name, namespace str
 }
 
 func (d *DefaultNelmActions) ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) error {
-	return action.ReleaseInstall(ctx, name, namespace, opts)
+	_, err := action.ReleaseInstall(ctx, name, namespace, opts)
+
+	return err
 }
 
 func (d *DefaultNelmActions) ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) error {
