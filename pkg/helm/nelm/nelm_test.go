@@ -93,8 +93,8 @@ func (f *fakeNelmActions) ReleaseGet(_ context.Context, _, _ string, _ action.Re
 	return nil, nil
 }
 
-func (f *fakeNelmActions) ReleaseInstall(_ context.Context, _, _ string, _ action.ReleaseInstallOptions) error {
-	return nil
+func (f *fakeNelmActions) ReleaseInstall(_ context.Context, _, _ string, _ action.ReleaseInstallOptions) (*action.ReleaseInstallResultV1, error) {
+	return nil, nil
 }
 
 func (f *fakeNelmActions) ReleaseUninstall(_ context.Context, _, _ string, _ action.ReleaseUninstallOptions) error {
