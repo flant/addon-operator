@@ -89,7 +89,7 @@ type fakeNelmActions struct {
 	chartRenderResult *action.ChartRenderResultV2
 }
 
-func (f *fakeNelmActions) ReleaseGet(_ context.Context, _, _ string, _ action.ReleaseGetOptions) (*action.ReleaseGetResultV1, error) {
+func (f *fakeNelmActions) ReleaseGet(_ context.Context, _, _ string, _ action.ReleaseGetOptions) (*action.ReleaseGetResultV2, error) {
 	return nil, nil
 }
 
