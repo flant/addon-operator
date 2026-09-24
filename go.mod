@@ -9,7 +9,7 @@ require (
 	github.com/deckhouse/module-sdk v0.12.4
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
-	github.com/flant/kube-client v1.9.2
+	github.com/flant/kube-client v1.9.3-0.20260924143636-6c2b5984f899
 	github.com/flant/shell-operator v1.20.5
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-openapi/loads v0.23.2
