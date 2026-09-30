@@ -17,9 +17,9 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/google/uuid"
-	"github.com/werf/nelm/pkg/action"
-	"github.com/werf/nelm/pkg/common"
-	nelmLog "github.com/werf/nelm/pkg/log"
+	"github.com/werf/nelm/v2/pkg/action"
+	"github.com/werf/nelm/v2/pkg/common"
+	nelmLog "github.com/werf/nelm/v2/pkg/log"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"

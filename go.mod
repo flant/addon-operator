@@ -27,7 +27,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.19.0
-	github.com/werf/nelm v1.31.1-0.20260924081526-e18841cece26
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.20.2
@@ -42,7 +41,10 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
-require github.com/go-openapi/swag/loading v0.26.0
+require (
+	github.com/go-openapi/swag/loading v0.26.0
+	github.com/werf/nelm/v2 v2.0.0-20260929191820-52826b6fa665
+)
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
