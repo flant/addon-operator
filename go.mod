@@ -27,7 +27,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.19.0
-	github.com/werf/nelm v1.31.1-0.20260924081526-e18841cece26
+	github.com/werf/nelm/v2 v2.0.0-20260929191820-52826b6fa665
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.19.5
@@ -54,6 +54,7 @@ require (
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
+	github.com/werf/nelm v1.31.1-0.20260924081526-e18841cece26 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
