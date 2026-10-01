@@ -9,10 +9,10 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/stretchr/testify/assert"
-	"github.com/werf/nelm/pkg/action"
-	"github.com/werf/nelm/pkg/common"
-	nelmLog "github.com/werf/nelm/pkg/log"
-	"github.com/werf/nelm/pkg/resource/spec"
+	"github.com/werf/nelm/v2/pkg/action"
+	"github.com/werf/nelm/v2/pkg/common"
+	nelmLog "github.com/werf/nelm/v2/pkg/log"
+	"github.com/werf/nelm/v2/pkg/resource/spec"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/flant/addon-operator/pkg"
@@ -89,7 +89,7 @@ type fakeNelmActions struct {
 	chartRenderResult *action.ChartRenderResultV2
 }
 
-func (f *fakeNelmActions) ReleaseGet(_ context.Context, _, _ string, _ action.ReleaseGetOptions) (*action.ReleaseGetResultV1, error) {
+func (f *fakeNelmActions) ReleaseGet(_ context.Context, _, _ string, _ action.ReleaseGetOptions) (*action.ReleaseGetResultV2, error) {
 	return nil, nil
 }
 
