@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"github.com/werf/nelm/pkg/action"
-	"github.com/werf/nelm/pkg/resource"
+	"github.com/werf/nelm/v2/pkg/action"
+	"github.com/werf/nelm/v2/pkg/resource"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm/client"

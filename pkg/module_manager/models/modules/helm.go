@@ -14,7 +14,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
-	"github.com/werf/nelm/pkg/action"
+	"github.com/werf/nelm/v2/pkg/action"
 	"go.opentelemetry.io/otel"
 	"helm.sh/helm/v3/pkg/storage/driver"
 
