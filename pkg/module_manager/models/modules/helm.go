@@ -435,6 +435,11 @@ func (hm *HelmModule) safeName() string {
 }
 
 func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceState) (string, error) {
+	return hm.renderChart(hm.path, namespace, debug, state)
+}
+
+// renderChart renders the chart located at chartPath with the module values.
+func (hm *HelmModule) renderChart(chartPath, namespace string, debug bool, state MaintenanceState) (string, error) {
 	if namespace == "" {
 		namespace = "default"
 	}
@@ -453,7 +458,7 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 		LabelMaintenanceNoResourceReconciliation: strconv.FormatBool(state == Unmanaged),
 	}
 
-	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, releaseLabels, namespace, debug)
+	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, chartPath, []string{valuesPath}, nil, releaseLabels, namespace, debug)
 }
 
 // ConversionWebhookKind is the kind of the rendered resource that carries a CRD
@@ -461,14 +466,20 @@ func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceStat
 // before the main helm release, so the release can adopt them afterwards.
 const ConversionWebhookKind = "ConversionWebhook"
 
-// RenderConversionWebhooks renders the module templates and returns only the
+// RenderConversionWebhooks renders the given templates and returns only the
 // manifests of kind ConversionWebhook. They are extracted from the chart so the
 // caller can apply them ahead of the main helm install, letting the subsequent
-// release adopt the already-present resources.
-func (hm *HelmModule) RenderConversionWebhooks(namespace string, state MaintenanceState) ([]manifest.Manifest, error) {
-	rendered, err := hm.Render(namespace, false, state)
+// release adopt the already-present resources. If the reduced chart fails to
+// render (e.g. a template uses a module-local helper), it falls back to the full chart.
+func (hm *HelmModule) RenderConversionWebhooks(namespace string, state MaintenanceState, templates []string) ([]manifest.Manifest, error) {
+	rendered, err := hm.renderConversionWebhookChart(namespace, state, templates)
 	if err != nil {
-		return nil, fmt.Errorf("render templates: %w", err)
+		hm.logger.Warn("render conversion webhooks chart, fallback to full render", log.Err(err))
+
+		rendered, err = hm.Render(namespace, false, state)
+		if err != nil {
+			return nil, fmt.Errorf("render templates: %w", err)
+		}
 	}
 
 	all, err := manifest.ListFromYamlDocs(rendered)
@@ -485,4 +496,87 @@ func (hm *HelmModule) RenderConversionWebhooks(namespace string, state Maintenan
 	}
 
 	return webhooks, nil
+}
+
+// renderConversionWebhookChart builds a reduced chart with the given templates in
+// a temporary directory and renders it.
+func (hm *HelmModule) renderConversionWebhookChart(namespace string, state MaintenanceState, templates []string) (string, error) {
+	chartDir, err := os.MkdirTemp(hm.tmpDir, hm.safeName()+"-conversion-webhooks-")
+	if err != nil {
+		return "", fmt.Errorf("create chart dir: %w", err)
+	}
+	defer os.RemoveAll(chartDir)
+
+	if err = buildConversionWebhookChart(hm.path, chartDir, templates); err != nil {
+		return "", fmt.Errorf("build chart: %w", err)
+	}
+
+	return hm.renderChart(chartDir, namespace, false, state)
+}
+
+// buildConversionWebhookChart mirrors into dst the parts of the module chart
+// needed to render the given templates: charts/ (library charts like helm_lib)
+// and the templates themselves. Directories are created for real and files are
+// symlinked, so loaders that do not follow directory symlinks see the whole tree.
+func buildConversionWebhookChart(modulePath, dst string, templates []string) error {
+	if err := mirrorTree(filepath.Join(modulePath, "charts"), filepath.Join(dst, "charts")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("mirror charts: %w", err)
+	}
+
+	for _, file := range templates {
+		if err := linkFile(filepath.Join(modulePath, "templates", file), filepath.Join(dst, "templates", file)); err != nil {
+			return fmt.Errorf("link template %q: %w", file, err)
+		}
+	}
+
+	return nil
+}
+
+// mirrorTree recreates the src directory tree in dst following symlinks, and
+// links every regular file to its resolved source.
+func mirrorTree(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if !info.IsDir() {
+		return linkFile(src, dst)
+	}
+
+	if err = os.MkdirAll(dst, 0o755); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if err = mirrorTree(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name())); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// linkFile symlinks dst to the resolved src, creating parent directories of dst.
+func linkFile(src, dst string) error {
+	resolved, err := filepath.EvalSymlinks(src)
+	if err != nil {
+		return err
+	}
+
+	resolved, err = filepath.Abs(resolved)
+	if err != nil {
+		return err
+	}
+
+	if err = os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+
+	return os.Symlink(resolved, dst)
 }

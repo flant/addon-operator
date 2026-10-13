@@ -61,7 +61,7 @@ type BasicModule struct {
 	crdsExist     bool
 	crdFilesPaths []string
 
-	conversionWebhooksExist bool
+	conversionWebhookTemplates []string
 
 	valuesStorage *ValuesStorage
 
@@ -90,13 +90,13 @@ func NewBasicModule(name, path string, order uint32, staticValues utils.Values, 
 
 	crdsFromPath := getCRDsFromPath(path, app.CRDsFilters)
 	bmodule := &BasicModule{
-		Name:                    name,
-		Order:                   order,
-		Path:                    path,
-		crdsExist:               len(crdsFromPath) > 0,
-		crdFilesPaths:           crdsFromPath,
-		conversionWebhooksExist: templatesHaveConversionWebhook(path),
-		valuesStorage:           valuesStorage,
+		Name:                       name,
+		Order:                      order,
+		Path:                       path,
+		crdsExist:                  len(crdsFromPath) > 0,
+		crdFilesPaths:              crdsFromPath,
+		conversionWebhookTemplates: getConversionWebhookTemplates(path),
+		valuesStorage:              valuesStorage,
 		state: &moduleState{
 			Phase:                Startup,
 			hookErrors:           make(map[string]error),
@@ -158,38 +158,45 @@ func getCRDsFromPath(path string, crdsFilters string) []string {
 	return crdFilesPaths
 }
 
-// templatesHaveConversionWebhook reports whether any template file under
-// path/templates mentions a ConversionWebhook resource. It is a cheap static
-// heuristic (the kind is virtually always a literal in manifests) used to avoid
-// rendering charts that have no conversion webhooks. A false positive only
-// results in a render that finds nothing, so it is safe.
-func templatesHaveConversionWebhook(path string) bool {
-	var found bool
+// getConversionWebhookTemplates returns paths, relative to path/templates, of the
+// template files that mention a ConversionWebhook resource. It is a cheap static
+// heuristic (the kind is virtually always a literal in manifests) used to render
+// only these files instead of the whole chart. A false positive only results in
+// a render that finds nothing, so it is safe.
+func getConversionWebhookTemplates(path string) []string {
+	templatesDir := filepath.Join(path, "templates")
 
-	err := filepath.Walk(
-		filepath.Join(path, "templates"),
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
+	var found []string
 
-			if found || info.IsDir() {
-				return nil
-			}
+	err := filepath.Walk(templatesDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-
-			if strings.Contains(string(data), ConversionWebhookKind) {
-				found = true
-			}
-
+		if info.IsDir() {
 			return nil
-		})
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		if !strings.Contains(string(data), ConversionWebhookKind) {
+			return nil
+		}
+
+		rel, err := filepath.Rel(templatesDir, path)
+		if err != nil {
+			return err
+		}
+
+		found = append(found, rel)
+
+		return nil
+	})
 	if err != nil {
-		return false
+		return nil
 	}
 
 	return found
@@ -1520,7 +1527,13 @@ func (bm *BasicModule) CRDExist() bool {
 // ConversionWebhookExist reports whether the module's templates contain at least
 // one ConversionWebhook resource, computed once when the module is loaded.
 func (bm *BasicModule) ConversionWebhookExist() bool {
-	return bm.conversionWebhooksExist
+	return len(bm.conversionWebhookTemplates) > 0
+}
+
+// GetConversionWebhookTemplates returns the template files, relative to the
+// templates directory, that contain ConversionWebhook resources.
+func (bm *BasicModule) GetConversionWebhookTemplates() []string {
+	return bm.conversionWebhookTemplates
 }
 
 type ModuleRunPhase string

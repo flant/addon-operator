@@ -907,7 +907,7 @@ func (mm *ModuleManager) EnsureConversionWebhooks(moduleName string, logLabels m
 		return fmt.Errorf("create helm module: %w", err)
 	}
 
-	webhooks, err := helmModule.RenderConversionWebhooks(mm.defaultNamespace, bm.GetMaintenanceState())
+	webhooks, err := helmModule.RenderConversionWebhooks(mm.defaultNamespace, bm.GetMaintenanceState(), bm.GetConversionWebhookTemplates())
 	if err != nil {
 		return fmt.Errorf("render conversion webhooks: %w", err)
 	}
