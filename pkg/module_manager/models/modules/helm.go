@@ -515,14 +515,20 @@ func (hm *HelmModule) renderConversionWebhookChart(namespace string, state Maint
 	return hm.renderChart(chartDir, namespace, false, state)
 }
 
+// conversionWebhookChartDirs are optional module dirs mirrored into the reduced chart:
+// charts/ holds library charts (helm_lib), webhooks/ holds handlers read via .Files.Get.
+var conversionWebhookChartDirs = []string{"charts", "webhooks"}
+
 // buildConversionWebhookChart mirrors into dst the parts of the module chart
-// needed to render the given templates: charts/ (library charts like helm_lib),
-// the template helpers ("_"-prefixed partials) and the templates themselves.
+// needed to render the given templates: the conversionWebhookChartDirs, the
+// template helpers ("_"-prefixed partials) and the templates themselves.
 // Directories are created for real and files are symlinked, so loaders that do
 // not follow directory symlinks see the whole tree.
 func buildConversionWebhookChart(modulePath, dst string, templates []string) error {
-	if err := mirrorTree(filepath.Join(modulePath, "charts"), filepath.Join(dst, "charts")); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("mirror charts: %w", err)
+	for _, dir := range conversionWebhookChartDirs {
+		if err := mirrorTree(filepath.Join(modulePath, dir), filepath.Join(dst, dir)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("mirror %s: %w", dir, err)
+		}
 	}
 
 	helpers, err := getTemplateHelpers(filepath.Join(modulePath, "templates"))
