@@ -470,7 +470,8 @@ const ConversionWebhookKind = "ConversionWebhook"
 // manifests of kind ConversionWebhook. They are extracted from the chart so the
 // caller can apply them ahead of the main helm install, letting the subsequent
 // release adopt the already-present resources. If the reduced chart fails to
-// render (e.g. a template uses a module-local helper), it falls back to the full chart.
+// render (e.g. a template depends on another non-helper template), it falls back
+// to the full chart.
 func (hm *HelmModule) RenderConversionWebhooks(namespace string, state MaintenanceState, templates []string) ([]manifest.Manifest, error) {
 	rendered, err := hm.renderConversionWebhookChart(namespace, state, templates)
 	if err != nil {
@@ -515,21 +516,65 @@ func (hm *HelmModule) renderConversionWebhookChart(namespace string, state Maint
 }
 
 // buildConversionWebhookChart mirrors into dst the parts of the module chart
-// needed to render the given templates: charts/ (library charts like helm_lib)
-// and the templates themselves. Directories are created for real and files are
-// symlinked, so loaders that do not follow directory symlinks see the whole tree.
+// needed to render the given templates: charts/ (library charts like helm_lib),
+// the template helpers ("_"-prefixed partials) and the templates themselves.
+// Directories are created for real and files are symlinked, so loaders that do
+// not follow directory symlinks see the whole tree.
 func buildConversionWebhookChart(modulePath, dst string, templates []string) error {
 	if err := mirrorTree(filepath.Join(modulePath, "charts"), filepath.Join(dst, "charts")); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("mirror charts: %w", err)
 	}
 
-	for _, file := range templates {
-		if err := linkFile(filepath.Join(modulePath, "templates", file), filepath.Join(dst, "templates", file)); err != nil {
+	helpers, err := getTemplateHelpers(filepath.Join(modulePath, "templates"))
+	if err != nil {
+		return fmt.Errorf("get template helpers: %w", err)
+	}
+
+	linked := make(map[string]struct{}, len(templates)+len(helpers))
+
+	for _, file := range append(helpers, templates...) {
+		if _, ok := linked[file]; ok {
+			continue
+		}
+
+		linked[file] = struct{}{}
+
+		if err = linkFile(filepath.Join(modulePath, "templates", file), filepath.Join(dst, "templates", file)); err != nil {
 			return fmt.Errorf("link template %q: %w", file, err)
 		}
 	}
 
 	return nil
+}
+
+// getTemplateHelpers returns paths, relative to templatesDir, of helm partials
+// (files prefixed with "_") that define helpers used by the templates.
+func getTemplateHelpers(templatesDir string) ([]string, error) {
+	var helpers []string
+
+	err := filepath.WalkDir(templatesDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() || !strings.HasPrefix(d.Name(), "_") {
+			return nil
+		}
+
+		rel, err := filepath.Rel(templatesDir, path)
+		if err != nil {
+			return err
+		}
+
+		helpers = append(helpers, rel)
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return helpers, nil
 }
 
 // mirrorTree recreates the src directory tree in dst following symlinks, and
