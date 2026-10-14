@@ -23,7 +23,7 @@ import (
 
 func TestHandleModulePatch(t *testing.T) {
 	valuesStr := `
-foo: 
+foo:
   bar: baz
 `
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))
@@ -47,7 +47,7 @@ foo:
 	require.NoError(t, err)
 	assert.True(t, res.ValuesChanged)
 	assert.YAMLEq(t, `
-foo: 
+foo:
   xxx: yyy
 `,
 		res.Values.AsString("yaml"))
@@ -82,7 +82,7 @@ sys.exit(0)
 	defer os.RemoveAll("/tmp/modules")
 
 	valuesStr := `
-foo: 
+foo:
   bar: baz
 `
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))

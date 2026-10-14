@@ -158,11 +158,15 @@ func getCRDsFromPath(path string, crdsFilters string) []string {
 	return crdFilesPaths
 }
 
+// conversionWebhookKindLine matches a literal `kind: ConversionWebhook` line, so a
+// mere mention of the kind (e.g. in a comment) does not select the template.
+var conversionWebhookKindLine = regexp.MustCompile(`(?m)^[ \t]*kind:[ \t]*["']?` + ConversionWebhookKind + `["']?[ \t]*(#.*)?\r?$`)
+
 // getConversionWebhookTemplates returns paths, relative to path/templates, of the
-// template files that mention a ConversionWebhook resource. It is a cheap static
+// template files that declare a ConversionWebhook resource. It is a cheap static
 // heuristic (the kind is virtually always a literal in manifests) used to render
-// only these files instead of the whole chart. A false positive only results in
-// a render that finds nothing, so it is safe.
+// only these files instead of the whole chart. A false positive renders a template
+// whose values may not be ready yet, so only an exact `kind:` line counts.
 func getConversionWebhookTemplates(path string) []string {
 	templatesDir := filepath.Join(path, "templates")
 
@@ -182,7 +186,7 @@ func getConversionWebhookTemplates(path string) []string {
 			return err
 		}
 
-		if !strings.Contains(string(data), ConversionWebhookKind) {
+		if !conversionWebhookKindLine.Match(data) {
 			return nil
 		}
 
