@@ -9,10 +9,10 @@ jobs:
     name: Run linter
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.23
+      - name: Set up Go 1.26
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
+          go-version: '1.26.1'
 
       - name: Check out addon-operator code
         uses: actions/checkout@v5
