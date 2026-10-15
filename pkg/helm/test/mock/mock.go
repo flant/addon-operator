@@ -29,6 +29,7 @@ func (c *Client) ListReleasesNames() ([]string, error) {
 	if c.ReleaseNames != nil {
 		return c.ReleaseNames, nil
 	}
+
 	return []string{}, nil
 }
 

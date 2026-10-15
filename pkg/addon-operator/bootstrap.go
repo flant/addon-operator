@@ -6,13 +6,14 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/task"
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 )
@@ -21,20 +22,20 @@ import (
 // It initializes the debug server and assembles all components needed for operation.
 func (op *AddonOperator) bootstrap() error {
 	// Log application startup message
-	log.Info(shapp.AppStartMessage)
+	log.Info(app.AppStartMessage)
 
 	// Log the path where modules will be searched
 	log.Info("Search modules",
-		slog.String("path", app.ModulesDir))
+		slog.String(pkg.LogKeyPath, app.ModulesDir))
 
 	// Log the namespace in which the operator will work
 	log.Info("Addon-operator namespace",
-		slog.String("namespace", op.DefaultNamespace))
+		slog.String(pkg.LogKeyNamespace, op.DefaultNamespace))
 
 	// Initialize the debug server for troubleshooting and monitoring
-	// TODO: rewrite shapp global variables to the addon-operator one
 	var err error
-	op.DebugServer, err = shell_operator.RunDefaultDebugServer(shapp.DebugUnixSocket, shapp.DebugHttpServerAddr, op.Logger.Named("debug-server"))
+
+	op.DebugServer, err = shell_operator.RunDefaultDebugServer(app.DebugUnixSocket, app.DebugHTTPServerAddr, op.Logger.Named("debug-server"))
 	if err != nil {
 		log.Error("Fatal: start Debug server", log.Err(err))
 		return fmt.Errorf("start Debug server: %w", err)
@@ -77,7 +78,14 @@ func (op *AddonOperator) Assemble(debugServer *debug.Server) error {
 
 	// Start background updaters for metrics
 	metrics.StartLiveTicksUpdater(op.engine.MetricStorage)
-	metrics.StartTasksQueueLengthUpdater(op.engine.MetricStorage, op.engine.TaskQueues)
+	metrics.StartTasksQueueLengthUpdater(op.engine.MetricStorage, op.engine.TaskQueues, func(metadata interface{}) (string, string) {
+		hm, ok := metadata.(task.HookMetadata)
+		if !ok {
+			return "", ""
+		}
+
+		return hm.ModuleName, hm.HookName
+	})
 
 	// Register debug HTTP endpoints to inspect internal state
 	op.engine.RegisterDebugQueueRoutes(debugServer)

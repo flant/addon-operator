@@ -13,9 +13,11 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
+	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	"github.com/hashicorp/go-multierror"
 	"go.opentelemetry.io/otel"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -50,13 +52,10 @@ import (
 )
 
 var (
-	moduleInfoMetricGroup = "mm_module_info"
-	moduleInfoMetricName  = metrics.ModuleInfoMetricName
-
+	moduleInfoMetricGroup        = "mm_module_info"
+	moduleEnabledMetricGroup     = "mm_module_enabled"
 	moduleMaintenanceMetricGroup = "mm_module_maintenance"
-	moduleMaintenanceMetricName  = metrics.ModuleMaintenanceMetricName
-
-	moduleManagerServiceName = "module-manager"
+	moduleManagerServiceName     = "module-manager"
 )
 
 // ModulesState determines which modules should be enabled, disabled or reloaded.
@@ -241,9 +240,10 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 	if ok {
 		if globalValuesChanged {
 			mm.logger.Debug("Applying global values",
-				slog.String("values", fmt.Sprintf("%v", newGlobalValues)))
+				slog.String(pkg.LogKeyValues, fmt.Sprintf("%v", newGlobalValues)))
 			mm.global.SaveConfigValues(newGlobalValues)
 		}
+
 		delete(valuesMap, mm.global.GetName())
 	}
 
@@ -256,9 +256,9 @@ func (mm *ModuleManager) ApplyNewKubeConfigValues(kubeConfig *config.KubeConfig,
 
 		if mod.GetConfigValues(false).Checksum() != values.Checksum() {
 			mm.logger.Debug("Applying values to module",
-				slog.String("moduleName", moduleName),
-				slog.String("values", fmt.Sprintf("%v", values)),
-				slog.String("oldValues", fmt.Sprintf("%v", mod.GetConfigValues(false))))
+				slog.String(pkg.LogKeyModuleName, moduleName),
+				slog.String(pkg.LogKeyValues, fmt.Sprintf("%v", values)),
+				slog.String(pkg.LogKeyOldValues, fmt.Sprintf("%v", mod.GetConfigValues(false))))
 			mod.SaveConfigValues(values)
 		}
 	}
@@ -277,6 +277,7 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 		if validationErr != nil {
 			_ = multierror.Append(validationErrors, validationErr)
 		}
+
 		valuesMap[mm.global.GetName()] = newValues
 	}
 
@@ -289,7 +290,12 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 		}
 
 		if moduleConfig.GetMaintenanceState() == utils.NoResourceReconciliation {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, moduleMaintenanceMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(
+				moduleMaintenanceMetricGroup,
+				metrics.ModuleMaintenanceMetricName,
+				1,
+				map[string]string{pkg.MetricKeyModule: moduleName, "state": utils.NoResourceReconciliation.String()},
+			)
 			mod.SetMaintenanceState(moduleConfig.GetMaintenanceState())
 		}
 
@@ -309,6 +315,7 @@ func (mm *ModuleManager) validateNewKubeConfig(kubeConfig *config.KubeConfig, al
 			if validationErr != nil {
 				_ = multierror.Append(validationErrors, validationErr)
 			}
+
 			valuesMap[mod.GetName()] = newValues
 		}
 	}
@@ -324,14 +331,16 @@ func (mm *ModuleManager) warnAboutUnknownModules(kubeConfig *config.KubeConfig) 
 	}
 
 	unknownNames := make([]string, 0)
+
 	for moduleName := range kubeConfig.Modules {
 		if !mm.modules.Has(moduleName) {
 			unknownNames = append(unknownNames, moduleName)
 		}
 	}
+
 	if len(unknownNames) > 0 {
 		mm.logger.Warn("KubeConfigManager has values for unknown modules",
-			slog.Any("modules", unknownNames))
+			slog.Any(pkg.LogKeyModules, unknownNames))
 	}
 }
 
@@ -355,6 +364,7 @@ func (mm *ModuleManager) Init(logger *log.Logger) error {
 	if err != nil {
 		return fmt.Errorf("couldn't create static extender: %w", err)
 	}
+
 	if err := mm.moduleScheduler.AddExtender(staticExtender); err != nil {
 		return fmt.Errorf("couldn't add static extender: %w", err)
 	}
@@ -411,10 +421,13 @@ func (mm *ModuleManager) checkConfig() {
 		if mm.ctx.Err() != nil {
 			return
 		}
+
 		mm.kubeConfigLock.RLock()
+
 		if !mm.kubeConfigValid || !mm.kubeConfigValuesValid {
 			mm.dependencies.MetricStorage.CounterAdd(metrics.ConfigValuesErrorsTotal, 1.0, map[string]string{})
 		}
+
 		mm.kubeConfigLock.RUnlock()
 		time.Sleep(5 * time.Second)
 	}
@@ -443,7 +456,7 @@ func (mm *ModuleManager) RefreshStateFromHelmReleases(logLabels map[string]strin
 	}
 
 	mm.logger.Debug("Following releases found",
-		slog.Any("modules", releasedModules))
+		slog.Any(pkg.LogKeyModules, releasedModules))
 
 	return mm.stateFromHelmReleases(releasedModules), nil
 }
@@ -462,7 +475,7 @@ func (mm *ModuleManager) stateFromHelmReleases(releases []string) *ModulesState 
 
 	if len(purge) > 0 {
 		mm.logger.Info("Modules to purge found",
-			slog.Any("modules", purge))
+			slog.Any(pkg.LogKeyModules, purge))
 	}
 
 	return &ModulesState{
@@ -492,13 +505,61 @@ func (mm *ModuleManager) SetGlobalDiscoveryAPIVersions(apiVersions []string) {
 
 // UpdateModulesMetrics updates modules' states metrics
 func (mm *ModuleManager) UpdateModulesMetrics() {
-	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoMetricGroup, moduleInfoMetricName)
+	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleInfoMetricGroup, metrics.ModuleInfoMetricName)
+
 	for _, module := range mm.GetModuleNames() {
 		enabled := "false"
 		if mm.IsModuleEnabled(module) {
 			enabled = "true"
 		}
-		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleInfoMetricGroup, moduleInfoMetricName, 1, map[string]string{"moduleName": module, "enabled": enabled})
+
+		critical := "false"
+		if mm.GetCritical(module) {
+			critical = "true"
+		}
+
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(
+			moduleInfoMetricGroup,
+			metrics.ModuleInfoMetricName,
+			1,
+			map[string]string{
+				pkg.MetricKeyModule: module,
+				"enabled":           enabled,
+				"critical":          critical,
+			},
+		)
+	}
+
+	mm.refreshModuleEnabledMetric()
+}
+
+func (mm *ModuleManager) refreshModuleEnabledMetric() {
+	mm.dependencies.MetricStorage.Grouped().ExpireGroupMetrics(moduleEnabledMetricGroup)
+
+	for _, name := range mm.GetModuleNames() {
+		if !mm.IsModuleEnabled(name) {
+			continue
+		}
+
+		mod := mm.GetModule(name)
+		if mod == nil {
+			continue
+		}
+
+		version := mod.GetVersion()
+		if version == "" {
+			continue
+		}
+
+		labels := map[string]string{
+			pkg.MetricKeyModule:  name,
+			pkg.MetricKeyVersion: version,
+		}
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleEnabledMetricGroup, metrics.ModuleEnabledMetricName, 1, labels)
+		// Telemetry twin: same gauge under the d8_telemetry_ prefix so
+		// flant-integration ships it to DOP. Kept in the same group so
+		// ExpireGroupMetrics above wipes both copies in lockstep.
+		mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleEnabledMetricGroup, metrics.ModuleEnabledTelemetryMetricName, 1, labels)
 	}
 }
 
@@ -506,12 +567,13 @@ func (mm *ModuleManager) SetModuleMaintenanceState(moduleName string, state util
 	if bm := mm.GetModule(moduleName); bm != nil {
 		bm.SetMaintenanceState(state)
 		mm.logger.Info("set module management state",
-			slog.String("module", moduleName),
-			slog.String("state", state.String()))
+			slog.String(pkg.LogKeyModule, moduleName),
+			slog.String(pkg.LogKeyState, state.String()))
+
 		if state == utils.NoResourceReconciliation {
-			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, moduleMaintenanceMetricName, 1, map[string]string{"moduleName": moduleName, "state": utils.NoResourceReconciliation.String()})
+			mm.dependencies.MetricStorage.Grouped().GaugeSet(moduleMaintenanceMetricGroup, metrics.ModuleMaintenanceMetricName, 1, map[string]string{pkg.MetricKeyModule: moduleName, "state": utils.NoResourceReconciliation.String()})
 		} else {
-			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleMaintenanceMetricGroup, moduleMaintenanceMetricName)
+			mm.dependencies.MetricStorage.Grouped().ExpireGroupMetricByName(moduleMaintenanceMetricGroup, metrics.ModuleMaintenanceMetricName)
 		}
 	}
 }
@@ -520,7 +582,7 @@ func (mm *ModuleManager) SetModuleMaintenanceState(moduleName string, state util
 // - mm.enabledModules
 func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*ModulesState, error) {
 	refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
-		"operator.component": "ModuleManager.RefreshEnabledState",
+		pkg.LogKeyOperatorComponent: "ModuleManager.RefreshEnabledState",
 	})
 	logEntry := utils.EnrichLoggerWithLabels(mm.logger, refreshLogLabels)
 
@@ -530,7 +592,7 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	}
 
 	logEntry.Info("Enabled modules",
-		slog.Any("modules", enabledModules))
+		slog.Any(pkg.LogKeyModules, enabledModules))
 	once.Do(mm.modules.SetInited)
 
 	var (
@@ -552,22 +614,25 @@ func (mm *ModuleManager) RefreshEnabledState(logLabels map[string]string) (*Modu
 	modulesToEnable = utils.SortByReference(modulesToEnable, mm.modules.NamesInOrder())
 
 	logEntry.Debug("Refresh state results",
-		slog.Any("enabledModules", enabledModules),
-		slog.Any("modulesToDisable", modulesToDisable),
-		slog.Any("modulesToEnable", modulesToEnable))
+		slog.Any(pkg.LogKeyEnabledModules, enabledModules),
+		slog.Any(pkg.LogKeyModulesToDisable, modulesToDisable),
+		slog.Any(pkg.LogKeyModulesToEnable, modulesToEnable))
 
 	// We've to ignore enabledModules patch in case default moduleLoader is in use, otherwise it breaks applying global hooks patches with default moduleLoader
 	switch mm.moduleLoader.(type) {
 	case *fs.FileSystemLoader:
 	default:
 		logEntry.Debug("non-default module loader detected - applying enabledModules patch")
+
 		enabledModulesAndFakeCRDmodules := make([]string, 0, len(enabledModules))
 		for _, moduleName := range enabledModules {
 			if mm.ModuleHasCRDs(moduleName) {
 				enabledModulesAndFakeCRDmodules = append(enabledModulesAndFakeCRDmodules, fmt.Sprintf("%s-crd", moduleName))
 			}
+
 			enabledModulesAndFakeCRDmodules = append(enabledModulesAndFakeCRDmodules, moduleName)
 		}
+
 		mm.global.SetEnabledModules(enabledModulesAndFakeCRDmodules)
 	}
 
@@ -647,6 +712,10 @@ func (mm *ModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []string
 	return names
 }
 
+// DeleteModule runs beforeDeleteHelm hooks (only when a Helm release actually exists),
+// helm uninstall, and afterDeleteHelm hooks. If beforeDeleteHelm fails, helm uninstall and
+// afterDeleteHelm are skipped — converge retries with backoff. Symmetric to RunModule's
+// beforeHelm / helm install / afterHelm flow.
 func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, logLabels map[string]string) error {
 	ctx, span := otel.Tracer(moduleManagerServiceName).Start(ctx, "DeleteModule")
 	defer span.End()
@@ -654,7 +723,8 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 	ml := mm.GetModule(moduleName)
 
 	// Note: keep kubernetes monitors alive until afterDeleteHelm runs,
-	// so hooks can access snapshots. We'll disable hooks after running them.
+	// so beforeDeleteHelm and afterDeleteHelm hooks can access snapshots.
+	// We'll disable hooks after running them.
 
 	// DELETE
 	{
@@ -662,8 +732,8 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 
 		deleteLogLabels := utils.MergeLabels(logLabels,
 			map[string]string{
-				"module": ml.GetName(),
-				"queue":  "main",
+				pkg.LogKeyModule: ml.GetName(),
+				pkg.LogKeyQueue:  "main",
 			})
 		logEntry := utils.EnrichLoggerWithLabels(mm.logger, deleteLogLabels)
 
@@ -689,13 +759,20 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 			if !releaseExists {
 				if err != nil {
 					logEntry.Warn("Cannot find helm release for module",
-						slog.String("module", ml.GetName()),
+						slog.String(pkg.LogKeyModule, ml.GetName()),
 						log.Err(err))
 				} else {
 					logEntry.Warn("Cannot find helm release for module.",
-						slog.String("module", ml.GetName()))
+						slog.String(pkg.LogKeyModule, ml.GetName()))
 				}
 			} else {
+				// Run beforeDeleteHelm hooks just before helm uninstall.
+				// On hook failure: helm uninstall and afterDeleteHelm are NOT executed,
+				// kubernetes informers stay alive, converge will retry with backoff.
+				if err := ml.RunHooksByBinding(ctx, BeforeDeleteHelm, deleteLogLabels); err != nil {
+					return fmt.Errorf("run beforeDeleteHelm hooks: %w", err)
+				}
+
 				helmClientOptions := []helm.ClientOption{
 					helm.WithLogLabels(deleteLogLabels),
 				}
@@ -736,8 +813,8 @@ func (mm *ModuleManager) RunModule(ctx context.Context, moduleName string, logLa
 	span.AddEvent("ModuleRun-HelmPhase")
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		"module": bm.GetName(),
-		"queue":  "main",
+		pkg.LogKeyModule: bm.GetName(),
+		pkg.LogKeyQueue:  "main",
 	})
 
 	// Hooks can delete release resources, so pause resources monitor before run hooks.
@@ -748,7 +825,9 @@ func (mm *ModuleManager) RunModule(ctx context.Context, moduleName string, logLa
 
 	treg := trace.StartRegion(ctx, "ModuleRun-HelmPhase-beforeHelm")
 	err = bm.RunHooksByBinding(ctx, BeforeHelm, logLabels)
+
 	treg.End()
+
 	if err != nil {
 		return false, fmt.Errorf("run hooks by binding: %w", err)
 	}
@@ -778,6 +857,7 @@ func (mm *ModuleManager) RunModule(ctx context.Context, moduleName string, logLa
 	}
 
 	treg.End()
+
 	if err != nil && !errors.Is(err, modules.ErrModuleIsNotHelm) {
 		return false, fmt.Errorf("run helm install: %w", err)
 	}
@@ -786,7 +866,9 @@ func (mm *ModuleManager) RunModule(ctx context.Context, moduleName string, logLa
 	oldValuesChecksum := oldValues.Checksum()
 	treg = trace.StartRegion(context.Background(), "ModuleRun-HelmPhase-afterHelm")
 	err = bm.RunHooksByBinding(ctx, AfterHelm, logLabels)
+
 	treg.End()
+
 	if err != nil {
 		return false, fmt.Errorf("run hooks by binding: %w", err)
 	}
@@ -796,6 +878,70 @@ func (mm *ModuleManager) RunModule(ctx context.Context, moduleName string, logLa
 
 	// Do not send to mm.moduleValuesChanged, changed values are handled by TaskHandler.
 	return oldValuesChecksum != newValuesChecksum, nil
+}
+
+// EnsureConversionWebhooks renders the module's ConversionWebhook resources and
+// applies them to the cluster before the main helm install. The subsequent
+// release adopts the already-present resources. It is a no-op for non-helm
+// modules and for modules without ConversionWebhook templates.
+func (mm *ModuleManager) EnsureConversionWebhooks(moduleName string, logLabels map[string]string) error {
+	bm := mm.GetModule(moduleName)
+	if bm == nil {
+		return fmt.Errorf("module %q not found", moduleName)
+	}
+
+	schemaStorage := bm.GetValuesStorage().GetSchemaStorage()
+	deps := &modules.HelmModuleDependencies{
+		HelmClientFactory:   mm.dependencies.Helm,
+		HelmResourceManager: mm.dependencies.HelmResourcesManager,
+		MetricsStorage:      mm.dependencies.MetricStorage,
+		HelmValuesValidator: schemaStorage,
+	}
+
+	helmModule, err := modules.NewHelmModule(bm, mm.defaultNamespace, mm.TempDir, deps, schemaStorage, modules.WithLogger(mm.logger.Named("helm-module")))
+	if err != nil {
+		if errors.Is(err, modules.ErrModuleIsNotHelm) {
+			return nil
+		}
+
+		return fmt.Errorf("create helm module: %w", err)
+	}
+
+	webhooks, err := helmModule.RenderConversionWebhooks(mm.defaultNamespace, bm.GetMaintenanceState(), bm.GetConversionWebhookTemplates())
+	if err != nil {
+		return fmt.Errorf("render conversion webhooks: %w", err)
+	}
+
+	if len(webhooks) == 0 {
+		return nil
+	}
+
+	ops := make([]sdkpkg.PatchCollectorOperation, 0, len(webhooks))
+	for _, m := range webhooks {
+		ops = append(ops, objectpatch.NewCreateOrUpdateOperation(map[string]any(m)))
+	}
+
+	if err := mm.dependencies.KubeObjectPatcher.ExecuteOperations(ops); err != nil {
+		return fmt.Errorf("apply conversion webhooks: %w", err)
+	}
+
+	utils.EnrichLoggerWithLabels(mm.logger, logLabels).Debug("applied conversion webhooks",
+		slog.String(pkg.LogKeyModule, moduleName),
+		slog.Int(pkg.LogKeyCount, len(webhooks)))
+
+	return nil
+}
+
+// ModuleHasConversionWebhooks reports whether the module's templates contain at
+// least one ConversionWebhook resource. It is a cheap static check used to skip
+// rendering for modules that have no conversion webhooks.
+func (mm *ModuleManager) ModuleHasConversionWebhooks(moduleName string) bool {
+	bm := mm.GetModule(moduleName)
+	if bm == nil {
+		return false
+	}
+
+	return bm.ConversionWebhookExist()
 }
 
 func (mm *ModuleManager) RunGlobalHook(ctx context.Context, hookName string, binding BindingType, bindingContext []BindingContext, logLabels map[string]string) (string, string, error) {
@@ -872,6 +1018,13 @@ func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(ctx context.Contex
 
 	kubeHooks := ml.GetHooks(OnKubernetesEvent)
 
+	// Best-effort: try to enable bindings for every hook instead of aborting on the
+	// first failure. A single hook whose monitor cannot start (e.g. a transient
+	// apiserver/CRD error during startup) must not prevent the remaining hooks from
+	// starting their monitors and emitting their Synchronization contexts. Errors are
+	// aggregated so the caller still retries, and the failing hooks are named.
+	var errs []error
+
 	for _, mh := range kubeHooks {
 		err := mh.GetHookController().HandleEnableKubernetesBindings(ctx, func(info controller.BindingExecutionInfo) {
 			if createTaskFn != nil {
@@ -879,11 +1032,11 @@ func (mm *ModuleManager) HandleModuleEnableKubernetesBindings(ctx context.Contex
 			}
 		})
 		if err != nil {
-			return fmt.Errorf("handle enable kubernetes bindings: %w", err)
+			errs = append(errs, fmt.Errorf("handle enable kubernetes bindings for '%s': %w", mh.GetName(), err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func (mm *ModuleManager) EnableModuleScheduleBindings(moduleName string) {
@@ -901,6 +1054,7 @@ func (mm *ModuleManager) DisableModuleScheduleBindings(moduleName string) {
 	if !ml.HooksControllersReady() {
 		return
 	}
+
 	schHooks := ml.GetHooks(Schedule)
 	for _, mh := range schHooks {
 		mh.GetHookController().DisableScheduleBindings()
@@ -919,7 +1073,7 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 
 	kubeHooks := ml.GetHooks(OnKubernetesEvent)
 	for _, mh := range kubeHooks {
-		mh.GetHookController().StopMonitors()
+		mh.GetHookController().DisableKubernetesBindings()
 	}
 
 	schHooks := ml.GetHooks(Schedule)
@@ -1037,24 +1191,27 @@ func (mm *ModuleManager) applyEnabledPatch(enabledPatch utils.ValuesPatch, exten
 		modName := strings.TrimSuffix(op.Path, utils.EnabledSuffix)
 		modName = strings.TrimPrefix(modName, "/")
 		modName = utils.ModuleNameFromValuesKey(modName)
+
 		v, err := utils.ModuleEnabledValue(op.Value)
 		if err != nil {
 			return fmt.Errorf("apply enabled patch operation '%s' for %s: %w", op.Op, op.Path, err)
 		}
+
 		switch op.Op {
 		case "add":
 			mm.logger.Debug("apply dynamic enable",
-				slog.String("module", modName),
-				slog.Bool("value", *v))
+				slog.String(pkg.LogKeyModule, modName),
+				slog.Bool(pkg.LogKeyValue, *v))
 		case "remove":
 			mm.logger.Debug("apply dynamic enable: module removed from dynamic enable",
-				slog.String("module", modName))
+				slog.String(pkg.LogKeyModule, modName))
 		}
+
 		extender.UpdateStatus(modName, op.Op, *v)
 		mm.logger.Info("dynamically enabled module status change",
-			slog.String("module", modName),
-			slog.String("operation", op.Op),
-			slog.Bool("state", *v))
+			slog.String(pkg.LogKeyModule, modName),
+			slog.String(pkg.LogKeyOperation, op.Op),
+			slog.Bool(pkg.LogKeyState, *v))
 	}
 
 	return nil
@@ -1093,26 +1250,29 @@ func (mm *ModuleManager) GlobalSynchronizationState() *modules.SynchronizationSt
 func (mm *ModuleManager) ApplyBindingActions(moduleHook *hooks.ModuleHook, bindingActions []gohook.BindingAction) error {
 	for _, action := range bindingActions {
 		bindingIdx := -1
+
 		for i, binding := range moduleHook.GetHookConfig().OnKubernetesEvents {
 			if binding.BindingName == action.Name {
 				bindingIdx = i
 			}
 		}
+
 		if bindingIdx == -1 {
 			continue
 		}
 
 		monitorCfg := moduleHook.GetHookConfig().OnKubernetesEvents[bindingIdx].Monitor
+
 		switch strings.ToLower(action.Action) {
 		case "disable":
 			// Empty kind - "null" monitor.
 			monitorCfg.Kind = ""
 			monitorCfg.ApiVersion = ""
-			monitorCfg.Metadata.MetricLabels["kind"] = ""
+			monitorCfg.Metadata.MetricLabels[pkg.LogKeyKind] = ""
 		case "updatekind":
 			monitorCfg.Kind = action.Kind
 			monitorCfg.ApiVersion = action.ApiVersion
-			monitorCfg.Metadata.MetricLabels["kind"] = action.Kind
+			monitorCfg.Metadata.MetricLabels[pkg.LogKeyKind] = action.Kind
 		default:
 			continue
 		}
@@ -1123,6 +1283,7 @@ func (mm *ModuleManager) ApplyBindingActions(moduleHook *hooks.ModuleHook, bindi
 			return fmt.Errorf("update monitor: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -1161,7 +1322,7 @@ func (mm *ModuleManager) UpdateModuleLastErrorAndNotify(module *modules.BasicMod
 // PushRunModuleTask pushes moduleRun task for a module into the main queue if there is no such a task for the module
 func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bool) error {
 	// check if there is already moduleRun task in the main queue for the module
-	if queueHasPendingModuleRunTaskWithStartup(mm.dependencies.TaskQueues.GetMain(), moduleName) {
+	if queueHasPendingModuleRunTask(mm.dependencies.TaskQueues.GetMain(), moduleName, doModuleStartup) {
 		return nil
 	}
 
@@ -1183,6 +1344,7 @@ func (mm *ModuleManager) PushRunModuleTask(moduleName string, doModuleStartup bo
 func (mm *ModuleManager) AreModulesInited() bool {
 	mm.l.Lock()
 	defer mm.l.Unlock()
+
 	return mm.modules.IsInited()
 }
 
@@ -1457,8 +1619,9 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 	for _, mod := range mods {
 		if set.Has(mod.GetName()) {
 			mm.logger.Warn("module is not registered, because it has a duplicate",
-				slog.String("module", mod.GetName()),
-				slog.String("path", mod.GetPath()))
+				slog.String(pkg.LogKeyModule, mod.GetName()),
+				slog.String(pkg.LogKeyPath, mod.GetPath()))
+
 			continue
 		}
 
@@ -1481,7 +1644,7 @@ func (mm *ModuleManager) registerModules(scriptEnabledExtender *script_extender.
 		return fmt.Errorf("initialize scheduler: %w", err)
 	}
 
-	mm.logger.Debug("Found modules", slog.Any("modules", set.NamesInOrder()))
+	mm.logger.Debug("Found modules", slog.Any(pkg.LogKeyModules, set.NamesInOrder()))
 
 	mm.l.Lock()
 	mm.modules = set
@@ -1519,15 +1682,23 @@ func (mm *ModuleManager) EnvironmentManagerEnabled() bool {
 	return mm.environmentManager != nil
 }
 
-// queueHasPendingModuleRunTaskWithStartup returns true if queue has pending tasks
-// with the type "ModuleRun" related to the module "moduleName" and DoModuleStartup is set to true.
-func queueHasPendingModuleRunTaskWithStartup(q *queue.TaskQueue, moduleName string) bool {
+// queueHasPendingModuleRunTask returns true if the queue already holds a pending task with the type
+// "ModuleRun" related to the module "moduleName" that covers a push made with doModuleStartup, so
+// that pushing another one would only duplicate work. A pending task that runs the startup sequence
+// covers one that does not; the reverse is not true, as the startup would then be dropped.
+//
+// Note that this must also hold for doModuleStartup=false on both sides, which is how every caller
+// pushes today: answering only for pending tasks with startup lets identical tasks pile up, and the
+// queue then reruns - and re-releases - the same module once per duplicate.
+func queueHasPendingModuleRunTask(q *queue.TaskQueue, moduleName string, doModuleStartup bool) bool {
 	if q == nil {
 		return false
 	}
+
 	modules := modulesWithPendingTasks(q, task.ModuleRun)
 	meta, has := modules[moduleName]
-	return has && meta.doStartup
+
+	return has && (meta.doStartup || !doModuleStartup)
 }
 
 func modulesWithPendingTasks(q *queue.TaskQueue, taskType sh_task.TaskType) map[string]struct{ doStartup bool } {
@@ -1548,7 +1719,11 @@ func modulesWithPendingTasks(q *queue.TaskQueue, taskType sh_task.TaskType) map[
 
 		if t.GetType() == taskType {
 			hm := task.HookMetadataAccessor(t)
-			modules[hm.ModuleName] = struct{ doStartup bool }{doStartup: hm.DoModuleStartup}
+			// a module may have several pending tasks: report the startup if any of them runs it,
+			// rather than letting the last task seen decide for all of them
+			meta := modules[hm.ModuleName]
+			meta.doStartup = meta.doStartup || hm.DoModuleStartup
+			modules[hm.ModuleName] = meta
 		}
 	})
 

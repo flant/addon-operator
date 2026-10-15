@@ -48,6 +48,7 @@ func Registry() *HookRegistry {
 			embeddedModuleHooks: make(map[string][]*kind.GoHook),
 		}
 	})
+
 	return instance
 }
 
@@ -83,20 +84,24 @@ func (h *HookRegistry) Add(hook *kind.GoHook) {
 	hookMeta := &gohook.HookMetadata{}
 
 	pc := make([]uintptr, 50)
+
 	n := runtime.Callers(0, pc)
 	if n == 0 {
 		panic("runtime.Callers is empty")
 	}
+
 	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
 	frames := runtime.CallersFrames(pc)
 
 	for {
 		frame, more := frames.Next()
+
 		matches := globalRe.FindStringSubmatch(frame.File)
 		if matches != nil {
 			hookMeta.Global = true
 			hookMeta.Name = matches[2]
 			hookMeta.Path = matches[1]
+
 			break
 		}
 
@@ -105,10 +110,12 @@ func (h *HookRegistry) Add(hook *kind.GoHook) {
 			hookMeta.EmbeddedModule = true
 			hookMeta.Name = matches[2]
 			hookMeta.Path = matches[1]
+
 			modNameMatches := moduleNameRe.FindStringSubmatch(matches[3])
 			if modNameMatches != nil {
 				hookMeta.ModuleName = modNameMatches[1]
 			}
+
 			break
 		}
 

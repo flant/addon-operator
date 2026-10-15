@@ -21,12 +21,12 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	// Register handler for schedule events
 	op.engine.ManagerEventsHandler.WithScheduleEventHandler(func(ctx context.Context, crontab string) []sh_task.Task {
 		logLabels := map[string]string{
-			"event.id":        uuid.Must(uuid.NewV4()).String(),
+			pkg.LogKeyEventID: uuid.Must(uuid.NewV4()).String(),
 			pkg.LogKeyBinding: string(htypes.Schedule),
 		}
 		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 		logEntry.Debug("Create tasks for 'schedule' event",
-			slog.String("event", crontab))
+			slog.String(pkg.LogKeyEvent, crontab))
 
 		// Handle global hook schedule events
 		return op.ModuleManager.HandleScheduleEvent(
@@ -40,12 +40,12 @@ func (op *AddonOperator) RegisterManagerEventsHandlers() {
 	// Register handler for kubernetes events
 	op.engine.ManagerEventsHandler.WithKubeEventHandler(func(ctx context.Context, kubeEvent types.KubeEvent) []sh_task.Task {
 		logLabels := map[string]string{
-			"event.id":        uuid.Must(uuid.NewV4()).String(),
+			pkg.LogKeyEventID: uuid.Must(uuid.NewV4()).String(),
 			pkg.LogKeyBinding: string(htypes.OnKubernetesEvent),
 		}
 		logEntry := utils.EnrichLoggerWithLabels(op.Logger, logLabels)
 		logEntry.Debug("Create tasks for 'kubernetes' event",
-			slog.String("event", kubeEvent.String()))
+			slog.String(pkg.LogKeyEvent, kubeEvent.String()))
 
 		// Handle kubernetes events for global and module hooks
 		tailTasks := op.ModuleManager.HandleKubeEvent(
@@ -73,19 +73,19 @@ func (op *AddonOperator) createGlobalHookTaskFactory(
 		}
 
 		hookLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook: globalHook.GetName(),
-			"hook.type":    "global",
-			"queue":        info.QueueName,
+			pkg.LogKeyHook:     globalHook.GetName(),
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    info.QueueName,
 		})
 
 		if len(info.BindingContext) > 0 {
-			hookLabels["binding.name"] = info.BindingContext[0].Binding
+			hookLabels[pkg.LogKeyBindingName] = info.BindingContext[0].Binding
 			if bindingType == htypes.OnKubernetesEvent {
-				hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
+				hookLabels[pkg.LogKeyWatchEvent] = string(info.BindingContext[0].WatchEvent)
 			}
 		}
 
-		delete(hookLabels, "task.id")
+		delete(hookLabels, pkg.LogKeyTaskID)
 
 		newTask := sh_task.NewTask(task.GlobalHookRun).
 			WithLogLabels(hookLabels).
@@ -118,20 +118,20 @@ func (op *AddonOperator) createModuleHookTaskFactory(
 		}
 
 		hookLabels := utils.MergeLabels(logLabels, map[string]string{
-			"module":       module.GetName(),
-			pkg.LogKeyHook: moduleHook.GetName(),
-			"hook.type":    "module",
-			"queue":        info.QueueName,
+			pkg.LogKeyModule:   module.GetName(),
+			pkg.LogKeyHook:     moduleHook.GetName(),
+			pkg.LogKeyHookType: "module",
+			pkg.LogKeyQueue:    info.QueueName,
 		})
 
 		if len(info.BindingContext) > 0 {
-			hookLabels["binding.name"] = info.BindingContext[0].Binding
+			hookLabels[pkg.LogKeyBindingName] = info.BindingContext[0].Binding
 			if bindingType == htypes.OnKubernetesEvent {
-				hookLabels["watchEvent"] = string(info.BindingContext[0].WatchEvent)
+				hookLabels[pkg.LogKeyWatchEvent] = string(info.BindingContext[0].WatchEvent)
 			}
 		}
 
-		delete(hookLabels, "task.id")
+		delete(hookLabels, pkg.LogKeyTaskID)
 
 		newTask := sh_task.NewTask(task.ModuleHookRun).
 			WithLogLabels(hookLabels).

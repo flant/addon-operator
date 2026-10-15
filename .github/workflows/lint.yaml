@@ -9,12 +9,14 @@ jobs:
     name: Run linter
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Set up Go 1.26
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.25.5"
-      - name: Check out shell-operator code
-        uses: actions/checkout@v4
+          go-version: '1.26.1'
+
+      - name: Check out addon-operator code
+        uses: actions/checkout@v5
+
       - name: Restore Go modules
         id: go-modules-cache
         uses: actions/cache@v4.2.3
@@ -31,17 +33,18 @@ jobs:
           echo -n "Go modules unpacked size is: " && du -sh $HOME/go/pkg/mod
       - name: Run golangci-lint
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b . v2.8.0
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b . v2.11.4
           ./golangci-lint run ./...
   codespell:
     name: Run codespell
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.8
       - name: Check out addon-operator code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
       - name: Run codespell
         run: |
           pip install codespell==v1.17.1

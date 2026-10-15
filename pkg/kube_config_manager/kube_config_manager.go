@@ -10,6 +10,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
 	kcmcontext "github.com/flant/addon-operator/pkg/kube_config_manager/context"
@@ -40,8 +41,8 @@ type KubeConfigManager struct {
 
 func NewKubeConfigManager(ctx context.Context, bk backend.ConfigHandler, runtimeConfig *runtimeConfig.Config, logger *log.Logger) *KubeConfigManager {
 	cctx, cancel := context.WithCancel(ctx)
-	logger = logger.With("component", "KubeConfigManager")
-	logger.With("backend", fmt.Sprintf("%T", bk)).Info("Setup KubeConfigManager backend")
+	logger = logger.With(pkg.LogKeyComponent, "KubeConfigManager")
+	logger.With(pkg.LogKeyBackend, fmt.Sprintf("%T", bk)).Info("Setup KubeConfigManager backend")
 
 	// Runtime config to enable logging all events from the ConfigMap at runtime.
 	if runtimeConfig != nil {
@@ -155,6 +156,7 @@ func (kcm *KubeConfigManager) loadConfig() error {
 	}
 
 	kcm.currentConfig = newConfig
+
 	return nil
 }
 
@@ -164,6 +166,7 @@ func (kcm *KubeConfigManager) currentModuleNames() map[string]struct{} {
 	for name := range kcm.currentConfig.Modules {
 		names[name] = struct{}{}
 	}
+
 	return names
 }
 
@@ -176,7 +179,9 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 			kcm.logger.Info("Global section deleted")
 			return true
 		}
+
 		kcm.logger.Debug("Global section is empty")
+
 		return false
 	}
 
@@ -186,6 +191,7 @@ func (kcm *KubeConfigManager) isGlobalChanged(newConfig *config.KubeConfig) bool
 		// Remove known checksum, do not fire event on self-update.
 		kcm.knownChecksums.Remove(utils.GlobalValuesKey, newChecksum)
 		kcm.logger.Debug("Global section self-update")
+
 		return false
 	}
 
@@ -211,9 +217,11 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigInvalid,
 		}
+
 		kcm.logger.Error("Config invalid",
-			slog.String("name", obj.Key),
+			slog.String(pkg.LogKeyName, obj.Key),
 			log.Err(obj.Err))
+
 		return
 	}
 
@@ -223,18 +231,19 @@ func (kcm *KubeConfigManager) handleConfigEvent(obj config.Event) {
 		kcm.m.Lock()
 		kcm.currentConfig = config.NewConfig()
 		kcm.m.Unlock()
+
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
 		}
 
 	case utils.GlobalValuesKey:
 		// global values
-
 		kcm.m.Lock()
 		globalChanged := kcm.isGlobalChanged(obj.Config)
 		// Update state after successful parsing.
 		kcm.currentConfig.Global = obj.Config.Global
 		kcm.m.Unlock()
+
 		if globalChanged {
 			kcm.configEventCh <- config.KubeConfigEvent{
 				Type:                 config.KubeConfigChanged,
@@ -265,7 +274,8 @@ func (kcm *KubeConfigManager) handleDeleteEvent(moduleName string, cfg *config.M
 
 	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
 
-	kcm.logger.Info("module section deleted", slog.String("name", moduleName))
+	kcm.logger.Info("module section deleted", slog.String(pkg.LogKeyName, moduleName))
+
 	modulesChanged = append(modulesChanged, moduleName)
 	if kcm.currentConfig.Modules[moduleName].GetEnabled() != "" && kcm.currentConfig.Modules[moduleName].GetEnabled() != "n/d" {
 		modulesStateChanged = append(modulesStateChanged, moduleName)
@@ -288,8 +298,11 @@ func (kcm *KubeConfigManager) handleDeleteEvent(moduleName string, cfg *config.M
 }
 
 func (kcm *KubeConfigManager) handleUpdateEvent(moduleName string, cfg *config.ModuleKubeConfig) {
-	var modulesChanged []string
-	var modulesStateChanged []string
+	var (
+		modulesChanged      []string
+		modulesStateChanged []string
+	)
+
 	moduleMaintenanceChanged := make(map[string]utils.Maintenance)
 
 	var changed bool
@@ -297,17 +310,19 @@ func (kcm *KubeConfigManager) handleUpdateEvent(moduleName string, cfg *config.M
 	if currentCfg, has := kcm.currentConfig.Modules[moduleName]; has {
 		if currentCfg.Checksum != cfg.Checksum {
 			changed = true
+
 			modulesChanged = append(modulesChanged, moduleName)
 		}
 
 		if currentCfg.GetEnabled() != cfg.GetEnabled() {
 			changed = true
+
 			modulesStateChanged = append(modulesStateChanged, moduleName)
 		}
 
 		if currentCfg.GetMaintenanceState() != cfg.GetMaintenanceState() {
 			changed = true
-			moduleMaintenanceChanged[moduleName] = currentCfg.GetMaintenanceState()
+			moduleMaintenanceChanged[moduleName] = cfg.GetMaintenanceState()
 		}
 	} else {
 		changed = true
@@ -339,7 +354,9 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigInvalid,
 		}
+
 		kcm.logger.Error("Batch Config invalid", log.Err(obj.Err))
+
 		return
 	}
 
@@ -348,6 +365,7 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 		kcm.m.Lock()
 		kcm.currentConfig = config.NewConfig()
 		kcm.m.Unlock()
+
 		kcm.configEventCh <- config.KubeConfigEvent{
 			Type: config.KubeConfigChanged,
 		}
@@ -390,10 +408,10 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 				}
 
 				kcm.logger.Info("Module section changed. Enabled flag transition",
-					slog.String("moduleName", moduleName),
-					slog.String("previous", kcm.currentConfig.Modules[moduleName].GetEnabled()),
-					slog.String("current", moduleCfg.GetEnabled()),
-					slog.String("maintenanceFlag", moduleCfg.GetMaintenanceState().String()))
+					slog.String(pkg.LogKeyModuleName, moduleName),
+					slog.String(pkg.LogKeyPrevious, kcm.currentConfig.Modules[moduleName].GetEnabled()),
+					slog.String(pkg.LogKeyCurrent, moduleCfg.GetEnabled()),
+					slog.String(pkg.LogKeyMaintenanceFlag, moduleCfg.GetMaintenanceState().String()))
 			} else {
 				modulesChanged = append(modulesChanged, moduleName)
 				if moduleCfg.GetEnabled() != "" && moduleCfg.GetEnabled() != "n/d" {
@@ -405,9 +423,9 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 				}
 
 				kcm.logger.Info("Module section added",
-					slog.String("moduleName", moduleName),
-					slog.String("enabledFlag", moduleCfg.GetEnabled()),
-					slog.String("maintenanceFlag", moduleCfg.GetMaintenanceState().String()))
+					slog.String(pkg.LogKeyModuleName, moduleName),
+					slog.String(pkg.LogKeyEnabledFlag, moduleCfg.GetEnabled()),
+					slog.String(pkg.LogKeyMaintenanceFlag, moduleCfg.GetMaintenanceState().String()))
 			}
 		}
 	}
@@ -420,8 +438,9 @@ func (kcm *KubeConfigManager) handleBatchConfigEvent(obj config.Event) {
 				modulesStateChanged = append(modulesStateChanged, moduleName)
 			}
 		}
+
 		kcm.logger.Info("Module sections deleted",
-			slog.String("modules", fmt.Sprintf("%+v", currentModuleNames)))
+			slog.String(pkg.LogKeyModules, fmt.Sprintf("%+v", currentModuleNames)))
 	}
 
 	// Update state after successful parsing.
@@ -478,6 +497,7 @@ func (kcm *KubeConfigManager) SafeReadConfig(handler func(config *config.KubeCon
 	if handler == nil {
 		return
 	}
+
 	kcm.withLock(func() {
 		handler(kcm.currentConfig)
 	})
@@ -487,6 +507,7 @@ func (kcm *KubeConfigManager) withLock(fn func()) {
 	if fn == nil {
 		return
 	}
+
 	kcm.m.Lock()
 	fn()
 	kcm.m.Unlock()

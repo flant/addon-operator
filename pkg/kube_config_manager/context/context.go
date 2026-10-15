@@ -18,6 +18,8 @@ func IsKubeConfigManagerDebug(ctx context.Context) bool {
 	if val == nil {
 		return false
 	}
+
 	debug, ok := val.(bool)
+
 	return ok && debug
 }

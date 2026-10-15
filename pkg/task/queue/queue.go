@@ -8,6 +8,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/task"
@@ -49,7 +50,7 @@ func (s *Service) startQueue(queueName string, handler func(ctx context.Context,
 	s.engine.TaskQueues.NewNamedQueue(queueName, handler,
 		queue.WithCompactionCallback(callback),
 		queue.WithCompactableTypes(MergeTasks...),
-		queue.WithLogger(s.logger.With("operator.component", "queue", "queue", queueName)),
+		queue.WithLogger(s.logger.With(pkg.LogKeyOperatorComponent, "queue", "queue", queueName)),
 	)
 	s.engine.TaskQueues.GetByName(queueName).Start(s.ctx)
 }
@@ -119,6 +120,7 @@ func convergeTasksInQueue(q *queue.TaskQueue) int {
 	}
 
 	convergeTasks := 0
+
 	q.IterateSnapshot(func(t sh_task.Task) {
 		if converge.IsConvergeTask(t) || converge.IsFirstConvergeTask(t) {
 			convergeTasks++
@@ -175,8 +177,8 @@ func (s *Service) RemoveAdjacentConvergeModules(queueName string, afterId string
 			hm := task.HookMetadataAccessor(t)
 
 			s.logger.Debug("Drained adjacent ConvergeModules task",
-				slog.String("type", string(t.GetType())),
-				slog.String("description", hm.EventDescription))
+				slog.String(pkg.LogKeyType, string(t.GetType())),
+				slog.String(pkg.LogKeyDescription, hm.EventDescription))
 
 			return false
 		}
@@ -244,10 +246,12 @@ func (s *Service) ModuleEnsureCRDsTasksInMainQueueAfterId(afterId string) bool {
 	IDFound := false
 	taskFound := false
 	stop := false
+
 	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
+
 		if !IDFound {
 			if t.GetId() == afterId {
 				IDFound = true

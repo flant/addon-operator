@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,9 +17,9 @@ import (
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/addon-operator/pkg/app"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -38,6 +37,27 @@ type BatchHook struct {
 	// hook ID in batch
 	ID     string
 	config *sdkhook.HookConfig
+
+	// TODO(ipaqsa): its temp solution, better to have separate Package/Application hook
+	applicationName      string
+	applicationNamespace string
+}
+
+// NewApplicationBatchHook new hook for application, which runs via the OS interpreter like bash/python/etc
+func NewApplicationBatchHook(name, path, appNamespace, appName, id string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+	return &BatchHook{
+		moduleName:           fmt.Sprintf("%s.%s", appNamespace, appName),
+		applicationName:      appName,
+		applicationNamespace: appNamespace,
+		Hook: sh_hook.Hook{
+			Name:                   name,
+			Path:                   path,
+			KeepTemporaryHookFiles: keepTemporaryHookFiles,
+			LogProxyHookJSON:       logProxyHookJSON,
+			Logger:                 logger,
+		},
+		ID: id,
+	}
 }
 
 // NewBatchHook new hook, which runs via the OS interpreter like bash/python/etc
@@ -103,6 +123,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	}
 
 	versionedContextList := bindingcontext.ConvertBindingContextList(configVersion, bContext)
+
 	bindingContextBytes, err := versionedContextList.Json()
 	if err != nil {
 		return nil, err
@@ -115,19 +136,21 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if shapp.DebugKeepTmpFilesVar == "yes" {
+		if app.DebugKeepTmpFiles {
 			return
 		}
+
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
 				h.Hook.Logger.With(pkg.LogKeyHook, h.GetName()).
 					Error("Remove tmp file",
-						slog.String("file", f),
+						slog.String(pkg.LogKeyFile, f),
 						log.Err(err))
 			}
 		}
 	}()
+
 	configValuesPatchPath := tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
 	valuesPatchPath := tmpFiles["VALUES_JSON_PATCH_PATH"]
 	metricsPath := tmpFiles["METRICS_PATH"]
@@ -150,33 +173,24 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 
 	// transfer information about parent module to hook
 	envs = append(envs, "MODULE_NAME="+h.moduleName)
+	envs = append(envs, "APPLICATION_NAME="+h.applicationName)
+	envs = append(envs, "APPLICATION_NAMESPACE="+h.applicationNamespace)
 
 	cmd := executor.NewExecutor(
 		"",
 		h.GetPath(),
 		args,
 		envs).
-		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
+		WithLogProxyHookJSON(app.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(h.LogProxyHookJSONKey).
 		WithLogger(h.Logger.Named("executor")).
 		WithChroot(utils.GetModuleChrootPath(h.moduleName))
 
 	usage, err := cmd.RunAndLogLines(ctx, logLabels)
+
 	result.Usage = usage
 	if err != nil {
-		outputError := &sdkhook.Error{}
-		trimmed := strings.TrimPrefix(err.Error(), "stderr:")
-
-		err := json.NewDecoder(bytes.NewBufferString(trimmed)).Decode(outputError)
-		if err != nil {
-			return result, err
-		}
-
-		if outputError.Message != "" {
-			return result, errors.New(outputError.Message)
-		}
-
-		return result, err
+		return result, fmt.Errorf("run and log lines: %w", err)
 	}
 
 	result.Patches[utils.ConfigMapPatch], err = utils.ValuesPatchFromFile(configValuesPatchPath)
@@ -240,6 +254,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		hooks := make([]sdkhook.HookConfig, 0)
 
 		buf := bytes.NewReader(o)
+
 		err = json.NewDecoder(buf).Decode(&hooks)
 		if err != nil {
 			return nil, fmt.Errorf("decode: %w", err)
@@ -258,6 +273,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 	cfgs := &sdkhook.BatchHookConfig{}
 
 	buf := bytes.NewReader(o)
+
 	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
@@ -268,6 +284,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		outputLog := &BatchHookLog{}
 
 		buf := bytes.NewReader(o)
+
 		err = json.NewDecoder(buf).Decode(&cfgs)
 		if err != nil {
 			return nil, fmt.Errorf("decode: %w", err)
@@ -379,6 +396,16 @@ func (h *BatchHook) GetAfterAll() *float64 {
 	return &res
 }
 
+func (h *BatchHook) GetBeforeDeleteHelm() *float64 {
+	if h.config == nil || h.config.OnBeforeDeleteHelm == nil {
+		return nil
+	}
+
+	res := float64(*h.config.OnBeforeDeleteHelm)
+
+	return &res
+}
+
 func (h *BatchHook) GetAfterDeleteHelm() *float64 {
 	if h.config == nil || h.config.OnAfterDeleteHelm == nil {
 		return nil
@@ -392,6 +419,7 @@ func (h *BatchHook) GetAfterDeleteHelm() *float64 {
 // PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
 func (h *BatchHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafeName string, configValues, values utils.Values) (map[string]string, error) {
 	var err error
+
 	tmpFiles := make(map[string]string)
 
 	tmpFiles["CONFIG_VALUES_PATH"], err = h.prepareConfigValuesJsonFile(moduleSafeName, configValues)
@@ -438,12 +466,14 @@ func (h *BatchHook) prepareMetricsFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
 // BINDING_CONTEXT_PATH
 func (h *BatchHook) prepareBindingContextJsonFile(moduleSafeName string, bindingContext []byte) (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-%s-binding-context-%s.json", moduleSafeName, h.SafeName(), uuid.Must(uuid.NewV4()).String()))
+
 	err := utils.DumpData(path, bindingContext)
 	if err != nil {
 		return "", err
@@ -458,6 +488,7 @@ func (h *BatchHook) prepareConfigValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -467,6 +498,7 @@ func (h *BatchHook) prepareValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -476,6 +508,7 @@ func (h *BatchHook) prepareKubernetesPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -487,14 +520,15 @@ func (h *BatchHook) prepareConfigValuesJsonFile(moduleSafeName string, configVal
 	}
 
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-config-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
 	}
 
 	h.Hook.Logger.Debug("Prepared module hook config values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", configValues.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, configValues.DebugString()))
 
 	return path, nil
 }
@@ -506,14 +540,15 @@ func (h *BatchHook) prepareValuesJsonFile(moduleSafeName string, values utils.Va
 	}
 
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
 	}
 
 	h.Hook.Logger.Debug("Prepared module hook values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", values.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, values.DebugString()))
 
 	return path, nil
 }

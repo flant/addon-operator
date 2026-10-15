@@ -37,10 +37,12 @@ func (p *ValuesPatch) ToJSONPatch() (patch.Patch, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	patch, err := sdkutils.DecodePatch(data)
 	if err != nil {
 		return nil, err
 	}
+
 	return patch, nil
 }
 
@@ -53,6 +55,7 @@ func (p *ValuesPatch) ApplyStrict(doc []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return patch.Apply(doc)
 }
 
@@ -70,16 +73,19 @@ func (p *ValuesPatch) ApplyIgnoreNonExistentPaths(doc []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		pd, err = patch.ApplyContainer(pd)
 
 		// Ignore errors for remove operation.
 		if op.Op == "remove" && IsNonExistentPathError(err) {
 			continue
 		}
+
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	return json.Marshal(pd)
 }
 
@@ -87,6 +93,7 @@ func (p *ValuesPatch) MergeOperations(src *ValuesPatch) {
 	if src == nil {
 		return
 	}
+
 	p.Operations = append(p.Operations, src.Operations...)
 }
 
@@ -94,6 +101,7 @@ func JsonPatchFromReader(r io.Reader) (Patch, error) {
 	operations := make([]Operation, 0)
 
 	dec := json.NewDecoder(r)
+
 	for {
 		var jsonStreamItem interface{}
 		if err := dec.Decode(&jsonStreamItem); err == io.EOF {
@@ -109,6 +117,7 @@ func JsonPatchFromReader(r io.Reader) (Patch, error) {
 				if err != nil {
 					return nil, err
 				}
+
 				operations = append(operations, operation)
 			}
 		case map[string]interface{}:
@@ -116,6 +125,7 @@ func JsonPatchFromReader(r io.Reader) (Patch, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			operations = append(operations, operation)
 		}
 	}
@@ -138,10 +148,12 @@ func DecodeJsonPatchOperation(v interface{}) (Operation, error) {
 	}
 
 	var res Operation
+
 	err = json.Unmarshal(data, &res)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal operation from bytes: %s", err)
 	}
+
 	return res, nil
 }
 
@@ -207,6 +219,7 @@ func CompactPatches(existedOperations []*sdkutils.ValuesPatchOperation, newOpera
 		if _, ok := patchesTree[op.Path]; !ok {
 			patchesTree[op.Path] = make([]*sdkutils.ValuesPatchOperation, 0)
 		}
+
 		patchesTree[op.Path] = append(patchesTree[op.Path], op)
 	}
 
@@ -252,6 +265,7 @@ func CompactPatches(existedOperations []*sdkutils.ValuesPatchOperation, newOpera
 	for path := range patchesTree {
 		paths = append(paths, path)
 	}
+
 	sort.Strings(paths)
 
 	newOps := make([]*sdkutils.ValuesPatchOperation, 0, len(paths))
@@ -260,6 +274,7 @@ func CompactPatches(existedOperations []*sdkutils.ValuesPatchOperation, newOpera
 	}
 
 	newValuesPatch := ValuesPatch{Operations: newOps}
+
 	return newValuesPatch
 }
 
@@ -286,12 +301,14 @@ func ApplyValuesPatch(values Values, valuesPatch ValuesPatch, mode ApplyPatchMod
 	}
 
 	var resJSONDoc []byte
+
 	switch mode {
 	case Strict:
 		resJSONDoc, err = valuesPatch.ApplyStrict(jsonDoc)
 	case IgnoreNonExistentPaths:
 		resJSONDoc, err = valuesPatch.ApplyIgnoreNonExistentPaths(jsonDoc)
 	}
+
 	if err != nil {
 		return nil, false, err
 	}
@@ -335,6 +352,7 @@ func ValidateHookValuesPatch(valuesPatch ValuesPatch, permittedRootKey string) e
 			if permittedRootKey == GlobalValuesKey {
 				permittedMessage = fmt.Sprintf("only '%s' and '*Enabled' are permitted", permittedRootKey)
 			}
+
 			return fmt.Errorf("unacceptable patch operation for path '%s' (%s): '%s'", rootKey, permittedMessage, op.ToString())
 		}
 	}
@@ -356,6 +374,7 @@ func FilterValuesPatch(valuesPatch ValuesPatch, rootPath string) ValuesPatch {
 	}
 
 	newValuesPatch := ValuesPatch{Operations: resOps}
+
 	return newValuesPatch
 }
 
@@ -373,6 +392,7 @@ func EnabledFromValuesPatch(valuesPatch ValuesPatch) ValuesPatch {
 	}
 
 	newValuesPatch := ValuesPatch{Operations: resOps}
+
 	return newValuesPatch
 }
 
@@ -386,13 +406,16 @@ func IsNonExistentPathError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	errStr := err.Error()
 	if strings.HasPrefix(errStr, NonExistentPathErrorMsg) {
 		return true
 	}
+
 	if strings.HasPrefix(errStr, MissingPathErrorMsg) {
 		return true
 	}
+
 	return false
 }
 

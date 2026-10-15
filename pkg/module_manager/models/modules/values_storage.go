@@ -52,6 +52,26 @@ type Registry struct {
 	CA        string `json:"ca,omitempty" yaml:"ca,omitempty"`
 }
 
+// toValues renders the registry as plain JSON types, keeping the struct's own JSON shape.
+// Values are walked natively by CEL (structpb) and OpenAPI validation, both fail on a Go struct.
+func (r *Registry) toValues() map[string]any {
+	if r == nil {
+		return nil
+	}
+
+	values := map[string]any{
+		"base":      r.Base,
+		"dockercfg": r.DockerCfg,
+		"scheme":    r.Scheme,
+	}
+
+	if r.CA != "" {
+		values["ca"] = r.CA
+	}
+
+	return values
+}
+
 // NewValuesStorage build a new storage for module values
 //
 //	staticValues - values from /modules/<module-name>/values.yaml, which couldn't be reloaded during the runtime
@@ -66,6 +86,7 @@ func NewValuesStorage(moduleName string, staticValues utils.Values, configBytes,
 		schemaStorage: schemaStorage,
 		moduleName:    moduleName,
 	}
+
 	err = vs.calculateResultValues()
 	if err != nil {
 		return nil, fmt.Errorf("critical error occurred with calculating values for %q: %w", moduleName, err)
@@ -117,18 +138,36 @@ func (vs *ValuesStorage) calculateResultValues() error {
 	return nil
 }
 
+// validateConfigValues validates values against the config OpenAPI schema.
+// Previously stored user settings are passed as the old state so that
+// x-deckhouse-validations transition rules (rules referencing oldSelf) can
+// implement immutability and other update-time invariants on ModuleConfig.
 func (vs *ValuesStorage) validateConfigValues(values utils.Values) error {
 	valuesModuleName := utils.ModuleNameToValuesKey(vs.moduleName)
 	validatableValues := utils.Values{valuesModuleName: values}
 
-	return vs.schemaStorage.ValidateConfigValues(valuesModuleName, validatableValues)
+	var oldValidatable utils.Values
+	if vs.configValues != nil {
+		oldValidatable = utils.Values{valuesModuleName: vs.configValues}
+	}
+
+	return vs.schemaStorage.ValidateConfigValuesTransition(valuesModuleName, validatableValues, oldValidatable)
 }
 
+// validateValues validates values against the values OpenAPI schema.
+// Previously merged result values are passed as the old state so that
+// x-deckhouse-validations transition rules (rules referencing oldSelf) can
+// catch attempts to mutate immutable fields via values patches.
 func (vs *ValuesStorage) validateValues(values utils.Values) error {
 	valuesModuleName := utils.ModuleNameToValuesKey(vs.moduleName)
 	validatableValues := utils.Values{valuesModuleName: values}
 
-	return vs.schemaStorage.ValidateValues(valuesModuleName, validatableValues)
+	var oldValidatable utils.Values
+	if vs.resultValues != nil {
+		oldValidatable = utils.Values{valuesModuleName: vs.resultValues}
+	}
+
+	return vs.schemaStorage.ValidateValuesTransition(valuesModuleName, validatableValues, oldValidatable)
 }
 
 // applyNewSchemaStorage sets new schema storage
@@ -193,7 +232,7 @@ func (vs *ValuesStorage) InjectRegistryValue(registry *Registry) {
 		vs.staticValues = utils.Values{}
 	}
 
-	vs.staticValues["registry"] = registry
+	vs.staticValues["registry"] = registry.toValues()
 
 	_ = vs.calculateResultValues()
 }
@@ -217,6 +256,7 @@ func (vs *ValuesStorage) SaveConfigValues(configV utils.Values) {
 	defer vs.lock.Unlock()
 
 	vs.configValues = configV
+
 	err := vs.calculateResultValues()
 	if err != nil {
 		panic(err)

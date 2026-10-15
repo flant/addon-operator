@@ -30,9 +30,10 @@ During execution, a module hook receives global values and module values. Module
 | [onStartup](#onstartup)↗             | –       | ✓       | On Addon-operator startup or module enablement |
 | [beforeAll](#beforeall)↗             | ✓       | –       | Before any modules are executed                |
 | [afterAll](#afterall)↗               | ✓       | –       | After all modules are executed                 |
-| [beforeHelm](#beforehelm)↗           | –       | ✓       | Before executing `helm install`                |
-| [afterHelm](#afterhelm)↗             | –       | ✓       | After executing `helm install`                 |
-| [afterDeleteHelm](#afterdeletehelm)↗ | –       | ✓       | After executing `helm delete`                  |
+| [beforeHelm](#beforehelm)↗             | –       | ✓       | Before executing `helm install`                |
+| [afterHelm](#afterhelm)↗               | –       | ✓       | After executing `helm install`                 |
+| [beforeDeleteHelm](#beforedeletehelm)↗ | –       | ✓       | Before executing `helm delete`                 |
+| [afterDeleteHelm](#afterdeletehelm)↗   | –       | ✓       | After executing `helm delete`                  |
 | [schedule](#schedule)↗               | ✓       | ✓       | Run on schedule                                |
 | [kubernetes](#kubernetes)↗           | ✓       | ✓       | Run on event from Kubernetes                   |
 
@@ -101,6 +102,21 @@ Parameters:
 
 - `ORDER` — an integer value that specifies an execution order. When added to the "main" queue, the hooks will be sorted by this value and then alphabetically by file name.
 
+### beforeDeleteHelm
+
+Example:
+
+```yaml
+configVersion: v1
+beforeDeleteHelm: ORDER
+```
+
+Parameters:
+
+- `ORDER` — an integer value that specifies an execution order. When added to the "main" queue, the hooks will be sorted by this value and then alphabetically by file name.
+
+The `beforeDeleteHelm` hook runs **just before `helm uninstall`** for the module's release. It is a native, addon-operator-side replacement for a Helm chart-level `pre-delete` hook: the hook runs as part of the addon-operator process (with full access to the module's values, snapshots, patch collector and metrics) instead of inside a Job in the cluster. If the hook fails, `helm uninstall` and `afterDeleteHelm` are not executed and the module is not removed; the converge loop will retry with backoff. If the module has no Helm release at delete time, the hook is skipped (symmetric with skipping `helm uninstall`).
+
 ### afterDeleteHelm
 
 Example:
@@ -143,7 +159,7 @@ The `$BINDING_CONTEXT_PATH` environment variable contains the path to a file wit
 
 The binding context for `schedule` and `kubernetes` hooks contains additional fields, described in Shell-operator [documentation][shell-operator-binding-context].
 
-`beforeAll` and `afterAll` global hooks and `beforeHelm`, `afterHelm`, and `afterDeleteHelm` module hooks are executed with the binding context that includes a `snapshots` field, which contains all Kubernetes objects that match hook's `kubernetes` bindings configurations.
+`beforeAll` and `afterAll` global hooks and `beforeHelm`, `afterHelm`, `beforeDeleteHelm`, and `afterDeleteHelm` module hooks are executed with the binding context that includes a `snapshots` field, which contains all Kubernetes objects that match hook's `kubernetes` bindings configurations.
 
 For example, a global hook with `kubernetes` and `beforeAll` bindings may have this configuration:
 

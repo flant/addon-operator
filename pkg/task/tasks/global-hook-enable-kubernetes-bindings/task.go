@@ -81,6 +81,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	defer span.End()
 
 	var res queue.TaskResult
+
 	s.logger.Debug("Global hook enable kubernetes bindings")
 
 	hm := task.HookMetadataAccessor(s.shellTask)
@@ -104,6 +105,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		if len(info.BindingContext) > 0 {
 			taskLogLabels[pkg.LogKeyBindingName] = info.BindingContext[0].Binding
 		}
+
 		delete(taskLogLabels, pkg.LogKeyTaskID)
 
 		kubernetesBindingID := uuid.Must(uuid.NewV4()).String()
@@ -148,11 +150,13 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			pkg.MetricKeyActivation: converge.OperatorStartup.String(),
 		})
 		s.logger.Error("Global hook enable kubernetes bindings failed, requeue task to retry after delay.",
-			slog.Int("count", s.shellTask.GetFailureCount()+1),
+			slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 			log.Err(err))
 		s.shellTask.UpdateFailureMessage(err.Error())
 		s.shellTask.WithQueuedAt(queuedAt)
+
 		res.Status = queue.Fail
+
 		return res
 	}
 	// Substitute current task with Synchronization tasks for the main queue.
@@ -164,7 +168,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	for _, tsk := range parallelSyncTasksToWait {
 		if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
 			s.logger.Error("Queue is not created while run GlobalHookEnableKubernetesBindings parallel wait task!",
-				slog.String("queue", tsk.GetQueueName()))
+				slog.String(pkg.LogKeyQueue, tsk.GetQueueName()))
 
 			continue
 		}
@@ -179,7 +183,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	for _, tsk := range parallelSyncTasks {
 		if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
 			s.logger.Error("Queue is not created while run GlobalHookEnableKubernetesBindings parallel sync task!",
-				slog.String("queue", tsk.GetQueueName()))
+				slog.String(pkg.LogKeyQueue, tsk.GetQueueName()))
 		}
 	}
 

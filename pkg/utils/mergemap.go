@@ -33,6 +33,7 @@ func merge(dst, src map[string]interface{}, depth int) map[string]interface{} {
 			dst[key] = srcVal
 		}
 	}
+
 	return dst
 }
 
@@ -50,7 +51,9 @@ func mapify(i interface{}) (map[string]interface{}, bool) {
 		for _, k := range value.MapKeys() {
 			m[k.String()] = value.MapIndex(k).Interface()
 		}
+
 		return m, true
 	}
+
 	return map[string]interface{}{}, false
 }
