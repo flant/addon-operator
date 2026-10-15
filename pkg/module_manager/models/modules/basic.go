@@ -160,7 +160,7 @@ func getCRDsFromPath(path string, crdsFilters string) []string {
 
 // conversionWebhookKindLine matches a literal `kind: ConversionWebhook` line, so a
 // mere mention of the kind (e.g. in a comment) does not select the template.
-var conversionWebhookKindLine = regexp.MustCompile(`(?m)^[ \t]*kind:[ \t]*["']?` + ConversionWebhookKind + `["']?[ \t]*(#.*)?\r?$`)
+var conversionWebhookKindLine = regexp.MustCompile(`(?m)^kind:\s*` + ConversionWebhookKind + `\s*$`)
 
 // getConversionWebhookTemplates returns paths, relative to path/templates, of the
 // template files that declare a ConversionWebhook resource. It is a cheap static
