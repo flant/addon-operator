@@ -2,6 +2,8 @@ package modulerun
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"runtime/trace"
 	"strings"
@@ -15,6 +17,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
@@ -124,23 +127,26 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		s.metricStorage.HistogramObserve("{PREFIX}module_run_seconds", d.Seconds(), metricLabels, nil)
+		s.metricStorage.HistogramObserve(metrics.ModuleRunSeconds, d.Seconds(), metricLabels, nil)
 	})()
 
 	var moduleRunErr error
+
 	valuesChanged := false
 
 	defer func(res *queue.TaskResult, valuesChanged *bool) {
 		s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, moduleRunErr)
+
 		if moduleRunErr != nil {
 			res.Status = queue.Fail
 
 			s.logger.Error("ModuleRun failed. Requeue task to retry after delay.",
-				slog.String("phase", string(baseModule.GetPhase())),
-				slog.Int("count", s.shellTask.GetFailureCount()+1),
+				slog.String(pkg.LogKeyModule, hm.ModuleName),
+				slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())),
+				slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 				log.Err(moduleRunErr))
 
-			s.metricStorage.CounterAdd("{PREFIX}module_run_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
+			s.metricStorage.CounterAdd(metrics.ModuleRunErrorsTotal, 1.0, map[string]string{pkg.MetricKeyModule: hm.ModuleName})
 			s.shellTask.UpdateFailureMessage(moduleRunErr.Error())
 			s.shellTask.WithQueuedAt(time.Now())
 		}
@@ -182,24 +188,22 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 		// Register module hooks on every enable.
 		moduleRunErr = s.moduleManager.RegisterModuleHooks(baseModule, taskLogLabels)
 		if moduleRunErr == nil {
-			if hm.DoModuleStartup {
-				s.logger.Debug("ModuleRun phase",
-					slog.String("phase", string(baseModule.GetPhase())))
+			s.logger.Debug("ModuleRun phase",
+				slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
 
-				treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
+			treg := trace.StartRegion(context.Background(), "ModuleRun-OnStartup")
 
-				// Start queues for module hooks.
-				s.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
+			// Start queues for module hooks.
+			s.CreateAndStartQueuesForModuleHooks(baseModule.GetName())
 
-				// Run onStartup hooks.
-				moduleRunErr = s.moduleManager.RunModuleHooks(ctx, baseModule, htypes.OnStartup, s.shellTask.GetLogLabels())
-				if moduleRunErr == nil {
-					s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
-				}
-				treg.End()
-			} else {
+			// Run onStartup hooks. The Startup phase already means they have not run, so this
+			// must not depend on DoModuleStartup, which each ModuleRun producer computes itself.
+			moduleRunErr = s.moduleManager.RunModuleHooks(ctx, baseModule, htypes.OnStartup, s.shellTask.GetLogLabels())
+			if moduleRunErr == nil {
 				s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.OnStartupDone)
 			}
+
+			treg.End()
 
 			res.Status = queue.Repeat
 
@@ -210,7 +214,8 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	if baseModule.GetPhase() == modules.OnStartupDone {
 		span.AddEvent("module on startup done")
 
-		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
+		s.logger.Debug("ModuleRun phase", slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
+
 		if baseModule.HasKubernetesHooks() {
 			s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.QueueSynchronizationTasks)
 		} else {
@@ -227,7 +232,11 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	if baseModule.GetPhase() == modules.QueueSynchronizationTasks {
 		span.AddEvent("module queue synchronization tasks")
 
-		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
+		s.logger.Debug("ModuleRun phase", slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
+
+		// Queues are created in the Startup phase; ensure them again so that a hook
+		// registered later cannot lose its Synchronization task. Idempotent.
+		s.CreateAndStartQueuesForModuleHooks(hm.ModuleName)
 
 		// ModuleHookRun.Synchronization tasks for bindings with the "main" queue.
 		mainSyncTasks := make([]sh_task.Task, 0)
@@ -245,20 +254,21 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			}
 
 			taskLogLabels := utils.MergeLabels(s.shellTask.GetLogLabels(), map[string]string{
-				"binding":      string(htypes.OnKubernetesEvent) + "Synchronization",
-				"module":       hm.ModuleName,
-				pkg.LogKeyHook: hook.GetName(),
-				"hook.type":    "module",
-				"queue":        queueName,
+				pkg.LogKeyBinding:  string(htypes.OnKubernetesEvent) + "Synchronization",
+				pkg.LogKeyModule:   hm.ModuleName,
+				pkg.LogKeyHook:     hook.GetName(),
+				pkg.LogKeyHookType: "module",
+				pkg.LogKeyQueue:    queueName,
 			})
 
 			if len(info.BindingContext) > 0 {
-				taskLogLabels["binding.name"] = info.BindingContext[0].Binding
+				taskLogLabels[pkg.LogKeyBindingName] = info.BindingContext[0].Binding
 			}
 
-			delete(taskLogLabels, "task.id")
+			delete(taskLogLabels, pkg.LogKeyTaskID)
 
 			kubernetesBindingID := uuid.Must(uuid.NewV4()).String()
+
 			parallelRunMetadata := &task.ParallelRunMetadata{}
 			if hm.ParallelRunMetadata != nil && len(hm.ParallelRunMetadata.ChannelId) != 0 {
 				parallelRunMetadata.ChannelId = hm.ParallelRunMetadata.ChannelId
@@ -303,30 +313,52 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			// Fail to enable bindings: cannot start Kubernetes monitors.
 			moduleRunErr = err
 		} else {
+			// A Synchronization task that is built but never queued would leave its
+			// binding invisible to SynchronizationState.IsCompleted (vacuously
+			// completed) and its kubernetes events locked forever. Collect queueing
+			// errors and fail the phase instead of dropping tasks silently: the
+			// retry rebuilds every Synchronization context, EnableKubernetesBindings
+			// is idempotent.
+			var queueErrs []error
+
+			queued := make([]sh_task.Task, 0, len(parallelSyncTasksToWait)+len(parallelSyncTasks))
+
 			// Queue parallel tasks that should be waited.
 			for _, tsk := range parallelSyncTasksToWait {
 				if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
-					s.logger.Error("queue is not found while EnableKubernetesBindings task",
-						slog.String("queue", tsk.GetQueueName()))
+					queueErrs = append(queueErrs,
+						fmt.Errorf("queue Synchronization task to '%s': %w", tsk.GetQueueName(), err))
 
 					continue
 				}
+
+				queued = append(queued, tsk)
 
 				thm := task.HookMetadataAccessor(tsk)
 				baseModule.Synchronization().QueuedForBinding(thm)
 			}
 
-			s.logTaskAdd("append", parallelSyncTasksToWait...)
-
 			// Queue regular parallel tasks.
 			for _, tsk := range parallelSyncTasks {
 				if err := s.queueService.AddLastTaskToQueue(tsk.GetQueueName(), tsk); err != nil {
-					s.logger.Error("queue is not found while EnableKubernetesBindings task",
-						slog.String("queue", tsk.GetQueueName()))
+					queueErrs = append(queueErrs,
+						fmt.Errorf("queue Synchronization task to '%s': %w", tsk.GetQueueName(), err))
+
+					continue
 				}
+
+				queued = append(queued, tsk)
 			}
 
-			s.logTaskAdd("append", parallelSyncTasks...)
+			s.logTaskAdd("append", queued...)
+
+			if len(queueErrs) > 0 {
+				moduleRunErr = errors.Join(queueErrs...)
+
+				res.Status = queue.Repeat
+
+				return res
+			}
 
 			if len(parallelSyncTasksToWait) == 0 {
 				// Skip waiting tasks in parallel queues, proceed to schedule bindings.
@@ -334,7 +366,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			} else {
 				// There are tasks to wait.
 				s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.WaitForSynchronization)
-				s.logger.With("module.state", "wait-for-synchronization").
+				s.logger.With(pkg.LogKeyModuleState, "wait-for-synchronization").
 					Debug("ModuleRun wait for Synchronization")
 			}
 
@@ -342,7 +374,9 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			if len(mainSyncTasks) > 0 {
 				res.AddHeadTasks(mainSyncTasks...)
 				res.Status = queue.Keep
+
 				s.logTaskAdd("head", mainSyncTasks...)
+
 				return res
 			}
 		}
@@ -364,12 +398,13 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 			// Debug messages every fifth second: print Synchronization state.
 			if time.Now().UnixNano()%5000000000 == 0 {
 				s.logger.Debug("ModuleRun wait Synchronization state",
-					slog.Bool("moduleStartup", hm.DoModuleStartup),
-					slog.Bool("syncNeeded", baseModule.SynchronizationNeeded()),
-					slog.Bool("syncQueued", baseModule.Synchronization().HasQueued()),
-					slog.Bool("syncDone", baseModule.Synchronization().IsCompleted()))
+					slog.Bool(pkg.LogKeyModuleStartup, hm.DoModuleStartup),
+					slog.Bool(pkg.LogKeySyncNeeded, baseModule.SynchronizationNeeded()),
+					slog.Bool(pkg.LogKeySyncQueued, baseModule.Synchronization().HasQueued()),
+					slog.Bool(pkg.LogKeySyncDone, baseModule.Synchronization().IsCompleted()))
 				baseModule.Synchronization().DebugDumpState(s.logger)
 			}
+
 			s.logger.Debug("Synchronization not completed, keep ModuleRun task in repeat mode")
 			s.shellTask.WithQueuedAt(time.Now())
 		}
@@ -383,7 +418,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	if baseModule.GetPhase() == modules.EnableScheduleBindings {
 		span.AddEvent("module enable schedule bindings")
 
-		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
+		s.logger.Debug("ModuleRun phase", slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
 
 		s.moduleManager.EnableModuleScheduleBindings(hm.ModuleName)
 		s.moduleManager.SetModulePhaseAndNotify(baseModule, modules.CanRunHelm)
@@ -403,7 +438,7 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	if baseModule.GetPhase() == modules.CanRunHelm {
 		span.AddEvent("module can run helm")
 
-		s.logger.Debug("ModuleRun phase", slog.String("phase", string(baseModule.GetPhase())))
+		s.logger.Debug("ModuleRun phase", slog.String(pkg.LogKeyPhase, string(baseModule.GetPhase())))
 		// run beforeHelm, helm, afterHelm
 		valuesChanged, moduleRunErr = s.moduleManager.RunModule(ctx, baseModule.GetName(), s.shellTask.GetLogLabels())
 	}
@@ -430,7 +465,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 				s.queueService.CreateAndStartQueue(hookBinding.Queue, taskqueue.CompactionCallback(s.moduleManager, s.logger))
 
 				log.Debug("Queue started for module 'schedule'",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
@@ -443,7 +478,7 @@ func (s *Task) CreateAndStartQueuesForModuleHooks(moduleName string) {
 				s.queueService.CreateAndStartQueue(hookBinding.Queue, taskqueue.CompactionCallback(s.moduleManager, s.logger))
 
 				log.Debug("Queue started for module 'kubernetes'",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}

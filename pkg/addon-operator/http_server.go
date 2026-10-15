@@ -53,6 +53,7 @@ func (op *AddonOperator) checkLeaderReadiness(w http.ResponseWriter) {
 	if leader == "" {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("HA mode is enabled but no leader is elected\n"))
+
 		return
 	}
 
@@ -66,6 +67,7 @@ func (op *AddonOperator) checkLeaderReadiness(w http.ResponseWriter) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("HA mode is enabled but couldn't craft a request to the leader\n"))
+
 		return
 	}
 
@@ -73,6 +75,7 @@ func (op *AddonOperator) checkLeaderReadiness(w http.ResponseWriter) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("HA mode is enabled but couldn't send a request to the leader\n"))
+
 		return
 	}
 	defer resp.Body.Close()
@@ -80,6 +83,7 @@ func (op *AddonOperator) checkLeaderReadiness(w http.ResponseWriter) {
 	if resp.StatusCode != http.StatusOK {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("HA mode is enabled but the leader's status response code isn't OK\n"))
+
 		return
 	}
 
@@ -129,8 +133,10 @@ func (op *AddonOperator) handleConvergeStatus(writer http.ResponseWriter, reques
 
 	if request.URL.Query().Get("output") == "json" {
 		writer.Header().Set("Content-Type", "application/json")
+
 		response := generateConvergeJSON(op.ConvergeState.GetFirstRunPhase(), convergeTasks)
 		_ = json.NewEncoder(writer).Encode(response)
+
 		return
 	}
 

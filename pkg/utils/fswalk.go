@@ -41,6 +41,7 @@ func FilesFromRoot(root string, filterFn func(dir string, name string, info os.F
 	if err != nil {
 		return nil, err
 	}
+
 	if len(symlinkedDirs) == 0 {
 		return files, nil
 	}
@@ -63,6 +64,7 @@ func FilesFromRoot(root string, filterFn func(dir string, name string, info os.F
 			if err != nil {
 				return nil, err
 			}
+
 			for k, v := range symlinked {
 				newSymlinkedDirs[k] = v
 			}
@@ -126,6 +128,7 @@ func WalkSymlinks(target string, linkName string, files map[string]map[string]st
 		if err != nil {
 			return err
 		}
+
 		if target != "" && isDir {
 			// symlink to directory -> save it for future listing
 			symlinkedDirectories[resPath] = target
@@ -135,11 +138,13 @@ func WalkSymlinks(target string, linkName string, files map[string]map[string]st
 		// Walk found a file or symlink to file, just store it.
 		// FIXME symlink can have +x, but target file is not, so filterFn is not working properly
 		fDir := path.Dir(resPath)
+
 		fName := path.Base(resPath)
 		if filterFn == nil || filterFn(fDir, fName, info) {
 			if _, has := files[fDir]; !has {
 				files[fDir] = map[string]string{}
 			}
+
 			files[fDir][fName] = ""
 		}
 
@@ -162,7 +167,9 @@ func FindExecutableFilesInPath(dir string) ([]string, []string, error) {
 		if info.Mode()&0o111 != 0 {
 			return true
 		}
+
 		nonExecutables = append(nonExecutables, path.Join(dir, name))
+
 		return false
 	})
 	if err != nil {

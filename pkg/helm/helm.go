@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"fmt"
 	"maps"
 	"os"
 	"time"
@@ -32,24 +33,10 @@ func WithLogLabels(logLabels map[string]string) ClientOption {
 	}
 }
 
-func WithExtraAnnotations(annotations map[string]string) ClientOption {
-	return func(c client.HelmClient) {
-		c.WithExtraAnnotations(annotations)
-	}
-}
-
 func (f *ClientFactory) NewClient(logger *log.Logger, options ...ClientOption) client.HelmClient {
 	if f.NewClientFn != nil {
 		labels := maps.Clone(f.labels)
 		c := f.NewClientFn(logger, labels)
-
-		// Add werf.io/skip-logs and werf.io/track-termination-mode annotations when using nelm
-		if f.ClientType == Nelm {
-			c.WithExtraAnnotations(map[string]string{
-				"werf.io/skip-logs":              "true",
-				"werf.io/track-termination-mode": "NonBlocking",
-			})
-		}
 
 		for _, option := range options {
 			option(c)
@@ -57,7 +44,15 @@ func (f *ClientFactory) NewClient(logger *log.Logger, options ...ClientOption) c
 
 		return c
 	}
+
 	return nil
+}
+
+// MetricStorage is the minimal counter-emitting surface FallbackClient needs.
+// It is intentionally small so the helm package does not depend on the full
+// metrics-storage interface.
+type MetricStorage interface {
+	CounterAdd(metric string, value float64, labels map[string]string)
 }
 
 type Options struct {
@@ -66,6 +61,9 @@ type Options struct {
 	Timeout           time.Duration
 	HelmIgnoreRelease string
 	Logger            *log.Logger
+	// MetricStorage is optional. When set, the fallback client emits a counter
+	// every time it falls back from nelm to helm3lib.
+	MetricStorage MetricStorage
 }
 
 func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*ClientFactory, error) {
@@ -81,6 +79,7 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 	switch clientType {
 	case Helm3Lib:
 		factory.NewClientFn = helm3lib.NewClient
+
 		err = helm3lib.Init(&helm3lib.Options{
 			Namespace:         helmopts.Namespace,
 			HistoryMax:        helmopts.HistoryMax,
@@ -91,6 +90,20 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 			return nil, err
 		}
 	case Nelm:
+		// Initialize helm3lib alongside nelm so it can be used as a fallback
+		// when nelm returns action.ErrBuildPlan or
+		// resource.ErrResourceDuplicatesFound.
+		if err := helm3lib.Init(&helm3lib.Options{
+			Namespace:         helmopts.Namespace,
+			HistoryMax:        helmopts.HistoryMax,
+			Timeout:           helmopts.Timeout,
+			HelmIgnoreRelease: helmopts.HelmIgnoreRelease,
+		}, helmopts.Logger); err != nil {
+			return nil, fmt.Errorf("init helm3lib for nelm fallback: %w", err)
+		}
+
+		nelm.InitDefaultLogger(helmopts.Logger)
+
 		factory.NewClientFn = func(logger *log.Logger, labels map[string]string) client.HelmClient {
 			opts := &nelm.CommonOptions{
 				HistoryMax:  helmopts.HistoryMax,
@@ -101,7 +114,11 @@ func InitHelmClientFactory(helmopts *Options, labels map[string]string) (*Client
 			if helmopts.Namespace != "" {
 				opts.Namespace = &helmopts.Namespace
 			}
-			return nelm.NewNelmClient(opts, logger.Named("nelm"), labels)
+
+			primary := nelm.NewNelmClient(opts, logger.Named("nelm"), labels)
+			fallback := helm3lib.NewClient(logger.Named("helm3lib-fallback"), maps.Clone(labels))
+
+			return NewFallbackClient(primary, fallback, logger, helmopts.MetricStorage)
 		}
 	}
 

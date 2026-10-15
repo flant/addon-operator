@@ -12,6 +12,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
@@ -123,7 +124,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		s.metricStorage.HistogramObserve("{PREFIX}module_hook_run_seconds", d.Seconds(), metricLabels, nil)
+		s.metricStorage.HistogramObserve(metrics.ModuleHookRunSeconds, d.Seconds(), metricLabels, nil)
 	})()
 
 	shouldRunHook := true
@@ -155,6 +156,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 					if hm.WaitForSynchronization != thm.WaitForSynchronization {
 						return true
 					}
+
 					if hm.ExecuteOnSynchronization != thm.ExecuteOnSynchronization {
 						return true
 					}
@@ -162,12 +164,13 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				// Task 'tsk' will be combined, so remove it from the SynchronizationState.
 				if thm.IsSynchronization() {
 					s.logger.Debug("Synchronization task is combined, mark it as Done",
-						slog.String("name", thm.HookName),
-						slog.String("binding", thm.Binding),
-						slog.String("id", thm.KubernetesBindingId))
+						slog.String(pkg.LogKeyName, thm.HookName),
+						slog.String(pkg.LogKeyBinding, thm.Binding),
+						slog.String(pkg.LogKeyID, thm.KubernetesBindingId))
 
 					baseModule.Synchronization().DoneForBinding(thm.KubernetesBindingId)
 				}
+
 				return false // do not stop combine process on this task
 			})
 
@@ -178,7 +181,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				hm.MonitorIDs = append(hm.MonitorIDs, combineResult.MonitorIDs...)
 			}
 
-			s.logger.Debug("Got monitorIDs", slog.Any("monitorIDs", hm.MonitorIDs))
+			s.logger.Debug("Got monitorIDs", slog.Any(pkg.LogKeyMonitorIDs, hm.MonitorIDs))
 
 			s.shellTask.UpdateMetadata(hm)
 		}
@@ -201,6 +204,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		if err != nil {
 			if hm.AllowFailure {
 				allowed = 1.0
+
 				s.logger.Info("Module hook failed, but allowed to fail.", log.Err(err))
 
 				res.Status = queue.Success
@@ -210,7 +214,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 				errors = 1.0
 
 				s.logger.Error("Module hook failed, requeue task to retry after delay.",
-					slog.Int("count", s.shellTask.GetFailureCount()+1),
+					slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 					log.Err(err))
 
 				s.shellTask.UpdateFailureMessage(err.Error())
@@ -223,14 +227,16 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		} else {
 			success = 1.0
 
-			s.logger.Debug("Module hook success", slog.String("name", hm.HookName))
+			s.logger.Debug("Module hook success", slog.String(pkg.LogKeyName, hm.HookName))
 
 			res.Status = queue.Success
+
 			s.moduleManager.UpdateModuleHookStatusAndNotify(baseModule, hm.HookName, nil)
 
 			// Handle module values change.
 			reloadModule := false
 			eventDescription := ""
+
 			switch hm.BindingType {
 			case htypes.Schedule:
 				if beforeChecksum != afterChecksum {
@@ -252,15 +258,16 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 					}
 				}
 			}
+
 			if reloadModule {
 				// relabel
 				logLabels := s.shellTask.GetLogLabels()
 				// Save event source info to add it as props to the task and use in logger later.
 				triggeredBy := []slog.Attr{
-					slog.String("event.triggered-by.hook", logLabels[pkg.LogKeyHook]),
-					slog.String("event.triggered-by.binding", logLabels[pkg.LogKeyBinding]),
-					slog.String("event.triggered-by.binding.name", logLabels[pkg.LogKeyBindingName]),
-					slog.String("event.triggered-by.watchEvent", logLabels[pkg.LogKeyWatchEvent]),
+					slog.String(pkg.LogKeyEventTriggeredByHook, logLabels[pkg.LogKeyHook]),
+					slog.String(pkg.LogKeyEventTriggeredByBinding, logLabels[pkg.LogKeyBinding]),
+					slog.String(pkg.LogKeyEventTriggeredByBindingName, logLabels[pkg.LogKeyBindingName]),
+					slog.String(pkg.LogKeyEventTriggeredByWatchEvent, logLabels[pkg.LogKeyWatchEvent]),
 				}
 				delete(logLabels, pkg.LogKeyHook)
 				delete(logLabels, pkg.LogKeyHookType)
@@ -290,9 +297,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 			}
 		}
 
-		s.metricStorage.CounterAdd("{PREFIX}module_hook_allowed_errors_total", allowed, metricLabels)
-		s.metricStorage.CounterAdd("{PREFIX}module_hook_errors_total", errors, metricLabels)
-		s.metricStorage.CounterAdd("{PREFIX}module_hook_success_total", success, metricLabels)
+		s.metricStorage.CounterAdd(metrics.ModuleHookAllowedErrorsTotal, allowed, metricLabels)
+		s.metricStorage.CounterAdd(metrics.ModuleHookErrorsTotal, errors, metricLabels)
+		s.metricStorage.CounterAdd(metrics.ModuleHookSuccessTotal, success, metricLabels)
 	}
 
 	if isSynchronization && res.Status == queue.Success {

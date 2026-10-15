@@ -29,6 +29,7 @@ import (
 	globalhookwaitkubernetessynchronization "github.com/flant/addon-operator/pkg/task/tasks/global-hook-wait-kubernetes-synchronization"
 	moduledelete "github.com/flant/addon-operator/pkg/task/tasks/module-delete"
 	moduleensurecrds "github.com/flant/addon-operator/pkg/task/tasks/module-ensure-crds"
+	moduleensurehooks "github.com/flant/addon-operator/pkg/task/tasks/module-ensure-hooks"
 	modulehookrun "github.com/flant/addon-operator/pkg/task/tasks/module-hook-run"
 	modulepurge "github.com/flant/addon-operator/pkg/task/tasks/module-purge"
 	modulerun "github.com/flant/addon-operator/pkg/task/tasks/module-run"
@@ -128,7 +129,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 
 	transformTask, ok := s.taskFactory[t.GetType()]
 	if !ok {
-		s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+		s.logger.Error("TaskHandlerService: unknown task type", slog.String(pkg.LogKeyTaskType, string(t.GetType())))
 
 		return queue.TaskResult{}
 	}
@@ -140,6 +141,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 
 		res.AfterHandle = func() {
 			s.CheckConvergeStatus(t)
+
 			if origAfterHandle != nil {
 				origAfterHandle()
 			}
@@ -167,7 +169,7 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 
 		transformTask, ok = s.taskFactory[t.GetType()]
 		if !ok {
-			s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+			s.logger.Error("TaskHandlerService: unknown task type", slog.String(pkg.LogKeyTaskType, string(t.GetType())))
 
 			return queue.TaskResult{}
 		}
@@ -184,10 +186,10 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 	hm := task.HookMetadataAccessor(t)
 
 	s.logger.Debug("parallel task done",
-		slog.String("task_type", string(t.GetType())),
-		slog.String("module", hm.ModuleName),
-		slog.Bool("critical", hm.Critical),
-		slog.String("result", string(res.Status)))
+		slog.String(pkg.LogKeyTaskType, string(t.GetType())),
+		slog.String(pkg.LogKeyModule, hm.ModuleName),
+		slog.Bool(pkg.LogKeyCritical, hm.Critical),
+		slog.String(pkg.LogKeyResult, string(res.Status)))
 
 	if !hm.Critical {
 		if t.GetType() == task.ModuleRun {
@@ -237,6 +239,7 @@ func (s *TaskHandlerService) initFactory() {
 		task.ModuleHookRun:                           modulehookrun.RegisterTaskHandler(s),
 		task.ModulePurge:                             modulepurge.RegisterTaskHandler(s),
 		task.ModuleEnsureCRDs:                        moduleensurecrds.RegisterTaskHandler(s),
+		task.ModuleEnsureHooks:                       moduleensurehooks.RegisterTaskHandler(s),
 		task.ModuleRun:                               modulerun.RegisterTaskHandler(s),
 		task.ConvergeModules:                         convergemodules.RegisterTaskHandler(s),
 		task.ParallelModuleRun:                       parallelmodulerun.RegisterTaskHandler(s),

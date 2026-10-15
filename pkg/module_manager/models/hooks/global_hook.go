@@ -59,10 +59,13 @@ func (h *GlobalHook) GetConfigDescription() string {
 	if h.config.BeforeAll != nil {
 		msgs = append(msgs, fmt.Sprintf("beforeAll:%d", int64(h.config.BeforeAll.Order)))
 	}
+
 	if h.config.AfterAll != nil {
 		msgs = append(msgs, fmt.Sprintf("afterAll:%d", int64(h.config.AfterAll.Order)))
 	}
+
 	msgs = append(msgs, h.executableHook.GetHookConfigDescription())
+
 	return strings.Join(msgs, ", ")
 }
 
@@ -78,6 +81,7 @@ func (h *GlobalHook) Order(binding shell_op_types.BindingType) float64 {
 			return h.config.OnStartup.Order
 		}
 	}
+
 	return 0.0
 }
 
@@ -93,6 +97,7 @@ func (h *GlobalHook) SynchronizationNeeded() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -103,5 +108,6 @@ func (h *GlobalHook) GetGoHookInputSettings() *gohook.HookConfigSettings {
 	}
 
 	gohook := h.executableHook.(*kind.GoHook)
+
 	return gohook.GetConfig().Settings
 }

@@ -23,6 +23,8 @@ const (
 	ModulePurge task.TaskType = "ModulePurge"
 	// ModuleEnsureCRDs runs ensureCRDs task for enabled module
 	ModuleEnsureCRDs task.TaskType = "ModuleEnsureCRDs"
+	// ModuleEnsureHooks applies a module's ConversionWebhook resources before its helm release.
+	ModuleEnsureHooks task.TaskType = "ModuleEnsureHooks"
 
 	// DiscoverHelmReleases lists helm releases to detect unknown modules and initiate enabled modules list.
 	DiscoverHelmReleases task.TaskType = "DiscoverHelmReleases"

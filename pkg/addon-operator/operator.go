@@ -21,6 +21,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
@@ -54,6 +55,13 @@ type AddonOperator struct {
 	cancel context.CancelFunc
 
 	DefaultNamespace string
+
+	// config is the merged operator configuration (defaults + env + flags or
+	// values supplied by a library caller via WithConfig). It is the source of
+	// truth for everything the operator needs to start. For backward
+	// compatibility, NewAddonOperator also applies it to the package-level
+	// globals in pkg/app that legacy code still reads from.
+	config *app.Config
 
 	runtimeConfig *runtimeConfig.Config
 
@@ -105,13 +113,117 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
-func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
+// WithConfig wires an externally-built *app.Config into the operator. This is
+// the recommended entrypoint for library users: build a Config programmatically
+// (or via app.NewConfig + your own overrides), pass it here, and the operator
+// will skip parsing environment variables.
+//
+// When this option is not used, NewAddonOperator falls back to building a
+// Config from defaults and process environment variables, preserving the
+// existing CLI/binary behavior.
+func WithConfig(cfg *app.Config) Option {
+	return func(operator *AddonOperator) {
+		operator.config = cfg
+	}
+}
+
+// resolveConfig returns the *app.Config the operator should use.
+//
+// Contract:
+//   - If cfg is non-nil (i.e. the caller supplied WithConfig), it is returned
+//     as-is. Environment variables are NOT parsed; they cannot override values
+//     the caller has explicitly set. This is the guarantee library users rely
+//     on.
+//   - If cfg is nil (binary path with no WithConfig), a fresh config is built
+//     from hardcoded defaults and then overlaid with environment variables.
+//
+// The function is exported through NewAddonOperator only; keeping it private
+// here makes the resolution rule a single, testable piece of logic.
+func resolveConfig(cfg *app.Config, logger *log.Logger) *app.Config {
+	if cfg != nil {
+		return cfg
+	}
+
+	out := app.NewConfig()
+	if err := app.ParseEnv(out); err != nil {
+		logger.Error("parse addon-operator config from environment", log.Err(err))
+	}
+
+	return out
+}
+
+// ShellOperatorConfig projects the addon-operator *app.Config onto a fully
+// populated shell-operator *shapp.Config. It is the single place where the
+// two config shapes meet, so the addon-operator config remains the only
+// source of truth that drives shell-operator too.
+//
+// Used by AddonOperator.AssembleCommonOperatorFromConfig to configure the
+// embedded shell-operator engine with the right listen address, kube client
+// settings, metric prefix, etc.
+//
+// Mappings:
+//   - App.HooksDir            ← App.GlobalHooksDir (addon-operator's global
+//     hooks directory plays the role of shell-operator's hooks directory).
+//   - App.TempDir, ListenAddress, ListenPort, PrometheusMetricsPrefix,
+//     Namespace ← App.*.
+//   - Kube.{Context, Config, Server, ClientQPS, ClientBurst} ← Kube.*.
+//   - ObjectPatcher.* ← ObjectPatcher.*.
+//   - Debug.{UnixSocket, HTTPServerAddr, KeepTempFiles, KubernetesAPI}
+//     ← Debug.{UnixSocket, HTTPServerAddr, KeepTmpFiles, KubernetesAPI}.
+//   - Log.{Level, Type, NoTime, ProxyHookJSON} ← Log.*.
+//
+// shell-operator's Admission/Conversion settings are intentionally not
+// mapped: addon-operator runs its own admission server (see
+// pkg/addon-operator/admission_http_server.go) and does not delegate webhook
+// configuration to shell-operator. Adding mappings here would silently
+// activate shell-operator paths we do not use.
+func ShellOperatorConfig(c *app.Config) *shapp.Config {
+	if c == nil {
+		return nil
+	}
+
+	return &shapp.Config{
+		App: shapp.AppSettings{
+			HooksDir:                c.App.GlobalHooksDir,
+			TempDir:                 c.App.TempDir,
+			ListenAddress:           c.App.ListenAddress,
+			ListenPort:              c.App.ListenPort,
+			PrometheusMetricsPrefix: c.App.PrometheusMetricsPrefix,
+			Namespace:               c.App.Namespace,
+		},
+		Kube: shapp.KubeSettings{
+			Context:     c.Kube.Context,
+			Config:      c.Kube.Config,
+			Server:      c.Kube.Server,
+			ClientQPS:   c.Kube.ClientQPS,
+			ClientBurst: c.Kube.ClientBurst,
+		},
+		ObjectPatcher: shapp.ObjectPatcherSettings{
+			KubeClientQPS:     c.ObjectPatcher.KubeClientQPS,
+			KubeClientBurst:   c.ObjectPatcher.KubeClientBurst,
+			KubeClientTimeout: c.ObjectPatcher.KubeClientTimeout,
+		},
+		Debug: shapp.DebugSettings{
+			UnixSocket:     c.Debug.UnixSocket,
+			HTTPServerAddr: c.Debug.HTTPServerAddr,
+			KeepTempFiles:  c.Debug.KeepTmpFiles,
+			KubernetesAPI:  c.Debug.KubernetesAPI,
+		},
+		Log: shapp.LogSettings{
+			Level:         c.Log.Level,
+			Type:          c.Log.Type,
+			NoTime:        c.Log.NoTime,
+			ProxyHookJSON: c.Log.ProxyHookJSON,
+		},
+	}
+}
+
+func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage metricsstorage.Storage, opts ...Option) *AddonOperator {
 	cctx, cancel := context.WithCancel(ctx)
 
 	ao := &AddonOperator{
 		ctx:                  cctx,
 		cancel:               cancel,
-		DefaultNamespace:     app.Namespace,
 		ConvergeState:        converge.NewConvergeState(),
 		parallelTaskChannels: paralleltask.NewTaskChannels(),
 	}
@@ -124,15 +236,55 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 		ao.Logger = log.NewLogger().Named("addon-operator")
 	}
 
-	so := shell_operator.NewShellOperator(cctx, shell_operator.WithLogger(ao.Logger.Named("shell-operator")))
+	ao.config = resolveConfig(ao.config, ao.Logger)
+
+	// Apply the config into the package-level globals in pkg/app that the
+	// rest of the codebase still reads from. This is the single point that
+	// bridges the typed Config to the legacy globals.
+	app.ApplyConfig(ao.config)
+
+	// Propagate the addon-operator debug socket path to shell-operator's
+	// package-level DefaultSocketPath so that debug.DefineDebugCommands
+	// (queued by main.go before rootCmd.Execute) connects to the same
+	// socket that addon-operator's debug server listens on.
+	debug.DefaultSocketPath = ao.config.Debug.UnixSocket
+
+	ao.DefaultNamespace = app.Namespace
+
+	if metricsStorage == nil {
+		ao.Logger.Warn("MetricStorage is not provided, creating a new one")
+
+		metricsStorage = metricsstorage.NewMetricStorage(
+			metricsstorage.WithLogger(ao.Logger.Named("metric-storage")),
+		)
+	}
+
+	if hookMetricStorage == nil {
+		ao.Logger.Warn("HookMetricStorage is not provided, creating a new one")
+
+		hookMetricStorage = metricsstorage.NewMetricStorage(
+			metricsstorage.WithNewRegistry(),
+			metricsstorage.WithLogger(ao.Logger.Named("hook-metric-storage")),
+		)
+	}
+
+	so := shell_operator.NewBareShellOperator(cctx,
+		shell_operator.WithMetricStorage(metricsStorage),
+		shell_operator.WithHookMetricStorage(hookMetricStorage),
+		shell_operator.WithLogger(ao.Logger.Named("shell-operator")),
+	)
 
 	// initialize logging before Assemble
 	rc := runtimeConfig.NewConfig(ao.Logger)
 	// Init logging subsystem.
-	shapp.SetupLogging(rc, ao.Logger)
+	app.SetupLogging(app.LogLevel, rc, ao.Logger)
 
-	// Have to initialize common operator to have all common dependencies below
-	err := so.AssembleCommonOperator(app.ListenAddress, app.ListenPort, []string{
+	// Hand the engine a fully-built *shapp.Config so it can derive both
+	// KubeClientConfigs (main + object-patcher), the HTTP listen address/port
+	// and the metric prefix in one place. This uses shell-operator v1.17.2's
+	// AssembleCommonOperatorFromConfig entrypoint, which removes the need for
+	// us to unpack fields by hand.
+	err := so.AssembleCommonOperatorFromConfig(ShellOperatorConfig(ao.config), []string{
 		"module",
 		pkg.MetricKeyHook,
 		pkg.MetricKeyBinding,
@@ -143,12 +295,16 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 		panic(err)
 	}
 
-	registerHookMetrics(so.HookMetricStorage)
+	// Register addon-operator specific metrics
+	if err := metrics.RegisterHookMetrics(so.HookMetricStorage); err != nil {
+		panic(fmt.Errorf("register hook metrics: %w", err))
+	}
 
 	labelSelector, err := metav1.ParseToLabelSelector(app.ExtraLabels)
 	if err != nil {
 		panic(err)
 	}
+
 	crdExtraLabels := labelSelector.MatchLabels
 
 	// use `heritage=addon-operator` by default if not set
@@ -166,8 +322,16 @@ func NewAddonOperator(ctx context.Context, opts ...Option) *AddonOperator {
 	return ao
 }
 
+// Config returns the merged operator configuration. Library callers can use
+// this to introspect the values the operator started with after WithConfig (or
+// the default env-based init) has been applied.
+func (op *AddonOperator) Config() *app.Config {
+	return op.config
+}
+
 func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElectionConfig) error {
 	var err error
+
 	op.LeaderElector, err = leaderelection.NewLeaderElector(*config)
 	if err != nil {
 		return err
@@ -189,10 +353,11 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
 	helmClient, err := helm.InitHelmClientFactory(&helm.Options{
-		Namespace:  op.DefaultNamespace,
-		HistoryMax: app.Helm3HistoryMax,
-		Timeout:    app.Helm3Timeout,
-		Logger:     op.Logger.Named("helm"),
+		Namespace:     op.DefaultNamespace,
+		HistoryMax:    app.Helm3HistoryMax,
+		Timeout:       app.Helm3Timeout,
+		Logger:        op.Logger.Named("helm"),
+		MetricStorage: op.MetricStorage,
 	}, op.CRDExtraLabels)
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
@@ -212,10 +377,11 @@ func (op *AddonOperator) Setup() error {
 	if err != nil {
 		return fmt.Errorf("global hooks directory: %s", err)
 	}
-	log.Info("global hooks directory",
-		slog.String("dir", globalHooksDir))
 
-	tempDir, err := ensureTempDirectory(shapp.TempDir)
+	log.Info("global hooks directory",
+		slog.String(pkg.LogKeyDir, globalHooksDir))
+
+	tempDir, err := ensureTempDirectory(app.TempDir)
 	if err != nil {
 		return fmt.Errorf("temp directory: %s", err)
 	}
@@ -233,10 +399,12 @@ func ensureTempDirectory(inDir string) (string, error) {
 	// No path to temporary dir, use default temporary dir.
 	if inDir == "" {
 		tmpPath := app.AppName + "-*"
+
 		dir, err := os.MkdirTemp("", tmpPath)
 		if err != nil {
 			return "", fmt.Errorf("create tmp dir in '%s': %s", tmpPath, err)
 		}
+
 		return dir, nil
 	}
 
@@ -252,6 +420,7 @@ func ensureTempDirectory(inDir string) (string, error) {
 			return "", fmt.Errorf("create tmp dir '%s': %s", dir, err)
 		}
 	}
+
 	return dir, nil
 }
 
@@ -292,7 +461,13 @@ func (op *AddonOperator) Start(ctx context.Context) error {
 
 func (op *AddonOperator) Stop() {
 	op.KubeConfigManager.Stop()
-	op.engine.Shutdown()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := op.engine.Shutdown(shutdownCtx); err != nil {
+		op.Logger.Error("shutdown error", log.Err(err))
+	}
 
 	if op.cancel != nil {
 		op.cancel()
@@ -343,6 +518,7 @@ func (op *AddonOperator) InitModuleManager() error {
 		op.KubeConfigManager.SafeReadConfig(func(config *config.KubeConfig) {
 			err = op.ModuleManager.ApplyNewKubeConfigValues(config, true)
 		})
+
 		if err != nil {
 			return fmt.Errorf("init module manager: load initial config for KubeConfigManager: %s", err)
 		}
@@ -422,11 +598,12 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 	tqs.NewNamedQueue("main", op.TaskService.Handle,
 		queue.WithCompactionCallback(queueutils.CompactionCallback(op.ModuleManager, op.Logger)),
 		queue.WithCompactableTypes(queueutils.MergeTasks...),
-		queue.WithLogger(op.Logger.With("operator.component", "mainQueue")),
+		queue.WithLogger(op.Logger.With(pkg.LogKeyOperatorComponent, "mainQueue")),
 	)
 
 	tasks := op.CreateBootstrapTasks(logLabels)
 	op.logTaskAdd(logEntry, "append", tasks...)
+
 	for _, tsk := range tasks {
 		op.engine.TaskQueues.GetMain().AddLast(tsk)
 	}
@@ -436,7 +613,7 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 		// Add "DiscoverHelmReleases" task to detect unknown releases and purge them.
 		// this task will run only after the first converge, to keep all modules
 		discoverLabels := utils.MergeLabels(logLabels, map[string]string{
-			"queue":           "main",
+			pkg.LogKeyQueue:   "main",
 			pkg.LogKeyBinding: string(task.DiscoverHelmReleases),
 		})
 		discoverTask := sh_task.NewTask(task.DiscoverHelmReleases).
@@ -452,17 +629,20 @@ func (op *AddonOperator) BootstrapMainQueue(tqs *queue.TaskQueueSet) {
 
 func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_task.Task {
 	const eventDescription = "Operator-Startup"
-	tasks := make([]sh_task.Task, 0)
+
 	queuedAt := time.Now()
 
 	// 'OnStartup' global hooks.
 	onStartupHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.OnStartup)
+
+	tasks := make([]sh_task.Task, 0, len(onStartupHooks))
+
 	for _, hookName := range onStartupHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook:    hookName,
-			"hook.type":       "global",
-			"queue":           "main",
-			pkg.LogKeyBinding: string(htypes.OnStartup),
+			pkg.LogKeyHook:     hookName,
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    "main",
+			pkg.LogKeyBinding:  string(htypes.OnStartup),
 		})
 
 		onStartupBindingContext := bc.BindingContext{Binding: string(htypes.OnStartup)}
@@ -486,10 +666,10 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	schedHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.Schedule)
 	for _, hookName := range schedHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook:    hookName,
-			"hook.type":       "global",
-			"queue":           "main",
-			pkg.LogKeyBinding: string(task.GlobalHookEnableScheduleBindings),
+			pkg.LogKeyHook:     hookName,
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    "main",
+			pkg.LogKeyBinding:  string(task.GlobalHookEnableScheduleBindings),
 		})
 
 		newTask := sh_task.NewTask(task.GlobalHookEnableScheduleBindings).
@@ -506,10 +686,10 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 	kubeHooks := op.ModuleManager.GetGlobalHooksInOrder(htypes.OnKubernetesEvent)
 	for _, hookName := range kubeHooks {
 		hookLogLabels := utils.MergeLabels(logLabels, map[string]string{
-			pkg.LogKeyHook:    hookName,
-			"hook.type":       "global",
-			"queue":           "main",
-			pkg.LogKeyBinding: string(task.GlobalHookEnableKubernetesBindings),
+			pkg.LogKeyHook:     hookName,
+			pkg.LogKeyHookType: "global",
+			pkg.LogKeyQueue:    "main",
+			pkg.LogKeyBinding:  string(task.GlobalHookEnableKubernetesBindings),
 		})
 
 		newTask := sh_task.NewTask(task.GlobalHookEnableKubernetesBindings).
@@ -524,7 +704,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 
 	// Task to wait for kubernetes.Synchronization.
 	waitLogLabels := utils.MergeLabels(logLabels, map[string]string{
-		"queue":           "main",
+		pkg.LogKeyQueue:   "main",
 		pkg.LogKeyBinding: string(task.GlobalHookWaitKubernetesSynchronization),
 	})
 	waitTask := sh_task.NewTask(task.GlobalHookWaitKubernetesSynchronization).
@@ -537,7 +717,7 @@ func (op *AddonOperator) CreateBootstrapTasks(logLabels map[string]string) []sh_
 
 	// Add "ConvergeModules" task to run modules converge sequence for the first time.
 	convergeLabels := utils.MergeLabels(logLabels, map[string]string{
-		"queue":           "main",
+		pkg.LogKeyQueue:   "main",
 		pkg.LogKeyBinding: string(task.ConvergeModules),
 	})
 	convergeTask := converge.NewConvergeModulesTask(eventDescription, converge.OperatorStartup, convergeLabels)
@@ -551,13 +731,13 @@ func (op *AddonOperator) CreateAndStartParallelQueues() {
 	for i := range app.NumberOfParallelQueues {
 		queueName := fmt.Sprintf(app.ParallelQueueNamePattern, i)
 		if op.IsQueueExists(queueName) {
-			log.Warn("Parallel queue already exists", slog.String("queue", queueName))
+			log.Warn("Parallel queue already exists", slog.String(pkg.LogKeyQueue, queueName))
 			continue
 		}
 
 		op.startQueue(queueName, op.TaskService.ParallelHandle)
 		log.Debug("Parallel queue started",
-			slog.String("queue", queueName))
+			slog.String(pkg.LogKeyQueue, queueName))
 	}
 }
 
@@ -571,7 +751,7 @@ func (op *AddonOperator) startQueue(queueName string, handler func(ctx context.C
 	op.engine.TaskQueues.NewNamedQueue(queueName, handler,
 		queue.WithCompactionCallback(queueutils.CompactionCallback(op.ModuleManager, op.Logger)),
 		queue.WithCompactableTypes(queueutils.MergeTasks...),
-		queue.WithLogger(op.Logger.With("operator.component", "queue", "queue", queueName)),
+		queue.WithLogger(op.Logger.With(pkg.LogKeyOperatorComponent, "queue", "queue", queueName)),
 	)
 	op.engine.TaskQueues.GetByName(queueName).Start(op.ctx)
 }
@@ -592,16 +772,17 @@ func (op *AddonOperator) CreateAndStartQueuesForGlobalHooks() {
 				op.CreateAndStartQueue(hookBinding.Queue)
 
 				log.Debug("Queue started for global 'schedule' hook",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hookName))
 			}
 		}
+
 		for _, hookBinding := range h.GetHookConfig().OnKubernetesEvents {
 			if !op.IsQueueExists(hookBinding.Queue) {
 				op.CreateAndStartQueue(hookBinding.Queue)
 
 				log.Debug("Queue started for global 'kubernetes' hook",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hookName))
 			}
 		}
@@ -624,7 +805,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 				op.CreateAndStartQueue(hookBinding.Queue)
 
 				log.Debug("Queue started for module 'schedule'",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
@@ -637,7 +818,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 				op.CreateAndStartQueue(hookBinding.Queue)
 
 				log.Debug("Queue started for module 'kubernetes'",
-					slog.String("queue", hookBinding.Queue),
+					slog.String(pkg.LogKeyQueue, hookBinding.Queue),
 					slog.String(pkg.LogKeyHook, hook.GetName()))
 			}
 		}
@@ -657,7 +838,7 @@ func (op *AddonOperator) CreateAndStartQueuesForModuleHooks(moduleName string) {
 	//			log.Debugf("Queue '%s' started for module 'kubernetes' hook %s", hookBinding.Queue, hookName)
 	//		}
 	//	}
-	//}
+	// }
 }
 
 func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabels map[string]string, eventDescription string) []sh_task.Task {
@@ -674,8 +855,8 @@ func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabel
 		}
 
 		newLogLabels := utils.MergeLabels(logLabels)
-		newLogLabels["module"] = moduleName
-		delete(newLogLabels, "task.id")
+		newLogLabels[pkg.LogKeyModule] = moduleName
+		delete(newLogLabels, pkg.LogKeyTaskID)
 
 		newTask := sh_task.NewTask(task.ModuleRun).
 			WithLogLabels(newLogLabels).
@@ -686,6 +867,7 @@ func (op *AddonOperator) CreateReloadModulesTasks(moduleNames []string, logLabel
 			})
 		newTasks = append(newTasks, newTask.WithQueuedAt(queuedAt))
 	}
+
 	return newTasks
 }
 
@@ -736,12 +918,13 @@ func formatTaskDetails(tsk sh_task.Task, hm task.HookMetadata, phase string) str
 		if hm.DoModuleStartup {
 			details += " with doModuleStartup"
 		}
+
 		return details
 
 	case task.ParallelModuleRun:
 		return fmt.Sprintf(" for modules '%s'", hm.ModuleName)
 
-	case task.ModulePurge, task.ModuleDelete, task.ModuleEnsureCRDs:
+	case task.ModulePurge, task.ModuleDelete, task.ModuleEnsureCRDs, task.ModuleEnsureHooks:
 		return fmt.Sprintf(" for module '%s'", hm.ModuleName)
 
 	case task.GlobalHookEnableKubernetesBindings,
@@ -806,6 +989,7 @@ func formatConvergeTaskDetails(tsk sh_task.Task, phase string) string {
 	if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
 		return fmt.Sprintf(" for %s in phase '%s'", string(taskEvent), phase)
 	}
+
 	return ""
 }
 
@@ -823,6 +1007,8 @@ func (op *AddonOperator) getConvergeQueues() []*queue.TaskQueue {
 	for i := 0; i < app.NumberOfParallelQueues; i++ {
 		convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetByName(fmt.Sprintf(app.ParallelQueueNamePattern, i)))
 	}
+
 	convergeQueues = append(convergeQueues, op.engine.TaskQueues.GetMain())
+
 	return convergeQueues
 }

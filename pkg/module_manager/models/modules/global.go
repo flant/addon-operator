@@ -16,6 +16,7 @@ import (
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/hook/types"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -107,10 +108,12 @@ func (gm *GlobalModule) GetHookByName(name string) *hooks.GlobalHook {
 func (gm *GlobalModule) GetHooks(bt ...sh_op_types.BindingType) []*hooks.GlobalHook {
 	if len(bt) > 0 {
 		t := bt[0]
+
 		res, ok := gm.byBinding[t]
 		if !ok {
 			return []*hooks.GlobalHook{}
 		}
+
 		sort.Slice(res, func(i, j int) bool {
 			return res[i].Order(t) < res[j].Order(t)
 		})
@@ -145,12 +148,15 @@ func (gm *GlobalModule) RunHookByName(ctx context.Context, hookName string, bind
 
 	if binding == types.BeforeAll || binding == types.AfterAll {
 		snapshots := globalHook.GetHookController().KubernetesSnapshots()
-		newBindingContext := make([]bindingcontext.BindingContext, 0)
+
+		newBindingContext := make([]bindingcontext.BindingContext, 0, len(bindingContext))
+
 		for _, bc := range bindingContext {
 			bc.Snapshots = snapshots
 			bc.Metadata.IncludeAllSnapshots = true
 			newBindingContext = append(newBindingContext, bc)
 		}
+
 		bindingContext = newBindingContext
 	}
 
@@ -175,11 +181,11 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 	defer span.End()
 
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		pkg.LogKeyHook:    h.GetName(),
-		"hook.type":       "module",
-		pkg.LogKeyModule:  gm.GetName(),
-		pkg.LogKeyBinding: string(bindingType),
-		"path":            h.GetPath(),
+		pkg.LogKeyHook:     h.GetName(),
+		pkg.LogKeyHookType: "module",
+		pkg.LogKeyModule:   gm.GetName(),
+		pkg.LogKeyBinding:  string(bindingType),
+		pkg.LogKeyPath:     h.GetPath(),
 	})
 
 	// Convert bindingContext for version
@@ -187,7 +193,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 	logEntry := utils.EnrichLoggerWithLabels(gm.logger, logLabels)
 
 	for _, info := range h.GetHookController().SnapshotsInfo() {
-		logEntry.Debug("snapshot info", slog.String("value", info))
+		logEntry.Debug("snapshot info", slog.String(pkg.LogKeyValue, info))
 	}
 
 	prefixedConfigValues := gm.valuesStorage.GetConfigValues(true)
@@ -198,24 +204,27 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 		metricLabels := map[string]string{
 			pkg.MetricKeyHook:       h.GetName(),
 			pkg.MetricKeyBinding:    string(bindingType),
-			"queue":                 logLabels["queue"],
+			pkg.LogKeyQueue:         logLabels[pkg.LogKeyQueue],
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 		}
 		// usage metrics
-		gm.dc.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_sys_cpu_seconds", hookResult.Usage.Sys.Seconds(), metricLabels, nil)
-		gm.dc.MetricStorage.HistogramObserve("{PREFIX}global_hook_run_user_cpu_seconds", hookResult.Usage.User.Seconds(), metricLabels, nil)
-		gm.dc.MetricStorage.GaugeSet("{PREFIX}global_hook_run_max_rss_bytes", float64(hookResult.Usage.MaxRss)*1024, metricLabels)
-	}
-	if err != nil {
-		return fmt.Errorf("global hook '%s' failed: %s", h.GetName(), err)
+		gm.dc.MetricStorage.HistogramObserve(metrics.GlobalHookRunSysCPUSeconds, hookResult.Usage.Sys.Seconds(), metricLabels, nil)
+		gm.dc.MetricStorage.HistogramObserve(metrics.GlobalHookRunUserCPUSeconds, hookResult.Usage.User.Seconds(), metricLabels, nil)
+		gm.dc.MetricStorage.GaugeSet(metrics.GlobalHookRunMaxRSSBytes, float64(hookResult.Usage.MaxRss)*1024, metricLabels)
 	}
 
-	// Apply metric operations
-	err = gm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
-		pkg.MetricKeyHook: h.GetName(),
-	})
+	if hookResult != nil && len(hookResult.Metrics) > 0 {
+		// Apply metric operations
+		err = gm.dc.HookMetricsStorage.ApplyBatchOperations(hookResult.Metrics, map[string]string{
+			pkg.MetricKeyHook: h.GetName(),
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	if err != nil {
-		return err
+		return fmt.Errorf("global hook '%s' failed: %s", h.GetName(), err)
 	}
 
 	if len(hookResult.ObjectPatcherOperations) > 0 {
@@ -247,7 +256,8 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 			if err != nil {
 				logEntry.Debug("Global hook kube config global values stay unchanged",
 					slog.String(pkg.LogKeyHook, h.GetName()),
-					slog.String("value", gm.valuesStorage.GetConfigValues(false).DebugString()))
+					slog.String(pkg.LogKeyValue, gm.valuesStorage.GetConfigValues(false).DebugString()))
+
 				return fmt.Errorf("global hook '%s': set kube config failed: %s", h.GetName(), err)
 			}
 
@@ -255,7 +265,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 
 			logEntry.Debug("Global hook: kube config global values updated", slog.String(pkg.LogKeyHook, h.GetName()))
 			logEntry.Debug("New kube config global values",
-				slog.String("values", gm.valuesStorage.GetConfigValues(false).DebugString()))
+				slog.String(pkg.LogKeyValues, gm.valuesStorage.GetConfigValues(false).DebugString()))
 		}
 
 		// Apply patches for *Enabled keys.
@@ -278,12 +288,14 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 		if valuesPatchResult != nil && valuesPatchResult.ValuesChanged {
 			logEntry.Debug("Global hook: validate global values before update",
 				slog.String(pkg.LogKeyHook, h.GetName()))
+
 			validationErr := gm.valuesStorage.validateValues(valuesPatchResult.Values)
 			if validationErr != nil {
 				return fmt.Errorf("cannot apply values patch for global values: %w", validationErr)
 			}
 
 			gm.valuesStorage.appendValuesPatch(valuesPatchResult.ValuesPatch)
+
 			err = gm.valuesStorage.CommitValues()
 			if err != nil {
 				return fmt.Errorf("error on commit values: %w", err)
@@ -291,7 +303,7 @@ func (gm *GlobalModule) executeHook(ctx context.Context, h *hooks.GlobalHook, bi
 
 			logEntry.Debug("Global hook: kube global values updated", slog.String(pkg.LogKeyHook, h.GetName()))
 			logEntry.Debug("New global values",
-				slog.String("values", gm.valuesStorage.GetValues(false).DebugString()))
+				slog.String(pkg.LogKeyValues, gm.valuesStorage.GetValues(false).DebugString()))
 		}
 
 		// Apply patches for *Enabled keys.
@@ -442,12 +454,13 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 		return nil, fmt.Errorf("search module hooks failed: %w", err)
 	}
 
-	gm.logger.Debug("Found global hooks", slog.Int("count", len(hks)))
+	gm.logger.Debug("Found global hooks", slog.Int(pkg.LogKeyCount, len(hks)))
+
 	if gm.logger.GetLevel() == log.LevelDebug {
 		for _, h := range hks {
 			gm.logger.Debug("GlobalHook",
 				slog.String(pkg.LogKeyHook, h.GetName()),
-				slog.String("path", h.GetPath()))
+				slog.String(pkg.LogKeyPath, h.GetPath()))
 		}
 	}
 
@@ -464,13 +477,13 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 		// Add hook info as log labels
 		for _, kubeCfg := range globalHook.GetHookConfig().OnKubernetesEvents {
 			kubeCfg.Monitor.Metadata.LogLabels[pkg.LogKeyHook] = globalHook.GetName()
-			kubeCfg.Monitor.Metadata.LogLabels["hook.type"] = "global"
+			kubeCfg.Monitor.Metadata.LogLabels[pkg.LogKeyHookType] = "global"
 			kubeCfg.Monitor.Metadata.MetricLabels = map[string]string{
 				pkg.MetricKeyHook:    globalHook.GetName(),
 				pkg.MetricKeyBinding: kubeCfg.BindingName,
-				"module":             "", // empty "module" label for label set consistency with module hooks
-				"queue":              kubeCfg.Queue,
-				"kind":               kubeCfg.Monitor.Kind,
+				pkg.LogKeyModule:     "", // empty "module" label for label set consistency with module hooks
+				pkg.LogKeyQueue:      kubeCfg.Queue,
+				pkg.LogKeyKind:       kubeCfg.Monitor.Kind,
 			}
 		}
 
@@ -481,8 +494,8 @@ func (gm *GlobalModule) searchAndRegisterHooks() ([]*hooks.GlobalHook, error) {
 		}
 
 		hookLogEntry.Debug("Module hook from path",
-			slog.String("path", globalHook.GetPath()),
-			slog.String("bindings", globalHook.GetConfigDescription()))
+			slog.String(pkg.LogKeyPath, globalHook.GetPath()),
+			slog.String(pkg.LogKeyBindings, globalHook.GetConfigDescription()))
 	}
 
 	return hks, nil
@@ -539,6 +552,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 	if _, err := os.Stat(hooksSubDir); !os.IsNotExist(err) {
 		hooksDir = hooksSubDir
 	}
+
 	hooksRelativePaths, err := utils_file.RecursiveGetExecutablePaths(hooksDir)
 	if err != nil {
 		return nil, err
@@ -549,7 +563,7 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
 	gm.logger.Debug("Hook paths",
-		slog.Any("paths", hooksRelativePaths))
+		slog.Any(pkg.LogKeyPaths, hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := normalizeHookPath(hooksDir, hookPath)
@@ -573,9 +587,10 @@ func (gm *GlobalModule) searchGlobalShellHooks(hooksDir string) ([]*kind.ShellHo
 	if len(hks) > 0 {
 		count = strconv.Itoa(len(hks))
 	}
+
 	gm.logger.Info("Found global shell hooks in dir",
-		slog.String("count", count),
-		slog.String("dir", hooksDir))
+		slog.String(pkg.LogKeyCount, count),
+		slog.String(pkg.LogKeyDir, hooksDir))
 
 	return hks, nil
 }
@@ -601,7 +616,7 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 	// sort hooks by path
 	sort.Strings(hooksRelativePaths)
 	gm.logger.Debug("Hook paths",
-		slog.Any("path", hooksRelativePaths))
+		slog.Any(pkg.LogKeyPath, hooksRelativePaths))
 
 	for _, hookPath := range hooksRelativePaths {
 		hookName, err := normalizeHookPath(hooksDir, hookPath)
@@ -640,9 +655,9 @@ func (gm *GlobalModule) searchGlobalBatchHooks(hooksDir string) ([]*kind.BatchHo
 		count = strconv.Itoa(len(hks))
 	}
 
-	gm.logger.Info("Found global shell hooks in dir",
-		slog.String("count", count),
-		slog.String("dir", hooksDir))
+	gm.logger.Info("Found global batch hooks in dir",
+		slog.String(pkg.LogKeyCount, count),
+		slog.String(pkg.LogKeyDir, hooksDir))
 
 	return hks, nil
 }
@@ -657,7 +672,7 @@ func (gm *GlobalModule) searchGlobalGoHooks() []*kind.GoHook {
 	}
 
 	gm.logger.Info("Found global Go hooks",
-		slog.String("count", count))
+		slog.String(pkg.LogKeyCount, count))
 
 	return goHooks
 }

@@ -23,7 +23,7 @@ import (
 
 func TestHandleModulePatch(t *testing.T) {
 	valuesStr := `
-foo: 
+foo:
   bar: baz
 `
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))
@@ -47,7 +47,7 @@ foo:
 	require.NoError(t, err)
 	assert.True(t, res.ValuesChanged)
 	assert.YAMLEq(t, `
-foo: 
+foo:
   xxx: yyy
 `,
 		res.Values.AsString("yaml"))
@@ -82,7 +82,7 @@ sys.exit(0)
 	defer os.RemoveAll("/tmp/modules")
 
 	valuesStr := `
-foo: 
+foo:
   bar: baz
 `
 	value, err := utils.NewValuesFromBytes([]byte(valuesStr))
@@ -143,7 +143,6 @@ exit 0
 
 	logger := log.NewLogger()
 	storage := metricsstorage.NewMetricStorage(
-		metricsstorage.WithPrefix("addon_operator_"),
 		metricsstorage.WithLogger(logger),
 	)
 
@@ -199,7 +198,6 @@ exit 0
 
 	logger := log.NewLogger()
 	storage := metricsstorage.NewMetricStorage(
-		metricsstorage.WithPrefix("addon_operator_"),
 		metricsstorage.WithLogger(logger),
 	)
 
@@ -243,7 +241,6 @@ fi
 
 func stubDeps(logger *log.Logger) *hooks.HookExecutionDependencyContainer {
 	st := metricsstorage.NewMetricStorage(
-		metricsstorage.WithPrefix("addon_operator_"),
 		metricsstorage.WithLogger(logger),
 	)
 	return &hooks.HookExecutionDependencyContainer{
@@ -308,4 +305,28 @@ exit 0
 	erGetter := bm.GetEnabledScriptReason()
 	require.NotNil(t, erGetter)
 	require.Equal(t, "Kubernetes version is too low", *erGetter)
+}
+
+// TestHasReadinessNotSetOnFailedRegistration tests that hasReadiness is only set
+// after successful hook registration. This prevents stale hasReadiness state when
+// registration is retried after an error (e.g., in AssembleEnvironmentForModule).
+func TestHasReadinessNotSetOnFailedRegistration(t *testing.T) {
+	tmpModuleDir := t.TempDir()
+
+	bm, err := NewBasicModule("test-readiness-registration", tmpModuleDir, 1, utils.Values{}, nil, nil)
+	require.NoError(t, err)
+
+	logger := log.NewLogger()
+	bm.WithLogger(logger)
+	bm.WithDependencies(stubDeps(logger))
+
+	// Simulate stale state from a previous failed registration attempt
+	bm.hasReadiness = true
+
+	// RegisterHooks should overwrite hasReadiness based on actual search results
+	_, err = bm.RegisterHooks(logger)
+	require.NoError(t, err)
+
+	// hasReadiness should be false (no hooks in empty module)
+	require.False(t, bm.hasReadiness, "hasReadiness should reflect actual hooks found")
 }

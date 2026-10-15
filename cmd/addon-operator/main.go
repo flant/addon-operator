@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -17,10 +17,11 @@ import (
 	addon_operator "github.com/flant/addon-operator/pkg/addon-operator"
 	"github.com/flant/addon-operator/pkg/app"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/backend/configmap"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/utils/stdliblogtolog"
 	"github.com/flant/kube-client/klogtolog"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
+	shmetrics "github.com/flant/shell-operator/pkg/metrics"
 	utils_signal "github.com/flant/shell-operator/pkg/utils/signal"
 )
 
@@ -32,52 +33,83 @@ const (
 )
 
 func main() {
-	kpApp := kingpin.New(app.AppName, fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription))
+	cfg := app.NewConfig()
+	if err := app.ParseEnv(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
+		os.Exit(1)
+	}
 
 	logger := log.NewLogger()
 	log.SetDefault(logger)
 
-	// override usage template to reveal additional commands with information about start command
-	kpApp.UsageTemplate(shapp.OperatorUsageTemplate(app.AppName))
+	rootCmd := &cobra.Command{
+		Use:   app.AppName,
+		Short: fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription),
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+			klogtolog.InitAdapter(cfg.Debug.KubernetesAPI, logger.Named("klog"))
+			stdliblogtolog.InitAdapter(logger)
 
-	kpApp.Action(func(_ *kingpin.ParseContext) error {
-		klogtolog.InitAdapter(shapp.DebugKubernetesAPI, logger.Named("klog"))
-		stdliblogtolog.InitAdapter(logger)
-		return nil
+			return nil
+		},
+	}
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Show version.",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Printf("%s %s\n", app.AppName, app.Version)
+		},
 	})
 
-	// print version
-	kpApp.Command("version", "Show version.").Action(func(_ *kingpin.ParseContext) error {
-		fmt.Printf("%s %s\n", app.AppName, app.Version)
-		return nil
-	})
+	startCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start events processing.",
+		RunE:  start(logger, cfg),
+	}
+	app.BindFlags(cfg, rootCmd, startCmd)
+	rootCmd.AddCommand(startCmd)
 
-	// start main loop
-	startCmd := kpApp.Command("start", "Start events processing.").
-		Default().
-		Action(start(logger))
+	// Propagate addon-operator's debug socket path into shell-operator's
+	// package-level DefaultSocketPath before registering shell-operator's
+	// debug sub-commands (queue, config, hook, raw — wired via
+	// debug.DefineDebugCommands). Those sub-commands bind their
+	// --debug-unix-socket flag to debug.DefaultSocketPath and dial it via
+	// debug.DefaultClient(); without this assignment they would default to
+	// /var/run/shell-operator/debug.socket while the addon-operator debug
+	// server actually listens on cfg.Debug.UnixSocket.
+	debug.DefaultSocketPath = cfg.Debug.UnixSocket
 
-	app.DefineStartCommandFlags(kpApp, startCmd)
+	debug.DefineDebugCommands(rootCmd)
+	app.DefineDebugCommands(rootCmd)
 
-	debug.DefineDebugCommands(kpApp)
-	app.DefineDebugCommands(kpApp)
+	// Make start the default command when no subcommand is given.
+	rootCmd.RunE = start(logger, cfg)
 
-	kingpin.MustParse(kpApp.Parse(os.Args[1:]))
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
 
-func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
-	return func(_ *kingpin.ParseContext) error {
-		shapp.AppStartMessage = fmt.Sprintf("%s %s, shell-operator %s", app.AppName, app.Version, shapp.Version)
+func start(logger *log.Logger, cfg *app.Config) func(cmd *cobra.Command, args []string) error {
+	return func(_ *cobra.Command, _ []string) error {
+		app.AppStartMessage = fmt.Sprintf("%s %s", app.AppName, app.Version)
 
 		ctx := context.Background()
 
-		operator := addon_operator.NewAddonOperator(ctx, addon_operator.WithLogger(logger.Named("addon-operator")))
+		shmetrics.InitMetrics(cfg.App.PrometheusMetricsPrefix)
+		metrics.InitMetrics(cfg.App.PrometheusMetricsPrefix)
+
+		operator := addon_operator.NewAddonOperator(ctx, nil, nil,
+			addon_operator.WithConfig(cfg),
+			addon_operator.WithLogger(logger.Named("addon-operator")),
+		)
 
 		operator.StartAPIServer()
 
 		if os.Getenv("ADDON_OPERATOR_HA") == "true" {
 			operator.Logger.Info("Addon-operator is starting in HA mode")
 			runHAMode(ctx, operator)
+
 			return nil
 		}
 
@@ -154,7 +186,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 			OnStartedLeading: func(ctx context.Context) {
 				err := run(ctx, operator)
 				if err != nil {
-					operator.Logger.Fatal("run on stardet leading", log.Err(err))
+					operator.Logger.Fatal("run on started leading", log.Err(err))
 				}
 			},
 			OnStoppedLeading: func() {
@@ -172,6 +204,7 @@ func runHAMode(ctx context.Context, operator *addon_operator.AddonOperator) {
 	go func() {
 		<-ctx.Done()
 		log.Info("Context canceled received")
+
 		if err := syscall.Kill(1, syscall.SIGUSR2); err != nil {
 			operator.Logger.Fatal("Couldn't shutdown addon-operator", log.Err(err))
 		}

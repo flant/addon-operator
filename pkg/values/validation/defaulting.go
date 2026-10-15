@@ -36,6 +36,7 @@ func ApplyDefaults(obj interface{}, s *spec.Schema) bool {
 			if prop.Default == nil {
 				continue
 			}
+
 			if _, found := obj[k]; !found {
 				obj[k] = runtime.DeepCopyJSONValue(prop.Default)
 				res = true

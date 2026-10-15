@@ -27,6 +27,7 @@ func NewDiffer(from, to string) (*Differ, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Differ{Differ: d}, nil
 }
 
@@ -60,6 +61,7 @@ func (ow *objectWrapper) Merged() (runtime.Object, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return ow.preprocessObject(obj), nil
 }
 
@@ -97,7 +99,9 @@ func (p *Printer) Print(obj runtime.Object, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = w.Write(data)
+
 	return err
 }
 
@@ -106,9 +110,11 @@ func toUnstructured(obj runtime.Object) (*unstructured.Unstructured, error) {
 	if unstr, ok := obj.(*unstructured.Unstructured); ok {
 		return unstr, nil
 	}
+
 	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	if err != nil {
 		return nil, err
 	}
+
 	return &unstructured.Unstructured{Object: data}, nil
 }
