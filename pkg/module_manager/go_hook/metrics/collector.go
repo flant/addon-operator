@@ -1,10 +1,11 @@
 package metrics
 
 import (
+	"maps"
+
+	"github.com/deckhouse/deckhouse/pkg/metrics-storage/operation"
 	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 	pointer "k8s.io/utils/ptr"
-
-	"github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 var _ sdkpkg.MetricsCollector = (*MemoryMetricsCollector)(nil)
@@ -36,9 +37,9 @@ func (dms *MemoryMetricsCollector) Add(name string, value float64, labels map[st
 	dms.metrics = append(dms.metrics, operation.MetricOperation{
 		Name:   name,
 		Group:  options.group,
-		Action: "add",
+		Action: operation.ActionCounterAdd,
 		Value:  pointer.To(value),
-		Labels: labels,
+		Labels: maps.Clone(labels),
 	})
 }
 
@@ -53,9 +54,9 @@ func (dms *MemoryMetricsCollector) Set(name string, value float64, labels map[st
 	dms.metrics = append(dms.metrics, operation.MetricOperation{
 		Name:   name,
 		Group:  options.group,
-		Action: "set",
+		Action: operation.ActionGaugeSet,
 		Value:  pointer.To(value),
-		Labels: labels,
+		Labels: maps.Clone(labels),
 	})
 }
 
@@ -64,9 +65,10 @@ func (dms *MemoryMetricsCollector) Expire(group string) {
 	if group == "" {
 		group = dms.defaultGroup
 	}
+
 	dms.metrics = append(dms.metrics, operation.MetricOperation{
 		Group:  group,
-		Action: "expire",
+		Action: operation.ActionExpireMetrics,
 	})
 }
 

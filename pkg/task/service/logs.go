@@ -60,7 +60,9 @@ func (s *TaskHandlerService) taskPhase(tsk sh_task.Task) string {
 	case task.ModuleRun:
 		hm := task.HookMetadataAccessor(tsk)
 		mod := s.moduleManager.GetModule(hm.ModuleName)
+
 		return string(mod.GetPhase())
 	}
+
 	return ""
 }

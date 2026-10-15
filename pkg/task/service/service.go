@@ -6,7 +6,9 @@ import (
 	"sync"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
@@ -15,6 +17,7 @@ import (
 	"github.com/flant/addon-operator/pkg/task"
 	discovercrds "github.com/flant/addon-operator/pkg/task/discover-crds"
 	"github.com/flant/addon-operator/pkg/task/functional"
+	"github.com/flant/addon-operator/pkg/task/helpers"
 	paralleltask "github.com/flant/addon-operator/pkg/task/parallel"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	applykubeconfigvalues "github.com/flant/addon-operator/pkg/task/tasks/apply-kube-config-values"
@@ -26,13 +29,13 @@ import (
 	globalhookwaitkubernetessynchronization "github.com/flant/addon-operator/pkg/task/tasks/global-hook-wait-kubernetes-synchronization"
 	moduledelete "github.com/flant/addon-operator/pkg/task/tasks/module-delete"
 	moduleensurecrds "github.com/flant/addon-operator/pkg/task/tasks/module-ensure-crds"
+	moduleensurehooks "github.com/flant/addon-operator/pkg/task/tasks/module-ensure-hooks"
 	modulehookrun "github.com/flant/addon-operator/pkg/task/tasks/module-hook-run"
 	modulepurge "github.com/flant/addon-operator/pkg/task/tasks/module-purge"
 	modulerun "github.com/flant/addon-operator/pkg/task/tasks/module-run"
 	parallelmodulerun "github.com/flant/addon-operator/pkg/task/tasks/parallel-module-run"
 	"github.com/flant/addon-operator/pkg/utils"
 	klient "github.com/flant/kube-client/client"
-	"github.com/flant/shell-operator/pkg/metric"
 	shell_operator "github.com/flant/shell-operator/pkg/shell-operator"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
@@ -44,7 +47,7 @@ type TaskHandlerServiceConfig struct {
 	Helm                 *helm.ClientFactory
 	HelmResourcesManager helm_resources_manager.HelmResourcesManager
 	ModuleManager        *module_manager.ModuleManager
-	MetricStorage        metric.Storage
+	MetricStorage        metricsstorage.Storage
 	KubeConfigManager    *kube_config_manager.KubeConfigManager
 	ConvergeState        *converge.ConvergeState
 	CRDExtraLabels       map[string]string
@@ -67,7 +70,7 @@ type TaskHandlerService struct {
 
 	moduleManager *module_manager.ModuleManager
 
-	metricStorage     metric.Storage
+	metricStorage     metricsstorage.Storage
 	kubeConfigManager *kube_config_manager.KubeConfigManager
 
 	queueService *taskqueue.Service
@@ -126,7 +129,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 
 	transformTask, ok := s.taskFactory[t.GetType()]
 	if !ok {
-		s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+		s.logger.Error("TaskHandlerService: unknown task type", slog.String(pkg.LogKeyTaskType, string(t.GetType())))
 
 		return queue.TaskResult{}
 	}
@@ -138,6 +141,7 @@ func (s *TaskHandlerService) Handle(ctx context.Context, t sh_task.Task) queue.T
 
 		res.AfterHandle = func() {
 			s.CheckConvergeStatus(t)
+
 			if origAfterHandle != nil {
 				origAfterHandle()
 			}
@@ -165,7 +169,7 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 
 		transformTask, ok = s.taskFactory[t.GetType()]
 		if !ok {
-			s.logger.Error("TaskHandlerService: unknown task type", slog.String("task_type", string(t.GetType())))
+			s.logger.Error("TaskHandlerService: unknown task type", slog.String(pkg.LogKeyTaskType, string(t.GetType())))
 
 			return queue.TaskResult{}
 		}
@@ -182,23 +186,22 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 	hm := task.HookMetadataAccessor(t)
 
 	s.logger.Debug("parallel task done",
-		slog.String("task_type", string(t.GetType())),
-		slog.String("module", hm.ModuleName),
-		slog.Bool("critical", hm.Critical),
-		slog.String("result", string(res.Status)))
+		slog.String(pkg.LogKeyTaskType, string(t.GetType())),
+		slog.String(pkg.LogKeyModule, hm.ModuleName),
+		slog.Bool(pkg.LogKeyCritical, hm.Critical),
+		slog.String(pkg.LogKeyResult, string(res.Status)))
 
 	if !hm.Critical {
 		if t.GetType() == task.ModuleRun {
-			if res.Status == queue.Success && len(res.AfterTasks) == 0 {
+			if res.Status == queue.Success && len(res.GetAfterTasks()) == 0 {
 				s.functionalScheduler.Done(hm.ModuleName)
 			}
 
 			if res.Status == queue.Fail {
 				if s.queueService.GetQueueLength(t.GetQueueName()) > 1 {
 					res.Status = queue.Success
-					if err := s.queueService.AddLastTaskToQueue(t.GetQueueName(), t); err != nil {
-						s.logger.Error("add last task to queue", slog.String("queue", t.GetQueueName()), slog.Any("error", err))
-					}
+					res.AddTailTasks(t.DeepCopyWithNewUUID())
+					s.logTaskAdd("tail", t)
 				}
 			}
 		}
@@ -216,7 +219,7 @@ func (s *TaskHandlerService) ParallelHandle(ctx context.Context, t sh_task.Task)
 			parallelChannel.SendFailure(hm.ModuleName, t.GetFailureMessage())
 		}
 
-		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.AfterTasks) == 0 {
+		if res.Status == queue.Success && t.GetType() == task.ModuleRun && len(res.GetAfterTasks()) == 0 {
 			parallelChannel.SendSuccess(hm.ModuleName)
 		}
 	}
@@ -236,6 +239,7 @@ func (s *TaskHandlerService) initFactory() {
 		task.ModuleHookRun:                           modulehookrun.RegisterTaskHandler(s),
 		task.ModulePurge:                             modulepurge.RegisterTaskHandler(s),
 		task.ModuleEnsureCRDs:                        moduleensurecrds.RegisterTaskHandler(s),
+		task.ModuleEnsureHooks:                       moduleensurehooks.RegisterTaskHandler(s),
 		task.ModuleRun:                               modulerun.RegisterTaskHandler(s),
 		task.ConvergeModules:                         convergemodules.RegisterTaskHandler(s),
 		task.ParallelModuleRun:                       parallelmodulerun.RegisterTaskHandler(s),
@@ -262,7 +266,7 @@ func (s *TaskHandlerService) GetModuleManager() *module_manager.ModuleManager {
 	return s.moduleManager
 }
 
-func (s *TaskHandlerService) GetMetricStorage() metric.Storage {
+func (s *TaskHandlerService) GetMetricStorage() metricsstorage.Storage {
 	return s.metricStorage
 }
 
@@ -292,4 +296,12 @@ func (s *TaskHandlerService) GetTaskFactory() map[sh_task.TaskType]func(t sh_tas
 
 func (s *TaskHandlerService) GetDiscoveredGVKs() *discovercrds.DiscoveredGVKs {
 	return s.discoveredCRDs
+}
+
+// logTaskAdd prints info about queued tasks.
+func (s *TaskHandlerService) logTaskAdd(action string, tasks ...sh_task.Task) {
+	logger := s.logger.With(pkg.LogKeyTaskFlow, "add")
+	for _, tsk := range tasks {
+		logger.Info(helpers.TaskDescriptionForTaskFlowLog(tsk, action, "", ""))
+	}
 }

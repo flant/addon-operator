@@ -24,6 +24,7 @@ type ClientType string
 
 const (
 	Helm3Lib = ClientType("Helm3Lib")
+	Nelm     = ClientType("Nelm")
 )
 
 func DetectHelmVersion() (ClientType, error) {
@@ -34,5 +35,11 @@ func DetectHelmVersion() (ClientType, error) {
 		}
 	}
 
+	// Check if Nelm client is explicitly requested
+	if os.Getenv("USE_NELM") == "true" {
+		return Nelm, nil
+	}
+
+	// Use Helm3Lib by default
 	return Helm3Lib, nil
 }

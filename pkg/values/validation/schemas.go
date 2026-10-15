@@ -13,10 +13,12 @@ import (
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/loading"
 	"github.com/go-openapi/validate"
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/yaml"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation/cel"
 	"github.com/flant/addon-operator/pkg/values/validation/schema"
@@ -52,8 +54,8 @@ func init() {
 }
 
 // YAMLDocLoader loads a yaml document from either http or a file and converts it to json.
-func YAMLDocLoader(path string) (json.RawMessage, error) {
-	data, err := swag.LoadFromFileOrHTTP(path)
+func YAMLDocLoader(path string, opts ...loading.Option) (json.RawMessage, error) {
+	data, err := loading.LoadFromFileOrHTTP(path, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,12 +88,46 @@ func (st *SchemaStorage) ValidateValues(moduleName string, values utils.Values) 
 	return st.Validate(ValuesSchema, moduleName, values)
 }
 
+// ValidateConfigValuesTransition is like ValidateConfigValues, but additionally
+// accepts the previously stored config values so that x-deckhouse-validations
+// transition rules (rules that reference oldSelf) can fire on updates.
+// Pass oldValues=nil for the initial create / when previous values are not available.
+func (st *SchemaStorage) ValidateConfigValuesTransition(moduleName string, values, oldValues utils.Values) error {
+	return st.ValidateTransition(ConfigValuesSchema, moduleName, values, oldValues)
+}
+
+// ValidateValuesTransition is like ValidateValues, but additionally accepts
+// the previously merged result values so that x-deckhouse-validations
+// transition rules (rules that reference oldSelf) can catch attempts to mutate
+// immutable fields via values patches.
+// Pass oldValues=nil for the initial create / when previous values are not available.
+func (st *SchemaStorage) ValidateValuesTransition(moduleName string, values, oldValues utils.Values) error {
+	return st.ValidateTransition(ValuesSchema, moduleName, values, oldValues)
+}
+
+// ValidateModuleHelmValuesTransition is like ValidateModuleHelmValues, but
+// additionally accepts the previously rendered helm values so that
+// x-deckhouse-validations transition rules (rules that reference oldSelf) can
+// fire on updates.
+func (st *SchemaStorage) ValidateModuleHelmValuesTransition(moduleName string, values, oldValues utils.Values) error {
+	return st.ValidateTransition(HelmValuesSchema, moduleName, values, oldValues)
+}
+
 func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, values utils.Values) error {
+	return st.ValidateTransition(valuesType, moduleName, values, nil)
+}
+
+// ValidateTransition is like Validate but additionally accepts the previously
+// stored values, enabling x-deckhouse-validations transition rules (rules
+// that reference oldSelf) to fire on updates. Pass oldValues=nil for the
+// initial create / when previous values are not available.
+func (st *SchemaStorage) ValidateTransition(valuesType SchemaType, moduleName string, values, oldValues utils.Values) error {
 	schema := st.Schemas[valuesType]
 	if schema == nil {
 		log.Warn("schema is not found",
-			slog.String("module", moduleName),
-			slog.String("valuesType", string(valuesType)))
+			slog.String(pkg.LogKeyModule, moduleName),
+			slog.String(pkg.LogKeyValuesType, string(valuesType)))
+
 		return nil
 	}
 
@@ -100,21 +136,32 @@ func (st *SchemaStorage) Validate(valuesType SchemaType, moduleName string, valu
 		return fmt.Errorf("root key '%s' not found in input values", moduleName)
 	}
 
-	validationErr := validateObject(obj, schema, moduleName)
+	var oldObj interface{}
+
+	if oldValues != nil {
+		if v, found := oldValues[moduleName]; found {
+			oldObj = v
+		}
+	}
+
+	validationErr := validateObject(obj, oldObj, schema, moduleName)
 	if validationErr == nil {
 		log.Debug("values are valid",
-			slog.String("valuesType", string(valuesType)))
+			slog.String(pkg.LogKeyValuesType, string(valuesType)))
 	} else {
 		log.Debug("values are NOT valid",
-			slog.String("valuesType", string(valuesType)),
+			slog.String(pkg.LogKeyValuesType, string(valuesType)),
 			log.Err(validationErr))
 	}
+
 	return validationErr
 }
 
 // validateObject uses schema to validate data structure in the dataObj.
+// oldDataObj is the previous value (or nil) and is threaded into CEL transition
+// rules (rules that reference oldSelf in x-deckhouse-validations).
 // See https://github.com/kubernetes/apiextensions-apiserver/blob/1bb376f70aa2c6f2dec9a8c7f05384adbfac7fbb/pkg/apiserver/validation/validation.go#L47
-func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error {
+func validateObject(dataObj, oldDataObj interface{}, s *spec.Schema, rootName string) error {
 	if s == nil {
 		return fmt.Errorf("validate config: schema is not provided")
 	}
@@ -132,12 +179,21 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 		return fmt.Errorf("validated data object have to be utils.Values or map[string]interface{}, got %v instead", reflect.TypeOf(v))
 	}
 
-	// Validate values against x-deckhouse-validation rules.
+	// Normalize the optional old value: utils.Values is just a typed alias
+	// for map[string]interface{}, but cel.ValidateTransition expects the
+	// untyped map so it can recurse uniformly.
+	if v, ok := oldDataObj.(utils.Values); ok {
+		oldDataObj = map[string]interface{}(v)
+	}
+
+	// Validate values against x-deckhouse-validation rules, threading the
+	// previous values so transition rules (oldSelf) can be evaluated.
 	if values, ok := dataObj.(map[string]interface{}); ok {
-		validationErrs, err := cel.Validate(s, values)
+		validationErrs, err := cel.ValidateTransition(s, values, oldDataObj)
 		if err != nil {
 			return err
 		}
+
 		if len(validationErrs) > 0 {
 			return errors.Join(validationErrs...)
 		}
@@ -160,12 +216,47 @@ func validateObject(dataObj interface{}, s *spec.Schema, rootName string) error 
 	return allErrs.ErrorOrNil()
 }
 
+// InjectRegistrySpec mutates the module schema to add a strict-typed "registry" field
+func (st *SchemaStorage) InjectRegistrySpec(schemaType SchemaType) {
+	scheme := st.Schemas[schemaType]
+	if scheme == nil {
+		return
+	}
+
+	if len(scheme.Properties) == 0 {
+		scheme.Properties = make(map[string]spec.Schema)
+	}
+
+	scheme.Properties["registry"] = spec.Schema{
+		SchemaProps: spec.SchemaProps{
+			Type:                 spec.StringOrArray{"object"},
+			AdditionalProperties: &spec.SchemaOrBool{Allows: false},
+			Properties: map[string]spec.Schema{
+				"base": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}, MinLength: swag.Int64(1)},
+				},
+				"dockercfg": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}},
+				},
+				"scheme": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}},
+				},
+				"ca": {
+					SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}},
+				},
+			},
+			Required: []string{"base", "scheme"},
+		},
+	}
+}
+
 // ModuleSchemasDescription describes which schemas are present in storage for the module.
 func (st *SchemaStorage) ModuleSchemasDescription() string {
 	types := availableSchemaTypes(st.Schemas)
 	if len(types) == 0 {
 		return "No OpenAPI schemas"
 	}
+
 	return fmt.Sprintf("OpenAPI schemas: %s.", strings.Join(types, ", "))
 }
 
@@ -175,6 +266,7 @@ func (st *SchemaStorage) GlobalSchemasDescription() string {
 	if len(types) == 0 {
 		return "No Global OpenAPI schemas"
 	}
+
 	return fmt.Sprintf("Global OpenAPI schemas: %s.", strings.Join(types, ", "))
 }
 
@@ -187,12 +279,15 @@ func availableSchemaTypes(schemas map[SchemaType]*spec.Schema) []string {
 	if _, has := schemas[ConfigValuesSchema]; has {
 		types = append(types, "config values")
 	}
+
 	if _, has := schemas[ValuesSchema]; has {
 		types = append(types, "values")
 	}
+
 	if _, has := schemas[HelmValuesSchema]; has {
 		types = append(types, "helm values")
 	}
+
 	return types
 }
 
@@ -200,6 +295,7 @@ func availableSchemaTypes(schemas map[SchemaType]*spec.Schema) []string {
 // swag.BytesToYAML uses yaml.MapSlice to unmarshal YAML. This type doesn't support map merge of YAML anchors.
 func YAMLBytesToJSONDoc(data []byte) (json.RawMessage, error) {
 	var yamlObj interface{}
+
 	err := yaml.Unmarshal(data, &yamlObj)
 	if err != nil {
 		return nil, fmt.Errorf("yaml unmarshal: %v", err)
@@ -236,11 +332,13 @@ func LoadSchemaFromBytes(openApiContent []byte) (*spec.Schema, error) {
 // PrepareSchemas loads schemas for config values, values and helm values.
 func PrepareSchemas(configBytes, valuesBytes []byte) (map[SchemaType]*spec.Schema, error) {
 	res := make(map[SchemaType]*spec.Schema)
+
 	if len(configBytes) > 0 {
 		schemaObj, err := LoadSchemaFromBytes(configBytes)
 		if err != nil {
 			return nil, fmt.Errorf("load '%s' schema: %w", ConfigValuesSchema, err)
 		}
+
 		res[ConfigValuesSchema] = schema.TransformSchema(
 			schemaObj,
 			&schema.AdditionalPropertiesTransformer{},

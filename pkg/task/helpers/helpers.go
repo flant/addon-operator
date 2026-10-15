@@ -69,12 +69,13 @@ func formatTaskDetails(tsk sh_task.Task, hm task.HookMetadata, phase string) str
 		if hm.DoModuleStartup {
 			details += " with doModuleStartup"
 		}
+
 		return details
 
 	case task.ParallelModuleRun:
 		return fmt.Sprintf(" for modules '%s'", hm.ModuleName)
 
-	case task.ModulePurge, task.ModuleDelete, task.ModuleEnsureCRDs:
+	case task.ModulePurge, task.ModuleDelete, task.ModuleEnsureCRDs, task.ModuleEnsureHooks:
 		return fmt.Sprintf(" for module '%s'", hm.ModuleName)
 
 	case task.GlobalHookEnableKubernetesBindings,
@@ -139,5 +140,6 @@ func formatConvergeTaskDetails(tsk sh_task.Task, phase string) string {
 	if taskEvent, ok := tsk.GetProp(converge.ConvergeEventProp).(converge.ConvergeEvent); ok {
 		return fmt.Sprintf(" for %s in phase '%s'", string(taskEvent), phase)
 	}
+
 	return ""
 }

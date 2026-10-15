@@ -89,6 +89,7 @@ func Test_FilterResult(t *testing.T) {
 
 		err := w.UnmarshalTo(os)
 		assert.Error(t, err)
+		assert.Equal(t, err.Error(), "input type: *go_hook_test.OtherStruct, wrapped type: *go_hook_test.SomeStruct: input and output types not match")
 	})
 
 	t.Run("UnmarshalTo_CustomStructWithMap", func(t *testing.T) {

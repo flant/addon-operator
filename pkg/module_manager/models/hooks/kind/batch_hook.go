@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,13 +12,14 @@ import (
 	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/deckhouse/pkg/metrics-storage/operation"
 	sdkhook "github.com/deckhouse/module-sdk/pkg/hook"
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/addon-operator/pkg/app"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
@@ -27,7 +27,6 @@ import (
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
 	kemtypes "github.com/flant/shell-operator/pkg/kube_events_manager/types"
-	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 var _ gohook.HookConfigLoader = (*BatchHook)(nil)
@@ -38,6 +37,27 @@ type BatchHook struct {
 	// hook ID in batch
 	ID     string
 	config *sdkhook.HookConfig
+
+	// TODO(ipaqsa): its temp solution, better to have separate Package/Application hook
+	applicationName      string
+	applicationNamespace string
+}
+
+// NewApplicationBatchHook new hook for application, which runs via the OS interpreter like bash/python/etc
+func NewApplicationBatchHook(name, path, appNamespace, appName, id string, keepTemporaryHookFiles bool, logProxyHookJSON bool, logger *log.Logger) *BatchHook {
+	return &BatchHook{
+		moduleName:           fmt.Sprintf("%s.%s", appNamespace, appName),
+		applicationName:      appName,
+		applicationNamespace: appNamespace,
+		Hook: sh_hook.Hook{
+			Name:                   name,
+			Path:                   path,
+			KeepTemporaryHookFiles: keepTemporaryHookFiles,
+			LogProxyHookJSON:       logProxyHookJSON,
+			Logger:                 logger,
+		},
+		ID: id,
+	}
 }
 
 // NewBatchHook new hook, which runs via the OS interpreter like bash/python/etc
@@ -103,6 +123,7 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	}
 
 	versionedContextList := bindingcontext.ConvertBindingContextList(configVersion, bContext)
+
 	bindingContextBytes, err := versionedContextList.Json()
 	if err != nil {
 		return nil, err
@@ -115,19 +136,21 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if shapp.DebugKeepTmpFilesVar == "yes" {
+		if app.DebugKeepTmpFiles {
 			return
 		}
+
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
 				h.Hook.Logger.With(pkg.LogKeyHook, h.GetName()).
 					Error("Remove tmp file",
-						slog.String("file", f),
+						slog.String(pkg.LogKeyFile, f),
 						log.Err(err))
 			}
 		}
 	}()
+
 	configValuesPatchPath := tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
 	valuesPatchPath := tmpFiles["VALUES_JSON_PATCH_PATH"]
 	metricsPath := tmpFiles["METRICS_PATH"]
@@ -150,33 +173,24 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 
 	// transfer information about parent module to hook
 	envs = append(envs, "MODULE_NAME="+h.moduleName)
+	envs = append(envs, "APPLICATION_NAME="+h.applicationName)
+	envs = append(envs, "APPLICATION_NAMESPACE="+h.applicationNamespace)
 
 	cmd := executor.NewExecutor(
 		"",
 		h.GetPath(),
 		args,
 		envs).
-		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
+		WithLogProxyHookJSON(app.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(h.LogProxyHookJSONKey).
 		WithLogger(h.Logger.Named("executor")).
 		WithChroot(utils.GetModuleChrootPath(h.moduleName))
 
 	usage, err := cmd.RunAndLogLines(ctx, logLabels)
+
 	result.Usage = usage
 	if err != nil {
-		outputError := &sdkhook.Error{}
-		trimmed := strings.TrimPrefix(err.Error(), "stderr:")
-
-		err := json.NewDecoder(bytes.NewBufferString(trimmed)).Decode(outputError)
-		if err != nil {
-			return result, err
-		}
-
-		if outputError.Message != "" {
-			return result, errors.New(outputError.Message)
-		}
-
-		return result, err
+		return result, fmt.Errorf("run and log lines: %w", err)
 	}
 
 	result.Patches[utils.ConfigMapPatch], err = utils.ValuesPatchFromFile(configValuesPatchPath)
@@ -189,10 +203,12 @@ func (h *BatchHook) Execute(ctx context.Context, configVersion string, bContext 
 		return result, fmt.Errorf("got bad json patch for values: %w", err)
 	}
 
-	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath, h.GetName())
+	operations, err := sh_hook.MetricOperationsFromFile(metricsPath, h.Name)
 	if err != nil {
-		return result, fmt.Errorf("got bad metrics: %w", err)
+		return result, fmt.Errorf("got bad metrics: %s", err)
 	}
+
+	result.Metrics = h.remapOperationsToOperations(operations)
 
 	kubernetesPatchBytes, err := os.ReadFile(kubernetesPatchPath)
 	if err != nil {
@@ -214,8 +230,10 @@ func (h *BatchHook) getConfig() (*BatchHookConfig, error) {
 func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 	args := []string{"hook", "config"}
 
-	envs := make([]string, 0)
-	envs = append(envs, os.Environ()...)
+	environ := os.Environ()
+
+	envs := make([]string, 0, len(environ))
+	envs = append(envs, environ...)
 
 	cmd := executor.NewExecutor(
 		"",
@@ -236,6 +254,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		hooks := make([]sdkhook.HookConfig, 0)
 
 		buf := bytes.NewReader(o)
+
 		err = json.NewDecoder(buf).Decode(&hooks)
 		if err != nil {
 			return nil, fmt.Errorf("decode: %w", err)
@@ -254,6 +273,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 	cfgs := &sdkhook.BatchHookConfig{}
 
 	buf := bytes.NewReader(o)
+
 	err = json.NewDecoder(buf).Decode(&cfgs)
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
@@ -264,6 +284,7 @@ func GetBatchHookConfig(moduleName, hookPath string) (*BatchHookConfig, error) {
 		outputLog := &BatchHookLog{}
 
 		buf := bytes.NewReader(o)
+
 		err = json.NewDecoder(buf).Decode(&cfgs)
 		if err != nil {
 			return nil, fmt.Errorf("decode: %w", err)
@@ -300,6 +321,10 @@ func remapSDKConfigToConfig(input *sdkhook.BatchHookConfig) (*BatchHookConfig, e
 		if input.Readiness != nil {
 			cfg.Readiness = input.Readiness
 			cfg.Hooks[BatchHookReadyKey] = input.Readiness
+		}
+
+		if input.HasSettingsCheck {
+			cfg.HasSettingsCheck = true
 		}
 	default:
 		return nil, fmt.Errorf("unknown version '%s'", input.Version)
@@ -371,6 +396,16 @@ func (h *BatchHook) GetAfterAll() *float64 {
 	return &res
 }
 
+func (h *BatchHook) GetBeforeDeleteHelm() *float64 {
+	if h.config == nil || h.config.OnBeforeDeleteHelm == nil {
+		return nil
+	}
+
+	res := float64(*h.config.OnBeforeDeleteHelm)
+
+	return &res
+}
+
 func (h *BatchHook) GetAfterDeleteHelm() *float64 {
 	if h.config == nil || h.config.OnAfterDeleteHelm == nil {
 		return nil
@@ -384,6 +419,7 @@ func (h *BatchHook) GetAfterDeleteHelm() *float64 {
 // PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
 func (h *BatchHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafeName string, configValues, values utils.Values) (map[string]string, error) {
 	var err error
+
 	tmpFiles := make(map[string]string)
 
 	tmpFiles["CONFIG_VALUES_PATH"], err = h.prepareConfigValuesJsonFile(moduleSafeName, configValues)
@@ -430,12 +466,14 @@ func (h *BatchHook) prepareMetricsFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
 // BINDING_CONTEXT_PATH
 func (h *BatchHook) prepareBindingContextJsonFile(moduleSafeName string, bindingContext []byte) (string, error) {
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-hook-%s-binding-context-%s.json", moduleSafeName, h.SafeName(), uuid.Must(uuid.NewV4()).String()))
+
 	err := utils.DumpData(path, bindingContext)
 	if err != nil {
 		return "", err
@@ -450,6 +488,7 @@ func (h *BatchHook) prepareConfigValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -459,6 +498,7 @@ func (h *BatchHook) prepareValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -468,6 +508,7 @@ func (h *BatchHook) prepareKubernetesPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -479,14 +520,15 @@ func (h *BatchHook) prepareConfigValuesJsonFile(moduleSafeName string, configVal
 	}
 
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-config-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
 	}
 
 	h.Hook.Logger.Debug("Prepared module hook config values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", configValues.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, configValues.DebugString()))
 
 	return path, nil
 }
@@ -498,14 +540,15 @@ func (h *BatchHook) prepareValuesJsonFile(moduleSafeName string, values utils.Va
 	}
 
 	path := filepath.Join(h.TmpDir, fmt.Sprintf("%s.module-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
 	}
 
 	h.Hook.Logger.Debug("Prepared module hook values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", values.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, values.DebugString()))
 
 	return path, nil
 }
@@ -535,14 +578,18 @@ func remapHookConfigV1FromHookConfig(hcfg *sdkhook.HookConfig) *config.HookConfi
 	}
 
 	for _, sch := range hcfg.Schedule {
-		hcv1.Schedule = append(hcv1.Schedule, config.ScheduleConfigV1{
+		newScheduleCfg := config.ScheduleConfigV1{
 			Name:    sch.Name,
 			Crontab: sch.Crontab,
-		})
+			Queue:   sch.Queue,
+			Group:   "main",
+		}
+
+		hcv1.Schedule = append(hcv1.Schedule, newScheduleCfg)
 	}
 
 	for _, kube := range hcfg.Kubernetes {
-		newShCfg := config.OnKubernetesEventConfigV1{
+		newKubeEventCfg := config.OnKubernetesEventConfigV1{
 			ApiVersion:                   kube.APIVersion,
 			Kind:                         kube.Kind,
 			Name:                         kube.Name,
@@ -561,13 +608,13 @@ func remapHookConfigV1FromHookConfig(hcfg *sdkhook.HookConfig) *config.HookConfi
 		}
 
 		if kube.NameSelector != nil {
-			newShCfg.NameSelector = &config.KubeNameSelectorV1{
+			newKubeEventCfg.NameSelector = &config.KubeNameSelectorV1{
 				MatchNames: kube.NameSelector.MatchNames,
 			}
 		}
 
 		if kube.NamespaceSelector != nil {
-			newShCfg.Namespace = &config.KubeNamespaceSelectorV1{
+			newKubeEventCfg.Namespace = &config.KubeNamespaceSelectorV1{
 				NameSelector:  (*kemtypes.NameSelector)(kube.NamespaceSelector.NameSelector),
 				LabelSelector: kube.NamespaceSelector.LabelSelector,
 			}
@@ -582,36 +629,67 @@ func remapHookConfigV1FromHookConfig(hcfg *sdkhook.HookConfig) *config.HookConfi
 				fs.MatchExpressions = append(fs.MatchExpressions, kemtypes.FieldSelectorRequirement(expr))
 			}
 
-			newShCfg.FieldSelector = fs
+			newKubeEventCfg.FieldSelector = fs
 		}
 
 		if kube.KeepFullObjectsInMemory != nil {
-			newShCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
+			newKubeEventCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
 		}
 
 		// *bool --> ExecuteHookOnEvents: [All events] || empty array or nothing
 		if kube.ExecuteHookOnEvents != nil && !*kube.ExecuteHookOnEvents {
-			newShCfg.ExecuteHookOnEvents = make([]kemtypes.WatchEventType, 0, 1)
+			newKubeEventCfg.ExecuteHookOnEvents = make([]kemtypes.WatchEventType, 0, 1)
 		}
 
 		if kube.ExecuteHookOnSynchronization != nil {
-			newShCfg.ExecuteHookOnSynchronization = strconv.FormatBool(*kube.ExecuteHookOnSynchronization)
+			newKubeEventCfg.ExecuteHookOnSynchronization = strconv.FormatBool(*kube.ExecuteHookOnSynchronization)
 		}
 
 		if kube.WaitForSynchronization != nil {
-			newShCfg.WaitForSynchronization = strconv.FormatBool(*kube.WaitForSynchronization)
+			newKubeEventCfg.WaitForSynchronization = strconv.FormatBool(*kube.WaitForSynchronization)
 		}
 
 		if kube.KeepFullObjectsInMemory != nil {
-			newShCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
+			newKubeEventCfg.KeepFullObjectsInMemory = strconv.FormatBool(*kube.KeepFullObjectsInMemory)
 		}
 
 		if kube.AllowFailure != nil {
-			newShCfg.AllowFailure = *kube.AllowFailure
+			newKubeEventCfg.AllowFailure = *kube.AllowFailure
 		}
 
-		hcv1.OnKubernetesEvent = append(hcv1.OnKubernetesEvent, newShCfg)
+		hcv1.OnKubernetesEvent = append(hcv1.OnKubernetesEvent, newKubeEventCfg)
 	}
 
 	return hcv1
+}
+
+func (h *BatchHook) remapOperationsToOperations(ops []sh_hook.MetricOperation) []operation.MetricOperation {
+	result := make([]operation.MetricOperation, 0, len(ops))
+	for _, op := range ops {
+		newOp := operation.MetricOperation{
+			Name:    op.Name,
+			Value:   op.Value,
+			Buckets: op.Buckets,
+			Labels:  op.Labels,
+			Group:   op.Group,
+		}
+
+		switch op.Action {
+		case "add":
+			newOp.Action = operation.ActionCounterAdd
+		case "set":
+			newOp.Action = operation.ActionGaugeSet
+		case "observe":
+			newOp.Action = operation.ActionHistogramObserve
+		case "expire":
+			newOp.Action = operation.ActionExpireMetrics
+		default:
+			h.Logger.Warn("unknown action in shoperation.MetricOperation: " + op.Action)
+			continue
+		}
+
+		result = append(result, newOp)
+	}
+
+	return result
 }

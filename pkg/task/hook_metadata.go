@@ -10,6 +10,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/task_metadata"
@@ -64,6 +65,7 @@ type ParallelRunModuleMetadata struct {
 func (pm *ParallelRunMetadata) GetModulesMetadata() map[string]ParallelRunModuleMetadata {
 	pm.l.Lock()
 	defer pm.l.Unlock()
+
 	return pm.modules
 }
 
@@ -71,6 +73,7 @@ func (pm *ParallelRunMetadata) SetModuleMetadata(moduleName string, metadata Par
 	if pm.modules == nil {
 		pm.modules = make(map[string]ParallelRunModuleMetadata)
 	}
+
 	pm.l.Lock()
 	pm.modules[moduleName] = metadata
 	pm.l.Unlock()
@@ -80,6 +83,7 @@ func (pm *ParallelRunMetadata) DeleteModuleMetadata(moduleName string) {
 	if pm.modules == nil {
 		return
 	}
+
 	pm.l.Lock()
 	delete(pm.modules, moduleName)
 	pm.l.Unlock()
@@ -88,10 +92,12 @@ func (pm *ParallelRunMetadata) DeleteModuleMetadata(moduleName string) {
 func (pm *ParallelRunMetadata) ListModules() []string {
 	pm.l.Lock()
 	defer pm.l.Unlock()
+
 	result := make([]string, 0, len(pm.modules))
 	for module := range pm.modules {
 		result = append(result, module)
 	}
+
 	return result
 }
 
@@ -99,6 +105,8 @@ var (
 	_ task_metadata.HookNameAccessor       = HookMetadata{}
 	_ task_metadata.BindingContextAccessor = HookMetadata{}
 	_ task_metadata.MonitorIDAccessor      = HookMetadata{}
+	_ task_metadata.BindingContextSetter   = HookMetadata{}
+	_ task_metadata.MonitorIDSetter        = HookMetadata{}
 	_ task.MetadataDescriptionGetter       = HookMetadata{}
 	_ modules.TaskMetadata                 = HookMetadata{}
 )
@@ -113,8 +121,9 @@ func HookMetadataAccessor(t task.Task) HookMetadata {
 	meta, ok := taskMeta.(HookMetadata)
 	if !ok {
 		log.Error("Possible Bug! task metadata is not of type ModuleHookMetadata",
-			slog.String("type", string(t.GetType())),
-			slog.String("got", fmt.Sprintf("%T", meta)))
+			slog.String(pkg.LogKeyType, string(t.GetType())),
+			slog.String(pkg.LogKeyGot, fmt.Sprintf("%T", meta)))
+
 		return HookMetadata{}
 	}
 
@@ -123,19 +132,24 @@ func HookMetadataAccessor(t task.Task) HookMetadata {
 
 func (hm HookMetadata) GetDescription() string {
 	bindingsMap := make(map[string]struct{})
-	bindings := make([]string, 0)
 
 	for _, bc := range hm.BindingContext {
 		bindingsMap[bc.Binding] = struct{}{}
 	}
+
+	bindings := make([]string, 0, len(bindingsMap))
+
 	for bindingName := range bindingsMap {
 		bindings = append(bindings, bindingName)
 	}
+
 	sort.Strings(bindings)
+
 	bindingNames := ""
 	if len(bindings) > 0 {
 		bindingNames = ":" + strings.Join(bindings, ",")
 	}
+
 	if len(hm.BindingContext) > 1 {
 		bindingNames = fmt.Sprintf("%s in %d contexts", bindingNames, len(hm.BindingContext))
 	}
@@ -151,6 +165,7 @@ func (hm HookMetadata) GetDescription() string {
 		if hm.DoModuleStartup {
 			osh = ":doStartup"
 		}
+
 		return fmt.Sprintf("%s%s%s:%s", hm.ModuleName, osh, bindingNames, hm.EventDescription)
 	}
 
@@ -169,8 +184,18 @@ func (hm HookMetadata) GetBindingContext() []bindingcontext.BindingContext {
 	return hm.BindingContext
 }
 
+func (hm HookMetadata) SetBindingContext(context []bindingcontext.BindingContext) interface{} {
+	hm.BindingContext = context
+	return hm
+}
+
 func (hm HookMetadata) GetMonitorIDs() []string {
 	return hm.MonitorIDs
+}
+
+func (hm HookMetadata) SetMonitorIDs(monitorIDs []string) interface{} {
+	hm.MonitorIDs = monitorIDs
+	return hm
 }
 
 func (hm HookMetadata) IsSynchronization() bool {

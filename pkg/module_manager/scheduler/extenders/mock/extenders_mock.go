@@ -115,20 +115,20 @@ func (f *TopologicalOne) IsTerminator() bool {
 	return true
 }
 
-func (f *TopologicalOne) GetTopologicalHints(moduleName string) []string {
+func (f *TopologicalOne) GetTopologicalHints(moduleName string) []extenders.Hint {
 	switch moduleName {
 	case "test-echo":
-		return []string{"prometheus", "cert-manager"}
+		return []extenders.Hint{{Name: "prometheus"}, {Name: "cert-manager"}}
 	case "prometheus":
-		return []string{"operator-prometheus"}
+		return []extenders.Hint{{Name: "operator-prometheus"}}
 	case "operator-prometheus":
-		return []string{"prometheus-crd"}
+		return []extenders.Hint{{Name: "prometheus-crd"}}
 	case "foobar":
-		return []string{"foo", "bar"}
+		return []extenders.Hint{{Name: "foo"}, {Name: "bar"}}
 	case "operator-trivy":
-		return []string{"istio", "admission-policy-engine"}
+		return []extenders.Hint{{Name: "istio"}, {Name: "admission-policy-engine"}}
 	case "cilium-hubble":
-		return []string{"cni-cilium"}
+		return []extenders.Hint{{Name: "cni-cilium"}}
 	}
 
 	return nil

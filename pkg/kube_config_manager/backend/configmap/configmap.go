@@ -16,7 +16,9 @@ import (
 	corev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/kube_config_manager/config"
+	kcmcontext "github.com/flant/addon-operator/pkg/kube_config_manager/context"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/client"
 )
@@ -37,7 +39,7 @@ func New(kubeClient *client.Client, namespace, name string, logger *log.Logger) 
 	}
 
 	backend := &Backend{
-		logger: logger.With("operator.component", "ConfigHandler").
+		logger: logger.With(pkg.LogKeyOperatorComponent, "ConfigHandler").
 			With("backend", "configmap"),
 		namespace: namespace,
 		name:      name,
@@ -57,7 +59,8 @@ func (b Backend) LoadConfig(ctx context.Context, _ ...string) (*config.KubeConfi
 
 	if obj == nil {
 		b.logger.Info("Initial config from ConfigMap: resource is not found",
-			slog.String("name", b.name))
+			slog.String(pkg.LogKeyName, b.name))
+
 		return nil, nil
 	}
 
@@ -81,10 +84,10 @@ func (b Backend) saveGlobalConfigValues(ctx context.Context, values utils.Values
 
 	if b.isDebugEnabled(ctx) {
 		b.logger.Info("Save global values to ConfigMap",
-			slog.String("name", b.name),
-			slog.String("values", values.DebugString()))
+			slog.String(pkg.LogKeyName, b.name),
+			slog.String(pkg.LogKeyValues, values.DebugString()))
 	} else {
-		b.logger.Info("Save global values to ConfigMap", slog.String("name", b.name))
+		b.logger.Info("Save global values to ConfigMap", slog.String(pkg.LogKeyName, b.name))
 	}
 
 	err := b.mergeValues(ctx, "global", globalKubeConfig.GetValues())
@@ -93,12 +96,7 @@ func (b Backend) saveGlobalConfigValues(ctx context.Context, values utils.Values
 }
 
 func (b Backend) isDebugEnabled(ctx context.Context) bool {
-	debug, ok := ctx.Value("kube-config-manager-debug").(bool)
-	if !ok {
-		return false
-	}
-
-	return debug
+	return kcmcontext.IsKubeConfigManagerDebug(ctx)
 }
 
 // saveModuleConfigValues updates module section in ConfigMap.
@@ -111,13 +109,13 @@ func (b Backend) saveModuleConfigValues(ctx context.Context, moduleName string, 
 
 	if b.isDebugEnabled(ctx) {
 		b.logger.Info("Save module values to ConfigMap",
-			slog.String("moduleName", moduleName),
-			slog.String("configMapName", b.name),
-			slog.String("values", values.DebugString()))
+			slog.String(pkg.LogKeyModuleName, moduleName),
+			slog.String(pkg.LogKeyConfigMapName, b.name),
+			slog.String(pkg.LogKeyValues, values.DebugString()))
 	} else {
 		b.logger.Info("Save module values to ConfigMap",
-			slog.String("moduleName", moduleName),
-			slog.String("configMapName", b.name))
+			slog.String(pkg.LogKeyModuleName, moduleName),
+			slog.String(pkg.LogKeyConfigMapName, b.name))
 	}
 
 	err := b.mergeValues(ctx, utils.ModuleNameToValuesKey(moduleName), moduleKubeConfig.GetValues()) //nolint: staticcheck,nolintlint
@@ -133,6 +131,7 @@ func (b Backend) getConfigMap(ctx context.Context) (*v1.ConfigMap, error) {
 	if errors.IsNotFound(err) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +141,7 @@ func (b Backend) getConfigMap(ctx context.Context) (*v1.ConfigMap, error) {
 
 func parseConfigMapData(data map[string]string) (*config.KubeConfig, error) {
 	var err error
+
 	cfg := config.NewConfig()
 
 	// Parse values in global section.
@@ -204,6 +204,7 @@ func getModulesNamesFromConfigData(configData map[string]string) (map[string]boo
 		if utils.ModuleNameToValuesKey(modName) != key {
 			return nil, fmt.Errorf("bad module name '%s': should be camelCased", key)
 		}
+
 		res[modName] = true
 	}
 
@@ -303,6 +304,7 @@ func (b Backend) mergeValues(ctx context.Context, moduleName string, values util
 		}
 
 		obj.Data[moduleName] = string(data)
+
 		return nil
 	})
 }
@@ -316,6 +318,7 @@ func (b Backend) updateConfigMap(ctx context.Context, transformFn func(*v1.Confi
 	}
 
 	isUpdate := true
+
 	if obj == nil {
 		obj = &v1.ConfigMap{}
 		obj.Name = b.name
@@ -336,6 +339,7 @@ func (b Backend) updateConfigMap(ctx context.Context, transformFn func(*v1.Confi
 	} else {
 		_, err = b.client.CoreV1().ConfigMaps(b.namespace).Create(ctx, obj, metav1.CreateOptions{})
 	}
+
 	return err
 }
 
@@ -355,19 +359,21 @@ func (b Backend) StartInformer(ctx context.Context, eventC chan config.Event) {
 	_, _ = cmInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			b.logConfigMapEvent(ctx, obj, "add")
+
 			err := b.handleConfigMapEvent(obj.(*v1.ConfigMap), eventC)
 			if err != nil {
 				b.logger.Error("Handle ConfigMap 'add' error",
-					slog.String("configMapName", b.name),
+					slog.String(pkg.LogKeyConfigMapName, b.name),
 					log.Err(err))
 			}
 		},
 		UpdateFunc: func(_ interface{}, obj interface{}) {
 			b.logConfigMapEvent(ctx, obj, "update")
+
 			err := b.handleConfigMapEvent(obj.(*v1.ConfigMap), eventC)
 			if err != nil {
 				b.logger.Error("Handle ConfigMap 'update' error",
-					slog.String("configMapName", b.name),
+					slog.String(pkg.LogKeyConfigMapName, b.name),
 					log.Err(err))
 			}
 		},
@@ -390,15 +396,17 @@ func (b Backend) logConfigMapEvent(ctx context.Context, obj interface{}, eventNa
 	objYaml, err := yaml.Marshal(obj)
 	if err != nil {
 		b.logger.Info("Dump ConfigMap error",
-			slog.String("configMapName", b.name),
-			slog.String("eventName", eventName),
+			slog.String(pkg.LogKeyConfigMapName, b.name),
+			slog.String(pkg.LogKeyEventName, eventName),
 			log.Err(err))
+
 		return
 	}
+
 	b.logger.Info("Dump ConfigMap",
-		slog.String("configMapName", b.name),
-		slog.String("eventName", eventName),
-		slog.String("value", string(objYaml)))
+		slog.String(pkg.LogKeyConfigMapName, b.name),
+		slog.String(pkg.LogKeyEventName, eventName),
+		slog.String(pkg.LogKeyValue, string(objYaml)))
 }
 
 func (b Backend) handleConfigMapEvent(obj *v1.ConfigMap, eventC chan config.Event) error {
@@ -413,8 +421,9 @@ func (b Backend) handleConfigMapEvent(obj *v1.ConfigMap, eventC chan config.Even
 		eventC <- config.Event{Key: "batch", Err: err}
 		// Do not update caches to detect changes on next update.
 		b.logger.Error("ConfigMap invalid",
-			slog.String("configMapName", b.name),
+			slog.String(pkg.LogKeyConfigMapName, b.name),
 			log.Err(err))
+
 		return err
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	pointer "k8s.io/utils/ptr"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/node"
@@ -64,12 +65,14 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 	}
 
 	enabledScriptPath := filepath.Join(module.GetPath(), "enabled")
+
 	f, err := os.Stat(enabledScriptPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			moduleD.scriptState = noEnabledScript
+
 			log.Debug("MODULE is ENABLED. Enabled script doesn't exist!",
-				slog.String("module", module.GetName()))
+				slog.String(pkg.LogKeyModule, module.GetName()))
 		} else {
 			moduleD.scriptState = statError
 			moduleD.stateDescription = fmt.Sprintf("Cannot stat enabled script for '%s' module: %v", module.GetName(), err)
@@ -78,8 +81,9 @@ func (e *Extender) AddBasicModule(module node.ModuleInterface) {
 	} else {
 		if utils_file.CheckExecutablePermissions(f) != nil {
 			moduleD.scriptState = nonExecutableScript
+
 			log.Warn("Found non-executable enabled script for module - assuming enabled state",
-				slog.String("module", module.GetName()))
+				slog.String(pkg.LogKeyModule, module.GetName()))
 		}
 	}
 
@@ -92,33 +96,39 @@ func (e *Extender) Name() extenders.ExtenderName {
 
 func (e *Extender) Filter(moduleName string, logLabels map[string]string) (*bool, error) {
 	if moduleDescriptor, found := e.basicModuleDescriptors[moduleName]; found {
-		var err error
-		var enabled *bool
+		var (
+			err     error
+			enabled *bool
+		)
 
 		switch moduleDescriptor.scriptState {
 		case "":
 			var isEnabled bool
+
 			refreshLogLabels := utils.MergeLabels(logLabels, map[string]string{
-				"extender": "ScriptEnabled",
+				pkg.LogKeyExtender: "ScriptEnabled",
 			})
+
 			isEnabled, err = moduleDescriptor.module.RunEnabledScript(context.Background(), e.tmpDir, e.GetEnabledModules(), refreshLogLabels)
 			if err != nil {
 				err = fmt.Errorf("failed to execute '%s' module's enabled script: %v", moduleDescriptor.module.GetName(), err)
 			}
+
 			enabled = &isEnabled
 
 		case statError:
 			log.Error(moduleDescriptor.stateDescription)
+
 			enabled = pointer.To(false)
 			err = errors.New(moduleDescriptor.stateDescription)
 
 		case nonExecutableScript:
 			log.Warn("Found non-executable enabled script for module - assuming enabled state",
-				slog.String("module", moduleDescriptor.module.GetName()))
+				slog.String(pkg.LogKeyModule, moduleDescriptor.module.GetName()))
 
 		case noEnabledScript:
 			log.Debug("MODULE is ENABLED. Enabled script doesn't exist!",
-				slog.String("module", moduleDescriptor.module.GetName()))
+				slog.String(pkg.LogKeyModule, moduleDescriptor.module.GetName()))
 		}
 
 		if err != nil {

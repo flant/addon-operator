@@ -62,7 +62,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		res.Status = queue.Fail
 
 		s.logger.Error("Discover helm releases failed, requeue task to retry after delay.",
-			slog.Int("count", s.shellTask.GetFailureCount()+1),
+			slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 			log.Err(err))
 
 		s.shellTask.UpdateFailureMessage(err.Error())
@@ -74,9 +74,9 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	res.Status = queue.Success
 
 	tasks := s.CreatePurgeTasks(state.ModulesToPurge, s.shellTask)
-	res.AfterTasks = tasks
+	res.AddAfterTasks(tasks...)
 
-	s.logTaskAdd("after", res.AfterTasks...)
+	s.logTaskAdd("after", tasks...)
 
 	return res
 }

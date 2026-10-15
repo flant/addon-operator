@@ -8,7 +8,9 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 )
@@ -45,7 +47,7 @@ type queueService interface {
 type Request struct {
 	Name         string
 	Description  string
-	Dependencies []string
+	Dependencies []extenders.Hint
 	IsReloadAll  bool
 	DoStartup    bool
 	Labels       map[string]string
@@ -89,6 +91,7 @@ func (s *Scheduler) runScheduleLoop(ctx context.Context) {
 // runProcessLoop waits for requests to be processed
 func (s *Scheduler) runProcessLoop(ctx context.Context) {
 	var idx int
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -106,7 +109,7 @@ func (s *Scheduler) Add(reqs ...*Request) {
 	defer s.mtx.Unlock()
 
 	for _, req := range reqs {
-		s.logger.Debug("add request", slog.Any("request", req))
+		s.logger.Debug("add request", slog.Any(pkg.LogKeyRequest, req))
 		// update module
 		s.requests[req.Name] = req
 		// undone module
@@ -161,8 +164,17 @@ func (s *Scheduler) reschedule(done string) {
 
 		// check if all dependencies done
 		ready := true
+
 		for _, dep := range req.Dependencies {
-			if _, ok := s.done[dep]; !ok {
+			//  - if optional and not present in requests -> ignore
+			//  - if optional and present but not done -> not ready
+			if dep.Optional {
+				if _, present := s.requests[dep.Name]; !present {
+					continue
+				}
+			}
+
+			if _, ok := s.done[dep.Name]; !ok {
 				ready = false
 				break
 			}
@@ -170,7 +182,8 @@ func (s *Scheduler) reschedule(done string) {
 
 		// schedule module if ready
 		if ready {
-			s.logger.Debug("trigger scheduling", slog.String("scheduled", req.Name), slog.Any("done", done))
+			s.logger.Debug("trigger scheduling", slog.String(pkg.LogKeyScheduled, req.Name), slog.Any(pkg.LogKeyDone, done))
+
 			s.scheduled[req.Name] = struct{}{}
 			s.processCh <- req
 		}
@@ -192,7 +205,7 @@ func (s *Scheduler) handleRequest(idx int, req *Request) {
 		})
 
 	if err := s.queueService.AddLastTaskToQueue(queueName, moduleTask); err != nil {
-		s.logger.Error("add last task to queue", slog.String("queue", queueName), slog.Any("error", err))
+		s.logger.Error("add last task to queue", slog.String(pkg.LogKeyQueue, queueName), slog.Any(pkg.LogKeyError, err))
 	}
 }
 

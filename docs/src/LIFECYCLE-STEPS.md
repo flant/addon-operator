@@ -89,8 +89,10 @@ Startup steps:
           - '{moduleName}' section in ConfigMap
           - patched with patches saved from previous module hooks
     - output
-      - 'enabled' state ($MODULE_ENABLED_RESULT temporary file)
-        - if hook return "false", hook state is disabled
+      - **module status**
+        - `$MODULE_ENABLED_RESULT` - *required* file, script writes `true` or `false`
+          - if `$MODULE_ENABLED_RESULT` contains `false`, the module is considered disabled
+        - `$MODULE_ENABLED_REASON` - *optional* file, the script can put a human-readable reason string
   - no 'enabled' script
     - merged 'enabled' state is used
   - create 3 lists
@@ -229,6 +231,13 @@ Startup steps:
       - if module values are changed, restart 'module run'                
   
 <a name="module-delete"></a>6. 'module delete' for each disabled module
+  - if a Helm release exists, execute module hooks with 'beforeDeleteHelm' binding ordered by the ORDER value (see [beforeDeleteHelm](HOOKS.md#beforedeletehelm))
+    - input
+      - binding context ($BINDING_CONTEXT_PATH temporary file)
+        - `{"binding":"beforeDeleteHelm"}`
+        - extra field `"snapshots"` contains existed objects from all 'kubernetes' bindings of this hook
+      - config and values are layered the same way as for the other module-lifecycle hooks (see 'beforeHelm' / 'afterHelm' above)
+    - if any 'beforeDeleteHelm' hook fails, `helm delete --purge` and 'afterDeleteHelm' are NOT executed and the deletion is retried with backoff
   - run `helm delete --purge`
   - execute module hooks with 'afterDeleteHelm' binding ordered by the ORDER value (see [afterDeleteHelm](HOOKS.md#afterdeletehelm))
     - input
