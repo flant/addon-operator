@@ -19,7 +19,7 @@ require (
 	github.com/go-openapi/validate v0.25.1
 	github.com/goccy/go-graphviz v0.2.9
 	github.com/gofrs/uuid/v5 v5.4.0
-	github.com/google/cel-go v0.26.0
+	github.com/google/cel-go v0.29.0
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
@@ -57,7 +57,7 @@ require (
 
 require (
 	cel.dev/expr v0.25.2 // indirect
-	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
@@ -206,7 +206,6 @@ require (
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/tetratelabs/wazero v1.8.1 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
