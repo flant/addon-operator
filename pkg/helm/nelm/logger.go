@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
-	nelmlog "github.com/werf/nelm/pkg/log"
+	nelmlog "github.com/werf/nelm/v2/pkg/log"
 
 	"github.com/flant/addon-operator/pkg"
 )
