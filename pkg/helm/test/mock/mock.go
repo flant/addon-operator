@@ -29,6 +29,7 @@ func (c *Client) ListReleasesNames() ([]string, error) {
 	if c.ReleaseNames != nil {
 		return c.ReleaseNames, nil
 	}
+
 	return []string{}, nil
 }
 
@@ -58,7 +59,7 @@ func (c *Client) DeleteRelease(_ string) error {
 	return nil
 }
 
-func (c *Client) Render(_ string, _ string, _ []string, _ []string, _ string, _ bool) (string, error) {
+func (c *Client) Render(_ string, _ string, _ []string, _ []string, _ map[string]string, _ string, _ bool) (string, error) {
 	return "", nil
 }
 
@@ -66,4 +67,8 @@ func (c *Client) WithLogLabels(_ map[string]string) {
 }
 
 func (c *Client) WithExtraLabels(_ map[string]string) {
+}
+
+func (c *Client) GetReleaseLabels(_, _ string) (string, error) {
+	return "", nil
 }

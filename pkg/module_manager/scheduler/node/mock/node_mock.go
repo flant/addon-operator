@@ -38,6 +38,7 @@ func (m MockModule) RunEnabledScript(_ context.Context, _ string, _ []string, _ 
 	}
 
 	depsEnabled := true
+
 	if len(m.ListOfRequiredModules) > 0 && m.EnabledModules != nil {
 		for _, requiredModule := range m.ListOfRequiredModules {
 			if !slices.Contains(*m.EnabledModules, requiredModule) {

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/task"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 )
@@ -12,10 +13,10 @@ import (
 // TODO pass queue name from handler, not from task
 func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 	metricLabels := map[string]string{
-		"module":             "",
+		pkg.MetricKeyModule:  "",
 		pkg.MetricKeyHook:    "",
 		pkg.MetricKeyBinding: string(t.GetType()),
-		"queue":              t.GetQueueName(),
+		pkg.MetricKeyQueue:   t.GetQueueName(),
 	}
 
 	hm := task.HookMetadataAccessor(t)
@@ -31,7 +32,7 @@ func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 		task.ModuleDelete,
 		task.ModuleHookRun,
 		task.ModulePurge:
-		metricLabels["module"] = hm.ModuleName
+		metricLabels[pkg.MetricKeyModule] = hm.ModuleName
 
 	case task.ConvergeModules,
 		task.DiscoverHelmReleases:
@@ -42,6 +43,7 @@ func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 		// set binding name instead of type
 		metricLabels[pkg.MetricKeyBinding] = hm.Binding
 	}
+
 	if t.GetType() == task.ModuleHookRun {
 		// set binding name instead of type
 		metricLabels[pkg.MetricKeyHook] = hm.HookName
@@ -49,5 +51,5 @@ func (s *TaskHandlerService) UpdateWaitInQueueMetric(t sh_task.Task) {
 	}
 
 	taskWaitTime := time.Since(t.GetQueuedAt()).Seconds()
-	s.metricStorage.CounterAdd("{PREFIX}task_wait_in_queue_seconds_total", taskWaitTime, metricLabels)
+	s.metricStorage.CounterAdd(metrics.TaskWaitInQueueSecondsTotal, taskWaitTime, metricLabels)
 }

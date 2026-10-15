@@ -9,21 +9,21 @@ import (
 	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/deckhouse/pkg/metrics-storage/operation"
 	"github.com/go-openapi/spec"
 	"github.com/gofrs/uuid/v5"
 	"gopkg.in/yaml.v3"
 
 	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/addon-operator/pkg/app"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/utils"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/executor"
 	sh_hook "github.com/flant/shell-operator/pkg/hook"
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	objectpatch "github.com/flant/shell-operator/pkg/kube/object_patch"
-	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 const (
@@ -64,10 +64,10 @@ func NewShellHook(name, path, moduleName string, keepTemporaryHookFiles bool, lo
 	}
 
 	logger.Debug("Created a new shell hook",
-		slog.String("module", sh.moduleName),
-		slog.String("hookName", sh.Name),
-		slog.String("path", sh.Path),
-		slog.String("pythonVenv", sh.pythonVenv),
+		slog.String(pkg.LogKeyModule, sh.moduleName),
+		slog.String(pkg.LogKeyHookName, sh.Name),
+		slog.String(pkg.LogKeyPath, sh.Path),
+		slog.String(pkg.LogKeyPythonVenv, sh.pythonVenv),
 	)
 
 	return sh
@@ -127,6 +127,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 	}
 
 	versionedContextList := bindingcontext.ConvertBindingContextList(configVersion, bContext)
+
 	bindingContextBytes, err := versionedContextList.Json()
 	if err != nil {
 		return nil, err
@@ -138,19 +139,21 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 	}
 	// Remove tmp files after execution
 	defer func() {
-		if shapp.DebugKeepTmpFilesVar == "yes" {
+		if app.DebugKeepTmpFiles {
 			return
 		}
+
 		for _, f := range tmpFiles {
 			err := os.Remove(f)
 			if err != nil {
 				sh.Hook.Logger.With(pkg.LogKeyHook, sh.GetName()).
 					Error("Remove tmp file",
-						slog.String("file", f),
+						slog.String(pkg.LogKeyFile, f),
 						log.Err(err))
 			}
 		}
 	}()
+
 	configValuesPatchPath := tmpFiles["CONFIG_VALUES_JSON_PATCH_PATH"]
 	valuesPatchPath := tmpFiles["VALUES_JSON_PATCH_PATH"]
 	metricsPath := tmpFiles["METRICS_PATH"]
@@ -160,6 +163,7 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 	for envName, filePath := range tmpFiles {
 		envs = append(envs, fmt.Sprintf("%s=%s", envName, filePath))
 	}
+
 	command := sh.GetPath()
 	args := make([]string, 0)
 
@@ -172,12 +176,13 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 		command,
 		args,
 		envs).
-		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
+		WithLogProxyHookJSON(app.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
 		WithChroot(utils.GetModuleChrootPath(sh.moduleName))
 
 	usage, err := cmd.RunAndLogLines(ctx, logLabels)
+
 	result.Usage = usage
 	if err != nil {
 		return result, err
@@ -193,10 +198,12 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 		return result, fmt.Errorf("got bad json patch for values: %w", err)
 	}
 
-	result.Metrics, err = metricoperation.MetricOperationsFromFile(metricsPath, sh.GetName())
+	operations, err := sh_hook.MetricOperationsFromFile(metricsPath, sh.Name)
 	if err != nil {
-		return result, fmt.Errorf("got bad metrics: %w", err)
+		return result, fmt.Errorf("got bad metrics: %s", err)
 	}
+
+	result.Metrics = sh.remapOperationsToOperations(operations)
 
 	kubernetesPatchBytes, err := os.ReadFile(kubernetesPatchPath)
 	if err != nil {
@@ -216,8 +223,8 @@ func (sh *ShellHook) Execute(ctx context.Context, configVersion string, bContext
 // version and a warning is thrown.
 func (sh *ShellHook) updateExecutorParamsForPython(command *string, envs, args *[]string) {
 	sh.Hook.Logger.Debug("Updating hook's exec parameters",
-		slog.String("module", sh.moduleName),
-		slog.String("hookName", sh.Name),
+		slog.String(pkg.LogKeyModule, sh.moduleName),
+		slog.String(pkg.LogKeyHookName, sh.Name),
 	)
 
 	if len(sh.pythonVenv) != 0 {
@@ -228,8 +235,8 @@ func (sh *ShellHook) updateExecutorParamsForPython(command *string, envs, args *
 		*args = append(newArgs, *args...)
 	} else {
 		sh.Hook.Logger.Warn("Module executes python hooks, but has no python virtual environment",
-			slog.String("module", sh.moduleName),
-			slog.String("hookName", sh.Name),
+			slog.String(pkg.LogKeyModule, sh.moduleName),
+			slog.String(pkg.LogKeyHookName, sh.Name),
 		)
 	}
 }
@@ -248,27 +255,28 @@ func (sh *ShellHook) getConfig() ([]byte, error) {
 		command,
 		args,
 		envs).
-		WithLogProxyHookJSON(shapp.LogProxyHookJSON).
+		WithLogProxyHookJSON(app.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(sh.LogProxyHookJSONKey).
 		WithLogger(sh.Logger.Named("executor")).
 		WithCMDStdout(nil).
 		WithChroot(utils.GetModuleChrootPath(sh.moduleName))
 
 	sh.Hook.Logger.Debug("Executing hook",
-		slog.String("args", strings.Join(args, " ")))
+		slog.String(pkg.LogKeyArgs, strings.Join(args, " ")))
 
 	output, err := cmd.Output()
 	if err != nil {
 		sh.Hook.Logger.Debug("Hook config failed",
 			slog.String(pkg.LogKeyHook, sh.Name),
 			log.Err(err),
-			slog.String("output", string(output)))
+			slog.String(pkg.LogKeyOutput, string(output)))
+
 		return nil, err
 	}
 
 	sh.Hook.Logger.Debug("Hook config output",
 		slog.String(pkg.LogKeyHook, sh.Name),
-		slog.String("output", string(output)))
+		slog.String(pkg.LogKeyOutput, string(output)))
 
 	return output, nil
 }
@@ -286,12 +294,14 @@ func (sh *ShellHook) GetConfigForModule(moduleKind string) (*config.HookConfig, 
 	}
 
 	vu := config.NewDefaultVersionedUntyped()
+
 	err = vu.Load(cfgData)
 	if err != nil {
 		return nil, err
 	}
 
 	var validationFunc func(version string) *spec.Schema
+
 	switch moduleKind {
 	case "global":
 		{
@@ -318,6 +328,7 @@ func (sh *ShellHook) GetConfigForModule(moduleKind string) (*config.HookConfig, 
 
 	sh.Config = cfg
 	sh.ScheduleConfig = &HookScheduleConfig{}
+
 	err = yaml.Unmarshal(cfgData, sh.ScheduleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal schedule yaml hook config: %s", err)
@@ -364,6 +375,15 @@ func (sh *ShellHook) GetAfterAll() *float64 {
 	return nil
 }
 
+func (sh *ShellHook) GetBeforeDeleteHelm() *float64 {
+	res := ConvertFloatForBinding(sh.ScheduleConfig.BeforeDeleteHelm)
+	if res != nil {
+		return res
+	}
+
+	return nil
+}
+
 func (sh *ShellHook) GetAfterDeleteHelm() *float64 {
 	res := ConvertFloatForBinding(sh.ScheduleConfig.AfterDeleteHelm)
 	if res != nil {
@@ -378,9 +398,10 @@ type HookScheduleConfig struct {
 	BeforeAll *uint `json:"beforeAll" yaml:"beforeAll"`
 	AfterAll  *uint `json:"afterAll" yaml:"afterAll"`
 	// embedded module
-	BeforeHelm      *uint `json:"beforeHelm" yaml:"beforeHelm"`
-	AfterHelm       *uint `json:"afterHelm" yaml:"afterHelm"`
-	AfterDeleteHelm *uint `json:"afterDeleteHelm" yaml:"afterDeleteHelm"`
+	BeforeHelm       *uint `json:"beforeHelm" yaml:"beforeHelm"`
+	AfterHelm        *uint `json:"afterHelm" yaml:"afterHelm"`
+	BeforeDeleteHelm *uint `json:"beforeDeleteHelm" yaml:"beforeDeleteHelm"`
+	AfterDeleteHelm  *uint `json:"afterDeleteHelm" yaml:"afterDeleteHelm"`
 }
 
 func ConvertFloatForBinding(value *uint) *float64 {
@@ -419,6 +440,7 @@ func getGlobalHookConfigSchema(version string) *spec.Schema {
     example: 10    
 `
 		}
+
 		config.Schemas[globalHookVersion] = schema
 	}
 
@@ -431,32 +453,39 @@ func getModuleHookConfigSchema(version string) *spec.Schema {
 		schema := config.Schemas[version]
 		switch version {
 		case "v1":
-			// add beforeHelm, afterHelm and afterDeleteHelm properties
+			// add beforeHelm, afterHelm, beforeDeleteHelm and afterDeleteHelm properties
 			schema += `
   beforeHelm:
     type: integer
-    example: 10    
+    example: 10
   afterHelm:
     type: integer
-    example: 10    
+    example: 10
+  beforeDeleteHelm:
+    type: integer
+    example: 10
   afterDeleteHelm:
     type: integer
-    example: 10   
+    example: 10
 `
 		case "v0":
-			// add beforeHelm, afterHelm and afterDeleteHelm properties
+			// add beforeHelm, afterHelm, beforeDeleteHelm and afterDeleteHelm properties
 			schema += `
   beforeHelm:
     type: integer
-    example: 10    
+    example: 10
   afterHelm:
     type: integer
-    example: 10    
+    example: 10
+  beforeDeleteHelm:
+    type: integer
+    example: 10
   afterDeleteHelm:
     type: integer
-    example: 10    
+    example: 10
 `
 		}
+
 		config.Schemas[globalHookVersion] = schema
 	}
 
@@ -466,6 +495,7 @@ func getModuleHookConfigSchema(version string) *spec.Schema {
 // PrepareTmpFilesForHookRun creates temporary files for hook and returns environment variables with paths
 func (sh *ShellHook) prepareTmpFilesForHookRun(bindingContext []byte, moduleSafeName string, configValues, values utils.Values) (map[string]string, error) {
 	var err error
+
 	tmpFiles := make(map[string]string)
 
 	tmpFiles["CONFIG_VALUES_PATH"], err = sh.prepareConfigValuesJsonFile(moduleSafeName, configValues)
@@ -512,12 +542,14 @@ func (sh *ShellHook) prepareMetricsFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
 // BINDING_CONTEXT_PATH
 func (sh *ShellHook) prepareBindingContextJsonFile(moduleSafeName string, bindingContext []byte) (string, error) {
 	path := filepath.Join(sh.TmpDir, fmt.Sprintf("%s.module-hook-%s-binding-context-%s.json", moduleSafeName, sh.SafeName(), uuid.Must(uuid.NewV4()).String()))
+
 	err := utils.DumpData(path, bindingContext)
 	if err != nil {
 		return "", err
@@ -532,6 +564,7 @@ func (sh *ShellHook) prepareConfigValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -541,6 +574,7 @@ func (sh *ShellHook) prepareValuesJsonPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -550,6 +584,7 @@ func (sh *ShellHook) prepareKubernetesPatchFile() (string, error) {
 	if err := utils.CreateEmptyWritableFile(path); err != nil {
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -561,14 +596,15 @@ func (sh *ShellHook) prepareConfigValuesJsonFile(moduleSafeName string, configVa
 	}
 
 	path := filepath.Join(sh.TmpDir, fmt.Sprintf("%s.module-config-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
 	}
 
 	sh.Hook.Logger.Debug("Prepared module hook config values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", configValues.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, configValues.DebugString()))
 
 	return path, nil
 }
@@ -580,14 +616,46 @@ func (sh *ShellHook) prepareValuesJsonFile(moduleSafeName string, values utils.V
 	}
 
 	path := filepath.Join(sh.TmpDir, fmt.Sprintf("%s.module-values-%s.json", moduleSafeName, uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
 	}
 
 	sh.Hook.Logger.Debug("Prepared module hook values",
-		slog.String("module", moduleSafeName),
-		slog.String("values", values.DebugString()))
+		slog.String(pkg.LogKeyModule, moduleSafeName),
+		slog.String(pkg.LogKeyValues, values.DebugString()))
 
 	return path, nil
+}
+
+func (sh *ShellHook) remapOperationsToOperations(ops []sh_hook.MetricOperation) []operation.MetricOperation {
+	result := make([]operation.MetricOperation, 0, len(ops))
+	for _, op := range ops {
+		newOp := operation.MetricOperation{
+			Name:    op.Name,
+			Value:   op.Value,
+			Buckets: op.Buckets,
+			Labels:  op.Labels,
+			Group:   op.Group,
+		}
+
+		switch op.Action {
+		case "add":
+			newOp.Action = operation.ActionCounterAdd
+		case "set":
+			newOp.Action = operation.ActionGaugeSet
+		case "observe":
+			newOp.Action = operation.ActionHistogramObserve
+		case "expire":
+			newOp.Action = operation.ActionExpireMetrics
+		default:
+			sh.Logger.Warn("unknown action in shoperation.MetricOperation: " + op.Action)
+			continue
+		}
+
+		result = append(result, newOp)
+	}
+
+	return result
 }

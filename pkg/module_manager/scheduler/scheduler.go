@@ -18,6 +18,7 @@ import (
 	"github.com/goccy/go-graphviz"
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	exerror "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/error"
@@ -98,6 +99,7 @@ func NewScheduler(ctx context.Context, logger *log.Logger) *Scheduler {
 	nodeHash := func(n *node.Node) string {
 		return n.GetName()
 	}
+
 	return &Scheduler{
 		ctx:               ctx,
 		extenders:         make([]extenderContainer, 0),
@@ -121,11 +123,13 @@ func (s *Scheduler) GetGraphDOTDescription() ([]byte, error) {
 
 func (s *Scheduler) getGraphDOTDescription() ([]byte, error) {
 	var b bytes.Buffer
+
 	writer := bufio.NewWriter(&b)
 
 	if err := draw.DOT(s.dag, writer, draw.GraphAttribute("label", "Module Scheduler's Graph")); err != nil {
 		return nil, fmt.Errorf("couldn't write graph file: %w", err)
 	}
+
 	writer.Flush()
 
 	return b.Bytes(), nil
@@ -197,9 +201,10 @@ func (s *Scheduler) Initialize() error {
 	// add edges
 	for _, module := range s.modules {
 		var connected bool
+
 		for _, parents := range s.getEdgesFromExtenders(module.GetName()) {
-			for _, parentName := range parents {
-				parent, err := s.dag.Vertex(parentName)
+			for _, hint := range parents {
+				parent, err := s.dag.Vertex(hint.Name)
 				if err != nil && !errors.Is(err, graph.ErrVertexNotFound) {
 					return err
 				}
@@ -215,12 +220,12 @@ func (s *Scheduler) Initialize() error {
 				connected = true
 
 				// add an edge from the parent to the vertex
-				if err = s.dag.AddEdge(parentName, module.GetName()); err != nil {
+				if err = s.dag.AddEdge(hint.Name, module.GetName()); err != nil {
 					if errors.Is(err, graph.ErrEdgeAlreadyExists) {
 						continue
 					}
 
-					return fmt.Errorf("add edge between '%s' and '%s': %w", parentName, module.GetName(), err)
+					return fmt.Errorf("add edge between '%s' and '%s': %w", hint.Name, module.GetName(), err)
 				}
 			}
 		}
@@ -280,6 +285,7 @@ func (s *Scheduler) addWeightVertex(vertex *node.Node) error {
 		child  *node.Node
 		dfsErr error
 	)
+
 	err := graph.DFS(s.dag, s.root.GetName(), func(name string) bool {
 		currVertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
@@ -341,9 +347,10 @@ func (s *Scheduler) addWeightVertex(vertex *node.Node) error {
 // ApplyExtenders excludes and reorders attached extenders according to the APPLIED_MODULE_EXTENDERS env variable
 func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	appliedExtenders := []extenders.ExtenderName{}
+
 	if len(extendersEnv) == 0 {
 		log.Warn("ADDON_OPERATOR_APPLIED_MODULE_EXTENDERS variable isn't set - default list will be applied",
-			slog.Any("values", defaultAppliedExtenders))
+			slog.Any(pkg.LogKeyValues, defaultAppliedExtenders))
 		appliedExtenders = defaultAppliedExtenders
 	} else {
 		availableExtenders := make(map[extenders.ExtenderName]bool, len(s.extenders))
@@ -372,6 +379,7 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	}
 
 	newExtenders := []extenderContainer{}
+
 	for _, appliedExt := range appliedExtenders {
 		for _, e := range s.extenders {
 			if e.ext.Name() == appliedExt {
@@ -379,11 +387,13 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 				if ne, ok := e.ext.(extenders.NotificationExtender); ok {
 					ne.SetNotifyChannel(s.ctx, s.extCh)
 				}
+
 				if se, ok := e.ext.(extenders.StatefulExtender); ok {
 					se.SetModulesStateHelper(func() []string {
 						return s.vertexStateBuffer.enabledModules
 					})
 				}
+
 				break
 			}
 		}
@@ -400,7 +410,8 @@ func (s *Scheduler) ApplyExtenders(extendersEnv string) error {
 	}
 
 	log.Info("The list of applied module extenders",
-		slog.Any("finalList", finalList))
+		slog.Any(pkg.LogKeyFinalList, finalList))
+
 	return nil
 }
 
@@ -416,8 +427,9 @@ func (s *Scheduler) setExtendersMeta() {
 }
 
 // getEdgesFromExtenders cycles through topological extenders to build a map of additional edges for the module
-func (s *Scheduler) getEdgesFromExtenders(moduleName string) map[extenders.ExtenderName][]string {
-	result := make(map[extenders.ExtenderName][]string, 0)
+func (s *Scheduler) getEdgesFromExtenders(moduleName string) map[extenders.ExtenderName][]extenders.Hint {
+	result := make(map[extenders.ExtenderName][]extenders.Hint, 0)
+
 	for _, e := range s.extenders {
 		if tope, ok := e.ext.(extenders.TopologicalExtender); ok {
 			if hints := tope.GetTopologicalHints(moduleName); len(hints) > 0 {
@@ -438,6 +450,7 @@ func (s *Scheduler) AddExtender(ext extenders.Extender) error {
 	}
 
 	s.extenders = append(s.extenders, extenderContainer{ext: ext})
+
 	return nil
 }
 
@@ -456,6 +469,7 @@ func (s *Scheduler) getModuleVerticesByOrder(logLabels map[string]string) ([]*no
 			if err != nil {
 				return nil, fmt.Errorf("could not get %s vertex from the graph: %w", vertexName, err)
 			}
+
 			nodes = append(nodes, vertex)
 		}
 	}
@@ -508,6 +522,7 @@ func (s *Scheduler) customBFS(root string, visit func(node, prevNode string, pre
 		}
 
 		slices.Sort(sliceOfAdjacencies)
+
 		for _, adj := range sliceOfAdjacencies {
 			queue = append(queue, vertex{name: adj, prevName: currentHash, prevDepth: depth})
 		}
@@ -541,29 +556,33 @@ func (s *Scheduler) printSummary() (map[string]bool, error) {
 func (s *Scheduler) GetUpdatedByExtender(moduleName string) (string, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
+
 	vertex, err := s.dag.Vertex(moduleName)
 	if err != nil {
 		return "", err
 	}
+
 	return vertex.GetUpdatedBy(), err
 }
 
-func (s *Scheduler) GetFunctionalDependencies() map[string][]string {
-	result := make(map[string][]string, len(s.modules))
+func (s *Scheduler) GetFunctionalDependencies() map[string][]extenders.Hint {
+	result := make(map[string][]extenders.Hint, len(s.modules))
 
 	for _, module := range s.modules {
 		for _, ext := range s.extenders {
 			if tope, ok := ext.ext.(extenders.TopologicalExtender); ok {
 				if parents := tope.GetTopologicalHints(module.GetName()); len(parents) > 0 {
-					var deps []string
+					var deps []extenders.Hint
+
 					for _, parent := range parents {
-						if !s.IsModuleCritical(parent) {
+						if !s.IsModuleCritical(parent.Name) {
 							deps = append(deps, parent)
 						}
 					}
 
 					result[module.GetName()] = deps
 				}
+
 				break
 			}
 		}
@@ -587,6 +606,7 @@ func (s *Scheduler) IsModuleCritical(moduleName string) bool {
 func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 	s.l.Lock()
 	defer s.l.Unlock()
+
 	vertex, err := s.dag.Vertex(moduleName)
 	if err != nil {
 		return false
@@ -600,6 +620,7 @@ func (s *Scheduler) IsModuleEnabled(moduleName string) bool {
 func (s *Scheduler) GetEnabledModuleNames() []string {
 	s.l.Lock()
 	defer s.l.Unlock()
+
 	return s.getEnabledModuleNames()
 }
 
@@ -620,6 +641,7 @@ func (s *Scheduler) getModuleNamesByOrder(onlyEnabled bool, logLabels map[string
 	}
 
 	var dagOrder int
+
 	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
 
 	if s.enabledModules != nil {
@@ -640,9 +662,10 @@ func (s *Scheduler) getModuleNamesByOrder(onlyEnabled bool, logLabels map[string
 
 	if err := s.customBFS(s.root.GetName(), func(name, prevName string, prevDepth int) (bool, int) {
 		logEntry.Debug("Module Scheduler: traversing the graph",
-			slog.String("vertex", name))
+			slog.String(pkg.LogKeyVertex, name))
 
 		var depth int
+
 		vertex, props, err := s.dag.VertexWithProperties(name)
 		if err != nil {
 			bfsErr = fmt.Errorf("couldn not get %s vertex from the graph: %w", name, err)
@@ -715,6 +738,7 @@ func (s *Scheduler) getModuleNamesByOrder(onlyEnabled bool, logLabels map[string
 // if s.errList isn't empty, we try to recalculate the graph in case there were some minor errors last time.
 func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modules*/ []string /*enabled modules sorted by order*/, [][]string /*modules diff*/, map[string]bool, error) {
 	var recalculateGraph bool
+
 	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
 	s.l.Lock()
 	defer s.l.Unlock()
@@ -722,12 +746,14 @@ func (s *Scheduler) GetGraphState(logLabels map[string]string) ( /*enabled modul
 	// graph hasn't been initialized yet
 	if s.enabledModules == nil {
 		logEntry.Info("Module Scheduler: graph hasn't been calculated yet")
+
 		recalculateGraph = true
 	}
 
 	if s.err != nil {
 		logEntry.Warn("Module Scheduler: graph in a faulty state and will be recalculated",
-			slog.String("error", s.err.Error()))
+			slog.String(pkg.LogKeyError, s.err.Error()))
+
 		recalculateGraph = true
 	}
 
@@ -756,9 +782,11 @@ func (s *Scheduler) RecalculateGraph(logLabels map[string]string) (bool, []strin
 func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, logLabels map[string]string) (*bool, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
+
 	if s.root == nil {
 		return nil, fmt.Errorf("graph is empty")
 	}
+
 	if s.err != nil {
 		return nil, fmt.Errorf("graph is in a faulty state: %w", s.err)
 	}
@@ -779,7 +807,9 @@ func (s *Scheduler) Filter(extName extenders.ExtenderName, moduleName string, lo
 // - true if some other parameters, apart from state, of a vertex has changed.
 func (s *Scheduler) recalculateGraphState(logLabels map[string]string) ( /* Graph's state has changed */ bool /* list of the vertices, which updateBy statuses have changed */, []string) {
 	stateDiff, metaDiff := make(map[string]bool), make(map[string]struct{}, 0)
+
 	var graphErr error
+
 	logEntry := utils.EnrichLoggerWithLabels(s.logger, logLabels)
 
 	vertices, err := s.getModuleVerticesByOrder(logLabels)
@@ -798,6 +828,7 @@ outerCycle:
 			filterErr    error
 			moduleStatus *bool
 		)
+
 		moduleName := vertex.GetName()
 		s.vertexStateBuffer.state[moduleName] = &vertexState{}
 
@@ -826,11 +857,13 @@ outerCycle:
 							s.vertexStateBuffer.state[moduleName].enabled = *moduleStatus
 							s.vertexStateBuffer.state[moduleName].updatedBy = string(e.ext.Name())
 						}
+
 						break
 					}
 					// continue checking extenders
 					continue
 				}
+
 				s.vertexStateBuffer.state[moduleName].enabled = *moduleStatus
 				s.vertexStateBuffer.state[moduleName].updatedBy = string(e.ext.Name())
 			}
@@ -858,6 +891,7 @@ outerCycle:
 	if graphErr != nil {
 		s.err = graphErr
 		logEntry.Warn("Module Scheduler: Graph converge failed", log.Err(s.err))
+
 		return true, nil
 	}
 
@@ -880,8 +914,10 @@ outerCycle:
 		if err != nil {
 			graphErr = multierror.Append(graphErr, fmt.Errorf("couldn't get %s vertex from the graph: %v", vertexName, err))
 			s.err = graphErr
+
 			return true, nil
 		}
+
 		vertex.SetState(state.enabled)
 		vertex.SetUpdatedBy(state.updatedBy)
 	}
@@ -892,12 +928,13 @@ outerCycle:
 	// reset any previous errors
 	s.err = nil
 	logEntry.Debug("Graph was successfully updated",
-		slog.String("diff", fmt.Sprintf("%v", s.diff)))
+		slog.String(pkg.LogKeyDiff, fmt.Sprintf("%v", s.diff)))
 
 	metaDiffSlice := make([]string, 0, len(metaDiff))
 	for moduleName := range metaDiff {
 		metaDiffSlice = append(metaDiffSlice, moduleName)
 	}
+
 	slices.Sort(metaDiffSlice)
 
 	return len(stateDiff) > 0, metaDiffSlice

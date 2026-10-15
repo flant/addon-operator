@@ -44,6 +44,7 @@ type podSpecFilteredObj v1.PodSpec
 
 func ObjFilter(obj *unstructured.Unstructured) (gohook.FilterResult, error) {
 	pod := &v1.Pod{}
+
 	err := sdk.FromUnstructured(obj, pod)
 	if err != nil {
 		return nil, err

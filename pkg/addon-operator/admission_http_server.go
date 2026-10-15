@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
+	"github.com/flant/addon-operator/pkg"
 )
 
 type AdmissionServer struct {
@@ -30,7 +32,7 @@ func NewAdmissionServer(listenPort, certsDir string) *AdmissionServer {
 func (as *AdmissionServer) RegisterHandler(route string, handler http.Handler) {
 	if _, ok := as.routes[route]; ok {
 		log.Fatal("Route is already registered",
-			slog.String("route", route))
+			slog.String(pkg.LogKeyRoute, route))
 	}
 
 	as.routes[route] = handler
@@ -45,7 +47,7 @@ func (as *AdmissionServer) start(ctx context.Context) {
 	}
 
 	log.Debug("Registered admission routes",
-		slog.String("routes", fmt.Sprintf("%v", as.routes)))
+		slog.String(pkg.LogKeyRoutes, fmt.Sprintf("%v", as.routes)))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", as.listenPort),
@@ -56,6 +58,7 @@ func (as *AdmissionServer) start(ctx context.Context) {
 
 	go func() {
 		cert := path.Join(as.certsDir, "tls.crt")
+
 		key := path.Join(as.certsDir, "tls.key")
 		if err := srv.ListenAndServeTLS(cert, key); err != nil {
 			if errors.Is(err, http.ErrServerClosed) {
@@ -70,10 +73,12 @@ func (as *AdmissionServer) start(ctx context.Context) {
 		<-ctx.Done()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
 		defer func() {
 			// extra handling here
 			cancel()
 		}()
+
 		if err := srv.Shutdown(ctx); err != nil {
 			log.Fatal("Server Shutdown Failed", log.Err(err))
 		}

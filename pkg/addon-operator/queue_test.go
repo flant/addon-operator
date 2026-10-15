@@ -25,9 +25,9 @@ func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleEnsureCRDs, Id: currentTaskID}
 				q.AddLast(Task)
@@ -47,9 +47,9 @@ func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleEnsureCRDs, Id: currentTaskID}
 				q.AddLast(Task)
@@ -68,9 +68,9 @@ func Test_ModuleEnsureCRDsTasksInQueueAfterId(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: currentTaskID}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -105,9 +105,9 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -126,9 +126,9 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -150,9 +150,9 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "test"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "test"}))
@@ -171,9 +171,9 @@ func Test_QueueHasPendingModuleRunTask(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -292,9 +292,9 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			metricStorage := metric.NewStorageMock(t)
 			metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-			metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+			metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-			q := queue.NewTasksQueue(metricStorage)
+			q := queue.NewTasksQueue("test", metricStorage)
 
 			for i := range tt.in {
 				tsk := &tt.in[i]
@@ -307,7 +307,7 @@ func Test_RemoveAdjacentConvergeModules(t *testing.T) {
 			// Check tasks after remove.
 			require.Equal(t, len(tt.expect), q.Length(), "queue length should match length of expected tasks")
 			i := 0
-			q.Iterate(func(tsk sh_task.Task) {
+			q.IterateSnapshot(func(tsk sh_task.Task) {
 				require.Equal(t, tt.expect[i].Id, tsk.GetId(), "ID should match for task %d %+v", i, tsk)
 				require.Equal(t, tt.expect[i].Type, tsk.GetType(), "Type should match for task %d %+v", i, tsk)
 				i++
@@ -383,9 +383,9 @@ func Test_ModulesWithPendingModuleRun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			metricStorage := metric.NewStorageMock(t)
 			metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-			metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+			metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-			q := queue.NewTasksQueue(metricStorage)
+			q := queue.NewTasksQueue("test", metricStorage)
 
 			for _, tsk := range tt.in {
 				q.AddLast(tsk)
@@ -537,7 +537,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
 				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				// Fill queue from the test case.
 				queues = append(queues, q)
@@ -566,7 +566,7 @@ func Test_RemoveCurrentConvergeTasks(t *testing.T) {
 				// Check tasks in queue after remove.
 				require.Equal(t, len(tasks), queues[i].Length(), "length of queue %d should match length of expected tasks", i)
 				j := 0
-				queues[i].Iterate(func(tsk sh_task.Task) {
+				queues[i].IterateSnapshot(func(tsk sh_task.Task) {
 					require.Equal(t, tt.expectTasks[i][j].Id, tsk.GetId(), "ID should match for task %d %+v", j, tsk)
 					require.Equal(t, tt.expectTasks[i][j].Type, tsk.GetType(), "Type should match for task %d %+v", j, tsk)
 					j++
@@ -664,9 +664,9 @@ func Test_RemoveCurrentConvergeTasksFromId(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			metricStorage := metric.NewStorageMock(t)
 			metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-			metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+			metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-			q := queue.NewTasksQueue(metricStorage)
+			q := queue.NewTasksQueue("test", metricStorage)
 
 			// Fill queue from the test case.
 			for i := range tt.initialTasks {
@@ -692,7 +692,7 @@ func Test_RemoveCurrentConvergeTasksFromId(t *testing.T) {
 			// Check tasks in queue after remove.
 			require.Equal(t, len(tt.expectTasks), q.Length(), "queue length should match length of expected tasks")
 			i := 0
-			q.Iterate(func(tsk sh_task.Task) {
+			q.IterateSnapshot(func(tsk sh_task.Task) {
 				require.Equal(t, tt.expectTasks[i].Id, tsk.GetId(), "ID should match for task %d %+v", i, tsk)
 				require.Equal(t, tt.expectTasks[i].Type, tsk.GetType(), "Type should match for task %d %+v", i, tsk)
 				i++
@@ -713,9 +713,9 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.ModuleRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -734,9 +734,9 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.GlobalHookRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))
@@ -762,9 +762,9 @@ func Test_ConvergeModulesInQueue(t *testing.T) {
 			queue: func() *queue.TaskQueue {
 				metricStorage := metric.NewStorageMock(t)
 				metricStorage.HistogramObserveMock.Set(func(_ string, _ float64, _ map[string]string, _ []float64) {})
-				metricStorage.GaugeSetMock.Set(func(_ string, _ float64, _ map[string]string) {})
+				metricStorage.GaugeSetMock.Optional().Set(func(_ string, _ float64, _ map[string]string) {})
 
-				q := queue.NewTasksQueue(metricStorage)
+				q := queue.NewTasksQueue("test", metricStorage)
 
 				Task := &sh_task.BaseTask{Type: task.GlobalHookRun, Id: "unknown"}
 				q.AddLast(Task.WithMetadata(task.HookMetadata{ModuleName: "unknown"}))

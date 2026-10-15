@@ -13,6 +13,7 @@ func SortReverseByReference(in []string, ref []string) []string {
 	for _, v := range in {
 		inValues[v] = true
 	}
+
 	for _, v := range ref {
 		if _, hasKey := inValues[v]; hasKey {
 			// prepend
@@ -25,7 +26,7 @@ func SortReverseByReference(in []string, ref []string) []string {
 
 // SortReverse creates a copy of 'in' array and sort it in a reverse order.
 func SortReverse(in []string) []string {
-	res := make([]string, 0)
+	res := make([]string, 0, len(in))
 	res = append(res, in...)
 	sort.Sort(sort.Reverse(sort.StringSlice(res)))
 
@@ -40,6 +41,7 @@ func SortByReference(in []string, ref []string) []string {
 	for _, v := range in {
 		inValues[v] = true
 	}
+
 	for _, v := range ref {
 		if _, hasKey := inValues[v]; hasKey {
 			res = append(res, v)
@@ -67,6 +69,7 @@ func KeysSortedByReference(m map[string]struct{}, ref []string) []string {
 // not present in 'ignored' arrays.
 func ListSubtract(src []string, ignored ...[]string) []string {
 	ignoredMap := make(map[string]bool)
+
 	for _, arr := range ignored {
 		for _, v := range arr {
 			ignoredMap[v] = true
@@ -91,6 +94,7 @@ func ListIntersection(arrs ...[]string) []string {
 
 	// Counts each item in arrays.
 	m := make(map[string]int)
+
 	for _, a := range arrs {
 		for _, v := range a {
 			m[v]++

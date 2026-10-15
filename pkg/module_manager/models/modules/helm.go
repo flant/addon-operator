@@ -7,19 +7,22 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/gofrs/uuid/v5"
 	"github.com/kennygrant/sanitize"
+	"github.com/werf/nelm/pkg/action"
 	"go.opentelemetry.io/otel"
 	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/helm"
 	"github.com/flant/addon-operator/pkg/helm/client"
-	helm3lib "github.com/flant/addon-operator/pkg/helm/helm3lib"
+	"github.com/flant/addon-operator/pkg/helm/helm3lib"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/kube-client/manifest"
 	"github.com/flant/shell-operator/pkg/utils/measure"
@@ -84,6 +87,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 	}
 
 	additionalLabels := make(map[string]string)
+	// LabelMaintenanceNoResourceReconciliation is now only stored in Helm release metadata,and in resources annotations
 	if bm.GetMaintenanceState() != Managed {
 		additionalLabels[LabelMaintenanceNoResourceReconciliation] = ""
 	}
@@ -107,6 +111,8 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 		hm.logger = log.NewLogger().Named("helm-module")
 	}
 
+	hm.logger = hm.logger.With(slog.String(pkg.LogKeyModule, hm.name))
+
 	isHelm, err := hm.isHelmChart()
 	if err != nil {
 		return nil, fmt.Errorf("create HelmModule failed: %w", err)
@@ -114,7 +120,8 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 
 	if !isHelm {
 		hm.logger.Info("module has neither Chart.yaml nor templates/ dir, is't not a helm chart",
-			slog.String("name", bm.GetName()))
+			slog.String(pkg.LogKeyName, bm.GetName()))
+
 		return nil, ErrModuleIsNotHelm
 	}
 
@@ -122,7 +129,7 @@ func NewHelmModule(bm *BasicModule, namespace string, tmpDir string, deps *HelmM
 }
 
 func (hm *HelmModule) WithLogger(logger *log.Logger) {
-	hm.logger = logger
+	hm.logger = logger.With(slog.String(pkg.LogKeyModule, hm.name))
 }
 
 // isHelmChart check, could it be considered as helm chart or not
@@ -140,8 +147,9 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 		// check that templates/ dir exists
 		_, err = os.Stat(filepath.Join(hm.path, "templates"))
 		if err == nil {
-			return true, hm.createChartYaml(chartPath)
+			return true, nil
 		}
+
 		if os.IsNotExist(err) {
 			// if templates not exists - it's not a helm module
 			return false, nil
@@ -149,16 +157,6 @@ func (hm *HelmModule) isHelmChart() (bool, error) {
 	}
 
 	return false, err
-}
-
-func (hm *HelmModule) createChartYaml(chartPath string) error {
-	// we already have versions like 0.1.0 or 0.1.1
-	// to keep helm updatable, we have to increment this version
-	// new minor version of addon-operator seems reasonable to increase minor version of a helm chart
-	data := fmt.Sprintf(`name: %s
-version: 0.2.0`, hm.name)
-
-	return os.WriteFile(chartPath, []byte(data), 0o644)
 }
 
 // checkHelmValues returns error if there is a wrong patch or values are not satisfied
@@ -178,12 +176,12 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	defer span.End()
 
 	metricLabels := map[string]string{
-		"module":                hm.name,
+		pkg.MetricKeyModule:     hm.name,
 		pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
 	}
 
 	defer measure.Duration(func(d time.Duration) {
-		hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}module_helm_seconds", d.Seconds(), metricLabels, nil)
+		hm.dependencies.MetricsStorage.HistogramObserve(metrics.ModuleHelmSeconds, d.Seconds(), metricLabels, nil)
 	})()
 
 	logEntry := utils.EnrichLoggerWithLabels(hm.logger, logLabels)
@@ -212,11 +210,18 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	if state == Unmanaged {
 		isUnmanaged, err := helmClient.GetReleaseLabels(helmReleaseName, LabelMaintenanceNoResourceReconciliation)
 		if err != nil && !errors.Is(err, helm3lib.ErrLabelIsNotFound) && !errors.Is(err, driver.ErrReleaseNotFound) {
-			return fmt.Errorf("get release label failed: %w", err)
+			// Also check for nelm ReleaseNotFoundError
+			var releaseNotFoundErr *action.ReleaseNotFoundError
+			if !errors.As(err, &releaseNotFoundErr) {
+				logEntry.Warn("get release label failed", log.Err(err), slog.String(pkg.LogKeyRelease, helmReleaseName))
+				return fmt.Errorf("get release label failed: %w", err)
+			}
+
+			logEntry.Debug("release not found when checking unmanaged state", slog.String(pkg.LogKeyRelease, helmReleaseName))
 		}
 
 		if isUnmanaged == "true" {
-			logEntry.Info("helm release is Unmanaged, skip helm upgrade", slog.String("release", helmReleaseName))
+			logEntry.Info("helm release is Unmanaged, skip helm upgrade", slog.String(pkg.LogKeyRelease, helmReleaseName))
 
 			return ErrReleaseIsUnmanaged
 		}
@@ -224,17 +229,27 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 
 	span.AddEvent("ModuleRun-HelmPhase-helm-render")
 
+	// Prepare release labels
+	releaseLabels := map[string]string{
+		LabelMaintenanceNoResourceReconciliation: "false",
+	}
+
+	if state == Unmanaged {
+		releaseLabels[LabelMaintenanceNoResourceReconciliation] = "true"
+	}
+
 	// Render templates to prevent excess helm runs.
 	var renderedManifests string
+
 	func() {
 		metricLabels := map[string]string{
-			"module":                hm.name,
+			pkg.MetricKeyModule:     hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
-			"operation":             "template",
+			pkg.MetricKeyOperation:  "template",
 		}
 
 		defer measure.Duration(func(d time.Duration) {
-			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
+			hm.dependencies.MetricsStorage.HistogramObserve(metrics.HelmOperationSeconds, d.Seconds(), metricLabels, nil)
 		})()
 
 		renderedManifests, err = helmClient.Render(
@@ -242,38 +257,46 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 			hm.path,
 			[]string{valuesPath},
 			[]string{},
+			releaseLabels,
 			hm.defaultNamespace,
 			false,
 		)
 	}()
+
 	if err != nil {
 		return err
 	}
 
 	checksum := utils.CalculateStringsChecksum(renderedManifests)
 
+	// Add checksum to release labels
+	releaseLabels["moduleChecksum"] = checksum
+
 	manifests, err := manifest.ListFromYamlDocs(renderedManifests)
 	if err != nil {
 		return err
 	}
 
-	logEntry.Debug("chart has resources", slog.Int("count", len(manifests)))
+	logEntry.Debug("chart has resources", slog.Int(pkg.LogKeyCount, len(manifests)))
 
 	span.AddEvent("ModuleRun-HelmPhase-helm-check-upgrade")
 	// Skip upgrades if nothing is changed
 	var runUpgradeRelease bool
+
 	func() {
 		metricLabels := map[string]string{
-			"module":                hm.name,
+			pkg.MetricKeyModule:     hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
-			"operation":             "check-upgrade",
+			pkg.MetricKeyOperation:  "check-upgrade",
 		}
+
 		defer measure.Duration(func(d time.Duration) {
-			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
+			hm.dependencies.MetricsStorage.HistogramObserve(metrics.HelmOperationSeconds, d.Seconds(), metricLabels, nil)
 		})()
 
 		runUpgradeRelease, err = hm.shouldRunHelmUpgrade(helmClient, helmReleaseName, checksum, manifests, logLabels)
 	}()
+
 	if err != nil {
 		return err
 	}
@@ -291,23 +314,14 @@ func (hm *HelmModule) RunHelmInstall(ctx context.Context, logLabels map[string]s
 	// Run helm upgrade. Trace and measure its time.
 	func() {
 		metricLabels := map[string]string{
-			"module":                hm.name,
+			pkg.MetricKeyModule:     hm.name,
 			pkg.MetricKeyActivation: logLabels[pkg.LogKeyEventType],
-			"operation":             "upgrade",
+			pkg.MetricKeyOperation:  "upgrade",
 		}
 
 		defer measure.Duration(func(d time.Duration) {
-			hm.dependencies.MetricsStorage.HistogramObserve("{PREFIX}helm_operation_seconds", d.Seconds(), metricLabels, nil)
+			hm.dependencies.MetricsStorage.HistogramObserve(metrics.HelmOperationSeconds, d.Seconds(), metricLabels, nil)
 		})()
-
-		releaseLabels := map[string]string{
-			"moduleChecksum":                         checksum,
-			LabelMaintenanceNoResourceReconciliation: "false",
-		}
-
-		if state == Unmanaged {
-			releaseLabels[LabelMaintenanceNoResourceReconciliation] = "true"
-		}
 
 		err = helmClient.UpgradeRelease(
 			helmReleaseName,
@@ -336,7 +350,7 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	revision, status, err := helmClient.LastReleaseStatus(releaseName)
 
 	if revision == "0" {
-		logEntry.Debug("helm release not exists: should run upgrade", slog.String("release", releaseName))
+		logEntry.Debug("helm release not exists: should run upgrade", slog.String(pkg.LogKeyRelease, releaseName))
 		return true, nil
 	}
 
@@ -347,8 +361,9 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	// Run helm upgrade if last release isn't `deployed`
 	if strings.ToLower(status) != "deployed" {
 		logEntry.Debug("helm release: should run upgrade",
-			slog.String("release", releaseName),
-			slog.String("status", strings.ToLower(status)))
+			slog.String(pkg.LogKeyRelease, releaseName),
+			slog.String(pkg.LogKeyStatus, strings.ToLower(status)))
+
 		return true, nil
 	}
 
@@ -356,8 +371,9 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	recordedChecksum, err := helmClient.GetReleaseChecksum(releaseName)
 	if err != nil {
 		logEntry.Debug("helm release get values error, no upgrade",
-			slog.String("release", releaseName),
+			slog.String(pkg.LogKeyRelease, releaseName),
 			log.Err(err))
+
 		return false, err
 	}
 
@@ -365,9 +381,10 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	// Run helm upgrade if checksum is changed.
 	if recordedChecksum != checksum {
 		logEntry.Debug("helm release checksum is changed: should run upgrade",
-			slog.String("release", releaseName),
-			slog.String("checksum", recordedChecksum),
-			slog.String("newChecksum", checksum))
+			slog.String(pkg.LogKeyRelease, releaseName),
+			slog.String(pkg.LogKeyChecksum, recordedChecksum),
+			slog.String(pkg.LogKeyNewChecksum, checksum))
+
 		return true, nil
 	}
 
@@ -380,14 +397,16 @@ func (hm *HelmModule) shouldRunHelmUpgrade(helmClient client.HelmClient, release
 	// Run helm upgrade if there are absent resources
 	if len(absent) > 0 {
 		logEntry.Debug("helm release has absent resources: should run upgrade",
-			slog.String("release", releaseName),
-			slog.Int("count", len(absent)),
+			slog.String(pkg.LogKeyRelease, releaseName),
+			slog.Int(pkg.LogKeyCount, len(absent)),
 		)
+
 		return true, nil
 	}
 
 	logEntry.Debug("helm release is unchanged: skip release upgrade",
-		slog.String("release", releaseName))
+		slog.String(pkg.LogKeyRelease, releaseName))
+
 	return false, nil
 }
 
@@ -398,14 +417,15 @@ func (hm *HelmModule) PrepareValuesYamlFile() (string, error) {
 	}
 
 	path := filepath.Join(hm.tmpDir, fmt.Sprintf("%s.module-values.yaml-%s", hm.safeName(), uuid.Must(uuid.NewV4()).String()))
+
 	err = utils.DumpData(path, data)
 	if err != nil {
 		return "", err
 	}
 
 	hm.logger.Debug("Prepared module helm values info",
-		slog.String("moduleName", hm.name),
-		slog.String("values", hm.values.DebugString()))
+		slog.String(pkg.LogKeyModuleName, hm.name),
+		slog.String(pkg.LogKeyValues, hm.values.DebugString()))
 
 	return path, nil
 }
@@ -414,10 +434,16 @@ func (hm *HelmModule) safeName() string {
 	return sanitize.BaseName(hm.name)
 }
 
-func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
+func (hm *HelmModule) Render(namespace string, debug bool, state MaintenanceState) (string, error) {
+	return hm.renderChart(hm.path, namespace, debug, state)
+}
+
+// renderChart renders the chart located at chartPath with the module values.
+func (hm *HelmModule) renderChart(chartPath, namespace string, debug bool, state MaintenanceState) (string, error) {
 	if namespace == "" {
 		namespace = "default"
 	}
+
 	valuesPath, err := hm.PrepareValuesYamlFile()
 	if err != nil {
 		return "", err
@@ -428,5 +454,180 @@ func (hm *HelmModule) Render(namespace string, debug bool) (string, error) {
 		helm.WithExtraLabels(hm.additionalLabels),
 	}
 
-	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, hm.path, []string{valuesPath}, nil, namespace, debug)
+	releaseLabels := map[string]string{
+		LabelMaintenanceNoResourceReconciliation: strconv.FormatBool(state == Unmanaged),
+	}
+
+	return hm.dependencies.HelmClientFactory.NewClient(hm.logger.Named("helm-client"), helmClientOptions...).Render(hm.name, chartPath, []string{valuesPath}, nil, releaseLabels, namespace, debug)
+}
+
+// ConversionWebhookKind is the kind of the rendered resource that carries a CRD
+// conversion webhook configuration. Such resources must be applied to the cluster
+// before the main helm release, so the release can adopt them afterwards.
+const ConversionWebhookKind = "ConversionWebhook"
+
+// RenderConversionWebhooks renders the given templates and returns only the
+// manifests of kind ConversionWebhook. They are extracted from the chart so the
+// caller can apply them ahead of the main helm install, letting the subsequent
+// release adopt the already-present resources. If the reduced chart fails to
+// render (e.g. a template depends on another non-helper template), it falls back
+// to the full chart.
+func (hm *HelmModule) RenderConversionWebhooks(namespace string, state MaintenanceState, templates []string) ([]manifest.Manifest, error) {
+	rendered, err := hm.renderConversionWebhookChart(namespace, state, templates)
+	if err != nil {
+		hm.logger.Warn("render conversion webhooks chart, fallback to full render", log.Err(err))
+
+		rendered, err = hm.Render(namespace, false, state)
+		if err != nil {
+			return nil, fmt.Errorf("render templates: %w", err)
+		}
+	}
+
+	all, err := manifest.ListFromYamlDocs(rendered)
+	if err != nil {
+		return nil, fmt.Errorf("split rendered manifests: %w", err)
+	}
+
+	webhooks := make([]manifest.Manifest, 0)
+
+	for _, m := range all {
+		if m.Kind() == ConversionWebhookKind {
+			webhooks = append(webhooks, m)
+		}
+	}
+
+	return webhooks, nil
+}
+
+// renderConversionWebhookChart builds a reduced chart with the given templates in
+// a temporary directory and renders it.
+func (hm *HelmModule) renderConversionWebhookChart(namespace string, state MaintenanceState, templates []string) (string, error) {
+	chartDir, err := os.MkdirTemp(hm.tmpDir, hm.safeName()+"-conversion-webhooks-")
+	if err != nil {
+		return "", fmt.Errorf("create chart dir: %w", err)
+	}
+	defer os.RemoveAll(chartDir)
+
+	if err = buildConversionWebhookChart(hm.path, chartDir, templates); err != nil {
+		return "", fmt.Errorf("build chart: %w", err)
+	}
+
+	return hm.renderChart(chartDir, namespace, false, state)
+}
+
+// conversionWebhookChartDirs are optional module dirs mirrored into the reduced chart:
+// charts/ holds library charts (helm_lib), webhooks/ holds handlers read via .Files.Get.
+var conversionWebhookChartDirs = []string{"charts", "webhooks"}
+
+// buildConversionWebhookChart mirrors into dst the parts of the module chart
+// needed to render the given templates: the conversionWebhookChartDirs, the
+// template helpers ("_"-prefixed partials) and the templates themselves.
+// Directories are created for real and files are symlinked, so loaders that do
+// not follow directory symlinks see the whole tree.
+func buildConversionWebhookChart(modulePath, dst string, templates []string) error {
+	for _, dir := range conversionWebhookChartDirs {
+		if err := mirrorTree(filepath.Join(modulePath, dir), filepath.Join(dst, dir)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("mirror %s: %w", dir, err)
+		}
+	}
+
+	helpers, err := getTemplateHelpers(filepath.Join(modulePath, "templates"))
+	if err != nil {
+		return fmt.Errorf("get template helpers: %w", err)
+	}
+
+	linked := make(map[string]struct{}, len(templates)+len(helpers))
+
+	for _, file := range append(helpers, templates...) {
+		if _, ok := linked[file]; ok {
+			continue
+		}
+
+		linked[file] = struct{}{}
+
+		if err = linkFile(filepath.Join(modulePath, "templates", file), filepath.Join(dst, "templates", file)); err != nil {
+			return fmt.Errorf("link template %q: %w", file, err)
+		}
+	}
+
+	return nil
+}
+
+// getTemplateHelpers returns paths, relative to templatesDir, of helm partials
+// (files prefixed with "_") that define helpers used by the templates.
+func getTemplateHelpers(templatesDir string) ([]string, error) {
+	var helpers []string
+
+	err := filepath.WalkDir(templatesDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() || !strings.HasPrefix(d.Name(), "_") {
+			return nil
+		}
+
+		rel, err := filepath.Rel(templatesDir, path)
+		if err != nil {
+			return err
+		}
+
+		helpers = append(helpers, rel)
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return helpers, nil
+}
+
+// mirrorTree recreates the src directory tree in dst following symlinks, and
+// links every regular file to its resolved source.
+func mirrorTree(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if !info.IsDir() {
+		return linkFile(src, dst)
+	}
+
+	if err = os.MkdirAll(dst, 0o755); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if err = mirrorTree(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name())); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// linkFile symlinks dst to the resolved src, creating parent directories of dst.
+func linkFile(src, dst string) error {
+	resolved, err := filepath.EvalSymlinks(src)
+	if err != nil {
+		return err
+	}
+
+	resolved, err = filepath.Abs(resolved)
+	if err != nil {
+		return err
+	}
+
+	if err = os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+
+	return os.Symlink(resolved, dst)
 }

@@ -17,6 +17,7 @@ func (t *RequiredForHelmTransformer) Transform(s *spec.Schema) *spec.Schema {
 
 	// Deep transform.
 	transformRequired(s.Properties)
+
 	return s
 }
 
@@ -31,24 +32,29 @@ func transformRequired(props map[string]spec.Schema) {
 func MergeArrays(ar1 []string, ar2 []string) []string {
 	res := make([]string, 0)
 	m := make(map[string]struct{})
+
 	for _, item := range ar1 {
 		res = append(res, item)
 		m[item] = struct{}{}
 	}
+
 	for _, item := range ar2 {
 		if _, ok := m[item]; !ok {
 			res = append(res, item)
 		}
 	}
+
 	return res
 }
 
 func MergeRequiredFields(ext spec.Extensions, required []string) []string {
 	var xReqFields []string
+
 	_, hasField := ext[XRequiredForHelm]
 	if !hasField {
 		return required
 	}
+
 	field, ok := ext.GetString(XRequiredForHelm)
 	if ok {
 		xReqFields = []string{field}

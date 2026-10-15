@@ -3,6 +3,7 @@ package hooks
 import (
 	"context"
 
+	metricoperation "github.com/deckhouse/deckhouse/pkg/metrics-storage/operation"
 	sdkpkg "github.com/deckhouse/module-sdk/pkg"
 
 	environmentmanager "github.com/flant/addon-operator/pkg/module_manager/environment_manager"
@@ -12,11 +13,10 @@ import (
 	bindingcontext "github.com/flant/shell-operator/pkg/hook/binding_context"
 	"github.com/flant/shell-operator/pkg/hook/config"
 	"github.com/flant/shell-operator/pkg/hook/controller"
-	metricoperation "github.com/flant/shell-operator/pkg/metric_storage/operation"
 )
 
 type hooksMetricsStorage interface {
-	SendBatch([]metricoperation.MetricOperation, map[string]string) error
+	ApplyBatchOperations([]metricoperation.MetricOperation, map[string]string) error
 }
 
 type kubeConfigManager interface {

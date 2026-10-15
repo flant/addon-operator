@@ -5,6 +5,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/utils"
@@ -18,8 +19,10 @@ func QueueHasPendingModuleRunTask(q *queue.TaskQueue, moduleName string) bool {
 	if q == nil {
 		return false
 	}
+
 	modules := ModulesWithPendingModuleRun(q)
 	_, has := modules[moduleName]
+
 	return has
 }
 
@@ -34,7 +37,7 @@ func ModulesWithPendingModuleRun(q *queue.TaskQueue) map[string]struct{} {
 
 	skipFirstTask := true
 
-	q.Iterate(func(t sh_task.Task) {
+	q.IterateSnapshot(func(t sh_task.Task) {
 		// Skip the first task in the queue as it can be executed already, i.e. "not pending".
 		if skipFirstTask {
 			skipFirstTask = false
@@ -63,7 +66,8 @@ func ConvergeTasksInQueue(q *queue.TaskQueue) int {
 	}
 
 	convergeTasks := 0
-	q.Iterate(func(t sh_task.Task) {
+
+	q.IterateSnapshot(func(t sh_task.Task) {
 		if converge.IsConvergeTask(t) || converge.IsFirstConvergeTask(t) {
 			convergeTasks++
 		}
@@ -78,7 +82,8 @@ func ConvergeModulesInQueue(q *queue.TaskQueue) int {
 	}
 
 	tasks := 0
-	q.Iterate(func(t sh_task.Task) {
+
+	q.IterateSnapshot(func(t sh_task.Task) {
 		taskType := t.GetType()
 		if converge.IsConvergeTask(t) && (taskType == task.ModuleRun || taskType == task.ModuleDelete) {
 			tasks++
@@ -95,13 +100,14 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 	convergeDrained := false
 
 	for _, queue := range convergeQueues {
-		if queue == nil || queue.IsEmpty() {
+		// Skip empty queues.
+		if queue == nil || queue.Length() == 0 {
 			continue
 		}
 
 		stop := false
 
-		queue.Filter(func(t sh_task.Task) bool {
+		queue.DeleteFunc(func(t sh_task.Task) bool {
 			if stop {
 				return true
 			}
@@ -117,25 +123,29 @@ func RemoveCurrentConvergeTasks(convergeQueues []*queue.TaskQueue, logLabels map
 				case task.ParallelModuleRun:
 					if hm.ParallelRunMetadata == nil || hm.ParallelRunMetadata.CancelF == nil {
 						logEntry.Warn("Couldn't get parallelRun metadata for the parallel task",
-							slog.String("type", string(t.GetType())),
-							slog.String("module", hm.ModuleName),
-							slog.String("description", hm.EventDescription),
-							slog.String("queue", queue.Name))
+							slog.String(pkg.LogKeyType, string(t.GetType())),
+							slog.String(pkg.LogKeyModule, hm.ModuleName),
+							slog.String(pkg.LogKeyDescription, hm.EventDescription),
+							slog.String(pkg.LogKeyQueue, queue.Name))
 					} else {
 						// cancel parallel task context
 						hm.ParallelRunMetadata.CancelF()
 					}
 				}
+
 				logEntry.Debug("Drained converge task",
-					slog.String("type", string(t.GetType())),
-					slog.String("module", hm.ModuleName),
-					slog.String("description", hm.EventDescription),
-					slog.String("queue", queue.Name))
+					slog.String(pkg.LogKeyType, string(t.GetType())),
+					slog.String(pkg.LogKeyModule, hm.ModuleName),
+					slog.String(pkg.LogKeyDescription, hm.EventDescription),
+					slog.String(pkg.LogKeyQueue, queue.Name))
+
 				return false
 			}
+
 			return true
 		})
 	}
+
 	return convergeDrained
 }
 
@@ -152,7 +162,8 @@ func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLab
 	IDFound := false
 	convergeDrained := false
 	stop := false
-	q.Filter(func(t sh_task.Task) bool {
+
+	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
@@ -173,13 +184,16 @@ func RemoveCurrentConvergeTasksFromId(q *queue.TaskQueue, afterId string, logLab
 			if t.GetType() == task.ConvergeModules {
 				stop = true
 			}
+
 			hm := task.HookMetadataAccessor(t)
 			logEntry.Debug("Drained converge task",
-				slog.String("type", string(t.GetType())),
-				slog.String("module", hm.ModuleName),
-				slog.String("description", hm.EventDescription))
+				slog.String(pkg.LogKeyType, string(t.GetType())),
+				slog.String(pkg.LogKeyModule, hm.ModuleName),
+				slog.String(pkg.LogKeyDescription, hm.EventDescription))
+
 			return false
 		}
+
 		return true
 	})
 
@@ -197,14 +211,17 @@ func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels
 
 	IDFound := false
 	stop := false
-	q.Filter(func(t sh_task.Task) bool {
+
+	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
+
 		if !IDFound {
 			if t.GetId() == afterId {
 				IDFound = true
 			}
+
 			return true
 		}
 
@@ -212,12 +229,14 @@ func RemoveAdjacentConvergeModules(q *queue.TaskQueue, afterId string, logLabels
 		if t.GetType() == task.ConvergeModules {
 			hm := task.HookMetadataAccessor(t)
 			logEntry.Debug("Drained adjacent ConvergeModules task",
-				slog.String("type", string(t.GetType())),
-				slog.String("description", hm.EventDescription))
+				slog.String(pkg.LogKeyType, string(t.GetType())),
+				slog.String(pkg.LogKeyDescription, hm.EventDescription))
+
 			return false
 		}
 
 		stop = true
+
 		return true
 	})
 }
@@ -226,13 +245,16 @@ func ModuleEnsureCRDsTasksInQueueAfterId(q *queue.TaskQueue, afterId string) boo
 	if q == nil {
 		return false
 	}
+
 	IDFound := false
 	taskFound := false
 	stop := false
-	q.Filter(func(t sh_task.Task) bool {
+
+	q.DeleteFunc(func(t sh_task.Task) bool {
 		if stop {
 			return true
 		}
+
 		if !IDFound {
 			if t.GetId() == afterId {
 				IDFound = true
@@ -257,7 +279,7 @@ func DrainNonMainQueue(q *queue.TaskQueue) {
 	}
 
 	// Remove all tasks.
-	q.Filter(func(_ sh_task.Task) bool {
+	q.DeleteFunc(func(_ sh_task.Task) bool {
 		return false
 	})
 }

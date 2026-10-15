@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8types "k8s.io/apimachinery/pkg/types"
@@ -28,7 +30,6 @@ import (
 	taskservice "github.com/flant/addon-operator/pkg/task/service"
 	"github.com/flant/kube-client/fake"
 	. "github.com/flant/shell-operator/pkg/hook/types"
-	metricstorage "github.com/flant/shell-operator/pkg/metric_storage"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 	file_utils "github.com/flant/shell-operator/pkg/utils/file"
@@ -104,8 +105,12 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	_, err := kubeClient.CoreV1().ConfigMaps(result.cmNamespace).Create(context.TODO(), cmObj, metav1.CreateOptions{})
 	g.Expect(err).ShouldNot(HaveOccurred(), "Should create ConfigMap/%s", result.cmName)
 
+	registry := prometheus.NewRegistry()
+	prometheus.DefaultGatherer = registry
+	prometheus.DefaultRegisterer = registry
+
 	// Assemble AddonOperator.
-	op := NewAddonOperator(context.Background(), WithLogger(log.NewNop()))
+	op := NewAddonOperator(context.Background(), nil, nil, WithLogger(log.NewNop()))
 	op.engine.KubeClient = kubeClient
 	// Mock helm client for ModuleManager
 	result.helmClient = &mockhelm.Client{}
@@ -133,8 +138,14 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 		ScheduleManager:      op.engine.ScheduleManager,
 		Helm:                 op.Helm,
 		HelmResourcesManager: op.HelmResourcesManager,
-		MetricStorage:        metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
-		HookMetricStorage:    metricstorage.NewMetricStorage(op.ctx, "addon_operator_", false, log.NewNop()),
+		MetricStorage: metricstorage.NewMetricStorage(
+			metricstorage.WithLogger(log.NewNop()),
+			metricstorage.WithNewRegistry(),
+		),
+		HookMetricStorage: metricstorage.NewMetricStorage(
+			metricstorage.WithLogger(log.NewNop()),
+			metricstorage.WithNewRegistry(),
+		),
 	}
 	cfg := module_manager.ModuleManagerConfig{
 		DirectoryConfig: dirs,
@@ -168,7 +179,8 @@ func convergeDone(op *AddonOperator) func(g Gomega) bool {
 		}
 		mainQueue := op.engine.TaskQueues.GetMain()
 		g.Expect(func() bool {
-			if mainQueue.IsEmpty() {
+			// If main queue is empty, converge is done.
+			if mainQueue.Length() == 0 {
 				return true
 			}
 			return mainQueue.GetFirst().GetFailureCount() >= 2
@@ -209,7 +221,7 @@ func Test_Operator_startup_tasks(t *testing.T) {
 	}
 
 	i := 0
-	op.engine.TaskQueues.GetMain().Iterate(func(tsk sh_task.Task) {
+	op.engine.TaskQueues.GetMain().IterateSnapshot(func(tsk sh_task.Task) {
 		// Stop checking if no expects left.
 		if i >= len(expectTasks) {
 			return
