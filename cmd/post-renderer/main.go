@@ -15,6 +15,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "couldn't read input from stdin: %s", err)
 		os.Exit(1)
 	}
+
 	buf := bytes.NewBuffer(inputBytes)
 
 	renderer := post_renderer.NewPostRenderer(map[string]string{

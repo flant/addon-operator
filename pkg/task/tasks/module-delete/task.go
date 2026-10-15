@@ -6,13 +6,15 @@ import (
 	"time"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	"go.opentelemetry.io/otel"
 
+	"github.com/flant/addon-operator/pkg"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
 	"github.com/flant/addon-operator/pkg/task"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
-	"github.com/flant/shell-operator/pkg/metric"
 	sh_task "github.com/flant/shell-operator/pkg/task"
 	"github.com/flant/shell-operator/pkg/task/queue"
 )
@@ -24,7 +26,7 @@ const (
 // TaskDependencies defines the interface for accessing necessary components
 type TaskDependencies interface {
 	GetModuleManager() *module_manager.ModuleManager
-	GetMetricStorage() metric.Storage
+	GetMetricStorage() metricsstorage.Storage
 	GetQueueService() *taskqueue.Service
 }
 
@@ -45,7 +47,7 @@ func RegisterTaskHandler(svc TaskDependencies) func(t sh_task.Task, logger *log.
 type Task struct {
 	shellTask     sh_task.Task
 	moduleManager *module_manager.ModuleManager
-	metricStorage metric.Storage
+	metricStorage metricsstorage.Storage
 	queueService  *taskqueue.Service
 	logger        *log.Logger
 }
@@ -54,7 +56,7 @@ type Task struct {
 func NewTask(
 	shellTask sh_task.Task,
 	moduleManager *module_manager.ModuleManager,
-	metricStorage metric.Storage,
+	metricStorage metricsstorage.Storage,
 	queueService *taskqueue.Service,
 	logger *log.Logger,
 ) *Task {
@@ -77,7 +79,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
 
-	s.logger.Debug("Module delete", slog.String("name", hm.ModuleName))
+	s.logger.Debug("Module delete", slog.String(pkg.LogKeyName, hm.ModuleName))
 
 	// Register module hooks to run afterHelmDelete hooks on startup.
 	// It's a noop if registration is done before.
@@ -96,10 +98,10 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, err)
 
 	if err != nil {
-		s.metricStorage.CounterAdd("{PREFIX}module_delete_errors_total", 1.0, map[string]string{"module": hm.ModuleName})
+		s.metricStorage.CounterAdd(metrics.ModuleDeleteErrorsTotal, 1.0, map[string]string{pkg.MetricKeyModule: hm.ModuleName})
 
 		s.logger.Error("Module delete failed, requeue task to retry after delay.",
-			slog.Int("count", s.shellTask.GetFailureCount()+1),
+			slog.Int(pkg.LogKeyCount, s.shellTask.GetFailureCount()+1),
 			log.Err(err))
 
 		s.shellTask.UpdateFailureMessage(err.Error())
@@ -107,7 +109,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 		res.Status = queue.Fail
 	} else {
-		s.logger.Debug("Module delete success", slog.String("name", hm.ModuleName))
+		s.logger.Debug("Module delete success", slog.String(pkg.LogKeyName, hm.ModuleName))
 
 		res.Status = queue.Success
 	}
@@ -118,7 +120,7 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 func (s *Task) drainModuleQueues(modName string) {
 	m := s.moduleManager.GetModule(modName)
 	if m == nil {
-		s.logger.Warn("Module is absent when we try to drain its queue", slog.String("module", modName))
+		s.logger.Warn("Module is absent when we try to drain its queue", slog.String(pkg.LogKeyModule, modName))
 		return
 	}
 

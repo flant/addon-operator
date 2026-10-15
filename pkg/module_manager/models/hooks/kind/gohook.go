@@ -62,8 +62,8 @@ func (h *GoHook) BackportHookConfig(cfg *config.HookConfig) {
 }
 
 // Run start ReconcileFunc
-func (h *GoHook) Run(input *gohook.HookInput) error {
-	return h.reconcileFunc(input)
+func (h *GoHook) Run(ctx context.Context, input *gohook.HookInput) error {
+	return h.reconcileFunc(ctx, input)
 }
 
 // AddMetadata add hook metadata, name and path which are resolved by SDK registry
@@ -83,7 +83,8 @@ func (h *GoHook) GetHookController() *controller.HookController {
 }
 
 // GetBasicHook returns hook for shell-operator
-// Deprecated: don't use it for production purposes. You don't need such a low level for working with hooks
+// Deprecated:
+// don't use it for production purposes. You don't need such a low level for working with hooks
 func (h *GoHook) GetBasicHook() sh_hook.Hook {
 	return h.basicHook
 }
@@ -104,7 +105,7 @@ func (h *GoHook) GetHookConfigDescription() string {
 }
 
 // Execute runs the hook and return the result of the execution
-func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
+func (h *GoHook) Execute(ctx context.Context, _ string, bContext []bindingcontext.BindingContext, _ string, configValues, values utils.Values, logLabels map[string]string) (*HookResult, error) {
 	// Values are patched in-place, so an error can occur.
 	patchableValues, err := sdkpatchablevalues.NewPatchableValues(values)
 	if err != nil {
@@ -122,7 +123,6 @@ func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.
 		With("output", "gohook")
 
 	formattedSnapshots := make(gohook.Snapshots, len(bContext))
-	newformattedSnapshots := make(gohook.NewSnapshots, len(bContext))
 	for _, bc := range bContext {
 		for snapBindingName, snaps := range bc.Snapshots {
 			for _, snapshot := range snaps {
@@ -137,8 +137,7 @@ func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.
 					continue
 				}
 
-				formattedSnapshots[snapBindingName] = append(formattedSnapshots[snapBindingName], goSnapshot)
-				newformattedSnapshots[snapBindingName] = append(newformattedSnapshots[snapBindingName], &gohook.Wrapped{Wrapped: goSnapshot})
+				formattedSnapshots[snapBindingName] = append(formattedSnapshots[snapBindingName], &gohook.Wrapped{Wrapped: goSnapshot})
 			}
 		}
 	}
@@ -146,9 +145,8 @@ func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.
 	metricsCollector := metrics.NewCollector(h.GetName())
 	patchCollector := objectpatch.NewPatchCollector()
 
-	err = h.Run(&gohook.HookInput{
+	err = h.Run(ctx, &gohook.HookInput{
 		Snapshots:        formattedSnapshots,
-		NewSnapshots:     newformattedSnapshots,
 		Values:           patchableValues,
 		ConfigValues:     patchableConfigValues,
 		PatchCollector:   patchCollector,
@@ -161,10 +159,14 @@ func (h *GoHook) Execute(_ context.Context, _ string, bContext []bindingcontext.
 		// return non-nil HookResult if there are status patches
 		if statusPatches := objectpatch.GetPatchStatusOperationsOnHookError(patchCollector.Operations()); len(statusPatches) > 0 {
 			return &HookResult{
+				Metrics:                 metricsCollector.CollectedMetrics(),
 				ObjectPatcherOperations: statusPatches,
 			}, err
 		}
-		return nil, err
+
+		return &HookResult{
+			Metrics: metricsCollector.CollectedMetrics(),
+		}, err
 	}
 
 	result := &HookResult{
@@ -201,7 +203,7 @@ func (h *GoHook) GetKind() HookKind {
 }
 
 // ReconcileFunc function which holds the main logic of the hook
-type ReconcileFunc func(input *gohook.HookInput) error
+type ReconcileFunc func(ctx context.Context, input *gohook.HookInput) error
 
 // LoadAndValidateShellConfig loads shell hook config from bytes and validate it. Returns multierror.
 func (h *GoHook) GetConfigForModule(_ string) (*config.HookConfig, error) {
@@ -243,6 +245,14 @@ func (h *GoHook) GetAfterAll() *float64 {
 	}
 
 	return nil
+}
+
+func (h *GoHook) GetBeforeDeleteHelm() *float64 {
+	if h.config == nil || h.config.OnBeforeDeleteHelm == nil {
+		return nil
+	}
+
+	return &h.config.OnBeforeDeleteHelm.Order
 }
 
 func (h *GoHook) GetAfterDeleteHelm() *float64 {
@@ -287,10 +297,13 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		monitor.WithFieldSelector(kubeCfg.FieldSelector)
 		monitor.WithNamespaceSelector(kubeCfg.NamespaceSelector)
 		monitor.WithLabelSelector(kubeCfg.LabelSelector)
+
 		if kubeCfg.FilterFunc == nil {
 			return config.HookConfig{}, errors.New(`"FilterFunc" in KubernetesConfig cannot be nil`)
 		}
+
 		filterFunc := kubeCfg.FilterFunc
+
 		monitor.FilterFunc = func(obj *unstructured.Unstructured) (interface{}, error) {
 			return filterFunc(obj)
 		}
@@ -303,15 +316,18 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		kubeConfig := htypes.OnKubernetesEventConfig{}
 		kubeConfig.Monitor = monitor
 		kubeConfig.AllowFailure = input.AllowFailure
+
 		if kubeCfg.Name == "" {
 			return c, spew.Errorf(`"name" is a required field in binding: %v`, kubeCfg)
 		}
+
 		kubeConfig.BindingName = kubeCfg.Name
 		if input.Queue == "" {
 			kubeConfig.Queue = defaultHookQueueName
 		} else {
 			kubeConfig.Queue = input.Queue
 		}
+
 		kubeConfig.Group = defaultHookGroupName
 
 		kubeConfig.ExecuteHookOnSynchronization = gohook.BoolDeref(kubeCfg.ExecuteHookOnSynchronization, true)
@@ -326,6 +342,7 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 	// schedule bindings with includeSnapshotsFrom
 	// are depend on kubernetes bindings.
 	c.Schedules = []htypes.ScheduleConfig{}
+
 	for _, inSch := range input.Schedule {
 		res := htypes.ScheduleConfig{}
 
@@ -351,6 +368,7 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		} else {
 			res.Queue = input.Queue
 		}
+
 		res.Group = "main"
 
 		c.Schedules = append(c.Schedules, res)
@@ -359,30 +377,40 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 	// Update IncludeSnapshotsFrom for every binding with a group.
 	// Merge binding's IncludeSnapshotsFrom with snapshots list calculated for group.
 	groupSnapshots := make(map[string][]string)
+
 	for _, kubeCfg := range c.OnKubernetesEvents {
 		if kubeCfg.Group == "" {
 			continue
 		}
+
 		if _, ok := groupSnapshots[kubeCfg.Group]; !ok {
 			groupSnapshots[kubeCfg.Group] = make([]string, 0)
 		}
+
 		groupSnapshots[kubeCfg.Group] = append(groupSnapshots[kubeCfg.Group], kubeCfg.BindingName)
 	}
+
 	newKubeEvents := make([]htypes.OnKubernetesEventConfig, 0)
+
 	for _, cfg := range c.OnKubernetesEvents {
 		if snapshots, ok := groupSnapshots[cfg.Group]; ok {
 			cfg.IncludeSnapshotsFrom = config.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
 		}
+
 		newKubeEvents = append(newKubeEvents, cfg)
 	}
+
 	c.OnKubernetesEvents = newKubeEvents
 	newSchedules := make([]htypes.ScheduleConfig, 0)
+
 	for _, cfg := range c.Schedules {
 		if snapshots, ok := groupSnapshots[cfg.Group]; ok {
 			cfg.IncludeSnapshotsFrom = config.MergeArrays(cfg.IncludeSnapshotsFrom, snapshots)
 		}
+
 		newSchedules = append(newSchedules, cfg)
 	}
+
 	c.Schedules = newSchedules
 
 	/*** END Copy Paste ***/

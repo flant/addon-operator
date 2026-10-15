@@ -15,6 +15,7 @@ import (
 	cr_cache "sigs.k8s.io/controller-runtime/pkg/cache"
 	cr_client "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/flant/addon-operator/pkg"
 	klient "github.com/flant/kube-client/client"
 	"github.com/flant/kube-client/manifest"
 )
@@ -76,7 +77,7 @@ func NewResourcesMonitor(ctx context.Context, cfg *ResourceMonitorConfig) *Resou
 		absentCb:         cfg.AbsentCb,
 		helmStatusGetter: cfg.HelmStatusGetter,
 
-		logger: cfg.Logger.With("operator.component", "HelmResourceMonitor"),
+		logger: cfg.Logger.With(pkg.LogKeyOperatorComponent, "HelmResourceMonitor"),
 	}
 }
 
@@ -107,8 +108,9 @@ func (r *ResourcesMonitor) Start() {
 
 				if status != "deployed" {
 					r.logger.Debug("Helm release is in unexpected status",
-						slog.String("module", r.moduleName),
-						slog.String("status", status))
+						slog.String(pkg.LogKeyModule, r.moduleName),
+						slog.String(pkg.LogKeyStatus, status))
+
 					if r.absentCb != nil {
 						r.absentCb(r.moduleName, true, []manifest.Manifest{}, r.defaultNamespace)
 					}
@@ -122,6 +124,7 @@ func (r *ResourcesMonitor) Start() {
 
 				if len(absent) > 0 {
 					r.logger.Debug("Absent resources detected")
+
 					if r.absentCb != nil {
 						r.absentCb(r.moduleName, false, absent, r.defaultNamespace)
 					}
@@ -143,10 +146,12 @@ func (r *ResourcesMonitor) GetHelmReleaseStatus(moduleName string) (string, erro
 	if err != nil {
 		return "", err
 	}
+
 	r.logger.Debug("Helm release",
-		slog.String("module", moduleName),
-		slog.String("revision", revision),
-		slog.String("status", status))
+		slog.String(pkg.LogKeyModule, moduleName),
+		slog.String(pkg.LogKeyRevision, revision),
+		slog.String(pkg.LogKeyStatus, status))
+
 	return status, nil
 }
 
@@ -180,8 +185,10 @@ func (r *ResourcesMonitor) AbsentResources() ([]manifest.Manifest, error) {
 
 	for nsgvk, manifests := range gvkMap {
 		wg.Add(1)
+
 		go r.checkGVKManifests(ctx, &wg, nsgvk, manifests, resC, concurrency)
 	}
+
 	go func() {
 		wg.Wait()
 		close(resC)
@@ -225,10 +232,12 @@ func (r *ResourcesMonitor) buildGVKMap() (map[namespacedGVK][]manifest.Manifest,
 			Version: apiRes.Version,
 			Kind:    apiRes.Kind,
 		}
+
 		ns := m.Namespace(r.defaultNamespace)
 		if !apiRes.Namespaced {
 			ns = ""
 		}
+
 		nsgvk := namespacedGVK{
 			Namespace: ns,
 			GVK:       gvk,
@@ -250,6 +259,7 @@ func (r *ResourcesMonitor) checkGVKManifests(ctx context.Context, wg *sync.WaitG
 	defer wg.Done()
 
 	concurrency <- struct{}{}
+
 	defer func() {
 		<-concurrency
 	}()
@@ -264,6 +274,7 @@ func (r *ResourcesMonitor) checkGVKManifests(ctx context.Context, wg *sync.WaitG
 		resC <- manifestResult{
 			err: err,
 		}
+
 		return
 	}
 
@@ -273,6 +284,7 @@ func (r *ResourcesMonitor) checkGVKManifests(ctx context.Context, wg *sync.WaitG
 				hasAbsent: true,
 				manifest:  mf,
 			}
+
 			return
 		}
 	}
@@ -287,7 +299,8 @@ func (r *ResourcesMonitor) listResources(ctx context.Context, nsgvk namespacedGV
 		Kind:    nsgvk.GVK.Kind + "List",
 	})
 	log.Debug("List objects from cache",
-		slog.String("nsgvk", fmt.Sprintf("%v", nsgvk)))
+		slog.String(pkg.LogKeyNsgvk, fmt.Sprintf("%v", nsgvk)))
+
 	err := r.cache.List(ctx, objList, cr_client.InNamespace(nsgvk.Namespace))
 	if err != nil {
 		return nil, fmt.Errorf("couldn't list objects from cache: %v", err)

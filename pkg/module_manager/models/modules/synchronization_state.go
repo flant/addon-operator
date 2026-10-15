@@ -46,13 +46,16 @@ func NewSynchronizationState() *SynchronizationState {
 func (s *SynchronizationState) HasQueued() bool {
 	s.m.RLock()
 	defer s.m.RUnlock()
+
 	queued := false
+
 	for _, state := range s.state {
 		if state.Queued {
 			queued = true
 			break
 		}
 	}
+
 	return queued
 }
 
@@ -60,16 +63,21 @@ func (s *SynchronizationState) HasQueued() bool {
 func (s *SynchronizationState) IsCompleted() bool {
 	s.m.RLock()
 	defer s.m.RUnlock()
+
 	done := true
+
 	for _, state := range s.state {
 		if !state.Done {
 			done = false
+
 			log.Debug("Synchronization isn't done",
 				slog.String(pkg.LogKeyHook, state.HookName),
 				slog.String(pkg.LogKeyBinding, state.BindingName))
+
 			break
 		}
 	}
+
 	return done
 }
 
@@ -77,7 +85,9 @@ func (s *SynchronizationState) IsCompleted() bool {
 func (s *SynchronizationState) QueuedForBinding(metadata TaskMetadata) {
 	s.m.Lock()
 	defer s.m.Unlock()
+
 	var state *kubernetesBindingSynchronizationState
+
 	state, ok := s.state[metadata.GetKubernetesBindingID()]
 	if !ok {
 		state = &kubernetesBindingSynchronizationState{
@@ -86,18 +96,22 @@ func (s *SynchronizationState) QueuedForBinding(metadata TaskMetadata) {
 		}
 		s.state[metadata.GetKubernetesBindingID()] = state
 	}
+
 	state.Queued = true
 }
 
 func (s *SynchronizationState) DoneForBinding(id string) {
 	s.m.Lock()
 	defer s.m.Unlock()
+
 	var state *kubernetesBindingSynchronizationState
+
 	state, ok := s.state[id]
 	if !ok {
 		state = &kubernetesBindingSynchronizationState{}
 		s.state[id] = state
 	}
+
 	log.Debug("Synchronization done",
 		slog.String(pkg.LogKeyHook, state.HookName),
 		slog.String(pkg.LogKeyBinding, state.BindingName))
@@ -107,6 +121,7 @@ func (s *SynchronizationState) DoneForBinding(id string) {
 func (s *SynchronizationState) DebugDumpState(logEntry *log.Logger) {
 	s.m.RLock()
 	defer s.m.RUnlock()
+
 	for id, state := range s.state {
 		logEntry.Debug(fmt.Sprintf("%s/%s: queued=%v done=%v id=%s", state.HookName, state.BindingName, state.Queued, state.Done, id))
 	}

@@ -62,6 +62,7 @@ func (mc *ModuleConfig) GetEnabled() string {
 	if mc == nil {
 		return ""
 	}
+
 	switch {
 	case mc.IsEnabled == nil:
 		return "n/d"
@@ -84,6 +85,7 @@ func NewModuleConfig(moduleName string, values Values) *ModuleConfig {
 	if values == nil {
 		values = make(Values)
 	}
+
 	return &ModuleConfig{
 		ModuleName:  moduleName,
 		IsEnabled:   nil,
@@ -143,6 +145,7 @@ func (mc *ModuleConfig) LoadFromValues(values Values) (*ModuleConfig, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			mc.values = values
 		default:
 			return nil, fmt.Errorf("load '%s' values: module config should be array or map. Got: %s", mc.ModuleName, spew.Sdump(moduleValuesData))
@@ -215,7 +218,9 @@ func ModuleEnabledValue(i interface{}) (*bool, error) {
 		if v {
 			return &ModuleEnabled, nil
 		}
+
 		return &ModuleDisabled, nil
 	}
+
 	return nil, fmt.Errorf("unsupported module enabled value: %v", i)
 }

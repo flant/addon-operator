@@ -12,11 +12,11 @@ import (
 
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/app"
+	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	dynamic_extender "github.com/flant/addon-operator/pkg/module_manager/scheduler/extenders/dynamically_enabled"
 	"github.com/flant/addon-operator/pkg/utils"
-	shapp "github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	sh_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
@@ -43,6 +43,7 @@ func (mm *ModuleManager) loadGlobalValues() (*globalValues, error) {
 			if key == utils.GlobalValuesKey {
 				section := commonStaticValues.GetKeySection(utils.GlobalValuesKey)
 				resultGlobalValues = utils.MergeValues(resultGlobalValues, section)
+
 				continue
 			}
 
@@ -90,7 +91,7 @@ func (mm *ModuleManager) registerGlobalModule(globalValues utils.Values, configB
 		MetricStorage:      mm.dependencies.MetricStorage,
 	}
 
-	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, shapp.DebugKeepTmpFiles, modules.WithLogger(mm.logger.Named("global-module")))
+	gm, err := modules.NewGlobalModule(mm.GlobalHooksDir, globalValues, &dep, configBytes, valuesBytes, app.DebugKeepTmpFiles, modules.WithLogger(mm.logger.Named("global-module")))
 	if err != nil {
 		return fmt.Errorf("new global module: %w", err)
 	}
@@ -126,11 +127,11 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 		hk.WithTmpDir(mm.TempDir)
 
 		mm.dependencies.MetricStorage.GaugeSet(
-			"{PREFIX}binding_count",
+			metrics.BindingCount,
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
-				pkg.MetricKeyHook: hk.GetName(),
-				"module":          "", // empty "module" label for label set consistency with module hooks
+				pkg.MetricKeyHook:   hk.GetName(),
+				pkg.MetricKeyModule: "", // empty "module" label for label set consistency with module hooks
 			})
 	}
 
@@ -138,7 +139,7 @@ func (mm *ModuleManager) registerGlobalHooks(gm *modules.GlobalModule) error {
 }
 
 func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels map[string]string) error {
-	logEntry := utils.EnrichLoggerWithLabels(mm.logger, logLabels).With(slog.String("module", ml.GetName()))
+	logEntry := utils.EnrichLoggerWithLabels(mm.logger, logLabels).With(slog.String(pkg.LogKeyModule, ml.GetName()))
 
 	hks, err := ml.RegisterHooks(logEntry)
 	if err != nil {
@@ -154,11 +155,11 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 		hk.WithTmpDir(mm.TempDir)
 
 		mm.dependencies.MetricStorage.GaugeSet(
-			"{PREFIX}binding_count",
+			metrics.BindingCount,
 			float64(hk.GetHookConfig().BindingsCount()),
 			map[string]string{
-				"module":          ml.GetName(),
-				pkg.MetricKeyHook: hk.GetName(),
+				pkg.MetricKeyModule: ml.GetName(),
+				pkg.MetricKeyHook:   hk.GetName(),
 			})
 	}
 
@@ -174,8 +175,8 @@ func (mm *ModuleManager) RegisterModuleHooks(ml *modules.BasicModule, logLabels 
 // It is a handler of task MODULE_RUN
 func (mm *ModuleManager) RunModuleHooks(ctx context.Context, m *modules.BasicModule, bt sh_op_types.BindingType, logLabels map[string]string) error {
 	logLabels = utils.MergeLabels(logLabels, map[string]string{
-		"module": m.GetName(),
-		"queue":  "main",
+		pkg.LogKeyModule: m.GetName(),
+		pkg.LogKeyQueue:  "main",
 	})
 
 	m.SetStateEnabled(true)

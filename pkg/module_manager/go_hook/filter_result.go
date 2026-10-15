@@ -68,11 +68,9 @@ func (f *Wrapped) String() string {
 	return res
 }
 
-// type NewSnapshots map[string][]Wrapped
-type NewSnapshots map[string][]sdkpkg.Snapshot
+// type Snapshots map[string][]Wrapped
+type Snapshots map[string][]sdkpkg.Snapshot
 
-func (s NewSnapshots) Get(name string) []sdkpkg.Snapshot {
+func (s Snapshots) Get(name string) []sdkpkg.Snapshot {
 	return s[name]
 }
-
-type Snapshots map[string][]FilterResult
