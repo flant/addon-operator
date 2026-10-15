@@ -17,9 +17,10 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/google/uuid"
-	"github.com/werf/nelm/v2/pkg/action"
-	"github.com/werf/nelm/v2/pkg/common"
-	nelmLog "github.com/werf/nelm/v2/pkg/log"
+	"github.com/werf/nelm/pkg/action"
+	"github.com/werf/nelm/pkg/common"
+	"github.com/werf/nelm/pkg/featgate"
+	nelmLog "github.com/werf/nelm/pkg/log"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
@@ -72,7 +73,7 @@ type CommonOptions struct {
 }
 
 type NelmActions interface {
-	ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV2, error)
+	ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV1, error)
 	ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) (*action.ReleaseInstallResultV1, error)
 	ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) error
 	ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV1, error)
@@ -81,7 +82,7 @@ type NelmActions interface {
 
 type DefaultNelmActions struct{}
 
-func (d *DefaultNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV2, error) {
+func (d *DefaultNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV1, error) {
 	return action.ReleaseGet(ctx, name, namespace, opts)
 }
 
@@ -108,7 +109,7 @@ type SafeNelmActions struct {
 }
 
 //nolint:nonamedreturns // named returns required for defer/recover to modify return values
-func (s *SafeNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (result *action.ReleaseGetResultV2, err error) {
+func (s *SafeNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (result *action.ReleaseGetResultV1, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("panic in ReleaseGet",
@@ -225,6 +226,8 @@ func NewNelmClient(opts *CommonOptions, logger *log.Logger, labels map[string]st
 	if labels != nil {
 		maps.Copy(clientLabels, labels)
 	}
+
+	featgate.FeatGateCleanNullFields.Enable()
 
 	nelmLogger := logger.With(pkg.LogKeyOperatorComponent, "nelm")
 
@@ -398,11 +401,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 			LegacyHelmCompatibleTracking: true,
 		},
 		ReleaseInstallRuntimeOptions: common.ReleaseInstallRuntimeOptions{
-			ResourceValidationOptions: common.ResourceValidationOptions{
-				NoResourceValidation: true,
-			},
 			DefaultDeletePropagation: "Background",
-			DefaultPatchesDisable:    true,
 			ExtraLabels:              c.labels,
 			ExtraAnnotations:         extraAnnotations,
 			NoInstallStandaloneCRDs:  true,
@@ -415,10 +414,8 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 		DefaultChartName:       releaseName,
 		DefaultChartVersion:    "0.2.0",
 		DefaultChartAPIVersion: "v2",
-		// nelm v2 fails on invalid annotations/labels; v1 silently dropped them.
-		DropInvalidAnnotationsAndLabels: true,
-		Timeout:                         c.opts.Timeout,
-		InstallGraphPath:                installGraphPath,
+		Timeout:                c.opts.Timeout,
+		InstallGraphPath:       installGraphPath,
 		// Releases are serialized by the module task queue, so the cluster-wide release lock is redundant.
 		LegacyNoReleaseLock: true,
 	})
@@ -540,7 +537,6 @@ func (c *NelmClient) DeleteRelease(releaseName string) error {
 		},
 		ReleaseHistoryLimit:      int(c.opts.HistoryMax),
 		DefaultDeletePropagation: "Background",
-		DefaultPatchesDisable:    true,
 		ReleaseStorageDriver:     c.opts.HelmDriver,
 		Timeout:                  c.opts.Timeout,
 		UninstallGraphPath:       installGraphPath,
@@ -629,19 +625,18 @@ func (c *NelmClient) Render(releaseName, modulePath string, valuesPaths, setValu
 			ValuesFiles: valuesPaths,
 			ValuesSet:   setValues,
 		},
-		OutputFilePath:                  "/dev/null", // No output file, we want to return the manifest as a string
-		Chart:                           modulePath,
-		DefaultChartName:                releaseName,
-		DefaultChartVersion:             "0.2.0",
-		DefaultChartAPIVersion:          "v2",
-		ExtraLabels:                     c.labels,
-		ExtraAnnotations:                extraAnnotations,
-		ReleaseName:                     releaseName,
-		ReleaseNamespace:                namespace,
-		ReleaseStorageDriver:            c.opts.HelmDriver,
-		Remote:                          true,
-		DefaultPatchesDisable:           true,
-		DropInvalidAnnotationsAndLabels: true,
+		OutputFilePath:         "/dev/null", // No output file, we want to return the manifest as a string
+		Chart:                  modulePath,
+		DefaultChartName:       releaseName,
+		DefaultChartVersion:    "0.2.0",
+		DefaultChartAPIVersion: "v2",
+		ExtraLabels:            c.labels,
+		ExtraAnnotations:       extraAnnotations,
+		ReleaseName:            releaseName,
+		ReleaseNamespace:       namespace,
+		ReleaseStorageDriver:   c.opts.HelmDriver,
+		Remote:                 true,
+		ForceAdoption:          true,
 	})
 	if err != nil {
 		if !debug {
