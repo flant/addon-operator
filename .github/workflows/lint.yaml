@@ -12,8 +12,7 @@ jobs:
       - name: Set up Go 1.23
         uses: actions/setup-go@v6
         with:
-          go-version: '1.23'
-        id: go
+          go-version: '1.26'
 
       - name: Check out addon-operator code
         uses: actions/checkout@v5
