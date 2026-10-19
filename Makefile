@@ -34,7 +34,7 @@ YQ = $(LOCALBIN)/yq
 ## TODO: remap in yaml file (version.yaml or smthng)
 ## Tool Versions
 # GO_BUILDER_VERSION must be without 'v' prefix
-GO_BUILDER_VERSION = 1.26.1
+GO_BUILDER_VERSION = 1.26.4
 GOLANGCI_LINT_VERSION = v2.11.4
 YQ_VERSION ?= v4.50.1
 
@@ -46,7 +46,7 @@ update-k8s-version: go-check
 	echo "Updating kubectl version in Dockerfile to match k8s.io/api version: $$kubectlVer"; \
 	sed -i "s/ARG kubectlVersion=.*/ARG kubectlVersion=$$kubectlVer/" Dockerfile; \
 	echo "kubectl version in Dockerfile updated to: $$kubectlVer"
-	
+
 .PHONY: update-workflows-go-version
 update-workflows-go-version: yq
 	for file in $$(find .github/workflows -name "*.yaml"); do \
