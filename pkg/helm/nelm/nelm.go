@@ -72,16 +72,16 @@ type CommonOptions struct {
 }
 
 type NelmActions interface {
-	ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV2, error)
+	ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV3, error)
 	ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) (*action.ReleaseInstallResultV1, error)
 	ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) error
-	ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV1, error)
+	ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV2, error)
 	ChartRender(ctx context.Context, opts action.ChartRenderOptions) (*action.ChartRenderResultV2, error)
 }
 
 type DefaultNelmActions struct{}
 
-func (d *DefaultNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV2, error) {
+func (d *DefaultNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV3, error) {
 	return action.ReleaseGet(ctx, name, namespace, opts)
 }
 
@@ -93,7 +93,7 @@ func (d *DefaultNelmActions) ReleaseUninstall(ctx context.Context, name, namespa
 	return action.ReleaseUninstall(ctx, name, namespace, opts)
 }
 
-func (d *DefaultNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV1, error) {
+func (d *DefaultNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV2, error) {
 	return action.ReleaseList(ctx, opts)
 }
 
@@ -108,7 +108,7 @@ type SafeNelmActions struct {
 }
 
 //nolint:nonamedreturns // named returns required for defer/recover to modify return values
-func (s *SafeNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (result *action.ReleaseGetResultV2, err error) {
+func (s *SafeNelmActions) ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (result *action.ReleaseGetResultV3, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("panic in ReleaseGet",
@@ -167,7 +167,7 @@ func (s *SafeNelmActions) ReleaseUninstall(ctx context.Context, name, namespace 
 }
 
 //nolint:nonamedreturns // named returns required for defer/recover to modify return values
-func (s *SafeNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (result *action.ReleaseListResultV1, err error) {
+func (s *SafeNelmActions) ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (result *action.ReleaseListResultV2, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("panic in ReleaseList",
@@ -272,7 +272,7 @@ func (c *NelmClient) GetReleaseLabels(releaseName, labelName string) (string, er
 		return "", fmt.Errorf("get nelm release %q: %w", releaseName, err)
 	}
 
-	if value, ok := releaseGetResult.Release.StorageLabels[labelName]; ok {
+	if value, ok := releaseGetResult.Release.Labels[labelName]; ok {
 		return value, nil
 	}
 
@@ -494,7 +494,7 @@ func (c *NelmClient) GetReleaseChecksum(releaseName string) (string, error) {
 	}
 
 	if releaseGetResult.Release != nil {
-		if checksum, ok := releaseGetResult.Release.StorageLabels["moduleChecksum"]; ok {
+		if checksum, ok := releaseGetResult.Release.Labels["moduleChecksum"]; ok {
 			logger.Debug("using storage labels")
 			return checksum, nil
 		}
@@ -584,12 +584,13 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 	releaseNames := make([]string, 0)
 
 	for _, release := range releaseListResult.Releases {
-		chartName := "unknown"
-		if release.Chart != nil {
-			chartName = release.Chart.Name
-		}
-
 		if release.Name == "" {
+			// Chart is read lazily from the release body, so only fetch it for the warning.
+			chartName := "unknown"
+			if chart, err := release.Chart(context.TODO()); err == nil {
+				chartName = chart.Name
+			}
+
 			c.logger.Warn("release name is empty, skipped", slog.String(pkg.LogKeyChart, chartName))
 			continue
 		}
