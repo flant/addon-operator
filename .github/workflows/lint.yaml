@@ -12,11 +12,9 @@ jobs:
       - name: Set up Go 1.26
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.1'
-
+          go-version: '1.26.4'
       - name: Check out addon-operator code
         uses: actions/checkout@v5
-
       - name: Restore Go modules
         id: go-modules-cache
         uses: actions/cache@v4.2.3
@@ -41,10 +39,9 @@ jobs:
     steps:
       - uses: actions/setup-python@v6
         with:
-          python-version: 3.8
+          python-version: 3.15.0
       - name: Check out addon-operator code
         uses: actions/checkout@v5
-
       - name: Run codespell
         run: |
           pip install codespell==v1.17.1
