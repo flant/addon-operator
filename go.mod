@@ -10,7 +10,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.10.0
-	github.com/flant/shell-operator v1.21.2
+	github.com/flant/shell-operator v1.21.3
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-openapi/loads v0.23.2
 	github.com/go-openapi/spec v0.22.1
@@ -23,7 +23,7 @@ require (
 	github.com/gookit/color v1.6.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kennygrant/sanitize v1.2.4
-	github.com/onsi/gomega v1.41.0
+	github.com/onsi/gomega v1.42.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.19.0
