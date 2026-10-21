@@ -592,6 +592,7 @@ func (c *NelmClient) ListReleasesNames() ([]string, error) {
 			}
 
 			c.logger.Warn("release name is empty, skipped", slog.String(pkg.LogKeyChart, chartName))
+
 			continue
 		}
 
