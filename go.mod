@@ -11,7 +11,7 @@ require (
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.10.0
 	github.com/flant/shell-operator v1.21.3
-	github.com/go-chi/chi/v5 v5.3.0
+	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-openapi/loads v0.23.2
 	github.com/go-openapi/spec v0.22.1
 	github.com/go-openapi/strfmt v0.26.2
