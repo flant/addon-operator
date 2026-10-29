@@ -92,6 +92,13 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
+
+	if !baseModule.BeginExecution() {
+		res.Status = queue.Success
+		return res
+	}
+	defer baseModule.EndExecution()
+
 	// TODO: check if module exists
 	taskHook := baseModule.GetHookByName(hm.HookName)
 
