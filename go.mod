@@ -43,7 +43,7 @@ require (
 
 require (
 	github.com/go-openapi/swag/loading v0.26.0
-	github.com/werf/nelm/v2 v2.2.0
+	github.com/werf/nelm/v2 v2.2.1
 )
 
 require (
