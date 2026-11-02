@@ -105,10 +105,10 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 	}
 
 	taskHook := func() *hooks.ModuleHook {
-		if !baseModule.BeginExecution() {
+		if !baseModule.AcquireExecutionPermit() {
 			return nil
 		}
-		defer baseModule.EndExecution()
+		defer baseModule.ReleaseExecutionPermit()
 
 		if s.moduleManager.GetModule(hm.ModuleName) != baseModule ||
 			!s.moduleManager.IsModuleEnabled(hm.ModuleName) {
@@ -133,11 +133,11 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 		return res
 	}
 
-	if !baseModule.BeginExecution() {
+	if !baseModule.AcquireExecutionPermit() {
 		res.Status = queue.Success
 		return res
 	}
-	defer baseModule.EndExecution()
+	defer baseModule.ReleaseExecutionPermit()
 
 	if ctx.Err() != nil {
 		res.Status = queue.Repeat

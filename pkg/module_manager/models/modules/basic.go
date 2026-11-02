@@ -283,9 +283,9 @@ func (bm *BasicModule) SetHooksControllersReady() {
 	bm.hooks.setControllersReady()
 }
 
-// BeginExecution admits a task while the module's hooks are available.
-// A successful call protects the task from hook shutdown until EndExecution.
-func (bm *BasicModule) BeginExecution() bool {
+// AcquireExecutionPermit admits a task while the module's hooks are available.
+// A successful call protects the task from hook shutdown until ReleaseExecutionPermit.
+func (bm *BasicModule) AcquireExecutionPermit() bool {
 	bm.executionMu.RLock()
 
 	if bm.GetPhase() == HooksDisabled {
@@ -296,7 +296,7 @@ func (bm *BasicModule) BeginExecution() bool {
 	return true
 }
 
-func (bm *BasicModule) EndExecution() {
+func (bm *BasicModule) ReleaseExecutionPermit() {
 	bm.executionMu.RUnlock()
 }
 
