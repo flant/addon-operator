@@ -2,6 +2,7 @@ package moduledelete
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/module_manager/models/modules"
 	"github.com/flant/addon-operator/pkg/task"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
 	htypes "github.com/flant/shell-operator/pkg/hook/types"
@@ -79,20 +81,22 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
 
+	baseModule.LockExecution()
+	defer baseModule.UnlockExecution()
+
 	s.logger.Debug("Module delete", slog.String(pkg.LogKeyName, hm.ModuleName))
 
-	// Register module hooks to run afterHelmDelete hooks on startup.
-	// It's a noop if registration is done before.
-	// TODO: add filter to register only afterHelmDelete hooks
-	err := s.moduleManager.RegisterModuleHooks(baseModule, s.shellTask.GetLogLabels())
+	var err error
 
-	// TODO disable events and drain queues here or earlier during ConvergeModules.RunBeforeAll phase?
-	if err == nil {
-		// Disable events
-		// op.ModuleManager.DisableModuleHooks(hm.ModuleName)
-		// Remove all hooks from parallel queues.
-		s.drainModuleQueues(hm.ModuleName)
-		err = s.moduleManager.DeleteModule(ctx, hm.ModuleName, s.shellTask.GetLogLabels())
+	if baseModule.GetPhase() == modules.HooksDisabled {
+		err = errors.New("module hooks are disabled, waiting for restart")
+	} else {
+		// Register hooks for modules that need deletion on operator startup.
+		err = s.moduleManager.RegisterModuleHooks(baseModule, s.shellTask.GetLogLabels())
+		if err == nil {
+			s.drainModuleQueues(hm.ModuleName)
+			err = s.moduleManager.DeleteModule(ctx, hm.ModuleName, s.shellTask.GetLogLabels())
+		}
 	}
 
 	s.moduleManager.UpdateModuleLastErrorAndNotify(baseModule, err)

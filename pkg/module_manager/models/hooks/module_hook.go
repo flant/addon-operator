@@ -1,13 +1,17 @@
 package hooks
 
 import (
+	"context"
 	"fmt"
 	"strings"
+
+	"golang.org/x/time/rate"
 
 	"github.com/flant/addon-operator/pkg"
 	addon_op_types "github.com/flant/addon-operator/pkg/hook/types"
 	gohook "github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/pkg/module_manager/models/hooks/kind"
+	sh_hook "github.com/flant/shell-operator/pkg/hook"
 	"github.com/flant/shell-operator/pkg/hook/controller"
 	shell_op_types "github.com/flant/shell-operator/pkg/hook/types"
 )
@@ -18,6 +22,9 @@ type ModuleHook struct {
 	hookConfigLoader
 
 	config *ModuleHookConfig
+
+	// Each registration keeps its limiter when the executable is reused.
+	rateLimiter *rate.Limiter
 }
 
 // NewModuleHook build new hook for a module
@@ -73,8 +80,14 @@ func (mh *ModuleHook) InitializeHookConfig() error {
 
 	// Make HookController and GetConfigDescription work.
 	mh.executableHook.BackportHookConfig(&mh.config.HookConfig)
+	mh.rateLimiter = sh_hook.CreateRateLimiter(&mh.config.HookConfig)
 
 	return nil
+}
+
+// RateLimitWait waits for this registration's execution rate limit.
+func (mh *ModuleHook) RateLimitWait(ctx context.Context) error {
+	return mh.rateLimiter.Wait(ctx)
 }
 
 // SynchronizationNeeded is true if there is binding with executeHookOnSynchronization.
