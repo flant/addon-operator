@@ -73,6 +73,8 @@ type BasicModule struct {
 
 	logger *log.Logger
 
+	executionMu sync.RWMutex
+
 	l     sync.RWMutex
 	state *moduleState
 }
@@ -258,6 +260,32 @@ func (bm *BasicModule) HooksControllersReady() bool {
 // SetHooksControllersReady sets controllersReady status of the hook storage to true
 func (bm *BasicModule) SetHooksControllersReady() {
 	bm.hooks.setControllersReady()
+}
+
+// AcquireExecutionPermit admits a task while the module's hooks are available.
+// A successful call protects the task from hook shutdown until ReleaseExecutionPermit.
+func (bm *BasicModule) AcquireExecutionPermit() bool {
+	bm.executionMu.RLock()
+
+	if bm.GetPhase() == HooksDisabled {
+		bm.executionMu.RUnlock()
+		return false
+	}
+
+	return true
+}
+
+func (bm *BasicModule) ReleaseExecutionPermit() {
+	bm.executionMu.RUnlock()
+}
+
+// LockExecution waits for active tasks and excludes new tasks during a lifecycle change.
+func (bm *BasicModule) LockExecution() {
+	bm.executionMu.Lock()
+}
+
+func (bm *BasicModule) UnlockExecution() {
+	bm.executionMu.Unlock()
 }
 
 // ResetState drops the module state

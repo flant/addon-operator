@@ -110,6 +110,12 @@ func (s *Task) Handle(ctx context.Context) (res queue.TaskResult) { //nolint:non
 	hm := task.HookMetadataAccessor(s.shellTask)
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
 
+	if !baseModule.AcquireExecutionPermit() {
+		res.Status = queue.Success
+		return res
+	}
+	defer baseModule.ReleaseExecutionPermit()
+
 	// Break error loop when module becomes disabled.
 	if !s.moduleManager.IsModuleEnabled(baseModule.GetName()) {
 		res.Status = queue.Success

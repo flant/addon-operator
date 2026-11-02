@@ -665,6 +665,8 @@ func (mm *ModuleManager) GetGlobalHooksInOrder(bindingType BindingType) []string
 	return names
 }
 
+// DeleteModule uninstalls the Helm release and runs afterDeleteHelm hooks.
+// The caller must hold the module execution lock.
 func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, logLabels map[string]string) error {
 	ctx, span := otel.Tracer(moduleManagerServiceName).Start(ctx, "DeleteModule")
 	defer span.End()
@@ -731,7 +733,7 @@ func (mm *ModuleManager) DeleteModule(ctx context.Context, moduleName string, lo
 		}
 
 		// Now it is safe to stop kubernetes informers and remove scheduled functions
-		mm.DisableModuleHooks(moduleName)
+		mm.disableModuleHooks(ml)
 
 		// Cleanup state.
 		ml.ResetState()
@@ -1002,11 +1004,18 @@ func (mm *ModuleManager) DisableModuleScheduleBindings(moduleName string) {
 	}
 }
 
-// DisableModuleHooks disables monitors/bindings of the module's hooks
-// It's advisable to use this method only if next step is to completely disable the module (as a short-term commitment).
-// Otherwise, as hooks are rather stateless, their confiuration may get overwritten, resulting in unexpected consequences.
+// DisableModuleHooks waits for active tasks before stopping the module's hooks.
 func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 	ml := mm.GetModule(moduleName)
+
+	ml.LockExecution()
+	defer ml.UnlockExecution()
+
+	mm.disableModuleHooks(ml)
+}
+
+func (mm *ModuleManager) disableModuleHooks(ml *modules.BasicModule) {
+	mm.SetModulePhaseAndNotify(ml, modules.HooksDisabled)
 
 	if !ml.HooksControllersReady() {
 		return
@@ -1021,8 +1030,6 @@ func (mm *ModuleManager) DisableModuleHooks(moduleName string) {
 	for _, mh := range schHooks {
 		mh.GetHookController().DisableScheduleBindings()
 	}
-
-	mm.SetModulePhaseAndNotify(ml, modules.HooksDisabled)
 }
 
 func (mm *ModuleManager) HandleScheduleEvent(
