@@ -3,6 +3,7 @@ package addon_operator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -18,7 +19,7 @@ func (op *AddonOperator) registerReadyzRoute() {
 }
 
 // handleReadinessCheck responds with the readiness state of the operator
-func (op *AddonOperator) handleReadinessCheck(w http.ResponseWriter, _ *http.Request) {
+func (op *AddonOperator) handleReadinessCheck(w http.ResponseWriter, req *http.Request) {
 	if op.LeaderElector == nil {
 		// Standard mode (no HA)
 		op.reportStartupConvergeStatus(w)
@@ -33,7 +34,7 @@ func (op *AddonOperator) handleReadinessCheck(w http.ResponseWriter, _ *http.Req
 	}
 
 	// This instance is not the leader - check the leader's status
-	op.checkLeaderReadiness(w)
+	op.checkLeaderReadiness(w, req.Context())
 }
 
 // reportStartupConvergeStatus writes the convergence status to the response
@@ -47,49 +48,49 @@ func (op *AddonOperator) reportStartupConvergeStatus(w http.ResponseWriter) {
 	}
 }
 
-// checkLeaderReadiness queries the leader instance to determine overall readiness
-func (op *AddonOperator) checkLeaderReadiness(w http.ResponseWriter) {
+// checkLeaderReadiness queries the leader instance to determine overall readiness.
+func (op *AddonOperator) checkLeaderReadiness(w http.ResponseWriter, ctx context.Context) {
 	leader := op.LeaderElector.GetLeader()
 	if leader == "" {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("HA mode is enabled but no leader is elected\n"))
-
+		http.Error(w, "HA mode is enabled but no leader is elected", http.StatusInternalServerError)
 		return
 	}
 
-	// Create context with timeout for the request
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	// Query the leader's readiness
+	if op.leaderReadinessCheck != nil {
+		if err := op.leaderReadinessCheck(ctx, leader); err != nil {
+			http.Error(w, "HA mode is enabled but couldn't check the leader's readiness", http.StatusInternalServerError)
+			return
+		}
+	} else if err := defaultLeaderReadinessCheck(ctx, leader); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("HA mode is enabled and waiting for acquiring the lock.\n"))
+}
+
+func defaultLeaderReadinessCheck(ctx context.Context, leader string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		fmt.Sprintf("http://%s:%s/readyz", leader, app.ListenPort), nil)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("HA mode is enabled but couldn't craft a request to the leader\n"))
-
-		return
+		return errors.New("HA mode is enabled but couldn't craft a request to the leader")
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("HA mode is enabled but couldn't send a request to the leader\n"))
-
-		return
+		return errors.New("HA mode is enabled but couldn't send a request to the leader")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("HA mode is enabled but the leader's status response code isn't OK\n"))
-
-		return
+		return errors.New("HA mode is enabled but the leader's status response code isn't OK")
 	}
 
-	// If leader is OK and we're not the leader, we're in a standby state which is OK
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("HA mode is enabled and waiting for acquiring the lock.\n"))
+	return nil
 }
 
 // registerDefaultRoutes sets up the standard HTTP endpoints for the AddonOperator
