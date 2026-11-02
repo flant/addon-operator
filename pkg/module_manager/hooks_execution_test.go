@@ -47,6 +47,11 @@ type executionFixture struct {
 
 func newExecutionFixture(t *testing.T) *executionFixture {
 	t.Helper()
+	return newExecutionFixtureWithConfig(t, `{"configVersion":"v1","beforeHelm":10,"afterDeleteHelm":10,"kubernetes":[{"name":"config","apiVersion":"v1","kind":"ConfigMap","namespace":{"nameSelector":{"matchNames":["default"]}},"nameSelector":{"matchNames":["existing-config"]},"jqFilter":".metadata.name"}]}`)
+}
+
+func newExecutionFixtureWithConfig(t *testing.T, config string) *executionFixture {
+	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -57,11 +62,11 @@ func newExecutionFixture(t *testing.T) *executionFixture {
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "hooks"), 0o755))
 	script := fmt.Sprintf(`#!/bin/sh
 if [ "$1" = "--config" ]; then
-    echo '{"configVersion":"v1","beforeHelm":10,"afterDeleteHelm":10,"kubernetes":[{"name":"config","apiVersion":"v1","kind":"ConfigMap","namespace":{"nameSelector":{"matchNames":["default"]}},"nameSelector":{"matchNames":["existing-config"]},"jqFilter":".metadata.name"}]}'
+    echo '%s'
     exit 0
 fi
 cat "$BINDING_CONTEXT_PATH" > %q
-`, marker)
+`, config, marker)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "hooks", "config.sh"), []byte(script), 0o755))
 
 	module, err := modules.NewBasicModule("example", dir, 1, utils.Values{}, nil, nil)
