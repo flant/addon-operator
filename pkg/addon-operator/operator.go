@@ -487,9 +487,10 @@ func (op *AddonOperator) Stop() {
 }
 
 func (op *AddonOperator) StartAPIServer() {
+	op.registerReadyzRoute()
+	op.registerProfilerRedirects()
 	// start http server with metrics
 	op.engine.APIServer.Start(op.ctx)
-	op.registerReadyzRoute()
 }
 
 // KubeClient returns default common kubernetes client initialized by shell-operator

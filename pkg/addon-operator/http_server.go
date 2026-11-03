@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -16,6 +17,21 @@ import (
 // registerReadyzRoute registers a readiness endpoint for the AddonOperator
 func (op *AddonOperator) registerReadyzRoute() {
 	op.engine.APIServer.RegisterRoute(http.MethodGet, "/readyz", op.handleReadinessCheck)
+}
+
+func (op *AddonOperator) registerProfilerRedirects() {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/debug", redirectToProfilerIndex("debug/pprof/"))
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/debug/", redirectToProfilerIndex("pprof/"))
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/debug/pprof", redirectToProfilerIndex("pprof/"))
+}
+
+func redirectToProfilerIndex(relativePath string) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		// Relative redirects preserve the external path prefix of a reverse proxy.
+		location := url.URL{Path: relativePath, RawQuery: request.URL.RawQuery}
+		writer.Header().Set("Location", location.String())
+		writer.WriteHeader(http.StatusMovedPermanently)
+	}
 }
 
 // handleReadinessCheck responds with the readiness state of the operator
@@ -107,20 +123,22 @@ func (op *AddonOperator) registerDefaultRoutes() {
 
 // handleRootPage serves the main HTML page with links to all available endpoints
 func (op *AddonOperator) handleRootPage(writer http.ResponseWriter, _ *http.Request) {
-	_, _ = fmt.Fprintf(writer, `<html>
+	_, _ = fmt.Fprint(writer, `<html>
 	<head><title>Addon-operator</title></head>
 	<body>
 	<h1>Addon-operator</h1>
-	<pre>go tool pprof http://ADDON_OPERATOR_IP:%s/debug/pprof/profile</pre>
+	<p>Download a <a href="debug/pprof/">runtime profile</a> and inspect the saved file:</p>
+	<pre>go tool pprof profile.pprof</pre>
 	<p>
-	  <a href="/discovery">show all possible routes</a>
-	  <a href="/metrics">prometheus metrics for built-in parameters</a>
-	  <a href="/metrics/hooks">prometheus metrics for user hooks</a>
-	  <a href="/healthz">health url</a>
-	  <a href="/readyz">ready url</a>
+	  <a href="discovery">show all possible routes</a>
+	  <a href="metrics">prometheus metrics for built-in parameters</a>
+	  <a href="metrics/hooks">prometheus metrics for user hooks</a>
+	  <a href="healthz">health url</a>
+	  <a href="readyz">ready url</a>
 	</p>
+	<p>Routes in discovery are listed without a reverse-proxy prefix.</p>
 	</body>
-	</html>`, app.ListenPort)
+	</html>`)
 }
 
 // handleHealthCheck responds with 200 OK for health probes
