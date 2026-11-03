@@ -12,6 +12,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 	metricsstorage "github.com/deckhouse/deckhouse/pkg/metrics-storage"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 
 	"github.com/flant/addon-operator/pkg"
@@ -64,6 +65,10 @@ type AddonOperator struct {
 	config *app.Config
 
 	runtimeConfig *runtimeConfig.Config
+
+	// objectTransform is passed to shell-operator: the hooks' informers apply it
+	// to every object before caching and filtering. nil keeps objects as is.
+	objectTransform cache.TransformFunc
 
 	// a map of channels to communicate with parallel queues and its lock
 	parallelTaskChannels *paralleltask.TaskChannels
@@ -124,6 +129,17 @@ func WithLogger(logger *log.Logger) Option {
 func WithConfig(cfg *app.Config) Option {
 	return func(operator *AddonOperator) {
 		operator.config = cfg
+	}
+}
+
+// WithObjectTransform sets a function that the informers of global and module
+// hooks apply to every Kubernetes object before they cache and filter it, for
+// example to drop fields that no hook reads and save memory. It must keep
+// *unstructured.Unstructured objects of that type and be idempotent; see
+// shell_operator.WithObjectTransform.
+func WithObjectTransform(fn cache.TransformFunc) Option {
+	return func(operator *AddonOperator) {
+		operator.objectTransform = fn
 	}
 }
 
@@ -272,6 +288,7 @@ func NewAddonOperator(ctx context.Context, metricsStorage, hookMetricStorage met
 		shell_operator.WithMetricStorage(metricsStorage),
 		shell_operator.WithHookMetricStorage(hookMetricStorage),
 		shell_operator.WithLogger(ao.Logger.Named("shell-operator")),
+		shell_operator.WithObjectTransform(ao.objectTransform),
 	)
 
 	// initialize logging before Assemble
