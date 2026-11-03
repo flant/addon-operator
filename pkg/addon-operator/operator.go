@@ -352,13 +352,7 @@ func (op *AddonOperator) WithLeaderElector(config *leaderelection.LeaderElection
 // Returns an error if any initialization step fails.
 func (op *AddonOperator) Setup() error {
 	// Helm client factory.
-	helmClient, err := helm.InitHelmClientFactory(&helm.Options{
-		Namespace:     op.DefaultNamespace,
-		HistoryMax:    app.Helm3HistoryMax,
-		Timeout:       app.Helm3Timeout,
-		Logger:        op.Logger.Named("helm"),
-		MetricStorage: op.MetricStorage,
-	}, op.CRDExtraLabels)
+	helmClient, err := helm.InitHelmClientFactory(op.helmOptions(), op.CRDExtraLabels)
 	if err != nil {
 		return fmt.Errorf("initialize Helm: %s", err)
 	}
@@ -393,6 +387,17 @@ func (op *AddonOperator) Setup() error {
 	op.SetupModuleManager(app.ModulesDir, globalHooksDir, tempDir)
 
 	return nil
+}
+
+func (op *AddonOperator) helmOptions() *helm.Options {
+	return &helm.Options{
+		Namespace:         op.DefaultNamespace,
+		HistoryMax:        app.Helm3HistoryMax,
+		Timeout:           app.Helm3Timeout,
+		HelmIgnoreRelease: app.HelmIgnoreRelease,
+		Logger:            op.Logger.Named("helm"),
+		MetricStorage:     op.MetricStorage,
+	}
 }
 
 func ensureTempDirectory(inDir string) (string, error) {
