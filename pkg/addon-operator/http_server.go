@@ -50,7 +50,7 @@ func (op *AddonOperator) handleReadinessCheck(w http.ResponseWriter, req *http.R
 	}
 
 	// This instance is not the leader - check the leader's status
-	op.checkLeaderReadiness(w, req.Context())
+	op.checkLeaderReadiness(req.Context(), w)
 }
 
 // reportStartupConvergeStatus writes the convergence status to the response
@@ -65,7 +65,7 @@ func (op *AddonOperator) reportStartupConvergeStatus(w http.ResponseWriter) {
 }
 
 // checkLeaderReadiness queries the leader instance to determine overall readiness.
-func (op *AddonOperator) checkLeaderReadiness(w http.ResponseWriter, ctx context.Context) {
+func (op *AddonOperator) checkLeaderReadiness(ctx context.Context, w http.ResponseWriter) {
 	leader := op.LeaderElector.GetLeader()
 	if leader == "" {
 		http.Error(w, "HA mode is enabled but no leader is elected", http.StatusInternalServerError)
