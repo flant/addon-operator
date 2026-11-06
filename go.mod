@@ -10,7 +10,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.10.0
-	github.com/flant/shell-operator v1.21.3
+	github.com/flant/shell-operator v1.21.5
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-openapi/loads v0.23.2
 	github.com/go-openapi/spec v0.22.1
@@ -43,7 +43,7 @@ require (
 
 require (
 	github.com/go-openapi/swag/loading v0.26.0
-	github.com/werf/nelm/v2 v2.2.1
+	github.com/werf/nelm/v2 v2.3.0
 )
 
 require (
@@ -205,7 +205,7 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wI2L/jsondiff v0.7.0 // indirect
 	github.com/werf/common-go v0.0.0-20260831162604-46c3b45163be // indirect
-	github.com/werf/kubedog v0.13.1-0.20260915153156-438ef109f804 // indirect
+	github.com/werf/kubedog v0.13.1-0.20261103160714-1ed920dee18b // indirect
 	github.com/werf/lockgate v0.1.1 // indirect
 	github.com/werf/logboek v0.6.1 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
