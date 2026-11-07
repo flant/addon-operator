@@ -98,6 +98,8 @@ type AddonOperator struct {
 	// LeaderElector represents leaderelection client for HA mode
 	LeaderElector *leaderelection.LeaderElector
 
+	leaderReadinessCheck func(context.Context, string) error
+
 	// CRDExtraLabels contains labels for processing CRD files
 	// like heritage=addon-operator
 	CRDExtraLabels map[string]string
@@ -115,6 +117,16 @@ type Option func(operator *AddonOperator)
 func WithLogger(logger *log.Logger) Option {
 	return func(operator *AddonOperator) {
 		operator.Logger = logger
+	}
+}
+
+// WithLeaderReadinessCheck sets the leader probe used by standby replicas.
+// The check receives the leader identity and returns nil when the leader is ready.
+// It must honor context cancellation and support concurrent calls.
+// A nil check keeps the default HTTP probe on the operator's listen port.
+func WithLeaderReadinessCheck(check func(context.Context, string) error) Option {
+	return func(operator *AddonOperator) {
+		operator.leaderReadinessCheck = check
 	}
 }
 
@@ -492,9 +504,10 @@ func (op *AddonOperator) Stop() {
 }
 
 func (op *AddonOperator) StartAPIServer() {
+	op.registerReadyzRoute()
+	op.registerProfilerRedirects()
 	// start http server with metrics
 	op.engine.APIServer.Start(op.ctx)
-	op.registerReadyzRoute()
 }
 
 // KubeClient returns default common kubernetes client initialized by shell-operator
