@@ -14,6 +14,7 @@ import (
 	"github.com/flant/addon-operator/pkg/helm_resources_manager"
 	"github.com/flant/addon-operator/pkg/metrics"
 	"github.com/flant/addon-operator/pkg/module_manager"
+	"github.com/flant/addon-operator/pkg/module_manager/models/hooks"
 	"github.com/flant/addon-operator/pkg/task"
 	"github.com/flant/addon-operator/pkg/task/helpers"
 	taskqueue "github.com/flant/addon-operator/pkg/task/queue"
@@ -92,21 +93,61 @@ func (s *Task) Handle(ctx context.Context) queue.TaskResult {
 
 	hm := task.HookMetadataAccessor(s.shellTask)
 	baseModule := s.moduleManager.GetModule(hm.ModuleName)
-	// TODO: check if module exists
-	taskHook := baseModule.GetHookByName(hm.HookName)
 
-	// Prevent hook running in parallel queue if module is disabled in "main" queue.
-	if !s.moduleManager.IsModuleEnabled(baseModule.GetName()) {
+	if baseModule == nil {
 		res.Status = queue.Success
 		return res
 	}
 
-	err := taskHook.RateLimitWait(context.Background())
-	if err != nil {
-		// This could happen when the Context is
-		// canceled, or the expected wait time exceeds the Context's Deadline.
-		// The best we can do without proper context usage is to repeat the task.
+	if ctx.Err() != nil {
 		res.Status = queue.Repeat
+		return res
+	}
+
+	taskHook := func() *hooks.ModuleHook {
+		if !baseModule.AcquireExecutionPermit() {
+			return nil
+		}
+		defer baseModule.ReleaseExecutionPermit()
+
+		if s.moduleManager.GetModule(hm.ModuleName) != baseModule ||
+			!s.moduleManager.IsModuleEnabled(hm.ModuleName) {
+			return nil
+		}
+
+		return baseModule.GetHookByName(hm.HookName)
+	}()
+	if taskHook == nil {
+		res.Status = queue.Success
+		return res
+	}
+
+	// Rate limiting must not delay module shutdown.
+	if err := taskHook.RateLimitWait(ctx); err != nil {
+		res.Status = queue.Repeat
+		return res
+	}
+
+	if ctx.Err() != nil {
+		res.Status = queue.Repeat
+		return res
+	}
+
+	if !baseModule.AcquireExecutionPermit() {
+		res.Status = queue.Success
+		return res
+	}
+	defer baseModule.ReleaseExecutionPermit()
+
+	if ctx.Err() != nil {
+		res.Status = queue.Repeat
+		return res
+	}
+
+	// A module can be disabled and registered again while the task waits.
+	if s.moduleManager.GetModule(hm.ModuleName) != baseModule ||
+		!s.moduleManager.IsModuleEnabled(hm.ModuleName) || baseModule.GetHookByName(hm.HookName) != taskHook {
+		res.Status = queue.Success
 		return res
 	}
 
