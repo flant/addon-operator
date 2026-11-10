@@ -74,7 +74,7 @@ type CommonOptions struct {
 
 type NelmActions interface {
 	ReleaseGet(ctx context.Context, name, namespace string, opts action.ReleaseGetOptions) (*action.ReleaseGetResultV1, error)
-	ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) error
+	ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) (*action.ReleaseInstallResultV1, error)
 	ReleaseUninstall(ctx context.Context, name, namespace string, opts action.ReleaseUninstallOptions) error
 	ReleaseList(ctx context.Context, opts action.ReleaseListOptions) (*action.ReleaseListResultV1, error)
 	ChartRender(ctx context.Context, opts action.ChartRenderOptions) (*action.ChartRenderResultV2, error)
@@ -86,7 +86,7 @@ func (d *DefaultNelmActions) ReleaseGet(ctx context.Context, name, namespace str
 	return action.ReleaseGet(ctx, name, namespace, opts)
 }
 
-func (d *DefaultNelmActions) ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) error {
+func (d *DefaultNelmActions) ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) (*action.ReleaseInstallResultV1, error) {
 	return action.ReleaseInstall(ctx, name, namespace, opts)
 }
 
@@ -126,7 +126,8 @@ func (s *SafeNelmActions) ReleaseGet(ctx context.Context, name, namespace string
 	return s.wrapped.ReleaseGet(ctx, name, namespace, opts)
 }
 
-func (s *SafeNelmActions) ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) (err error) {
+//nolint:nonamedreturns // named returns required for defer/recover to modify return values
+func (s *SafeNelmActions) ReleaseInstall(ctx context.Context, name, namespace string, opts action.ReleaseInstallOptions) (result *action.ReleaseInstallResultV1, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("panic in ReleaseInstall",
@@ -386,7 +387,7 @@ func (c *NelmClient) UpgradeRelease(releaseName, modulePath string, valuesPaths 
 		installGraphPath = filepath.Join(graphDir, graphFile)
 	}
 
-	if err := c.actions.ReleaseInstall(ctx, releaseName, namespace, action.ReleaseInstallOptions{
+	if _, err := c.actions.ReleaseInstall(ctx, releaseName, namespace, action.ReleaseInstallOptions{
 		KubeConnectionOptions: common.KubeConnectionOptions{
 			KubeContextCurrent: c.opts.KubeContext,
 		},
