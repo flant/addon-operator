@@ -10,7 +10,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/ettle/strcase v0.2.0
 	github.com/flant/kube-client v1.7.0
-	github.com/flant/shell-operator v1.17.7
+	github.com/flant/shell-operator v1.17.8
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-openapi/loads v0.23.1
 	github.com/go-openapi/spec v0.22.0
@@ -27,7 +27,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.19.0
-	github.com/werf/nelm v1.30.4
+	github.com/werf/nelm v1.31.3
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.17.4
@@ -216,7 +216,7 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wI2L/jsondiff v0.5.0 // indirect
 	github.com/werf/common-go v0.0.0-20251113140850-a1a98e909e9b // indirect
-	github.com/werf/kubedog v0.13.1-0.20260912145640-ad1e8a134607 // indirect
+	github.com/werf/kubedog v0.13.1-0.20261103161329-f1eefb59d19a // indirect
 	github.com/werf/lockgate v0.1.1 // indirect
 	github.com/werf/logboek v0.6.1 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
