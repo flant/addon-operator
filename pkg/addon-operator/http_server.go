@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
+
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 )
@@ -77,7 +81,12 @@ func (op *AddonOperator) checkLeaderReadiness(ctx context.Context, w http.Respon
 
 	if op.leaderReadinessCheck != nil {
 		if err := op.leaderReadinessCheck(ctx, leader); err != nil {
+			// The cause goes to the log only: /readyz may be served without authentication.
+			op.Logger.Debug("leader readiness check failed",
+				slog.String(pkg.LogKeyLeader, leader),
+				log.Err(err))
 			http.Error(w, "HA mode is enabled but couldn't check the leader's readiness", http.StatusInternalServerError)
+
 			return
 		}
 	} else if err := defaultLeaderReadinessCheck(ctx, leader); err != nil {

@@ -1,8 +1,10 @@
 package addon_operator
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/stretchr/testify/require"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,10 +30,17 @@ func TestReadinessCustomLeaderCheck(t *testing.T) {
 		err    error
 		cancel bool
 		status int
+		logged string
 	}{
 		{name: "ready", status: http.StatusOK},
-		{name: "not ready", err: errors.New("leader is not ready"), status: http.StatusInternalServerError},
-		{name: "request canceled", cancel: true, status: http.StatusInternalServerError},
+		{
+			name: "not ready", err: errors.New("leader is not ready"),
+			status: http.StatusInternalServerError, logged: "leader is not ready",
+		},
+		{
+			name: "request canceled", cancel: true,
+			status: http.StatusInternalServerError, logged: context.Canceled.Error(),
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var requests atomic.Int32
@@ -38,7 +48,11 @@ func TestReadinessCustomLeaderCheck(t *testing.T) {
 				requests.Add(1)
 				w.WriteHeader(http.StatusOK)
 			})
-			op := &AddonOperator{LeaderElector: readinessElector(t, "standby", leader)}
+			var logs bytes.Buffer
+			op := &AddonOperator{
+				LeaderElector: readinessElector(t, "standby", leader),
+				Logger:        log.NewLogger(log.WithOutput(&logs), log.WithLevel(slog.LevelDebug)),
+			}
 			type contextKey struct{}
 			ctx, cancel := context.WithCancel(context.WithValue(context.Background(), contextKey{}, "request value"))
 			defer cancel()
@@ -67,6 +81,14 @@ func TestReadinessCustomLeaderCheck(t *testing.T) {
 			require.Equal(t, tc.status, response.Code)
 			require.True(t, called)
 			require.Zero(t, requests.Load(), "custom checks must not fall back to HTTP")
+			if tc.logged == "" {
+				require.Empty(t, logs.String())
+				return
+			}
+			require.Contains(t, logs.String(), "leader readiness check failed")
+			require.Contains(t, logs.String(), leader)
+			require.Contains(t, logs.String(), tc.logged)
+			require.Equal(t, "HA mode is enabled but couldn't check the leader's readiness\n", response.Body.String())
 		})
 	}
 }
@@ -90,7 +112,7 @@ func TestReadinessDefaultLeaderCheck(t *testing.T) {
 						}
 						w.WriteHeader(status)
 					})
-					op := &AddonOperator{LeaderElector: readinessElector(t, "standby", leader)}
+					op := &AddonOperator{LeaderElector: readinessElector(t, "standby", leader), Logger: log.NewNop()}
 					if option.apply != nil {
 						option.apply(op)
 					}
@@ -111,7 +133,7 @@ func TestReadinessDefaultLeaderCheck(t *testing.T) {
 }
 
 func TestReadinessWithoutLeader(t *testing.T) {
-	op := &AddonOperator{LeaderElector: readinessElector(t, "standby", "")}
+	op := &AddonOperator{LeaderElector: readinessElector(t, "standby", ""), Logger: log.NewNop()}
 	called := false
 	WithLeaderReadinessCheck(func(context.Context, string) error {
 		called = true
@@ -128,7 +150,7 @@ func TestReadinessLocalConverge(t *testing.T) {
 	for _, mode := range []string{"non-HA", "leader"} {
 		t.Run(mode, func(t *testing.T) {
 			for _, phase := range []converge.FirstConvergePhase{converge.FirstStarted, converge.FirstDone} {
-				op := &AddonOperator{ConvergeState: converge.NewConvergeState()}
+				op := &AddonOperator{ConvergeState: converge.NewConvergeState(), Logger: log.NewNop()}
 				op.ConvergeState.SetFirstRunPhase(phase)
 				if mode == "leader" {
 					op.LeaderElector = readinessElector(t, "self", "self")

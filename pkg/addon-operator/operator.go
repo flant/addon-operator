@@ -123,6 +123,7 @@ func WithLogger(logger *log.Logger) Option {
 // WithLeaderReadinessCheck sets the leader probe used by standby replicas.
 // The check receives the leader identity and returns nil when the leader is ready.
 // It must honor context cancellation and support concurrent calls.
+// A returned error is logged at the debug level and is not sent to the client.
 // A nil check keeps the default HTTP probe on the operator's listen port.
 func WithLeaderReadinessCheck(check func(context.Context, string) error) Option {
 	return func(operator *AddonOperator) {
