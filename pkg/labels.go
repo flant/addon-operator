@@ -61,6 +61,7 @@ const (
 	LogKeyID                          = "id"
 	LogKeyKey                         = "key"
 	LogKeyKind                        = "kind"
+	LogKeyLeader                      = "leader"
 	LogKeyMaintenanceFlag             = "maintenanceFlag"
 	LogKeyModuleEnabledStateChanged   = "moduleEnabledStateChanged"
 	LogKeyModuleMaintenanceChanged    = "ModuleMaintenanceChanged"
