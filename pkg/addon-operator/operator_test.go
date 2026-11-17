@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
+	"github.com/flant/addon-operator/pkg/app"
 	mockhelm "github.com/flant/addon-operator/pkg/helm/test/mock"
 	mockhelmresmgr "github.com/flant/addon-operator/pkg/helm_resources_manager/test/mock"
 	. "github.com/flant/addon-operator/pkg/hook/types"
@@ -170,6 +171,18 @@ func assembleTestAddonOperator(t *testing.T, configPath string) (*AddonOperator,
 	}, log.NewNop())
 
 	return op, result
+}
+
+func TestHelmOptionsIncludeIgnoredRelease(t *testing.T) {
+	g := NewWithT(t)
+	previous := app.HelmIgnoreRelease
+	app.HelmIgnoreRelease = "release-to-ignore"
+	t.Cleanup(func() { app.HelmIgnoreRelease = previous })
+
+	op := &AddonOperator{Logger: log.NewNop()}
+	options := op.helmOptions()
+
+	g.Expect(options.HelmIgnoreRelease).To(Equal("release-to-ignore"))
 }
 
 func convergeDone(op *AddonOperator) func(g Gomega) bool {
