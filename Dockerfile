@@ -33,7 +33,7 @@ RUN GOOS=linux \
     go build -o post-renderer ./cmd/post-renderer
 
 # Final image
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.23
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.24
 ARG TARGETPLATFORM
 ARG kubectlVersion=v1.35.8
 
