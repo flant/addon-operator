@@ -297,6 +297,7 @@ func newHookConfigFromGoConfig(input *gohook.HookConfig) (config.HookConfig, err
 		monitor.WithFieldSelector(kubeCfg.FieldSelector)
 		monitor.WithNamespaceSelector(kubeCfg.NamespaceSelector)
 		monitor.WithLabelSelector(kubeCfg.LabelSelector)
+		monitor.KeepManagedFields = kubeCfg.KeepManagedFields
 
 		if kubeCfg.FilterFunc == nil {
 			return config.HookConfig{}, errors.New(`"FilterFunc" in KubernetesConfig cannot be nil`)
