@@ -115,6 +115,10 @@ type KubernetesConfig struct {
 	ExecuteHookOnSynchronization *bool
 	// WaitForSynchronization is true by default. Set to false if beforeHelm is not required this snapshot on start.
 	WaitForSynchronization *bool
+	// KeepManagedFields is false by default. Set to true if FilterFunc reads metadata.managedFields:
+	// the object transform (see WithObjectTransform of the addon operator) may drop them.
+	// Such a binding gets its own informer, which costs one more LIST and WATCH.
+	KeepManagedFields bool
 	// FilterFunc used to filter object content for snapshot. Addon-operator use checksum of this filtered result to ignore irrelevant events.
 	FilterFunc FilterFunc
 }
