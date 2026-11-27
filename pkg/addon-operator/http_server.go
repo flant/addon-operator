@@ -3,11 +3,17 @@ package addon_operator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
+
+	"github.com/flant/addon-operator/pkg"
 	"github.com/flant/addon-operator/pkg/addon-operator/converge"
 	"github.com/flant/addon-operator/pkg/app"
 )
@@ -17,8 +23,23 @@ func (op *AddonOperator) registerReadyzRoute() {
 	op.engine.APIServer.RegisterRoute(http.MethodGet, "/readyz", op.handleReadinessCheck)
 }
 
+func (op *AddonOperator) registerProfilerRedirects() {
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/debug", redirectToProfilerIndex("debug/pprof/"))
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/debug/", redirectToProfilerIndex("pprof/"))
+	op.engine.APIServer.RegisterRoute(http.MethodGet, "/debug/pprof", redirectToProfilerIndex("pprof/"))
+}
+
+func redirectToProfilerIndex(relativePath string) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		// Relative redirects preserve the external path prefix of a reverse proxy.
+		location := url.URL{Path: relativePath, RawQuery: request.URL.RawQuery}
+		writer.Header().Set("Location", location.String())
+		writer.WriteHeader(http.StatusMovedPermanently)
+	}
+}
+
 // handleReadinessCheck responds with the readiness state of the operator
-func (op *AddonOperator) handleReadinessCheck(w http.ResponseWriter, _ *http.Request) {
+func (op *AddonOperator) handleReadinessCheck(w http.ResponseWriter, req *http.Request) {
 	if op.LeaderElector == nil {
 		// Standard mode (no HA)
 		op.reportStartupConvergeStatus(w)
@@ -33,7 +54,7 @@ func (op *AddonOperator) handleReadinessCheck(w http.ResponseWriter, _ *http.Req
 	}
 
 	// This instance is not the leader - check the leader's status
-	op.checkLeaderReadiness(w)
+	op.checkLeaderReadiness(req.Context(), w)
 }
 
 // reportStartupConvergeStatus writes the convergence status to the response
@@ -47,49 +68,54 @@ func (op *AddonOperator) reportStartupConvergeStatus(w http.ResponseWriter) {
 	}
 }
 
-// checkLeaderReadiness queries the leader instance to determine overall readiness
-func (op *AddonOperator) checkLeaderReadiness(w http.ResponseWriter) {
+// checkLeaderReadiness queries the leader instance to determine overall readiness.
+func (op *AddonOperator) checkLeaderReadiness(ctx context.Context, w http.ResponseWriter) {
 	leader := op.LeaderElector.GetLeader()
 	if leader == "" {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("HA mode is enabled but no leader is elected\n"))
-
+		http.Error(w, "HA mode is enabled but no leader is elected", http.StatusInternalServerError)
 		return
 	}
 
-	// Create context with timeout for the request
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	// Query the leader's readiness
+	if op.leaderReadinessCheck != nil {
+		if err := op.leaderReadinessCheck(ctx, leader); err != nil {
+			// The cause goes to the log only: /readyz may be served without authentication.
+			op.Logger.Debug("leader readiness check failed",
+				slog.String(pkg.LogKeyLeader, leader),
+				log.Err(err))
+			http.Error(w, "HA mode is enabled but couldn't check the leader's readiness", http.StatusInternalServerError)
+
+			return
+		}
+	} else if err := defaultLeaderReadinessCheck(ctx, leader); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("HA mode is enabled and waiting for acquiring the lock.\n"))
+}
+
+func defaultLeaderReadinessCheck(ctx context.Context, leader string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		fmt.Sprintf("http://%s:%s/readyz", leader, app.ListenPort), nil)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("HA mode is enabled but couldn't craft a request to the leader\n"))
-
-		return
+		return errors.New("HA mode is enabled but couldn't craft a request to the leader")
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("HA mode is enabled but couldn't send a request to the leader\n"))
-
-		return
+		return errors.New("HA mode is enabled but couldn't send a request to the leader")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("HA mode is enabled but the leader's status response code isn't OK\n"))
-
-		return
+		return errors.New("HA mode is enabled but the leader's status response code isn't OK")
 	}
 
-	// If leader is OK and we're not the leader, we're in a standby state which is OK
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("HA mode is enabled and waiting for acquiring the lock.\n"))
+	return nil
 }
 
 // registerDefaultRoutes sets up the standard HTTP endpoints for the AddonOperator
@@ -106,20 +132,22 @@ func (op *AddonOperator) registerDefaultRoutes() {
 
 // handleRootPage serves the main HTML page with links to all available endpoints
 func (op *AddonOperator) handleRootPage(writer http.ResponseWriter, _ *http.Request) {
-	_, _ = fmt.Fprintf(writer, `<html>
+	_, _ = fmt.Fprint(writer, `<html>
 	<head><title>Addon-operator</title></head>
 	<body>
 	<h1>Addon-operator</h1>
-	<pre>go tool pprof http://ADDON_OPERATOR_IP:%s/debug/pprof/profile</pre>
+	<p>Download a <a href="debug/pprof/">runtime profile</a> and inspect the saved file:</p>
+	<pre>go tool pprof profile.pprof</pre>
 	<p>
-	  <a href="/discovery">show all possible routes</a>
-	  <a href="/metrics">prometheus metrics for built-in parameters</a>
-	  <a href="/metrics/hooks">prometheus metrics for user hooks</a>
-	  <a href="/healthz">health url</a>
-	  <a href="/readyz">ready url</a>
+	  <a href="discovery">show all possible routes</a>
+	  <a href="metrics">prometheus metrics for built-in parameters</a>
+	  <a href="metrics/hooks">prometheus metrics for user hooks</a>
+	  <a href="healthz">health url</a>
+	  <a href="readyz">ready url</a>
 	</p>
+	<p>Routes in discovery are listed without a reverse-proxy prefix.</p>
 	</body>
-	</html>`, app.ListenPort)
+	</html>`)
 }
 
 // handleHealthCheck responds with 200 OK for health probes
